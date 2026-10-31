@@ -104,6 +104,9 @@ import type { PictureController } from './pictures.js';
 import { CaotangProvenance } from './provenance-plugin.js';
 import { slashMenu } from './slash-menu.js';
 
+/** The marks a container may carry on its children when the review layer is on (editor-engine §15, the library's README). */
+const REVIEW_BLOCK_MARKS = 'insertion modification deletion';
+
 /** §3.1's list item name. Tiptap's list extensions look it up by option, not by name. */
 const LIST_ITEM = 'list_item';
 
@@ -174,6 +177,11 @@ export interface CaotangExtensionOptions {
    * resolves itself, and there is no insert path: the headless callers and the ghost take that.
    */
   pictures?: PictureController;
+  /**
+   * Let the containers carry the three review marks as block marks (§15), so a whole inserted or deleted paragraph or list item can be
+   * marked. Only the lazily loaded review layer (`suggestions.ts`) passes it, together with the marks it adds.
+   */
+  reviewMarks?: boolean;
 }
 
 /**
@@ -183,13 +191,16 @@ export interface CaotangExtensionOptions {
 export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extensions => {
   const role: CaotangRole = options.role ?? 'focus';
   const labels: EditorLabels = { ...DEFAULT_EDITOR_LABELS, ...options.labels };
+  const blockMarks = options.reviewMarks === true ? { marks: REVIEW_BLOCK_MARKS } : {};
   // The schema-shaping half. Its order is the mark rank: `Italic` precedes `Bold`
   // and `Strike` precedes `Code`, because the list is what the stable priority sort
   // keeps. Changing this order changes which way nested marks save.
   const pictures = options.pictures;
   const shape: Extensions = [
-    // The source-provenance map (source-provenance.ts) rides on the document; it is never rendered.
+    // The source-provenance map (source-provenance.ts) rides on the document; it is never rendered. With the review layer the
+    // containers also carry the review marks as block marks (§15).
     Document.extend({
+      ...blockMarks,
       addAttributes() {
         return { provenance: { default: undefined, rendered: false, parseHTML: () => undefined } };
       },
@@ -197,16 +208,17 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     Paragraph,
     Text,
     Heading,
-    Blockquote,
-    BulletList.extend({ name: 'bullet_list', defining: true }).configure({ itemTypeName: LIST_ITEM }),
+    Blockquote.extend(blockMarks),
+    BulletList.extend({ name: 'bullet_list', defining: true, ...blockMarks }).configure({ itemTypeName: LIST_ITEM }),
     OrderedList.extend({
       name: 'ordered_list',
       defining: true,
+      ...blockMarks,
       addAttributes() {
         return { start: { default: 1 } };
       },
     }).configure({ itemTypeName: LIST_ITEM }),
-    ListItem.extend({ name: LIST_ITEM, group: 'listitem', content: 'block+', defining: false }),
+    ListItem.extend({ name: LIST_ITEM, group: 'listitem', content: 'block+', defining: false, ...blockMarks }),
     HorizontalRule.extend({ name: 'horizontal_rule' }),
     CodeBlock.extend({ name: 'code_block' }),
     HardBreak.extend({ name: 'hard_break' }),

@@ -29,6 +29,8 @@ export interface ProviderErrorInit {
   retryAfterMs?: number;
   /** A second attempt cannot change the answer, whatever the kind says (a browser's CORS refusal of a local server). */
   permanent?: boolean;
+  /** The browser's `fetch` rejected without an HTTP answer and without saying why: a CORS refusal looks the same as a dropped connection. */
+  rejected?: boolean;
 }
 
 /** A failure the harness can act on. Thrown from `complete` and `listModels`. */
@@ -38,6 +40,7 @@ export class ProviderError extends Error {
   readonly detail: string | undefined;
   readonly retryAfterMs: number | undefined;
   readonly permanent: boolean;
+  readonly rejected: boolean;
 
   constructor(kind: ProviderErrorKind, message: string, init: ProviderErrorInit = {}) {
     super(message);
@@ -47,6 +50,7 @@ export class ProviderError extends Error {
     this.detail = init.detail;
     this.retryAfterMs = init.retryAfterMs;
     this.permanent = init.permanent === true;
+    this.rejected = init.rejected === true;
   }
 }
 
@@ -68,6 +72,13 @@ export const providerMessages = {
   protocol: (host: string, excerpt: string): string => `${host} sent a response Caotang could not read: ${excerpt}`,
   contextLength: (promptTokens: number, window: number | string): string =>
     `Prompt ≈ ${promptTokens} tokens exceeds model window (${window}). Reduce context: see activity log token budget.`,
+  /**
+   * The model list of a preset the sweep found browser-reachable, when the browser rejected that one request. The chat route is
+   * a different request and may answer; a mistyped key can look the same, because a provider's 401 for the list may carry no
+   * CORS header. So it says what was not read, not that the host cannot be reached.
+   */
+  modelListUnreadable: (host: string): string =>
+    `The browser did not let this page read the model list from ${host}. That happens when the connection is down, and also when ${host} does not allow a web page to read that answer (a mistyped key can look the same). Chat may still work: send a message to find out, or check the key in Settings.`,
   /** A model server on this computer that the browser could not use. `fix` is the preset's exact setting. */
   localCors: (product: string, fix: string): string =>
     `${product} did not accept the request from this page, so the browser blocked it. ${fix}`,

@@ -6,8 +6,9 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { isEmojiPresentation, isExtendedPictographic } from 'unicode-segmenter/emoji';
 import { describe, expect, it } from 'vitest';
-import { emojiKey, emojiLayoutGlyph, emojiPrint, emojiStyleOf, firstCodePoint, graphemesOf, isEmojiCluster, isEmojiPicture } from '../src/emoji.js';
+import { emojiKey, emojiLayoutGlyph, emojiPrint, emojiStyleOf, firstCodePoint, graphemesOf, hasExtendedPictographic, isEmojiCluster, isEmojiPicture } from '../src/emoji.js';
 
 const FAMILY = '👨‍👩‍👧‍👦';
 
@@ -31,6 +32,17 @@ describe('emoji clusters', () => {
     expect(graphemesOf(`a${FAMILY}🇩🇪1️⃣e\u0301`)).toEqual(['a', FAMILY, '🇩🇪', '1️⃣', 'e\u0301']);
   });
 
+  it('uses Unicode 17 grapheme and emoji properties even when the runtime ICU data is older', () => {
+    expect(graphemesOf('🫪‍🫠')).toEqual(['🫪‍🫠']);
+    expect(emojiStyleOf('🫪')).toBe('emoji');
+  });
+
+  it('finds extended pictographs from the pinned data', () => {
+    expect(hasExtendedPictographic('a😀')).toBe(true);
+    expect(hasExtendedPictographic('a❤')).toBe(true);
+    expect(hasExtendedPictographic('hello草')).toBe(false);
+  });
+
   it('is the screenplay’s rule: an emoji prints as one glyph, a text-style pictograph does not', () => {
     const SEQUENCES = ['👨‍👩‍👧‍👦', '🧑🏽‍💻', '👍🏽', '🇩🇪', '1️⃣', '#️⃣', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', '❤️', '🎬', '🏳️‍🌈'];
     for (const unit of [...SEQUENCES, '😀', '✅', '⌚', '🏽', '©️']) expect(isEmojiCluster(unit), unit).toBe(true);
@@ -45,13 +57,11 @@ describe('emoji clusters', () => {
   it('agrees with the rule the screenplay had, on every line of Unicode’s emoji list and a few clusters besides', () => {
     // The screenplay's old classifier, kept here as the reference.
     const KEYCAP = /^[0-9#*]\uFE0F?\u20E3$/u;
-    const EMOJI_START = /^\p{Emoji_Presentation}/u;
-    const PICTOGRAPH = /\p{Extended_Pictographic}/u;
     const EMOJI_MARK = /\uFE0F|\u200D|[\u{1F3FB}-\u{1F3FF}]|[\u{E0020}-\u{E007F}]/u;
     const old = (cluster: string): boolean => {
       if (cluster.includes('\uFE0E')) return false;
-      if (EMOJI_START.test(cluster) || KEYCAP.test(cluster)) return true;
-      return PICTOGRAPH.test(cluster) && EMOJI_MARK.test(cluster);
+      if (isEmojiPresentation(cluster.codePointAt(0) ?? 0) || KEYCAP.test(cluster)) return true;
+      return [...cluster].some((char) => isExtendedPictographic(char.codePointAt(0) ?? 0)) && EMOJI_MARK.test(cluster);
     };
     const units = new Set<string>(['©', '©️', '❤', '❤︎', '☺', '☺️', '✌', '✌︎', 'a', 'e︎', '1', '🇩', '→', '↔', '↔️', '▪', '▶', '▶️', '☀', '♠️', '🫩', '草']);
     for (const line of readFileSync(new URL('./fixtures/emoji-test-17.0.txt', import.meta.url), 'utf8').split('\n')) {

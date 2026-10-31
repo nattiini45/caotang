@@ -58,10 +58,62 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   // A limitation sentence about skills names what it is about (scripts, the other files, allowed tools, sharing, running by name), before or
   // after the word. Any other sentence in these lists that names skills says the feature is missing, and it is built.
   { name: 'skills', pattern: /(?:^|[.!?]\s+|\n)(?:(?!scripts?|other files|allowed tools|shared across|by name)[^.\n])*?\bskills?\b(?![^.\n]*(?:scripts?|other files|allowed tools|shared across|by name))/i },
+  { name: 'resuming an agent run after a reload', pattern: /agent (?:runs?|turns?) (?:does|do|can)(?: not|n't) (?:survive|resume)|(?:cannot|can't|not) resum(?:e|ing) an agent (?:run|turn)/i },
+  { name: 'A4 pages and a font choice for the screenplay PDF', pattern: /US Letter only|(?:Letter|US Letter) pages only|no A4 (?:page|paper)|no choice of (?:a )?font|a choice of font/i },
+  // The CJK sentence of the limits: "Text in Noto Sans Mono CJK has no bold", "Chinese, Japanese and Korean text has no bold". Another script's missing bold does not match.
+  { name: 'bold CJK on the contact sheet', pattern: /(?:Chinese, Japanese and Korean|Noto (?:Sans )?(?:Mono )?CJK)[^.\n]*\bno bold/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
+  { name: 'the agent trace', pattern: /agent traces? (?:view|export)/i },
+  // A claim that days before day 0 or the prologue/epilogue parts are missing (#175). The limit that remains, that an older build drops them and the
+  // timeline view is not built, names neither as missing.
+  {
+    name: 'days before day 0 and prologue and epilogue parts',
+    pattern:
+      /(?:negative days?|days? before day 0|story parts?)[^.\n]*(?:not (?:yet )?(?:built|supported|allowed|available|in this build)|cannot be)|(?:\bno|cannot (?:set|declare|store)) (?:negative days?|days? before day 0|a story part|story parts|prologue (?:or|and) epilogue parts?)/i,
+  },
+  {
+    name: 'Final Draft files saved as UTF-16',
+    pattern: /UTF-16[^.\n]*(?:not (?:yet )?(?:built|supported|read|imported|in this build)|cannot)|(?:cannot|does not|do not) (?:import|read)[^.\n]*UTF-16/i,
+  },
+  // A claim that the binder cannot nest folders, or has no parts (#269). The limits that remain (no single step to gather chapters into a part,
+  // no setting for how a part heading reads) name neither as missing.
+  {
+    name: 'parts: folders that hold chapters',
+    pattern:
+      /folder-in-folder|three tiers|three-tier|(?:no|cannot (?:make|create|hold)|never (?:makes?|creates?)) (?:a )?folders? (?:inside|in) (?:another |a )?folders?|parts? (?:are|is) not (?:yet )?(?:built|supported|in this build)|no parts\b/i,
+  },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
+  it('the UTF-16 pattern flags a claim that a UTF-16 Final Draft file cannot be read, and not the shared readers\' limit', () => {
+    const utf16 = BUILT_FEATURES.find((feature) => feature.name === 'Final Draft files saved as UTF-16')?.pattern ?? /$^/;
+    expect('A Final Draft file saved as UTF-16 is not imported.').toMatch(utf16);
+    expect('Caotang cannot read a UTF-16 Final Draft file.').toMatch(utf16);
+    expect(
+      'The shared import readers are in place, but no import from Scrivener, Word, OpenDocument, EPUB or a Markdown folder is built on them yet.',
+    ).not.toMatch(utf16);
+  });
+
+  it('the parts pattern flags a claim that folders cannot nest, and lets the limits that remain through', () => {
+    const parts = BUILT_FEATURES.find((feature) => feature.name === 'parts: folders that hold chapters')?.pattern ?? /$^/;
+    expect('The binder is three tiers.').toMatch(parts);
+    expect('The binder never makes a folder inside a folder.').toMatch(parts);
+    expect('Parts are not supported yet.').toMatch(parts);
+    expect('Putting chapters into a part is one move per chapter: there is no single step that gathers several chapters into a new part.').not.toMatch(parts);
+    expect('A part prints its own title, and the export has no setting to number parts.').not.toMatch(parts);
+  });
+
+  it('the story-part pattern flags a claim that days before day 0 or parts are missing, and not the older-build limit', () => {
+    const parts = BUILT_FEATURES.find((feature) => feature.name === 'days before day 0 and prologue and epilogue parts')?.pattern ?? /$^/;
+    expect('Negative day offsets are not supported yet.').toMatch(parts);
+    expect('There are no days before day 0.').toMatch(parts);
+    expect('You cannot declare a story part.').toMatch(parts);
+    expect(
+      'A project with a day before day 0 or a story part, opened in a build from before this one, loses them: the older build drops a negative day when it loads the project (its load report says the day offset was malformed) and drops the story part when it next saves (its load report names a field it does not know).',
+    ).not.toMatch(parts);
+    expect('The timeline view that draws the prologue and epilogue as their own zones is not built yet.').not.toMatch(parts);
+  });
+
   const spreadsheet = BUILT_FEATURES.find((feature) => feature.name === 'spreadsheet export')?.pattern ?? /$^/;
 
   it('the spreadsheet pattern flags a claim that spreadsheet export is missing', () => {
@@ -124,6 +176,20 @@ describe('the not-in-this-build lists name only what is missing', () => {
     expect(sectionUnder(media, '## What is not wired')).not.toMatch(/visual references/i);
     // The panel sets them and the pack names them; the wired-behaviour list says so.
     expect(media).toMatch(/The codex panel's \*Visual references\* section sets them/);
+  });
+});
+
+describe('the bold CJK pattern', () => {
+  const pattern = BUILT_FEATURES.find((feature) => feature.name === 'bold CJK on the contact sheet')?.pattern ?? /$^/;
+
+  it('flags the old claims that CJK text has no bold', () => {
+    expect('Chinese, Japanese and Korean text has no bold.').toMatch(pattern);
+    expect('Text in Noto Sans Mono CJK has no bold.').toMatch(pattern);
+  });
+
+  it('lets the limit that remains through', () => {
+    expect('Arabic, Hebrew and Devanagari text is not bold in the sheet.').not.toMatch(pattern);
+    expect('Chinese, Japanese and Korean text is bold by thickening its strokes.').not.toMatch(pattern);
   });
 });
 

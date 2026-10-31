@@ -20,3 +20,6 @@
 #
 # `test/toolchain-floor.test.ts` reads this file to assert that if an allowlist
 # is ever added, every entry is actually installed.
+patchedDependencies:
+  eslint-visitor-keys@5.0.1: patches/eslint-visitor-keys@5.0.1.patch
+  pdfjs-dist@6.4.299: patches/pdfjs-dist@6.4.299.patch

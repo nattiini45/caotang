@@ -8,13 +8,12 @@
 /* lingui-set comment="Interpolated values: count, n" */
 
 import { plural, t } from '@lingui/core/macro';
-import { numberFormat } from '@caotang/i18n';
-
 import { formatterLocale } from '../i18n/format-locale.js';
+import { formatCount as formatCountIn } from '../i18n/locale.js';
 
-/** A count, grouped the way the formatter locale groups numbers. */
+/** A count, grouped the way the formatter locale groups numbers (`locale.ts` formats it). */
 export function formatCount(n: number, locale: string = formatterLocale()): string {
-  return numberFormat(locale).format(n);
+  return formatCountIn(n, locale);
 }
 
 export function wordsLabel(n: number, locale: string = formatterLocale()): string {

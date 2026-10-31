@@ -5,7 +5,9 @@
 
 ## 0. Product thesis
 
-Scrivener's successful cousin: the structure-first writing environment novelists actually need — binder → corkboard → editor → compile — with an AI that **drives the app like a harness**: an operator holding tools over binder, editor, corkboard, notes and export. Not a chat sidebar.
+Scrivener's successful cousin: the structure-first writing environment long-form makers actually need — novelists, screenwriters, comic writers, podcasters, video essayists and newsletter writers alike — binder → corkboard → editor → compile, with an AI that **drives the app like a harness**: an operator holding tools over binder, editor, corkboard, notes and export. Not a chat sidebar.
+
+The forms differ; the spine does not. Each of them is long, structured, revised and compiled, and each is a binder of plain-text documents an agent can work in under approval. What changes per form is the document kind, its metadata and its compile targets — never the binder, the command bus, the codex or the approval model.
 
 Two promises:
 
@@ -31,7 +33,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Spec:** [architecture/project-format.md](architecture/project-format.md).
 
 ### 2.2 `binder` (UI) 📐
-- **Responsibility:** tree view — manuscript → folders → text documents (three tiers, mirroring Scrivener; folder-in-folder tolerated by the format, never created by the UI); drag-drop reorder/reparent; status/label chips; inline rename.
+- **Responsibility:** tree view — manuscript → folders → text documents, where a folder may hold folders (a part holds chapters: Part → Chapter → Scene, as in Scrivener's Novel template; the UI creates and moves them, #269); drag-drop reorder/reparent; status/label chips; inline rename.
 - **Owns:** binder UI state only (tree data lives in project-store); view-mutation commands (`view.*` class) are ephemeral.
 - **Surfaces:** emits the same `binder.*` commands the agent uses (command-bus §9). Spec: [architecture/ui-modules.md](architecture/ui-modules.md) §2.
 
@@ -46,7 +48,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Surfaces:** agent tools `codex.read` / `codex.write`; codex panel and inspector chips; pure detection function. Spec: [architecture/codex.md](architecture/codex.md).
 
 ### 2.3b `context-assembly` 📐
-- **Responsibility:** the read half of every model call — fixed eight-layer prompt stack, token budgets, deterministic truncation, prompt preview, cost estimates. Keyed context (synopses + mention-keyed codex), no embeddings.
+- **Responsibility:** the read half of every model call — fixed nine-layer prompt stack (the writer's instructions among them), token budgets, deterministic truncation, prompt preview, cost estimates. Keyed context (synopses + mention-keyed codex), no embeddings.
 - **Owns:** assembled `messages[]`, layer budgets, drop reasons.
 - **Spec:** [architecture/context-assembly.md](architecture/context-assembly.md).
 
@@ -115,7 +117,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.18 `pictures` 🧭
 - **Responsibility:** one picture registry with hashes and dedup, links from the project, a folder, a document or a paragraph, inline pictures in prose carried into EPUB, Word and Markdown, the import pipeline (HEIC, pixel budget, GPS strip), vision input for the agent, MCP pictures in both directions, and handwriting transcription.
-- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store, the retention inventory a sweep must read. A host capability gate (browser canvas; Node's WebP→PNG path only) refuses a picture operation a host cannot run. Built, including the guarded sweep and reviewed transcription; HEIC decoding remains unavailable.
+- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store, the retention inventory a sweep must read. A host capability gate (browser canvas; Node's WebP→PNG path only) refuses a picture operation a host cannot run. Built (the registry, the import pipeline with the GPS strip and the hash, and the open's backfill since #152), including the guarded sweep and reviewed transcription; HEIC decoding remains unavailable.
 - **Spec:** [architecture/pictures.md](architecture/pictures.md).
 
 ### 2.19 `timeline` 🧭
@@ -125,8 +127,28 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.20 `i18n` 🧭
 - **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
-- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The contracts, formatter accessor, live switcher, surface strings, `MessageRef`s and RTL mirroring are built; English and a production-loadable, machine-assisted German catalogue and guide ship. German and RTL still need native-reader review, and their review status remains explicit.
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop formatter locale in `apps/desktop/src/i18n/locale.ts` (the one place the app decides its locales), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The contracts, formatter accessor, live switcher, surface strings, `MessageRef`s and RTL mirroring are built; English and a production-loadable, machine-assisted German catalogue and guide ship. German and RTL still need native-reader review, and their review status remains explicit.
 - **Spec:** [architecture/i18n.md](architecture/i18n.md).
+
+### 2.21 `script` 🧭
+- **Responsibility:** one linear timed script for podcasts, radio and audio drama, and narrated video: a show folder and an episode document, segments and speaker turns parsed from Markdown, audio cues, per-line durations declared or estimated from a speech rate, episode runtime totals, and the compile targets a serial needs — a VO script, show notes, a transcript, a teleprompter, chapters and a feed.
+- **Owns:** `packages/script` (the parser, the segment and line model, runtime totals, the VO table), the `av-script` document kind and the `show` folder kind. The script body stays `docs/<id>.md`; the episode's timings are derived, never a second copy of the text. Built in part: the parser, the model, line ids, the totals, the two kinds and the `script.setShowMeta` / `script.setEpisodeMeta` commands are built; the VO table, the exports, the view and the checks are specified, not built.
+- **Spec:** [architecture/av-script.md](architecture/av-script.md).
+
+### 2.22 `web-publishing` 🧭
+- **Responsibility:** the per-document publish metadata a serial or a newsletter needs — slug, publish date (its absence makes a draft), tags, canonical address, description — and three compile targets over the prose pipeline: a self-contained HTML article, an RSS 2.0 feed and an Atom feed. No hosting, no deploy, no analytics.
+- **Owns:** no new package. `tree[].publish` in the manifest and three entries in the exporter's closed format enum, rendered over the mdast stage the EPUB emitter already uses. Specified, not built.
+- **Spec:** [architecture/web-publishing.md](architecture/web-publishing.md).
+
+### 2.23 `shells` (UI) 🧭
+- **Responsibility:** how the writing studio is arranged on screen. **Classic** is the shell ui-modules.md describes; **Modern** shows one floating page on a wallpaper with glass ornaments, a binder tab bar that grows into a sidebar, Scene info for the inspector and status line, and the agent in a companion window. Both render the same feature components; a shell never forks feature logic. A token layer with three axes (shell × skin × scheme) leaves room for later Classic skins.
+- **Owns:** the `caotang.interface` preference and `data-shell` on `<html>` (being built); the shell-actions list, `ClassicShell`, the lazily loaded `ModernShell` and its containers, and the Modern token and material files. Specified, not built.
+- **Spec:** [architecture/modern-interface.md](architecture/modern-interface.md).
+
+### 2.24 `imports` 🧭
+- **Responsibility:** bringing writing in from other tools (Scrivener, Word, OpenDocument, EPUB, Markdown folders, Plottr, yWriter, novelWriter, Scapple, spreadsheets) as one previewed, undoable import each. Every reader emits the same block list; one splitter proposes the binder tree, and one preview lets the writer correct it before anything is written.
+- **Owns:** `packages/import-read` (built, #268): the XML reader every reader shares (namespace-aware, mixed content, entities, CDATA, UTF-8 and UTF-16 by byte-order mark and declaration, named errors, caps on size, depth and nodes; no `DOMParser`, so it runs in a Worker and in Node) and the archive reader (fflate's `unzipSync` only, zip or picked folder through one interface, the manifest read first and entries on demand, caps on archive size, entry count, entry size, total size and ratio, path traversal refused, `__MACOSX/` and `._*` ignored, CP437 names). The XML reader is a lazy chunk today, loaded on first use; the archive reader becomes one with its first importer. The script import's Final Draft path decodes through the XML reader (built); nothing uses the archive reader yet. The block list, the splitter, the preview and the format readers are specified in the Imports epic (#263), not built.
+- **Spec:** the Imports epic, issue #263; decisions under *Imports* in [decisions.md](decisions.md).
 
 ## 3. Data model (sketch)
 
@@ -143,7 +165,7 @@ CodexEntry     { id, name, aliases[], type, description (md), includePolicy: alw
                  sources?: EntrySource[], createdAt, updatedAt }   // codex.md §2
 CoherenceFinding{ id, runId, class: deterministic|llm, checkId, type, severity, status: open|dismissed|fixed,
                  factGroup, evidence: Evidence[1-2], reasoning?, modelMeta?, dismissedReason?, supersededBy? }  // coherence.md §3
-SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent?, storyPart?: main|prologue|epilogue }   // coherence.md §5.2, §5.2.2 (writer-declared; absence inherits)
+SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent?, storyPart?: prologue|epilogue, mainStory?: true }   // coherence.md §5.2, §5.2.2 (writer-declared; days may be negative)
 ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2
@@ -154,6 +176,10 @@ ComicPage      { size, layout?, panels: Panel[] }                               
 Panel          { id, rect, assetId?, crop?, border?, balloons: Balloon[] }                                              // comics.md §2
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (I7)
+ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2
+ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned
+ScriptTotals   { seconds, timedCount, untimed[] }                                                                 // av-script.md §4, the AnimaticTotals shape
+PublishMeta    { slug?, publishedAt?, tags[], canonical?, description?, layout? }                                 // web-publishing.md §2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
 AskBack        { code, reason, candidates?, revisionDrift?, options[] }           // agent-harness.md §2
@@ -163,11 +189,13 @@ ProjectGoal    { id, nodeId, metric, comparator: at-least|at-most|about, target,
 McpServerConfig{ key, name, transport: 'http', url, auth, enabled, trustReads, pinnedTools, addedAt }  // extensibility.md §3.2 (app settings, never project files)
 ```
 
-Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`) and per-node `createdAt`/`updatedAt` join format v1 without a `formatVersion` bump. MCP server configs are not project data: they live in app settings, never in `caotang.json`, so a committed project can never carry a server URL or token.
+Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`, `macros[]`) and per-node `createdAt`/`updatedAt` join format v1 without a `formatVersion` bump. MCP server configs are not project data: they live in app settings, never in `caotang.json`, so a committed project can never carry a server URL or token.
 
 ## 4. Explicit non-goals
 
-Collaboration and sync in the local version, a plugin system, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+Collaboration and sync in the local version, a plugin system that **runs third-party code in the app**, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+
+Macros (writer-authored plan templates over the app's own tools, [extensibility.md](architecture/extensibility.md) §10) are not a plugin system: a macro is JSON data with no code and no install path, and only the writer runs one. Nor are the planned declarative extension bundles ([extensions.md](architecture/extensions.md), specified, not built): Markdown and JSON that carry skills and suggested MCP servers, with no code, installed only by the writer from a local file. Sandboxed JS plugins are deferred, not rejected (decisions.md, MCP server and client).
 
 ## 5. Scope non-negotiables
 
@@ -181,7 +209,7 @@ Any change that breaks one of these needs a strong case:
 
 ## 6. Screen & media track 📐
 
-Caotang covers games, video and film as well as prose. The full inventory lives in [architecture/media-track.md](architecture/media-track.md); the summary:
+Caotang covers games, video, film and audio as well as prose. The full inventory lives in [architecture/media-track.md](architecture/media-track.md); the summary:
 
 | Capability | One-line scope | Attaches to | Spec |
 |---|---|---|---|
@@ -191,4 +219,5 @@ Caotang covers games, video and film as well as prose. The full inventory lives 
 | **AI video prompt packs** | per-shot prompt packs for several video models. **Caotang writes prompts; it does not render video** — generation stays in the writer's own tool with their own account | `context-assembly`, `codex`, `exporter` (vendor templates), harness tools | [video-prompt-pack.md](architecture/video-prompt-pack.md) |
 | **Plot coherence & continuity** | deterministic checks (structure + codex, no model call) and model-judged findings (evidence-cited reports, never silent edits) | `coherence` module over `codex` + `context-assembly` | [coherence.md](architecture/coherence.md) |
 | **Comics** | comic books, pages, panels and balloons; comic scripts (full script or Marvel method) linked explicitly by `scriptDocId`; lettering rules; comic PDF, CBZ and fixed-layout EPUB. The CBZ and the comic EPUB are made in the browser only; the PDF is written by both hosts. Built; target-reader and visual acceptance remain manual checks | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
+| **AV scripts** 🧭 | podcasts, radio and audio drama, and narrated video: one linear timed script with segments, speakers, audio cues and per-line durations; VO script, show notes, transcript, teleprompter, chapters and feed exports. Built in part: the model, parser and totals; the view and exports are specified, not built | `av-script` document kind, `show` folder kind, `exporter` | [av-script.md](architecture/av-script.md) |
 | **One story, many outputs** | a single narrative source compiled to prose, screenplay, game dialogue, storyboard, prompt pack and report targets — media targets are **export recipes**, not separate apps | the `exporter` contract and per-kind renderers | [media-track.md](architecture/media-track.md) §1 |

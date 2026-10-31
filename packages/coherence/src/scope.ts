@@ -16,7 +16,8 @@ import { getBody, getRevision, type CodexEntry, type ProjectState, type TreeNode
 import { ScopeError } from './errors.js';
 import { EVIDENCE_QUOTE_LIMIT, type CoherenceFile, type Evidence, type SceneMeta } from './model.js';
 import { codePointPrefix } from './text.js';
-import { effectiveStoryParts, type StoryPart } from './timeline.js';
+import type { EffectiveStoryPart as StoryPart } from './scene-meta.js';
+import { effectiveStoryParts } from './timeline.js';
 
 /** §6.2's three run scopes. A `doc` scope names exactly one document. */
 export type ScopeSpec =

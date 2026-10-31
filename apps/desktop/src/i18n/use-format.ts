@@ -8,18 +8,10 @@
  * `formatterLocale()`, so they too are right on every render.
  */
 import { useSyncExternalStore } from 'react';
-import {
-  collatorFor,
-  currencyFormat,
-  dateFormat,
-  displayNames,
-  listFormat,
-  numberFormat,
-  relativeTimeFormat,
-  timeFormat,
-} from '@caotang/i18n';
+import { collatorFor, dateTimeFormat, displayNames, listFormat, numberFormat, relativeTimeFormat } from '@caotang/i18n';
 
 import { formatterLocale } from './format-locale.js';
+import { TIME_OF_DAY } from './locale.js';
 import { languageRevision, subscribeLanguage } from './language.js';
 
 /** The formatter calls the shell needs, bound to one locale. */
@@ -38,17 +30,20 @@ export interface Format {
   readonly collator: () => Intl.Collator;
 }
 
+/** A provider price in US dollars, as `locale.ts`'s `formatUsdPrice` formats it. */
+const USD_PRICE: Intl.NumberFormatOptions = { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 6 };
+
 /** The formatters for a locale, without the React binding: a test or a model can call this directly. */
 export function formatAt(locale: string): Format {
   return {
     locale,
     number: (value, options) => numberFormat(locale, options).format(value),
-    currency: (value) => currencyFormat(locale).format(value),
-    date: (value, options) => dateFormat(locale, options).format(value),
-    time: (value, options) => timeFormat(locale, options).format(value),
+    currency: (value) => numberFormat(locale, USD_PRICE).format(value),
+    date: (value, options) => dateTimeFormat(locale, options).format(value),
+    time: (value, options) => dateTimeFormat(locale, options ?? TIME_OF_DAY).format(value),
     relative: (value, unit) => relativeTimeFormat(locale).format(value, unit),
     list: (items) => listFormat(locale).format(items),
-    languageName: (tag) => displayNames(locale).of(tag) ?? tag,
+    languageName: (tag) => displayNames(locale, { type: 'language' }).of(tag) ?? tag,
     collator: () => collatorFor(locale),
   };
 }

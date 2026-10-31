@@ -175,6 +175,7 @@ function KnowledgeEditor({ learns, knows, entries, facts, projectLanguage, apply
   knows: readonly KnowledgeLinkRecord[];
   entries: readonly CodexEntry[];
   facts: readonly { readonly id: string; readonly text: string }[];
+  /** The project language, which orders the character names (D9). */
   projectLanguage: string | undefined;
   apply: (patch: ScenePatch) => void;
 }): ReactNode {
@@ -303,7 +304,7 @@ function NumberField({ label, value, signed = false, onCommit, note }: {
 }): ReactNode {
   const draft = useStoreDraft(value === undefined ? '' : String(value));
   const commit = (): void => {
-    const trimmed = draft.value.trim();
+    const trimmed = draft.value.trim().replace(/^\u2212/, '-');
     if (trimmed === '') {
       if (value !== undefined) onCommit(null);
       return;
@@ -332,10 +333,18 @@ export function StoryPartSelect({ session, node }: { session: ProjectSession; no
   useLingui();
   const report = useReport();
   const file = session.coherenceFile();
-  const declared = sceneMetaOf(file, node.id).storyPart;
+  const meta = sceneMetaOf(file, node.id);
+  // The main story is declared with its own mark (`mainStory`), beside the two parts `storyPart` holds (timeline.md §2.3).
+  const declared = meta.storyPart ?? (meta.mainStory === true ? 'main' : undefined);
   const inherited = storyPartLabel(inheritedStoryPartOf(session.state, file, node.id));
   const change = (value: string): void => {
-    const outcome = session.dispatch('coherence.setSceneMeta', { docId: node.id, patch: { storyPart: value === '' ? null : (value as DeclaredStoryPart) } });
+    const patch: ScenePatch =
+      value === ''
+        ? { storyPart: null, mainStory: null }
+        : value === 'main'
+          ? { storyPart: null, mainStory: true }
+          : { storyPart: value as DeclaredStoryPart, mainStory: null };
+    const outcome = session.dispatch('coherence.setSceneMeta', { docId: node.id, patch });
     if (!outcome.ok) report({ text: explain(outcome.error), tone: 'error' });
   };
   return (
@@ -343,6 +352,7 @@ export function StoryPartSelect({ session, node }: { session: ProjectSession; no
       <span><Trans>Story part</Trans></span>
       <select aria-label={t`Story part`} data-testid="story-part" value={declared ?? ''} onChange={(event) => change(event.target.value)}>
         <option value="">{node.type === 'folder' ? t`Inherit the part of the folder above (${{ part: inherited }})` : t`Inherit this folder’s part (${{ part: inherited }})`}</option>
+        <option value="main">{storyPartLabel('main')}</option>
         {STORY_PARTS.map((part) => <option key={part} value={part}>{storyPartLabel(part)}</option>)}
       </select>
     </label>

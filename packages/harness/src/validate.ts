@@ -11,8 +11,9 @@
  * **What it enforces, stated exactly** (the JSON Schema from `toJsonSchema` states
  * the same set, minus the two rules marked below):
  *
- * - `type` for string, integer, boolean, enum, array, object, and the JSON type
+ * - `type` for string, integer, number, boolean, enum, array, object, and the JSON type
  *   that selects a union option;
+ * - `null`, only where the spec is `nullable` (a result says "none" with it; a param omits the key);
  * - `required`, `additionalProperties: false`, `enum`, `minItems`, `maxItems`,
  *   `uniqueItems`, `minimum`, `maximum`, `minLength` (as `nonBlank`), `maxLength`;
  * - a tagged union's tag: its value must name a variant.
@@ -64,6 +65,7 @@ export function checkParams(
 
 /** Check a value against any spec. Used for the object root and, recursively, for every nested value. */
 export function checkValue(spec: ParamSpec, value: unknown, path: string): Checked {
+  if (value === null && spec.nullable === true) return ok(null);
   switch (spec.kind) {
     case 'string': {
       if (typeof value !== 'string') {
@@ -86,6 +88,18 @@ export function checkValue(spec: ParamSpec, value: unknown, path: string): Check
     case 'integer': {
       if (typeof value !== 'number' || !Number.isInteger(value)) {
         return failure(invalidParams(`${path} must be an integer, got ${describe(value)}`, `pass ${lastSegment(path)} as an integer`, path));
+      }
+      if (spec.minimum !== undefined && value < spec.minimum) {
+        return failure(invalidParams(`${path} must be ≥ ${spec.minimum}, got ${value}`, undefined, path));
+      }
+      if (spec.maximum !== undefined && value > spec.maximum) {
+        return failure(invalidParams(`${path} must be ≤ ${spec.maximum}, got ${value}`, `pass ${lastSegment(path)} at or below ${spec.maximum}`, path));
+      }
+      return ok(value);
+    }
+    case 'number': {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return failure(invalidParams(`${path} must be a number, got ${describe(value)}`, `pass ${lastSegment(path)} as a number`, path));
       }
       if (spec.minimum !== undefined && value < spec.minimum) {
         return failure(invalidParams(`${path} must be ≥ ${spec.minimum}, got ${value}`, undefined, path));
@@ -267,6 +281,7 @@ function familiesOf(spec: ParamSpec): readonly Family[] {
     case 'enum':
       return ['string'];
     case 'integer':
+    case 'number':
       return ['number'];
     case 'boolean':
       return ['boolean'];
@@ -289,6 +304,8 @@ function describeSpec(spec: ParamSpec): string {
       return `one of ${spec.values.join(', ')}`;
     case 'integer':
       return 'an integer';
+    case 'number':
+      return 'a number';
     case 'boolean':
       return 'true or false';
     case 'array':

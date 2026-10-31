@@ -23,8 +23,8 @@ describe('an injected read port, measured as a native read is', () => {
   });
 
   it('returns an injected read answer that fits its cap', () => {
-    const codexRead: ToolPort = () => ok({ data: { entries: ['Elena'] }, summary: 'read the codex', affected: [] });
-    expect(valueOf(run(makeHarness({ ports: { 'codex.read': codexRead } }), 'codex.read', { query: 'Elena' })).data).toEqual({ entries: ['Elena'] });
+    const codexRead: ToolPort = () => ok({ data: { entries: [{ name: 'Elena' }], total: 1, truncated: false }, summary: 'read the codex', affected: [] });
+    expect(valueOf(run(makeHarness({ ports: { 'codex.read': codexRead } }), 'codex.read', { query: 'Elena' })).data).toEqual({ entries: [{ name: 'Elena' }], total: 1, truncated: false });
   });
 });
 

@@ -7,7 +7,7 @@ import { coherence, project } from './fixtures.js';
 
 const PARTS: StoryPart[] = ['prologue', 'main', 'epilogue'];
 
-function one(mode: TimelineMode, extra: { dayOffset?: number; storyPart?: StoryPart } = { dayOffset: 4 }): TimelineItem {
+function one(mode: TimelineMode, extra: { dayOffset?: number; storyPart?: Exclude<StoryPart, 'main'>; mainStory?: true } = { dayOffset: 4 }): TimelineItem {
   const state = project({ scenes: [{ id: 's' }] });
   const model = buildTimeline(state, coherence({ s: { timelineMode: mode, ...extra } }), { axis: 'story' });
   return model.items[0] as TimelineItem;
@@ -35,7 +35,8 @@ describe('the mode table (§3.6)', () => {
   });
 
   it.each(TIMELINE_MODES.flatMap((mode) => PARTS.map((part) => [mode, part] as const)))('%s in the %s part keeps its part and its glyph', (mode, part) => {
-    const item = one(mode, { dayOffset: -2, storyPart: part });
+    // Main's model has no `main` part value; the explicit main is the additive mainStory mark.
+    const item = one(mode, part === 'main' ? { dayOffset: -2, mainStory: true } : { dayOffset: -2, storyPart: part });
     expect(item).toMatchObject({ part, mode, start: -2 });
     expect(item.glyph.glyph).toBe(MODE_RENDER[mode].glyph);
   });

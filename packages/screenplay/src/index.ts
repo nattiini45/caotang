@@ -58,6 +58,8 @@ export {
 export {
   LAYOUT,
   MINUTES_PER_PAGE,
+  PAGE_GEOMETRY,
+  PAGE_SIZES,
   SCENE_NUMBER_PLACEMENTS,
   estimatePageCount,
   estimateRuntimeMinutes,
@@ -66,6 +68,8 @@ export {
   type LayoutLine,
   type LayoutPage,
   type LineKind,
+  type PageGeometry,
+  type PageSize,
   type PaginateOptions,
   type SceneNumberPlacement,
   type SceneLength,
@@ -77,9 +81,12 @@ export {
   writePdf,
   type PdfCidFont,
   type PdfCidGlyph,
+  type PdfColourEmojiFont,
+  type PdfColourGlyph,
   type PdfEmojiFont,
   type PdfEmojiGlyph,
   type PdfFont,
+  type PdfFontMetrics,
   type PdfInfo,
   type PdfPlainRun,
   type PdfRtlFonts,
@@ -94,6 +101,7 @@ export { breakBetween, charColumns, textColumns, textUnits, unitColumns, withMea
 export type { RtlFontLoaders, RtlSupport } from './rtl-font.js';
 
 export { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
+export { COUSINE_METRICS } from './fonts/cousine-metrics.js';
 
 export {
   PDF_MIME,
@@ -101,26 +109,37 @@ export {
   drawPdf,
   layoutPdf,
   loadCjkFallback,
+  loadColourEmojiFallback,
   loadEmojiFallback,
   loadCourierPrime,
+  loadCousine,
   loadRtlFallback,
+  loadScriptFont,
   preparePdf,
   renderPdf,
+  SCRIPT_FONTS,
   type PdfFontLoaders,
   type PdfLayout,
   type PdfRenderOptions,
   type PdfRenderResult,
   type PdfRenderer,
   type PreparedPdf,
+  type ScriptFont,
 } from './render-pdf.js';
 
 export {
   FDX_MIME,
   createFdxRenderer,
+  describeFdxImport,
   importFdx,
+  lengthInEighths,
   parseFdxParagraphs,
+  parseFdxTitlePage,
   renderFdx,
+  type FdxImportReport,
+  type FdxImportedScript,
   type FdxParagraph,
+  type FdxSegment,
   type FdxRenderResult,
   type FdxRenderer,
 } from './fdx.js';

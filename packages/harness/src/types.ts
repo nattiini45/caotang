@@ -30,6 +30,7 @@ import type {
   Result,
   ToolValue,
 } from '@caotang/bus';
+import type { WireProgress } from '@caotang/mcp-client';
 import type { ProjectState } from '@caotang/store';
 
 import type { ToolMetadata } from './metadata.js';
@@ -116,6 +117,11 @@ export interface PrepareContext {
    * Never a caller's param: an external caller's proposal is dropped before it reaches a tool.
    */
   readonly proposal?: unknown;
+  /**
+   * The binder nodes a read-deny keeps from this tool (agent-harness §4, "Rules"). A tool that lists or summarises the project leaves
+   * them out and says how many; absent, nothing is withheld.
+   */
+  readonly withheld?: ReadonlySet<string>;
 }
 
 export type PrepareFn =(params: CallParams, context: PrepareContext) => Result<PreparedCall, CommandError>;
@@ -152,6 +158,8 @@ export interface PortContext {
   readonly permission?: PermissionContext;
   /** The turn's stop (`TurnContext.signal`). An async port that awaits a model or a server ends its wait when it fires. */
   readonly signal?: AbortSignal;
+  /** The binder nodes a read-deny keeps from this tool, as `PrepareContext.withheld`. */
+  readonly withheld?: ReadonlySet<string>;
   /**
    * Records that the port changed held state outside the bus (an appender side-effect, coherence.md §7). A
    * port that did so reports it, and the runtime then caches its answer by callId, so a replay of the same
@@ -208,7 +216,12 @@ export type PortToolName =
   | 'pictures.view'
   | 'pictures.import'
   // Model-backed handwriting transcription (pictures.md §8.4): the loop supplies the generated proposal, the host reviews it.
-  | 'pictures.transcribe';
+  | 'pictures.transcribe'
+  // The host-model pairs (agent-harness §3, "External-only rows"), wired only where a brief ledger is supplied: the MCP server.
+  | 'scene.brief'
+  | 'scene.apply'
+  | 'dialogue.brief'
+  | 'dialogue.apply';
 
 interface EntryBase {
   readonly meta: ToolMetadata;
@@ -219,12 +232,24 @@ interface EntryBase {
   readonly refine?: (params: CallParams) => CommandError | undefined;
 }
 
-export interface NativeEntry extends EntryBase {
+/**
+ * What a callable row's `ToolValue.data` holds (results.ts). Declared in the same vocabulary as `params`, and enforced in tests, not at
+ * runtime: a result is checked against `resultSchema` by `testing.ts`, and the MCP server advertises it as `outputSchema`.
+ */
+interface ResultDeclaration {
+  readonly result: ObjectSpec;
+  /** Derived from `result` by `toResultSchema`. Never written by hand. */
+  readonly resultSchema: JsonSchema;
+  /** false while the spec still allows unlisted keys (`additionalProperties: true`); the target is every row closed. */
+  readonly resultClosed: boolean;
+}
+
+export interface NativeEntry extends EntryBase, ResultDeclaration {
   readonly kind: 'native';
   readonly prepare: PrepareFn;
 }
 
-export interface PortEntry extends EntryBase {
+export interface PortEntry extends EntryBase, ResultDeclaration {
   readonly kind: 'port';
   readonly port: PortToolName;
 }
@@ -246,8 +271,10 @@ export interface TurnContext {
   readonly source?: ActivitySource;
   /** `approvedPlan` or `confirmed` — the flow facts the gate reads (command-bus §4). */
   readonly permission?: PermissionContext;
-  /** The writer's stop. Awaited calls (an async port, an external read) end their wait when it fires; a started bus command is never interrupted. */
+  /** The writer's stop. Awaited calls (an async port, an external call) end their wait when it fires; a started bus command is never interrupted, except an external call, which changes nothing in the project. */
   readonly signal?: AbortSignal;
+  /** Told of each progress report a server sends while an external call runs, cleaned (mcp-client progress.ts). Never sent to the model. */
+  readonly onProgress?: (progress: WireProgress) => void;
   /**
    * Set for a call made by a delegated agent (agent-harness §2, "Delegate"): `turn-3/reader#1`. The harness refuses every tool that is not a
    * read while it is present, behind the runner's own filter. Display and attribution otherwise; it grants nothing.

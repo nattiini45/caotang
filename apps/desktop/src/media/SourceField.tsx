@@ -6,7 +6,7 @@
  * input's text is the one a reader hears.
  */
 
-import { Fragment, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, useRef, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 
 import type { Segment } from './source-decor.js';
 import { accessibleText } from '../i18n/accessible-text.js';
@@ -19,11 +19,14 @@ export interface SourceFieldProps {
   readonly segments: readonly Segment[];
   readonly onChange: (text: string) => void;
   readonly onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  readonly onBlur?: (event: FocusEvent<HTMLTextAreaElement>) => void;
   /** The input's element, for the views that place the caret or focus it. */
   readonly inputRef?: RefObject<HTMLTextAreaElement | null>;
   /** The view's own classes for the input, kept so its existing styling still applies. */
   readonly inputClassName: string;
   readonly rows?: number;
+  /** The input's `aria-keyshortcuts`: the chords it takes beyond typing. Absent: none is announced. */
+  readonly keyShortcuts?: string;
 }
 
 export function SourceField({
@@ -32,9 +35,11 @@ export function SourceField({
   segments,
   onChange,
   onKeyDown,
+  onBlur,
   inputRef,
   inputClassName,
   rows,
+  keyShortcuts,
 }: SourceFieldProps): ReactNode {
   const layer = useRef<HTMLDivElement>(null);
   return (
@@ -58,11 +63,13 @@ export function SourceField({
         ref={inputRef}
         className={`src-input ${inputClassName}`}
         aria-label={accessibleText(label)}
+        aria-keyshortcuts={keyShortcuts}
         value={value}
         rows={rows}
         spellCheck={false}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
         onScroll={(event) => {
           // The layer follows the input in both directions, so a long line that scrolls sideways keeps its styling under it.
           if (layer.current === null) return;

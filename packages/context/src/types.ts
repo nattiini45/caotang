@@ -13,12 +13,13 @@ import type { ChatMessage, ImageSummary } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 
 /** §2's fixed layer order. Rendering and the prompt preview both follow it. */
-export const LAYER_IDS = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
+export const LAYER_IDS = ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
 export type LayerId = (typeof LAYER_IDS)[number];
 
 /** The name each layer carries in the prompt's headings and in the preview. */
 export const LAYER_NAMES: Readonly<Record<LayerId, string>> = {
   L0: 'System',
+  LI: 'Instructions',
   L1: 'Project',
   L2: 'Codex',
   L3: 'Structure',
@@ -82,6 +83,14 @@ export interface RecentTurn {
   readonly outcome?: string;
   /** The turn's undo group, for the same cases. */
   readonly undoGroupId?: string;
+  /** Epoch ms of the writer's restore of the turn's project changes, with the conversation kept. L6 says so in the outcome line. */
+  readonly restoredAt?: number;
+  /** With `restoredAt`: the 1-based step the restore began at, when the restore took back that step and the later ones only. */
+  readonly restoredFromStep?: number;
+  /** The writer rewound the conversation past this turn: L6 leaves it out before the turn limit applies. */
+  readonly rewound?: boolean;
+  /** A turn the planner is never told of (a macro run): L6 leaves it out, intent and outcome both, before the turn limit applies. */
+  readonly hidden?: boolean;
 }
 
 /** The app state assembly reads. Assembly never writes any of it. */
@@ -97,6 +106,20 @@ export interface AppSnapshot {
   readonly turns?: readonly RecentTurn[];
   /** Activity rows, for the turns' outcome and undo-group lines. */
   readonly activity?: readonly ActivityEntry[];
+  /**
+   * Binder nodes a read-deny keeps out of the prompt (agent-harness §4). Assembly works on a view of the project without them and
+   * lists each in the preview as withheld; see `withhold`.
+   */
+  readonly withheld?: ReadonlySet<string>;
+  /**
+   * The writer's instructions for layer LI: `CAOTANG.md`, or the `AGENTS.md` it falls back to. Absent means the project's own
+   * (`state.agentFiles.instructions`), which is what the app and the MCP server both send.
+   */
+  readonly instructions?: { readonly source: 'CAOTANG.md' | 'AGENTS.md'; readonly text: string };
+  /** The memory index for layer LI (`memory/MEMORY.md`). Absent means the project's own (`state.agentFiles.index`). */
+  readonly memoryIndex?: string;
+  /** The id of the envelopes the call's untrusted text sits in (`untrusted.ts`): the turn's. Absent, a fixed id; a marker inside the text is defused either way. */
+  readonly nonce?: string;
 }
 
 /** A model's limits and prices, as the gateway's profile and `listModels` report them. */
@@ -108,6 +131,11 @@ export interface ModelLimits {
   readonly maxOutputTokens?: number;
   /** What one call may spend on thinking at the level the caller asked for; the completion estimate adds it to the cap. */
   readonly thinkingTokens?: number;
+  /**
+   * The model's prompt cache, when the profile caches and the row prices it (provider-gateway §3): a reused prefix is priced
+   * at `readMultiplier` times the prompt price. Absent, every prompt token is priced in full. Display-only.
+   */
+  readonly cache?: { readonly readMultiplier: number; readonly writeMultiplier?: number; readonly minTokens?: number };
 }
 
 export interface ContextConfig {
@@ -127,6 +155,8 @@ export interface ContextConfig {
   /** When an object, L0 carries the JSON protocol line (provider-gateway §5). */
   readonly responseFormat?: 'text' | { readonly jsonSchemaHint: object };
   readonly model?: ModelLimits;
+  /** How a restore time is written in L6 (`HH:MM`). Default: UTC, so a golden does not depend on the machine's zone. */
+  readonly formatTime?: (epochMs: number) => string;
 }
 
 /**
@@ -144,10 +174,14 @@ export type DropReason =
   | { readonly kind: 'forward-outline' }
   /** A continuity scope longer than the document limit. */
   | { readonly kind: 'scope-limit'; readonly limit: number }
+  /** A read rule keeps this item from the agent (agent-harness §4), so it is not in the prompt. Listed for the writer only. */
+  | { readonly kind: 'withheld' }
   /** The layer's own budget was full. `budget` is the effective budget in tokens. */
   | { readonly kind: 'budget'; readonly layer: LayerId; readonly budget: number; readonly rank: number }
   /** The whole prompt was over `contextBudget`, and this item was in the prune order (§2). */
   | { readonly kind: 'total-budget'; readonly layer: LayerId; readonly total: number; readonly rank: number }
+  /** LI was over its cap: it sent whole lines up to it, and the first `sentTokens` of `totalTokens` reached the model. */
+  | { readonly kind: 'instructions-cap'; readonly file: string; readonly sentTokens: number; readonly totalTokens: number }
   /** The codex's `always` entries alone need more than the layer's budget; they are sent whole. */
   | { readonly kind: 'reserve-overflow'; readonly layer: LayerId; readonly need: number; readonly budget: number };
 
@@ -198,10 +232,25 @@ export interface FocusReport {
   readonly documentChars: number;
 }
 
+/**
+ * One part of the user message (§2, "Cache boundary"): a layer's text, or the trailing Status part that carries L1's volatile
+ * lines. The part marked `cacheBoundary` ends the prefix that stays the same from call to call for this kind of call.
+ */
+export interface AssembledPart {
+  readonly layer: LayerId | 'status';
+  readonly text: string;
+  readonly cacheBoundary?: boolean;
+}
+
 export interface AssembledPrompt {
   readonly tool: AssemblyTool;
-  /** The wire shape for `ProviderGateway.complete`: a system message, then one user message. */
+  /**
+   * The wire shape for `ProviderGateway.complete`: a system message, then one user message. The user message carries `parts`,
+   * one per layer and the Status part, whose texts joined with a blank line are its `content`.
+   */
   readonly messages: readonly ChatMessage[];
+  /** The user message's parts with the layer each came from. */
+  readonly parts: readonly AssembledPart[];
   /** Every layer, L0 to L7, in order. */
   readonly layers: readonly LayerReport[];
   readonly estimate: {
@@ -235,6 +284,8 @@ export interface PreviewLayer {
   readonly fraction?: number;
   /** Every item the layer dropped, whatever the layer: suppressions first, then budget cuts. */
   readonly drops: readonly PreviewDrop[];
+  /** The layer sits before the cache boundary, so a later call of the same kind is likely to read it from the provider's cache. */
+  readonly likelyCached?: true;
   /** The layer's own notes: what was cut, and that it was cut. */
   readonly notes: readonly string[];
 }
@@ -262,6 +313,12 @@ export interface PromptPreview {
   };
   readonly focus?: { readonly head: string; readonly summary: string };
   readonly window?: { readonly contextWindow: number; readonly warning?: string };
+  /**
+   * The prompt's reusable prefix (§5, "Cache forecast"): the system message and the user parts through the cache boundary.
+   * `key` is the system text and the prefix's text joined with a NUL, so two calls share a cache entry exactly when both match.
+   * Absent when the model's cache is not priced, the prefix is under its minimum, or no part is marked.
+   */
+  readonly cache?: { readonly prefixTokens: number; readonly readMultiplier: number; readonly key: string };
   /** Display-only estimate from `pricePer1k` (provider-gateway §6). */
   readonly cost?: {
     readonly promptUsd: number;
@@ -269,5 +326,7 @@ export interface PromptPreview {
     readonly totalUsd: number;
     /** The reply side counts the thinking a set level can spend as well as the output cap; the card says "including thinking". */
     readonly includesThinking?: true;
+    /** Prompt tokens priced at the cache-read rate, because an earlier call of the same batch wrote their prefix. */
+    readonly cachedTokens?: number;
   };
 }

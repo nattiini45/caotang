@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { NO_PIN } from './classic-pin.js';
 import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
 
 /**
@@ -16,7 +17,7 @@ import { binderTitle, createProject, firstChapter, waitForSaved } from './suppor
 
 /** The policy apps/desktop/index.html declares. The build must carry it unchanged: no nonce, nothing relaxed. */
 const POLICY =
-  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'";
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'";
 
 /** A 1×1 PNG, so the cover goes through the image paths (an object URL for the preview, the bytes into the EPUB). */
 const COVER_PNG = Buffer.from(
@@ -190,6 +191,32 @@ test('a failed production German download changes nothing and choosing Deutsch a
   expect(await violations(page)).toEqual([]);
 });
 
+test.describe('the interface', () => {
+  test.use({ storageState: NO_PIN });
+
+  test('the built app loads the Modern stylesheet as its own chunk, under the policy, only while Modern is on', async ({ page }) => {
+    const problems = await watchForProblems(page);
+    const sheets: string[] = [];
+    page.on('request', (request) => {
+      const name = new URL(request.url()).pathname.split('/').pop() ?? '';
+      if (name.endsWith('.css')) sheets.push(name.replace(/-[\w-]{8}\.css$/, ''));
+    });
+    // A fresh profile resolves to Classic while the parity gate is closed (app/interface.ts), so Modern's sheet is not fetched.
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('classic');
+    expect(sheets).not.toContain('modern');
+
+    await page.evaluate(() => localStorage.setItem('caotang.interface', 'modern'));
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('modern');
+    expect(sheets).toContain('modern');
+    expect(problems).toEqual([]);
+    expect(await violations(page)).toEqual([]);
+  });
+});
+
 test('the built app carries its Content-Security-Policy, unchanged', async ({ page }) => {
   await page.goto('/');
   const policy = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
@@ -310,6 +337,27 @@ test('connecting a server loads the MCP SDK from the build, under the policy', a
   await local.getByRole('button', { name: 'Connect', exact: true }).click();
   await expect(local.getByTestId('mcp-detail')).toContainText('server unreachable', { timeout: 20_000 });
   expect(chunks()).toContain('wire');
+  expect(await violations(page)).toEqual([]);
+});
+
+test('the shared XML reader is a chunk of its own, fetched when a Final Draft file is imported, under the policy (#268)', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await createProject(page, 'Night Watch');
+  expect(chunks()).not.toContain('xml');
+
+  // UTF-16 with a byte-order mark, as some Windows tools save Final Draft files: the reader decodes it as XML says.
+  const fdx = '<?xml version="1.0" encoding="UTF-16"?><FinalDraft><Content><Paragraph Type="Scene Heading"><Text>INT. CAFÉ - NIGHT</Text></Paragraph><Paragraph Type="Action"><Text>Rain.</Text></Paragraph></Content></FinalDraft>';
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'night.fdx',
+    mimeType: 'application/xml',
+    buffer: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(fdx, 'utf16le')]),
+  });
+  // The decoded file is shown in the Final Draft report first (#264); nothing is written until Import is chosen.
+  await page.getByRole('dialog', { name: 'Import this Final Draft script?' }).getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
+  expect(chunks()).toContain('xml');
+  expect(problems).toEqual([]);
   expect(await violations(page)).toEqual([]);
 });
 

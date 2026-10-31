@@ -14,6 +14,8 @@ export {
   type SavedFilter,
   type ProjectGoal,
   type ProjectTimelineSettings,
+  type ProjectHook,
+  type ProjectMacro,
 } from './manifest.js';
 export {
   FIRST_FORMAT_VERSION,
@@ -48,6 +50,19 @@ export {
   type CodexCoercion,
   type CodexOrigin,
 } from './codex-fields.js';
+export {
+  RULES_MAX,
+  RULE_ACCESSES,
+  RULE_EFFECTS,
+  parseRules,
+  sameRule,
+  type ParseRulesOptions,
+  type ParsedRules,
+  type PermissionRule,
+  type RuleAccess,
+  type RuleEffect,
+  type RuleScope,
+} from './agent-rules.js';
 export { createEmptyManifest, isFixedRoot, nextSiblingOrder } from './create.js';
 
 export {
@@ -85,9 +100,41 @@ export {
   skillFilePath,
   snapshotFile,
 } from './paths.js';
+export { agentFileCommandRegistrations } from './commands-agent-files.js';
 export { createSkillStaging, type SkillStaging, type StagedSkill } from './commands-skills.js';
 export { SET_CALENDAR_COMMAND, calendarCommandRegistrations, setCalendarApply, type CalendarClock } from './commands-calendar.js';
 export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
+export {
+  INSTRUCTIONS_FALLBACK,
+  INSTRUCTIONS_FILE,
+  INSTRUCTIONS_MAX_CHARS,
+  MEMORY_BODY_MAX_CHARS,
+  MEMORY_DIR,
+  MEMORY_INDEX,
+  MEMORY_MAX_FILES,
+  MEMORY_SLUG_MAX_CHARS,
+  MEMORY_TITLE_MAX_CHARS,
+  MEMORY_TYPES,
+  agentFileTexts,
+  cloneAgentFiles,
+  emptyAgentFiles,
+  hasAgentFiles,
+  isAgentFilePath,
+  isMemorySlug,
+  memoryIndexOf,
+  memoryPath,
+  memorySlugOfPath,
+  parseAgentFiles,
+  parseMemoryFile,
+  serializeMemoryFile,
+  slugOf,
+  type AgentFiles,
+  type MemoryFile,
+  type MemoryParse,
+  type MemoryType,
+  type ParsedAgentFiles,
+} from './agent-files.js';
+export { listAgentFilePaths, readAgentFiles, type ReadAgentFiles } from './agent-files-fs.js';
 export { createBinderNode, type MediaCreateParams } from './commands-media.js';
 
 export {
@@ -165,6 +212,7 @@ export { emptyCoherenceState, type CoherenceFindingState, type CoherenceRunState
 export { checkWordsOf, dismissalLabelOf } from './coherence-words.js';
 
 export { countBody, WORD_RULE_VERSION, wordRuleInUse, type BodyCount } from './word-count.js';
+export { folderRole, isPartFolder, isStructuralFolder, partFolderIds } from './structure.js';
 
 export {
   createProjectCommandRegistry,
@@ -310,6 +358,10 @@ export {
   PROJECT_STORE,
   RUNTIME_DB_NAME,
   RUNTIME_DB_VERSION,
+  RUN_EVENT_RUN_INDEX,
+  RUN_EVENT_STORE,
+  RUN_PROJECT_INDEX,
+  RUN_STORE,
   SESSION_PROJECT_INDEX,
   SESSION_STORE,
   SNAPSHOT_PROJECT_INDEX,
@@ -330,11 +382,14 @@ export {
   readCoherenceFiles,
   readProjectState,
   readSessions,
+  readTaskFiles,
   writeBodySnapshot,
   writeCoherenceFiles,
+  writeProjectAgentFiles,
   writeProjectSkills,
   writeDocumentBody,
   writeProjectState,
+  writeTaskFiles,
   type DocumentRow,
   type ProjectCommit,
   type ProjectRow,
@@ -345,6 +400,31 @@ export {
   type WriteDocumentResult,
   type WriteProjectStateResult,
 } from './runtime/store.js';
+
+export {
+  DEFAULT_RUN_RETENTION,
+  OPEN_RUN_STATUSES,
+  RunExistsError,
+  RunNotFoundError,
+  appendRunEvents,
+  createRunLogPort,
+  createRun,
+  deleteRun,
+  markRunsInterrupted,
+  pruneRuns,
+  readOpenRuns,
+  readRun,
+  readRunEvents,
+  readRuns,
+  updateRun,
+  type RunEventInput,
+  type RunEventRow,
+  type RunPatch,
+  type RunLogStorePort,
+  type RunRetention,
+  type RunRow,
+  type RunStatus,
+} from './runtime/run-log-store.js';
 
 export {
   DEFAULT_RETENTION,
@@ -385,7 +465,7 @@ export {
   type ProjectAssetPort,
 } from './commands-project.js';
 export { loadZipEngine } from './zip.js';
-export type { ExportRecipe, ExportRecipeOptions } from './manifest.js';
+export type { AssetRecord, ExportRecipe, ExportRecipeOptions } from './manifest.js';
 
 // Storyboard: the browser's copy of the project's images, in its own IndexedDB database (storyboard.md §2.2). Version 2 adds only
 // the `thumbs` store (pictures.md §6.5): derived, per-browser thumbnails, never in the app database, the folder or a bundle.

@@ -2,7 +2,7 @@ import { t } from '@lingui/core/macro';
 /**
  * The keyboard map — ui-modules §2.5, plus the two app-wide chords the shell needs.
  *
- * Pure on purpose: the React layer translates a DOM `KeyboardEvent` into the four
+ * Pure on purpose: the React layer translates a DOM `KeyboardEvent` into the
  * facts this function reads, and the table itself can be tested without a browser.
  *
  * The rule that matters most: **a key typed into a text field is never a shortcut**.
@@ -41,42 +41,29 @@ export interface KeyFacts {
   /** `KeyboardEvent.key`, e.g. `'n'`, `'Enter'`, `'F2'`, `'ArrowUp'`. */
   readonly key: string;
   /**
-   * `KeyboardEvent.code`, the physical key (`'KeyN'`, `'Digit1'`). It is read only when `key` does not name an ASCII
-   * letter or digit, so a layout that prints another script still reaches the shortcut the writer pressed.
+   * `KeyboardEvent.code`, the physical key, e.g. `'KeyZ'`, `'Digit1'`. A chord falls back to it when `key` is a character outside
+   * ASCII, so Ctrl+Z is undo on a Russian, Greek, Hebrew or Arabic layout too (ui-modules §2.5). Empty when unknown.
    */
   readonly code: string;
+  /** `event.getModifierState('AltGraph')`: the layout's AltGr is down, which Windows also reports as Ctrl+Alt. */
+  readonly altGraph: boolean;
   readonly ctrl: boolean;
   readonly meta: boolean;
   readonly shift: boolean;
   readonly alt: boolean;
   /**
-   * True when `KeyboardEvent.getModifierState('AltGraph')` is true. Windows reports AltGraph as Ctrl+Alt, so this fact —
-   * never the Ctrl and Alt flags alone — tells a typed character from a chord.
+   * True while an input method is composing (`isImeEnter`, i18n §7.3). The Enter that confirms a Chinese, Japanese or Korean
+   * candidate, and the Escape that cancels one, belong to the input method, so no key is a shortcut then.
    */
-  readonly altGraph: boolean;
-  /**
-   * True when the key event belongs to an IME composition (`KeyboardEvent.isComposing`, or the older Windows
-   * `keyCode === 229`): its Enter commits a candidate, so it is never an app action.
-   */
-  readonly composing: boolean;
-}
-
-/** The parts of a key event that say whether it belongs to an IME composition. A DOM `KeyboardEvent` has both facts. */
-export interface CompositionFacts {
-  readonly isComposing?: boolean;
-  readonly keyCode?: number;
+  readonly composing?: boolean;
 }
 
 /**
- * True when a key event belongs to an IME composition, and so is the candidate window's to act on rather than the app's.
- * `isComposing` is the standard fact; `keyCode === 229` is what older Windows paths send for a key the input method is
- * processing. A React handler passes `event.nativeEvent`, the DOM event both facts belong to.
- *
- * One guard for every Enter-handling site (ui-modules §2.5), so no site re-implements the test and a new one cannot forget it.
+ * The IME guard every Enter-handling site asks first (ui-modules §2.5, i18n §7.3). It lives in `ime.ts`; it is re-exported here
+ * so a key handler imports the keymap and the guard from one place. It reads the DOM event or a React event (its
+ * `nativeEvent`), so `isImeEnter(event)` and `isImeEnter(event.nativeEvent)` agree.
  */
-export function isImeEnter(event: CompositionFacts): boolean {
-  return event.isComposing === true || event.keyCode === 229;
-}
+export { isImeEnter, type CompositionFacts } from './ime.js';
 
 export interface KeyContext {
   /** True when the focus is in a text field (textarea, input, contenteditable). */
@@ -100,38 +87,56 @@ export function mirrorArrow(key: string): string {
   return key === 'ArrowLeft' ? 'ArrowRight' : key === 'ArrowRight' ? 'ArrowLeft' : key;
 }
 
+/** The parts of a DOM or React keyboard event that `keyFacts` reads. */
+export interface KeyEventLike {
+  readonly key: string;
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly shiftKey: boolean;
+  readonly altKey: boolean;
+  getModifierState?(key: string): boolean;
+}
+
+/** The facts `resolveKey` reads, taken from a key event. */
+export function keyFacts(event: KeyEventLike): KeyFacts {
+  return {
+    key: event.key,
+    code: event.code,
+    altGraph: event.getModifierState?.('AltGraph') === true,
+    ctrl: event.ctrlKey,
+    meta: event.metaKey,
+    shift: event.shiftKey,
+    alt: event.altKey,
+  };
+}
+
+/**
+ * The key a chord compares, lower-cased when it is one character. `key` wins, so the key labelled Z is undo on QWERTY, QWERTZ
+ * and AZERTY alike. Only a character outside ASCII (`'я'`, `'ζ'`, `'ז'`, `'ئ'`) falls back to the physical key: `KeyZ` reads
+ * as `'z'` and `Digit1` as `'1'`. ASCII punctuation keeps its own key, so a layout that types `;` or `[` on a letter key
+ * (Dvorak, AltGr on Hungarian) never borrows that letter's chord.
+ */
+export function chordKey(key: string, code: string): string {
+  if ([...key].length !== 1) return key;
+  if (key.charCodeAt(0) < 0x80) return key.toLowerCase();
+  const physical = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(code);
+  if (physical !== null) return (physical[1] ?? physical[2] ?? '').toLowerCase();
+  return key.toLowerCase();
+}
+
 /** Ctrl on Windows and Linux, Cmd on macOS — either counts as the command modifier. */
 function command(facts: KeyFacts): boolean {
   return facts.ctrl || facts.meta;
 }
 
-/** A physical key that names an ASCII letter or digit; the only `code` values the layout fallback may map. */
-const ASCII_CODE = /^(?:Key([A-Z])|Digit([0-9]))$/;
-
 /**
- * The letter or digit a shortcut should read from a key event, in the writer's terms (ui-modules §2.5).
- *
- * The printed character wins while it is an ASCII letter or digit: AZERTY prints `z` on the physical `KeyW`, and the
- * shortcut belongs to the `z` the writer sees. A layout that prints another script (Cyrillic, Hebrew, Arabic, Greek) is
- * read through the physical `code` instead, so `Ctrl+Я` on a Russian keyboard is still undo. A named key (`Enter`,
- * `Escape`, `F2`, `F10`, `Delete`, the arrows, Space, Tab) keeps its name: the code fallback applies only to a single
- * printed character. Shared with every chord outside the map (the screenplay's element menu), so there is one rule.
+ * The letter or digit a shortcut outside the map reads from a key event (the screenplay's element menu, the comic page's
+ * B and T, the timeline's filter). It is {@link chordKey}, so there is one layout rule for every chord (ui-modules §2.5): a
+ * printed ASCII character wins, a character in another script reads through the physical key, and a named key keeps its name.
  */
 export function layoutLetter(key: string, code: string): string {
-  // Named keys (`Enter`, `F2`, `F10`, `ArrowUp`, …) keep their name; they have no printed letter to follow.
-  if (key.length !== 1) return key;
-  // The printed character wins while it is an ASCII letter or digit (AZERTY's `z` is the physical `KeyW`).
-  if (/^[A-Za-z0-9]$/.test(key)) return key.toLowerCase();
-  // Another script (`я`, `ש`, `ب`, `ν`) or a symbol: the physical key names the Latin letter or digit the map knows.
-  const physical = ASCII_CODE.exec(code);
-  if (physical !== null) return (physical[1] ?? physical[2] ?? '').toLowerCase();
-  // Space and other single-character keys with no letter/digit code keep their own value.
-  return key;
-}
-
-/** The key the shortcut table reads: `layoutLetter` over the facts the caller supplies. */
-function layoutKey(facts: KeyFacts): string {
-  return layoutLetter(facts.key, facts.code);
+  return chordKey(key, code);
 }
 
 /**
@@ -141,14 +146,10 @@ function layoutKey(facts: KeyFacts): string {
  * checked first, so Ctrl+Enter is "open" and not a bare Enter.
  */
 export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | null {
+  // A key the input method is composing with is never a shortcut (#188): Enter in the Intent box would send the half-typed line.
+  if (facts.composing === true) return null;
   const cmd = command(facts);
-  const key = layoutKey(facts);
-
-  // ui-modules §2.5: the Enter that commits an IME candidate is the input method's, never the app's. It is refused here,
-  // before any Enter chord is looked at, so agent-send, agent-steer and open-in-editor all yield — and so does any Enter
-  // action added later. Other keys keep their meaning: a composition is not a reason to silence the whole keyboard.
-  if (facts.composing && key === 'Enter') return null;
-
+  const key = chordKey(facts.key, facts.code);
   // ui-modules §2.5: AltGraph types a character (German AltGr+Q is "@", Hungarian AltGr+F is "["), and Windows reports
   // AltGr as Ctrl+Alt. Such a key is never a shortcut and the app must not cancel it, so it is refused before any chord.
   // Ctrl+Alt without the AltGraph fact keeps its documented meaning (`Ctrl+Alt+F` focuses the filter, below).

@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Locale resolution, text direction and the cached Intl formatters — the pure localisation contracts (i18n.md §3.2, §4.1–4.3). No React and no message library.",
+  "description": "Interface locale resolution, cached Intl formatters, collation, bidi isolation and the MessageRef type, with no React and no message library (i18n.md §3.2, §4)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

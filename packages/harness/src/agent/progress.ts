@@ -306,6 +306,30 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
           { id: 'harness.progress.skillLoad.active', message: 'Reading the skill “{name}”', values: { name: clipped(name) } },
         );
   },
+  'memory.read': (params) => {
+    const slug = textOf(params, 'slug');
+    return slug === undefined
+      ? plain({ id: 'harness.progress.memoryRead.bare.content', message: 'Read the memory notes' }, { id: 'harness.progress.memoryRead.bare.active', message: 'Reading the memory notes' })
+      : phrase(
+          `Read the memory note ${quoted(slug)}`,
+          `Reading the memory note ${quoted(slug)}`,
+          { id: 'harness.progress.memoryRead.content', message: 'Read the memory note “{slug}”', values: { slug: clipped(slug) } },
+          { id: 'harness.progress.memoryRead.active', message: 'Reading the memory note “{slug}”', values: { slug: clipped(slug) } },
+        );
+  },
+  'memory.write': (params) => {
+    const title = textOf(params, 'title');
+    return title === undefined
+      ? plain({ id: 'harness.progress.memoryWrite.bare.content', message: 'Save a memory note' }, { id: 'harness.progress.memoryWrite.bare.active', message: 'Saving a memory note' })
+      : phrase(
+          `Save the memory note ${quoted(title)}`,
+          `Saving the memory note ${quoted(title)}`,
+          { id: 'harness.progress.memoryWrite.content', message: 'Save the memory note “{title}”', values: { title: clipped(title) } },
+          { id: 'harness.progress.memoryWrite.active', message: 'Saving the memory note “{title}”', values: { title: clipped(title) } },
+        );
+  },
+  'instructions.propose': () =>
+    plain({ id: 'harness.progress.instructionsPropose.content', message: 'Change CAOTANG.md' }, { id: 'harness.progress.instructionsPropose.active', message: 'Changing CAOTANG.md' }),
   'agent.delegate': (params) => {
     const agent = textOf(params, 'agent');
     return agent === undefined
@@ -337,6 +361,51 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
     return phrase(`Set the synopsis of ${quoted(doc)}`, `Setting the synopsis of ${quoted(doc)}`,
       { id: 'harness.progress.synopsisSet.content', message: 'Set the synopsis of “{doc}”', values: { doc: clipped(doc) } },
       { id: 'harness.progress.synopsisSet.active', message: 'Setting the synopsis of “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  // The host-model pairs (main) never run in a turn of the app; the phrases keep the table total.
+  'scene.brief': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.sceneBrief.bare.content', message: 'Brief a draft' },
+      { id: 'harness.progress.sceneBrief.bare.active', message: 'Briefing a draft' },
+    );
+    return phrase(`Brief a draft of ${quoted(doc)}`, `Briefing a draft of ${quoted(doc)}`,
+      { id: 'harness.progress.sceneBrief.content', message: 'Brief a draft of “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.sceneBrief.active', message: 'Briefing a draft of “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'scene.apply': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.sceneApply.bare.content', message: 'Write a drafted text' },
+      { id: 'harness.progress.sceneApply.bare.active', message: 'Writing a drafted text' },
+    );
+    return phrase(`Write the drafted text into ${quoted(doc)}`, `Writing the drafted text into ${quoted(doc)}`,
+      { id: 'harness.progress.sceneApply.content', message: 'Write the drafted text into “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.sceneApply.active', message: 'Writing the drafted text into “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'dialogue.brief': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.dialogueBrief.bare.content', message: 'Brief dialogue' },
+      { id: 'harness.progress.dialogueBrief.bare.active', message: 'Briefing dialogue' },
+    );
+    return phrase(`Brief dialogue in ${quoted(doc)}`, `Briefing dialogue in ${quoted(doc)}`,
+      { id: 'harness.progress.dialogueBrief.content', message: 'Brief dialogue in “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.dialogueBrief.active', message: 'Briefing dialogue in “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'dialogue.apply': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.dialogueApply.bare.content', message: 'Write drafted dialogue' },
+      { id: 'harness.progress.dialogueApply.bare.active', message: 'Writing drafted dialogue' },
+    );
+    return phrase(`Write the drafted dialogue into ${quoted(doc)}`, `Writing the drafted dialogue into ${quoted(doc)}`,
+      { id: 'harness.progress.dialogueApply.content', message: 'Write the drafted dialogue into “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.dialogueApply.active', message: 'Writing the drafted dialogue into “{doc}”', values: { doc: clipped(doc) } },
     );
   },
   'vocabulary.upsert': (params) => {

@@ -28,6 +28,12 @@ import {
 } from '@caotang/bus';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
+/**
+ * The part a row proposes or reads: a declared part, or `main`, the main-story mark (`mainStory`, timeline.md §2.3) that overrides a
+ * prologue or epilogue folder above. The bus keeps the two apart (`storyPart` and `mainStory`); the rows hold them as one choice.
+ */
+export type ProposalPart = DeclaredStoryPart | 'main';
+
 /* ------------------------------------------------------------------ *
  * Rows
  * ------------------------------------------------------------------ */
@@ -58,7 +64,7 @@ export interface MetaRow {
   /** `base` and `to` are always modes; `linear` stands for no declaration. */
   readonly mode?: Change<string>;
   readonly pov?: Change<string>;
-  readonly part?: Change<DeclaredStoryPart>;
+  readonly part?: Change<ProposalPart>;
   readonly after?: AfterChange;
   /** A suggestion: the scenes whose move it follows from. */
   readonly because?: readonly string[];
@@ -140,7 +146,7 @@ export interface Declared {
   readonly duration: number | null;
   readonly mode: string;
   readonly pov: string | null;
-  readonly part: DeclaredStoryPart | null;
+  readonly part: ProposalPart | null;
   readonly after: readonly string[] | null;
 }
 
@@ -152,7 +158,7 @@ export function declaredFrom(record: SceneMetaRecord | undefined): Declared {
     duration: record?.durationDays ?? null,
     mode: record?.timelineMode ?? 'linear',
     pov: record?.pov ?? null,
-    part: record?.storyPart ?? null,
+    part: record?.storyPart ?? (record?.mainStory === true ? 'main' : null),
     after: record?.after === undefined ? null : [...record.after],
   };
 }
@@ -211,7 +217,7 @@ export interface MetaIntent {
   readonly duration?: number | null;
   readonly mode?: string;
   readonly pov?: string | null;
-  readonly part?: DeclaredStoryPart | null;
+  readonly part?: ProposalPart | null;
   readonly afterAdd?: readonly string[];
   readonly afterRemove?: readonly string[];
 }
@@ -556,8 +562,12 @@ function opsOf(state: ProjectState, projection: TimelineProjection | undefined, 
     expect.pov = read.pov;
   }
   if (row.part !== undefined) {
-    patch.storyPart = row.part.to;
-    expect.storyPart = read.part;
+    // `main` is the main-story mark, not a part: the patch clears the part and sets the mark, and a part clears the mark.
+    const to = row.part.to;
+    patch.storyPart = to === 'main' ? null : to;
+    patch.mainStory = to === 'main' ? true : null;
+    expect.storyPart = read.part === 'main' ? null : read.part;
+    expect.mainStory = read.part === 'main' ? true : null;
   }
   if (row.after !== undefined) {
     if (row.after.add.length > 0) patch.after_add = [...row.after.add];
@@ -733,12 +743,12 @@ export function syncSuggestions(set: ProposalSet, state: ProjectState, enabled: 
 
 /** The part a row leaves a scene in, and the part it was in. A row that does not change the part leaves it where it was. */
 export interface PartFacts {
-  readonly before: DeclaredStoryPart;
-  readonly after: DeclaredStoryPart;
+  readonly before: ProposalPart;
+  readonly after: ProposalPart;
 }
 
 /** Whether a scene's day sits on the wrong side of the main story for its part (timeline.md §3.4). */
-export function datedInsideMain(part: DeclaredStoryPart, day: number | null, main: { readonly start?: number; readonly end?: number } | undefined): boolean {
+export function datedInsideMain(part: ProposalPart, day: number | null, main: { readonly start?: number; readonly end?: number } | undefined): boolean {
   if (day === null || main === undefined) return false;
   if (part === 'prologue') return main.start !== undefined && day >= main.start;
   if (part === 'epilogue') return main.end !== undefined && day < main.end;

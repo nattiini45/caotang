@@ -8,7 +8,7 @@
 
 import { t } from '@lingui/core/macro';
 import { modelRowFor, type ModelInfo, type PresetDef } from '@caotang/gateway';
-import { currencyFormat } from '@caotang/i18n';
+import { numberFormat } from '@caotang/i18n';
 
 import { formatterLocale } from '../i18n/format-locale.js';
 import { formatCount } from './counts.js';
@@ -22,7 +22,7 @@ export function modelDetails(model: ModelInfo, locale: string = formatterLocale(
   if (model.pricePer1k !== undefined) {
     const { prompt, completion } = model.pricePer1k;
     // Provider prices are USD, written the way the locale writes money: `US$0.002` in en-GB, `0,002 $` in de-DE.
-    const usd = currencyFormat(locale);
+    const usd = numberFormat(locale, { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 6 });
     parts.push(t`${{ prompt: usd.format(prompt) }} in, ${{ completion: usd.format(completion) }} out per 1,000 tokens`);
   }
   return parts.join(' · ');

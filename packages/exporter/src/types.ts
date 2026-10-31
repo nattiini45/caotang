@@ -10,8 +10,8 @@
  * the call site in `test/exporter.test.ts`.
  */
 
-import type { SceneNumberPlacement } from '@caotang/screenplay';
-import type { ProjectState } from '@caotang/store';
+import type { CommandError } from '@caotang/bus';
+import type { ExportRecipeOptions as StoreExportRecipeOptions, ProjectState } from '@caotang/store';
 
 /**
  * The formats this build compiles. The prose formats are exporter.md §2 and §3 (`epub` is §3a's). The rest
@@ -118,55 +118,17 @@ export interface ExportSelection {
   readonly docFilter?: (doc: FilterDocument) => boolean;
 }
 
-export interface ExportRecipeOptions {
-  /** Front matter: the title page. Default on. */
-  readonly titlePage?: boolean;
-  /** Generated contents list where the format supports one. Default on. */
-  readonly toc?: boolean;
-  /** Shown on the title page and in the EPUB package metadata. */
-  readonly author?: string;
-  /**
-   * The dialogue table's character limit (dialogue-narrative.md §4): the `charLimit` column of each line. Absent means no limit.
-   * Only the dialogue table (`dialogue-csv` and `dialogue-xlsx`) reads it, and the other formats ignore it. A whole number above zero (the bus caps it at its own maximum).
-   */
-  readonly charLimit?: number;
-  /**
-   * The screenplay PDF's scene numbers (screenplay.md §5.3), in the paginator's shared type: in the left margin, the
-   * right, both, or off. Absent means off. Only `pdf` reads it.
-   */
-  readonly sceneNumbers?: SceneNumberPlacement;
-  /** `(MORE)` and `NAME (CONT'D)` where the screenplay PDF splits a speech across a page (screenplay.md §5.3). Default on. Only `pdf` reads it. */
-  readonly continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6): `A4` or `Letter`. Absent is A4. Only `contact-sheet-pdf` and `timeline-pdf` read it. */
-  readonly pageSize?: 'A4' | 'Letter';
-  /**
-   * The contact sheet prints blank numbered frames to draw on instead of the shots' pictures (storyboard.md §6, the paper-photo round
-   * trip). Absent is off. `comic-pdf` reads it too: numbered empty panel frames, no pictures and no lettering (comics.md §3.4).
-   */
-  readonly paperFrames?: boolean;
-  /** The comic PDF carries its bleed (comics.md §5). Absent is on. Only `comic-pdf` reads it. */
-  readonly bleed?: boolean;
-  /** The comic PDF draws crop marks outside the bleed (comics.md §5). Absent is off. Only `comic-pdf` reads it. */
-  readonly cropMarks?: boolean;
-  /** The comic's reading direction, over the book's own setting (comics.md §5). Absent keeps the book's. `comic-pdf`, `cbz` and `comic-epub` read it. */
-  readonly readingDirection?: 'ltr' | 'rtl';
-  /** The contents heading this recipe writes, over the project language's word (i18n.md §7.1). Absent: the language's own. */
-  readonly contentsLabel?: string;
-  /**
-   * How the prose exports treat the pictures placed in the bodies (pictures.md §4). Markdown reads
-   * `copy` (the default), `link` or `drop`; plain text reads `placeholder` (the default) or `drop`.
-   * A value the format does not read is honoured as its nearest mode and named in the compile log.
-   */
-  readonly pictures?: PictureExportMode;
-  /** The EPUB's image long edge in pixels (pictures.md §4). Absent: 1600, never upscaled. */
-  readonly epubImageMaxPx?: number;
-  /** Keep WebP pictures as WebP in the EPUB (Apple Books only; Kobo renders them blank). Absent: off. Only `epub` reads it. */
-  readonly epubKeepWebp?: boolean;
-  /** Keep the pictures' private metadata (EXIF GPS and friends) in the exports. Absent: stripped on export. */
-  readonly keepPictureMetadata?: boolean;
-  /** The timeline PDF draws each scene's pictures as thumbnails on its chip (timeline.md §9.1). Absent: off. Only `timeline-pdf` reads it. */
-  readonly timelinePictures?: boolean;
-}
+/**
+ * A recipe's options: the store's type (the one the manifest holds and the bus writes), read-only here. Each key says which formats read it in
+ * `packages/store/src/manifest.ts`; the type-equality checks in `test/scene-numbers-union.test.ts` pin its bus-typed fields to the renderers'.
+ */
+export type ExportRecipeOptions = Readonly<StoreExportRecipeOptions>;
+
+/**
+ * What a compile reads: a recipe's options, plus the comic's reading direction over the book's own setting (comics.md §5), an option a
+ * compile request may carry and the store does not keep. `comic-pdf`, `cbz` and `comic-epub` read it.
+ */
+export type CompileOptions = ExportRecipeOptions & { readonly readingDirection?: 'ltr' | 'rtl' };
 
 /** The `pictures` recipe option's values (pictures.md §4): the Markdown and plain-text modes. */
 export type PictureExportMode = 'copy' | 'link' | 'drop' | 'placeholder';
@@ -191,9 +153,18 @@ export interface ExportRecipe {
  */
 export type FlatBlock =
   | { readonly kind: 'frontmatter'; readonly fmKind: 'titlepage' | 'copyright' | 'custom'; readonly docId?: string }
-  // `synopsis` is the section's `=` line (screenplay.md §2.2): present only when the folder has one. The parity test in
-  // test/flat-block-parity.test.ts pins this declaration to the screenplay engine's.
-  | { readonly kind: 'chapter'; readonly title: string; readonly level: number; readonly number: number; readonly synopsis?: string }
+  // `synopsis` is the section's `=` line (screenplay.md §2.2): present only when the folder has one. `part` marks a part heading, a
+  // folder that holds chapters (project-format §2): present only on a part, whose `number` then counts parts, not chapters. `level`
+  // is the folder's depth under the section, 1 at the top. The parity test in test/flat-block-parity.test.ts pins this declaration
+  // to the screenplay engine's.
+  | {
+      readonly kind: 'chapter';
+      readonly title: string;
+      readonly level: number;
+      readonly number: number;
+      readonly synopsis?: string;
+      readonly part?: true;
+    }
   // `style` is the scene's export style (exporter.md §2, Per-scene styling): present only when it is not `normal`, so an unstyled
   // scene has the same block it always had.
   | { readonly kind: 'scene'; readonly docId: string; readonly body: string; readonly title: string; readonly number: number; readonly style?: string }
@@ -247,14 +218,48 @@ export interface ExportFile {
 }
 
 /**
- * exporter.md §4, verbatim except for the format enum, which now carries `epub`. `saveRecipe` is gone: a recipe is
- * written by the bus's `recipe.save` (an undoable command on the manifest), so there is one way to save one.
+ * exporter.md §4, except for the format enum, which now carries `epub`, `preview`, which replaces `previewFlatten` (the Draft), and `proof`
+ * (the Proof of a text format).
+ * `saveRecipe` is gone: a recipe is written by the bus's `recipe.save` (an undoable command on the manifest), so there is one way to save one.
  */
 export interface Exporter {
   compile(selection: ExportSelection, format: ExportFormat, templateId?: string): Promise<ExportResult>;
-  previewFlatten(selection: ExportSelection): FlatBlock[];
+  preview(request: ExportPreviewRequest): ExportPreview;
+  proof(request: ExportPreviewRequest): Promise<ExportProof>;
   listRecipes(): ExportRecipe[];
 }
+
+/**
+ * What `preview` is asked: the request a bus compile makes, without its clock reading. The recipe, the selection and the template
+ * resolve exactly as the compile resolves them, so the Draft is the book the compile would write.
+ */
+export type ExportPreviewRequest = Omit<ExportCommandRequest, 'at'>;
+
+/** What a compile will record in its log row, known before anything is made: the Draft's numbers and the compile log's are the same. */
+export interface ExportPreviewFacts {
+  readonly format: ExportFormat;
+  readonly blockCount: number;
+  readonly chapterCount: number;
+  readonly sceneCount: number;
+  readonly wordCount: number;
+  /** Labels of the documents left out, in the compile log's words, e.g. `Chapter 3 → The Call`. */
+  readonly skippedDocs: readonly string[];
+  readonly tocIncluded: boolean;
+  readonly notes: readonly string[];
+}
+
+/**
+ * exporter.md §4, the Draft half of the Draft/Proof duality: what a compile would write, and what it would leave out. Nothing is
+ * reserved, written, gated or logged, and no command runs.
+ *
+ * - `draft`: a prose format. The block list the artifact is built from (`flatten`, the compile's own call), with the facts of its log row.
+ * - `media`: a media format, which does not go through `flatten`. Its selection gates passed; it has the compile's counts and notes and no block list.
+ * - `refused`: the compile would be refused, with the refusal it would get.
+ */
+export type ExportPreview =
+  | (ExportPreviewFacts & { readonly kind: 'draft'; readonly blocks: readonly FlatBlock[]; readonly titlePage: boolean })
+  | (ExportPreviewFacts & { readonly kind: 'media' })
+  | { readonly kind: 'refused'; readonly error: CommandError };
 
 /** The selection a bus command names: the whole manuscript, or the nodes it lists. */
 export type ExportCommandSelection =
@@ -318,3 +323,50 @@ export interface ExportMetadataInput {
   /** The cover image's asset id, when the writer chose one. The bytes are read from the project's `assets/` at compile. */
   readonly coverAssetId?: string | null;
 }
+
+/**
+ * The formats whose Proof is the file itself, shown as text: the compile's own renderer runs and its text is returned. Every format not
+ * listed has no Proof: today that is the binary containers (DOCX, EPUB, the spreadsheets, the PDFs), which the dialog has no renderer
+ * for (exporter.md §7 E5). A test holds this list and `BINARY_FORMATS` to cover `EXPORT_FORMATS` between them.
+ */
+export const TEXT_PROOF_FORMATS = [
+  'md',
+  'txt',
+  'fountain',
+  'fdx',
+  'ink-json',
+  'dialogue-csv',
+  'shot-list-csv',
+  'promptpack',
+  'coherence-md',
+  'coherence-json',
+  // Merge: the timeline's two text formats (timeline.md §8) render as text, so they have a Proof too.
+  'timeline-csv',
+  'timeline-svg',
+] as const satisfies readonly ExportFormat[];
+
+/** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */
+export function hasTextProof(format: ExportFormat): boolean {
+  return (TEXT_PROOF_FORMATS as readonly string[]).includes(format);
+}
+
+/**
+ * exporter.md §4, the Proof half of the Draft/Proof duality: the file the compile would write, made by the compile's own plan and renderer,
+ * for a format whose file is text. Nothing is reserved, written, gated or logged, and no command runs.
+ *
+ * - `text`: the first file the compile would write, as text, with its name and the names of any further files the compile writes with it.
+ *   The compile log's notes are the Draft's: no text renderer adds one of its own.
+ * - `none`: a binary format. There is no Proof in the browser; the Draft is what goes in.
+ * - `refused`: the compile would be refused, with the refusal it would get.
+ */
+export type ExportProof =
+  | {
+      readonly kind: 'text';
+      readonly format: ExportFormat;
+      readonly fileName: string;
+      readonly mimeType: string;
+      readonly text: string;
+      readonly otherFiles: readonly string[];
+    }
+  | { readonly kind: 'none'; readonly format: ExportFormat }
+  | { readonly kind: 'refused'; readonly error: CommandError };

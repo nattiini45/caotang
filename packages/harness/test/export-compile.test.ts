@@ -10,8 +10,8 @@ import { createProjectCommandRegistry, type ProjectState } from '@caotang/store'
 import { VIDEO_TEMPLATE_IDS } from '@caotang/video-prompt-pack';
 import { describe, expect, it } from 'vitest';
 
-import { createHarness } from '../src/index.js';
-import { CHAPTER_ONE, LANDING, STORM, clock, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
+
+import { CHAPTER_ONE, checkedHarness, clock, LANDING, makeState, refusalOf, run, snapshotOf, STORM, valueOf } from './fixtures.js';
 
 const CONFIRMED = { confirmed: true } as const;
 
@@ -40,7 +40,7 @@ function recordingRegistry(captured: Captured[]) {
 describe('export.compile', () => {
   it('compiles the whole manuscript through export.compile, which takes no scope', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
     const outcome = valueOf(run(harness, 'export.compile', { selection: { root: 'manuscript' }, format: 'md' }, { permission: CONFIRMED }));
     expect(captured).toEqual([{ name: 'export.compile', params: { format: 'md' }, undoLabels: [] }]);
     expect(outcome.data['scope']).toBe('manuscript');
@@ -52,7 +52,7 @@ describe('export.compile', () => {
 
   it('compiles a part through export.compileSelection, naming the chapter and every node under it', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
     const outcome = valueOf(run(harness, 'export.compile', { selection: { root: CHAPTER_ONE }, format: 'txt' }, { permission: CONFIRMED }));
     expect(captured).toHaveLength(1);
     expect(captured[0]?.name).toBe('export.compileSelection');
@@ -62,45 +62,45 @@ describe('export.compile', () => {
 
   it('names only the node itself when includeSubtrees is false, for a document', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
     valueOf(run(harness, 'export.compile', { selection: { root: LANDING, includeSubtrees: false }, format: 'md' }, { permission: CONFIRMED }));
     expect(captured[0]?.params['includeRootIds']).toEqual([LANDING]);
   });
 
   it('passes a template through as the bus’s templateId', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
     valueOf(run(harness, 'export.compile', { selection: { root: 'manuscript' }, format: 'docx', template: 'novel-a4' }, { permission: CONFIRMED }));
     expect(captured[0]?.params).toEqual({ format: 'docx', templateId: 'novel-a4' });
   });
 
   it('refuses a folder compiled without its subtree, rather than exporting nothing', () => {
-    const error = refusalOf(run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: CHAPTER_ONE, includeSubtrees: false }, format: 'md' }, { permission: CONFIRMED }));
+    const error = refusalOf(run(checkedHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: CHAPTER_ONE, includeSubtrees: false }, format: 'md' }, { permission: CONFIRMED }));
     expect(error.code).toBe('invalid-params');
     expect(error.message).toContain('has no text of its own');
   });
 
   it('refuses the project root as a part, and names the manuscript', () => {
-    const error = refusalOf(run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'root' }, format: 'md' }, { permission: CONFIRMED }));
+    const error = refusalOf(run(checkedHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'root' }, format: 'md' }, { permission: CONFIRMED }));
     expect(error.correctiveHint).toContain('manuscript');
   });
 
   it('refuses an unknown root, naming binder.read_tree', () => {
-    const error = refusalOf(run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'The Void' }, format: 'md' }, { permission: CONFIRMED }));
+    const error = refusalOf(run(checkedHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'The Void' }, format: 'md' }, { permission: CONFIRMED }));
     expect(error.code).toBe('not-found');
     expect(error.correctiveHint).toContain('binder.read_tree');
   });
 
   it('refuses a format this build does not ship, and names the ones it does', () => {
     // `rtf` is the probe for a format nothing ships.
-    const error = refusalOf(run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'rtf' }, { permission: CONFIRMED }));
+    const error = refusalOf(run(checkedHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'rtf' }, { permission: CONFIRMED }));
     expect(error.message).toContain(`must be one of ${EXPORT_FORMATS.join(', ')}`);
   });
 
   it('offers the agent every format the bus lists, the media formats included, and no others', () => {
     for (const format of EXPORT_FORMATS) {
       const captured: Captured[] = [];
-      const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+      const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
       // A prompt pack is written for a vendor template, so it is offered with one (the refusal without one is below).
       const template = format === 'promptpack' ? VIDEO_TEMPLATE_IDS[0] : undefined;
       valueOf(run(harness, 'export.compile', { selection: { root: 'manuscript' }, format, ...(template === undefined ? {} : { template }) }, { permission: CONFIRMED }));
@@ -111,14 +111,14 @@ describe('export.compile', () => {
   it('is refused without a plan or a confirmation, because it writes files', () => {
     const state = makeState();
     const before = snapshotOf(state);
-    const error = refusalOf(run(createHarness({ state, clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'md' }));
+    const error = refusalOf(run(checkedHarness({ state, clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'md' }));
     expect(error.code).toBe('permission-denied');
     expect(snapshotOf(state)).toBe(before);
   });
 
   it('reports the bus’s own refusal, unchanged, when the real registry has no export apply in this build', () => {
     const error = refusalOf(
-      run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'md' }, { permission: CONFIRMED }),
+      run(checkedHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'md' }, { permission: CONFIRMED }),
     );
     expect(error.code).toBe('internal');
     expect(error.message).toContain('registered but has no implementation in this build');
@@ -138,7 +138,7 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
 
   it('compiles through a recipe with no selection, and the recipe names the manuscript', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: withRecipes(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: withRecipes(), registry: recordingRegistry(captured), clock: clock.now });
     const outcome = valueOf(run(harness, 'export.compile', { format: 'md', recipeName: 'Beta read' }, { permission: CONFIRMED }));
     expect(captured).toEqual([{ name: 'export.compile', params: { format: 'md', recipeName: 'Beta read' }, undoLabels: [] }]);
     expect(outcome.data['scope']).toBe('manuscript');
@@ -149,7 +149,7 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
 
   it('compiles through a recipe with no selection that names a part, and reports the part it names', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: withRecipes(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: withRecipes(), registry: recordingRegistry(captured), clock: clock.now });
     const outcome = valueOf(run(harness, 'export.compile', { format: 'docx', recipeName: 'Chapter one' }, { permission: CONFIRMED }));
     expect(captured[0]).toEqual({ name: 'export.compile', params: { format: 'docx', recipeName: 'Chapter one' }, undoLabels: [] });
     expect(outcome.data['scope']).toBe('part');
@@ -158,7 +158,7 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
 
   it('compiles a part with a recipe through the part command, which takes the recipe for its options only', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: withRecipes(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: withRecipes(), registry: recordingRegistry(captured), clock: clock.now });
     valueOf(run(harness, 'export.compile', { selection: { root: CHAPTER_ONE }, format: 'txt', recipeName: 'Beta read' }, { permission: CONFIRMED }));
     expect(captured).toEqual([
       { name: 'export.compileSelection', params: { includeRootIds: [CHAPTER_ONE, LANDING, STORM], format: 'txt', recipeName: 'Beta read' }, undoLabels: [] },
@@ -167,7 +167,7 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
 
   it('refuses a manuscript selection with a recipe that names a part, and says how to go on', () => {
     const error = refusalOf(
-      run(createHarness({ state: withRecipes(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'md', recipeName: 'Chapter one' }, { permission: CONFIRMED }),
+      run(checkedHarness({ state: withRecipes(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'md', recipeName: 'Chapter one' }, { permission: CONFIRMED }),
     );
     expect(error.code).toBe('invalid-params');
     expect(error.message).toContain('names a part of the book');
@@ -175,27 +175,27 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
   });
 
   it('refuses a recipe name the project does not hold, and names the ones it holds', () => {
-    const error = refusalOf(run(createHarness({ state: withRecipes(), clock: clock.now }), 'export.compile', { format: 'md', recipeName: 'Paperback' }, { permission: CONFIRMED }));
+    const error = refusalOf(run(checkedHarness({ state: withRecipes(), clock: clock.now }), 'export.compile', { format: 'md', recipeName: 'Paperback' }, { permission: CONFIRMED }));
     expect(error.code).toBe('not-found');
     expect(error.correctiveHint).toContain('"Beta read"');
   });
 
   it('refuses a call that names neither a selection nor a recipe, because it would compile nothing', () => {
-    const error = refusalOf(run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { format: 'md' }, { permission: CONFIRMED }));
+    const error = refusalOf(run(checkedHarness({ state: makeState(), clock: clock.now }), 'export.compile', { format: 'md' }, { permission: CONFIRMED }));
     expect(error.code).toBe('invalid-params');
     expect(error.message).toContain('name a selection or a saved recipe');
   });
 
   it('accepts the default recipe by name in a project that stores no recipes', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
     valueOf(run(harness, 'export.compile', { format: 'md', recipeName: 'Manuscript' }, { permission: CONFIRMED }));
     expect(captured[0]?.params).toEqual({ format: 'md', recipeName: 'Manuscript' });
   });
 
   it('refuses a prompt pack that names no vendor template, at preflight, so nothing is applied and its card is not approved', () => {
     const captured: Captured[] = [];
-    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
     const error = refusalOf(run(harness, 'export.compile', { selection: { root: 'manuscript' }, format: 'promptpack' }, { permission: CONFIRMED }));
     expect(error.code).toBe('invalid-params');
     expect(error.message).toContain('vendor template');
@@ -205,7 +205,7 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
 
   it('refuses a prompt pack that names a template which is not installed, and lists the installed ones', () => {
     const error = refusalOf(
-      run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'promptpack', template: 'no-such-vendor' }, { permission: CONFIRMED }),
+      run(checkedHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'promptpack', template: 'no-such-vendor' }, { permission: CONFIRMED }),
     );
     expect(error.message).toContain('"no-such-vendor" is not an installed vendor template');
     expect(error.correctiveHint).toContain(VIDEO_TEMPLATE_IDS.join(', '));
@@ -214,7 +214,7 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
   it('sends a prompt pack’s vendor template on the command, for the whole manuscript and for a part', () => {
     const vendor = VIDEO_TEMPLATE_IDS[1] ?? VIDEO_TEMPLATE_IDS[0] ?? '';
     const captured: Captured[] = [];
-    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
     valueOf(run(harness, 'export.compile', { selection: { root: 'manuscript' }, format: 'promptpack', template: vendor }, { permission: CONFIRMED }));
     valueOf(run(harness, 'export.compile', { selection: { root: CHAPTER_ONE }, format: 'promptpack', template: vendor }, { permission: CONFIRMED }));
     expect(captured.map((call) => [call.name, call.params['templateId']])).toEqual([
@@ -227,7 +227,7 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
     const state = makeState();
     state.manifest.recipes = [{ name: 'Pack', includeRootIds: ['manuscript'], format: 'promptpack', templateId: VIDEO_TEMPLATE_IDS[0] }];
     const captured: Captured[] = [];
-    const harness = createHarness({ state, registry: recordingRegistry(captured), clock: clock.now });
+    const harness = checkedHarness({ state, registry: recordingRegistry(captured), clock: clock.now });
     valueOf(run(harness, 'export.compile', { format: 'promptpack', recipeName: 'Pack' }, { permission: CONFIRMED }));
     expect(captured[0]?.params).toEqual({ format: 'promptpack', recipeName: 'Pack' });
   });

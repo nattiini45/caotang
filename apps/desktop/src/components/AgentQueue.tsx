@@ -59,9 +59,8 @@ export function AgentQueue({
     setEditing(null);
   };
   const onEditKey = (event: KeyboardEvent<HTMLInputElement>, id: string): void => {
-    if (event.key !== 'Enter' && event.key !== 'Escape') return;
-    // The Enter that commits an IME candidate is the input method's: it neither edits the queued message nor leaves the field.
-    if (event.key === 'Enter' && isImeEnter(event.nativeEvent)) return;
+    // An Enter or Escape that confirms or cancels an input method's candidate is the input method's (#188).
+    if (isImeEnter(event) || (event.key !== 'Enter' && event.key !== 'Escape')) return;
     event.preventDefault();
     event.stopPropagation();
     finishEdit(id);

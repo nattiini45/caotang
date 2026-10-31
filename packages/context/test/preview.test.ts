@@ -55,7 +55,7 @@ describe('zero drift between preview and execution (§5)', () => {
     const assembled = assemble(CONTINUE, buildApp());
     const preview = buildPreview(assembled);
     const codex = preview.layers.find((layer) => layer.id === 'L2');
-    expect(codex?.budget).toBe(assembled.layers[2]?.budget);
+    expect(codex?.budget).toBe(assembled.layers[3]?.budget);
     expect(codex?.fraction).toBeCloseTo((codex?.tokens ?? 0) / (codex?.budget ?? 1), 10);
     expect(preview.layers.find((layer) => layer.id === 'L0')?.budget).toBeUndefined();
     expect(preview.layers.find((layer) => layer.id === 'L7')?.fraction).toBeUndefined();

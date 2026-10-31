@@ -7,14 +7,14 @@
  * unmirrored space and the helpers mirror at the edge, so a day maps to the same place the drawn chip sits.
  */
 
-import { DAY_OFFSET_LIMIT, type DeclaredStoryPart } from '@caotang/bus';
+import { DAY_OFFSET_LIMIT } from '@caotang/bus';
 import type { ProjectState } from '@caotang/store';
 import type { StoryPart, TimelineItem, TimelineModel } from '@caotang/timeline';
 
 import { planDrop, planKeyboardMove } from './binder-model.js';
 import type { Rect } from './timeline-model.js';
 import { moveOfKey } from './timeline-model.js';
-import { treeWithMoves, type MetaIntent, type MetaRow, type MoveRow, type MoveTarget, type Row, type ShiftRow } from './timeline-proposals.js';
+import { treeWithMoves, type MetaIntent, type ProposalPart, type MetaRow, type MoveRow, type MoveTarget, type Row, type ShiftRow } from './timeline-proposals.js';
 
 /** `projectTimeline`'s own defaults for the fixed-width separators; `projectTimeline` is given no other. A test pins them against the drawn boxes. */
 export const BREAK_PX = 28;
@@ -362,7 +362,7 @@ function targetLane(ctx: GhostContext, item: TimelineItem, row: MetaRow): string
 }
 
 /** Where a row would put a scene's bar, in canvas coordinates; `undefined` when it has no place on the story axis (it goes to the shelf, or has no day). */
-export function ghostOfScene(ctx: GhostContext, item: TimelineItem, change: { day?: number | null; duration?: number | null; part?: DeclaredStoryPart | null }, row?: MetaRow): Rect | undefined {
+export function ghostOfScene(ctx: GhostContext, item: TimelineItem, change: { day?: number | null; duration?: number | null; part?: ProposalPart | null }, row?: MetaRow): Rect | undefined {
   const origin = ctx.boxOf(item.key);
   if (origin === undefined && item.start === undefined && change.day === undefined) return undefined;
   const day = change.day !== undefined ? change.day : (item.dayOffset ?? null);

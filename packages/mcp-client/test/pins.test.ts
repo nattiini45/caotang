@@ -17,6 +17,7 @@ import {
   pinStateOf,
   pinsAfterReview,
   sha256Hex,
+  subjectHash,
   type EffectiveRisk,
   type ToolPin,
 } from '../src/index.js';
@@ -24,6 +25,45 @@ import { FIXED_NOW, pinAt } from './support.js';
 
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
+
+describe('the pin of a tool that declares no output schema', () => {
+  const SEARCH = {
+    toolName: 'search_pages',
+    description: 'Search the wiki.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+  };
+
+  // Stored from the rule as it stood before an output schema was pinned. A pin a person already reviewed must verify on the next
+  // connect, so these bytes never change: the output schema joins the hash only when a server advertises one.
+  it('hashes to the value stored before the output schema was pinned, with and without hints', async () => {
+    expect(await pinHash(SEARCH)).toBe('0c14f2c64700b5f7c5f96f303a5336ad2620c71cbf4336c242df4a62e662c7a8');
+    expect(await pinHash({ ...SEARCH, annotations: { readOnlyHint: true, openWorldHint: false } })).toBe(
+      'a4948fc8a9559b5668bf0530f88519457b54ee05b24008fe3f63e2c2bd3f2f57',
+    );
+    expect(await subjectHash({ kind: 'tool', toolName: 'ping' })).toBe('ca376ac1ee4a797cc78f137a5bf1d9655458d92f19893b9bd5dec4722f25e17c');
+  });
+
+  it('hashes the same whether the output schema is absent or the key is left undefined', async () => {
+    expect(await pinHash({ ...SEARCH, outputSchema: undefined })).toBe(await pinHash(SEARCH));
+    expect(await subjectHash({ kind: 'tool', toolName: 'ping', outputSchema: undefined })).toBe(await subjectHash({ kind: 'tool', toolName: 'ping' }));
+  });
+
+  it('changes when a server starts to declare an output schema, or changes the one it declares', async () => {
+    const declared = { type: 'object', properties: { pages: { type: 'array' } }, required: ['pages'] };
+    const base = await pinHash(SEARCH);
+    const withSchema = await pinHash({ ...SEARCH, outputSchema: declared });
+    expect(withSchema).not.toBe(base);
+    expect(withSchema).toBe(await sha256Hex(canonicalJson({ ...SEARCH, outputSchema: declared })));
+    expect(await pinHash({ ...SEARCH, outputSchema: { ...declared, required: [] } })).not.toBe(withSchema);
+    expect(await subjectHash({ kind: 'tool', toolName: 'ping', outputSchema: declared })).not.toBe(await subjectHash({ kind: 'tool', toolName: 'ping' }));
+  });
+
+  it('is independent of the order of the output schema’s keys', async () => {
+    expect(await pinHash({ ...SEARCH, outputSchema: { type: 'object', required: ['a'] } })).toBe(
+      await pinHash({ ...SEARCH, outputSchema: { required: ['a'], type: 'object' } }),
+    );
+  });
+});
 
 describe('canonicalJson', () => {
   it('sorts object keys at every depth and drops no-whitespace output', () => {

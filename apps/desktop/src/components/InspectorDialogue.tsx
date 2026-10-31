@@ -152,8 +152,7 @@ function LocaleField({ value, onCommit }: { value: string; onCommit: (locale: st
           if (text.trim() !== value) onCommit(text.trim());
         }}
         onKeyDown={(event) => {
-          // The Enter that commits an IME candidate must not leave the field: the committed text is saved on blur.
-          if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) event.currentTarget.blur();
+          if (event.key === 'Enter' && !isImeEnter(event)) event.currentTarget.blur();
         }}
       />
     </label>

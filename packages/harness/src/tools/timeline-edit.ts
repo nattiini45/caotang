@@ -49,7 +49,7 @@ type Raw = Readonly<Record<string, unknown>>;
 export const TIMELINE_CARD_ROWS_MAX = 100;
 export const TIMELINE_CARD_FINDINGS_MAX = 20;
 
-const CLEARABLE = ['dayOffset', 'durationDays', 'pov', 'storyPart'] as const;
+const CLEARABLE = ['dayOffset', 'durationDays', 'pov', 'storyPart', 'mainStory'] as const;
 
 const PATCH_SPEC = param.object(
   'The scene fields to change. Give at least one.',
@@ -59,6 +59,7 @@ const PATCH_SPEC = param.object(
     timelineMode: param.choice('How the scene sits in time. "linear" is the ordinary case and clears any other mode.', TIMELINE_MODES),
     pov: param.string('The point-of-view character: a codex entry id or its exact name.', { nonBlank: true }),
     storyPart: param.choice('The part of the story the scene or folder is in. A folder’s part holds for what is inside it, unless a scene names its own.', STORY_PARTS),
+    mainStory: param.boolean('true puts the scene or folder in the main story even inside a prologue or epilogue folder, replacing a part of its own; false clears that mark.'),
     after_add: param.list('Scenes this one must come after: a title or an id each. They are added to the scene’s existing "after" list.', param.string('A scene.', { nonBlank: true }), {
       minItems: 1,
       maxItems: 50,
@@ -68,7 +69,7 @@ const PATCH_SPEC = param.object(
       maxItems: 50,
     }),
     clear: param.list(
-      'Fields to remove from the scene, so it has no value of its own: dayOffset (undated), durationDays, pov, or storyPart (it inherits again).',
+      'Fields to remove from the scene, so it has no value of its own: dayOffset (undated), durationDays, pov, storyPart or mainStory (it inherits again).',
       param.choice('A field.', CLEARABLE),
       { minItems: 1, maxItems: CLEARABLE.length, unique: true },
     ),
@@ -153,6 +154,7 @@ function metaExpect(record: SceneMetaRecord | undefined, patch: Raw): Record<str
     else if (key === 'timelineMode') expect['timelineMode'] = record?.timelineMode === undefined || record.timelineMode === 'linear' ? null : record.timelineMode;
     else if (key === 'pov') expect['pov'] = record?.pov ?? null;
     else if (key === 'storyPart') expect['storyPart'] = record?.storyPart ?? null;
+    else if (key === 'mainStory') expect['mainStory'] = record?.mainStory ?? null;
     else expect['after'] = record?.after === undefined ? null : [...record.after];
   }
   return expect;
@@ -175,6 +177,9 @@ function metaOp(entry: Raw, index: number, context: PrepareContext, view: Timeli
   const patch: Record<string, unknown> = {};
   for (const key of ['dayOffset', 'durationDays', 'timelineMode', 'storyPart'] as const) if (given[key] !== undefined) patch[key] = given[key];
   if (typeof given['pov'] === 'string') patch['pov'] = povOf(context.state, given['pov']);
+  // The bus stores only `true`; the tool's false is the clear.
+  if (given['mainStory'] === true) patch['mainStory'] = true;
+  else if (given['mainStory'] === false) patch['mainStory'] = null;
   for (const key of ['after_add', 'after_remove'] as const) {
     if (given[key] === undefined) continue;
     const ids = idsOf(context, given[key], `ops[${index}].patch.${key}`);
@@ -337,7 +342,7 @@ function declaredFields(state: ProjectState) {
     duration: (record: SceneMetaRecord | undefined): string => (record?.durationDays === undefined ? 'not set' : noun(record.durationDays, 'day', 'days')),
     mode: (record: SceneMetaRecord | undefined): string => record?.timelineMode ?? 'linear',
     pov: (record: SceneMetaRecord | undefined): string => (record?.pov === undefined ? 'not set' : entryName(record.pov)),
-    part: (record: SceneMetaRecord | undefined): string => record?.storyPart ?? 'inherited',
+    part: (record: SceneMetaRecord | undefined): string => record?.storyPart ?? (record?.mainStory === true ? 'main' : 'inherited'),
     after: (record: SceneMetaRecord | undefined): string => (record?.after === undefined || record.after.length === 0 ? 'none' : record.after.map((id) => `‘${titleOf(id)}’`).join(', ')),
   };
 }

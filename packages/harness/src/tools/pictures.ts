@@ -37,6 +37,7 @@ import {
   isAssetId,
   isLinkId,
   linksToAsset,
+  displaySizeOf,
   normalizeBlockText,
   paragraphBlocks,
   placeLink,
@@ -82,7 +83,7 @@ export const PICTURE_TOOL_NAMES = [
 export type PictureToolName = (typeof PICTURE_TOOL_NAMES)[number];
 
 /** A metadata row in `ToolMetadata`'s shape, named by a picture tool until `metadata.ts` adds the names to `ToolName`. */
-export type PictureToolMetadata = Omit<ToolMetadata, 'name'> & { readonly name: PictureToolName };
+export type PictureToolMetadata = Omit<ToolMetadata, 'name' | 'targets'> & { readonly name: PictureToolName };
 
 /** pictures.md §8.1: a view is at most four pictures, at most 1,568 px on the long side. */
 export const VIEW_MAX_PICTURES = 4;
@@ -338,7 +339,8 @@ function summaryOfPicture(state: ProjectState, picture: ReadAssetRecord, uses: R
     id: picture.id,
     mime: picture.mime,
     bytes: picture.bytes,
-    ...(picture.width === undefined || picture.height === undefined ? {} : { width: picture.width, height: picture.height }),
+    // The size the writer sees: the encoded size turned by the record's orientation (pictures.md §2.1).
+    ...(displaySizeOf(picture) ?? {}),
     ...(picture.caption === undefined ? {} : { caption: picture.caption }),
     ...(picture.alt === undefined ? {} : { alt: picture.alt }),
     ...(picture.decorative === true ? { decorative: true } : {}),
@@ -789,6 +791,14 @@ interface ImportedItem {
 }
 
 export const importPort: AsyncToolPort = async (params, context) => {
+  // The tool is a confirm card (pictures.md §8.1). Since the merge `asset.import` itself is write-auto (main: the writer's own import
+  // asks nothing), so the bus no longer refuses an unconfirmed agent import; the port holds the card's rule itself.
+  if (context.permission?.confirmed !== true && context.permission?.approvedPlan !== true) {
+    return err(refusal('permission-denied', 'pictures.import saves a picture into the project only after the writer confirms it. Nothing was saved.', {
+      target: 'pictures.import',
+      correctiveHint: 'propose the import as a step the writer approves',
+    }));
+  }
   const links: AssetTarget[] = [];
   for (const [index, raw] of list(params['links']).entries()) {
     const target = resolveTarget(context.state, raw, `links[${index}]`);

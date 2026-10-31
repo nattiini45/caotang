@@ -21,7 +21,6 @@ import type {
   DialogueSetMetaParams,
   ScreenplayImportParams,
 } from './descriptors-script.js';
-import type { SceneNumbersOption } from './descriptors-project.js';
 import type { ProjectSetCalendarParams } from './descriptors-calendar.js';
 import type { TimelineApplyParams } from './timeline.js';
 import type {
@@ -50,6 +49,10 @@ import type {
 } from './descriptors-pictures.js';
 import type { AssetTranscribeParams } from './descriptors-transcription.js';
 import type { AssetLink, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
+import type { ScriptSetEpisodeMetaParams, ScriptSetShowMetaParams } from './descriptors-av-script.js';
+import type { RecipeScriptFont, SceneNumbersOption } from './descriptors-project.js';
+import type { HookDraft } from './hook-rules.js';
+import type { MacroDraft } from './macro-rules.js';
 
 /**
  * §9's closed v0.1 registry, in the order the spec tabulates it.
@@ -157,6 +160,10 @@ export const COMMAND_NAMES = [
   'screenplay.import',
   'dialogue.importInk',
   'dialogue.setMeta',
+  // The AV script's show and episode settings (av-script.md §2). Their applies are the store's (`commands-script.ts`), and
+  // their descriptors are `descriptors-av-script.ts`.
+  'script.setShowMeta',
+  'script.setEpisodeMeta',
   // The project's skills (extensibility.md §10): the writer's own instructions for the agent. All four are `issuedBy: 'user'` only
   // (`agentRisk: 'never'`), so an agent never installs, edits, enables or removes a skill. Their applies are the store's
   // (`commands-skills.ts`), and `skill.import` needs the staged files the host holds.
@@ -199,6 +206,24 @@ export const COMMAND_NAMES = [
   'comic.scriptFromPages',
   'comic.derive',
   'comic.letter',
+  // The agent's files (context-assembly.md §2, layer LI): the writer's CAOTANG.md and the agent's memory notes. `project.setInstructions`
+  // and `memory.write` are write-confirm for an agent, and `memory.forget` is the writer's alone (never, and hard-denied as a deletion).
+  // Their applies are the store's (`commands-agent-files.ts`).
+  'project.setInstructions',
+  'memory.write',
+  'memory.forget',
+  // The writer's macros (extensibility.md §10): plan templates in the manifest's `macros[]`. Both are `agentRisk: 'never'`, so only the writer
+  // saves or deletes one. The applies are the store's (`commands-macros.ts`).
+  'macro.save',
+  'macro.delete',
+  // The writer's hooks (hooks.md): checks the harness runs at a point of the agent's turn, in the manifest's `agent.hooks`. Both are
+  // `agentRisk: 'never'`, so only the writer saves or deletes one. The applies are the store's (`commands-hooks.ts`).
+  'hook.save',
+  'hook.delete',
+  // The writer's batch import of codex entries (codex.md §7.1): every entry, and the Research pages that hold their full text, as
+  // one undo group. `agentRisk: 'never'`: the agent's import is `codex.import`, which keeps its 20-entry cap. Its descriptor is
+  // `descriptors-codex-import.ts`, and its apply is the store's (`commands-codex-import.ts`).
+  'codex.importBatch',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -259,7 +284,7 @@ export interface ValidationNode {
   readonly id: string;
   readonly parentId: string | null;
   readonly type: string;
-  /** The media-track kind marker (screenplay, storyboard, branching). Absent on a plain node. */
+  /** The media-track kind marker (screenplay, storyboard, branching, show, av-script). Absent on a plain node. */
   readonly kind?: string;
   /** Gap-encoded sibling order (project-format §2). Absent in a snapshot that carries none, which reads each sibling set in tree order. */
   readonly order?: number;
@@ -282,6 +307,8 @@ export interface ValidationCodexEntry {
   readonly name: string;
   /** The entry's kind (`character`, `location`, …). The scene declarations of who learns and knows a fact take a character. */
   readonly type?: string;
+  /** The entry's other names. `memory.write` refuses a title that is one of them. Absent reads as none. */
+  readonly aliases?: readonly string[];
   /**
    * codex.md §2's citations, held by the entry; an update's new ones are appended to
    * them. Only the count is read here, so only the document id is named.
@@ -354,12 +381,28 @@ export interface ValidationSnapshot {
     readonly assetLinks?: readonly (AssetLink | ReadAssetLink)[];
     /** The skills the writer turned off (extensibility.md §10), by name. Additive, so absent means every skill is on. */
     readonly disabledSkills?: readonly string[];
+    /** The writer's macros (extensibility.md §10). Additive, so absent means none. Only the id and slug are read, for the refusals `macro.save` and `macro.delete` make. */
+    readonly macros?: readonly { readonly id: string; readonly slug: string }[];
+    /** The writer's hooks (hooks.md), under the `agent` object that also holds the rules. Additive; only the id is read, for the refusals `hook.save` and `hook.delete` make. */
+    readonly agent?: { readonly hooks?: readonly { readonly id: string }[] };
   };
   readonly documents: ReadonlyMap<string, ValidationDocument>;
   /** The coherence file, when one is open. Additive, like `codex` — absent means no file. */
   readonly coherence?: ValidationCoherence;
   /** The project's skills, by folder name (extensibility.md §10). Additive — absent means none. */
   readonly skills?: ReadonlyMap<string, readonly ValidationSkillFile[]>;
+  /** The agent's files (project-format.md §1): CAOTANG.md and the memory notes. Additive — absent means none. */
+  readonly agentFiles?: ValidationAgentFiles;
+}
+
+/** The agent's files as a validate reads them. */
+export interface ValidationAgentFiles {
+  readonly instructions?: { readonly path: string; readonly text: string };
+  readonly memory: readonly { readonly slug: string; readonly title: string; readonly body: string }[];
+  /** Notes that did not parse, by path. */
+  readonly declined: ReadonlyMap<string, string>;
+  /** Agent files the load could not read as text, by path. */
+  readonly unreadable: readonly string[];
 }
 
 /** One file of a skill as a validate reads it: its path inside the skill folder and how long its bytes are. */
@@ -662,6 +705,8 @@ export interface CommandParams {
   'screenplay.import': ScreenplayImportParams;
   'dialogue.importInk': DialogueImportInkParams;
   'dialogue.setMeta': DialogueSetMetaParams;
+  'script.setShowMeta': ScriptSetShowMetaParams;
+  'script.setEpisodeMeta': ScriptSetEpisodeMetaParams;
   'skill.import': SkillImportParams;
   'skill.write': SkillWriteParams;
   'skill.delete': SkillDeleteParams;
@@ -689,6 +734,14 @@ export interface CommandParams {
   'comic.scriptFromPages': ComicScriptFromPagesParams;
   'comic.derive': ComicDeriveParams;
   'comic.letter': ComicLetterParams;
+  'project.setInstructions': ProjectSetInstructionsParams;
+  'memory.write': MemoryWriteParams;
+  'memory.forget': MemoryForgetParams;
+  'macro.save': MacroSaveParams;
+  'macro.delete': MacroDeleteParams;
+  'hook.save': HookSaveParams;
+  'hook.delete': HookDeleteParams;
+  'codex.importBatch': CodexImportBatchParams;
 }
 
 /**
@@ -733,6 +786,28 @@ export type ShotImportImageParams = { nodeId: string; stagingId: string };
  * own shot's `image`, as one command and so one undo group. The shots are named by node id, each at most once.
  */
 export type ShotImportImagesParams = { items: { nodeId: string; stagingId: string }[] };
+
+/**
+ * `codex.importBatch` (codex.md §7.1): the writer's import of codex entries as one command and so one undo group. Each entry is
+ * created with `origin: 'import'`, attached to the one document it cites: an existing document (`attachTo`) or a page this same
+ * command creates (`page`, an index into `pages`). `cite` is the passage that names it, in UTF-16 offsets into that body.
+ * `pages` are Research documents (the full text of a wiki article, say), created under `parentId`, which defaults to research.
+ */
+export type CodexImportBatchEntry = {
+  name: string;
+  aliases?: string[];
+  type?: string;
+  description?: string;
+  includePolicy?: string;
+  caseSensitive?: boolean;
+  exclude?: string[];
+  keywords?: string[];
+  attachTo?: string;
+  page?: number;
+  cite: { from: number; to: number; quote: string };
+};
+export type CodexImportPage = { title: string; body: string };
+export type CodexImportBatchParams = { entries: CodexImportBatchEntry[]; pages?: CodexImportPage[]; parentId?: string };
 
 /**
  * `mcp.invoke`'s params (extensibility.md §6). The bus holds the shape only: the validated call, and the
@@ -847,14 +922,14 @@ export type CodexUpsertOp = {
 /**
  * `binder.create`'s params. The media track (storyboard.md §2.1, dialogue-narrative.md §2.1, screenplay.md §2.1)
  * widens `type` with the two media node types and adds `kind`, the marker a node carries. The validator pairs
- * them: a folder is plain or `storyboard`, a document is plain or `screenplay`, a dialogue container is `branching`,
- * and a shot takes no kind, because its kind is its type.
+ * them: a folder is plain, `storyboard` or `show`, a document is plain, `screenplay` or `av-script` (av-script.md §2), a
+ * dialogue container is `branching`, and a shot takes no kind, because its kind is its type.
  */
 export type BinderCreateParams = {
   parentId: string;
   type: 'folder' | 'document' | 'shot' | 'dialogue' | 'comic-page';
   title: string;
-  kind?: 'screenplay' | 'storyboard' | 'branching' | 'comic-script';
+  kind?: 'screenplay' | 'storyboard' | 'branching' | 'show' | 'av-script' | 'comic-script';
 };
 
 export type BinderMoveParams = { nodeId: string; newParentId: string; index: number };
@@ -1023,6 +1098,40 @@ export type SkillDeleteParams = { name: string };
 /** `skill.setEnabled`: whether the agent may be told about the skill. The skill's files are not touched. */
 export type SkillSetEnabledParams = { name: string; enabled: boolean };
 
+/**
+ * `project.setInstructions` (context-assembly.md §2, layer LI): replace the text of `CAOTANG.md`. An empty text leaves the file empty, which
+ * keeps an `AGENTS.md` beside it unread. `expectedDigest` is the digest of the text the caller read (`textDigest`); the write is refused
+ * when the file is no longer that text.
+ */
+export type ProjectSetInstructionsParams = { text: string; expectedDigest?: string };
+
+/**
+ * `memory.write`: create or update one memory note and its line in `memory/MEMORY.md`. `expectedDigest` is the digest of the note body the
+ * caller read, for an update; a new note carries none. The note's `modified`, `origin` and `sourceTurn` are the apply's, never params.
+ */
+export type MemoryWriteParams = {
+  slug: string;
+  type: 'style' | 'preference' | 'process' | 'reference';
+  title: string;
+  body: string;
+  expectedDigest?: string;
+};
+
+/** `memory.forget`: remove one memory note and its index line. The writer's alone. */
+export type MemoryForgetParams = { slug: string };
+
+/** `macro.save` (extensibility.md §10): create a macro, or replace the one with the same id. The store mints the id of a new one. */
+export type MacroSaveParams = { macro: MacroDraft };
+
+/** `macro.delete`: remove one macro. The project's content is not touched. */
+export type MacroDeleteParams = { macroId: string };
+
+/** `hook.save` (hooks.md): create a hook, or replace the one with the same id. The store mints the id of a new one. */
+export type HookSaveParams = { hook: HookDraft };
+
+/** `hook.delete`: remove one hook. The project's content is not touched. */
+export type HookDeleteParams = { hookId: string };
+
 /** The two vocabularies (project-format.md §2). */
 export type VocabularyKind = 'status' | 'label';
 
@@ -1045,8 +1154,10 @@ export type RecipeOptionsParams = {
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). */
   continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6). */
+  /** The paper of the screenplay PDF (screenplay.md §5.3) and the contact sheet (storyboard.md §6). Absent: Letter for the first, A4 for the second. */
   pageSize?: RecipePageSize;
+  /** The screenplay PDF's Latin face (screenplay.md §5.3). Absent: courier-prime. */
+  scriptFont?: RecipeScriptFont;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). */
   paperFrames?: boolean;
   /** The comic PDF carries its bleed (comics.md §5). Absent is on. */
@@ -1068,6 +1179,8 @@ export type RecipeOptionsParams = {
   keepPictureMetadata?: boolean;
   /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent is off. Only `timeline-pdf` reads it. */
   timelinePictures?: boolean;
+  /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3, storyboard.md §6). Absent: the format's default. */
+  colourEmoji?: boolean;
 };
 
 /**
@@ -1082,9 +1195,9 @@ export type PictureMode = 'copy' | 'link' | 'drop' | 'placeholder';
  * Declared beside the runtime list in `descriptors-project.ts` and re-exported here,
  * where the recipe options (and their consumers) already read the bus's types.
  */
-export type { SceneNumbersOption };
+export type { RecipeScriptFont, SceneNumbersOption };
 
-/** The contact sheet's paper (storyboard.md §6), a recipe option. */
+/** The paper of a PDF (screenplay.md §5.3, storyboard.md §6), a recipe option. */
 export type RecipePageSize = 'A4' | 'Letter';
 
 /** `recipe.save`: a named export configuration. Saving a name that exists replaces it. */

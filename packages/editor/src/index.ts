@@ -63,6 +63,8 @@ export {
   textPositionFor,
 } from './seam.js';
 export type {
+  AgentEditInfo,
+  AgentEditOutcome,
   EditorApi,
   EditorInstance,
   EditorMountOptions,
@@ -77,6 +79,10 @@ export type {
   // Produced and asserted per leaf (2026-10-06): the union existed and
   // nothing returned it, so no consumer could say which locator located a run.
   RunMatch,
+  ReviewApi,
+  ReviewState,
+  ReviewSuggestion,
+  ReviewableEditorInstance,
   TextAnchor,
 } from './seam.js';
 

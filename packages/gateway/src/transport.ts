@@ -22,7 +22,7 @@
 import type { Clock } from './clock.js';
 import { abortError, EgressDeniedError, ProviderError, providerMessages } from './errors.js';
 import { backoffMs, isRetryable, parseRetryAfter, type RetryPolicy, type TransportTimeouts } from './retry.js';
-import type { RequestLog, RequestOutcome } from './request-log.js';
+import type { RequestLog, RequestLogEntry, RequestOutcome } from './request-log.js';
 import { redact } from './redact.js';
 import { createSseParser, type SseEvent } from './sse.js';
 import { CallerCancelled, DeadlineReached, guard, sleep } from './timing.js';
@@ -90,12 +90,16 @@ export interface CallSpec {
   readonly timeouts?: Partial<TransportTimeouts>;
   /** Set for a model server on this computer: a failed call is explained with the preset's own fix. */
   readonly local?: LocalHint;
+  /** Told of each attempt as it is logged, with the line the request log gets. The gateway's trace observer listens here; it must not throw. */
+  readonly onAttempt?: (entry: RequestLogEntry) => void;
 }
 
 /** Counts attempts and records the usage the ledger should see, whatever the outcome. */
 export interface StreamStats {
   attempts: number;
   usage: Usage | undefined;
+  /** Whether `usage` is what the provider reported or the `ceil(chars/4)` estimate used when it reported none. Set with `usage`. */
+  usageSource?: 'provider' | 'estimate';
 }
 
 /**
@@ -173,9 +177,9 @@ function scoped(deps: TransportDeps, spec: CallSpec): TransportDeps {
   return spec.timeouts === undefined ? deps : { ...deps, timeouts: { ...deps.timeouts, ...spec.timeouts } };
 }
 
-function networkError(spec: CallSpec, reason: string): ProviderError {
+function networkError(spec: CallSpec, reason: string, rejected = false): ProviderError {
   const detail = clean(reason, spec);
-  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail });
+  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail, ...(rejected ? { rejected } : {}) });
 }
 
 function protocolError(spec: CallSpec, raw: string): ProviderError {
@@ -274,7 +278,7 @@ function logAttempt(
 ): void {
   const error = extra.error instanceof ProviderError ? extra.error : undefined;
   const status = extra.status ?? error?.status;
-  deps.log.append({
+  const entry: RequestLogEntry = {
     at: deps.clock.now(),
     profileId: spec.profileId,
     model: spec.model,
@@ -285,7 +289,9 @@ function logAttempt(
     ...(status !== undefined ? { status } : {}),
     ...(error !== undefined ? { errorKind: error.kind } : {}),
     ...(error?.detail !== undefined ? { note: error.detail } : {}),
-  });
+  };
+  deps.log.append(entry);
+  spec.onAttempt?.(entry);
 }
 
 /** Maps a failed attempt to the outcome the log should record for it. */
@@ -386,7 +392,7 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
     });
   } catch (err) {
     // A fetch that throws rather than rejecting is still a failure to reach the provider.
-    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err));
+    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err), true);
   }
   const limit = limitAt(
     deps,
@@ -408,7 +414,7 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
   } catch (err) {
     if (err instanceof DeadlineReached) throw networkError(spec, limit.reason);
     if (err instanceof CallerCancelled) throw err;
-    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err));
+    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err), true);
   }
 
   if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
@@ -591,6 +597,7 @@ export async function* streamChat(
         const outcome = yield* readStream(deps, spec, response, deadline, state);
         const usage = outcome.usage ?? estimated();
         stats.usage = usage;
+        stats.usageSource = outcome.usage === undefined ? 'estimate' : 'provider';
         logAttempt(deps, spec, attempt, 'ok', { status });
         yield { finishReason: outcome.finish, usage, ...outcome.terminal };
         return;
@@ -598,11 +605,15 @@ export async function* streamChat(
         if (err instanceof CallerCancelled) {
           logAttempt(deps, spec, attempt, 'cancelled', { status });
           stats.usage = estimated();
+          stats.usageSource = 'estimate';
           yield { finishReason: 'error', usage: stats.usage };
           return;
         }
 
-        if (state.sawDelta) stats.usage = estimated();
+        if (state.sawDelta) {
+          stats.usage = estimated();
+          stats.usageSource = 'estimate';
+        }
         const wait =
           err instanceof ProviderError && !state.sawDelta ? retryWait(deps, err, retries, maxRetries, totalAt) : undefined;
 
@@ -614,6 +625,7 @@ export async function* streamChat(
           } catch (cancel) {
             if (cancel instanceof CallerCancelled) {
               stats.usage = estimated();
+              stats.usageSource = 'estimate';
               yield { finishReason: 'error', usage: stats.usage };
               return;
             }
@@ -630,7 +642,10 @@ export async function* streamChat(
     // A consumer that stops reading part-way (`return()` on the iterator) skips every
     // branch above. The provider still generated the deltas that were delivered, so they
     // are counted, as an estimate, rather than dropped from the ledger.
-    if (stats.usage === undefined && state.sawDelta) stats.usage = estimated();
+    if (stats.usage === undefined && state.sawDelta) {
+      stats.usage = estimated();
+      stats.usageSource = 'estimate';
+    }
     controller?.abort();
   }
 }

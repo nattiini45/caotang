@@ -18,9 +18,9 @@ import {
   sha256Hex,
   sniffPicture,
   workingCopySize,
-} from '../src/asset-files.js';
+} from '../src/index.js';
 import { writeU16, writeU32 } from '../src/bytes.js';
-import { buildJpeg, buildPng, buildTiff, buildWebp } from './fixtures.js';
+import { buildJpeg, buildPng, buildTiff, buildWebp } from './byte-fixtures.js';
 
 const MIB = 1024 * 1024;
 const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -123,7 +123,8 @@ describe('sniffPicture', () => {
     ];
     for (const text of variants) expect(sniffPicture(enc(text))).toMatchObject({ ok: false, format: 'svg' });
     expect(sniffPicture(Uint8Array.from([0xef, 0xbb, 0xbf, ...enc('<svg></svg>')]))).toMatchObject({ ok: false, format: 'svg' });
-    expect(sniffPicture(enc('<html><svg></svg></html>'))).toMatchObject({ ok: false, format: 'unknown' });
+    // An `<svg` anywhere in the first kilobyte is refused as SVG (`isSvg`), so a drawing wrapped in HTML is refused too.
+    expect(sniffPicture(enc('<html><svg></svg></html>'))).toMatchObject({ ok: false, format: 'svg' });
   });
 
   it('says what other refused files are, and handles an empty file', () => {
@@ -211,7 +212,7 @@ describe('file names and ids', () => {
   });
 
   it('parses only the exact shape', () => {
-    expect(parseAssetFileName('a_7K2QX9M4A1.jpg')).toEqual({ assetId: 'a_7K2QX9M4A1', mime: 'image/jpeg', extension: 'jpg' });
+    expect(parseAssetFileName('a_7K2QX9M4A1.jpg')).toEqual({ assetId: 'a_7K2QX9M4A1', format: 'jpeg', mime: 'image/jpeg', extension: 'jpg' });
     for (const name of ['a_7K2QX9M4A1.jpeg', 'a_7K2QX9M4A1.gif', 'a_7K2QX9M4A1.png.tmp-3', 'notes.txt', 'n_7K2QX9M4A1.png', 'a_7K2QX9M4A1', 'a_short.png']) {
       expect(parseAssetFileName(name)).toBeUndefined();
     }
@@ -248,12 +249,5 @@ describe('file names and ids', () => {
 describe('sha256Hex', () => {
   it('matches the known digest of empty input through WebCrypto', async () => {
     expect(await sha256Hex(new Uint8Array())).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-  });
-
-  it('accepts any host digest, returning an ArrayBuffer or a Uint8Array', async () => {
-    const bytes = enc('abc');
-    const want = createHash('sha256').update(bytes).digest('hex');
-    expect(await sha256Hex(bytes, async (b) => new Uint8Array(createHash('sha256').update(b).digest()))).toBe(want);
-    expect(await sha256Hex(bytes, async (b) => new Uint8Array(createHash('sha256').update(b).digest()).buffer)).toBe(want);
   });
 });

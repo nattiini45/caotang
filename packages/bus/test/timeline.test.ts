@@ -172,11 +172,13 @@ describe('timeline.apply: the projection of scene declarations', () => {
 
   it('clears a part with null and keeps an explicit main as a declaration', () => {
     const base = snapshot({ [A]: { storyPart: 'prologue', dayOffset: 4 }, [B]: { storyPart: 'prologue' } });
-    const result = project(base, [meta(A, { storyPart: null }, { storyPart: 'prologue' }), meta(B, { storyPart: 'main' }, { storyPart: 'prologue' })]);
+    // Main's model has no `main` part value; the PR's explicit main is the additive `mainStory` mark, which replaces the declared part.
+    const result = project(base, [meta(A, { storyPart: null }, { storyPart: 'prologue' }), meta(B, { mainStory: true }, { mainStory: null })]);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sceneMeta.get(A)).toEqual({ dayOffset: 4 });
-    expect(result.value.sceneMeta.get(B)).toEqual({ storyPart: 'main' });
+    expect(result.value.sceneMeta.get(B)).toEqual({ mainStory: true });
+    expect(result.value.partChanges).toEqual([{ nodeId: A, part: null }, { nodeId: B, part: 'main' }]);
   });
 
   it('validates op N against ops 1 to N-1: repeated edits of one scene chain their expects', () => {

@@ -12,8 +12,8 @@ import { isolate } from '@caotang/i18n';
 import { effectiveMode, knowledgeTreatmentOf, type CoherenceFile, type KnowledgeFact } from '@caotang/coherence';
 import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 
-import { projectCollator } from '../i18n/project-collator.js';
 import { childrenOf } from './binder-model.js';
+import { namesCollator } from '../i18n/locale.js';
 
 /* lingui-set comment="Interpolated values: what, who" */
 
@@ -84,13 +84,10 @@ export function knowledgeRows(state: ProjectState, file: CoherenceFile | undefin
   });
 }
 
-/**
- * The characters a Learns or Knows row may name: codex entries of type character, by name. Names are writer content and sort
- * by the **project language** (i18n.md §4.3, D9); a project that names no language yet falls back to the formatter locale.
- */
+/** The characters a Learns or Knows row may name: codex entries of type character, by name in the project language (D9). */
 export function characterCandidates(entries: readonly CodexEntry[], projectLanguage?: string): CodexEntry[] {
-  const byName = projectCollator(projectLanguage);
-  return entries.filter((entry) => entry.type === 'character').sort((a, b) => byName.compare(a.name, b.name));
+  const names = namesCollator(projectLanguage);
+  return entries.filter((entry) => entry.type === 'character').sort((a, b) => names.compare(a.name, b.name));
 }
 
 /** A declared pair in words, for a list in the Inspector: the character and the fact, each by name. */

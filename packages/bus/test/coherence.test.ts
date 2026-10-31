@@ -58,12 +58,55 @@ describe('the scene-metadata patch rule (coherence.md §5.2, §5.2.1)', () => {
     expect(cleared.ok && cleared.meta).toEqual({ durationDays: 2, timelineMode: 'flashback' });
   });
 
-  it('refuses a day offset that is not a whole number of days within the limits', () => {
-    for (const bad of [1.5, -10_000_001, 10_000_001, Number.NaN, Infinity, '3' as unknown as number, '−3' as unknown as number]) {
+  it('accepts a day offset before day 0, down to −10,000,000 (§5.2.2)', () => {
+    for (const day of [-1, -3650, -10_000_000, 10_000_000, 0]) {
+      const result = applySceneMetaPatch(SCENE, undefined, { dayOffset: day }, context);
+      expect(result.ok && result.meta, String(day)).toEqual({ dayOffset: day });
+    }
+  });
+
+  it('refuses a day offset out of range or not a whole number, naming the range (§5.2.2)', () => {
+    for (const bad of [-10_000_001, 10_000_001, 1.5, Number.NaN, Number.NEGATIVE_INFINITY, '3' as unknown as number, '-3' as unknown as number, '\u22123' as unknown as number]) {
       const result = applySceneMetaPatch(SCENE, undefined, { dayOffset: bad }, context);
       expect(result.ok, String(bad)).toBe(false);
       if (!result.ok) expect(result.error).toContain('a whole number of days between −10,000,000 and 10,000,000');
     }
+    const quoted = applySceneMetaPatch(SCENE, undefined, { dayOffset: '-3' as unknown as number }, context);
+    expect(quoted.ok === false && quoted.error).toContain('got "-3"');
+  });
+
+  it('still refuses a negative duration (§5.2.2 keeps durationDays ≥ 0)', () => {
+    for (const bad of [-1, -3650, 1.5]) {
+      const result = applySceneMetaPatch(SCENE, undefined, { durationDays: bad }, context);
+      expect(result.ok, String(bad)).toBe(false);
+      if (!result.ok) expect(result.error).toContain('zero or more');
+    }
+  });
+
+  it('declares a story part, clears it with null, and refuses an unknown part listing the valid ones (§5.2.2)', () => {
+    const prologue = applySceneMetaPatch(SCENE, { dayOffset: -14 }, { storyPart: 'prologue' }, context);
+    expect(prologue.ok && prologue.meta).toEqual({ dayOffset: -14, storyPart: 'prologue' });
+    const epilogue = applySceneMetaPatch(SCENE, { storyPart: 'prologue' }, { storyPart: 'epilogue' }, context);
+    expect(epilogue.ok && epilogue.meta).toEqual({ storyPart: 'epilogue' });
+    const cleared = applySceneMetaPatch(SCENE, { storyPart: 'epilogue', dayOffset: 4000 }, { storyPart: null }, context);
+    expect(cleared.ok && cleared.meta).toEqual({ dayOffset: 4000 });
+    for (const bad of ['coda', 'main', 'Prologue', '', 3 as unknown as string]) {
+      const result = applySceneMetaPatch(SCENE, undefined, { storyPart: bad }, context);
+      expect(result.ok, String(bad)).toBe(false);
+      if (!result.ok) expect(result.error).toContain('valid parts are prologue, epilogue, or null for the main story');
+    }
+  });
+
+  it('inverts a story part and a negative day back to what they were (§5.2.2)', () => {
+    const before = { dayOffset: 3 };
+    const forward = { dayOffset: -3650, storyPart: 'prologue' };
+    const applied = applySceneMetaPatch(SCENE, before, forward, context);
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const inverse = inverseScenePatch(before, forward, applied.meta);
+    expect(inverse).toEqual({ dayOffset: 3, storyPart: null });
+    const restored = applySceneMetaPatch(SCENE, applied.meta, inverse, context);
+    expect(restored.ok && restored.meta).toEqual(before);
   });
 
   it('accepts a negative day offset down to the limit, and the limit above, and keeps a duration at zero or more', () => {
@@ -80,28 +123,46 @@ describe('the scene-metadata patch rule (coherence.md §5.2, §5.2.1)', () => {
     expect(inverseScenePatch(undefined, { dayOffset: -14 }, { dayOffset: -14 })).toEqual({ dayOffset: null });
   });
 
-  it('declares each story part, and null clears the declaration instead of writing main', () => {
+  it('declares each story part, null clears the declaration, and main is not a value to write', () => {
     for (const part of STORY_PARTS) {
       expect(applySceneMetaPatch(SCENE, undefined, { storyPart: part }, context), part).toEqual({ ok: true, meta: { storyPart: part } });
     }
     const cleared = applySceneMetaPatch(SCENE, { storyPart: 'prologue', dayOffset: -3 }, { storyPart: null }, context);
     expect(cleared.ok && cleared.meta).toEqual({ dayOffset: -3 });
-    const kept = applySceneMetaPatch(SCENE, { storyPart: 'prologue' }, { storyPart: 'main' }, context);
-    expect(kept.ok && kept.meta).toEqual({ storyPart: 'main' });
+    expect(applySceneMetaPatch(SCENE, { storyPart: 'prologue' }, { storyPart: 'main' }, context).ok).toBe(false);
   });
 
-  it('refuses a part that is not one of the three, listing them, and one that is not a string', () => {
+  it('marks a node as main story with the additive mainStory flag, replacing a declared part, and undoes back to it (timeline.md §2.3)', () => {
+    const marked = applySceneMetaPatch(SCENE, { storyPart: 'prologue', dayOffset: -3 }, { mainStory: true }, context);
+    expect(marked.ok && marked.meta).toEqual({ dayOffset: -3, mainStory: true });
+    if (!marked.ok) return;
+    const inverse = inverseScenePatch({ storyPart: 'prologue', dayOffset: -3 }, { mainStory: true }, marked.meta);
+    expect(inverse).toEqual({ mainStory: null, storyPart: 'prologue' });
+    const restored = applySceneMetaPatch(SCENE, marked.meta, inverse, context);
+    expect(restored.ok && restored.meta).toEqual({ storyPart: 'prologue', dayOffset: -3 });
+    // A declared part replaces the mark, and its undo puts the mark back.
+    const parted = applySceneMetaPatch(SCENE, { mainStory: true }, { storyPart: 'epilogue' }, context);
+    expect(parted.ok && parted.meta).toEqual({ storyPart: 'epilogue' });
+    expect(inverseScenePatch({ mainStory: true }, { storyPart: 'epilogue' }, { storyPart: 'epilogue' })).toEqual({ storyPart: null, mainStory: true });
+    // null and false clear it; anything else, or both at once, is refused.
+    expect(applySceneMetaPatch(SCENE, { mainStory: true }, { mainStory: null }, context)).toEqual({ ok: true, meta: {} });
+    expect(applySceneMetaPatch(SCENE, { mainStory: true }, { mainStory: false }, context)).toEqual({ ok: true, meta: {} });
+    expect(applySceneMetaPatch(SCENE, undefined, { mainStory: 'yes' as never }, context).ok).toBe(false);
+    expect(applySceneMetaPatch(SCENE, undefined, { mainStory: true, storyPart: 'prologue' }, context).ok).toBe(false);
+  });
+
+  it('refuses a part that is not one of the two, listing them, and one that is not a string', () => {
     for (const bad of ['interlude', '', 'Main', 3, true, {}, []]) {
       const result = applySceneMetaPatch(SCENE, undefined, { storyPart: bad as never }, context);
       expect(result.ok, JSON.stringify(bad)).toBe(false);
-      if (!result.ok) expect(result.error).toContain('valid parts are main, prologue, epilogue');
+      if (!result.ok) expect(result.error).toContain('valid parts are prologue, epilogue');
     }
   });
 
-  it('undoes a part to the declaration it replaced: an explicit main, an inherited prologue or nothing', () => {
-    expect(inverseScenePatch({ storyPart: 'main' }, { storyPart: 'epilogue' }, { storyPart: 'epilogue' })).toEqual({ storyPart: 'main' });
-    expect(inverseScenePatch(undefined, { storyPart: 'main' }, { storyPart: 'main' })).toEqual({ storyPart: null });
-    expect(inverseScenePatch({ storyPart: 'main' }, { storyPart: null }, {})).toEqual({ storyPart: 'main' });
+  it('undoes a part to the declaration it replaced, or to nothing', () => {
+    expect(inverseScenePatch({ storyPart: 'prologue' }, { storyPart: 'epilogue' }, { storyPart: 'epilogue' })).toEqual({ storyPart: 'prologue' });
+    expect(inverseScenePatch(undefined, { storyPart: 'epilogue' }, { storyPart: 'epilogue' })).toEqual({ storyPart: null });
+    expect(inverseScenePatch({ storyPart: 'prologue' }, { storyPart: null }, {})).toEqual({ storyPart: 'prologue' });
   });
 
   it('keeps linear as absence, and refuses a timeline mode outside the §5.2.1 enum', () => {

@@ -233,6 +233,10 @@ export function assembleFor(task: AgentTask, state: ProjectState): AssembledProm
 
 const COMPLETION_LIMIT = 100;
 
+// A prompt assembles a node's body, notes, codex entries and its place in the binder, so a read-deny aimed at any of those read tools
+// alone keeps the node out of it, as the resources that mirror them do.
+const PROMPT_READS = ['doc.read', 'notes.read', 'codex.read', 'binder.read_tree'] as const;
+
 function completionsFor(kind: 'doc' | 'container', state: ProjectState, typed: string): string[] {
   const needle = typed.trim().toLowerCase();
   const wanted = kind === 'doc' ? DOCUMENT : (node: TreeNode): boolean => node.type === 'folder';
@@ -263,7 +267,7 @@ function argsSchemaOf(def: CaotangPromptDef, runtime: ToolRuntime): ArgsSchema {
     def.arguments.map((arg) => {
       const kind = arg.complete;
       const field = stringField();
-      return [arg.name, kind === undefined ? field : completable(field, (typed: unknown) => completionsFor(kind, runtime.session.state, String(typed)))];
+      return [arg.name, kind === undefined ? field : completable(field, (typed: unknown) => completionsFor(kind, runtime.session.readable('prompt', PROMPT_READS), String(typed)))];
     }),
   );
   return {
@@ -289,7 +293,8 @@ export function registerCaotangPrompts(server: McpServer, runtime: ToolRuntime):
       def.name,
       { title: def.title, description: def.description, argsSchema: argsSchemaOf(def, runtime) },
       (args: Record<string, string>): GetPromptResult => {
-        const { state } = runtime.session;
+        // A prompt assembles only what a read rule leaves to the agent (agent-harness §4, Rules).
+        const state = runtime.session.readable('prompt', PROMPT_READS);
         for (const arg of def.arguments) {
           if (arg.required && (args[arg.name] ?? '').trim() === '') {
             throw refusalError({

@@ -82,7 +82,7 @@ describe('part zones and folds (§3.4)', () => {
 
   it('lets an explicit main override an inherited prologue and names it so', () => {
     const nested = project({ folders: [{ id: 'pro' }], scenes: [{ id: 'a', parent: 'pro', title: 'Inside' }, { id: 'b', parent: 'pro', title: 'Out' }] });
-    const model = buildTimeline(nested, coherence({ pro: { storyPart: 'prologue' }, a: { dayOffset: -5 }, b: { storyPart: 'main', dayOffset: 0 } }), { axis: 'story' });
+    const model = buildTimeline(nested, coherence({ pro: { storyPart: 'prologue' }, a: { dayOffset: -5 }, b: { mainStory: true, dayOffset: 0 } }), { axis: 'story' });
     expect(byNode(model.items, 'a').part).toBe('prologue');
     expect(byNode(model.items, 'b')).toMatchObject({ part: 'main', partOverride: true });
     expect(byNode(model.items, 'b').a11yLabel.startsWith('Main story: \u2018Out\u2019')).toBe(true);

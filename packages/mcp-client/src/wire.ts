@@ -32,13 +32,16 @@ import {
   UnauthorizedError,
   UnsupportedProtocolVersionError,
   type FetchLike,
+  type jsonSchemaValidator as SchemaValidatorProvider,
 } from '@modelcontextprotocol/client';
 
 import { egressAllowed } from './egress.js';
 import type { McpServerConfig } from './config.js';
+import { cleanProgress, type WireProgress } from './progress.js';
 import { CLIENT_NAME, CLIENT_VERSION, WireError } from './wire-error.js';
 
 export { CLIENT_NAME, CLIENT_VERSION, MODERN_REVISION, WireError, WireLoadError, corsProbe, type WireErrorKind } from './wire-error.js';
+export type { WireProgress } from './progress.js';
 
 /**
  * The most bytes one answer from a server may carry before it is refused. A server the writer
@@ -55,11 +58,20 @@ export const MAX_ANSWER_BYTES = 16 * 1024 * 1024;
 /** The start of the SDK's message when the server's `initialize` answer names a revision the client does not offer. */
 const UNSUPPORTED_SERVER_REVISION = "Server's protocol version is not supported";
 
+/**
+ * The SDK client checks a result's `structuredContent` against the tool's `outputSchema` and throws before a caller sees the result, which
+ * would report a call that already ran as one that failed. The check is `mcp.invoke`'s instead (invoke.ts), with the paths listed and the
+ * effect named, so the SDK is given a validator that compiles nothing: with no compiled validator it checks nothing.
+ */
+const NO_OUTPUT_CHECK = { getValidator: () => undefined } as unknown as SchemaValidatorProvider;
+
 /** A tool as a server advertises it. Verbatim: the description and the schema are the server's own text. */
 export interface WireTool {
   readonly name: string;
   readonly description?: string;
   readonly inputSchema?: unknown;
+  /** The JSON Schema of the tool's `structuredContent`, verbatim, when the server declares one. Untrusted like the rest of the listing. */
+  readonly outputSchema?: unknown;
   readonly annotations?: WireAnnotations;
 }
 
@@ -134,11 +146,18 @@ export type WireCompletionRef = { readonly type: 'ref/prompt'; readonly name: st
 export interface WireCallResult {
   readonly content: readonly unknown[];
   readonly isError?: boolean;
+  /** The structured result, verbatim and untrusted. Any JSON value: a 2026-07-28 server may send a non-object. */
+  readonly structuredContent?: unknown;
 }
 
 export interface WireOptions {
+  /** How long a request may go without an answer. For a call it is the idle limit: a progress report from the server starts it again. */
   readonly timeoutMs: number;
+  /** A call's wall-clock cap, which progress does not extend. Absent, a call has none beyond the idle limit. */
+  readonly maxTotalMs?: number;
   readonly signal?: AbortSignal;
+  /** Told of each progress report on a call, cleaned (see progress.ts). A wire that has no progress to report never calls it. */
+  readonly onProgress?: (progress: WireProgress) => void;
 }
 
 /** One server's connection. Operations are sequential per server; the client never overlaps two calls on one wire. */
@@ -190,6 +209,7 @@ class StreamableHttpWire implements McpWire {
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema,
+        ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
         annotations: tool.annotations === undefined ? undefined : {
           readOnlyHint: tool.annotations.readOnlyHint,
           destructiveHint: tool.annotations.destructiveHint,
@@ -205,12 +225,38 @@ class StreamableHttpWire implements McpWire {
   async callTool(name: string, args: Record<string, unknown>, options: WireOptions): Promise<WireCallResult> {
     this.networkFailure = undefined;
     this.sizeRefusal = undefined;
+    const wall = wallClock(options.signal, options.maxTotalMs);
     try {
-      const client = await this.open(options.timeoutMs, options.signal);
-      const result = await client.callTool({ name, arguments: args }, { timeout: options.timeoutMs, signal: options.signal });
-      return { content: result.content, isError: result.isError === true };
+      const client = await this.open(options.timeoutMs, wall.signal);
+      // The SDK sends a progress token when `onprogress` is set, and starts the idle timer again on each report. Its own total cap is
+      // only read when a report arrives, so the wall clock above is the one that ends a call exactly at the cap; this one backs it up.
+      const result = await client.callTool(
+        { name, arguments: args },
+        {
+          timeout: options.timeoutMs,
+          signal: wall.signal,
+          resetTimeoutOnProgress: true,
+          ...(options.maxTotalMs === undefined ? {} : { maxTotalTimeout: options.maxTotalMs }),
+          onprogress: (raw) => {
+            const report = cleanProgress(raw);
+            if (report === undefined) return;
+            try {
+              options.onProgress?.(report);
+            } catch {
+              // A listener's failure is not the call's.
+            }
+          },
+        },
+      );
+      return {
+        content: result.content,
+        isError: result.isError === true,
+        ...(result.structuredContent === undefined ? {} : { structuredContent: result.structuredContent }),
+      };
     } catch (error) {
-      throw this.classify(error, options.signal);
+      throw this.classify(error, options.signal, 'tools', wall.fired());
+    } finally {
+      wall.stop();
     }
   }
 
@@ -319,7 +365,7 @@ class StreamableHttpWire implements McpWire {
   private async open(timeoutMs: number, signal?: AbortSignal): Promise<Client> {
     if (this.client !== undefined) return this.client;
     // `auto`, not a pin: a pin refuses every 2025-era server (D17's amendment). The probe is the same either way.
-    const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { versionNegotiation: { mode: 'auto' } });
+    const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { versionNegotiation: { mode: 'auto' }, jsonSchemaValidator: NO_OUTPUT_CHECK });
     const auth = this.server.auth;
     const transport = new StreamableHTTPClientTransport(new URL(this.server.url), {
       ...(auth.kind === 'bearer' ? { authProvider: { token: () => this.deps.resolveBearer(auth.tokenRef) } } : {}),
@@ -360,8 +406,15 @@ class StreamableHttpWire implements McpWire {
     };
   }
 
-  private classify(error: unknown, signal: AbortSignal | undefined, what: 'tools' | 'resources' | 'prompts' | 'completions' = 'tools'): WireError {
+  private classify(
+    error: unknown,
+    signal: AbortSignal | undefined,
+    what: 'tools' | 'resources' | 'prompts' | 'completions' = 'tools',
+    wallClockFired = false,
+  ): WireError {
     if (error instanceof WireError) return error;
+    // The call ran to its wall-clock cap. The writer's own abort wins when both happened.
+    if (wallClockFired && signal?.aborted !== true) return new WireError('timeout', 'the call ran to its wall-clock limit', undefined, { limit: 'total' });
     // An answer refused for its size is this module's own refusal, and it is the kind the person
     // is told, however deeply the SDK wrapped it on the way out. A refusal inside an event stream
     // reaches the SDK as a broken connection, so the refusal that was recorded when it happened is
@@ -392,7 +445,8 @@ class StreamableHttpWire implements McpWire {
     if (error instanceof SdkError) {
       switch (error.code) {
         case SdkErrorCode.RequestTimeout:
-          return new WireError('timeout', error.message);
+          // The SDK's own total cap carries the cap in its data; any other timeout is the idle limit.
+          return new WireError('timeout', error.message, undefined, { limit: (error as { data?: { maxTotalTimeout?: unknown } }).data?.maxTotalTimeout === undefined ? 'idle' : 'total' });
         case SdkErrorCode.InvalidResult:
         case SdkErrorCode.UnsupportedResultType:
           return new WireError('result', error.message);
@@ -428,6 +482,34 @@ function isInputRequired(error: unknown): boolean {
   if (error.code === SdkErrorCode.CapabilityNotSupported && error.message.startsWith('Cannot fulfil input request')) return true;
   const data = (error as { data?: unknown }).data;
   return error.code === SdkErrorCode.UnsupportedResultType && typeof data === 'object' && data !== null && (data as { resultType?: unknown }).resultType === 'input_required';
+}
+
+/**
+ * A signal that also fires at the call's wall-clock cap, and a way to tell which of the two did. The cap is exact here, not left to the
+ * SDK, which reads its own only when the server next reports progress: a server that reports at 599 s would otherwise run to 719 s.
+ */
+function wallClock(
+  signal: AbortSignal | undefined,
+  maxTotalMs: number | undefined,
+): { readonly signal: AbortSignal | undefined; fired(): boolean; stop(): void } {
+  if (maxTotalMs === undefined) return { signal, fired: () => false, stop: () => undefined };
+  const controller = new AbortController();
+  let fired = false;
+  const forward = (): void => controller.abort(signal?.reason);
+  if (signal?.aborted === true) forward();
+  else signal?.addEventListener('abort', forward, { once: true });
+  const timer = setTimeout(() => {
+    fired = true;
+    controller.abort(new Error('wall-clock limit'));
+  }, maxTotalMs);
+  return {
+    signal: controller.signal,
+    fired: () => fired,
+    stop: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', forward);
+    },
+  };
 }
 
 function isAbort(error: unknown): boolean {

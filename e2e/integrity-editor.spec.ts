@@ -29,7 +29,7 @@ test('an agent draft that lands after an undo shows in the editor, and the next 
 
   // The agent drafts into the scene, and the writer approves the draft once it is on screen.
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Intent' }).fill(DEMO_INTENTS.draftScene);
+  await page.getByRole('combobox', { name: 'Intent' }).fill(DEMO_INTENTS.draftScene);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   const plan = page.getByTestId('plan-card');
   await expect(plan.getByRole('heading', { name: 'One step to confirm' })).toBeVisible();

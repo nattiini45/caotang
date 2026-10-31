@@ -16,6 +16,7 @@
  */
 
 import type { SseEvent } from '../sse.js';
+import type { CacheSettings } from './cache.js';
 import type { EffectiveOutput } from './effort.js';
 import type {
   ChatRequest,
@@ -122,6 +123,8 @@ export interface BodyInput {
   readonly effective: EffectiveOutput;
   /** whether the route may send `response_format: {type:'json_object'}` for this call */
   readonly jsonObject: boolean;
+  /** How this call caches its prompt prefix; absent means it sends no cache field (adapters/cache.ts). */
+  readonly cache?: CacheSettings;
 }
 
 /**

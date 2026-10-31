@@ -852,11 +852,14 @@ describe('the registration refusal is never reached, because the captures are co
     // The script imports add the two imports and the container settings, all compensable and needing no port: 31 + 3 = 34.
     // The skill commands add `skill.write`, `skill.delete` and `skill.setEnabled` (`skill.import` needs the host's staging): 34 + 3 = 37.
     // The three knowledge commands are compensable and need no port: 37 + 3 = 40.
-    // The timeline batch (`timeline.apply`) is compensable and needs no port: 40 + 1 = 41.
-    // The six picture commands that touch only the manifest are compensable and need no port (the two imports need the asset port): 41 + 6 = 47.
-    // Re-pinning needs no port either: 48. The seven comic commands need no port: 55, and the calendar setting makes 56.
-    // The reviewed transcription batch is compensable and needs no port: 57. The document-level compound makes 58.
-    expect(implemented).toHaveLength(58);
+    // The agent's files add `project.setInstructions`, `memory.write` and `memory.forget`: 40 + 3 = 43.
+    // The macros add `macro.save` and `macro.delete`: 43 + 2 = 45.
+    // The hooks add `hook.save` and `hook.delete`: 45 + 2 = 47.
+    // The picture registry adds `asset.setMeta` (the two imports need the asset port): 47 + 1 + 2 (`script.setShowMeta`, `script.setEpisodeMeta`) = 50.
+    // The writer's codex batch import adds `codex.importBatch`: 50 + 1 = 51.
+    // The timeline batch and the calendar setting are compensable and need no port: 51 + 2 = 53.
+    // The eight picture commands that touch only the manifest beyond `asset.setMeta` need no port: 53 + 8 = 61. The seven comic commands make 68.
+    expect(implemented).toHaveLength(68);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

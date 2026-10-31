@@ -96,12 +96,17 @@ export function describeSubset(font: SubsetSource, program: Uint8Array, entries:
   };
 }
 
-/** A PDF value, without a PDF library: numbers, names, text strings, references by index into the object list, arrays and dictionaries. */
+/**
+ * A PDF value, without a PDF library: numbers, names, text strings, references by index into the object list, arrays and
+ * dictionaries. `raw` is PDF syntax written as it stands, for the numbers a Type 3 font states (type3.ts) and the shadings of the
+ * colour emoji asset, which are built offline from pinned input (vendor/noto-color-emoji) and hold no string, stream or reference.
+ */
 export type PdfValue =
   | number
   | { readonly name: string }
   | { readonly string: string }
   | { readonly ref: number }
+  | { readonly raw: string }
   | { readonly dict: { readonly [key: string]: PdfValue } }
   | readonly PdfValue[];
 
@@ -109,6 +114,8 @@ export type PdfValue =
 export interface PdfObject {
   readonly dict: { readonly [key: string]: PdfValue };
   readonly stream?: Uint8Array | string;
+  /** The whole object as PDF syntax (a shading dictionary of the colour emoji asset), when it is not built from `dict`. */
+  readonly raw?: string;
 }
 
 const name = (value: string): PdfValue => ({ name: value });
@@ -181,14 +188,16 @@ function utf16Hex(text: string): string {
 }
 
 /**
- * The ToUnicode CMap (PDF 1.7 §9.10.3): each CID back to its text, so the text extracts. A CID with no text of its own that is
+ * The ToUnicode CMap (PDF 1.7 §9.10.3): each CID back to its text, so the text extracts. A Type 3 font has one-byte codes
+ * (`codeBytes` 1). A CID with no text of its own that is
  * one of {@link TEXTLESS_CIDS} has no entry (pdf.js skips its code); another maps to {@link NO_TEXT}, never to nothing.
  */
-export function toUnicodeCMap(entries: readonly CidEntry[]): string {
+export function toUnicodeCMap(entries: readonly CidEntry[], codeBytes: 1 | 2 = 2): string {
+  const code = (cid: number): string => (codeBytes === 1 ? cid.toString(16).toUpperCase().padStart(2, '0') : hex4(cid));
   const mapped = entries.flatMap((entry, index) => {
     const cid = cidOfEntry(entry, index);
-    if (entry.text === '') return TEXTLESS.has(cid) ? [] : [`<${hex4(cid)}> <${utf16Hex(NO_TEXT)}>`];
-    return [`<${hex4(cid)}> <${utf16Hex(entry.text)}>`];
+    if (entry.text === '') return TEXTLESS.has(cid) ? [] : [`<${code(cid)}> <${utf16Hex(NO_TEXT)}>`];
+    return [`<${code(cid)}> <${utf16Hex(entry.text)}>`];
   });
   const blocks: string[] = [];
   for (let i = 0; i < mapped.length; i += BFCHAR_BLOCK) {
@@ -203,7 +212,7 @@ export function toUnicodeCMap(entries: readonly CidEntry[]): string {
     '/CMapName /Adobe-Identity-UCS def',
     '/CMapType 2 def',
     '1 begincodespacerange',
-    '<0000> <FFFF>',
+    codeBytes === 1 ? '<00> <FF>' : '<0000> <FFFF>',
     'endcodespacerange',
     ...blocks,
     'endcmap',

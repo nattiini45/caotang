@@ -115,6 +115,8 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'screenplay.import': ['format', 'text', 'parentId'],
   'dialogue.importInk': ['containers', 'parentId'],
   'dialogue.setMeta': ['nodeId', 'patch'],
+  'script.setShowMeta': ['nodeId', 'patch'],
+  'script.setEpisodeMeta': ['nodeId', 'patch'],
   'skill.import': ['stagingId'],
   'skill.write': ['name', 'path', 'text'],
   'skill.delete': ['name'],
@@ -142,6 +144,14 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'comic.scriptFromPages': ['nodeId', 'expectedRevision'],
   'comic.derive': ['nodeId', 'doc', 'expectedRevision', 'expect'],
   'comic.letter': ['nodeId', 'doc', 'expectedRevision', 'expect', 'panel', 'line'],
+  'project.setInstructions': ['text', 'expectedDigest'],
+  'memory.write': ['slug', 'type', 'title', 'body', 'expectedDigest'],
+  'memory.forget': ['slug'],
+  'macro.save': ['macro'],
+  'macro.delete': ['macroId'],
+  'hook.save': ['hook'],
+  'hook.delete': ['hookId'],
+  'codex.importBatch': ['entries', 'pages', 'parentId'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */

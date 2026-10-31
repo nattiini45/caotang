@@ -43,7 +43,7 @@ test('notes with an agent divider open as a read view, where the divider is a se
   await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
 
-  await page.getByRole('textbox', { name: 'Intent' }).fill('Add a note to The Landing.');
+  await page.getByRole('combobox', { name: 'Intent' }).fill('Add a note to The Landing.');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   // A note is written by an auto-approved step, so the turn applies without a plan card, and it carries a checkpoint.
   await expect(page.getByTestId('checkpoint')).toBeVisible();

@@ -57,8 +57,17 @@ export class SettingsStore {
   }
 }
 
+/**
+ * Whether the app database held a settings record the first time this page read it, `undefined` until then. Only the first read
+ * counts: start-up writes the record (the active profile mirror below), and a second open in the same page load (React's strict
+ * mode runs the effect twice in development) must not take that write for an earlier visit. The interface's default reads it (app/interface.ts).
+ */
+let settingsKeptAtStart: boolean | undefined;
+
 export interface AppServices {
   readonly db: AppDb | null;
+  /** Whether the settings record was there before this page load wrote anything: an existing writer (app/interface.ts). */
+  readonly settingsKept: boolean;
   readonly settings: SettingsStore;
   readonly providers: ProviderService;
   /** The MCP & tools client for the session (extensibility §3, §8). Nothing connects until a person asks it to. */
@@ -95,6 +104,7 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   if (db !== null) {
     try {
       stored = await db.get<unknown>(APP_KEYS.settings);
+      settingsKeptAtStart ??= stored !== undefined;
       initial = normalizeSettings(stored);
     } catch (error) {
       const message = errorText(error);
@@ -110,6 +120,10 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   const { service, notices: providerNotices } = await ProviderService.open({ db, vault: factory });
   notices.push(...providerNotices);
   const settings = new SettingsStore(db, initial);
+  // The agent trace follows its setting (agent-harness §5.2): on, the gateway is observed; off, nothing is gathered and what was is cleared.
+  const traceOn = (): void => service.trace.keep(settings.current().agent.keepTraces);
+  traceOn();
+  settings.subscribe(traceOn);
   // The active profile is mirrored into the settings record (ui-modules §5.1), so the record names the profile the agent uses.
   const active = service.active();
   if (active !== undefined && settings.current().provider.activeProfileId !== active.id) {
@@ -120,7 +134,7 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
     keys: service.keys,
     ...(options.mcpWire === undefined ? {} : { wire: options.mcpWire }),
   });
-  return { db, settings, providers: service, mcp, notices };
+  return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, notices };
 }
 
 function errorText(error: unknown): string {

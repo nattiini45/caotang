@@ -30,7 +30,7 @@ import {
   type ShotImportImagesParams,
 } from '@caotang/bus';
 
-import { COVER_MAX_BYTES, type ApplyClock, type ProjectAssetPort } from './commands-project.js';
+import type { ApplyClock, ProjectAssetPort } from './commands-project.js';
 import { PictureWriteError, planPictureImport, publishPlan, type ImportWording } from './picture-import.js';
 import { withAssetFileGate } from './picture-retention.js';
 import type { ShotCommandPort } from './commands.js';
@@ -70,11 +70,9 @@ function shotToImportOnto(state: ProjectState, nodeId: string): TreeNode {
   return node;
 }
 
-/** The refusals of an image for a shot, as the writer has always read them. */
+/** The refusal for a shot's staged image that is gone, as the writer has always read it; the rest are the pipeline's. */
 const SHOT_WORDING: ImportWording = {
   missing: (label) => `${label ?? 'the image'} is no longer held, so nothing was imported`,
-  tooBig: (label, bytes) => `${label ?? 'the image'} is ${Math.round(bytes / (1024 * 1024))} MB, and an image may be at most ${COVER_MAX_BYTES / (1024 * 1024)} MB`,
-  notPicture: (label) => `${label ?? 'the file'} is not a PNG, JPEG or WebP image, which are the formats a shot can hold`,
 };
 function shotImportImageApply(clock: ApplyClock, assets: ProjectAssetPort, shots: ShotCommandPort): ImportApply<ShotImportImageParams> {
   return async (state, params, context: ApplyContext) => withAssetFileGate(assets, async () => {
@@ -174,6 +172,7 @@ function shotImportImagesApply(clock: ApplyClock, assets: ProjectAssetPort, shot
     }
     const written = plan.items.map((picture, index) => ({ nodeId: targets[index]?.item.nodeId ?? '', assetId: picture.assetId, path: picture.path }));
     // Everything after the last await is synchronous. The shots are read again, because the project may have moved while the files were written.
+    const filesWritten = plan.items.filter((picture) => picture.write).length;
     const changed: BatchedShot[] = [];
     const affected: { nodeId: string; title: string }[] = [];
     try {
@@ -186,7 +185,7 @@ function shotImportImagesApply(clock: ApplyClock, assets: ProjectAssetPort, shot
         if (!applied.ok) {
           throw new ApplyRefusal({
             ...applied.error,
-            message: `${applied.error.message} No shot was given a picture; ${plural(written.length, 'file was', 'files were')} written to the project's images, and no shot names ${written.length === 1 ? 'it' : 'them'}.`,
+            message: `${applied.error.message} No shot was given a picture; ${plural(filesWritten, 'file was', 'files were')} written to the project's images, and no shot names ${filesWritten === 1 ? 'it' : 'them'}.`,
           });
         }
         changed.push({ node, before, after, stampBefore });

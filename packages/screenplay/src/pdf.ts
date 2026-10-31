@@ -7,10 +7,10 @@
  * frozen-format output. The one library the writer leans on, @pdf-lib/fontkit, cuts the fallback
  * subset, and is loaded only when a script needs it.
  *
- * The font is Courier Prime (A3), embedded whole as a TrueType font program (`FontFile2`),
- * when the caller passes its bytes. The exporter always does. Without them the page names the
- * base-14 Courier, which every viewer has; Courier Prime has Courier's metrics, so the layout
- * is the same either way.
+ * The font is Courier Prime (A3) or Cousine, embedded whole as a TrueType font program (`FontFile2`),
+ * when the caller passes its bytes. The exporter does unless the recipe asks for Courier. Without them the page names the
+ * base-14 Courier, which every viewer has; both fonts have Courier's 600-unit advance, so the layout
+ * is the same either way. The page is US Letter or A4 (`PdfInfo.pageSize`); the text sits at the same place on both.
  *
  * Characters WinAnsi cannot encode are printed in a second font when the caller passes one: the CJK fallback, a
  * subset of Noto Sans Mono CJK SC cut for the document (cjk-font.ts), embedded as a Type 0 font with a CIDFontType2
@@ -24,6 +24,12 @@
  * (`@caotang/pdf-fonts` writes both). An emoji is one grapheme cluster, however many code points it has (👨‍👩‍👧, 🇩🇪, 1️⃣): one CID, one glyph, two
  * columns, set at 10 points and centred in its cell so it fits the 12-point line. Its ToUnicode entry is the whole
  * cluster, so a reader copies the sequence the writer typed. A line with no emoji is written as it was without this font.
+ *
+ * With Colour emoji on (the recipe option), an emoji that Noto Color Emoji has prints in colour instead (colour-emoji.ts): a Type 3
+ * font whose glyphs are the vector pictures of `@caotang/font-noto-color-emoji`, written by `@caotang/pdf-fonts` (type3.ts). Each
+ * emoji is again one code, one cell and one `Tj`, set at the same size and centred in the same two columns, and its ToUnicode entry is
+ * the whole cluster. An emoji the colour set lacks prints in the emoji font above, in the same cell. A file without colour emoji
+ * is written as it was before they existed.
  *
  * Arabic and Hebrew print in two more fonts when the caller passes them (rtl-font.ts cuts them): subsets of Noto Sans Arabic and
  * Noto Sans Hebrew, written like the others. A line that holds either script, or belongs to a right-to-left paragraph, is not
@@ -47,10 +53,10 @@
  * offsets, and the tests can check them exactly.
  */
 
-import { cidFontObjects, isBidiControl, isEmojiCluster, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
+import { cidFontObjects, isBidiControl, isEmojiCluster, type CidSubset, type PdfObject, type PdfValue, type Type3Fonts } from '@caotang/pdf-fonts';
 
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
-import { LAYOUT } from './paginate.js';
+import { LAYOUT, PAGE_GEOMETRY, type PageSize } from './paginate.js';
 import { WIN_ANSI_EXTRA, isPrintable } from './winansi.js';
 import { textUnits, unitColumns } from './width.js';
 
@@ -73,11 +79,30 @@ export interface PdfInfo {
   readonly title?: string;
   readonly author?: string;
   readonly producer?: string;
+  /** The page's paper (default Letter). It is not in the info dictionary: it sets each page's `MediaBox` and the flip of the y axis. */
+  readonly pageSize?: PageSize;
 }
 
-/** A TrueType font program to embed: Courier Prime (A3). Its metrics are the ones `COURIER_PRIME_METRICS` states. */
+/** What a font descriptor states (PDF 1.7 §9.8), in glyph space of 1000 units to the em. `COURIER_PRIME_METRICS` is one. */
+export interface PdfFontMetrics {
+  readonly postScriptName: string;
+  /** The advance of every glyph, which the font program has and the PDF states. */
+  readonly width: number;
+  readonly bbox: readonly number[];
+  readonly ascent: number;
+  readonly descent: number;
+  readonly capHeight: number;
+  readonly xHeight: number;
+  readonly italicAngle: number;
+  readonly stemV: number;
+  readonly flags: number;
+}
+
+/** A TrueType font program to embed: Courier Prime (A3) unless `metrics` says it is another monospaced font. */
 export interface PdfFont {
   readonly bytes: Uint8Array;
+  /** The figures of the font's descriptor. Absent: `COURIER_PRIME_METRICS`. */
+  readonly metrics?: PdfFontMetrics;
 }
 
 /** One glyph of the fallback subset. */
@@ -113,6 +138,26 @@ export interface PdfEmojiFont extends CidSubset {
   readonly size: number;
   /** The glyph each unit prints with, by the unit's text. */
   readonly glyphs: ReadonlyMap<string, PdfEmojiGlyph>;
+}
+
+/** One colour emoji: its code in one of the Type 3 fonts, and its cell like {@link PdfEmojiGlyph}'s. */
+export interface PdfColourGlyph {
+  /** The font in {@link PdfColourEmojiFont.fonts}, counting from 0 (resource `CE1`, `CE2`, …). */
+  readonly font: number;
+  /** The one-byte code in that font (1 to 255), which is what the content stream shows. */
+  readonly code: number;
+  readonly width: number;
+  readonly dx: number;
+}
+
+/** The colour emoji a file prints: Type 3 fonts (`@caotang/pdf-fonts` writes them), and the font and code of each emoji. */
+export interface PdfColourEmojiFont {
+  /** The size it is set in, in points. */
+  readonly size: number;
+  readonly fonts: Type3Fonts;
+  readonly glyphs: ReadonlyMap<string, PdfColourGlyph>;
+  /** Compresses a stream (zlib), when the host can: the glyph procedures are text and shrink to a fifth. */
+  readonly deflate?: (data: Uint8Array) => Uint8Array;
 }
 
 /** One glyph of a shaped Arabic or Hebrew run: its CID in the font's subset, and its place in points from the run's left edge, right and up. */
@@ -193,7 +238,7 @@ function num(value: number): string {
 /** Text that is all WinAnsi in the Latin-1 range: one unit a character, each one column in Courier Prime. */
 const LATIN = /^[\x20-\x7e\xa0-\xff]*$/;
 
-function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts): string {
+function contentStream(lines: readonly PdfText[], pageHeight: number, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): string {
   const parts = ['BT', '/F1 12 Tf'];
   let current = 'F1';
   const setFont = (name: string, size = 12): void => {
@@ -202,7 +247,15 @@ function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?:
   };
   /** The units of a stretch of a line, each run placed at its column from `x`. */
   const writeUnits = (units: readonly string[], x: number, y: string): void => {
-    for (const run of runsOf(units, fallback, emoji)) {
+    for (const run of runsOf(units, fallback, emoji, colour)) {
+      if (run.font === 'C' && colour !== undefined) {
+        // Each colour emoji is placed on its own, centred in its two-column cell, by the one byte of its code.
+        (run.glyphs as PdfColourGlyph[]).forEach((glyph, i) => {
+          setFont(`CE${glyph.font + 1}`, colour.size);
+          parts.push(`1 0 0 1 ${num(x + (run.column + 2 * i) * LAYOUT.charWidth + glyph.dx)} ${y} Tm`, `<${glyph.code.toString(16).toUpperCase().padStart(2, '0')}> Tj`);
+        });
+        continue;
+      }
       if (run.font === 'F3' && emoji !== undefined) {
         // Each emoji is placed on its own, centred in its two-column cell.
         setFont('F3', emoji.size);
@@ -217,20 +270,20 @@ function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?:
         parts.push(`(${pdfString(run.text)}) Tj`);
       } else {
         setFont('F2');
-        parts.push(`${cidString(run.glyphs)} Tj`);
+        parts.push(`${cidString(run.glyphs as PdfCidGlyph[])} Tj`);
       }
     }
   };
   for (const line of lines) {
-    const y = num(LAYOUT.pageHeight - line.y);
+    const y = num(pageHeight - line.y);
     const plan = rtl?.lines.get(rtlLineKey(line.text, line.rtl === true));
     if (plan !== undefined) {
-      writePlan(plan, line, y, setFont, writeUnits, parts);
+      writePlan(plan, line, y, pageHeight, setFont, writeUnits, parts);
       continue;
     }
     // A line whose every unit is one Courier Prime column is one string, as the writer always wrote it.
     const units = LATIN.test(line.text) ? null : textUnits(line.text);
-    if (units === null || units.every((unit) => unit.length === 1 && unitColumns(unit) === 1 && fontOf(unit, fallback, emoji) === 'F1')) {
+    if (units === null || units.every((unit) => unit.length === 1 && unitColumns(unit) === 1 && fontOf(unit, fallback, emoji, colour) === 'F1')) {
       setFont('F1');
       parts.push(`1 0 0 1 ${num(line.x)} ${y} Tm`, `(${pdfString(line.text)}) Tj`);
       continue;
@@ -259,6 +312,7 @@ function writePlan(
   plan: readonly PdfRtlItem[],
   line: PdfText,
   y: string,
+  pageHeight: number,
   setFont: (name: string, size?: number) => void,
   writeUnits: (units: readonly string[], x: number, y: string) => void,
   parts: string[],
@@ -273,7 +327,7 @@ function writePlan(
       if (marked) parts.push(actualText(item.source));
       setFont(SHAPED_FONT[item.font]);
       const show = (glyph: PdfShapedGlyph): void => {
-        parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
+        parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
       };
       item.glyphs.filter((glyph) => glyph.final !== true).forEach(show);
       if (marked) parts.push('EMC');
@@ -295,10 +349,13 @@ function writePlan(
   }
 }
 
-/** The font a unit prints in: F1 Courier Prime, F2 the CJK fallback, F3 the emoji fallback. A unit no font has is F1, as "?". */
-function fontOf(unit: string, fallback?: PdfCidFont, emoji?: PdfEmojiFont): 'F1' | 'F2' | 'F3' {
+/** The font a unit prints in: F1 Courier Prime, F2 the CJK fallback, F3 the emoji fallback, C the colour emoji. A unit no font has is F1, as "?". */
+function fontOf(unit: string, fallback?: PdfCidFont, emoji?: PdfEmojiFont, colour?: PdfColourEmojiFont): 'F1' | 'F2' | 'F3' | 'C' {
   if (unit.length > 1 || unit.charCodeAt(0) >= 0x231a) {
-    if (isEmojiCluster(unit)) return emoji?.glyphs.has(unit) === true ? 'F3' : 'F1';
+    if (isEmojiCluster(unit)) {
+      if (colour?.glyphs.has(unit) === true) return 'C';
+      return emoji?.glyphs.has(unit) === true ? 'F3' : 'F1';
+    }
   }
   const base = String.fromCodePoint(unit.codePointAt(0) ?? 0x3f);
   if (isPrintable(base)) return 'F1';
@@ -309,23 +366,23 @@ function fontOf(unit: string, fallback?: PdfCidFont, emoji?: PdfEmojiFont): 'F1'
 
 interface Run {
   readonly column: number;
-  readonly font: 'F1' | 'F2' | 'F3';
+  readonly font: 'F1' | 'F2' | 'F3' | 'C';
   /** The text a Courier Prime run prints: each unit's character, or "?" for a unit no font has. */
   text: string;
-  /** The fallback glyphs of an F2 or F3 run. */
-  readonly glyphs: (PdfCidGlyph | PdfEmojiGlyph)[];
+  /** The fallback glyphs of an F2, F3 or colour run. */
+  readonly glyphs: (PdfCidGlyph | PdfEmojiGlyph | PdfColourGlyph)[];
   /** Set when the run's last unit is wider than what it prints ("?" for an emoji), so the next unit starts a new run. */
   closed: boolean;
 }
 
 /** A line's units cut into runs of one font each, with the grid column each run starts at. */
-function runsOf(units: readonly string[], fallback?: PdfCidFont, emoji?: PdfEmojiFont): Run[] {
+function runsOf(units: readonly string[], fallback?: PdfCidFont, emoji?: PdfEmojiFont, colour?: PdfColourEmojiFont): Run[] {
   const runs: Run[] = [];
   let column = 0;
   for (const unit of units) {
     // A bidirectional control character prints nothing and takes no column, planned line or not.
     if (isBidiControl(unit)) continue;
-    const font = fontOf(unit, fallback, emoji);
+    const font = fontOf(unit, fallback, emoji, colour);
     const cols = unitColumns(unit);
     const base = String.fromCodePoint(unit.codePointAt(0) ?? 0x3f);
     let last = runs[runs.length - 1];
@@ -340,6 +397,8 @@ function runsOf(units: readonly string[], fallback?: PdfCidFont, emoji?: PdfEmoj
       if (cols !== 1) last.closed = true;
     } else if (font === 'F2') {
       last.glyphs.push(fallback?.glyphs.get(base) as PdfCidGlyph);
+    } else if (font === 'C') {
+      last.glyphs.push(colour?.glyphs.get(unit) as PdfColourGlyph);
     } else {
       last.glyphs.push(emoji?.glyphs.get(unit) as PdfEmojiGlyph);
     }
@@ -365,9 +424,9 @@ function hex(bytes: Uint8Array): string {
   return `${out}>`;
 }
 
-/** The font dictionary for Courier Prime as an embedded TrueType font, with WinAnsi codes 32 to 255. */
+/** The font dictionary for an embedded TrueType font, Courier Prime unless the font brings its own metrics, with WinAnsi codes 32 to 255. */
 function embeddedFontObjects(font: PdfFont, descriptorId: number, fileId: number): { font: string; descriptor: string; file: string } {
-  const m = COURIER_PRIME_METRICS;
+  const m = font.metrics ?? COURIER_PRIME_METRICS;
   const widths = Array.from({ length: 224 }, () => String(m.width)).join(' ');
   const program = hex(font.bytes);
   return {
@@ -397,19 +456,33 @@ function valueText(value: PdfValue, first: number): string {
   if ('name' in object) return `/${object.name}`;
   if ('string' in object) return `(${pdfString(object.string)})`;
   if ('ref' in object) return `${first + object.ref} 0 R`;
+  if ('raw' in object) return object.raw;
   return `<< ${Object.entries(object.dict).map(([key, item]) => `/${key} ${valueText(item, first)}`).join(' ')} >>`;
 }
 
-/** The objects of a CID font (`@caotang/pdf-fonts`, cid-font.ts) as file text, the first one numbered `first`. A binary stream is written in hexadecimal. */
-function cidFontText(font: CidSubset, first: number): string[] {
-  return cidFontObjects(font).map((object) => {
+/**
+ * Objects of `@caotang/pdf-fonts` as file text, the first one numbered `first`. A binary stream is written in hexadecimal; with
+ * `deflate`, a text stream is compressed first and written in hexadecimal too.
+ */
+function objectsText(objects: readonly PdfObject[], first: number, deflate?: (data: Uint8Array) => Uint8Array): string[] {
+  return objects.map((object) => {
+    if (object.raw !== undefined) return object.raw;
     const dict = Object.entries(object.dict).map(([key, item]) => `/${key} ${valueText(item, first)}`);
     const { stream } = object;
     if (stream === undefined) return `<< ${dict.join(' ')} >>`;
-    const body = typeof stream === 'string' ? stream : hex(stream);
-    const filter = typeof stream === 'string' ? [] : ['/Filter /ASCIIHexDecode'];
-    return `<< /Length ${body.length} ${[...dict, ...filter].join(' ')} >>\nstream\n${body}\nendstream`;
+    const packed = typeof stream === 'string' && deflate !== undefined ? deflate(new TextEncoder().encode(stream)) : undefined;
+    const body = packed !== undefined ? hex(packed) : typeof stream === 'string' ? stream : hex(stream);
+    const filter = packed !== undefined ? ['/Filter [/ASCIIHexDecode /FlateDecode]'] : typeof stream === 'string' ? [] : ['/Filter /ASCIIHexDecode'];
+    return `<< /Length ${body.length} ${[...dict, ...filter].join(' ')} >>
+stream
+${body}
+endstream`;
   });
+}
+
+/** The objects of a CID font (`@caotang/pdf-fonts`, cid-font.ts) as file text, the first one numbered `first`. */
+function cidFontText(font: CidSubset, first: number): string[] {
+  return objectsText(cidFontObjects(font), first);
 }
 
 /** An info-dictionary string: a literal in WinAnsi when every character is printable, UTF-16BE with a byte order mark otherwise. */
@@ -423,7 +496,8 @@ function infoString(text: string): string {
  * 3 the font, 4 the info dictionary. Each page then takes two objects: the page, and its
  * content stream. An embedded font adds its descriptor and its program after the pages, a CJK fallback that prints at
  * least one character adds its six objects after those, and an emoji font that prints at least one unit its six after
- * those, and an Arabic, a Hebrew and a Devanagari font that print at least one glyph their six each after those. Every page names each font the file has.
+ * those, and an Arabic, a Hebrew and a Devanagari font that print at least one glyph their six each after those, and the objects of
+ * the colour emoji fonts (type3.ts) last. Every page names each font the file has.
  *
  * A document with nothing to print writes one blank page: PDF 1.7 §7.7.3.2 asks the page tree to hold at least one
  * page, and a reader refuses a file whose page tree is empty.
@@ -435,12 +509,15 @@ export function writePdf(
   cjk?: PdfCidFont,
   emojiFont?: PdfEmojiFont,
   rtlFonts?: PdfRtlFonts,
+  colourFont?: PdfColourEmojiFont,
 ): Uint8Array<ArrayBuffer> {
   const fallback = cjk === undefined || cjk.glyphs.size === 0 ? undefined : cjk;
+  const colour = colourFont === undefined || colourFont.glyphs.size === 0 ? undefined : colourFont;
   const emoji = emojiFont === undefined || emojiFont.glyphs.size === 0 ? undefined : emojiFont;
   // A page tree with no page in it is a file a reader refuses, so a script that prints nothing still writes one page.
   const written: readonly (readonly PdfText[])[] = pages.length === 0 ? [[]] : pages;
   const pageId = (i: number): number => 5 + 2 * i;
+  const geometry = PAGE_GEOMETRY[info.pageSize ?? 'Letter'];
   const bodies: string[] = [];
   bodies[0] = '<< /Type /Catalog /Pages 2 0 R >>';
   bodies[1] = `<< /Type /Pages /Kids [${written.map((_, i) => `${pageId(i)} 0 R`).join(' ')}] /Count ${written.length} >>`;
@@ -486,20 +563,27 @@ export function writePdf(
       bodies[devanagariId - 1 + i] = body;
     });
   }
+  const colourId = devanagariId + (devanagari === undefined ? 0 : CID_FONT_OBJECTS);
+  if (colour !== undefined) {
+    objectsText(colour.fonts.objects, colourId, colour.deflate).forEach((body, i) => {
+      bodies[colourId - 1 + i] = body;
+    });
+  }
   const fonts =
     '/F1 3 0 R' +
     (fallback === undefined ? '' : ` /F2 ${fallbackId} 0 R`) +
     (emoji === undefined ? '' : ` /F3 ${emojiId} 0 R`) +
     (arabic === undefined ? '' : ` /F4 ${arabicId} 0 R`) +
     (hebrew === undefined ? '' : ` /F5 ${hebrewId} 0 R`) +
-    (devanagari === undefined ? '' : ` /F6 ${devanagariId} 0 R`);
+    (devanagari === undefined ? '' : ` /F6 ${devanagariId} 0 R`) +
+    (colour === undefined ? '' : colour.fonts.fonts.map((font, i) => ` /CE${i + 1} ${colourId + font.object} 0 R`).join(''));
   const planned = arabic === undefined && hebrew === undefined && devanagari === undefined ? undefined : rtlFonts;
   const author = info.author === undefined || info.author.trim() === '' ? '' : ` /Author ${infoString(info.author)}`;
   bodies[3] = `<< /Title ${infoString(info.title ?? 'Screenplay')}${author} /Producer ${infoString(info.producer ?? 'Caotang')} >>`;
   written.forEach((lines, i) => {
-    const stream = contentStream(lines, fallback, emoji, planned);
+    const stream = contentStream(lines, geometry.pageHeight, fallback, emoji, planned, colour);
     bodies[pageId(i) - 1] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${LAYOUT.pageWidth} ${LAYOUT.pageHeight}] ` +
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${geometry.pageWidth} ${geometry.pageHeight}] ` +
       `/Resources << /Font << ${fonts} >> >> /Contents ${pageId(i) + 1} 0 R >>`;
     bodies[pageId(i)] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });

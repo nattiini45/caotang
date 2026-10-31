@@ -36,7 +36,9 @@ import {
   devanagariRuns,
   emojiFontMaps,
   fallbackCovers,
+  graphemesOf,
   hasBidiControl,
+  hasExtendedPictographic,
   hasBrahmic,
   hasDevanagari,
   hasRtlScript,
@@ -121,9 +123,7 @@ export function charColumns(ch: string): 1 | 2 {
 }
 
 /** Characters that can start or join an emoji cluster, or are a variation selector. Text with none is split by code point. */
-const CLUSTERED = /\u200D|\u20E3|[\uFE00-\uFE0F]|[\u{E0020}-\u{E007F}]|\p{Extended_Pictographic}|\p{Emoji_Presentation}/u;
-
-let segmenter: Intl.Segmenter | undefined;
+const CLUSTERED = /\u200D|\u20E3|[\uFE00-\uFE0F]|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}]|[\u{E0020}-\u{E007F}]/u;
 
 /**
  * A text cut into the units a line is measured and broken in: each emoji cluster whole, each cluster of Arabic, Hebrew and Brahmic
@@ -133,13 +133,18 @@ let segmenter: Intl.Segmenter | undefined;
 export function textUnits(text: string): string[] {
   const rtl = hasRtlScript(text);
   const brahmic = hasBrahmic(text);
-  if (!rtl && !brahmic && !CLUSTERED.test(text)) return [...text];
-  segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-  const segments = Array.from(segmenter.segment(text), (part) => part.segment);
+  const pictographic = hasExtendedPictographic(text);
+  if (!rtl && !brahmic && !pictographic && !CLUSTERED.test(text)) return [...text];
+  const segments = graphemesOf(text);
   const units: string[] = [];
   for (const segment of brahmic ? joinConjuncts(segments) : segments) {
-    // A letter of Arabic or Hebrew with its marks and joiners is one unit, whole; so is a cluster of Brahmic text.
-    if (isEmojiCluster(segment) || (rtl && rtlScriptOf(segment.codePointAt(0) ?? 0) !== undefined) || (brahmic && isBrahmic(segment.codePointAt(0) ?? 0))) {
+    // A letter of Arabic or Hebrew with its marks and joiners is one unit; pictographs and Brahmic clusters also stay whole.
+    if (
+      isEmojiCluster(segment) ||
+      (pictographic && hasExtendedPictographic(segment)) ||
+      (rtl && rtlScriptOf(segment.codePointAt(0) ?? 0) !== undefined) ||
+      (brahmic && isBrahmic(segment.codePointAt(0) ?? 0))
+    ) {
       units.push(segment);
       continue;
     }

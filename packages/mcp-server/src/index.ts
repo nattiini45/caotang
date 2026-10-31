@@ -64,7 +64,7 @@ export {
   type ReplayEntry,
 } from './replay.js';
 export { guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
-export { advertisedSchema, registerCaotangTools, toCallResult, type ToolRuntime } from './tools.js';
+export { advertisedInput, advertisedOutput, registerCaotangTools, resultEnvelope, toCallResult, type ToolRuntime } from './tools.js';
 export {
   MESSAGE_MAX_BYTES,
   PICTURES_LIST,

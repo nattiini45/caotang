@@ -7,6 +7,7 @@ import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
 import {
   DISMISSAL_REASONS,
+  STORY_PARTS,
   TIMELINE_MODES,
   effectiveStoryPart,
   findingTypeLabel,
@@ -19,18 +20,18 @@ import {
   type FindingStatus,
   type SceneMeta,
   type ScopeSpec,
-  type StoryPart,
+  type EffectiveStoryPart,
 } from '@caotang/coherence';
-import { dateFormat, isolate, numberFormat, type MessageRef } from '@caotang/i18n';
+import { dateTimeFormat, isolate, numberFormat, type MessageRef } from '@caotang/i18n';
 import { captureTextAnchor } from '@caotang/storyboard';
 import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caotang/store';
 
 import { formatterLocale } from '../i18n/format-locale.js';
-import { projectCollator } from '../i18n/project-collator.js';
 import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { childrenOf } from './binder-model.js';
 import { containersOf } from './coherence-facts.js';
 import { findingFixInstruction, findingFixIntent } from './model-prompts.js';
+import { namesCollator } from '../i18n/locale.js';
 
 /** The severity sections, most severe first (coherence.md §5.3: the severity the check or the category gives). */
 export const SEVERITY_SECTIONS: readonly { readonly severity: FindingSeverity; readonly label: string }[] = [
@@ -346,7 +347,7 @@ export function runViewsOf(file: CoherenceFile | undefined, docTitle: (docId: st
 export function runTimeLabel(at: string, locale: string = formatterLocale()): string {
   const stamp = Date.parse(at);
   if (Number.isNaN(stamp)) return at;
-  return dateFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(stamp));
+  return dateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(stamp));
 }
 
 function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string, locale: string): RunView {
@@ -501,16 +502,12 @@ export function afterCandidates(state: ProjectState, docId: string): { id: strin
     .map((node) => ({ id: node.id, title: node.title }));
 }
 
-/**
- * The codex entries a POV may name: characters first, since that is what a point of view is, then the rest by name. Names are
- * writer content, so they sort by the **project language** (i18n.md §4.3, D9): a Swedish novel sorts å after z under any
- * interface. A project that names no language yet falls back to the formatter locale.
- */
+/** The codex entries a POV may name: characters first, since that is what a point of view is, then the rest by name in the project language (D9). */
 export function povCandidates(entries: readonly CodexEntry[], projectLanguage?: string): CodexEntry[] {
-  const byName = projectCollator(projectLanguage);
+  const names = namesCollator(projectLanguage);
   return [...entries].sort((a, b) => {
     const rank = (entry: CodexEntry): number => (entry.type === 'character' ? 0 : 1);
-    return rank(a) - rank(b) || byName.compare(a.name, b.name);
+    return rank(a) - rank(b) || names.compare(a.name, b.name);
   });
 }
 
@@ -536,8 +533,8 @@ export function modeLabel(mode: string | undefined): string {
   }
 }
 
-/** The three story parts a node can declare, in the order the Story part select lists them (coherence.md §5.2.2). */
-export function storyPartLabel(part: StoryPart): string {
+/** A story part as the writer reads it: Prologue, Epilogue, or Main story (coherence.md §5.2.2). */
+export function storyPartLabel(part: EffectiveStoryPart): string {
   switch (part) {
     case 'prologue': return t`Prologue`;
     case 'epilogue': return t`Epilogue`;
@@ -549,10 +546,52 @@ export function storyPartLabel(part: StoryPart): string {
  * The part a node would be in with no declaration of its own: its folders' nearest declaration, else the main story. The
  * Inspector names it beside "Inherit" so a writer sees what clearing the declaration returns to.
  */
-export function inheritedStoryPartOf(state: ProjectState, file: CoherenceFile | undefined, nodeId: string): StoryPart {
-  const own = file?.sceneMeta[nodeId];
-  const rest = own === undefined || own.storyPart === undefined ? (file?.sceneMeta ?? {}) : { ...file?.sceneMeta, [nodeId]: { ...own, storyPart: undefined } };
-  return effectiveStoryPart(state.manifest.tree, rest, nodeId);
+export function inheritedStoryPartOf(state: ProjectState, file: CoherenceFile | undefined, nodeId: string): EffectiveStoryPart {
+  // The folders above the node, nearest last, as `effectiveStoryPart` reads them; the node's own declaration is left out.
+  const byId = new Map(state.manifest.tree.map((node) => [node.id, node] as const));
+  const ancestors: (SceneMeta | undefined)[] = [];
+  const seen = new Set<string>([nodeId]);
+  let parentId = byId.get(nodeId)?.parentId ?? null;
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (parent === undefined) break;
+    ancestors.unshift(file?.sceneMeta[parent.id]);
+    parentId = parent.parentId;
+  }
+  return effectiveStoryPart(undefined, ancestors);
+}
+
+/**
+ * The Inspector's story-part choices (coherence.md §5.2.2): the main story (the empty value, no declaration) and the parts
+ * a node can declare. The explicit main-story mark is the Agenda's (`mainStory`); here "Main story" clears the declaration.
+ */
+export function storyPartChoices(): readonly { readonly value: '' | (typeof STORY_PARTS)[number]; readonly label: string }[] {
+  return [{ value: '', label: storyPartLabel('main') }, ...STORY_PARTS.map((part) => ({ value: part, label: storyPartLabel(part) }))];
+}
+
+/**
+ * §5.2.2: what the nearest folder above a node declares, with that folder's title: a part, or the main-story mark (`'main'`).
+ * It is what covers the node while the node declares nothing of its own. `undefined` when no folder above declares anything.
+ */
+export function inheritedStoryPart(
+  state: ProjectState,
+  file: CoherenceFile | undefined,
+  nodeId: string,
+): { readonly part: EffectiveStoryPart; readonly folderTitle: string } | undefined {
+  const byId = new Map(state.manifest.tree.map((node) => [node.id, node] as const));
+  const seen = new Set<string>([nodeId]);
+  let parentId = byId.get(nodeId)?.parentId ?? null;
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (parent === undefined) return undefined;
+    const meta = parent.type === 'folder' ? file?.sceneMeta[parent.id] : undefined;
+    const part: EffectiveStoryPart | undefined = meta?.storyPart ?? (meta?.mainStory === true ? 'main' : undefined);
+    if (part !== undefined) return { part, folderTitle: parent.title || parent.id };
+    parentId = parent.parentId;
+  }
+  return undefined;
 }
 
 /** The writer's reading of a day number: a true minus sign, grouped for the formatter locale, as in "Day −14" (coherence.md §8). */

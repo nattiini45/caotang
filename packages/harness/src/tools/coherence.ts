@@ -33,6 +33,7 @@
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
 import { compileCodex, countMentions } from '@caotang/codex';
+import { withheldState } from '@caotang/context';
 import {
   DETERMINISTIC_CHECK_IDS,
   SCAN_DOC_GUARD,
@@ -51,7 +52,7 @@ import {
   type ScanData,
   type ToolFailure,
 } from '@caotang/coherence';
-import type { ProjectState } from '@caotang/store';
+import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { refusal } from '../errors.js';
 import { capOf } from '../metadata.js';
@@ -90,7 +91,7 @@ interface RunnableChecks {
  * The codex's own detector, run over one body with the spellings the body adds (a screenplay's cue names). The scan counts
  * mentions with it, as the Findings tab's scan does (session.ts countInEntries), so the two scans agree.
  */
-const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
+export const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
 
 /** The checks a scan runs, or the refusal when the writer has turned every one of them off. */
 function runnableChecks(requested: unknown, enabled: readonly DeterministicCheckId[] | undefined): RunnableChecks | ToolFailure {
@@ -115,11 +116,20 @@ function isRefusal(value: RunnableChecks | ToolFailure): value is ToolFailure {
 }
 
 /**
+ * What a read rule keeps out of a scan or a review (agent-harness §4): the withheld documents are left out like archived ones, so
+ * no finding quotes them. Undefined when nothing is withheld, which leaves the engine's own rule. A goal's coherence check
+ * (`agent/checks.ts`) reuses it, so the check and the scan leave out the same documents.
+ */
+export function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
+  return withheld === undefined || withheld.size === 0 ? undefined : (node) => node.status === 'archived' || withheld.has(node.id);
+}
+
+/**
  * The coherence file the state holds, or an empty one for a project that has none yet. The engine
  * takes a `CoherenceFile`, and the state holds the store's structural copy of it (coherence-state.ts):
  * the coherence module's file is assignable to that copy, so the downcast below is the only one.
  */
-function heldFile(state: ProjectState): CoherenceFile {
+export function heldFile(state: ProjectState): CoherenceFile {
   return (state.coherence as CoherenceFile | undefined) ?? emptyCoherenceFile();
 }
 
@@ -165,7 +175,7 @@ function overGuard(name: PortToolName): CommandError {
  * keep the order the engine gave them. The cut is found by bisection, because a longer prefix of the
  * groups never fits where a shorter one does not.
  */
-function fitGroups(data: ScanData, cap: number): { readonly data: Record<string, unknown>; readonly omitted: number } {
+function fitGroups<T extends { readonly groups: ScanData['groups'] }>(data: T, cap: number): { readonly data: Record<string, unknown>; readonly omitted: number } {
   const fits = (count: number): boolean => fitsCap({ ...data, groups: data.groups.slice(0, count) }, cap);
   let low = 0;
   let high = data.groups.length;
@@ -189,7 +199,9 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
     // The checks the writer has on (Settings › Coherence), and the checks the model named among them (coherence.md §5.1).
     const runnable = runnableChecks(params['checks'], source.checks?.());
     if (isRefusal(runnable)) return failure(refusal('invalid-params', runnable.message, { target: 'coherence.scan' }));
-    const dialogue = source.dialogue?.(context.state);
+    // The dialogue facts are read from the project as the agent may read it, so a container in a withheld subtree yields none.
+    const dialogue = source.dialogue?.(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld));
+    const excluded = excludedBy(context.withheld);
     const scanParams: Readonly<Record<string, unknown>> = runnable.checks === undefined ? params : { ...params, checks: [...runnable.checks] };
     const outcome = scanTool(scanParams, {
       state: context.state,
@@ -198,6 +210,7 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
       approvedLargeScope,
       detector: countIn,
       ...(dialogue === undefined ? {} : { dialogue }),
+      ...(excluded === undefined ? {} : { isExcluded: excluded }),
     });
     if (!outcome.ok) return failure(refusalOf(outcome, 'coherence.scan'));
     // The appender side-effect of coherence.md §7 tool 15: the run and its findings join the held file. The
@@ -262,14 +275,22 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
  * the plan is what the card shows before the writer approves it: the documents, the cost estimate and the first prompt. Refused,
  * with the sentence the writer can act on, when no provider is active.
  */
-export function stageReviewPlan(params: CallParams, state: ProjectState, clock: () => number, source: CoherenceSource): Result<ReviewPlan, CommandError> {
+export function stageReviewPlan(
+  params: CallParams,
+  state: ProjectState,
+  clock: () => number,
+  source: CoherenceSource,
+  withheld?: ReadonlySet<string>,
+): Result<ReviewPlan, CommandError> {
   const model = source.model?.();
+  const excluded = excludedBy(withheld);
   const outcome = previewReviewTool(params, {
     state,
     file: heldFile(state),
     now: new Date(clock()),
     ...(model === undefined ? {} : { model }),
-    ...(source.review === undefined ? {} : { review: source.review(state) }),
+    ...(source.review === undefined ? {} : { review: source.review(withheld === undefined ? state : withheldState(state, withheld)) }),
+    ...(excluded === undefined ? {} : { isExcluded: excluded }),
   });
   if (!outcome.ok) return err(refusalOf(outcome, 'coherence.review'));
   return ok(outcome.data.plan);
@@ -303,7 +324,8 @@ export function coherenceAsyncPorts(clock: () => number, source: CoherenceSource
       file: heldFile(context.state),
       now: new Date(clock()),
       model,
-      ...(source.review === undefined ? {} : { review: source.review(context.state) }),
+      ...(source.review === undefined ? {} : { review: source.review(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld)) }),
+      ...(excludedBy(context.withheld) === undefined ? {} : { isExcluded: excludedBy(context.withheld) }),
       currentFile: () => heldFile(context.state),
       ...(context.signal === undefined ? {} : { signal: context.signal }),
     });

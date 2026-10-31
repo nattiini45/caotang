@@ -19,6 +19,8 @@ export {
   BINARY_FORMATS,
   EXPORT_FORMATS,
   MEDIA_FORMATS,
+  TEXT_PROOF_FORMATS,
+  hasTextProof,
   isBinaryFormat,
   isExportFormat,
   isMediaFormat,
@@ -31,7 +33,12 @@ export {
   type ExportFile,
   type ExportFormat,
   type ExportMetadataInput,
+  type ExportPreview,
+  type ExportPreviewFacts,
+  type ExportPreviewRequest,
+  type ExportProof,
   type ExportRecipe,
+  type CompileOptions,
   type ExportRecipeOptions,
   type ExportResult,
   type ExportSelection,
@@ -73,6 +80,7 @@ export {
 // The Markdown export's byte-preserving image rewriting (pictures.md §4, the Markdown row).
 export { rewriteMarkdownImages, type MarkdownPicturesMode } from './markdown-pictures.js';
 
+export { COLOUR_EMOJI_FORMATS, COLOUR_EMOJI_HINT, COLOUR_EMOJI_LABEL, colourEmojiDefault } from './colour-emoji-option.js';
 export { createExporter, EXPORT_MIME, recipesOf, type ExportDispatch, type ExporterOptions, type ExporterService } from './exporter.js';
 // The metadata and the stored images an export reads, the same for every host that compiles (epub-metadata.md).
 export { assetRecordsOf, exportMetadataOf } from './export-metadata.js';

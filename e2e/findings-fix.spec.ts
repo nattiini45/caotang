@@ -24,7 +24,7 @@ test('Fix with agent on a finding proposes a rewrite of its passage, and the tex
   // typed request, and its card is approved here.
   await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
-  const intent = page.getByRole('textbox', { name: 'Intent' });
+  const intent = page.getByRole('combobox', { name: 'Intent' });
   await expect(intent).toBeEnabled();
   await intent.fill('Review the manuscript for contradictions.');
   await page.getByRole('button', { name: 'Send', exact: true }).click();

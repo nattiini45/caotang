@@ -1,0 +1,2857 @@
+{
+  "project.overview": {
+    "type": "object",
+    "description": "No parameters: the overview of the open project.",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+  },
+  "binder.read_tree": {
+    "type": "object",
+    "description": "Which part of the binder to read.",
+    "properties": {
+      "root": {
+        "type": "string",
+        "description": "A node id to start from: root (the default), manuscript, research, or any id.",
+        "minLength": 1
+      },
+      "depth": {
+        "type": "integer",
+        "description": "Levels below the start node to include: 1 to 3.",
+        "minimum": 1,
+        "maximum": 3,
+        "default": 2
+      },
+      "include": {
+        "type": "string",
+        "enum": [
+          "counts",
+          "synopsis",
+          "none"
+        ],
+        "description": "Per node: word counts (default), the synopsis, or nothing extra.",
+        "default": "counts"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "doc.read": {
+    "type": "object",
+    "description": "Which document to read, and how much of it.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document: a title, or an id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "range": {
+        "type": "object",
+        "description": "A character range in the body projection, from and to, 0-indexed. Omit for the whole body.",
+        "properties": {
+          "from": {
+            "type": "integer",
+            "description": "Start offset, at least 0.",
+            "minimum": 0
+          },
+          "to": {
+            "type": "integer",
+            "description": "End offset, at least from.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "additionalProperties": false
+      },
+      "response_format": {
+        "type": "string",
+        "enum": [
+          "concise",
+          "detailed"
+        ],
+        "description": "'detailed' returns the text. 'concise' returns structure and a lead.",
+        "default": "detailed"
+      }
+    },
+    "required": [
+      "doc"
+    ],
+    "additionalProperties": false
+  },
+  "notes.read": {
+    "type": "object",
+    "description": "Which document, and which inspector fields.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document: a title, or an id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "fields": {
+        "description": "The fields to read: a list of synopsis, notes and keywords, or \"all\" (the default).",
+        "anyOf": [
+          {
+            "type": "array",
+            "description": "A list of the fields to read, in the order given.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "synopsis",
+                "notes",
+                "keywords"
+              ],
+              "description": "One field."
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          {
+            "type": "string",
+            "enum": [
+              "all"
+            ],
+            "description": "Every field.",
+            "default": "all"
+          }
+        ]
+      }
+    },
+    "required": [
+      "doc"
+    ],
+    "additionalProperties": false
+  },
+  "meta.set": {
+    "type": "object",
+    "description": "The documents or folders to change, and the metadata to set on each.",
+    "properties": {
+      "targets": {
+        "type": "array",
+        "description": "Documents or folders to change: a title or an id each. At most 50 per call.",
+        "items": {
+          "type": "string",
+          "description": "One target: a title, or an id.",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 50
+      },
+      "status": {
+        "type": "string",
+        "description": "A status id from the project vocabulary.",
+        "minLength": 1
+      },
+      "label": {
+        "type": "string",
+        "description": "A label id from the project vocabulary.",
+        "minLength": 1
+      },
+      "keywords_add": {
+        "type": "array",
+        "description": "Keywords to add to each target. A keyword already present is left as it is.",
+        "items": {
+          "type": "string",
+          "description": "One keyword.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "maxItems": 32
+      },
+      "keywords_remove": {
+        "type": "array",
+        "description": "Keywords to remove from each target. A keyword not present is ignored.",
+        "items": {
+          "type": "string",
+          "description": "One keyword.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "maxItems": 32
+      }
+    },
+    "required": [
+      "targets"
+    ],
+    "additionalProperties": false
+  },
+  "notes.append": {
+    "type": "object",
+    "description": "The document, and the text to append to its notes.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document: a title, or an id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "text": {
+        "type": "string",
+        "description": "The text to append, at most 2000 characters.",
+        "minLength": 1,
+        "maxLength": 2000
+      }
+    },
+    "required": [
+      "doc",
+      "text"
+    ],
+    "additionalProperties": false
+  },
+  "synopsis.fill": {
+    "type": "object",
+    "description": "The documents to draft synopses for, and how.",
+    "properties": {
+      "docs": {
+        "type": "array",
+        "description": "Documents to draft a synopsis for: a title or an id each, at most 20 per call.",
+        "items": {
+          "type": "string",
+          "description": "One document: a title, or an id.",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 20
+      },
+      "source": {
+        "type": "string",
+        "enum": [
+          "text",
+          "notes",
+          "both"
+        ],
+        "description": "What to draft from: the text, the notes, or both.",
+        "default": "both"
+      },
+      "max_words": {
+        "type": "integer",
+        "description": "The longest synopsis to draft, in words.",
+        "minimum": 1,
+        "default": 50
+      }
+    },
+    "required": [
+      "docs"
+    ],
+    "additionalProperties": false
+  },
+  "scene.draft": {
+    "type": "object",
+    "description": "The document to draft into, the brief, and how to write.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document: a title, or an id.",
+        "minLength": 1
+      },
+      "instruction": {
+        "type": "string",
+        "description": "The creative brief.",
+        "minLength": 1
+      },
+      "target_words": {
+        "type": "integer",
+        "description": "The length to aim for, in words.",
+        "minimum": 1
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "continue",
+          "rewrite_selection"
+        ],
+        "description": "draft replaces an empty body; continue appends; rewrite_selection replaces the anchored range.",
+        "default": "draft"
+      },
+      "selection": {
+        "type": "object",
+        "description": "A range in the body projection, captured from the editor selection.",
+        "properties": {
+          "from": {
+            "type": "integer",
+            "description": "Start offset, 0-indexed, inclusive.",
+            "minimum": 0
+          },
+          "to": {
+            "type": "integer",
+            "description": "End offset, exclusive. Greater than from.",
+            "minimum": 0
+          },
+          "exact": {
+            "type": "string",
+            "description": "The text between from and to, 1 to 2000 characters.",
+            "maxLength": 2000
+          },
+          "prefix": {
+            "type": "string",
+            "description": "Up to 32 characters before from.",
+            "maxLength": 32
+          },
+          "suffix": {
+            "type": "string",
+            "description": "Up to 32 characters after to.",
+            "maxLength": 32
+          },
+          "capturedRevision": {
+            "type": "integer",
+            "description": "The document revision when the anchor was captured.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "exact",
+          "prefix",
+          "suffix",
+          "capturedRevision"
+        ],
+        "additionalProperties": false
+      },
+      "include_forward_outline": {
+        "type": "boolean",
+        "description": "Include the synopses of the later scenes in the drafting context. Off by default; turn it on when the draft must lead into what follows.",
+        "default": false
+      }
+    },
+    "required": [
+      "doc",
+      "instruction"
+    ],
+    "additionalProperties": false
+  },
+  "binder.restructure": {
+    "type": "object",
+    "description": "The batch of binder operations, applied in order.",
+    "properties": {
+      "ops": {
+        "type": "array",
+        "description": "Operations, in order: at most 30. Each is a create, a move or a rename, and names existing node ids only.",
+        "items": {
+          "description": "One binder operation.",
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "Create a folder or a document. A document goes in a chapter, not the manuscript.",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "create"
+                  ],
+                  "description": "the operation, always \"create\""
+                },
+                "parent": {
+                  "type": "string",
+                  "description": "The id of the folder or root that will hold the new node.",
+                  "minLength": 1
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "folder",
+                    "document"
+                  ],
+                  "description": "Whether the new node is a folder or a document."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "The title of the new node.",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "action",
+                "parent",
+                "type",
+                "title"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "Move an existing node under a new parent, at a position among its siblings.",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "move"
+                  ],
+                  "description": "the operation, always \"move\""
+                },
+                "node": {
+                  "type": "string",
+                  "description": "The id of the node to move.",
+                  "minLength": 1
+                },
+                "newParent": {
+                  "type": "string",
+                  "description": "The id of the folder or root it moves under.",
+                  "minLength": 1
+                },
+                "index": {
+                  "type": "integer",
+                  "description": "The position among the new parent’s children, from 0.",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "action",
+                "node",
+                "newParent",
+                "index"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "Change the title of an existing node.",
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "rename"
+                  ],
+                  "description": "the operation, always \"rename\""
+                },
+                "node": {
+                  "type": "string",
+                  "description": "The id of the node to rename.",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string",
+                  "description": "The new title.",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "action",
+                "node",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "minItems": 1,
+        "maxItems": 30
+      }
+    },
+    "required": [
+      "ops"
+    ],
+    "additionalProperties": false
+  },
+  "continuity.scan": {
+    "type": "object",
+    "description": "Which documents to check, and for what.",
+    "properties": {
+      "scope": {
+        "type": "array",
+        "description": "Documents to check: titles or ids, at most 20. Omit for the whole manuscript, which must hold 20 documents or fewer.",
+        "items": {
+          "type": "string",
+          "description": "One document: a title, or an id.",
+          "minLength": 1
+        },
+        "maxItems": 20
+      },
+      "aspects": {
+        "type": "array",
+        "description": "What to check: timeline, characters, props or custom. Omit for all of them.",
+        "items": {
+          "type": "string",
+          "enum": [
+            "timeline",
+            "characters",
+            "props",
+            "custom"
+          ],
+          "description": "One aspect."
+        },
+        "uniqueItems": true
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "export.compile": {
+    "type": "object",
+    "description": "What to compile, and in what format.",
+    "properties": {
+      "selection": {
+        "type": "object",
+        "description": "The node to compile. The manuscript compiles the whole manuscript; any other node compiles a part. Leave it out when a recipe names the nodes.",
+        "properties": {
+          "root": {
+            "type": "string",
+            "description": "A node id or a title: manuscript, or any node under it.",
+            "minLength": 1
+          },
+          "includeSubtrees": {
+            "type": "boolean",
+            "description": "Include everything under the root. Defaults to true, so a chapter exports with its scenes. False names the node alone.",
+            "default": true
+          }
+        },
+        "required": [
+          "root"
+        ],
+        "additionalProperties": false
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "md",
+          "txt",
+          "docx",
+          "epub",
+          "fountain",
+          "fdx",
+          "ink-json",
+          "dialogue-csv",
+          "shot-list-csv",
+          "promptpack",
+          "coherence-md",
+          "coherence-json",
+          "dialogue-xlsx",
+          "shot-list-xlsx",
+          "pdf",
+          "contact-sheet-pdf",
+          "comic-pdf",
+          "timeline-csv",
+          "timeline-xlsx",
+          "timeline-svg",
+          "timeline-pdf",
+          "cbz",
+          "comic-epub"
+        ],
+        "description": "The output format."
+      },
+      "template": {
+        "type": "string",
+        "description": "An export template id. Omit for the default template. A prompt pack names its vendor template here, unless the recipe does.",
+        "minLength": 1
+      },
+      "recipeName": {
+        "type": "string",
+        "description": "A saved export recipe, by name. It supplies the title page, contents, author, character limit and template, and without a selection, its nodes.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "format"
+    ],
+    "additionalProperties": false
+  },
+  "codex.read": {
+    "type": "object",
+    "description": "How to find codex entries.",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "A case-insensitive substring to match against names, aliases and descriptions.",
+        "minLength": 1
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "character",
+          "location",
+          "object",
+          "lore",
+          "subplot",
+          "other",
+          "all"
+        ],
+        "description": "Only entries of this type, or all.",
+        "default": "all"
+      },
+      "includePolicy": {
+        "type": "string",
+        "enum": [
+          "always",
+          "detected",
+          "manual",
+          "never",
+          "all"
+        ],
+        "description": "Only entries with this policy, or all.",
+        "default": "all"
+      },
+      "id": {
+        "type": "string",
+        "description": "An exact entry id. Returns that entry with its full description.",
+        "minLength": 1
+      },
+      "limit": {
+        "type": "integer",
+        "description": "How many entries to return: 1 to 100.",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 25
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "codex.write": {
+    "type": "object",
+    "description": "The codex entries to create or update, as one batch.",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "description": "Entries to create or update: at most 20 per call. Each is validated before any of them is written.",
+        "items": {
+          "type": "object",
+          "description": "One codex entry: a create, or an update of an existing entry by id.",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "create",
+                "update"
+              ],
+              "description": "create makes a new entry; update changes one named by id."
+            },
+            "id": {
+              "type": "string",
+              "description": "The id of the entry to update. Required for an update; not set on a create.",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string",
+              "description": "The entry name, at most 120 characters. Required on a create.",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "aliases": {
+              "type": "array",
+              "description": "Other names the entry is found by, at most 10.",
+              "items": {
+                "type": "string",
+                "description": "One alias.",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "maxItems": 10
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "character",
+                "location",
+                "object",
+                "lore",
+                "subplot",
+                "other"
+              ],
+              "description": "The entry type."
+            },
+            "description": {
+              "type": "string",
+              "description": "The entry description. At most 2000 characters; a longer one fails the batch with a proposed truncation."
+            },
+            "includePolicy": {
+              "type": "string",
+              "enum": [
+                "always",
+                "detected",
+                "manual",
+                "never"
+              ],
+              "description": "When the entry is included in the context of a generation call."
+            },
+            "caseSensitive": {
+              "type": "boolean",
+              "description": "Whether the name and aliases match case-sensitively."
+            },
+            "exclude": {
+              "type": "array",
+              "description": "Phrases in which matches are ignored, at most 20.",
+              "items": {
+                "type": "string",
+                "description": "One excluded phrase.",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "maxItems": 20
+            },
+            "attachTo": {
+              "type": "array",
+              "description": "Binder node ids to attach the entry to.",
+              "items": {
+                "type": "string",
+                "description": "One node id.",
+                "minLength": 1
+              }
+            },
+            "detachFrom": {
+              "type": "array",
+              "description": "Binder node ids to detach the entry from.",
+              "items": {
+                "type": "string",
+                "description": "One node id.",
+                "minLength": 1
+              }
+            },
+            "visualRefs": {
+              "type": "array",
+              "description": "The image asset ids the entry's visual references are, at most 10: images already in this project, by id. An update replaces the list.",
+              "items": {
+                "type": "string",
+                "description": "One image asset id.",
+                "minLength": 1
+              },
+              "maxItems": 10
+            }
+          },
+          "required": [
+            "action"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "maxItems": 20
+      }
+    },
+    "required": [
+      "entries"
+    ],
+    "additionalProperties": false
+  },
+  "agent.plan": {
+    "type": "object",
+    "description": "A plan: an ordered list of tool calls, each with the effect it expects.",
+    "properties": {
+      "steps": {
+        "type": "array",
+        "description": "The steps, in order. At least one.",
+        "items": {
+          "type": "object",
+          "description": "One step: a tool call and the effect it should have.",
+          "properties": {
+            "tool": {
+              "type": "string",
+              "description": "The tool this step calls, by name.",
+              "minLength": 1
+            },
+            "params": {
+              "type": "object",
+              "description": "The tool’s params. The tool checks them when the plan is preflighted."
+            },
+            "expect": {
+              "type": "string",
+              "description": "The effect the step should have, in words, shown on the card.",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "tool",
+            "params",
+            "expect"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "maxItems": 30
+      }
+    },
+    "required": [
+      "steps"
+    ],
+    "additionalProperties": false
+  },
+  "doc.import": {
+    "type": "object",
+    "description": "The document to import, stored exactly as given, with its metadata.",
+    "properties": {
+      "parent": {
+        "type": "string",
+        "description": "The chapter or folder that holds the document: a title or an id.",
+        "minLength": 1
+      },
+      "title": {
+        "type": "string",
+        "description": "The document title.",
+        "minLength": 1
+      },
+      "body": {
+        "type": "string",
+        "description": "The body, as markdown. Stored exactly as given: no paraphrase, no trimming."
+      },
+      "synopsis": {
+        "type": "string",
+        "description": "A synopsis, at most 2000 characters.",
+        "maxLength": 2000
+      },
+      "keywords": {
+        "type": "array",
+        "description": "Keywords, at most 32, each at most 64 characters.",
+        "items": {
+          "type": "string",
+          "description": "One keyword.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "maxItems": 32
+      },
+      "status": {
+        "type": "string",
+        "description": "A status id from the project vocabulary.",
+        "minLength": 1
+      },
+      "label": {
+        "type": "string",
+        "description": "A label id from the project vocabulary.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "parent",
+      "title",
+      "body"
+    ],
+    "additionalProperties": false
+  },
+  "codex.import": {
+    "type": "object",
+    "description": "The codex entries to import, as one batch. Each is created as the writer’s own canon and attached to the document it cites.",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "description": "Entries to import: at most 20 per call, create-only. Each is validated before any of them is written.",
+        "items": {
+          "type": "object",
+          "description": "One imported codex entry: a new entry, attached to the document its text came from.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The entry name, at most 120 characters. Required, and unique across the codex.",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "aliases": {
+              "type": "array",
+              "description": "Other names the entry is found by, at most 10. None may equal another entry's name or alias.",
+              "items": {
+                "type": "string",
+                "description": "One alias.",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "maxItems": 10
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "character",
+                "location",
+                "object",
+                "lore",
+                "subplot",
+                "other"
+              ],
+              "description": "The entry type."
+            },
+            "description": {
+              "type": "string",
+              "description": "The entry description. At most 2000 characters."
+            },
+            "includePolicy": {
+              "type": "string",
+              "enum": [
+                "always",
+                "detected",
+                "manual",
+                "never"
+              ],
+              "description": "When the entry is included in the context of a generation call."
+            },
+            "caseSensitive": {
+              "type": "boolean",
+              "description": "Whether the name and aliases match case-sensitively."
+            },
+            "exclude": {
+              "type": "array",
+              "description": "Phrases in which matches are ignored, at most 20.",
+              "items": {
+                "type": "string",
+                "description": "One excluded phrase.",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "maxItems": 20
+            },
+            "attachTo": {
+              "type": "array",
+              "description": "The one document the entry is attached to and cites: the document its full text was imported into. Required.",
+              "items": {
+                "type": "string",
+                "description": "A document id.",
+                "minLength": 1
+              },
+              "minItems": 1,
+              "maxItems": 1
+            }
+          },
+          "required": [
+            "name",
+            "attachTo"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "maxItems": 20
+      }
+    },
+    "required": [
+      "entries"
+    ],
+    "additionalProperties": false
+  },
+  "coherence.scan": {
+    "type": "object",
+    "description": "Scope and checks for a deterministic coherence scan.",
+    "properties": {
+      "scope": {
+        "type": "object",
+        "description": "Which documents to read. \"doc\" reads one document (docIds holds exactly its id); \"changed\" reads documents edited since their last review; \"full\" reads the manuscript.",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "doc",
+              "changed",
+              "full"
+            ],
+            "description": "The run scope."
+          },
+          "docIds": {
+            "type": "array",
+            "description": "For mode \"doc\" only: the one document id to read.",
+            "items": {
+              "type": "string",
+              "description": "A document id.",
+              "minLength": 1
+            },
+            "maxItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "checks": {
+        "type": "array",
+        "description": "The deterministic checks to run. Omit for all eight.",
+        "items": {
+          "type": "string",
+          "enum": [
+            "codex.alias-collisions",
+            "codex.never-mentioned",
+            "timeline.order-drift",
+            "timeline.relation",
+            "timeline.window",
+            "timeline.overlap",
+            "pov.coverage",
+            "presence.expected",
+            "script.cue-collision",
+            "script.cue-consistency",
+            "script.shot-coverage",
+            "branch.loose-end",
+            "branch.dead-end",
+            "dialogue.speaker-unknown",
+            "timeline.gap",
+            "plot.unresolved-thread",
+            "knowledge.leak",
+            "medium.speaker-parity",
+            "comic.balloon-density",
+            "comic.em-dash",
+            "comic.caps-policy",
+            "comic.balloon-coverage"
+          ],
+          "description": "A deterministic check id."
+        },
+        "uniqueItems": true
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "coherence.review": {
+    "type": "object",
+    "description": "Scope, categories and cap for a model-judged review.",
+    "properties": {
+      "scope": {
+        "type": "object",
+        "description": "Which documents to read. \"doc\" reads one document (docIds holds exactly its id); \"changed\" reads documents edited since their last review; \"full\" reads the manuscript.",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "doc",
+              "changed",
+              "full"
+            ],
+            "description": "The run scope."
+          },
+          "docIds": {
+            "type": "array",
+            "description": "For mode \"doc\" only: the one document id to read.",
+            "items": {
+              "type": "string",
+              "description": "A document id.",
+              "minLength": 1
+            },
+            "maxItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "categories": {
+        "type": "array",
+        "description": "The categories to review. Omit for all five.",
+        "items": {
+          "type": "string",
+          "enum": [
+            "timeline-plot",
+            "characterization",
+            "world-building",
+            "factual",
+            "narrative-style"
+          ],
+          "description": "A review category."
+        },
+        "uniqueItems": true
+      },
+      "maxFindings": {
+        "type": "integer",
+        "description": "The most findings to record. Defaults to 50; capped at 200.",
+        "minimum": 1,
+        "maximum": 200
+      }
+    },
+    "required": [
+      "scope"
+    ],
+    "additionalProperties": false
+  },
+  "coherence.setFindingStatus": {
+    "type": "object",
+    "description": "The finding and the status to set.",
+    "properties": {
+      "findingId": {
+        "type": "string",
+        "description": "The finding id, from a run report or the inbox.",
+        "minLength": 1
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "fixed",
+          "dismissed"
+        ],
+        "description": "Only \"fixed\" is settable by the agent."
+      },
+      "note": {
+        "type": "string",
+        "description": "What changed, in a sentence.",
+        "maxLength": 500
+      }
+    },
+    "required": [
+      "findingId",
+      "status"
+    ],
+    "additionalProperties": false
+  },
+  "tool.search": {
+    "type": "object",
+    "description": "What to search for.",
+    "properties": {
+      "query": {
+        "type": "string",
+        "description": "A word or phrase to match against tool names, descriptions and topics. Empty lists the first matches.",
+        "maxLength": 200
+      },
+      "server": {
+        "type": "string",
+        "description": "Limit the search to one external server, by its key (the s_ form shown in the server list). Native tools are then left out.",
+        "minLength": 1
+      },
+      "risk": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write"
+        ],
+        "description": "Limit to 'read' tools (run without a confirmation) or 'write' tools (each call asks the user)."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "How many matches to return, from 1 to 20. Defaults to 8.",
+        "minimum": 1,
+        "maximum": 20
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "additionalProperties": false
+  },
+  "shots.derive": {
+    "type": "object",
+    "description": "The scene to derive shots from, and how.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The screenplay scene: a document id, resolved from its title first.",
+        "minLength": 1
+      },
+      "granularity": {
+        "type": "string",
+        "enum": [
+          "key-shots",
+          "full-coverage"
+        ],
+        "description": "key-shots covers the scene with the shots that carry it; full-coverage covers every line of dialogue and action.",
+        "default": "key-shots"
+      },
+      "styleNote": {
+        "type": "string",
+        "description": "A shot style to follow, e.g. handheld and tight, passed to the model with the scene.",
+        "maxLength": 500
+      }
+    },
+    "required": [
+      "doc"
+    ],
+    "additionalProperties": false
+  },
+  "shots.annotate": {
+    "type": "object",
+    "description": "The shots to change and what to set on them.",
+    "properties": {
+      "shots": {
+        "type": "array",
+        "description": "The shot ids to change, each named once.",
+        "items": {
+          "type": "string",
+          "description": "A shot id, read from binder.read_tree.",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 50,
+        "uniqueItems": true
+      },
+      "image": {
+        "type": "object",
+        "description": "An image already in assets/, by its id.",
+        "properties": {
+          "assetId": {
+            "type": "string",
+            "description": "The asset id the import returned.",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "assetId"
+        ],
+        "additionalProperties": false
+      },
+      "spec": {
+        "type": "object",
+        "description": "The camera fields to set. Any subset.",
+        "properties": {
+          "shotSize": {
+            "type": "string",
+            "enum": [
+              "WS",
+              "FS",
+              "MFS",
+              "MS",
+              "MCU",
+              "CU",
+              "ECU",
+              "OTS",
+              "POV",
+              "INSERT"
+            ],
+            "description": "The shot size."
+          },
+          "cameraAngle": {
+            "type": "string",
+            "enum": [
+              "eye",
+              "low",
+              "high",
+              "birds",
+              "worms",
+              "dutch",
+              "overhead"
+            ],
+            "description": "The camera angle."
+          },
+          "cameraMovement": {
+            "type": "string",
+            "enum": [
+              "static",
+              "pan",
+              "tilt",
+              "dolly-in",
+              "dolly-out",
+              "truck",
+              "crane",
+              "handheld",
+              "zoom",
+              "rack-focus"
+            ],
+            "description": "The camera movement."
+          },
+          "lens": {
+            "type": "string",
+            "description": "The lens, as free text, e.g. 35mm anamorphic.",
+            "maxLength": 200
+          },
+          "transition": {
+            "type": "string",
+            "enum": [
+              "cut",
+              "dissolve",
+              "wipe",
+              "fade-in",
+              "fade-out",
+              "match-on-action"
+            ],
+            "description": "The outgoing transition."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "action": {
+        "type": "string",
+        "description": "What happens in frame.",
+        "maxLength": 1000
+      }
+    },
+    "required": [
+      "shots"
+    ],
+    "additionalProperties": false
+  },
+  "prompt.draft": {
+    "type": "object",
+    "description": "The shots to draft, the vendor template and the creative direction.",
+    "properties": {
+      "shots": {
+        "type": "array",
+        "description": "The storyboard shot ids to draft, in any order. At most 30 per call; split a longer list.",
+        "items": {
+          "type": "string",
+          "description": "A shot node id.",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 30,
+        "uniqueItems": true
+      },
+      "vendor": {
+        "type": "string",
+        "description": "The vendor template id, for example runway-gen4.",
+        "minLength": 1
+      },
+      "instruction": {
+        "type": "string",
+        "description": "Creative direction applied to every shot in the call.",
+        "maxLength": 2000
+      }
+    },
+    "required": [
+      "shots",
+      "vendor"
+    ],
+    "additionalProperties": false
+  },
+  "prompt.variant": {
+    "type": "object",
+    "description": "The shot, the vendor template and the part of the prompt to vary.",
+    "properties": {
+      "shot": {
+        "type": "string",
+        "description": "The storyboard shot id.",
+        "minLength": 1
+      },
+      "vendor": {
+        "type": "string",
+        "description": "The vendor template id, for example runway-gen4.",
+        "minLength": 1
+      },
+      "variation": {
+        "type": "string",
+        "enum": [
+          "camera",
+          "lighting",
+          "style",
+          "audio"
+        ],
+        "description": "The part of the prompt to vary: camera, lighting, style or audio."
+      }
+    },
+    "required": [
+      "shot",
+      "vendor",
+      "variation"
+    ],
+    "additionalProperties": false
+  },
+  "dialogue.draft": {
+    "type": "object",
+    "description": "The container, the brief, and where the draft goes.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The dialogue container, by title or id.",
+        "minLength": 1
+      },
+      "instruction": {
+        "type": "string",
+        "description": "The creative brief for the beats.",
+        "minLength": 1
+      },
+      "fromBeats": {
+        "type": "array",
+        "description": "Knot or stitch ids to continue from. The draft goes after the last one. Omit to append at the end.",
+        "items": {
+          "type": "string",
+          "description": "A knot id, or knot.stitch.",
+          "minLength": 1
+        },
+        "maxItems": 20,
+        "uniqueItems": true
+      },
+      "target_lines": {
+        "type": "integer",
+        "description": "A hint for the drafting prompt: about how many spoken lines to write.",
+        "minimum": 1,
+        "maximum": 200
+      }
+    },
+    "required": [
+      "doc",
+      "instruction"
+    ],
+    "additionalProperties": false
+  },
+  "dialogue.table": {
+    "type": "object",
+    "description": "The container and the output form.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The dialogue container, by title or id.",
+        "minLength": 1
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "csv",
+          "json"
+        ],
+        "description": "csv (the default) or json.",
+        "default": "csv"
+      },
+      "includeConditions": {
+        "type": "boolean",
+        "description": "Adds a condition column for choices. Defaults to false.",
+        "default": false
+      }
+    },
+    "required": [
+      "doc"
+    ],
+    "additionalProperties": false
+  },
+  "skill.load": {
+    "type": "object",
+    "description": "The skill to load.",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The skill’s name, exactly as the skills list shows it.",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "additionalProperties": false
+  },
+  "memory.read": {
+    "type": "object",
+    "description": "The memory note to read, or nothing to list what the project keeps.",
+    "properties": {
+      "slug": {
+        "type": "string",
+        "description": "The note’s slug, as the memory index and the list show it. Leave it out to list every note.",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "agent.delegate": {
+    "type": "object",
+    "description": "The agent to hand the work to, and what to tell it.",
+    "properties": {
+      "agent": {
+        "type": "string",
+        "enum": [
+          "reader",
+          "general"
+        ],
+        "description": "Which built-in agent: reader (read-only research) or general (reads, and may propose steps)."
+      },
+      "brief": {
+        "type": "string",
+        "description": "Everything the agent needs, in plain words: it sees nothing of this conversation but the brief and the scope.",
+        "minLength": 1,
+        "maxLength": 4000
+      },
+      "scope": {
+        "type": "array",
+        "description": "Documents the agent starts from: titles or ids, at most 20. Omit it and the agent finds what it needs with its read tools.",
+        "items": {
+          "type": "string",
+          "description": "One document: a title, or an id.",
+          "minLength": 1
+        },
+        "maxItems": 20
+      }
+    },
+    "required": [
+      "agent",
+      "brief"
+    ],
+    "additionalProperties": false
+  },
+  "timeline.read": {
+    "type": "object",
+    "description": "Which part of the timeline to read, and how to arrange it. Every parameter is optional.",
+    "properties": {
+      "axis": {
+        "type": "string",
+        "enum": [
+          "story",
+          "narrative",
+          "braid"
+        ],
+        "description": "The axis to read: 'story' (default), 'narrative' (reading order) or 'braid' (both)."
+      },
+      "groupBy": {
+        "type": "string",
+        "enum": [
+          "none",
+          "pov",
+          "character",
+          "mode",
+          "folder",
+          "location",
+          "thread"
+        ],
+        "description": "The lanes to read: 'none' (default, one row per scene), 'pov', 'character', 'mode', 'folder', 'location' or 'thread'."
+      },
+      "scope": {
+        "type": "string",
+        "description": "A folder or document: a title, or an id. Only the scenes under it are read. Leave it out for the whole manuscript.",
+        "minLength": 1
+      },
+      "findings": {
+        "type": "string",
+        "enum": [
+          "open",
+          "none"
+        ],
+        "description": "'open' (default) attaches the open findings to their scenes; 'none' leaves them out."
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "pictures.list": {
+    "type": "object",
+    "description": "Which pictures to list.",
+    "properties": {
+      "target": {
+        "type": "string",
+        "description": "Only pictures placed at this document or folder (a title or an id, a paragraph of it counting), or \"project\" for the project as a whole.",
+        "minLength": 1
+      },
+      "tag": {
+        "type": "string",
+        "description": "Only pictures carrying this tag.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "limit": {
+        "type": "integer",
+        "description": "At most this many pictures, default 25.",
+        "minimum": 1,
+        "maximum": 100
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "pictures.view": {
+    "type": "object",
+    "description": "The pictures to look at.",
+    "properties": {
+      "assetIds": {
+        "type": "array",
+        "description": "One to 4 picture ids (a_…).",
+        "items": {
+          "type": "string",
+          "description": "One picture id.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "minItems": 1,
+        "maxItems": 4,
+        "uniqueItems": true
+      },
+      "maxPx": {
+        "type": "integer",
+        "description": "The longest side to send, in pixels, at most 1568. Default 1568. Smaller is cheaper and shows less detail.",
+        "minimum": 64,
+        "maximum": 1568
+      }
+    },
+    "required": [
+      "assetIds"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.annotate": {
+    "type": "object",
+    "description": "The pictures or placements to describe, and what to set on each.",
+    "properties": {
+      "items": {
+        "type": "array",
+        "description": "One entry per picture or placement. At most 50 per call.",
+        "items": {
+          "type": "object",
+          "description": "One picture (a_ id) or one placement (l_ id), and the fields to change. A field left out stays as it is.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A picture id (a_…), or a placement id (l_…) for a note.",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "caption": {
+              "type": "string",
+              "description": "The caption, at most 2000 characters. An empty string clears it. Pictures only.",
+              "maxLength": 2000
+            },
+            "alt": {
+              "type": "string",
+              "description": "The alt text, at most 500 characters: what the picture shows, for a reader who cannot see it. An empty string clears it. Pictures only.",
+              "maxLength": 500
+            },
+            "decorative": {
+              "type": "boolean",
+              "description": "True marks the picture as decoration with no alt text to read; false clears the mark. Pictures only."
+            },
+            "tags": {
+              "type": "array",
+              "description": "The picture’s tags, replacing its current ones, at most 32. An empty list clears them. Pictures only.",
+              "items": {
+                "type": "string",
+                "description": "One tag.",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "maxItems": 32
+            },
+            "note": {
+              "type": "string",
+              "description": "A placement’s note, at most 2000 characters. An empty string clears it. Placements only.",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "maxItems": 50
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.attach": {
+    "type": "object",
+    "description": "The placements to make and the placements to remove.",
+    "properties": {
+      "attach": {
+        "type": "array",
+        "description": "Placements to make, at most 50.",
+        "items": {
+          "type": "object",
+          "description": "One picture, and where it goes.",
+          "properties": {
+            "assetId": {
+              "type": "string",
+              "description": "The picture id (a_…).",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "to": {
+              "description": "Where the picture goes: the project, a binder item, or one paragraph of a document.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "description": "The project as a whole.",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "project"
+                      ],
+                      "description": "the operation, always \"project\""
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "description": "One binder item.",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "node"
+                      ],
+                      "description": "the operation, always \"node\""
+                    },
+                    "doc": {
+                      "type": "string",
+                      "description": "The document or folder: a title, or an id. An ambiguous title lists its candidates.",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "doc"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "description": "One paragraph of a document, named by a quote from it.",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "paragraph"
+                      ],
+                      "description": "the operation, always \"paragraph\""
+                    },
+                    "doc": {
+                      "type": "string",
+                      "description": "The document: a title, or an id.",
+                      "minLength": 1
+                    },
+                    "anchor": {
+                      "type": "string",
+                      "description": "A short quote from the paragraph, at most 200 characters, exactly as the document reads. It must fit one paragraph only.",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "doc",
+                    "anchor"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "reference",
+                "card",
+                "source"
+              ],
+              "description": "What the placement is. A card is the one picture a binder item shows on its card. Default reference."
+            },
+            "note": {
+              "type": "string",
+              "description": "A note about this placement, at most 2000 characters.",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "assetId",
+            "to"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 50
+      },
+      "detach": {
+        "type": "array",
+        "description": "Placement ids (l_…) to remove, at most 50. The picture stays in the library.",
+        "items": {
+          "type": "string",
+          "description": "One placement id.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "maxItems": 50
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "pictures.import": {
+    "type": "object",
+    "description": "The staged picture to save, and what to record about it.",
+    "properties": {
+      "stagingId": {
+        "type": "string",
+        "description": "The staging id the app gave the picture, from a drop, a paste or a tool result. It cannot be made up, and it can be used once.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "links": {
+        "type": "array",
+        "description": "Where to place the picture once it is saved, at most 50.",
+        "items": {
+          "description": "One placement: the project, a binder item, or one paragraph of a document.",
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "The project as a whole.",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "project"
+                  ],
+                  "description": "the operation, always \"project\""
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "One binder item.",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "node"
+                  ],
+                  "description": "the operation, always \"node\""
+                },
+                "doc": {
+                  "type": "string",
+                  "description": "The document or folder: a title, or an id. An ambiguous title lists its candidates.",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "doc"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "One paragraph of a document, named by a quote from it.",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "paragraph"
+                  ],
+                  "description": "the operation, always \"paragraph\""
+                },
+                "doc": {
+                  "type": "string",
+                  "description": "The document: a title, or an id.",
+                  "minLength": 1
+                },
+                "anchor": {
+                  "type": "string",
+                  "description": "A short quote from the paragraph, at most 200 characters, exactly as the document reads. It must fit one paragraph only.",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "kind",
+                "doc",
+                "anchor"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "maxItems": 50
+      },
+      "caption": {
+        "type": "string",
+        "description": "The caption, at most 2000 characters.",
+        "maxLength": 2000
+      },
+      "alt": {
+        "type": "string",
+        "description": "The alt text, at most 500 characters.",
+        "maxLength": 500
+      },
+      "source": {
+        "type": "object",
+        "description": "Where the picture came from.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "import",
+              "paste",
+              "mcp",
+              "scan",
+              "agent"
+            ],
+            "description": "How it arrived."
+          },
+          "label": {
+            "type": "string",
+            "description": "A short label, at most 200 characters.",
+            "maxLength": 200
+          },
+          "server": {
+            "type": "string",
+            "description": "The tool server that returned it, for kind mcp.",
+            "maxLength": 200
+          },
+          "tool": {
+            "type": "string",
+            "description": "The tool that returned it, for kind mcp.",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "stagingId"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.place": {
+    "type": "object",
+    "description": "The picture, the document and the paragraph it goes beside.",
+    "properties": {
+      "assetId": {
+        "type": "string",
+        "description": "The picture id (a_…).",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "doc": {
+        "type": "string",
+        "description": "The prose document: a title, or an id.",
+        "minLength": 1
+      },
+      "anchor": {
+        "type": "string",
+        "description": "A short quote from the paragraph the picture goes beside, at most 200 characters, exactly as the document reads. It must fit one paragraph only.",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "position": {
+        "type": "string",
+        "enum": [
+          "before",
+          "after"
+        ],
+        "description": "Before or after that paragraph. Default after.",
+        "default": "after"
+      },
+      "size": {
+        "type": "string",
+        "enum": [
+          "full",
+          "half",
+          "inline"
+        ],
+        "description": "How large it prints. Default full."
+      },
+      "revision": {
+        "type": "integer",
+        "description": "The revision of the document you read the quote from, when you have one. The call is refused if the document has moved on.",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "assetId",
+      "doc",
+      "anchor"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.transcribe": {
+    "type": "object",
+    "description": "The handwritten pages to transcribe, and where the reviewed text goes.",
+    "properties": {
+      "assetIds": {
+        "type": "array",
+        "description": "One to 100 picture ids (a_…), each page named once.",
+        "items": {
+          "type": "string",
+          "description": "One picture id.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "minItems": 1,
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "into": {
+        "type": "string",
+        "enum": [
+          "new-document",
+          "searchable"
+        ],
+        "description": "Where the reviewed pages go once approved: a new Research document, or searchable text on the picture records.",
+        "default": "new-document"
+      },
+      "language": {
+        "type": "string",
+        "description": "The language of the handwriting, overriding the project language. A hint only: the transcription never corrects the text to match it.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "secondRead": {
+        "type": "object",
+        "description": "A second read on another vision route, to highlight the word-level disagreements for review. Omit it for one read. The agent loop checks this route’s vision capability and runs it as its own pinned, budgeted model call; nothing is merged automatically.",
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "description": "The provider profile the second read runs on.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "model": {
+            "type": "string",
+            "description": "A model on that profile. Omit for the profile’s default.",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "profileId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "assetIds"
+    ],
+    "additionalProperties": false
+  },
+  "comic.derive": {
+    "type": "object",
+    "description": "The comic book to derive, and the script to derive from.",
+    "properties": {
+      "book": {
+        "type": "string",
+        "description": "The comic book: a folder title, or its id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "script": {
+        "type": "string",
+        "description": "The comic script to derive the pages from: a document title, or its id. Default: the script the book links. A book with no link gets this one linked, when no other book holds it.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "book"
+    ],
+    "additionalProperties": false
+  },
+  "comic.letter": {
+    "type": "object",
+    "description": "The comic book and the page of it to letter from the book’s linked script.",
+    "properties": {
+      "book": {
+        "type": "string",
+        "description": "The comic book: a folder title, or its id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "page": {
+        "type": "string",
+        "description": "The page to letter: its title, or its id, among the book’s pages. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "panel": {
+        "type": "integer",
+        "description": "Letter only this panel of the script page, counted from 1. Default: every panel of the page.",
+        "minimum": 1
+      },
+      "line": {
+        "type": "integer",
+        "description": "Letter only this lettering line of that panel, counted from 1. Needs panel.",
+        "minimum": 1
+      }
+    },
+    "required": [
+      "book",
+      "page"
+    ],
+    "additionalProperties": false
+  },
+  "comic.scriptFromPages": {
+    "type": "object",
+    "description": "The comic book whose pages to write the script from.",
+    "properties": {
+      "book": {
+        "type": "string",
+        "description": "The comic book: a folder title, or its id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "book"
+    ],
+    "additionalProperties": false
+  },
+  "scene.brief": {
+    "type": "object",
+    "description": "The document to draft into, the brief, and how to write.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document: a title, or an id.",
+        "minLength": 1
+      },
+      "instruction": {
+        "type": "string",
+        "description": "The creative brief.",
+        "minLength": 1
+      },
+      "target_words": {
+        "type": "integer",
+        "description": "The length to aim for, in words.",
+        "minimum": 1
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "continue",
+          "rewrite_selection"
+        ],
+        "description": "draft replaces an empty body; continue appends; rewrite_selection replaces the anchored range.",
+        "default": "draft"
+      },
+      "selection": {
+        "type": "object",
+        "description": "A range in the body projection, captured from the editor selection.",
+        "properties": {
+          "from": {
+            "type": "integer",
+            "description": "Start offset, 0-indexed, inclusive.",
+            "minimum": 0
+          },
+          "to": {
+            "type": "integer",
+            "description": "End offset, exclusive. Greater than from.",
+            "minimum": 0
+          },
+          "exact": {
+            "type": "string",
+            "description": "The text between from and to, 1 to 2000 characters.",
+            "maxLength": 2000
+          },
+          "prefix": {
+            "type": "string",
+            "description": "Up to 32 characters before from.",
+            "maxLength": 32
+          },
+          "suffix": {
+            "type": "string",
+            "description": "Up to 32 characters after to.",
+            "maxLength": 32
+          },
+          "capturedRevision": {
+            "type": "integer",
+            "description": "The document revision when the anchor was captured.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "exact",
+          "prefix",
+          "suffix",
+          "capturedRevision"
+        ],
+        "additionalProperties": false
+      },
+      "include_forward_outline": {
+        "type": "boolean",
+        "description": "Include the synopses of the later scenes in the drafting context. Off by default; turn it on when the draft must lead into what follows.",
+        "default": false
+      }
+    },
+    "required": [
+      "doc",
+      "instruction"
+    ],
+    "additionalProperties": false
+  },
+  "scene.apply": {
+    "type": "object",
+    "description": "The text you wrote, where it goes, and the brief it answers.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document of the brief: a title, or an id.",
+        "minLength": 1
+      },
+      "text": {
+        "type": "string",
+        "description": "The text, at most 16384 characters: the prose (or Fountain) only, with no preamble.",
+        "minLength": 1,
+        "maxLength": 16384
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "continue",
+          "rewrite_selection"
+        ],
+        "description": "The mode of the brief. draft replaces an empty body; continue appends; rewrite_selection replaces the anchored range.",
+        "default": "draft"
+      },
+      "selection": {
+        "type": "object",
+        "description": "A range in the body projection, captured from the editor selection.",
+        "properties": {
+          "from": {
+            "type": "integer",
+            "description": "Start offset, 0-indexed, inclusive.",
+            "minimum": 0
+          },
+          "to": {
+            "type": "integer",
+            "description": "End offset, exclusive. Greater than from.",
+            "minimum": 0
+          },
+          "exact": {
+            "type": "string",
+            "description": "The text between from and to, 1 to 2000 characters.",
+            "maxLength": 2000
+          },
+          "prefix": {
+            "type": "string",
+            "description": "Up to 32 characters before from.",
+            "maxLength": 32
+          },
+          "suffix": {
+            "type": "string",
+            "description": "Up to 32 characters after to.",
+            "maxLength": 32
+          },
+          "capturedRevision": {
+            "type": "integer",
+            "description": "The document revision when the anchor was captured.",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "exact",
+          "prefix",
+          "suffix",
+          "capturedRevision"
+        ],
+        "additionalProperties": false
+      },
+      "briefId": {
+        "type": "string",
+        "description": "The briefId the brief returned. A brief expires after 30 minutes, or when the text it was made from changes.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "doc",
+      "text",
+      "briefId"
+    ],
+    "additionalProperties": false
+  },
+  "dialogue.brief": {
+    "type": "object",
+    "description": "The container, the brief, and where the draft goes.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The dialogue container, by title or id.",
+        "minLength": 1
+      },
+      "instruction": {
+        "type": "string",
+        "description": "The creative brief for the beats.",
+        "minLength": 1
+      },
+      "fromBeats": {
+        "type": "array",
+        "description": "Knot or stitch ids to continue from. The draft goes after the last one. Omit to append at the end.",
+        "items": {
+          "type": "string",
+          "description": "A knot id, or knot.stitch.",
+          "minLength": 1
+        },
+        "maxItems": 20,
+        "uniqueItems": true
+      },
+      "target_lines": {
+        "type": "integer",
+        "description": "A hint for the drafting prompt: about how many spoken lines to write.",
+        "minimum": 1,
+        "maximum": 200
+      }
+    },
+    "required": [
+      "doc",
+      "instruction"
+    ],
+    "additionalProperties": false
+  },
+  "dialogue.apply": {
+    "type": "object",
+    "description": "The Ink you wrote, where it goes, and the brief it answers.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The container of the brief, by title or id.",
+        "minLength": 1
+      },
+      "ink": {
+        "type": "string",
+        "description": "The Ink, at most 16384 characters: the Ink only, with no commentary and no code fence.",
+        "minLength": 1,
+        "maxLength": 16384
+      },
+      "fromBeats": {
+        "type": "array",
+        "description": "The knot or stitch ids of the brief. The Ink goes after the last one. Omit to append at the end.",
+        "items": {
+          "type": "string",
+          "description": "A knot id, or knot.stitch.",
+          "minLength": 1
+        },
+        "maxItems": 20,
+        "uniqueItems": true
+      },
+      "briefId": {
+        "type": "string",
+        "description": "The briefId the brief returned. A brief expires after 30 minutes, or when the text it was made from changes.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "doc",
+      "ink",
+      "briefId"
+    ],
+    "additionalProperties": false
+  },
+  "notes.replace": {
+    "type": "object",
+    "description": "The document, and the notes that replace its current notes.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document: a title, or an id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "notes": {
+        "type": "string",
+        "description": "The new notes, in full, at most 50000 characters. An empty string clears the notes.",
+        "maxLength": 50000
+      }
+    },
+    "required": [
+      "doc",
+      "notes"
+    ],
+    "additionalProperties": false
+  },
+  "synopsis.set": {
+    "type": "object",
+    "description": "The document or folder, and its new synopsis.",
+    "properties": {
+      "doc": {
+        "type": "string",
+        "description": "The document or folder: a title, or an id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "synopsis": {
+        "type": "string",
+        "description": "The synopsis, at most 2000 characters. An empty string clears it.",
+        "maxLength": 2000
+      }
+    },
+    "required": [
+      "doc",
+      "synopsis"
+    ],
+    "additionalProperties": false
+  },
+  "vocabulary.upsert": {
+    "type": "object",
+    "description": "The vocabulary term to add or change.",
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "status",
+          "label"
+        ],
+        "description": "Which vocabulary: status or label."
+      },
+      "id": {
+        "type": "string",
+        "description": "The id of an existing term to rename or recolour. Leave it out to add a new term.",
+        "minLength": 1
+      },
+      "name": {
+        "type": "string",
+        "description": "The term’s name, which must differ from every other term of that kind.",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "color": {
+        "type": "string",
+        "description": "A hex colour such as #3fa66a.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "kind",
+      "name",
+      "color"
+    ],
+    "additionalProperties": false
+  },
+  "filter.save": {
+    "type": "object",
+    "description": "The filter to save.",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The id of a saved filter to change (q_ and ten characters). Leave it out to save a new filter.",
+        "minLength": 1
+      },
+      "name": {
+        "type": "string",
+        "description": "The filter’s name, at most 60 characters.",
+        "minLength": 1
+      },
+      "root": {
+        "type": "string",
+        "enum": [
+          "manuscript",
+          "research"
+        ],
+        "description": "Search only this root. Leave it out to search both."
+      },
+      "criteria": {
+        "type": "object",
+        "description": "What a node must match, every criterion given at once.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Words to find, case-insensitive, at most 200 characters.",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "textIn": {
+            "type": "array",
+            "description": "Where text is searched. Leave it out for all three.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "title",
+                "synopsis",
+                "body"
+              ],
+              "description": "A surface."
+            },
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true
+          },
+          "statusId": {
+            "type": "string",
+            "description": "A status id from the project vocabulary.",
+            "minLength": 1
+          },
+          "labelId": {
+            "type": "string",
+            "description": "A label id from the project vocabulary.",
+            "minLength": 1
+          },
+          "keywordsAll": {
+            "type": "array",
+            "description": "Keywords the node must all carry.",
+            "items": {
+              "type": "string",
+              "description": "One keyword.",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "maxItems": 32
+          },
+          "keywordsAny": {
+            "type": "array",
+            "description": "Keywords the node must carry at least one of.",
+            "items": {
+              "type": "string",
+              "description": "One keyword.",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "maxItems": 32
+          },
+          "minWords": {
+            "type": "integer",
+            "description": "At least this many words (a folder counts its subtree).",
+            "minimum": 0
+          },
+          "maxWords": {
+            "type": "integer",
+            "description": "At most this many words (a folder counts its subtree).",
+            "minimum": 0
+          },
+          "createdWithinDays": {
+            "type": "integer",
+            "description": "Created in the last this many days.",
+            "minimum": 1
+          },
+          "modifiedWithinDays": {
+            "type": "integer",
+            "description": "Changed in the last this many days.",
+            "minimum": 1
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "name",
+      "criteria"
+    ],
+    "additionalProperties": false
+  },
+  "goal.save": {
+    "type": "object",
+    "description": "The goal to set.",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "The id of a goal to change (g_ and ten characters). Leave it out to set a new goal.",
+        "minLength": 1
+      },
+      "node": {
+        "type": "string",
+        "description": "The manuscript, or a folder: a title, or an id.",
+        "minLength": 1
+      },
+      "metric": {
+        "type": "string",
+        "enum": [
+          "words",
+          "chars"
+        ],
+        "description": "What is counted. Defaults to words."
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "project",
+          "weekly",
+          "monthly"
+        ],
+        "description": "project (the default), or a weekly or monthly writing pace."
+      },
+      "resetDay": {
+        "description": "Weekly: the weekday the week starts on, 0 (Sunday) to 6. Monthly: a day 1 to 28, or \"last\". A project goal takes none.",
+        "anyOf": [
+          {
+            "type": "integer",
+            "description": "A weekday 0 to 6, or a day of the month 1 to 28.",
+            "minimum": 0,
+            "maximum": 28
+          },
+          {
+            "type": "string",
+            "enum": [
+              "last"
+            ],
+            "description": "The month’s last day."
+          }
+        ]
+      },
+      "comparator": {
+        "type": "string",
+        "enum": [
+          "at-least",
+          "at-most",
+          "about"
+        ],
+        "description": "at-least for a drafting goal, at-most for a length cap, about for within 10 percent."
+      },
+      "target": {
+        "type": "integer",
+        "description": "The target, above zero.",
+        "minimum": 1
+      },
+      "deadline": {
+        "type": "string",
+        "description": "A date such as 2026-10-31. Leave it out for an open-ended goal.",
+        "minLength": 1
+      },
+      "archived": {
+        "type": "boolean",
+        "description": "True to hide a completed or abandoned goal from the rail."
+      }
+    },
+    "required": [
+      "node",
+      "comparator",
+      "target"
+    ],
+    "additionalProperties": false
+  },
+  "memory.write": {
+    "type": "object",
+    "description": "The memory note to save.",
+    "properties": {
+      "title": {
+        "type": "string",
+        "description": "A few words naming the habit, at most 120 characters, on one line.",
+        "minLength": 1,
+        "maxLength": 120
+      },
+      "type": {
+        "type": "string",
+        "enum": [
+          "style",
+          "preference",
+          "process",
+          "reference"
+        ],
+        "description": "style (how the prose reads), preference (what the writer likes or avoids), process (how the writer works) or reference (where to look)."
+      },
+      "body": {
+        "type": "string",
+        "description": "The note, at most 4000 characters. Lead with the rule in one line.",
+        "minLength": 1,
+        "maxLength": 4000
+      },
+      "slug": {
+        "type": "string",
+        "description": "The note’s slug, to update one by name. Leave it out to make one from the title.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "expectedDigest": {
+        "type": "string",
+        "description": "The digest memory.read gave for the note you are changing. Leave it out for a new note.",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "required": [
+      "title",
+      "type",
+      "body"
+    ],
+    "additionalProperties": false
+  },
+  "instructions.propose": {
+    "type": "object",
+    "description": "The proposed CAOTANG.md.",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "The whole new CAOTANG.md, at most 50000 characters.",
+        "maxLength": 50000
+      },
+      "expectedDigest": {
+        "type": "string",
+        "description": "The digest memory.read gave for CAOTANG.md. Leave it out when the project has none.",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "additionalProperties": false
+  },
+  "timeline.edit": {
+    "type": "object",
+    "description": "The timeline edits, applied together or not at all.",
+    "properties": {
+      "ops": {
+        "type": "array",
+        "description": "The edits, in order, at most 200. Each is read against the project as the edits before it leave it.",
+        "items": {
+          "description": "One timeline edit.",
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "Change the timing declarations of one scene or folder.",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "meta"
+                  ],
+                  "description": "the operation, always \"meta\""
+                },
+                "nodeId": {
+                  "type": "string",
+                  "description": "The scene or folder: the nodeId timeline.read returned, or its exact title.",
+                  "minLength": 1
+                },
+                "patch": {
+                  "type": "object",
+                  "description": "The scene fields to change. Give at least one.",
+                  "properties": {
+                    "dayOffset": {
+                      "type": "integer",
+                      "description": "The scene’s day as a whole number from day 0, negative before it.",
+                      "minimum": -10000000,
+                      "maximum": 10000000
+                    },
+                    "durationDays": {
+                      "type": "integer",
+                      "description": "How many days the scene spans, zero or more.",
+                      "minimum": 0
+                    },
+                    "timelineMode": {
+                      "type": "string",
+                      "enum": [
+                        "linear",
+                        "flashback",
+                        "flash-forward",
+                        "parallel",
+                        "frame",
+                        "dream",
+                        "mythic",
+                        "backstory",
+                        "simultaneous",
+                        "circular",
+                        "time-skip"
+                      ],
+                      "description": "How the scene sits in time. \"linear\" is the ordinary case and clears any other mode."
+                    },
+                    "pov": {
+                      "type": "string",
+                      "description": "The point-of-view character: a codex entry id or its exact name.",
+                      "minLength": 1
+                    },
+                    "storyPart": {
+                      "type": "string",
+                      "enum": [
+                        "prologue",
+                        "epilogue"
+                      ],
+                      "description": "The part of the story the scene or folder is in. A folder’s part holds for what is inside it, unless a scene names its own."
+                    },
+                    "mainStory": {
+                      "type": "boolean",
+                      "description": "true puts the scene or folder in the main story even inside a prologue or epilogue folder, replacing a part of its own; false clears that mark."
+                    },
+                    "after_add": {
+                      "type": "array",
+                      "description": "Scenes this one must come after: a title or an id each. They are added to the scene’s existing \"after\" list.",
+                      "items": {
+                        "type": "string",
+                        "description": "A scene.",
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "maxItems": 50
+                    },
+                    "after_remove": {
+                      "type": "array",
+                      "description": "Scenes to take off this scene’s \"after\" list: a title or an id each.",
+                      "items": {
+                        "type": "string",
+                        "description": "A scene.",
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "maxItems": 50
+                    },
+                    "clear": {
+                      "type": "array",
+                      "description": "Fields to remove from the scene, so it has no value of its own: dayOffset (undated), durationDays, pov, storyPart or mainStory (it inherits again).",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "dayOffset",
+                          "durationDays",
+                          "pov",
+                          "storyPart",
+                          "mainStory"
+                        ],
+                        "description": "A field."
+                      },
+                      "minItems": 1,
+                      "maxItems": 5,
+                      "uniqueItems": true
+                    }
+                  },
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "op",
+                "nodeId",
+                "patch"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "Move a scene or folder to a place in the binder. Moving one never moves another.",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "move"
+                  ],
+                  "description": "the operation, always \"move\""
+                },
+                "nodeId": {
+                  "type": "string",
+                  "description": "The scene or folder to move: an id, or its exact title.",
+                  "minLength": 1
+                },
+                "newParentId": {
+                  "type": "string",
+                  "description": "The folder to move it into, or \"manuscript\": an id, or its exact title.",
+                  "minLength": 1
+                },
+                "index": {
+                  "type": "integer",
+                  "description": "Its position among the new parent’s other children, counted from 0 without the moved node.",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "op",
+                "nodeId",
+                "newParentId",
+                "index"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "Move the days of many dated scenes by the same amount, as one edit. Every scene named needs a day.",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "shift"
+                  ],
+                  "description": "the operation, always \"shift\""
+                },
+                "delta": {
+                  "type": "integer",
+                  "description": "Days to add to each day, negative for earlier. Not zero.",
+                  "minimum": -20000000,
+                  "maximum": 20000000
+                },
+                "nodeIds": {
+                  "type": "array",
+                  "description": "The dated scenes to move: an id or an exact title each.",
+                  "items": {
+                    "type": "string",
+                    "description": "A scene.",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "maxItems": 5000,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "op",
+                "delta",
+                "nodeIds"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "minItems": 1,
+        "maxItems": 200
+      },
+      "label": {
+        "type": "string",
+        "description": "A short name for the batch, shown on the card and in the activity list, at most 200 characters.",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "required": [
+      "ops"
+    ],
+    "additionalProperties": false
+  }
+}

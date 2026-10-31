@@ -1,0 +1,21 @@
+{
+  "name": "@caotang/import-read",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The readers every import shares: a namespace-aware XML reader with no DOMParser, and a zip and folder reader over fflate's unzipSync with size, ratio, entry and path caps. Runs on the main thread, in a 'self' Worker and in Node.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./xml": "./src/xml.ts",
+    "./zip": "./src/zip.ts"
+  },
+  "dependencies": {
+    "fflate": "0.8.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

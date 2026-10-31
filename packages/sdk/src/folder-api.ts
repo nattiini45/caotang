@@ -67,3 +67,5 @@ export {
   type ReadPictureOptions,
 } from './pictures.js';
 export { MCP_VOICE, type FolderVoice } from './voice.js';
+// The dialogue module's facts for a coherence scan, so a host that reads a folder without the agent (`caotang scan`) runs the branch checks too.
+export { dialogueFactsOf } from '@caotang/harness';

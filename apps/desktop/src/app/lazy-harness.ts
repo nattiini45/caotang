@@ -6,7 +6,7 @@
  */
 
 import type { ActivityLog, CommandRegistry, UndoStore } from '@caotang/bus';
-import { createPictureOutbox, createProductHarness, picturePorts, withReviewLanguages, type Harness, type PictureOutbox } from '@caotang/harness';
+import { createPictureOutbox, createProductHarness, picturePorts, withReviewLanguages, type Harness, type PictureOutbox, type SourcedRule } from '@caotang/harness';
 import { createImageStager, type ImageStager, type McpClient } from '@caotang/mcp-client';
 import type { ProjectState, RetryableAssetStaging } from '@caotang/store';
 
@@ -31,6 +31,8 @@ export interface HarnessHost {
   readonly transcriptionReviews: TranscriptionReviewBroker;
   readonly pictureVision: () => boolean;
   readonly notify: () => void;
+  /** The agent's rules: the project file's, then the writer's own in the app's settings (agent-harness §4). Read at each call. */
+  readonly rules: () => { readonly rules: readonly SourcedRule[] };
   readonly mcp?: { readonly client: McpClient };
   readonly presentAssets?: () => ReadonlySet<string>;
   readonly coherence?: SessionCoherence;
@@ -68,6 +70,7 @@ export function createHarnessRuntime(host: HarnessHost): HarnessRuntime {
       review: (draft, signal) => host.transcriptionReviews.review(draft, signal),
     },
     notify: host.notify,
+    rules: host.rules,
     ...(host.mcp === undefined ? {} : { mcp: { ...host.mcp, images: imageStager } }),
     ...(host.presentAssets === undefined ? {} : { presentAssets: host.presentAssets }),
     // The agent's coherence scans read the writer's Coherence settings, and its review runs through the app's model

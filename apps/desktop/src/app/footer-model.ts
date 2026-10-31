@@ -11,7 +11,7 @@
 import type { ProjectGoal } from '@caotang/furniture';
 import { SPRINT_MAX_MINUTES, SPRINT_MIN_MINUTES } from '@caotang/furniture';
 import type { GoalState } from '@caotang/furniture';
-import { dateFormat, isolate, numberFormat } from '@caotang/i18n';
+import { dateTimeFormat, isolate, numberFormat } from '@caotang/i18n';
 import { plural, select, selectOrdinal, t } from '@lingui/core/macro';
 
 import { formatterLocale } from '../i18n/format-locale.js';
@@ -33,7 +33,7 @@ export const SPRINT_CHOICES: readonly number[] = [5, 10, 15, 25, 30, 45, 60].fil
 export function formatDay(day: string, locale: string = formatterLocale()): string {
   const [year, month, date] = day.split('-').map(Number);
   if (year === undefined || month === undefined || date === undefined) return day;
-  return dateFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(year, month - 1, date));
+  return dateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(year, month - 1, date));
 }
 
 /** What a goal counts, in the words the footer uses: "words", or "characters" for the `chars` metric (goals-progress §9.2). */

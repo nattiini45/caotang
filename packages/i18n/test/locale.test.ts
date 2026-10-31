@@ -1,102 +1,73 @@
-/**
- * Which locale is the interface's, which locale formats its numbers and dates, and which way it reads
- * — [i18n.md §3.1, §4.1, §5](docs/architecture/i18n.md), decisions D3 and D8.
- */
 import { describe, expect, it } from 'vitest';
 
-import { directionOf, formatLocale, resolveUiLocale } from '../src/index.js';
+import { PACKAGE_TEXT_LOCALE, SHIPPED_UI_LOCALES, SOURCE_LOCALE, directionOf, formatLocale, resolveUiLocale } from '../src/index.js';
 
-describe('resolveUiLocale: a shipped catalogue, or the system when it is shipped', () => {
-  it('returns a shipped tag as itself', () => {
+describe('resolveUiLocale (i18n.md §3.1)', () => {
+  it('ships English only today, and English is the source', () => {
+    expect(SOURCE_LOCALE).toBe('en');
+    expect(SHIPPED_UI_LOCALES).toEqual(['en']);
+    expect(PACKAGE_TEXT_LOCALE).toBe('en-US');
+  });
+
+  it('follows the system to English on every system while only English ships', () => {
+    expect(resolveUiLocale('system', ['en-US'])).toBe('en');
+    expect(resolveUiLocale('system', ['en-GB', 'de-DE'])).toBe('en');
+    expect(resolveUiLocale('system', ['de-DE', 'ja'])).toBe('en');
+    expect(resolveUiLocale('system', [])).toBe('en');
+  });
+
+  it("takes the first system language a shipped locale matches, by tag, then language and script, then language", () => {
+    const shipped = ['en', 'de', 'zh-Hant', 'pt-BR'];
+    expect(resolveUiLocale('system', ['fr-FR', 'de-AT', 'en-US'], shipped)).toBe('de');
+    expect(resolveUiLocale('system', ['zh-TW'], shipped)).toBe('zh-Hant');
+    expect(resolveUiLocale('system', ['pt-br'], shipped)).toBe('pt-BR');
+    expect(resolveUiLocale('system', ['pt-PT'], shipped)).toBe('en');
+    expect(resolveUiLocale('system', ['not a tag', 'de'], shipped)).toBe('de');
+  });
+
+  it('lets a pinned setting win when it is shipped, and otherwise falls back to the system', () => {
     expect(resolveUiLocale('de', ['en-US'], ['en', 'de'])).toBe('de');
-    expect(resolveUiLocale('en', ['de-DE'], ['en', 'de'])).toBe('en');
+    expect(resolveUiLocale('DE-ch', ['en-US'], ['en', 'de'])).toBe('de');
+    expect(resolveUiLocale('fr', ['de-DE'], ['en', 'de'])).toBe('de');
   });
 
-  it('matches the system by language, so a regional system language picks its language catalogue', () => {
-    expect(resolveUiLocale('system', ['en-GB', 'de'], ['en', 'de'])).toBe('en');
-    expect(resolveUiLocale('system', ['de-AT', 'en-US'], ['en', 'de'])).toBe('de');
-  });
-
-  it('skips a system entry no catalogue ships and takes a later one that matches', () => {
-    expect(resolveUiLocale('system', ['fr-FR', 'de-AT'], ['en', 'de'])).toBe('de');
-    expect(resolveUiLocale('system', ['ja-JP', 'pt-BR', 'en-GB'], ['en', 'de'])).toBe('en');
-  });
-
-  it('falls back to English when no system language is shipped, and with no system languages at all', () => {
-    expect(resolveUiLocale('system', ['fr-FR'], ['en', 'de'])).toBe('en');
-    expect(resolveUiLocale('system', [], ['en', 'de'])).toBe('en');
-  });
-
-  it('never returns a tag that is not shipped, whatever the stored setting or the system says', () => {
-    const shipped = ['en', 'de'];
-    for (const setting of ['system', 'fr', 'de-CH', 'EN', '']) {
-      for (const system of [[], ['fr'], ['ja-JP'], ['de-CH'], ['en-GB'], ['DE-at']]) {
-        const resolved = resolveUiLocale(setting, system, shipped);
-        expect(shipped, `${setting} / ${system.join(',')} → ${resolved}`).toContain(resolved);
-      }
-    }
-  });
-
-  it('resolves a stored tag that is no longer shipped through the system rather than returning it', () => {
-    // A stored `fr` that is now below the release gate resolves like `system`; the picker's own
-    // thresholds are I4/I13’s concern, and this function is handed the already-shipped list (§3.2).
-    expect(resolveUiLocale('fr', ['de-CH'], ['en', 'de'])).toBe('de');
-    expect(resolveUiLocale('fr', ['en-GB'], ['en', 'de'])).toBe('en');
-  });
-
-  it('matches a shipped tag case-insensitively and returns its canonical spelling', () => {
-    expect(resolveUiLocale('DE', ['en-US'], ['en', 'de'])).toBe('de');
-    expect(resolveUiLocale('system', ['EN-gb'], ['en'])).toBe('en');
+  it('falls back to the first shipped locale when a build ships no source', () => {
+    expect(resolveUiLocale('system', ['fr'], ['de', 'ja'])).toBe('de');
   });
 });
 
-describe('formatLocale: the UI language, and the system region only when the languages match', () => {
-  it('keeps the system region of the same language', () => {
+describe('formatLocale (D3, i18n.md §4.1)', () => {
+  it('is the interface language plus the system region when the languages match', () => {
     expect(formatLocale('en', ['en-GB'])).toBe('en-GB');
-    expect(formatLocale('de', ['de-AT'])).toBe('de-AT');
-    expect(formatLocale('en', ['en'])).toBe('en');
+    expect(formatLocale('en', ['en-US'])).toBe('en-US');
+    expect(formatLocale('en', ['de-DE', 'en-AU'])).toBe('en-AU');
   });
 
-  it('uses the language default region when the system speaks another language', () => {
+  it("is the language's own default region when no system language matches", () => {
     expect(formatLocale('de', ['en-US'])).toBe('de-DE');
     expect(formatLocale('en', ['de-DE'])).toBe('en-US');
-    expect(formatLocale('en', ['fr-FR'])).toBe('en-US');
-  });
-
-  it('is never the first system tag by accident: the first matching language wins, not the first tag', () => {
-    expect(formatLocale('en', ['de-DE', 'en-GB'])).toBe('en-GB');
-    expect(formatLocale('en', ['en-GB', 'en-US'])).toBe('en-GB');
-  });
-
-  it('uses the language default region when there are no system languages', () => {
     expect(formatLocale('en', [])).toBe('en-US');
-    expect(formatLocale('de', [])).toBe('de-DE');
+    expect(formatLocale('en', ['en'])).toBe('en-US');
   });
 
-  it('keeps a script a tag carries', () => {
+  it('keeps the interface script, and a region the interface tag already has', () => {
+    expect(formatLocale('zh-Hant', ['zh-HK'])).toBe('zh-Hant-HK');
     expect(formatLocale('zh-Hant', ['en-US'])).toBe('zh-Hant-TW');
+    expect(formatLocale('pt-BR', ['pt-PT'])).toBe('pt-BR');
+  });
+
+  it('reads en-US for a tag it cannot parse', () => {
+    expect(formatLocale('', ['en-GB'])).toBe('en-US');
+    expect(formatLocale('not a tag', ['en-GB'])).toBe('en-US');
   });
 });
 
-describe('directionOf: the UI language, not the project language', () => {
-  it('reads English left to right and Hebrew right to left', () => {
-    expect(directionOf('he-IL')).toBe('rtl');
-    expect(directionOf('en-US')).toBe('ltr');
+describe('directionOf (i18n.md §3.2)', () => {
+  it('is right to left for Arabic, Hebrew, Persian, Urdu and the rest of the list', () => {
+    for (const tag of ['ar', 'ar-EG', 'he', 'fa', 'ur', 'ps', 'sd', 'ug', 'yi', 'dv', 'ckb']) expect(directionOf(tag), tag).toBe('rtl');
   });
 
-  it('names every language the spec lists, with or without the engine’s own text info', () => {
-    for (const tag of ['ar', 'fa', 'he', 'ur', 'ps', 'sd', 'ug', 'yi', 'dv', 'ckb', 'ar-EG', 'fa-IR']) {
-      expect(directionOf(tag), tag).toBe('rtl');
-    }
-    for (const tag of ['en', 'de-DE', 'ja-JP', 'zh-Hant']) {
-      expect(directionOf(tag), tag).toBe('ltr');
-    }
-  });
-
-  it('does not throw on a tag that is not a language tag, and calls it left to right', () => {
-    // Message ids are opaque and never reach Intl (§3.2); a caller that passes one by mistake gets a
-    // direction, not an exception.
-    expect(directionOf('coherence.timeline.orderDrift')).toBe('ltr');
-    expect(directionOf('')).toBe('ltr');
+  it('is left to right for other languages and for a tag it cannot read', () => {
+    for (const tag of ['en', 'de-DE', 'ja', 'zh-Hant', 'hi', 'ru', '', 'not a tag']) expect(directionOf(tag), tag).toBe('ltr');
   });
 });

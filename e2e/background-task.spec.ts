@@ -36,11 +36,11 @@ async function newScene(page: Page, title: string, text: string): Promise<void> 
 
 async function openAgent(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await expect(page.getByRole('textbox', { name: 'Intent' })).toBeEnabled();
+  await expect(page.getByRole('combobox', { name: 'Intent' })).toBeEnabled();
 }
 
 async function sendIntent(page: Page, intent: string): Promise<void> {
-  await page.getByRole('textbox', { name: 'Intent' }).fill(intent);
+  await page.getByRole('combobox', { name: 'Intent' }).fill(intent);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 }
 
@@ -65,7 +65,7 @@ test('a five-call plan goes to the background while the writer keeps typing, and
 
   // The turn is over at once, and the Intent box is free for the next message.
   await expect(page.getByText('Queued in the background: 5 model calls. Results appear in Tasks when ready.')).toBeVisible();
-  await expect(page.getByRole('textbox', { name: 'Intent' })).toBeEnabled();
+  await expect(page.getByRole('combobox', { name: 'Intent' })).toBeEnabled();
   await expect(page.getByTestId('agent-stop')).toHaveCount(0);
 
   // The writer keeps typing while the task drafts, and the task does not touch the project.

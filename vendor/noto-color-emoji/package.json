@@ -1,0 +1,20 @@
+{
+  "name": "@caotang/font-noto-color-emoji",
+  "version": "1.0.0",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "Noto Color Emoji as vector pictures: every emoji of Unicode Emoji 17.0 compiled from Noto's COLRv1 font to PDF operators, the file both PDF exporters draw as Type 3 glyphs when Colour emoji is on",
+  "repository": "https://github.com/googlefonts/noto-emoji",
+  "exports": {
+    "./NotoColorEmoji.bin": "./NotoColorEmoji.bin",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NotoColorEmoji.bin",
+    "LICENSE",
+    "README.md",
+    "SHA256SUMS",
+    "build.py",
+    "paint.py"
+  ]
+}

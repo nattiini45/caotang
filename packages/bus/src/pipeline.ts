@@ -848,6 +848,8 @@ function unguardable(command: Command, why: string): CommandError {
  * holds — an inverse names itself, an artifact is given a label by the apply.
  */
 function entryFor(command: Command, payload: UndoPayload): UndoEntry {
+  // The step the entry belongs to, when an agent's tool call made it: a user gesture has no call id (`undoFrom` selects a step by it).
+  const step = command.issuedBy === 'agent' && command.callId !== undefined ? { callId: command.callId } : {};
   return payload.kind === 'inverse'
     ? {
         kind: 'inverse',
@@ -855,6 +857,7 @@ function entryFor(command: Command, payload: UndoPayload): UndoEntry {
         name: command.name,
         label: `undo ${command.name}`,
         inverse: payload.inverse,
+        ...step,
       }
     : {
         kind: 'compensable',
@@ -862,6 +865,7 @@ function entryFor(command: Command, payload: UndoPayload): UndoEntry {
         name: command.name,
         label: payload.label,
         restore: payload.restore,
+        ...step,
       };
 }
 

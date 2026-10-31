@@ -99,7 +99,7 @@ test.describe('real-key round', () => {
   test.skip(configured.size === 0, nothingToRun);
 
   for (const [presetId, apiKey] of configured) {
-    test(`${presetId}: list, stream, tools where claimed, thinking where offered, no key in the log`, async () => {
+    test(`${presetId}: list, stream, tools where claimed, thinking where offered, the prompt cache where the row caches, no key in the log`, async () => {
       test.setTimeout(120_000);
       const preset = presetFor(presetId);
       test.skip(preset === undefined, `no preset named ${presetId}`);
@@ -205,7 +205,34 @@ test.describe('real-key round', () => {
           });
         } else report.notClaimed('thinking');
 
-        // 5. The request log carries the calls — and never the key.
+        // 5. Prompt caching where the row says the route caches (provider-gateway §3): one of the identical calls after the first, with a
+        // prefix above the row's minimum reads part of its prompt from the provider's cache, as the usage breakdown reports it.
+        if (caps?.cache === 'explicit' || caps?.cache === 'automatic') {
+          await stage('prompt cache', async () => {
+            const system = `You answer in one word. ${'Caotang keeps a writer\'s manuscript on their own machine. '.repeat(160)}`;
+            const ask = async () => {
+              let cached: number | undefined;
+              for await (const chunk of service.gateway.complete({
+                profileId: view.id,
+                model: view.defaultModel,
+                messages: [
+                  { role: 'system', content: system },
+                  { role: 'user', content: 'Say ready.' },
+                ],
+              })) {
+                if (chunk.usage !== undefined) cached = chunk.usage.cachedPromptTokens;
+              }
+              return cached;
+            };
+            // An implicit cache is best-effort (a write can land on another node), so up to three more identical calls may read it.
+            await ask();
+            let read = 0;
+            for (let attempt = 0; attempt < 3 && read === 0; attempt += 1) read = (await ask()) ?? 0;
+            expect(read, 'one of the next three identical calls reads from the cache').toBeGreaterThan(0);
+          });
+        } else report.notClaimed('prompt cache');
+
+        // 6. The request log carries the calls — and never the key.
         await stage('key redaction', async () => {
           const entries = service.requests.entries();
           expect(entries.length, 'requests were logged').toBeGreaterThan(0);

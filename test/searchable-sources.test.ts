@@ -187,11 +187,21 @@ function offendersIn(root: string, files: readonly string[]): Array<[string, num
  */
 const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly size: number; readonly sha256: string }>> = {};
 
-/** The same scan over the real tree, the named binary assets left out. */
+/**
+ * The Classic visual baselines (e2e/visual/classic.spec.ts, modern-interface.md §15.4): screenshots that must live beside their spec
+ * and change whenever a reviewed re-baseline does, so they are exempt by an exact name pattern rather than pinned by hash. The pattern
+ * admits only `classic-<scheme>-<surface>.png` in that one folder, and the test below checks that every file it admits is a PNG
+ * (by its eight-byte signature) and that the set is exactly the surfaces the spec takes, so it cannot quietly cover anything else.
+ */
+const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/classic-(light|dark)-[a-z-]+\.png$/;
+const VISUAL_SURFACES = ['projects', 'workspace', 'corkboard', 'codex', 'findings', 'activity', 'settings-appearance', 'export', 'narrow'];
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/** The same scan over the real tree, the named binary assets and the visual baselines left out. */
 function offenders(): Array<[string, number[]]> {
   return offendersIn(
     repoRoot,
-    guardedFiles().filter((rel) => BINARY_ASSETS[rel] === undefined),
+    guardedFiles().filter((rel) => BINARY_ASSETS[rel] === undefined && !VISUAL_BASELINE.test(rel)),
   );
 }
 
@@ -267,6 +277,15 @@ describe('no source file is invisible to search', () => {
   it('exempts no binary asset: the fonts live under vendor/, and nothing in the guarded roots is binary', () => {
     expect(Object.keys(BINARY_ASSETS)).toEqual([]);
     for (const rel of guardedFiles()) expect(rel, rel).not.toMatch(/\.(otf|ttf|woff2?)$/i);
+  });
+
+  it('the visual baselines it leaves out are PNGs, and exactly the Classic surfaces the visual spec takes', () => {
+    const baselines = guardedFiles().filter((rel) => VISUAL_BASELINE.test(rel)).sort();
+    const expected = ['light', 'dark'].flatMap((scheme) => VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/classic-${scheme}-${surface}.png`)).sort();
+    expect(baselines).toEqual(expected);
+    for (const rel of baselines) expect([...readFileSync(join(repoRoot, rel)).subarray(0, 8)], rel).toEqual(PNG_SIGNATURE);
+    // Nothing else in that folder: a file the pattern does not admit is scanned like any other.
+    for (const rel of guardedFiles()) if (rel.startsWith('e2e/visual/__snapshots__/')) expect(rel, rel).toMatch(VISUAL_BASELINE);
   });
 
   // It reads every guarded file in the repository, so it gets a budget for a full suite on a loaded machine (it timed out at the

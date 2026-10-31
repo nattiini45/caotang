@@ -26,7 +26,29 @@ export {
   type ToolName,
   type ToolRisk,
 } from './metadata.js';
-export { createHarness, type ExternalHarness, type Harness, type HarnessOptions, type ToolListing } from './runtime.js';
+export { createHarness, type ExternalHarness, type Harness, type HarnessOptions, type RuleCheck, type ToolListing } from './runtime.js';
+export {
+  NO_RULES,
+  evaluateRules,
+  globMatches,
+  ruleRefusal,
+  ruleWarnings,
+  scopeNodes,
+  withheldAnywhere,
+  withheldNodes,
+  type CallFacts,
+  type CallTargets,
+  type PermissionRule,
+  type RuleAccess,
+  type RuleEffect,
+  type RuleScope,
+  type RuleSet,
+  type RuleSource,
+  type RuleVerdict,
+  type RulesProvider,
+  type SourcedRule,
+} from './rules.js';
+export { TOOL_TARGETS, type ToolTargets, type TargetsFn } from './targets.js';
 export { createProductHarness, type ProductHarnessOptions } from './product.js';
 // The coherence module's two ports the agent's scan and review read through, and the gateway as the review's model.
 export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';
@@ -49,6 +71,42 @@ export {
   type PlanStepPreflight,
   type StepResult,
 } from './plan.js';
+// Hooks (hooks.md): the writer's checks at a tool call, and the runner the harness builds from them.
+export {
+  HOOK_SLOW_MS,
+  HOOK_TEXT_CAP,
+  countWholeWord,
+  createHookRunner,
+  foldText,
+  hookLabel,
+  hookWarnings,
+  proseOf,
+  type HookCheck,
+  type HookDecision,
+  type HookDeps,
+  type HookEvent,
+  type HookInput,
+  type HookMatcher,
+  type HookRun,
+  type HookRunner,
+  type HookSource,
+  type HookSpec,
+} from './hooks.js';
+// Macros (extensibility.md §10): the checks that need the registry, and the expansion into a plan.
+export {
+  checkMacro,
+  expandMacro,
+  isMacroCommand,
+  macroCommandName,
+  macroFieldSpec,
+  macroIntent,
+  macroRisk,
+  registryMacroTools,
+  type MacroCheck,
+  type MacroRegistry,
+  type MacroRisk,
+  type MacroTool,
+} from './macro.js';
 export {
   continuityTask,
   createAgentSession,
@@ -56,6 +114,7 @@ export {
   synopsisInstruction,
   type AgentSession,
   type AgentSessionOptions,
+  type ContextPreview,
   type OfferAnswer,
   type PlanOffer,
   type StageOnlyResult,
@@ -65,6 +124,28 @@ export {
   type TranscriptionRouteInfo,
   type TurnOptions,
 } from './agent/loop.js';
+// Slash commands (agent-harness §2): the composer's line, read and resolved without a model.
+export {
+  BUILTIN_COMMAND_NAMES,
+  expandTemplate,
+  isCommandName,
+  matchCommands,
+  menuQuery,
+  parseSlash,
+  resolveSlash,
+  usageOf,
+  type BuiltinCommand,
+  type BuiltinCommandName,
+  type DocLookup,
+  type DocResolver,
+  type ParsedSlash,
+  type SlashArgument,
+  type SlashContext,
+  type SlashResolution,
+  type TemplatePlaceholders,
+} from './commands/slash.js';
+export { BUILTIN_COMMANDS } from './commands/builtins.js';
+export { docResolverFor } from './commands/resolver.js';
 // Permission modes (agent-harness §4): the four modes, the policy a mode is, and the budgets a turn is held to while a mode decides its cards.
 export {
   ACCEPT_EDITS_TOOLS,
@@ -104,6 +185,47 @@ export {
   type Reservation,
   type RunLimits,
 } from './agent/budget.js';
+// Goal runs (agent-harness §7.2): the acceptance checks, the runner that works until they pass, and the write scope it keeps to.
+export {
+  checkKey,
+  checkLabel,
+  checkSpecProblem,
+  coherenceScopeSize,
+  documentsInScope,
+  evaluateCheck,
+  evaluateChecks,
+  largeScopes,
+  type CheckFailure,
+  type CheckKind,
+  type CheckOptions,
+  type CheckResult,
+  type CheckSpec,
+} from './agent/checks.js';
+export {
+  DEFAULT_DOCS_PER_ITERATION,
+  DEFAULT_MAX_ITERATIONS,
+  DEFAULT_STALL_AFTER,
+  HARD_MAX_ITERATIONS,
+  REGRESSION_OPTIONS,
+  createGoalRunner,
+  goalProblem,
+  goalRules,
+  iterationIntent,
+  restoreGoal,
+  scopeBreaches,
+  writableNodes,
+  writeScopeRules,
+  type Goal,
+  type GoalOptions,
+  type GoalRun,
+  type GoalRunner,
+  type GoalStatus,
+  type IterationRecord,
+  type Regression,
+  type RegressionChoice,
+  type RestoredTurn,
+  type WriteScope,
+} from './agent/goal.js';
 // Background runs (agent-harness §2): the offer's threshold, what a plan costs in model calls, and which staged steps have gone stale.
 export {
   BACKGROUND_OFFER_MIN_CALLS,
@@ -128,6 +250,7 @@ export {
   type CardExpect,
   type Evaluation,
   type Expectation,
+  type GatewayHooks,
   type Matcher,
   type RequestExpect,
   type Scenario,
@@ -161,6 +284,16 @@ export {
   type SubagentRunner,
   type SubagentSpec,
 } from './agent/subagent.js';
+export {
+  BRIEF_CAP,
+  BRIEF_TTL_MS,
+  briefRefusal,
+  createBriefLedger,
+  createBriefPorts,
+  type BriefKind,
+  type BriefLedger,
+  type BriefRecord,
+} from './tools/briefs.js';
 export { createAgentPorts, draftModeRefusal, previewFor, codexReadPort, sceneDraftPort, synopsisFillPort, continuityScanPort } from './agent/ports.js';
 // The reads an MCP resource serves, whole, and the node lookups the server's prompts share with the tools (extensibility §9).
 export { codexInOrder, readBody, readCodexEntry, readNotes, type BodyRead, type NotesRead } from './resource-reads.js';
@@ -224,6 +357,7 @@ export {
   createContextPort,
   dropLinesOf,
   languageDirective,
+  forecastReads,
   mergePreviews,
   withLanguages,
   withRole,
@@ -233,10 +367,14 @@ export {
   type ContextRequest,
   type LanguagePolicy,
 } from './agent/context.js';
+// What a turn read from the provider's prompt cache, and the planner calls that missed it (agent-harness §5, "Prompt cache").
+export { CACHE_MISS_CAUSES, CacheWatch, missCause, stableToolOrder, type CacheMiss, type TurnCacheUse } from './agent/cache-watch.js';
 // The Context section's preview: the prompt a scene draft would send, assembled as the loop assembles it (context-assembly §5).
-export { scenePromptPreview, type ScenePreviewOptions } from './agent/step-preview.js';
+export { instructionsReport, scenePromptPreview, type InstructionsReport, type ScenePreviewOptions } from './agent/step-preview.js';
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.
+export { withheldState } from '@caotang/context';
 export type { ContextConfig, PreviewLayer, PromptPreview } from '@caotang/context';
+export { DEFAULT_INSTRUCTIONS_BUDGET } from '@caotang/context';
 export {
   MODEL_BACKED_TOOLS,
   RESOLVE_BADGE,
@@ -283,6 +421,8 @@ export {
   CHECKPOINT_LABEL,
   DEFAULT_MAX_MODEL_CALLS,
   EXTERNAL_CHECKPOINT_NOTE,
+  RESUMED_CHECKPOINT_NOTE,
+  STEP_EXTERNAL_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,
   type Decision,
@@ -295,6 +435,74 @@ export {
   type TurnStatus,
   type TurnStop,
 } from './agent/events.js';
+
+// The run log (agent-harness §5.1): events written ahead of the work, the resume check, and an in-memory port.
+export {
+  NOT_LOGGED_NOTICE,
+  RUN_LOG_VERSION,
+  createMemoryRunLog,
+  createRunWriter,
+  newRunRecord,
+  parseRunEvents,
+  planResume,
+  statusOfTurn,
+  structureDigest,
+  summarizeRun,
+  type AppliedStep,
+  type MemoryRunLog,
+  type PendingStep,
+  type ReplayCard,
+  type ResumeVerdict,
+  type ResumeView,
+  type Revisions,
+  type RunEvent,
+  type RunEventDraft,
+  type RunLogOptions,
+  type RunLogPort,
+  type RunRecord,
+  type RunReplay,
+  type RunSummary,
+  type RunWriter,
+} from './agent/run-log.js';
+
+// The agent trace (agent-harness §5.2): the `caotang.trace/1` records, the in-tab store, the gateway's observer and the reader.
+export {
+  REQUIRED_FIELDS,
+  TRACE_FORMAT,
+  TRACE_MAX_BYTES,
+  TRACE_MAX_TURNS,
+  TRACE_RECORD_CAP,
+  TRACE_REVIEWS,
+  TRACE_VERSION,
+  createTraceStore,
+  omitMessage,
+  omitRecord,
+  parseTrace,
+  traceGateway,
+  type CardTraceRecord,
+  type ContextRecord,
+  type HeaderRecord,
+  type LadderRecord,
+  type MessageRecord,
+  type ModelRequestRecord,
+  type ModelResponseRecord,
+  type Omitted,
+  type Text as TraceText,
+  type ToolCallRecord,
+  type ToolProgressRecord,
+  type ToolResultRecord,
+  type TraceExportOptions,
+  type TraceInput,
+  type TraceKind,
+  type TraceMessage,
+  type TraceRecord,
+  type TraceSink,
+  type TraceStore,
+  type TraceStoreOptions,
+  type TraceTurn,
+  type TurnEndRecord,
+  type TurnStartRecord,
+} from './agent/trace.js';
 export {
   DRAFT_SYSTEM_PREFIX,
   PLANNER_SYSTEM_PREFIX,
@@ -308,6 +516,8 @@ export {
   MORE_TOOLS_LINE,
   type Reply,
 } from './agent/protocol.js';
+export { importScanSentence, modelResult, outsideSources, scanForInjection, scanImport, turnNonce, UNTRUSTED_RULE, type ImportHit, type InjectionHit } from './agent/untrusted.js';
+export { QUOTE_MIN_WORDS, quotedProjectText, wordsOfText } from './agent/egress-check.js';
 export {
   complete,
   draftScene,
@@ -323,6 +533,7 @@ export {
   type SynopsisProposal,
 } from './agent/drafting.js';
 export { param, toJsonSchema, type JsonSchema, type ParamSpec } from './schema.js';
+export { RESULT_CLOSED, RESULT_SPECS, isResultOf, type CallableToolName, type ResultData, type ResultOf, type ToolResults } from './results.js';
 export { checkParams, checkValue } from './validate.js';
 export {
   annotationsFor,
@@ -349,6 +560,17 @@ export {
 } from './types.js';
 export { CHARS_PER_TOKEN, estimateTokens, fitsCap } from './tokens.js';
 export { refusal, notWired } from './errors.js';
-export { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
+export { coherenceAsyncPorts, coherencePorts, excludedBy, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 export { codexImportParams, prepareCodexImport } from './tools/codex-import.js';
+// The writer's codex import from the app (codex.md §7.1): the pure plan of rows into one `codex.importBatch`, never an agent tool.
+export {
+  fitDescription,
+  planCodexImportBatch,
+  type CodexImportBatchOptions,
+  type CodexImportBatchPlan,
+  type CodexImportCollisionChoice,
+  type CodexImportRow,
+  type CodexImportRowOutcome,
+  type CodexImportRowPlan,
+} from './codex-import-batch.js';
 export { parsedSkillsOf, skillBlock, skillLabel, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';

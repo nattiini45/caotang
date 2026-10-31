@@ -29,7 +29,7 @@ import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from
 import { ProfileError } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
 import { presetFor, type PresetDef } from './presets/index.js';
-import type { NewProfile, ProfileKind, ProfilePatch, ProfileView, ResponseFormatProbe } from './types.js';
+import type { CachePolicy, NewProfile, ProfileKind, ProfilePatch, ProfileView, ResponseFormatProbe } from './types.js';
 
 export interface ProfileStore {
   create(input: NewProfile): Promise<ProfileView>;
@@ -88,6 +88,7 @@ interface StoredProfile {
   temperature?: number;
   maxOutputTokens?: number;
   pricePer1k?: { prompt: number; completion: number };
+  promptCache?: CachePolicy;
   isActive: boolean;
   hasKey: boolean;
   responseFormat?: ResponseFormatProbe;
@@ -103,6 +104,7 @@ interface CheckedFields {
   temperature?: number;
   maxOutputTokens?: number;
   pricePer1k?: { prompt: number; completion: number };
+  promptCache?: CachePolicy;
 }
 
 interface RawFields {
@@ -115,6 +117,7 @@ interface RawFields {
   temperature?: number;
   maxOutputTokens?: number;
   pricePer1k?: { prompt: number; completion: number };
+  promptCache?: CachePolicy;
 }
 
 /** RFC 9110 token — what a request header name may be. */
@@ -222,7 +225,18 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     }
     checked.pricePer1k = { prompt, completion };
   }
+  if (raw.promptCache !== undefined) checked.promptCache = checkCachePolicy(raw.promptCache);
   return checked;
+}
+
+/** A profile's caching policy, checked: `off` or `auto`, and Anthropic's lifetime `5m` or `1h`. Anything else is refused. */
+function checkCachePolicy(raw: CachePolicy | null): CachePolicy {
+  if (raw === null || typeof raw !== 'object') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
+  if (raw.mode !== 'off' && raw.mode !== 'auto') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
+  if (raw.ttl !== undefined && raw.ttl !== '5m' && raw.ttl !== '1h') {
+    throw new ProfileError('invalid', 'A cached prompt is kept for 5 minutes or 1 hour.', 'promptCache');
+  }
+  return { mode: raw.mode, ...(raw.ttl === undefined ? {} : { ttl: raw.ttl }) };
 }
 
 /**
@@ -260,6 +274,7 @@ function toView(rec: StoredProfile): ProfileView {
   if (rec.temperature !== undefined) view.temperature = rec.temperature;
   if (rec.maxOutputTokens !== undefined) view.maxOutputTokens = rec.maxOutputTokens;
   if (rec.pricePer1k !== undefined) view.pricePer1k = { ...rec.pricePer1k };
+  if (rec.promptCache !== undefined) view.promptCache = { ...rec.promptCache };
   if (rec.responseFormat !== undefined) view.responseFormat = { ...rec.responseFormat };
   return view;
 }
@@ -311,6 +326,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         ...(fields.temperature === undefined ? {} : { temperature: fields.temperature }),
         ...(fields.maxOutputTokens === undefined ? {} : { maxOutputTokens: fields.maxOutputTokens }),
         ...(fields.pricePer1k === undefined ? {} : { pricePer1k: fields.pricePer1k }),
+        ...(fields.promptCache === undefined ? {} : { promptCache: fields.promptCache }),
         isActive: activate,
         hasKey: key !== '',
       });
@@ -335,6 +351,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         temperature: patch.temperature ?? rec.temperature,
         maxOutputTokens: patch.maxOutputTokens ?? rec.maxOutputTokens,
         pricePer1k: price,
+        promptCache: patch.promptCache ?? rec.promptCache,
       });
 
       let hasKey = rec.hasKey;

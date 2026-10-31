@@ -7,8 +7,8 @@
  */
 
 import type { LossWarningGroup } from '@caotang/editor';
-import { numberFormat } from '@caotang/i18n';
 import { plural, select, t } from '@lingui/core/macro';
+import { formatCount } from '../i18n/locale.js';
 
 /* lingui-set comment="The editor load banner. Interpolated values: count and blocks are numbers; noun is the kind of Markdown construct a load kept as it was typed; line is a line number." */
 
@@ -54,9 +54,4 @@ export function describeLossGroup(group: LossWarningGroup, locale: string = form
 export function reStyleSentence(blocks: number, locale: string = formatterLocale()): string {
   const count = formatCount(blocks, locale);
   return t`Saving will re-style ${count} ${plural(blocks, { one: 'block', other: 'blocks' })} to Caotang’s Markdown spelling. The words stay the same.`;
-}
-
-/** A count grouped the way the formatter locale groups numbers (i18n.md §4.2). */
-function formatCount(n: number, locale: string): string {
-  return numberFormat(locale).format(n);
 }

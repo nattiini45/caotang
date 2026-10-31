@@ -26,10 +26,10 @@ describe('the registry joins every tool to its metadata', () => {
   // the dialogue module's two (dialogue-narrative.md §7), which register because the module imports the bus and
   // not the harness. The spec's media-track count is twenty-three (14 + coherence 3 + storyboard 2 + prompt-pack 2 +
   // dialogue 2, agent-harness.md §10). The registry also carries doc.import, codex.import and tool.search, which that
-  // count leaves out, the five allowlisted bus primitives (issue #56), the skills row (`skill.load`, extensibility §10), the delegation row (`agent.delegate`, agent-harness §2), the two timeline rows (`timeline.read` and the sixth primitive, `timeline.edit`, timeline.md §5.1), the seven picture rows (pictures.md §8.1) and the three comic rows (comics.md §3.2), so it holds forty-five.
-  it('lists all forty-five rows, in the metadata table’s order', () => {
+  // count leaves out, the eight allowlisted bus primitives (issue #56, issue #71's `memory.write` and `instructions.propose`, and `timeline.edit`, timeline.md §5.1), the skills row (`skill.load`, extensibility §10), the memory read (`memory.read`, context-assembly §2 LI), the delegation row (`agent.delegate`, agent-harness §2), the timeline read (`timeline.read`), the seven picture rows (pictures.md §8.1), the three comic rows (comics.md §3.2), and the four external-only rows of the host-model pairs (`scene.brief`, `scene.apply`, `dialogue.brief`, `dialogue.apply`, agent-harness §3), so it holds fifty-two.
+  it('lists all fifty-two rows, in the metadata table’s order', () => {
     expect(listing.map((item) => item.name)).toEqual([...TOOL_NAMES]);
-    expect(listing).toHaveLength(45);
+    expect(listing).toHaveLength(52);
   });
 
   // Two of the coherence tools are wired to the engine by default (coherence.scan and
@@ -49,12 +49,16 @@ describe('the registry joins every tool to its metadata', () => {
         'codex.read',
         'continuity.scan',
         'coherence.review',
+        'dialogue.apply',
+        'dialogue.brief',
         'dialogue.draft',
         'pictures.import',
         'pictures.transcribe',
         'pictures.view',
         'prompt.draft',
         'prompt.variant',
+        'scene.apply',
+        'scene.brief',
         'scene.draft',
         'shots.derive',
         'skill.load',
@@ -97,6 +101,7 @@ describe('the registry joins every tool to its metadata', () => {
       'dialogue.draft',
       'dialogue.table',
       'skill.load',
+      'memory.read',
       'agent.delegate',
       'timeline.read',
       'pictures.list',
@@ -109,11 +114,17 @@ describe('the registry joins every tool to its metadata', () => {
       'comic.derive',
       'comic.letter',
       'comic.scriptFromPages',
+      'scene.brief',
+      'scene.apply',
+      'dialogue.brief',
+      'dialogue.apply',
       'notes.replace',
       'synopsis.set',
       'vocabulary.upsert',
       'filter.save',
       'goal.save',
+      'memory.write',
+      'instructions.propose',
       'timeline.edit',
     ]);
     // A deferred row is found by name, description or keyword, so each carries a module word to be found by.
@@ -149,6 +160,12 @@ describe('the registry joins every tool to its metadata', () => {
         surface: meta.surface,
       });
     }
+  });
+
+  it('exposes no tool for the writer’s batch codex import: the agent imports through codex.import, capped at 20 (codex.md §7.1)', () => {
+    expect(listing.map((item) => item.name)).toContain('codex.import');
+    expect(listing.some((item) => /importbatch|import_batch/i.test(item.name))).toBe(false);
+    expect(TOOL_NAMES.some((name) => /importbatch|import_batch/i.test(name))).toBe(false);
   });
 });
 

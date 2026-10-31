@@ -278,6 +278,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   confirmLabel,
+  alternate,
   children,
 }: {
   open: boolean;
@@ -285,6 +286,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
   confirmLabel: string;
+  /** A second way to go ahead, between Cancel and the confirmation: a gentler action the dialog offers only when it applies. */
+  alternate?: { readonly label: string; readonly onSelect: () => void };
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
@@ -315,6 +318,11 @@ export function ConfirmDialog({
           <button type="button" className="button" autoFocus onClick={onCancel}>
             <Trans>Cancel</Trans>
           </button>
+          {alternate === undefined ? null : (
+            <button type="button" className="button is-primary" data-testid="confirm-alternate" onClick={alternate.onSelect}>
+              {alternate.label}
+            </button>
+          )}
           <button type="button" className="button is-danger" onClick={onConfirm}>
             {confirmLabel}
           </button>
@@ -429,6 +437,8 @@ export function InlineText({
       maxLength={120}
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={(event) => {
+        // The Enter that confirms an input method's candidate, and the Escape that cancels one, are the input method's (#188).
+        if (isImeEnter(event)) return;
         if (event.key === 'Enter') {
           // The Enter that commits an IME candidate is the input method's: it neither saves nor leaves the field.
           if (isImeEnter(event.nativeEvent)) return;

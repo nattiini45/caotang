@@ -93,6 +93,9 @@ const LINK_PARAGRAPH = 'l_PARAGRAPH0';
 function pictureRecord(id: string): NonNullable<ProjectState['manifest']['assets']>[number] {
   return { id, file: `${id}.png`, mime: 'image/png', sha256: id.slice(2).toLowerCase().padEnd(64, '0'), bytes: 1024, createdAt: OPENED.toISOString() };
 }
+/** A show folder and an episode in it, for the AV script settings (av-script.md §2). */
+const SHOW = 'n_SHOW00000000';
+const EPISODE = 'n_EPISODE00001';
 
 const TICK = 1_760_000_000_000;
 const clock = { now: () => TICK };
@@ -168,12 +171,22 @@ interface Case {
   readonly coherence?: boolean;
   /** The case needs a dialogue container in the state: the settings command names one. */
   readonly dialogue?: boolean;
+  /** The case needs a show folder and an episode in the state: the AV script settings commands name them. */
+  readonly show?: boolean;
   /** The case needs a skill in the state: the skill commands name one. */
   readonly skill?: boolean;
   /** The case needs two pictures, placed on The Landing, in the state: the picture commands name them. */
   readonly pictures?: boolean;
   /** The case needs a comic book with one page and an unlinked script in the state: the comic commands name them. */
   readonly comic?: boolean;
+  /** The case needs a memory note in the state: the memory commands name one. */
+  readonly memory?: boolean;
+  /** The project holds the macro `m_FXTRE00001`, which the case deletes. */
+  readonly macro?: boolean;
+  /** The project holds the hook `h_FXTRE00001`, which the case deletes. */
+  readonly hook?: boolean;
+  /** The case needs a picture record in `assets[]` (pictures.md §2.1). */
+  readonly picture?: boolean;
 }
 
 /** The finding the coherence cases act on: one open finding that quotes the storm scene. */
@@ -502,6 +515,34 @@ const CASES: readonly Case[] = [
   { name: 'skill.write', params: { name: 'close-third', path: 'references/voice.md', text: 'Stay close.' }, titles: [], digestMentions: 'added references/voice.md in the skill “close-third”', skill: true },
   { name: 'skill.delete', params: { name: 'close-third' }, titles: [], digestMentions: 'deleted the skill “close-third”', skill: true },
   { name: 'skill.setEnabled', params: { name: 'close-third', enabled: false }, titles: [], digestMentions: 'turned the skill “close-third” off', skill: true },
+  // The agent's files report no node: CAOTANG.md and the memory notes are not in the binder. Their digests name the file or the note.
+  { name: 'project.setInstructions', params: { text: 'British spelling.' }, titles: [], digestMentions: 'created CAOTANG.md' },
+  { name: 'memory.write', params: { slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.' }, titles: [], digestMentions: 'saved the memory note “Dialogue tags”' },
+  { name: 'memory.forget', params: { slug: 'style-dialogue' }, titles: [], digestMentions: 'forgot the memory note “Dialogue tags”', memory: true },
+  // The macro commands report no node: a macro is not in the binder. Their digests name the macro.
+  {
+    name: 'macro.save',
+    params: { macro: { slug: 'tidy-notes', name: 'Tidy notes', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'notes.append', params: { text: 'x' }, expect: 'Adds a note.' }] } },
+    titles: [],
+    digestMentions: 'saved the macro "Tidy notes"',
+  },
+  { name: 'macro.delete', params: { macroId: 'm_FXTRE00001' }, titles: [], digestMentions: 'deleted the macro "Revise chapter"', macro: true },
+  // The hook commands report no node either: a hook is not in the binder. Their digests name the hook.
+  {
+    name: 'hook.save',
+    params: { hook: { name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true } },
+    titles: [],
+    digestMentions: 'saved the hook "No suddenly"',
+  },
+  { name: 'hook.delete', params: { hookId: 'h_FXTRE00001' }, titles: [], digestMentions: 'deleted the hook "No suddenly"', hook: true },
+  // The picture registry's one apply that needs no port (pictures.md §2.4). A picture is not in the binder, so it names no node.
+  {
+    name: 'asset.setMeta',
+    params: { assetId: 'a_FXTRE00001', patch: { caption: 'The ferry at dawn' }, expect: { caption: null } },
+    titles: [],
+    digestMentions: 'changed the caption of a picture',
+    picture: true,
+  },
   {
     name: 'dialogue.setMeta',
     params: { nodeId: CELLAR, patch: { autoLineIds: true } },
@@ -510,7 +551,6 @@ const CASES: readonly Case[] = [
     dialogue: true,
   },
   // The picture commands that touch only the manifest. `pictures` seeds two pictures placed on The Landing.
-  { name: 'asset.setMeta', params: { assetId: PICTURE_ONE, patch: { caption: 'The harbour' } }, titles: [], digestMentions: 'changed the caption of', pictures: true },
   { name: 'asset.setLinkMeta', params: { linkId: LINK_ONE, patch: { note: 'Arrival' } }, titles: ['The Landing'], digestMentions: 'changed a placement note', pictures: true },
   { name: 'asset.link', params: { assetId: PICTURE_ONE, target: { kind: 'node', nodeId: CHAPTER_TWO } }, titles: ['Chapter 2'], digestMentions: 'placed', pictures: true },
   { name: 'asset.unlink', params: { linkId: LINK_ONE }, titles: ['The Landing'], digestMentions: 'took a picture off where it was placed', pictures: true },
@@ -575,6 +615,27 @@ const CASES: readonly Case[] = [
     comic: true,
   },
   { name: 'project.setCalendar', params: { lens: 'day' }, titles: [], digestMentions: 'chose the day lens for the timeline' },
+  {
+    name: 'script.setShowMeta',
+    params: { nodeId: SHOW, patch: { ratePreset: 'broadcast' } },
+    titles: ['The Long Way'],
+    digestMentions: 'changed the show settings of "The Long Way"',
+    show: true,
+  },
+  {
+    name: 'script.setEpisodeMeta',
+    params: { nodeId: EPISODE, patch: { episode: 12 } },
+    titles: ['Episode 12'],
+    digestMentions: 'changed the episode settings of "Episode 12"',
+    show: true,
+  },
+  // The writer's codex import (codex.md §7.1): one entry citing the one research page the same command makes. The page is the node it attaches to.
+  {
+    name: 'codex.importBatch',
+    params: { entries: [{ name: 'Marta', page: 0, cite: { from: 0, to: 5, quote: 'Marta' } }], pages: [{ title: 'Marta (wiki)', body: 'Marta keeps the lamp.' }] },
+    titles: ['Marta (wiki)'],
+    digestMentions: 'imported 1 codex entry and 1 research page',
+  },
 ];
 
 describe('§8 — the activity row for every shipped store apply', () => {
@@ -634,6 +695,12 @@ describe('§8 — the activity row for every shipped store apply', () => {
       const state = fixture();
       if (testCase.coherence === true) state.coherence = coherenceWithFinding();
       if (testCase.skill === true) state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new TextEncoder().encode(['---', 'name: close-third', 'description: d', '---', 'Body', ''].join('\n')) }]);
+      if (testCase.memory === true) state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
+      if (testCase.macro === true) state.manifest.macros = [{ id: 'm_FXTRE00001', slug: 'revise-chapter', name: 'Revise chapter', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'meta.set', params: { status: 'revised' }, expect: 'Marks the node revised.' }] }];
+      if (testCase.hook === true) state.manifest.agent = { hooks: [{ id: 'h_FXTRE00001', name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true }] };
+      if (testCase.picture === true) {
+        state.manifest.assets = [{ id: 'a_FXTRE00001', file: 'a_FXTRE00001.png', mime: 'image/png', sha256: 'a'.repeat(64), bytes: 12, createdAt: '2026-10-02T15:00:00.000Z' }];
+      }
       if (testCase.pictures === true) {
         state.manifest.assets = [pictureRecord(PICTURE_ONE), pictureRecord(PICTURE_TWO)];
         // Transcription validates the whole record it publishes; the other picture fixtures deliberately use a readable dummy hash.
@@ -674,6 +741,10 @@ describe('§8 — the activity row for every shipped store apply', () => {
       }
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
+      }
+      if (testCase.show === true) {
+        addNode(state, { parentId: 'manuscript', title: 'The Long Way', kind: 'show', now: OPENED, id: SHOW });
+        addDocument(state, { parentId: SHOW, title: 'Episode 12', kind: 'av-script', body: '## Open\nHOST: Hi.\n', now: OPENED, id: EPISODE });
       }
       const h = harnessOver(state);
       h.run(cmd(testCase.name, testCase.params));

@@ -1,31 +1,54 @@
-# Publishes a GitHub release when a version tag is pushed: the MCP server bundle (.mcpb) built from the tagged source, and its
-# SHA-256 in SHA256SUMS. CONTRIBUTING.md ("Releasing") says how to cut one.
+# Publishes a GitHub release when a version tag is pushed: the MCP server bundle (.mcpb) and the command-line bundle (caotang.mjs)
+# built from the tagged source, and their SHA-256 in SHA256SUMS. Then it lists that release in the MCP Registry. CONTRIBUTING.md
+# ("Releasing") says how to cut one.
 #
 # Details that are load-bearing rather than tidy:
 #   - The tag must be v<version>, and that version must be the one in packages/mcp-server/package.json, packages/mcp-server/manifest.json
 #     and server.json (tools/release.mjs). The check runs first, so a mismatch publishes nothing.
 #   - The release notes are the CHANGELOG.md section of that version; a version with no section there stops the release.
-#   - permissions is `contents: write`, the one thing creating a release needs. Only tags can start this workflow, and only people who
-#     can push tags can push one. No third-party action runs with that token: the release is made with the gh CLI that the runner has.
-#   - The server.json hash is not stamped here. The registry entry names the file by its SHA-256, so after the release exists, copy
-#     the hash from SHA256SUMS into server.json (CONTRIBUTING.md) before publishing it with mcp-publisher.
+#   - Permissions are per job, and the workflow-level default is `contents: read`. The `release` job holds `contents: write`, the one
+#     thing creating a release needs, and no `id-token`. The `registry` job holds `id-token: write`, which GitHub Actions needs to
+#     issue the OIDC token the MCP Registry signs us in with, and `contents: read`, and nothing else: no write access to the
+#     repository and no secret. Only tags can start the release job, and only people who can push tags can push one. No third-party
+#     action runs in either job: the release is made with the gh CLI that the runner has.
+#   - The `registry` job lists the release in the MCP Registry (registry.modelcontextprotocol.io) with mcp-publisher, signing in with
+#     `mcp-publisher login github-oidc`, so nobody signs in by hand. It needs the `release` job, so on a tag push it runs only after
+#     the release exists. The binary is one release of modelcontextprotocol/registry (at least 14 days old when pinned), checked
+#     against the SHA-256 written below, so a changed or substituted download stops the job before anything runs. Only the first-party
+#     checkout and setup-node actions and that binary run there; no third-party action receives the OIDC token.
+#   - The registry entry names the .mcpb by its SHA-256. The `registry` job reads it from the release's SHA256SUMS and writes it into
+#     the runner's copy of server.json (the committed file is never changed). It stops if server.json already holds a different
+#     non-zero hash, because then the committed file and the release disagree. The committed hash may be the all-zero placeholder,
+#     or it must equal the release's.
+#   - Started by hand (workflow_dispatch with `tag`), the workflow lists an existing release in the registry and does nothing else:
+#     the `release` job does not run, so nothing is released again. Run it from the main branch; another branch is refused, because a
+#     branch can carry a changed copy of this file.
 name: release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release to list in the MCP Registry, such as v0.1.0 (nothing is released again)'
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -50,17 +73,104 @@ jobs:
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
         run: pnpm --filter @caotang/mcp-server run pack
 
-      - name: Write the SHA-256 of the bundle
-        working-directory: packages/mcp-server/dist
-        run: |
-          sha256sum caotang-mcp-*.mcpb > SHA256SUMS
-          cat SHA256SUMS
+      - name: Build the caotang command-line bundle (the file the continuity-scan template pins)
+        run: pnpm --filter @caotang/cli run build
 
-      - name: Create the release with the bundle and its SHA-256
+      - name: Write the SHA-256 of the bundles
+        run: |
+          (cd packages/mcp-server/dist && sha256sum caotang-mcp-*.mcpb) > packages/mcp-server/dist/SHA256SUMS
+          (cd packages/cli/dist && sha256sum caotang.mjs) >> packages/mcp-server/dist/SHA256SUMS
+          cat packages/mcp-server/dist/SHA256SUMS
+
+      - name: Create the release with the bundles and their SHA-256
         run: |
           node tools/release.mjs notes "${TAG#v}" > release-notes.md
-          gh release create "$TAG" packages/mcp-server/dist/caotang-mcp-*.mcpb packages/mcp-server/dist/SHA256SUMS \
+          gh release create "$TAG" packages/mcp-server/dist/caotang-mcp-*.mcpb packages/cli/dist/caotang.mjs packages/mcp-server/dist/SHA256SUMS \
             --verify-tag --title "Caotang ${TAG#v}" --notes-file release-notes.md
         env:
           TAG: ${{ github.ref_name }}
           GH_TOKEN: ${{ github.token }}
+
+  registry:
+    needs: release
+    # After a tag push: only when the release job succeeded. By hand: the release job is skipped on purpose, so a skipped dependency is fine.
+    if: ${{ !cancelled() && ((github.event_name == 'push' && needs.release.result == 'success') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      # The mcp-publisher release this job runs (published 2026-08-06, so it was more than 14 days old when pinned) and the SHA-256 of
+      # its mcp-publisher_linux_amd64.tar.gz from that release's registry_1.8.1_checksums.txt
+      # (https://github.com/modelcontextprotocol/registry/releases). Change both together.
+      MCP_PUBLISHER_VERSION: 'v1.8.1'
+      MCP_PUBLISHER_SHA256: 'a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || format('refs/tags/{0}', inputs.tag) }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Check that the tag names the version being listed
+        run: node tools/release.mjs check "$TAG"
+
+      - name: Download the release's SHA256SUMS (read only)
+        run: gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir "$RUNNER_TEMP/release"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Write the release's .mcpb SHA-256 into server.json (stops if the committed file names another)
+        env:
+          SUMS: ${{ runner.temp }}/release/SHA256SUMS
+        run: |
+          node --input-type=module - <<'EOF'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const fail = (message) => {
+            console.error(`::error::${message}`);
+            process.exit(1);
+          };
+          const { TAG, SUMS } = process.env;
+          const name = `caotang-mcp-${TAG.slice(1)}.mcpb`;
+          const listed = readFileSync(SUMS, 'utf8')
+            .split(/\r?\n/)
+            .map((line) => /^([0-9a-f]{64}) [ *](.+)$/.exec(line))
+            .filter((match) => match !== null && match[2] === name);
+          if (listed.length !== 1) fail(`SHA256SUMS must list ${name} exactly once, and it lists it ${listed.length} times`);
+          const hash = listed[0][1];
+          const zero = '0'.repeat(64);
+          if (hash === zero) fail(`SHA256SUMS gives ${name} the placeholder hash`);
+          const server = JSON.parse(readFileSync('server.json', 'utf8'));
+          const entry = server.packages?.[0];
+          if (entry === undefined || entry.registryType !== 'mcpb') fail('server.json has no mcpb package to stamp');
+          if (!String(entry.identifier).endsWith(`/${name}`)) fail(`server.json names ${entry.identifier}, not ${name}`);
+          if (entry.fileSha256 !== zero && entry.fileSha256 !== hash) {
+            fail(`server.json holds ${entry.fileSha256} for ${name}, but the release has ${hash}: the committed file and the release disagree`);
+          }
+          entry.fileSha256 = hash;
+          writeFileSync('server.json', JSON.stringify(server, null, 2) + '\n');
+          console.log(`server.json: ${name} is ${hash}`);
+          EOF
+
+      - name: Fetch mcp-publisher and check its SHA-256 (stops on a mismatch or a placeholder)
+        run: |
+          set -euo pipefail
+          [[ "$MCP_PUBLISHER_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::MCP_PUBLISHER_VERSION must be a release tag like v1.8.1"; exit 1; }
+          [[ "$MCP_PUBLISHER_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::MCP_PUBLISHER_SHA256 must be the 64-digit SHA-256 from the release's checksums file"; exit 1; }
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/mcp-publisher.tar.gz" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  ${RUNNER_TEMP}/mcp-publisher.tar.gz" | sha256sum --check --strict -
+          mkdir "$RUNNER_TEMP/mcp-publisher"
+          tar -xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$RUNNER_TEMP/mcp-publisher"
+          test -x "$RUNNER_TEMP/mcp-publisher/mcp-publisher"
+
+      - name: Sign in to the MCP Registry with the job's GitHub OIDC token
+        run: '"$RUNNER_TEMP/mcp-publisher/mcp-publisher" login github-oidc'
+
+      - name: Publish server.json to the MCP Registry
+        run: '"$RUNNER_TEMP/mcp-publisher/mcp-publisher" publish'

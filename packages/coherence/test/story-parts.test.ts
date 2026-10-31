@@ -1,269 +1,282 @@
+/**
+ * Negative day offsets and declared prologue and epilogue parts — coherence.md §5.2.2 and timeline.md §2.2–§2.4, §10
+ * (the T1b coherence tests): the codec, the folder rule, the `timeline.gap` part boundary, and every other timeline check
+ * and `knowledge.leak` reading negative days exactly as positive ones.
+ */
+
 import { describe, expect, it } from 'vitest';
 
 import {
-  GAP_THRESHOLD_DAYS,
+  DAY_OFFSET_LIMIT,
+  STORY_PARTS,
   assembleInput,
   effectiveStoryPart,
-  effectiveStoryParts,
   emptyCoherenceFile,
   parseCoherenceFile,
   runChecks,
-  snapshotManuscript,
+  serializeCoherenceFile,
   type CoherenceFile,
   type DeterministicCheckId,
+  type DraftFinding,
+  type KnowledgeFact,
   type SceneMeta,
 } from '../src/index.js';
+import { DAY_OFFSET_LIMIT as BUS_DAY_OFFSET_LIMIT, STORY_PARTS as BUS_STORY_PARTS } from '@caotang/bus';
 
-import { buildState, detect } from './fixtures.js';
+import { NOW, buildState, detect, entry } from './fixtures.js';
 
-const withMeta = (sceneMeta: Record<string, SceneMeta>): CoherenceFile => ({ ...emptyCoherenceFile(), sceneMeta });
-
-const TIMELINE_CHECKS: readonly DeterministicCheckId[] = ['timeline.order-drift', 'timeline.relation', 'timeline.window', 'timeline.overlap', 'timeline.gap'];
-
-function findings(state: ReturnType<typeof buildState>, file: CoherenceFile, ids: readonly DeterministicCheckId[] = TIMELINE_CHECKS) {
-  const { input } = assembleInput(state, file, { detector: detect });
-  return runChecks(input, ids).drafts;
+function withMeta(sceneMeta: Record<string, SceneMeta>, knowledge: KnowledgeFact[] = []): CoherenceFile {
+  return { ...emptyCoherenceFile(), sceneMeta, knowledge };
 }
 
-const LONG_APART = 4000;
+function run(state: ReturnType<typeof buildState>, file: CoherenceFile, ids: readonly DeterministicCheckId[]): DraftFinding[] {
+  return runChecks(assembleInput(state, file, { detector: detect }).input, ids).drafts;
+}
 
-describe('effective story parts (§5.2.2)', () => {
-  const tree = [
-    { id: 'manuscript', parentId: null },
-    { id: 'pro', parentId: 'manuscript' },
-    { id: 'inner', parentId: 'pro' },
-    { id: 'deep', parentId: 'inner' },
-    { id: 'plain', parentId: 'manuscript' },
-  ];
+const GAP = ['timeline.gap'] as const;
 
-  it('is main for a node with no declaration anywhere above it', () => {
-    expect(effectiveStoryPart(tree, {}, 'deep')).toBe('main');
-    expect(effectiveStoryPart(tree, {}, 'unknown-node')).toBe('main');
-  });
-
-  it('reads the nearest declaration above a node, through any depth', () => {
-    const meta = { pro: { storyPart: 'prologue' as const } };
-    expect(effectiveStoryPart(tree, meta, 'deep')).toBe('prologue');
-    expect(effectiveStoryPart(tree, meta, 'plain')).toBe('main');
-  });
-
-  it('lets an explicit main under a prologue folder override it, while its siblings stay prologue', () => {
-    const meta = { pro: { storyPart: 'prologue' as const }, deep: { storyPart: 'main' as const } };
-    const parts = effectiveStoryParts(tree, meta);
-    expect(parts.get('deep')).toBe('main');
-    expect(parts.get('inner')).toBe('prologue');
-  });
-
-  it('lets a nested folder override its parent, and a node override both', () => {
-    const meta = { pro: { storyPart: 'prologue' as const }, inner: { storyPart: 'epilogue' as const }, deep: { storyPart: 'prologue' as const } };
-    const parts = effectiveStoryParts(tree, meta);
-    expect(parts.get('inner')).toBe('epilogue');
-    expect(parts.get('deep')).toBe('prologue');
-    expect(effectiveStoryPart(tree, { ...meta, deep: undefined }, 'deep')).toBe('epilogue');
-  });
-
-  it('returns to the inherited part once the explicit declaration is cleared', () => {
-    const declared = { pro: { storyPart: 'prologue' as const }, deep: { storyPart: 'main' as const } };
-    expect(effectiveStoryPart(tree, declared, 'deep')).toBe('main');
-    expect(effectiveStoryPart(tree, { pro: declared.pro, deep: {} }, 'deep')).toBe('prologue');
-  });
-
-  it('ignores a value that is not a story part, so the node inherits', () => {
-    const meta = { pro: { storyPart: 'prologue' as const }, deep: { storyPart: 'interlude' } };
-    expect(effectiveStoryPart(tree, meta, 'deep')).toBe('prologue');
-  });
-
-  it('re-parts the children when the declaring folder is moved, deleted to the trash or cleared, with no write of theirs', () => {
-    const meta = { pro: { storyPart: 'prologue' as const } };
-    const before = effectiveStoryParts(tree, meta);
-    expect(before.get('deep')).toBe('prologue');
-
-    const moved = tree.map((node) => (node.id === 'inner' ? { ...node, parentId: 'plain' } : node));
-    expect(effectiveStoryPart(moved, meta, 'deep')).toBe('main');
-
-    const trashed = tree.map((node) => (node.id === 'pro' ? { ...node, parentId: 'trash' } : node));
-    expect(effectiveStoryPart(trashed, meta, 'pro')).toBe('prologue');
-    expect(effectiveStoryPart(trashed, meta, 'plain')).toBe('main');
-
-    expect(effectiveStoryPart(tree, {}, 'deep')).toBe('main');
-    expect(meta).toEqual({ pro: { storyPart: 'prologue' } });
-  });
-
-  it('terminates on a tree that loops back on itself', () => {
-    const loop = [{ id: 'a', parentId: 'b' }, { id: 'b', parentId: 'a' }];
-    expect(effectiveStoryPart(loop, { a: { storyPart: 'epilogue' } }, 'b')).toBe('epilogue');
+describe('the shared vocabulary (§5.2.2)', () => {
+  it('holds the same parts and day range in the bus and the model', () => {
+    expect([...BUS_STORY_PARTS]).toEqual([...STORY_PARTS]);
+    expect(BUS_DAY_OFFSET_LIMIT).toBe(DAY_OFFSET_LIMIT);
+    expect(DAY_OFFSET_LIMIT).toBe(10_000_000);
   });
 });
 
-describe('snapshotManuscript carries the effective part, never the declaration', () => {
-  const state = (): ReturnType<typeof buildState> =>
-    buildState({
-      folders: [{ id: 'fPro', title: 'Before' }],
-      scenes: [
-        { id: 'in', title: 'Inherits', parent: 'fPro', body: 'A.' },
-        { id: 'own', title: 'Own main', parent: 'fPro', body: 'B.' },
-        { id: 'top', title: 'Top', body: 'C.' },
-      ],
-    });
+describe('the coherence.json codec with negative days and parts (§5.2.2)', () => {
+  const fileOf = (sceneMeta: Record<string, unknown>): string =>
+    JSON.stringify({ formatVersion: 1, findings: [], runs: [], sceneMeta, worldRules: [], knowledge: [], reviewState: {} });
 
-  it('names the part of each scene and leaves its own record alone', () => {
-    const file = withMeta({ fPro: { storyPart: 'prologue' }, own: { storyPart: 'main' } });
-    const snapshot = snapshotManuscript(state(), file);
-    const parts = Object.fromEntries(snapshot.scanned.map((scene) => [scene.docId, scene.part]));
-    expect(parts).toEqual({ in: 'prologue', own: 'main', top: 'main' });
-    expect(snapshot.scanned.find((scene) => scene.docId === 'in')?.meta).toEqual({});
-    expect(file.sceneMeta['in']).toBeUndefined();
-  });
-});
-
-describe('timeline.gap and story parts (§5.2.2)', () => {
-  const GAP = ['timeline.gap'] as const;
-  const pair = (): ReturnType<typeof buildState> =>
-    buildState({
-      scenes: [
-        { id: 'a', title: 'First', body: 'A.' },
-        { id: 'b', title: 'Second', body: 'B.' },
-      ],
-    });
-
-  it('notes a main to epilogue pair 4,000 days apart with no part declared (negative control)', () => {
-    const out = findings(pair(), withMeta({ a: { dayOffset: 0 }, b: { dayOffset: LONG_APART } }), GAP);
-    expect(out.map((finding) => finding.message)).toEqual(['"Second" happens 4000 days after "First"']);
-  });
-
-  it.each([
-    ['main to epilogue', undefined, 'epilogue'],
-    ['prologue to main', 'prologue', undefined],
-    ['prologue to epilogue', 'prologue', 'epilogue'],
-  ] as const)('skips %s', (_name, first, second) => {
-    const file = withMeta({
-      a: { dayOffset: 0, ...(first === undefined ? {} : { storyPart: first }) },
-      b: { dayOffset: LONG_APART, ...(second === undefined ? {} : { storyPart: second }) },
-    });
-    expect(findings(pair(), file, GAP)).toEqual([]);
-  });
-
-  it('still notes two epilogue scenes 30 days apart', () => {
-    const file = withMeta({ a: { dayOffset: LONG_APART, storyPart: 'epilogue' }, b: { dayOffset: LONG_APART + 30, storyPart: 'epilogue' } });
-    expect(findings(pair(), file, GAP)).toHaveLength(1);
-  });
-
-  it('treats an explicit main under a prologue folder as a different part from its prologue sibling', () => {
-    const state = buildState({
-      folders: [{ id: 'fPro', title: 'Before' }],
-      scenes: [
-        { id: 'a', title: 'First', parent: 'fPro', body: 'A.' },
-        { id: 'b', title: 'Second', parent: 'fPro', body: 'B.' },
-      ],
-    });
-    const same = withMeta({ fPro: { storyPart: 'prologue' }, a: { dayOffset: 0 }, b: { dayOffset: 30 } });
-    expect(findings(state, same, GAP)).toHaveLength(1);
-    const overridden = withMeta({ fPro: { storyPart: 'prologue' }, a: { dayOffset: 0 }, b: { dayOffset: 30, storyPart: 'main' } });
-    expect(findings(state, overridden, GAP)).toEqual([]);
-    const cleared = withMeta({ fPro: { storyPart: 'prologue' }, a: { dayOffset: 0 }, b: { dayOffset: 30 } });
-    expect(findings(state, cleared, GAP)).toHaveLength(1);
-  });
-
-  it('keeps the threshold at seven days for a negative pair in one part', () => {
-    const at = (gap: number) => findings(pair(), withMeta({ a: { dayOffset: -3650 }, b: { dayOffset: -3650 + gap } }), GAP);
-    expect(at(GAP_THRESHOLD_DAYS - 1)).toEqual([]);
-    expect(at(GAP_THRESHOLD_DAYS)).toHaveLength(1);
-  });
-
-  it('is the only check that reads a part: the other timeline checks fire the same across a part boundary', () => {
-    const state = buildState({
-      scenes: [
-        { id: 'a', title: 'First', body: 'A.' },
-        { id: 'b', title: 'Second', body: 'B.' },
-      ],
-    });
-    const meta: Record<string, SceneMeta> = { a: { dayOffset: 5, durationDays: 3 }, b: { dayOffset: 6, after: ['a'] } };
-    const others = TIMELINE_CHECKS.filter((id) => id !== 'timeline.gap');
-    const plain = findings(state, withMeta(meta), others);
-    expect(plain.length).toBeGreaterThan(0);
-    const parted = findings(state, withMeta({ a: { ...meta['a'], storyPart: 'prologue' }, b: { ...meta['b'], storyPart: 'epilogue' } }), others);
-    expect(parted).toEqual(plain);
-  });
-});
-
-describe('a uniform shift of every day (§5.2.2)', () => {
-  const state = (): ReturnType<typeof buildState> =>
-    buildState({
-      folders: [{ id: 'f', title: 'Week one' }],
-      scenes: [
-        { id: 'a', title: 'Alpha', parent: 'f', body: 'A.' },
-        { id: 'b', title: 'Beta', parent: 'f', body: 'B.' },
-        { id: 'c', title: 'Gamma', body: 'C.' },
-        { id: 'd', title: 'Delta', body: 'D.' },
-        { id: 'e', title: 'Epsilon', body: 'E.' },
-      ],
-    });
-  const base: Record<string, SceneMeta> = {
-    f: { dayOffset: 0, durationDays: 3 },
-    a: { dayOffset: 1, durationDays: 2 },
-    b: { dayOffset: 9, after: ['a'] },
-    c: { dayOffset: 9, durationDays: 2 },
-    d: { dayOffset: 8 },
-    e: { dayOffset: 40, storyPart: 'epilogue' },
-  };
-  const shifted = (delta: number): CoherenceFile =>
-    withMeta(Object.fromEntries(Object.entries(base).map(([id, meta]) => [id, meta.dayOffset === undefined ? meta : { ...meta, dayOffset: meta.dayOffset + delta }])));
-
-  /** What a finding says about the story apart from the absolute day numbers it quotes. */
-  const shape = (list: ReturnType<typeof findings>): string[] =>
-    list
-      .map((finding) => [
-        finding.checkId,
-        finding.type,
-        finding.severity,
-        finding.factGroup,
-        finding.evidence.map((passage) => passage.docId).join(','),
-        finding.message.replace(/ ?\(day -?\d+ against day -?\d+\)/, '').replace(/day(s?) -?\d+( to -?\d+)?/g, 'day$1 N'),
-      ].join('|'))
-      .sort();
-
-  it.each([-3650, -20, -1, 100])('keeps the same findings when every day moves by %i', (delta) => {
-    const original = findings(state(), shifted(0));
-    expect(original.length).toBeGreaterThan(0);
-    expect(shape(findings(state(), shifted(delta)))).toEqual(shape(original));
-  });
-});
-
-describe('loading a story part from coherence.json (§5.2.2)', () => {
-  const load = (sceneMeta: Record<string, unknown>) =>
-    parseCoherenceFile(JSON.stringify({ formatVersion: 1, findings: [], runs: [], sceneMeta, worldRules: [], reviewState: {} }));
-
-  it('keeps a declared part and a negative day, and says nothing', () => {
-    const outcome = load({ sA: { dayOffset: -3650, storyPart: 'prologue' }, sB: { dayOffset: 10_000_000 }, sC: { dayOffset: -10_000_000, storyPart: 'main' } });
+  it('loads a negative day offset, down to the limit, without a notice', () => {
+    const outcome = parseCoherenceFile(fileOf({ a: { dayOffset: -14 }, b: { dayOffset: -3650 }, c: { dayOffset: -10_000_000 } }));
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') return;
-    expect(outcome.file.sceneMeta['sA']).toEqual({ dayOffset: -3650, storyPart: 'prologue' });
-    expect(outcome.file.sceneMeta['sC']).toEqual({ dayOffset: -10_000_000, storyPart: 'main' });
+    expect(outcome.file.sceneMeta).toEqual({ a: { dayOffset: -14 }, b: { dayOffset: -3650 }, c: { dayOffset: -10_000_000 } });
     expect(outcome.notices).toEqual([]);
   });
 
-  it('drops a day past the limit or not whole, keeping the rest of the declaration', () => {
-    for (const day of [10_000_001, -10_000_001, 1.5, '3']) {
-      const outcome = load({ sA: { dayOffset: day, durationDays: 2 } });
-      expect(outcome.kind === 'ok' && outcome.file.sceneMeta['sA'], String(day)).toEqual({ durationDays: 2 });
-      expect(outcome.kind === 'ok' && outcome.notices.map((notice) => notice.code)).toEqual(['dropped-scene-meta']);
-    }
-  });
-
-  it('reads an unknown part as inherit and says so once, however many scenes carry it', () => {
-    const outcome = load({ sA: { storyPart: 'interlude', dayOffset: 2 }, sB: { storyPart: 'interlude' }, sC: { storyPart: 7 } });
+  it('drops a day offset out of range or not whole with the malformed notice, keeping the other fields', () => {
+    const outcome = parseCoherenceFile(fileOf({ a: { dayOffset: -10_000_001, durationDays: 2 }, b: { dayOffset: '-3' } }));
     expect(outcome.kind).toBe('ok');
     if (outcome.kind !== 'ok') return;
-    expect(outcome.file.sceneMeta['sA']).toEqual({ dayOffset: 2 });
-    const notices = outcome.notices.filter((notice) => notice.code === 'unknown-story-part');
-    expect(notices).toHaveLength(1);
-    expect(notices[0]?.message).toContain('"interlude"');
-    expect(notices[0]?.message).toContain('"7"');
+    expect(outcome.file.sceneMeta).toEqual({ a: { durationDays: 2 }, b: {} });
+    expect(outcome.notices.map((notice) => notice.code)).toEqual(['dropped-scene-meta', 'dropped-scene-meta']);
   });
 
-  it('loads a file written before parts existed unchanged', () => {
-    const outcome = load({ sA: { dayOffset: 3, durationDays: 1, timelineMode: 'flashback' } });
-    expect(outcome.kind === 'ok' && outcome.file.sceneMeta['sA']).toEqual({ dayOffset: 3, durationDays: 1, timelineMode: 'flashback' });
+  it('still drops a negative duration', () => {
+    const outcome = parseCoherenceFile(fileOf({ a: { dayOffset: -3, durationDays: -1 } }));
+    expect(outcome.kind === 'ok' && outcome.file.sceneMeta['a']).toEqual({ dayOffset: -3 });
+  });
+
+  it('round-trips a story part and a negative day through save and load', () => {
+    const file = withMeta({ pro: { dayOffset: -3650, storyPart: 'prologue', timelineMode: 'backstory' }, epi: { storyPart: 'epilogue' } });
+    const text = serializeCoherenceFile(file);
+    const outcome = parseCoherenceFile(text);
+    expect(outcome.kind === 'ok' && outcome.file.sceneMeta).toEqual(file.sceneMeta);
     expect(outcome.kind === 'ok' && outcome.notices).toEqual([]);
+    // The part is written after the fields an older build knows, so a file without parts serializes as it always did.
+    const pro = JSON.stringify(JSON.parse(text).sceneMeta.pro);
+    expect(pro.indexOf('"storyPart"')).toBeGreaterThan(pro.indexOf('"timelineMode"'));
+  });
+
+  it('reads an unknown part as the main story and names every unknown value once', () => {
+    const outcome = parseCoherenceFile(fileOf({ a: { storyPart: 'coda', dayOffset: 1 }, b: { storyPart: 'coda' }, c: { storyPart: 7 } }));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.sceneMeta).toEqual({ a: { dayOffset: 1 }, b: {}, c: {} });
+    const notices = outcome.notices.filter((notice) => notice.code === 'unknown-story-part');
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.message).toBe('Unknown story parts "coda", "7" read as the main story. The parts are prologue and epilogue.');
+  });
+
+  it('loads and saves the additive mainStory mark, and reads an interim `main` part as that mark (timeline.md §2.3)', () => {
+    const outcome = parseCoherenceFile(fileOf({ a: { mainStory: true, dayOffset: 1 }, b: { storyPart: 'main' }, c: { mainStory: 'yes' } }));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.sceneMeta).toEqual({ a: { dayOffset: 1, mainStory: true }, b: { mainStory: true }, c: {} });
+    expect(outcome.notices.filter((notice) => notice.code === 'unknown-story-part')).toEqual([]);
+    expect(outcome.notices.map((notice) => notice.code)).toEqual(['dropped-scene-meta']);
+    const again = parseCoherenceFile(serializeCoherenceFile(outcome.file));
+    expect(again.kind === 'ok' && again.file.sceneMeta).toEqual(outcome.file.sceneMeta);
+  });
+
+  it('loads a file written before the change unchanged, and saves it byte for byte', () => {
+    const old = withMeta({ s1: { dayOffset: 0, durationDays: 2, timelineMode: 'flashback' }, s2: { dayOffset: 40, after: ['s1'] } });
+    const text = serializeCoherenceFile(old);
+    const outcome = parseCoherenceFile(text);
+    expect(outcome.kind === 'ok' && outcome.file.sceneMeta).toEqual(old.sceneMeta);
+    expect(outcome.kind === 'ok' && outcome.notices).toEqual([]);
+    if (outcome.kind === 'ok') expect(serializeCoherenceFile(outcome.file)).toBe(text);
+  });
+});
+
+describe('effectiveStoryPart (§5.2.2)', () => {
+  it('takes the scene’s own part, else the nearest folder’s, else the main story', () => {
+    expect(effectiveStoryPart(undefined, [])).toBe('main');
+    expect(effectiveStoryPart({ dayOffset: -14 }, [])).toBe('main');
+    expect(effectiveStoryPart({}, [{ storyPart: 'epilogue' }])).toBe('epilogue');
+    expect(effectiveStoryPart({ storyPart: 'prologue' }, [{ storyPart: 'epilogue' }])).toBe('prologue');
+    expect(effectiveStoryPart({}, [{ storyPart: 'epilogue' }, undefined, { storyPart: 'prologue' }, {}])).toBe('prologue');
+  });
+});
+
+describe('timeline.gap across parts (§5.2.2)', () => {
+  const pair = (): ReturnType<typeof buildState> =>
+    buildState({
+      scenes: [
+        { id: 'a', title: 'A', body: 'A.' },
+        { id: 'b', title: 'B', body: 'B.' },
+      ],
+    });
+
+  it('skips main → epilogue 4,000 days apart, and reports the same pair with no part (negative control)', () => {
+    expect(run(pair(), withMeta({ a: { dayOffset: 10 }, b: { dayOffset: 4010, storyPart: 'epilogue' } }), GAP)).toEqual([]);
+    const control = run(pair(), withMeta({ a: { dayOffset: 10 }, b: { dayOffset: 4010 } }), GAP);
+    expect(control).toHaveLength(1);
+    expect(control[0]?.message).toBe('"B" happens 4000 days after "A"');
+  });
+
+  it('skips prologue → main, and reports the same pair with no part', () => {
+    expect(run(pair(), withMeta({ a: { dayOffset: -3650, storyPart: 'prologue' }, b: { dayOffset: 0 } }), GAP)).toEqual([]);
+    expect(run(pair(), withMeta({ a: { dayOffset: -3650 }, b: { dayOffset: 0 } }), GAP)).toHaveLength(1);
+  });
+
+  it('skips prologue → epilogue', () => {
+    expect(run(pair(), withMeta({ a: { dayOffset: -50, storyPart: 'prologue' }, b: { dayOffset: 9000, storyPart: 'epilogue' } }), GAP)).toEqual([]);
+  });
+
+  it('reports two epilogue scenes 30 days apart, and two prologue scenes too: gaps inside a part are checked as before', () => {
+    const epilogue = run(pair(), withMeta({ a: { dayOffset: 4000, storyPart: 'epilogue' }, b: { dayOffset: 4030, storyPart: 'epilogue' } }), GAP);
+    expect(epilogue).toHaveLength(1);
+    expect(epilogue[0]).toMatchObject({ checkId: 'timeline.gap', type: 'time-gap' });
+    expect(epilogue[0]?.message).toBe('"B" happens 30 days after "A"');
+    const prologue = run(pair(), withMeta({ a: { dayOffset: -400, storyPart: 'prologue' }, b: { dayOffset: -300, storyPart: 'prologue' } }), GAP);
+    expect(prologue).toHaveLength(1);
+  });
+
+  it('keeps time-skip exempting a pair inside a part', () => {
+    const file = withMeta({ a: { dayOffset: 4000, storyPart: 'epilogue' }, b: { dayOffset: 4030, storyPart: 'epilogue', timelineMode: 'time-skip' } });
+    expect(run(pair(), file, GAP)).toEqual([]);
+  });
+
+  it('compares the main story across an epilogue scene dated inside it', () => {
+    const state = buildState({
+      scenes: [
+        { id: 'a', title: 'A', body: 'A.' },
+        { id: 'b', title: 'B', body: 'B.' },
+        { id: 'e', title: 'E', body: 'E.' },
+      ],
+    });
+    const out = run(state, withMeta({ a: { dayOffset: 0 }, b: { dayOffset: 30 }, e: { dayOffset: 15, storyPart: 'epilogue' } }), GAP);
+    expect(out.map((finding) => finding.message)).toEqual(['"B" happens 30 days after "A"']);
+  });
+
+  describe('a folder’s part covers its scenes, and a scene’s own part wins', () => {
+    const state = (): ReturnType<typeof buildState> =>
+      buildState({
+        folders: [
+          { id: 'story', title: 'The story' },
+          { id: 'after', title: 'Afterwards' },
+        ],
+        scenes: [
+          { id: 'last', title: 'Last', parent: 'story', body: 'Last.' },
+          { id: 'years', title: 'Years later', parent: 'after', body: 'Years.' },
+          { id: 'month', title: 'A month on', parent: 'after', body: 'Month.' },
+        ],
+      });
+
+    it('skips the jump into an epilogue folder and checks the gap inside it', () => {
+      const out = run(
+        state(),
+        withMeta({ after: { storyPart: 'epilogue' }, last: { dayOffset: 100 }, years: { dayOffset: 4100 }, month: { dayOffset: 4130 } }),
+        GAP,
+      );
+      expect(out.map((finding) => finding.message)).toEqual(['"A month on" happens 30 days after "Years later"']);
+    });
+
+    it('lets a scene in the folder declare the main story back by its own part… and a different part', () => {
+      // `month` declares itself a prologue inside the epilogue folder: it is compared with no one else, so nothing is reported.
+      const out = run(
+        state(),
+        withMeta({ after: { storyPart: 'epilogue' }, last: { dayOffset: 100 }, years: { dayOffset: 4100 }, month: { dayOffset: 4130, storyPart: 'prologue' } }),
+        GAP,
+      );
+      expect(out).toEqual([]);
+    });
+
+    it('reports the jump when the folder declares no part (negative control)', () => {
+      const out = run(state(), withMeta({ last: { dayOffset: 100 }, years: { dayOffset: 4100 }, month: { dayOffset: 4130 } }), GAP);
+      expect(out).toHaveLength(2);
+    });
+  });
+});
+
+describe('negative days in the other checks behave as positive ones (§5.2.2)', () => {
+  const ANNA = 'c_ANNA000001';
+  const HEIR = 'k_SECRET0001';
+  const facts: KnowledgeFact[] = [{ id: HEIR, text: 'Mara is the heir', createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() }];
+
+  const book = (): ReturnType<typeof buildState> =>
+    buildState({
+      entries: [entry(ANNA, 'Anna')],
+      folders: [{ id: 'act', title: 'Act' }],
+      scenes: [
+        { id: 's1', title: 'One', parent: 'act', body: 'Anna arrived.' },
+        { id: 's2', title: 'Two', parent: 'act', body: 'Anna left.' },
+        { id: 's3', title: 'Three', parent: 'act', body: 'Anna waited.' },
+        { id: 's4', title: 'Four', parent: 'act', body: 'Anna slept.' },
+      ],
+    });
+
+  const CHECKS: readonly DeterministicCheckId[] = [
+    'timeline.order-drift',
+    'timeline.relation',
+    'timeline.window',
+    'timeline.overlap',
+    'timeline.gap',
+    'knowledge.leak',
+  ];
+
+  /**
+   * Every check fires on this story: order-drift (Two before Three in the binder, after it in days), relation (Three follows
+   * Two but happens first), window (Two and Four outside the act), overlap (One and Three), gap (Two → Four) and leak.
+   */
+  const story = (shift: number, extra: Partial<Record<string, SceneMeta>> = {}): CoherenceFile =>
+    withMeta(
+      {
+        act: { dayOffset: shift + 0, durationDays: 20 },
+        s1: { dayOffset: shift + 0, durationDays: 3, knows: [{ entryId: ANNA, factId: HEIR }] },
+        s2: { dayOffset: shift + 30 },
+        s3: { dayOffset: shift + 1, after: ['s2'], learns: [{ entryId: ANNA, factId: HEIR }] },
+        s4: { dayOffset: shift + 60 },
+        ...extra,
+      } as Record<string, SceneMeta>,
+      facts,
+    );
+
+  const shape = (drafts: readonly DraftFinding[]): string[] =>
+    drafts.map((d) => `${d.checkId}|${d.type}|${d.factGroup}|${d.evidence.map((e) => e.docId).join(',')}`).sort();
+
+  it('raises each check on a story wholly before day 0', () => {
+    const out = run(book(), story(-1000), CHECKS);
+    expect(new Set(out.map((d) => d.checkId))).toEqual(new Set(CHECKS));
+    expect(out.find((d) => d.checkId === 'timeline.window')?.message).toBe('"Two" falls outside "Act", which spans days -1000 to -981');
+    expect(out.find((d) => d.checkId === 'timeline.relation')?.message).toContain('on day -999, before day -970');
+  });
+
+  it.each([-1000, -15, -1, 7, 5000, -DAY_OFFSET_LIMIT + 10, DAY_OFFSET_LIMIT - 40])(
+    'finds the same findings after shifting every day by %i, across day 0 (shift invariance)',
+    (shift) => {
+      expect(shape(run(book(), story(shift), CHECKS))).toEqual(shape(run(book(), story(0), CHECKS)));
+    },
+  );
+
+  it('keeps parts out of every check but the gap', () => {
+    const parted = story(-1000, {
+      s1: { dayOffset: -1000, durationDays: 3, knows: [{ entryId: ANNA, factId: HEIR }], storyPart: 'prologue' },
+      s2: { dayOffset: -970, storyPart: 'epilogue' },
+    });
+    const withoutGap = (lines: string[]): string[] => lines.filter((line) => !line.startsWith('timeline.gap'));
+    expect(withoutGap(shape(run(book(), parted, CHECKS)))).toEqual(withoutGap(shape(run(book(), story(-1000), CHECKS))));
   });
 });

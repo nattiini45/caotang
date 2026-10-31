@@ -99,7 +99,7 @@ describe('the storyboard adapter (§9.3)', () => {
   it('an undated scene has an undated strip, and an explicit main part is the strip\'s part too', () => {
     const state = project({ folders: [{ id: 'pro' }], scenes: [{ id: 's', title: 'S', parent: 'pro' }] });
     addShots(state, { id: 'b', title: `S${SHOTS}`, parent: 'pro', shots: [{ id: 'a' }] });
-    const model = buildTimeline(state, coherence({ pro: { storyPart: 'prologue' }, s: { storyPart: 'main' } }), { axis: 'story' });
+    const model = buildTimeline(state, coherence({ pro: { storyPart: 'prologue' }, s: { mainStory: true } }), { axis: 'story' });
     expect(model.strips[0]).toMatchObject({ part: 'main', partOverride: true });
     expect(model.strips[0]?.start).toBeUndefined();
     expect(model.strips[0]?.glyph.pattern).toBe('dashed');

@@ -53,6 +53,7 @@ import {
 } from './paths.js';
 import { isIdWithPrefix } from '@caotang/ids';
 import { digestOfFile, type DigestReader } from './folder-digests.js';
+import { removeAgentFiles, writeAgentFiles } from './agent-files-fs.js';
 import { removeSkillFiles, writeSkillFiles } from './skills-fs.js';
 import type { ProjectState } from './state.js';
 import type { CodexEntry, TreeNode } from './manifest.js';
@@ -455,6 +456,9 @@ export async function writeProject(
   //     creates `.agents/` for a project that has no skills, so such a project's folder is the same as before skills existed.
   await writeSkillFiles(fs, state.skills, { guard, written: report.written, pruned: report.pruned });
 
+  // 2e. The agent's files (agent-files-fs.ts): CAOTANG.md and memory/. Changed-only, and nothing is created for a project that has none.
+  await writeAgentFiles(fs, state.agentFiles, { guard, written: report.written, pruned: report.pruned, newline });
+
   // 3. `.gitignore` — created only when absent. An artifact that a writer has
   //    customized is the author's file, and silently replacing it is the one
   //    thing this whole module must never do.
@@ -492,6 +496,9 @@ export async function writeProject(
 
   // 5b. Skill files the writer removed. Only those: a file in `.agents/skills/` that the writer did not put there is not its to remove.
   await removeSkillFiles(fs, state.skills, state.removedSkillFiles, { guard, written: report.written, pruned: report.pruned });
+
+  // 5c. Agent files the writer forgot or cleared. Only those.
+  await removeAgentFiles(fs, state.agentFiles, state.removedAgentFiles, { guard, written: report.written, pruned: report.pruned });
 
   report.written.sort();
   report.rotated.sort();

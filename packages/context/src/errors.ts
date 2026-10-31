@@ -10,7 +10,8 @@ export type ContextErrorCode =
   | 'unknown-focus'
   | 'focus-not-document'
   | 'unknown-scope'
-  | 'missing-selection';
+  | 'missing-selection'
+  | 'withheld';
 
 export class ContextError extends Error {
   readonly code: ContextErrorCode;

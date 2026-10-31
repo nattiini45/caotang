@@ -17,13 +17,15 @@ import {
   childrenOf,
   dropRefusalText,
   isMovable,
+  isPart,
   planKeyboardMove,
   wordCountOf,
   type DropRefusal,
   type DropZone,
   type KeyboardStep,
 } from '../app/binder-model.js';
-import { isImeEnter, resolveKey } from '../app/keymap.js';
+import { keyFacts, resolveKey } from '../app/keymap.js';
+import { isImeEnter } from '../app/ime.js';
 import {
   cardsOf,
   planCardDrop,
@@ -100,9 +102,10 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   const rovingId = cards.some((card) => card.id === focusId) ? focusId : (cards[0]?.id ?? null);
 
   // The manuscript's children are chapters (ui-modules §2.4), so a card made on the manuscript board is a chapter. A scene
-  // made there would sit directly under the manuscript, with no chapter for it to belong to.
+  // made there would sit directly under the manuscript, with no chapter for it to belong to. A part's board shows its chapters
+  // (project-format §2), so a card made there is a chapter too.
   const create = (): void => {
-    const outcome = createNode(session, scope.id, scope.id === 'manuscript' ? 'folder' : 'document');
+    const outcome = createNode(session, scope.id, scope.id === 'manuscript' || isPart(state, scope.id) ? 'folder' : 'document');
     const id = createdNodeId(outcome);
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });
@@ -191,16 +194,7 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   const onCardKey = (event: KeyboardEvent<HTMLElement>, nodeId: string): void => {
     if (event.target !== event.currentTarget) return;
     const action = resolveKey(
-      {
-        key: event.key,
-        code: event.nativeEvent.code,
-        ctrl: event.ctrlKey,
-        meta: event.metaKey,
-        shift: event.shiftKey,
-        alt: event.altKey,
-        altGraph: event.nativeEvent.getModifierState('AltGraph'),
-        composing: isImeEnter(event.nativeEvent),
-      },
+      { ...keyFacts(event), composing: isImeEnter(event) },
       { inTextField: false, inBinder: false, inCorkboard: true, rtl: uiIsRtl() },
     );
     if (action === 'reorder-up' || action === 'reorder-down') {

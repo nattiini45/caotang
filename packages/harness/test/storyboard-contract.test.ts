@@ -25,7 +25,7 @@ type HarnessObjectSpec = Extract<ParamSpec, { kind: 'object' }>;
  * are wired. `schema` is derived from `params` at registration (types.ts: "never written by hand").
  */
 interface HarnessEntryShape {
-  readonly meta: Omit<ToolMetadata, 'name'>;
+  readonly meta: Omit<ToolMetadata, 'name' | 'targets'>;
   readonly params: HarnessObjectSpec;
   readonly refine?: (params: CallParams) => CommandError | undefined;
 }

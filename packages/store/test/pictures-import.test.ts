@@ -240,11 +240,13 @@ describe('asset.import', () => {
     ]);
   });
 
+  // Merge: main's strip is the one every import runs (pictures.md §6.4 step 4): it drops an XMP packet that names a GPS property, and
+  // keeps other XMP. The PR's broader rule (every XMP packet) is not kept, so the private blocks here name a location.
   it('strips a private metadata block before the hash, so two copies that differ only in it are one picture', async () => {
     const h = host();
-    const tagged = png({ xmp: '<x:xmpmeta>photographer: SECRET-PERSON</x:xmpmeta>' });
+    const tagged = png({ xmp: '<x:xmpmeta exif:GPSLatitude="51,15.6N">photographer: SECRET-PERSON</x:xmpmeta>' });
     const first = value(await importOne(h, tagged)).result as Imported;
-    const second = value(await importOne(h, png({ xmp: '<x:xmpmeta>photographer: SOMEONE-ELSE</x:xmpmeta>' }))).result as Imported;
+    const second = value(await importOne(h, png({ xmp: '<x:xmpmeta exif:GPSLatitude="48,8.2N">photographer: SOMEONE-ELSE</x:xmpmeta>' }))).result as Imported;
     const clean = value(await importOne(h, png())).result as Imported;
 
     expect(second.assetId).toBe(first.assetId);
@@ -292,26 +294,26 @@ describe('asset.import', () => {
     expect(h.state.manifest.assets ?? []).toEqual([]);
   });
 
-  it('asks once about a large photo and does not write until the writer has chosen', async () => {
+  // Merge: main's behaviour holds for large photos (pictures.md §6.4 step 3). The command does not refuse to ask; `largePhotos` defaults
+  // to keeping the original (the session asks once per batch before it sends the command), and a host without a decoder keeps the
+  // original rather than refusing. The PR's prompt-by-refusal (`largePhotoPrompt`) is not kept.
+  it('keeps a large photo as it is by default, and with the PR spelling keep-originals', async () => {
     const h = host();
     const photo = png({ width: 6000, height: 5000 });
-    const stagingId = h.staging.stage(photo);
-    const asked = refusal(await run(h, 'asset.import', { stagingId }));
-
-    expect(asked.details).toMatchObject({ largePhotoPrompt: true });
-    expect(h.writes).toEqual([]);
-
-    // The same staged bytes answer the second try: nothing was re-staged.
-    const kept = value(await run(h, 'asset.import', { stagingId, largePhotos: 'keep-originals' })).result as Imported;
+    const kept = value(await run(h, 'asset.import', { stagingId: h.staging.stage(photo) })).result as Imported;
     expect(h.files.has(kept.path)).toBe(true);
     expect(h.state.manifest.assets?.[0]).toMatchObject({ width: 6000, height: 5000 });
+    expect(h.state.manifest.assets?.[0]).not.toHaveProperty('workingCopy');
+    const again = value(await run(h, 'asset.import', { stagingId: h.staging.stage(photo), largePhotos: 'keep-originals' })).result as Imported;
+    expect(again.assetId).toBe(kept.assetId);
   });
 
-  it('refuses working copies on a host that cannot make them, before it writes', async () => {
+  it('keeps the original when the host cannot make working copies', async () => {
     const h = host();
-    const refused = refusal(await importOne(h, png({ width: 6000, height: 5000 }), { largePhotos: 'working-copies' }));
-    expect(refused.target).toBe('largePhotos');
-    expect(h.writes).toEqual([]);
+    const kept = value(await importOne(h, png({ width: 6000, height: 5000 }), { largePhotos: 'working-copies' })).result as Imported;
+    expect(h.files.has(kept.path)).toBe(true);
+    expect(h.state.manifest.assets?.[0]).toMatchObject({ width: 6000, height: 5000 });
+    expect(h.state.manifest.assets?.[0]).not.toHaveProperty('workingCopy');
   });
 });
 

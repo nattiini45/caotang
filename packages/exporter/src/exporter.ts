@@ -48,8 +48,9 @@ import { renderEpub, EPUB_MIME, type EpubCover, type EpubInput } from './render-
 import { XLSX_MIME } from './render-xlsx.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
-import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate } from './template.js';
+import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate, type ExportTemplate } from './template.js';
 import {
+  hasTextProof,
   isBinaryFormat,
   isExportFormat,
   isMediaFormat,
@@ -60,14 +61,16 @@ import {
   type ExportCommandRequest,
   type ExportFile,
   type ExportFormat,
+  type ExportPreviewFacts,
+  type ExportPreviewRequest,
   type ExportMetadataInput,
   type ExportRecipe,
-  type ExportRecipeOptions,
+  type CompileOptions,
+  type FlatBlock,
   type ExportResult,
   type ExportSelection,
   type Exporter,
   type ExporterClock,
-  type FlatBlock,
   type MediaFormat,
   type PictureExportMode,
 } from './types.js';
@@ -107,11 +110,24 @@ export interface ExporterOptions {
    */
   readonly loadFallbackFont?: FontLoader;
   /**
+   * Reads the Bold of the PDF fallback font (Noto Sans Mono CJK SC Bold, `@caotang/font-noto-cjk`), the same way, for text the CJK
+   * font sets (Han, kana, Hangul, Greek, Cyrillic) in a bold place; Arabic, Hebrew, Devanagari and emoji keep their own fonts there.
+   * The contact sheet reads it only when its title, page label or a number chip holds such text; the screenplay PDF draws nothing in
+   * bold and does not read it. Without it, that text is the regular weight thickened by a stroke, and the compile log says so.
+   */
+  readonly loadBoldFallbackFont?: FontLoader;
+  /**
    * Reads the PDF emoji font (Noto Emoji, monochrome, `@caotang/font-noto-emoji`) for emoji, the same way: the app from its
    * own origin, Node from the package. It is called only when a file holds an emoji. Without it, emoji are drawn as `?`, and
    * the compile log says so.
    */
   readonly loadEmojiFont?: FontLoader;
+  /**
+   * Reads the colour emoji file (`@caotang/font-noto-color-emoji`), the same way. It is called only when Colour emoji is on (the recipe's
+   * `colourEmoji`, or the format's default) and a file holds an emoji. Without it, or when it cannot be read, emoji print in the black-and-white
+   * font, and the compile log says so.
+   */
+  readonly loadColourEmoji?: FontLoader;
   /**
    * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and Noto Sans Devanagari
    * (`@caotang/font-noto-devanagari`) for both PDFs' Arabic, Persian, Urdu, Hebrew, Hindi, Marathi, Nepali and Sanskrit text, the
@@ -392,21 +408,9 @@ export function createExporter(options: ExporterOptions): ExporterService {
       });
     }
 
-    const { template, note: templateNote } = resolveTemplate(request.templateId);
-    const titlePage = request.options.titlePage ?? template.titlePage;
-    const wantToc = request.options.toc ?? template.toc;
-
-    const styleRows = options.sceneStyles ?? SCENE_STYLE_ROWS;
-    const flat = flatten(state, request.selection, { titlePage, sceneStyles: styleRows });
+    const { template, flat, tocIncluded, notes: draftNotes } = draftOf(state, request);
     const chapterCount = flat.chapterCount;
-    // EPUB always carries a contents document (nav.xhtml, §3a), so its flag is on
-    // whenever it has a chapter to list; the other formats follow the recipe.
-    const tocIncluded =
-      request.format === 'epub' ? chapterCount > 0 : request.format !== 'txt' && wantToc && chapterCount > 0;
-
-    const notes: string[] = [...flat.notes];
-    if (templateNote !== undefined) notes.push(templateNote);
-    notes.push(...droppedStyleNotes(flat.blocks, request.format, styleRows));
+    const notes: string[] = [...draftNotes];
     let epub: EpubFacts | undefined;
     if (request.format === 'epub') {
       // Refused here, before anything is reserved or queued, so a refusal writes nothing.
@@ -460,6 +464,37 @@ export function createExporter(options: ExporterOptions): ExporterService {
     return { kind: 'prose', format: request.format, input, flat, entry, title, epub, at: request.at, base: request.base, pictures: pictures.plan };
   };
 
+  /**
+   * Stages 1 and 2 of a prose compile, and the facts of its log row that follow from them. The plan and {@link ExporterService.preview} both
+   * call this, so the Draft is built from the same flatten, the same template and the same options as the compile, and cannot disagree with it.
+   */
+  const draftOf = (
+    state: ProjectState,
+    request: Pick<PlanRequest, 'selection' | 'format' | 'templateId' | 'options'>,
+  ): {
+    readonly template: ExportTemplate;
+    readonly titlePage: boolean;
+    readonly flat: FlattenResult;
+    readonly tocIncluded: boolean;
+    readonly notes: readonly string[];
+  } => {
+    const { template, note: templateNote } = resolveTemplate(request.templateId);
+    const titlePage = request.options.titlePage ?? template.titlePage;
+    const wantToc = request.options.toc ?? template.toc;
+
+    const styleRows = options.sceneStyles ?? SCENE_STYLE_ROWS;
+    const flat = flatten(state, request.selection, { titlePage, sceneStyles: styleRows });
+    // EPUB always carries a contents document (nav.xhtml, §3a), so its flag is on
+    // whenever it has a chapter or a part to list; the other formats follow the recipe.
+    const headings = flat.chapterCount + flat.partCount;
+    const tocIncluded = request.format === 'epub' ? headings > 0 : request.format !== 'txt' && wantToc && headings > 0;
+
+    const notes: string[] = [...flat.notes];
+    if (templateNote !== undefined) notes.push(templateNote);
+    notes.push(...droppedStyleNotes(flat.blocks, request.format, styleRows));
+    return { template, titlePage, flat, tocIncluded, notes };
+  };
+
   /** A media format's plan: its renderer runs now, because every media renderer is synchronous. */
   const planMedia = (
     state: ProjectState,
@@ -490,6 +525,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       // The contact sheet reads its pictures' bytes when its file renders, from the same store the cover is read from.
       readAsset,
       ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
+      ...(request.options.scriptFont === undefined ? {} : { scriptFont: request.options.scriptFont }),
       ...(request.options.paperFrames === undefined ? {} : { paperFrames: request.options.paperFrames }),
       ...(request.options.bleed === undefined ? {} : { bleed: request.options.bleed }),
       ...(request.options.cropMarks === undefined ? {} : { cropMarks: request.options.cropMarks }),
@@ -500,8 +536,12 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(options.rasterizeComic === undefined ? {} : { rasterizeComic: options.rasterizeComic }),
       ...(options.comicRasterSignal === undefined ? {} : { comicRasterSignal: options.comicRasterSignal }),
       ...(common.format !== 'comic-epub' || common.identifier === undefined ? {} : { identifier: common.identifier }),
+      // Colour emoji (screenplay.md §5.3, storyboard.md §6). Absent is each format's own default, which media.ts applies.
+      ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),
       ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
+      ...(options.loadBoldFallbackFont === undefined ? {} : { loadBoldFallbackFont: options.loadBoldFallbackFont }),
       ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
+      ...(options.loadColourEmoji === undefined ? {} : { loadColourEmoji: options.loadColourEmoji }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
       ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
       ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
@@ -581,8 +621,56 @@ export function createExporter(options: ExporterOptions): ExporterService {
       } satisfies ExportResult;
     },
 
-    previewFlatten(selection): FlatBlock[] {
-      return [...flatten(options.readState(), selection, { titlePage: true, sceneStyles: options.sceneStyles ?? SCENE_STYLE_ROWS }).blocks];
+    preview(request) {
+      const state = options.readState();
+      try {
+        const resolved = resolveRequest(state, request);
+        const planRequest: PlanRequest = { ...resolved.plan, at: clock.now() };
+        if (isMediaFormat(resolved.format)) {
+          // A media format does not flatten into blocks of its own: it renders in the plan, so its gates refuse here and the entry has its counts.
+          const { entry } = plan(state, planRequest);
+          return { kind: 'media', ...factsOf(resolved.format, entry) };
+        }
+        // The Draft stops short of the plan's artifact checks (an EPUB's identifier, its cover): it is the content, which the compile would write.
+        const { flat, titlePage, tocIncluded, notes } = draftOf(state, planRequest);
+        return {
+          kind: 'draft',
+          blocks: flat.blocks,
+          titlePage,
+          ...factsOf(resolved.format, { ...flat, blockCount: flat.blocks.length, tocIncluded, notes }),
+        };
+      } catch (error) {
+        if (error instanceof ApplyRefusal) return { kind: 'refused', error: error.error };
+        throw error;
+      }
+    },
+
+    async proof(request) {
+      const state = options.readState();
+      try {
+        // The request resolves as the compile's does, so a request the compile would refuse is refused here too, whatever its format.
+        const resolved = resolveRequest(state, request);
+        // A binary container has no Proof here, and nothing is rendered for it.
+        if (!hasTextProof(resolved.format)) return { kind: 'none', format: resolved.format };
+        // The compile's own plan and renderer: the Proof is the file the compile would write.
+        const compiled = plan(state, { ...resolved.plan, at: clock.now() });
+        const [first, ...rest] = filesOf(compiled, `${resolved.base}.${EXTENSION[resolved.format]}`);
+        if (first === undefined) throw new Error(`the ${resolved.format} compile produced no file`);
+        const rendered = splitRendered(await first.render());
+        // The compile refuses to write a text format that rendered as bytes (emit.ts), so the Proof does not show it as text either.
+        if (typeof rendered.contents !== 'string') throw new Error(`${resolved.format} rendered as bytes, which is a renderer defect`);
+        return {
+          kind: 'text',
+          format: resolved.format,
+          fileName: first.name,
+          mimeType: first.mimeType,
+          text: rendered.contents,
+          otherFiles: rest.map((file) => file.name),
+        };
+      } catch (error) {
+        if (error instanceof ApplyRefusal) return { kind: 'refused', error: error.error };
+        throw error;
+      }
     },
 
     listRecipes: () => [...recipesOf(options.readState())],
@@ -613,6 +701,19 @@ export function createExporter(options: ExporterOptions): ExporterService {
    * raise (the format, the recipe, the binary byte store, and each gate of the plan), and the plan itself. Nothing is reserved or written.
    */
   function planForBus(state: ProjectState, request: ExportCommandRequest): BusPlan {
+    const { format, base, plan: planRequest } = resolveRequest(state, request);
+    return { format, base, compiled: plan(state, { ...planRequest, at: request.at }) };
+  }
+
+  /**
+   * Everything a bus compile decides from its request, before it plans: the format, the recipe, the nodes, the template, the options and
+   * the file stem. The compile and {@link ExporterService.preview} both resolve through this, so a recipe is read the same way by each. Each
+   * refusal it raises is raised before anything is reserved or written.
+   */
+  function resolveRequest(
+    state: ProjectState,
+    request: ExportPreviewRequest,
+  ): { readonly format: ExportFormat; readonly base: string; readonly plan: Omit<PlanRequest, 'at'> } {
     if (!isExportFormat(request.format)) throw new UnknownExportFormatError(request.format);
     const format = request.format;
     if (isBinaryFormat(format) && options.bytes === undefined) throw new ExportUnavailableError(format);
@@ -636,16 +737,18 @@ export function createExporter(options: ExporterOptions): ExporterService {
     const namedByRecipe = recipe !== undefined && request.selection.kind === 'manuscript' && recipe.name !== DEFAULT_RECIPE.name;
     const base = namedByRecipe ? fileStem(recipe.name) : fileStem(outputTitle(state, includeRootIds, state.manifest.project.name));
 
-    const compiled = plan(state, {
-      selection: { includeRootIds: [...includeRootIds] },
+    return {
       format,
-      templateId: request.templateId ?? recipe?.templateId,
-      options: recipe?.options ?? {},
-      recipe: label,
       base,
-      at: request.at,
-    });
-    return { format, base, compiled };
+      plan: {
+        selection: { includeRootIds: [...includeRootIds] },
+        format,
+        templateId: request.templateId ?? recipe?.templateId,
+        options: recipe?.options ?? {},
+        recipe: label,
+        base,
+      },
+    };
   }
 
   function compileForBus(state: ProjectState, request: ExportCommandRequest): ExportCommandOutcome {
@@ -835,11 +938,28 @@ function coverNotesFor(bytes: Uint8Array): string[] {
   ];
 }
 
+/** The facts of a log row that a preview reports: the compile's own numbers, so the two can be set side by side. */
+function factsOf(
+  format: ExportFormat,
+  row: Pick<CompileLogEntry, 'blockCount' | 'chapterCount' | 'sceneCount' | 'wordCount' | 'skippedDocs' | 'tocIncluded' | 'notes'>,
+): ExportPreviewFacts {
+  return {
+    format,
+    blockCount: row.blockCount,
+    chapterCount: row.chapterCount,
+    sceneCount: row.sceneCount,
+    wordCount: row.wordCount,
+    skippedDocs: [...row.skippedDocs],
+    tocIncluded: row.tocIncluded,
+    notes: [...row.notes],
+  };
+}
+
 interface PlanRequest {
   readonly selection: ExportSelection;
   readonly format: ExportFormat;
   readonly templateId?: string;
-  readonly options: ExportRecipeOptions;
+  readonly options: CompileOptions;
   readonly recipe: string;
   /** The file stem a single-file artifact is named by. */
   readonly base: string;

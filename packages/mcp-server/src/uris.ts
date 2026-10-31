@@ -58,6 +58,8 @@ const INSPECTOR: ReadonlySet<string> = new Set([
   'binder.setMeta',
   'binder.rename',
   'dialogue.setMeta',
+  'script.setShowMeta',
+  'script.setEpisodeMeta',
   'shot.setMeta',
 ]);
 

@@ -22,6 +22,11 @@ const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
   'base64',
 );
+/**
+ * A second 1×1 PNG (one red pixel) for the shots. The picture registry stores the same bytes once (pictures.md §6.4, the dedup), so
+ * a shot given the cover's bytes would share its file; distinct bytes keep the cover and the shot two pictures.
+ */
+const FRAME = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC', 'base64');
 
 /** Makes a node from the context menu of the row it goes under, and keeps its default title. */
 async function makeUnder(page: Page, under: string, item: string): Promise<void> {
@@ -49,7 +54,7 @@ async function reopen(page: Page): Promise<void> {
 
 /** Chooses a picture for shot 1 from the desktop, as the image slot takes it. */
 async function choosePicture(page: Page, card: Locator): Promise<void> {
-  await page.getByLabel('Choose an image file for shot 1').setInputFiles({ name: 'frame.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByLabel('Choose an image file for shot 1').setInputFiles({ name: 'frame.png', mimeType: 'image/png', buffer: FRAME });
   await expect(card.locator('img')).toBeVisible();
   await waitForSaved(page);
 }

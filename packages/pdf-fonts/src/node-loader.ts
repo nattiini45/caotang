@@ -3,11 +3,11 @@
  * (apps/desktop/src/app/fallback-fonts.ts), so this file is a subpath of its own (`@caotang/pdf-fonts/node-loader`) and the
  * package's index never imports it: the browser bundle never sees `node:fs`.
  *
- * Five fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
+ * Five fonts and the colour emoji file, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), with its Bold for CJK text in a bold place, Noto Emoji
  * (`@caotang/font-noto-emoji`), Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and
  * Noto Sans Devanagari (`@caotang/font-noto-devanagari`); and the comic lettering faces of `@caotang/font-comic-lettering`
  * (Comic Neue and Bangers), one file each, behind a loader that takes the face.
- * The CJK and emoji loaders are for the full font and carry the loader of the font's common file as `common` ({@link withCommon});
+ * The CJK (Regular and Bold) and emoji loaders are for the full font and carry the loader of the font's common file as `common` ({@link withCommon});
  * the PDF writers read that one when a document's characters are all in it (common.ts).
  * Where each loader looks, in order:
  *
@@ -24,8 +24,11 @@ import { fileURLToPath } from 'node:url';
 import { withCommon, type CommonFontLoader, type ComicLetteringFontLoader, type FontLoader } from './font-bytes.js';
 import {
   ARABIC_FONT_FILE,
+  CJK_BOLD_COMMON_FONT_FILE,
+  CJK_BOLD_FONT_FILE,
   CJK_COMMON_FONT_FILE,
   CJK_FONT_FILE,
+  COLOUR_EMOJI_FILE,
   COMIC_LETTERING_FONT_FILES,
   DEVANAGARI_FONT_FILE,
   EMOJI_COMMON_FONT_FILE,
@@ -37,6 +40,7 @@ import {
 const COMIC_LETTERING_PACKAGE = '@caotang/font-comic-lettering';
 const CJK_PACKAGE = '@caotang/font-noto-cjk';
 const EMOJI_PACKAGE = '@caotang/font-noto-emoji';
+const COLOUR_EMOJI_PACKAGE = '@caotang/font-noto-color-emoji';
 const ARABIC_PACKAGE = '@caotang/font-noto-arabic';
 const HEBREW_PACKAGE = '@caotang/font-noto-hebrew';
 const DEVANAGARI_PACKAGE = '@caotang/font-noto-devanagari';
@@ -74,6 +78,16 @@ export function cjkCommonFontCandidates(moduleUrl: string = import.meta.url): st
   return fontCandidates(CJK_COMMON_FONT_FILE, CJK_PACKAGE, moduleUrl);
 }
 
+/** The places {@link loadCjkBoldFontInNode} reads, in the order it tries them. */
+export function cjkBoldFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(CJK_BOLD_FONT_FILE, CJK_PACKAGE, moduleUrl);
+}
+
+/** The places the Bold's common CJK file is read from, in the order they are tried. */
+export function cjkBoldCommonFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(CJK_BOLD_COMMON_FONT_FILE, CJK_PACKAGE, moduleUrl);
+}
+
 /** The places {@link loadEmojiFontInNode} reads, in the order it tries them. */
 export function emojiFontCandidates(moduleUrl: string = import.meta.url): string[] {
   return fontCandidates(EMOJI_FONT_FILE, EMOJI_PACKAGE, moduleUrl);
@@ -90,11 +104,25 @@ export const loadCjkFontInNode: CommonFontLoader = withCommon(
   async () => readFirst(CJK_COMMON_FONT_FILE, cjkCommonFontCandidates()),
 );
 
+/** Reads Noto Sans Mono CJK SC Bold, for CJK text in a bold place; its `common` reads the Bold's common file. */
+export const loadCjkBoldFontInNode: CommonFontLoader = withCommon(
+  async () => readFirst(CJK_BOLD_FONT_FILE, cjkBoldFontCandidates()),
+  async () => readFirst(CJK_BOLD_COMMON_FONT_FILE, cjkBoldCommonFontCandidates()),
+);
+
 /** Reads Noto Emoji, the fallback for emoji; its `common` reads the common file. */
 export const loadEmojiFontInNode: CommonFontLoader = withCommon(
   async () => readFirst(EMOJI_FONT_FILE, emojiFontCandidates()),
   async () => readFirst(EMOJI_COMMON_FONT_FILE, emojiCommonFontCandidates()),
 );
+
+/** The places {@link loadColourEmojiInNode} reads, in the order it tries them. */
+export function colourEmojiCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(COLOUR_EMOJI_FILE, COLOUR_EMOJI_PACKAGE, moduleUrl);
+}
+
+/** Reads the colour emoji file (`@caotang/pdf-fonts/colour` opens and checks it). */
+export const loadColourEmojiInNode: FontLoader = async () => readFirst(COLOUR_EMOJI_FILE, colourEmojiCandidates());
 
 /** The places {@link loadArabicFontInNode} reads, in the order it tries them. */
 export function arabicFontCandidates(moduleUrl: string = import.meta.url): string[] {

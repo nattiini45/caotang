@@ -74,6 +74,16 @@ describe('reserving a call', () => {
   });
 });
 
+describe('figures that cannot be counts', () => {
+  it('settles a call at its estimate when the provider reports a negative or infinite count, so the spend stays finite and not below zero', () => {
+    for (const usage of [{ promptTokens: -1, completionTokens: 5 }, { promptTokens: 5, completionTokens: Number.POSITIVE_INFINITY }, { promptTokens: Number.NaN, completionTokens: 1 }]) {
+      const meter = createBudgetMeter({ maxTokens: 10_000 });
+      meter.settle(reserved(meter.reserve(call)), usage, { promptTokens: 100, completionTokens: 30 });
+      expect(meter.spend(), JSON.stringify(usage)).toMatchObject({ promptTokens: 100, completionTokens: 30, estimatedTokens: 130 });
+    }
+  });
+});
+
 describe('the cost limit', () => {
   const price = { prompt: 0.01, completion: 0.03 };
 
@@ -136,6 +146,17 @@ describe('time', () => {
     clock.advance(1);
     expect(meter.signal.aborted).toBe(true);
     expect(meter.stopped()).toEqual({ dimension: 'deadline', limit: 5_000, spent: 5_000 });
+  });
+
+  it('never reports negative active time when the clock is set back', () => {
+    const clock = createManualClock(1_000);
+    let offset = 0;
+    const stepped = { ...clock, now: () => clock.now() + offset };
+    const meter = createBudgetMeter({}, { clock: stepped });
+    offset = -5_000;
+    expect(meter.spend().activeMs).toBe(0);
+    clock.advance(6_000);
+    expect(meter.spend().activeMs).toBe(1_000);
   });
 
   it('aborts the signal when active time is used up', () => {

@@ -111,7 +111,7 @@ describe('the metadata table as a whole', () => {
     const extensions = TOOL_METADATA.filter((meta) => meta.surface === 'extension').map((meta) => meta.name);
     // Then tool.search (extensibility §5), then the storyboard and prompt-pack modules' tools. Each is an
     // extension row, so none can be mistaken for part of the frozen v0.1 surface. The dialogue module's two rows close the
-    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), then the timeline read (timeline.md §5.1), and the allowlisted bus primitives close it, the sixth of them `timeline.edit` (agent-harness §3).
+    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), the memory read follows them (context-assembly §2, LI), then the timeline read (timeline.md §5.1), the picture rows (pictures.md §8.1) and the comic rows (comics.md §3.2), the four external-only host-model rows (agent-harness §3), and the eight allowlisted bus primitives close it, the last of them `timeline.edit` (agent-harness §3).
     expect(extensions).toEqual([
       'doc.import',
       'codex.import',
@@ -126,6 +126,7 @@ describe('the metadata table as a whole', () => {
       'dialogue.draft',
       'dialogue.table',
       'skill.load',
+      'memory.read',
       'agent.delegate',
       'timeline.read',
       'pictures.list',
@@ -138,11 +139,17 @@ describe('the metadata table as a whole', () => {
       'comic.derive',
       'comic.letter',
       'comic.scriptFromPages',
+      'scene.brief',
+      'scene.apply',
+      'dialogue.brief',
+      'dialogue.apply',
       'notes.replace',
       'synopsis.set',
       'vocabulary.upsert',
       'filter.save',
       'goal.save',
+      'memory.write',
+      'instructions.propose',
       'timeline.edit',
     ]);
     expect(TOOL_METADATA.filter((meta) => meta.surface === 'v0.1')).toHaveLength(14);
@@ -153,6 +160,15 @@ describe('the metadata table as a whole', () => {
       expect(meta.description.trim().length, meta.name).toBeGreaterThan(40);
       expect(meta.response_token_cap, meta.name).toBeGreaterThan(0);
       expect(meta.descriptionVersion, meta.name).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  // A description edit without a bump is caught by the prompt manifest golden (test/golden/prompt-manifest.test.ts), which keeps each
+  // row's hash beside the version it was written under. Here the manifest is only read back: every row is in it, at its version.
+  it('has every row in the prompt manifest, at the descriptionVersion the row declares', () => {
+    const manifest = JSON.parse(readFileSync(resolve(__dirname, 'golden/prompt-manifest.json'), 'utf8')) as { id: string; descriptionVersion?: number }[];
+    for (const meta of TOOL_METADATA) {
+      expect(manifest.find((entry) => entry.id === `tool.${meta.name}`)?.descriptionVersion, meta.name).toBe(meta.descriptionVersion);
     }
   });
 
@@ -190,7 +206,7 @@ describe('the per-tool context budgets, checked against context-assembly.md §3'
     expect(profileFor('synopsis.fill').layers).not.toContain('L2');
   });
 
-  it('the metadata tools are L0, L1 and L7 only', () => {
-    expect(profileFor('meta').layers).toEqual(['L0', 'L1', 'L7']);
+  it('the metadata tools are L0, L1 and L7 only, and LI when the project has instructions', () => {
+    expect(profileFor('meta').layers).toEqual(['L0', 'LI', 'L1', 'L7']);
   });
 });

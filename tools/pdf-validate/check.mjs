@@ -150,6 +150,12 @@ export async function fontsOf(bytes) {
       const first = descendants instanceof PDFArray ? doc.context.lookup(descendants.get(0)) : undefined;
       if (first instanceof PDFDict) carrier = first;
     }
+    // A Type 3 font (the colour emoji) has no BaseFont and no font program: its glyphs are procedures in the file, so it is named
+    // `Type3` and counts as embedded, and the readers' own tables are read the same way (parsePdffonts).
+    if (subtype === 'Type3') {
+      fonts.push({ name: 'Type3', embedded: object.has(PDFName.of('CharProcs')), toUnicode: object.has(PDFName.of('ToUnicode')), type3: true });
+      continue;
+    }
     fonts.push({
       name: unsubset(name(object, 'BaseFont') ?? '(unnamed)'),
       embedded: hasProgram(doc.context.lookup(carrier.get(PDFName.of('FontDescriptor')))),
@@ -171,7 +177,8 @@ export function compareFonts(expected, actual) {
     const found = matching(want);
     if (found.length === 0) problems.push(`no font named ${want.name}`);
     for (const font of found) {
-      if (font.embedded !== want.embedded) problems.push(`${font.name} is ${font.embedded ? '' : 'not '}embedded, expected ${want.embedded ? '' : 'not '}embedded`);
+      // Poppler's table says nothing certain of a Type 3 font's embedding, so only the file's own reading (CharProcs) decides it.
+      if (font.type3 !== true && font.embedded !== want.embedded) problems.push(`${font.name} is ${font.embedded ? '' : 'not '}embedded, expected ${want.embedded ? '' : 'not '}embedded`);
       if (want.toUnicode && !font.toUnicode) problems.push(`${font.name} has no ToUnicode map`);
     }
   }
@@ -268,6 +275,8 @@ export function parsePdffonts(output) {
     .filter((line) => line.trim() !== '')
     .map((line) => {
       const cells = line.trim().split(/\s+/);
+      // A Type 3 font has no name in the table (`[none]`), and its type is the two cells "Type 3".
+      if (cells[1] === 'Type' && cells[2] === '3') return { name: 'Type3', embedded: true, toUnicode: cells.at(-3) === 'yes', type3: true };
       return { name: unsubset(cells[0] ?? ''), embedded: cells.at(-5) === 'yes', toUnicode: cells.at(-3) === 'yes' };
     });
 }

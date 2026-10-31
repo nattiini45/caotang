@@ -44,18 +44,20 @@
  * attaching a folder makes it again, and the registry reaches the new one through a port that never changes.
  */
 
-import { t } from '@lingui/core/macro';
+import { plural, t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
 import { scanTool, type CoherenceFile, type DeterministicCheckId, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
   ApplyRefusal,
   createActivityLog,
+  err,
   createIdempotencyCache,
   createUndoStore,
   createViewState,
   execute,
   executeAsync,
+  restorePlan,
   type ActivityLog,
   type BusContext,
   type Command,
@@ -65,11 +67,16 @@ import {
   type CommandRegistry,
   type DocWriteParams,
   type ExecutionOutcome,
+  type MacroDraft,
+  type ProjectMacro,
+  type RestorePlan,
   type Result,
   type UndoGroup,
+  type UndoOutcome,
   type UndoStore,
   type ViewState,
 } from '@caotang/bus';
+import type { PictureDecoder } from '@caotang/pictures';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   DEFAULT_RETENTION,
@@ -86,10 +93,12 @@ import {
   createSessionTracker,
   domFlushSignals,
   evictSnapshots,
+  pruneRuns,
   getRevision,
   isBodyType,
   planRelinkPairs,
   previewSweep,
+  nodeById,
   resolveRetentionConfig,
   stateRetentionRoots,
   systemCommandClock,
@@ -102,6 +111,7 @@ import {
   UndoRetentionLedger,
   type CodexEntry,
   type ExportCommandPort,
+  type PermissionRule,
   type ProjectState,
   type RetentionConfig,
   type RuntimeStore,
@@ -112,14 +122,15 @@ import {
 } from '@caotang/store';
 import { newId } from '@caotang/ids';
 import { assetRecordsOf } from '@caotang/exporter/export-metadata';
-import type { EmitFailure, ExporterService } from '@caotang/exporter';
+import type { EmitFailure, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { dialogueFactsOf, type Harness, type PictureOutbox, type TranscriptionGenerationInput } from '@caotang/harness';
+import { checkMacro, dialogueFactsOf, excludedBy, withheldState, type Harness, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
-import { processPictureInBrowser, resizePictureInBrowser } from './picture-transcoder.js';
+import { resizePictureInBrowser } from './picture-transcoder.js';
+import { withAccess, type AgentAccess } from './agent-rules-model.js';
 import type { runPictureTranscription } from '../media/picture-transcription.js';
 import type * as LazyExporter from './lazy-exporter.js';
 import type { AssetRecords } from './lazy-exporter.js';
@@ -130,9 +141,11 @@ import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
 import { inkCompilerStatus, requestInkCompiler, requestInkCompilerFor } from './ink-compiler.js';
 import { ProjectAssets, coverFileHeld } from './project-assets.js';
+import { browserPictureDecoder } from './picture-decoder.js';
 import { SkillReviews } from './skill-reviews.js';
 import { skillsView, type SkillsView } from './skills-model.js';
 import type { DirectoryHandleLike } from './fs-access.js';
+import type { TasksHome } from './tasks-io.js';
 import { Persistence } from './persistence.js';
 import type { Shadow } from './persistence-plan.js';
 import { activeAppDb } from './app-db.js';
@@ -219,6 +232,11 @@ export interface ScanOptions {
   readonly scope?: ScopeSpec;
   /** Absent means every deterministic check. An empty list runs none, and the tab says so before it asks. */
   readonly checks?: readonly DeterministicCheckId[];
+  /**
+   * The documents a read rule keeps from the agent (`harness.withheld`), for a scan the agent's rules govern: they are left out like archived
+   * ones and their dialogue is not read, so no finding quotes them. The writer's own scan on the Findings tab passes none.
+   */
+  readonly withheld?: ReadonlySet<string>;
 }
 
 /** What the findings tab says about the coherence file: whether it is attached and writable, what the load noticed, and
@@ -252,6 +270,8 @@ export interface SessionOptions {
   readonly coherence?: SessionCoherence;
   /** The writer's reviews of this project's skills (skill-reviews.ts). Absent, no skill is reviewed, so the agent is told of none. */
   readonly skillReviews?: SkillReviews;
+  /** The writer's own agent rules, read at each call (Settings › Agent). Absent, the app has none. The project's rules are the project's own. */
+  readonly appRules?: () => readonly PermissionRule[];
 }
 
 /**
@@ -287,9 +307,31 @@ const ASSET_LISTING_LATCH_MS = 100;
 
 /**
  * What "restore to before this turn" reports: how many later changes went back with it, or why it stopped part way.
- * The session does not decide the words of the second case; the panel shows them as they are.
+ * The session does not decide the words of the second case; the panel shows them as they are. `undone` is the groups that
+ * were taken back whole, newest first, even when the restore stopped: the controller marks the turns they belong to.
  */
-export type RestoreResult = { readonly ok: true; readonly later: number } | { readonly ok: false; readonly message: string };
+export type RestoreResult =
+  | { readonly ok: true; readonly later: number; readonly undone: readonly string[] }
+  | { readonly ok: false; readonly message: string; readonly undone: readonly string[] };
+
+/**
+ * Why "restore only this" refused, in words that name the cause: a later change that meets this one, one the planner cannot read, a
+ * checkpoint it could not find, or an error in the check itself. Nothing was restored in any of them.
+ */
+function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: string): string {
+  switch (plan.reason) {
+    case 'overlap':
+      return 'A change made after it touches the same part of the project (your edits since the dialog opened may be one of them), so nothing was restored. The full restore takes every later change back too; everything is as it was.';
+    case 'unclassified':
+      return plan.blockedBy.includes(id)
+        ? 'That change cannot be told apart from the ones made after it, so nothing was restored. The full restore takes every later change back too; everything is as it was.'
+        : 'A change made after it cannot be told apart from it, so nothing was restored. The full restore takes every later change back too; everything is as it was.';
+    case 'defect':
+      return 'Caotang hit an error while checking which later changes this one touches, so nothing was restored and everything is as it was. The full restore still takes every later change back too.';
+    case 'unknown':
+      return 'That checkpoint could not be checked (it may no longer be on the undo stack), so nothing was restored and everything is as it was.';
+  }
+}
 
 export class ProjectSession {
   readonly projectId: string;
@@ -328,6 +370,14 @@ export class ProjectSession {
   private readonly undoRetention = new UndoRetentionLedger();
   /** The retention roots other parts of the app register for what they hold: an agent card's drafts and held task drafts. */
   private readonly retentionRoots = new Set<RetentionRoot>();
+  /** The browser's picture decoder (picture-decoder.ts), or none in a headless run. */
+  private readonly pictureDecoder: PictureDecoder | undefined = browserPictureDecoder();
+  /** Whether the open's backfill of the picture registry has run (pictures.md §6.2). Once per session, after the image check. */
+  private picturesBackfilled = false;
+  /** The backfill in flight, so two calls that find the listing authoritative run it once. */
+  private picturesBackfill: Promise<void> | null = null;
+  /** The writer's answer to the large-photo question, kept while the project is open (pictures.md §6.4 step 3). */
+  private largePhotoAnswer: CommandParams['asset.importBatch']['largePhotos'] = undefined;
   /** The skill folders the writer has chosen and the next `skill.import` will take: held in memory, and single-use. */
   private readonly skillStaging: SkillStaging = createSkillStaging();
   /** The writer's reviews of this project's skills. A skill the writer has not read is not offered to the agent (extensibility.md §10). */
@@ -371,6 +421,9 @@ export class ProjectSession {
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
   private coherencePort: CoherencePort | null = null;
+  /** The project's recurring tasks and where they are saved (tasks-io.ts). Null until the lifecycle has loaded them. */
+  private tasksHome_: TasksHome | null = null;
+  private detachTasks: (() => void) | null = null;
   private coherenceWritable = false;
   private coherenceNotices: readonly string[] = [];
   /** Why the last findings save to this browser failed. The save indicator reads failed while it is set. */
@@ -404,7 +457,10 @@ export class ProjectSession {
   /** The project this one is a separate copy of, when an import or folder open made it with a fresh id (`setCopiedFrom`). */
   private copiedFromId: string | null = null;
 
+  private readonly appRules: () => readonly PermissionRule[];
+
   constructor(options: SessionOptions) {
+    this.appRules = options.appRules ?? (() => []);
     this.projectId = options.projectId;
     this.state = options.state;
     this.runtime = options.store;
@@ -455,8 +511,10 @@ export class ProjectSession {
           files: (await this.assets.listPaths()).map((path) => path.slice(path.lastIndexOf('/') + 1)),
         }),
         readBytes: (path) => this.assets.readBytes(path),
-        // The browser's canvas makes the 4096 px working copies a writer can choose for large photos (pictures.md §6.4 step 3).
-        process: processPictureInBrowser,
+        has: (path) => this.assets.has(path),
+        // The browser's decoder (pictures.md §6.4): HEIC where the browser reads it, and the 4096 px working copies a writer can choose
+        // for large photos. Every picture import (the cover, a shot, `asset.import`) and `asset.storeWorkingCopies` run through it.
+        ...(this.pictureDecoder === undefined ? {} : { decoder: this.pictureDecoder }),
         // The removal half (pictures.md §6.4.2): `asset.sweep` is registered only because this is here, and it reads every root of
         // §6.6.1 before it removes a file. It is the writer's command; no agent tool names it.
         deletion: {
@@ -562,6 +620,7 @@ export class ProjectSession {
         transcriptionReviews: this.transcriptionReviews,
         pictureVision: () => this.pictureVision(),
         notify: () => this.afterCommand(),
+        rules: () => ({ rules: this.rulesNow() }),
         ...(this.harnessOptions.mcp === undefined ? {} : { mcp: this.harnessOptions.mcp }),
         ...(this.harnessOptions.presentAssets === undefined ? {} : { presentAssets: this.harnessOptions.presentAssets }),
         ...(this.harnessOptions.coherence === undefined ? {} : { coherence: this.harnessOptions.coherence }),
@@ -792,6 +851,8 @@ export class ProjectSession {
   private async sweepSnapshots(): Promise<void> {
     try {
       await evictSnapshots(this.runtime, this.projectId, Date.now(), this.retention);
+      // The agent's run logs keep the checkpoints' clock: thirty days, fifty runs (agent-harness §5.1).
+      await pruneRuns(this.runtime, this.projectId);
     } catch (error) {
       this.maintenanceFailure = error;
       this.bump();
@@ -861,6 +922,57 @@ export class ProjectSession {
     return true;
   }
 
+  /* ------------------------------------------------------------------ *
+   * The writer's macros (extensibility.md §10): plan templates in the manifest
+   * ------------------------------------------------------------------ */
+
+  /** The project's macros, in the order it holds them. */
+  macros(): readonly ProjectMacro[] {
+    return this.state.manifest.macros ?? [];
+  }
+
+  /**
+   * Saves a macro (`macro.save`): a new one, or the one at `draft.id`. The harness's `checkMacro` runs first, which the bus cannot (it cannot
+   * see the tools), so a macro that names a tool this build lacks, or puts a param in a field it cannot fill, is refused here with the reason.
+   */
+  saveMacro(draft: MacroDraft): Result<ExecutionOutcome, CommandError> {
+    const checked = checkMacro({ ...draft, id: draft.id ?? 'm_0000000000' });
+    if (!checked.ok) return err(checked.error);
+    return this.dispatch('macro.save', { macro: draft });
+  }
+
+  deleteMacro(macroId: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('macro.delete', { macroId });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The agent's files (context-assembly.md §2, layer LI): CAOTANG.md and the memory notes
+   * ------------------------------------------------------------------ */
+
+  /** Replaces CAOTANG.md (`project.setInstructions`). `expectedDigest` is the digest of the text the panel showed, so a change made since is a conflict. */
+  setInstructions(text: string, expectedDigest?: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('project.setInstructions', { text, ...(expectedDigest === undefined ? {} : { expectedDigest }) });
+  }
+
+  /** Saves one memory note (`memory.write`): a new one, or the one at `slug` with `expectedDigest` the digest of the body the panel showed. */
+  writeMemoryNote(note: { slug: string; type: 'style' | 'preference' | 'process' | 'reference'; title: string; body: string }, expectedDigest?: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('memory.write', { ...note, ...(expectedDigest === undefined ? {} : { expectedDigest }) });
+  }
+
+  /** Forgets one memory note (`memory.forget`). The writer's alone: the panel asks first, and one undo brings the note back. */
+  forgetMemoryNote(slug: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('memory.forget', { slug });
+  }
+
+  /**
+   * Imports codex entries, and the Research pages that hold their text, as one command and so one undo step (`codex.importBatch`,
+   * codex.md §7.1). The params are a plan's (`planCodexImportBatch`), built after the writer answered every collision in the preview;
+   * a refusal lists every failing entry by name and writes nothing.
+   */
+  importCodexEntries(params: CommandParams['codex.importBatch']): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('codex.importBatch', params);
+  }
+
   /**
    * Imports an image as a shot's picture (`shot.importImage`, storyboard.md §3.1): the bytes are staged, the command names them
    * and the shot, and the file and the shot's `image` are one undo group. A refusal is kept for the status line, as every
@@ -914,12 +1026,15 @@ export class ProjectSession {
   /**
    * Imports staged pictures as one `asset.importBatch`, one undo group (pictures.md §2.4). The large-photo question is the host's: a
    * refusal that carries `details.largePhotoPrompt` is the question, not a failure, so it is not kept in the rejected list; the
-   * staged bytes stay held, and the caller asks once and sends the same ids again with `largePhotos`.
+   * staged bytes stay held, and the caller asks once and sends the same ids again with `largePhotos`. The answer is remembered while
+   * the project is open (pictures.md §6.4 step 3), so a later batch without `largePhotos` reuses it and the question is not asked again.
    */
   async importPictures(
     items: CommandParams['asset.importBatch']['items'],
-    largePhotos?: CommandParams['asset.importBatch']['largePhotos'],
+    chosen?: CommandParams['asset.importBatch']['largePhotos'],
   ): Promise<Result<ExecutionOutcome, CommandError>> {
+    if (chosen !== undefined) this.largePhotoAnswer = chosen;
+    const largePhotos = chosen ?? this.largePhotoAnswer;
     const command: Command<CommandParams['asset.importBatch']> = {
       id: newId('cmd'),
       name: 'asset.importBatch',
@@ -1158,6 +1273,25 @@ export class ProjectSession {
     await (await this.loadExporter()).ready();
   }
 
+  /**
+   * The Draft of a compile (exporter.md §4): what the same request would write and leave out, from the project as it is now. A read: no bus
+   * command runs, so there is no gate, activity row or undo entry, and nothing is written to `exports/` or the compile log. A media format
+   * renders in its plan, so its gates and counts are only as current as `exportsReady` (the Ink compiler, the image listing).
+   */
+  previewExport(request: ExportPreviewRequest): ExportPreview {
+    if (this.exporterService === null) throw new Error('The exporter is not loaded yet: await session.exportsReady() first.');
+    return this.exporterService.preview(request);
+  }
+
+  /**
+   * The Proof of a compile (exporter.md §4): the file the same request would write, made by the compile's own plan and renderer, for a format
+   * whose file is text; a binary format has none. A read, like `previewExport`: no bus command, gate, activity row or undo entry, and nothing is
+   * written to `exports/` or the compile log.
+   */
+  async proofExport(request: ExportPreviewRequest): Promise<ExportProof> {
+    return (await this.loadExporter()).proof(request);
+  }
+
   /** Resolves when every queued export write has settled, so the bytes of a finished compile are in the store. */
   exportsIdle(): Promise<void> {
     return this.exporterService?.idle() ?? Promise.resolve();
@@ -1289,23 +1423,98 @@ export class ProjectSession {
    * binder change returns in the order it was made, which is the only order in which a body snapshot is exact (command-bus
    * §5). Pending typing is saved first, and typing made after the turn is taken back with it, as the confirmation says.
    * Nothing older than `id` is touched.
+   *
+   * With `step`, the group itself is not taken back whole: the later groups go first as above, and then `step` runs the group's own
+   * restore to before one step of it (`UndoStore.undoFrom`, through the agent session that knows the step), so the steps before it
+   * stay. The group is then not in `undone`: it is still on the stack, with those steps.
    */
-  async restoreBefore(id: string): Promise<RestoreResult> {
+  async restoreBefore(id: string, step?: () => Result<UndoOutcome, CommandError>): Promise<RestoreResult> {
     await this.autosave.flush();
     this.lastUndoMessage = null;
     const groups = this.undo.groups();
     const at = groups.findIndex((group) => group.id === id);
-    if (at === -1) return { ok: false, message: alreadyUndone() };
+    if (at === -1) return { ok: false, message: alreadyUndone(), undone: [] };
+    const undone: string[] = [];
     for (const group of groups.slice(at).reverse()) {
-      if (!this.undoNow(group.id)) {
+      const held = this.undo.group(group.id)?.entries.length ?? 0;
+      const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
+      if (!taken) {
         const reason = this.lastUndoMessage ?? t`a change could not be taken back`;
+        const own = step !== undefined && group.id === id;
+        // A group that fails keeps only what failed, so one that lost entries had part of it taken back, whatever `undone` holds.
+        const partly = (this.undo.group(group.id)?.entries.length ?? 0) < held;
+        const count = undone.length;
+        const later = count === 0 ? '' : ` ${t`${plural(count, { one: '# later change was already taken back.', other: '# later changes were already taken back.' })}`}`;
+        const some = partly ? ` ${own ? t`Part of the step was taken back too.` : t`Part of that change was taken back too.`}` : '';
         return {
           ok: false,
-          message: t`The restore stopped part way, because a later change could not be taken back: ${{ reason }}. Changes made before that one were not touched.`,
+          message: own
+            ? t`The restore stopped part way, because the step could not be taken back: ${{ reason }}.${{ later }}${{ some }} Nothing before the step was touched.`
+            : t`The restore stopped part way, because a later change could not be taken back: ${{ reason }}.${{ later }}${{ some }} Changes made before that one were not touched.`,
+          undone,
         };
       }
+      if (step === undefined || group.id !== id) undone.push(group.id);
     }
-    return { ok: true, later: groups.length - 1 - at };
+    return { ok: true, later: groups.length - 1 - at, undone };
+  }
+
+  /**
+   * Whether the checkpoint `id` (from the step `fromCallId` on, when given) can be taken back without the changes made after it.
+   * Pending typing is saved first, so it is one of those changes; typing that could not be saved leaves nothing proved. The answer is `restorePlan`'s: `exact` only on a proof that the
+   * target and every later group touch different nodes, and `with-later` for everything else, including anything it cannot read.
+   */
+  async restorePlanFor(id: string, fromCallId?: string): Promise<RestorePlan> {
+    await this.autosave.flush();
+    return this.planNow(id, fromCallId);
+  }
+
+  private planNow(id: string, fromCallId?: string): RestorePlan {
+    const ancestorsOf = (nodeId: string): readonly string[] => {
+      const chain: string[] = [];
+      for (let at = nodeById(this.state, nodeId); at !== undefined && at.parentId !== null; at = nodeById(this.state, at.parentId)) chain.push(at.parentId);
+      return chain;
+    };
+    const groups = this.undo.groups();
+    const target = { groupId: id, ...(fromCallId === undefined ? {} : { fromCallId }) };
+    // The planner proves independence against the undo stack and the activity log only. Typing a flush could not store (a revision
+    // conflict, a failed write) is in neither, so while any document is still dirty the stack is not the whole truth and nothing is proved.
+    if (this.autosave.dirtyDocIds().length > 0) {
+      const at = groups.findIndex((group) => group.id === id);
+      return { kind: 'with-later', undo: target, later: at === -1 ? [] : groups.slice(at + 1).map((group) => group.id).reverse(), blockedBy: [], overlap: [], reason: 'unknown' };
+    }
+    return restorePlan(groups, this.log.entries(), target, ancestorsOf, (error) => console.error('restorePlan defect', error));
+  }
+
+  /**
+   * "Restore only this (keep your later edits)": takes back the checkpoint `id`, or its steps from `fromCallId` on, and nothing after it.
+   * The plan is made again here, after the typing is saved, because the writer's edits since the dialog opened may now meet the change; if
+   * it is no longer exact nothing is restored and the writer is told, since the full restore would take those edits back and they chose
+   * not to. A compensation that fails is reported and stops there, with what was done kept, as `restoreBefore` does.
+   */
+  async restoreExact(id: string, fromCallId?: string): Promise<RestoreResult & { readonly kept: number }> {
+    await this.autosave.flush();
+    this.lastUndoMessage = null;
+    const plan = this.planNow(id, fromCallId);
+    if (plan.kind !== 'exact') {
+      const unsaved = this.autosave.dirtyDocIds().length > 0;
+      return {
+        ok: false,
+        message: unsaved
+          ? 'Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.'
+          : refusalOf(plan, id),
+        undone: [],
+        kept: 0,
+      };
+    }
+    // Counted here, after the flush has saved any pending typing as a group of its own and before a whole-turn restore takes the group off the stack.
+    const kept = this.laterChangesAfter(id).length;
+    const taken = fromCallId === undefined ? this.undoNow(id) : this.settleUndo(this.undo.undoFrom(id, fromCallId));
+    if (!taken) {
+      const reason = this.lastUndoMessage ?? 'a change could not be taken back';
+      return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [], kept: 0 };
+    }
+    return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [], kept };
   }
 
   /** The changes a restore to before `id` would also take back: each later group, oldest first, in the words the log gives it. */
@@ -1315,8 +1524,52 @@ export class ProjectSession {
     return at === -1 ? [] : groups.slice(at + 1).map((group) => this.summaryOf(group));
   }
 
+  /* ------------------------------------------------------------------ *
+   * Agent rules (agent-harness §4, Rules)
+   * ------------------------------------------------------------------ */
+
+  /** The rules this project's file carries. */
+  agentRules(): readonly PermissionRule[] {
+    return this.state.manifest.agent?.rules ?? [];
+  }
+
+  /** Every rule the agent is held to now, each with where it came from: the project's file, then the app's settings. */
+  rulesNow(): readonly SourcedRule[] {
+    return [
+      ...this.agentRules().map((rule): SourcedRule => ({ ...rule, source: 'project' })),
+      ...this.appRules().map((rule): SourcedRule => ({ ...rule, source: 'app' })),
+    ];
+  }
+
+  /**
+   * Replaces the project's rules. Not a bus command: nothing the agent can reach writes a rule, and the writer undoes a rule by
+   * changing it back. The change is saved with the manifest, and the next agent call reads it. The project's hooks are not touched.
+   */
+  setAgentRules(rules: readonly PermissionRule[]): void {
+    // The rules are one key of `agent`: the writer's hooks and any key a newer build wrote stay as they are.
+    const { rules: _replaced, ...kept } = this.state.manifest.agent ?? {};
+    if (rules.length === 0 && Object.keys(kept).length === 0) delete this.state.manifest.agent;
+    else this.state.manifest.agent = { ...(rules.length === 0 ? {} : { rules: rules.map((rule) => ({ ...rule })) }), ...kept };
+    this.persistence.schedule();
+    this.bump();
+  }
+
+  /** Sets how far the agent may go in one folder or document (binder menu): its menu rule is replaced and the rest are kept. */
+  setAgentAccess(nodeId: string, access: AgentAccess): void {
+    this.setAgentRules(withAccess(this.agentRules(), nodeId, access));
+  }
+
+  /** Removes one of the project's rules by its place in the list (Settings › Agent). */
+  removeAgentRule(index: number): void {
+    this.setAgentRules(this.agentRules().filter((_, at) => at !== index));
+  }
+
   private undoNow(id: string): boolean {
-    const outcome = this.undo.undo(id);
+    return this.settleUndo(this.undo.undo(id));
+  }
+
+  /** What follows an undo of any kind: stored text moved, so the session's own-write record is cleared, and the change is saved. */
+  private settleUndo(outcome: Result<UndoOutcome, CommandError>): boolean {
     // An undo moves stored text without going through `writeDocument`, so no write this session made describes the
     // stored body any more. The editor's own-write test must not match one of them against the undone text (EditorPane).
     this.written.clear();
@@ -1360,6 +1613,26 @@ export class ProjectSession {
    */
   coherenceFile(): CoherenceFile | undefined {
     return this.state.coherence as CoherenceFile | undefined;
+  }
+
+  /** Gives the session its recurring tasks, as the lifecycle loaded them (agent-harness.md §12). They are not project state: no command changes them. */
+  attachTasks(home: TasksHome): void {
+    this.detachTasks?.();
+    this.tasksHome_ = home;
+    // A tasks save is in the store only once it lands, so the save indicator follows it as it follows a findings write.
+    this.detachTasks = home.subscribe(() => this.bump());
+    this.bump();
+  }
+
+  /** The project's recurring tasks and where they are saved, or `null` when none were loaded. */
+  tasksHome(): TasksHome | null {
+    return this.tasksHome_;
+  }
+
+  /** Makes a folder a place the tasks file is saved to, as `attachCoherenceFolder` does for the findings. */
+  async attachTasksFolder(root: DirectoryHandleLike): Promise<void> {
+    if (this.persistence.isStopped()) return;
+    await this.tasksHome_?.attachFolder(root);
   }
 
   /** What the findings tab reads about the file: attached, writable, what the load noticed, and the last save's failure. */
@@ -1443,7 +1716,8 @@ export class ProjectSession {
     // reporting a project with no branch findings.
     let dialogue: ReturnType<typeof dialogueFactsOf>;
     try {
-      dialogue = dialogueFactsOf(this.state);
+      const hidden = options.withheld;
+      dialogue = dialogueFactsOf(hidden === undefined ? this.state : withheldState(this.state, hidden));
     } catch (error) {
       if (!(error instanceof InkCompilerNotLoaded)) throw error;
       void requestInkCompiler();
@@ -1456,6 +1730,7 @@ export class ProjectSession {
       detector: countInEntries,
       approvedLargeScope: options.approvedLargeScope,
       dialogue,
+      ...(excludedBy(options.withheld) === undefined ? {} : { isExcluded: excludedBy(options.withheld) }),
     });
     if (result.ok && result.file !== undefined) {
       this.state.coherence = result.file;
@@ -1516,7 +1791,24 @@ export class ProjectSession {
     if (this.persistence.getStatus() === 'writing') return 'saving';
     if (this.autosave.dirtyDocIds().length > 0) return 'saving';
     if (this.coherenceInFlight > 0) return 'saving';
+    if (this.tasksHome_?.pending() === true) return 'saving';
     return 'saved';
+  }
+
+  /** The runtime store this project lives in: the agent's run log is kept beside it (agent-harness §5.1). */
+  runtimeStore(): RuntimeStore {
+    return this.runtime;
+  }
+
+  /**
+   * Resolves when the store holds every change made so far, the agent's included, and refuses when it cannot: the agent writes a step's
+   * record only after this, so the record means the step is on disk. Lighter than `settle`, which also reads the project's pictures.
+   */
+  async saved(): Promise<void> {
+    await this.autosave.flush();
+    await this.persistence.settle();
+    const state = this.saveState();
+    if (state === 'failed' || state === 'conflict') throw new Error('the project could not be saved');
   }
 
   /** Resolves when the store holds everything this session has done so far. */
@@ -1527,6 +1819,7 @@ export class ProjectSession {
     await this.autosave.flush();
     await this.persistence.settle();
     await this.coherenceQueue;
+    await this.tasksHome_?.settled();
   }
 
   /**
@@ -1537,38 +1830,54 @@ export class ProjectSession {
    * a listing that failed) drops nothing and leaves the check to run when a later listing is (`attachFolder`).
    */
   async checkImageReferences(): Promise<void> {
-    if (this.imagesChecked) return;
+    // After the check, a call only retries a backfill that failed (a later authoritative listing); one that ran is a no-op.
+    if (this.imagesChecked) return this.backfillPictureRecords();
     await this.assets.ready();
     if (this.imagesChecked || !this.assets.listingAuthoritative()) return;
     this.imagesChecked = true;
     const notices = dropDanglingImages(this.state, this.assets.presentIds());
-    // A project from before the picture registry gets a record for every image it uses, once, from the same authoritative listing.
-    // It runs after the drop, so a reference whose file is gone is not given a record, and it adds records only (pictures.md §6.3).
-    const backfilled = await this.backfillPictureRecords();
-    if (notices.length === 0 && !backfilled) return;
-    if (notices.length > 0) this.imageDropNotes = notices;
-    this.persistence.schedule();
-    this.bump();
+    if (notices.length > 0) {
+      this.imageDropNotes = notices;
+      this.persistence.schedule();
+      this.bump();
+    }
+    await this.backfillPictureRecords();
   }
 
-  /** Records for the used images that have none. A read that fails leaves its file for the next open, and never blocks the open. */
-  private async backfillPictureRecords(): Promise<boolean> {
+  /**
+   * The open's backfill of the picture registry (pictures.md §6.2): every used picture whose file the listing holds gets a record in
+   * `assets[]`, with its hash and size, written with the next save, the way the identifier and the language were back-filled. It runs
+   * once per session, after the image check, against the same authoritative listing, so a dropped reference is never given a record.
+   * A listing or read that fails costs the backfill, never the open: it is skipped, and the next call that finds the listing
+   * authoritative (a settle, the storyboard opening, a folder attached) tries it again. It is marked done only when it has run.
+   */
+  private backfillPictureRecords(): Promise<void> {
+    if (this.picturesBackfilled) return Promise.resolve();
+    this.picturesBackfill ??= this.runPictureBackfill().finally(() => {
+      this.picturesBackfill = null;
+    });
+    return this.picturesBackfill;
+  }
+
+  private async runPictureBackfill(): Promise<void> {
+    let added: readonly string[];
     try {
+      await this.assets.ready();
+      if (!this.assets.listingAuthoritative()) return;
       const result = await backfillAssetRecords(
         this.state,
-        {
-          list: async () => ({
-            authoritative: this.assets.listingAuthoritative(),
-            files: (await this.assets.listPaths()).map((path) => path.slice(path.lastIndexOf('/') + 1)),
-          }),
-          readBytes: (path) => this.assets.readBytes(path),
-        },
+        { list: () => this.pictureListing(), readBytes: (path) => this.assets.readBytes(path) },
         new Date(),
       );
-      return result.created.length > 0;
+      added = result.created;
     } catch {
-      return false;
+      // Nothing is lost: a picture without a record is still shown and exported, and the records are filled in by a later try.
+      return;
     }
+    this.picturesBackfilled = true;
+    if (added.length === 0) return;
+    this.persistence.schedule();
+    this.bump();
   }
 
   /**
@@ -1676,6 +1985,9 @@ export class ProjectSession {
         await this.autosave.flush();
         await this.persistence.settle();
         await this.coherenceQueue;
+        await this.tasksHome_?.settled();
+        this.detachTasks?.();
+        this.detachTasks = null;
         this.pending.prune();
         this.autosave.dispose();
         if (this.sitting.isOpen() && (this.sitting.pending()?.docIds.length ?? 0) > 0) {

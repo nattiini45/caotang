@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-import { MemoryIndexedDb, getBody, openRuntimeStore, serializeManifest, validateManifest, type ProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
+import { MemoryIndexedDb, createRunLogPort, getBody, openRuntimeStore, serializeManifest, validateManifest, type ProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
+import { planResume } from '../../packages/harness/src/index.js';
 import { DEMO_INTENTS } from '../../packages/gateway/src/mock/index.js';
 
 import { ProjectSession } from '../../apps/desktop/src/app/session.js';
@@ -119,5 +120,125 @@ test('Accept edits applies the synopses with no card, as one checkpoint, and the
   expect(turn?.checkpoint?.mode).toBe('accept-edits');
   expect(synopsisOf(state, 'The Landing')).not.toBe('');
   expect(getBody(state, state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '')).toBe('');
+  await session.close();
+});
+
+test('Accept edits does not apply a card unattended when the writer’s typing could not be saved: the card is put to the writer, and an approval waits for the save', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const saves = session.autosave as unknown as { flush: () => Promise<{ docId: string; outcome: string }[]> };
+  const flush = saves.flush.bind(saves);
+  let failing = true;
+  saves.flush = async () => (failing ? [{ docId: 'any', outcome: 'failed' }] : flush());
+  controller.setMode('accept-edits');
+  const running = controller.submit(DEMO_INTENTS.fillSynopses, { demo: true });
+  await until(() => controller.snapshot().pending !== null, 'the held card to wait for the writer');
+  expect(controller.snapshot().message).toContain('Your typing could not be saved, so this card was not applied automatically');
+  expect(synopsisOf(state, 'The Storm')).toBe('');
+  // Approving while the save still fails leaves the card where it is and says so; nothing is written.
+  controller.answer({ action: 'approve' });
+  await until(() => controller.snapshot().message?.includes('Approve it again') === true, 'the approval to be refused');
+  expect(controller.snapshot().pending).not.toBeNull();
+  expect(synopsisOf(state, 'The Storm')).toBe('');
+  // Once the save works the same card can be approved and applies.
+  failing = false;
+  controller.answer({ action: 'approve' });
+  const report = await running;
+  expect(report?.status).toBe('applied');
+  expect(report?.cards.map((card) => card.kind)).toEqual(['confirm']);
+  expect(synopsisOf(state, 'The Storm')).not.toBe('');
+  await session.close();
+});
+
+test('a macro’s held steps are retried under the macro’s command, so the retry stays the writer’s and a resumed one does too', async () => {
+  const state = sampleProjectState();
+  state.manifest.macros = [{
+    id: 'm_7K2QX9M4A1',
+    slug: 'fill',
+    name: 'Fill the synopses',
+    description: '',
+    params: { kind: 'object', description: 'p', properties: {}, required: [] },
+    steps: [{ tool: 'synopsis.fill', params: { docs: ['The Storm'], source: 'text', max_words: 20 }, expect: 'The scene has a synopsis' }],
+  }];
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  controller.setMode('plan-only');
+  expect(controller.runMacro('m_7K2QX9M4A1', {})).toEqual({ started: true });
+  await until(() => controller.snapshot().turns[0]?.report?.heldSteps !== undefined, 'the macro’s steps to be held');
+  const turnId = controller.snapshot().turns[0]?.turnId ?? '';
+  expect(controller.snapshot().turns[0]?.command).toBe('macro-fill');
+
+  const running = controller.runHeldPlan(turnId);
+  await until(() => controller.snapshot().pending !== null, 'the held plan to wait for a decision');
+  // The retry carries the macro’s command, which is what a run resumed after a reload is told apart by (the loop hides such a run).
+  expect(controller.snapshot().turns[1]?.command).toBe('macro-fill');
+  const port = createRunLogPort(store);
+  const logged = await Promise.all((await port.open(session.projectId)).map(async (run) => planResume(await port.events(run.runId), () => undefined).replay));
+  expect(logged.some((replay) => replay?.command === 'macro-fill' && replay.intent === 'Run the macro “Fill the synopses”')).toBe(true);
+  controller.answer({ action: 'approve' });
+  expect((await running)?.status).toBe('applied');
+  await session.close();
+});
+
+test('Accept edits records the applied draft for its editor, so review marks can show it, and a card held for unsaved typing records none', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const friend = state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '';
+  // The editor asks on the store change that lands the text, as EditorPane does.
+  const asked: ReturnType<AgentController['consumeApply']>[] = [];
+  session.subscribe(() => {
+    if (getBody(state, friend) === '') return;
+    asked.push(controller.consumeApply(friend, 1));
+  });
+  controller.setMode('accept-edits');
+  const report = await controller.submit(DEMO_INTENTS.draftScene);
+  expect(report?.status).toBe('applied');
+  expect(getBody(state, friend).startsWith('The ferry came in')).toBe(true);
+  const apply = asked.find((entry) => entry !== null);
+  expect(apply).toMatchObject({ docId: friend, revision: 1 });
+  const call = (apply as { toolCallId: string }).toolCallId;
+  expect(controller.turnOf(call)).toBe(report?.turnId);
+  // The record is spent by the question: a later change to the scene is not taken for another apply.
+  expect(controller.consumeApply(friend, 2)).toBeNull();
+  await session.close();
+});
+
+test('Accept edits records no apply for a draft whose card was held for the writer’s unsaved typing', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const friend = state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '';
+  const saves = session.autosave as unknown as { flush: () => Promise<{ docId: string; outcome: string }[]> };
+  saves.flush = async () => [{ docId: 'any', outcome: 'failed' }];
+  controller.setMode('accept-edits');
+  const running = controller.submit(DEMO_INTENTS.draftScene);
+  await until(() => controller.snapshot().pending !== null, 'the held card to wait for the writer');
+  expect(controller.consumeApply(friend, 1)).toBeNull();
+  controller.answer({ action: 'cancel' });
+  await running;
+  await session.close();
+});
+
+test('a scene drafted by two steps of one card answers each store change with its own step, in order, and a question about another scene spends nothing', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const friend = state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '';
+  const other = state.manifest.tree.find((node) => node.type === 'document' && node.id !== friend)?.id ?? '';
+  const inner = controller as unknown as { onEvent: (event: unknown) => void; armDrafts: () => void; runningTurnId: string | null };
+  const ghost = (callId: string) => ({ type: 'ghost', callId, docTitle: 'The Friend', text: `Draft ${callId}.`, words: 2 });
+  inner.onEvent(ghost('call-1'));
+  inner.onEvent(ghost('call-2'));
+  inner.runningTurnId = 'turn-1';
+  inner.armDrafts();
+  // The question is about the revision it was asked with; another scene's question neither answers nor spends this one's record.
+  expect(controller.consumeApply(other, 1)).toBeNull();
+  expect(controller.consumeApply(friend, 1)).toMatchObject({ docId: friend, revision: 1, toolCallId: 'call-1' });
+  expect(controller.consumeApply(friend, 2)).toMatchObject({ docId: friend, revision: 2, toolCallId: 'call-2' });
+  expect(controller.consumeApply(friend, 3)).toBeNull();
+  expect(controller.turnOf('call-1')).toBe('turn-1');
+  expect(controller.turnOf('call-2')).toBe('turn-1');
   await session.close();
 });

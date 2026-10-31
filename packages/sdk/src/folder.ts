@@ -35,7 +35,7 @@ import { transcodePictureInNode } from '@caotang/exporter/picture-transcoder-nod
 import { processPictureInNode } from '@caotang/exporter/picture-process-node';
 import { loadInkCompiler } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
-import { loadArabicFontInNode, loadCjkFontInNode, loadComicLetteringFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkBoldFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadComicLetteringFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import {
   ArtifactNotFoundError,
   asManifest,
@@ -405,8 +405,12 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       assets: () => assetsOf(assetRecords),
       // The PDFs' font for text outside Latin script: from fonts/ beside the bundle, or from @caotang/font-noto-cjk.
       loadFallbackFont: loadCjkFontInNode,
+      // Its Bold, for that text in a bold place of the contact sheet: from fonts/ beside the bundle, or from @caotang/font-noto-cjk.
+      loadBoldFallbackFont: loadCjkBoldFontInNode,
       // Their emoji font (Noto Emoji, monochrome): from fonts/ beside the bundle, or from @caotang/font-noto-emoji.
       loadEmojiFont: loadEmojiFontInNode,
+      // Their colour emoji (Noto Color Emoji as vector pictures): from fonts/ beside the bundle, or from @caotang/font-noto-color-emoji.
+      loadColourEmoji: loadColourEmojiInNode,
       // Their Arabic, Hebrew and Devanagari fonts: from fonts/ beside the bundle, or from @caotang/font-noto-arabic, @caotang/font-noto-hebrew and @caotang/font-noto-devanagari.
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,

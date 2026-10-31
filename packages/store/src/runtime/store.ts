@@ -53,6 +53,7 @@
  * is what makes `await writeDocumentBody(…)` mean *committed*, not *issued*.
  */
 
+import { agentFileTexts, hasAgentFiles, parseAgentFiles, type AgentFiles } from '../agent-files.js';
 import type { Manifest } from '../manifest.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from '../state.js';
 import { assertSessionRecord, type SessionRecord } from '../sessions.js';
@@ -63,6 +64,9 @@ import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
 export const RUNTIME_DB_NAME = 'caotang';
 /**
+ * 4: the `runs` and `runEvents` object stores joined (agent-harness §5.1, the run log). The upgrade is additive: it creates them and
+ * leaves every other store and row as it was.
+ *
  * 3: the `snapshots` object store joined `projects`, `documents` and
  * `sessions`.
  *
@@ -71,7 +75,7 @@ export const RUNTIME_DB_NAME = 'caotang';
  * database an older version created that this one has to read. The same
  * no-wild-artifacts argument §2 uses for adding `codex[]` to format v1.
  */
-export const RUNTIME_DB_VERSION = 3;
+export const RUNTIME_DB_VERSION = 4;
 
 /** The manifest — structural truth, vocabulary, codex (§2). */
 export const PROJECT_STORE = 'projects';
@@ -112,6 +116,18 @@ export const SESSION_PROJECT_INDEX = 'byProject';
 export const SNAPSHOT_STORE = 'snapshots';
 /** Index for "every snapshot of project P", so the retention sweep needs no key range. */
 export const SNAPSHOT_PROJECT_INDEX = 'byProject';
+
+/**
+ * One row per agent run (agent-harness §5.1): its record, keyed by `runId`. The log of what the run did is the `runEvents` rows, one
+ * per event, keyed `[runId, seq]` so a run's events are one contiguous range in the order they were appended. Neither store carries a
+ * key, a header or a request body: the events hold the chat messages the harness built, which are the writer's own text.
+ */
+export const RUN_STORE = 'runs';
+/** Index for "every run of project P". */
+export const RUN_PROJECT_INDEX = 'byProject';
+export const RUN_EVENT_STORE = 'runEvents';
+/** Index for "every event of run R", read without a key range. */
+export const RUN_EVENT_RUN_INDEX = 'byRun';
 
 export interface ProjectRow {
   id: string;
@@ -155,11 +171,26 @@ export interface ProjectRow {
    */
   coherenceFiles?: Record<string, string>;
   /**
+   * The project's recurring-tasks artifact set (agent-harness.md §12), by its project-relative path: `tasks.json` and its `.bak.N`
+   * snapshots and any kept `.corrupt-<ts>` copy. The same home the coherence set has, for the same reason, and kept apart from it so
+   * that rewriting one set cannot tear the other. Optional, and absent means no tasks file yet. A manifest write leaves it alone, and
+   * the only writer is {@link writeTaskFiles}.
+   */
+  taskFiles?: Record<string, string>;
+  /**
    * `ProjectState.skills`, flattened: every skill file by its path inside `.agents/skills/` (`<folder>/<path>`), as bytes. The
    * store is a view over the state, so a rehydrated state holds the skills the project had. Optional, and absent means no skills,
    * which is what a row written before skills existed has. A structural commit carries it across, as it does `declinedText`.
    */
   skillFiles?: Record<string, Uint8Array>;
+  /**
+   * `ProjectState.agentFiles`, as the texts of its files by project path (`CAOTANG.md`, `memory/MEMORY.md`, `memory/<slug>.md`; agent-files.ts
+   * `agentFileTexts`). A rehydrated state parses them again. Optional, and absent means no agent files, which is what a row written before
+   * they existed has. A structural commit carries it across, as it does `skillFiles`.
+   */
+  agentFiles?: Record<string, string>;
+  /** The agent files the load held back because their bytes are not UTF-8 text (`AgentFiles.unreadable`). */
+  agentFilesUnreadable?: string[];
 }
 
 export interface DocumentRow {
@@ -346,7 +377,7 @@ export class SnapshotExistsError extends Error {
  * is the only window IndexedDB gives, and it is why there is no `await` in any
  * transaction body in this file.
  */
-function transact<T>(
+export function transact<T>(
   db: IDBDatabase,
   storeNames: string[],
   mode: IDBTransactionMode,
@@ -483,6 +514,14 @@ export function openRuntimeStore(
         });
         snapshots.createIndex(SNAPSHOT_PROJECT_INDEX, 'projectId', { unique: false });
       }
+      if (!db.objectStoreNames.contains(RUN_STORE)) {
+        const runs = db.createObjectStore(RUN_STORE, { keyPath: 'runId' });
+        runs.createIndex(RUN_PROJECT_INDEX, 'projectId', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(RUN_EVENT_STORE)) {
+        const events = db.createObjectStore(RUN_EVENT_STORE, { keyPath: ['runId', 'seq'] });
+        events.createIndex(RUN_EVENT_RUN_INDEX, 'runId', { unique: false });
+      }
     };
     request.onsuccess = () => {
       const db = request.result;
@@ -566,6 +605,9 @@ export function readProjectState(
             state.skills.set(folder, files);
           }
           for (const files of state.skills.values()) files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+          if (row.agentFiles !== undefined || row.agentFilesUnreadable !== undefined) {
+            state.agentFiles = parseAgentFiles(row.agentFiles ?? {}, row.agentFilesUnreadable ?? []).files;
+          }
           for (const document of rows) {
             state.documents.set(document.id, {
               id: document.id,
@@ -658,6 +700,14 @@ function skillFilesOf(state: ProjectState): Record<string, Uint8Array> {
   return files;
 }
 
+/** The agent files as a row stores them: the texts by path, and the paths held back. Neither key when the state has no agent files. */
+function agentFilesRowOf(files: AgentFiles): Pick<ProjectRow, 'agentFiles' | 'agentFilesUnreadable'> {
+  return {
+    ...(hasAgentFiles(files) ? { agentFiles: agentFileTexts(files) } : {}),
+    ...(files.unreadable.length === 0 ? {} : { agentFilesUnreadable: [...files.unreadable] }),
+  };
+}
+
 export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promise<void> {
   const storedAt = (commit.now ?? new Date()).toISOString();
   return transact<void>(
@@ -690,9 +740,14 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
         if (previous?.skillFiles !== undefined) {
           row.skillFiles = { ...previous.skillFiles };
         }
+        if (previous?.agentFiles !== undefined) row.agentFiles = { ...previous.agentFiles };
+        if (previous?.agentFilesUnreadable !== undefined) row.agentFilesUnreadable = [...previous.agentFilesUnreadable];
         // The coherence set is not the manifest's, so a structural commit keeps it (ProjectRow.coherenceFiles).
         if (previous?.coherenceFiles !== undefined) {
           row.coherenceFiles = { ...previous.coherenceFiles };
+        }
+        if (previous?.taskFiles !== undefined) {
+          row.taskFiles = { ...previous.taskFiles };
         }
         projects.put(row);
         for (const doc of commit.createDocuments ?? []) {
@@ -864,6 +919,7 @@ export function writeProjectState(
         declinedDocFiles: [...state.declinedDocFiles],
         declinedText: Object.fromEntries(state.declinedText),
         ...(state.skills.size === 0 ? {} : { skillFiles: skillFilesOf(state) }),
+        ...agentFilesRowOf(state.agentFiles),
       };
       // The coherence set is not in the state, so the row keeps the one it held (ProjectRow.coherenceFiles). The read
       // comes first in this transaction, so the put that follows it sees the row as it was.
@@ -871,6 +927,7 @@ export function writeProjectState(
       previousRequest.onsuccess = guarded(fail, () => {
         const previous = previousRequest.result as ProjectRow | undefined;
         if (previous?.coherenceFiles !== undefined) project.coherenceFiles = { ...previous.coherenceFiles };
+        if (previous?.taskFiles !== undefined) project.taskFiles = { ...previous.taskFiles };
         projects.put(project);
       });
 
@@ -940,6 +997,38 @@ export function writeCoherenceFiles(store: RuntimeStore, projectId: string, file
   });
 }
 
+/** The project's recurring-tasks artifact set, by path (ProjectRow.taskFiles), read as {@link readCoherenceFiles} reads its set. */
+export function readTaskFiles(store: RuntimeStore, projectId: string): Promise<Record<string, string>> {
+  return transact<Record<string, string>>(store.db, [PROJECT_STORE], 'readonly', (tx, done, fail) => {
+    const request = tx.objectStore(PROJECT_STORE).get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      done({ ...(row.taskFiles ?? {}) });
+    });
+  });
+}
+
+/** Replaces the project's recurring-tasks artifact set with `files` (ProjectRow.taskFiles), whole, in one read-and-put transaction. */
+export function writeTaskFiles(store: RuntimeStore, projectId: string, files: Readonly<Record<string, string>>): Promise<void> {
+  return transact<void>(store.db, [PROJECT_STORE], 'readwrite', (tx, done, fail) => {
+    const projects = tx.objectStore(PROJECT_STORE);
+    const request = projects.get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      projects.put({ ...row, taskFiles: { ...files } });
+      done(undefined);
+    });
+  });
+}
+
 /**
  * Replaces the project's skills with `skills` (ProjectRow.skillFiles): one `put` of the project row, read and written in one
  * transaction. The manifest and the bodies are not touched, so a change to a skill does not restate the manuscript.
@@ -964,6 +1053,29 @@ export function writeProjectSkills(
       for (const [folder, list] of skills) for (const file of list) files[`${folder}/${file.path}`] = file.bytes.slice();
       if (Object.keys(files).length > 0) next.skillFiles = files;
       projects.put(next);
+      done(undefined);
+    });
+  });
+}
+
+/**
+ * Replaces the project's agent files with `files` (ProjectRow.agentFiles): one `put` of the project row, read and written in one transaction.
+ * The manifest and the bodies are not touched, so a change to the writer's instructions or a memory note does not restate the manuscript.
+ */
+export function writeProjectAgentFiles(store: RuntimeStore, projectId: string, files: AgentFiles): Promise<void> {
+  return transact<void>(store.db, [PROJECT_STORE], 'readwrite', (tx, done, fail) => {
+    const projects = tx.objectStore(PROJECT_STORE);
+    const request = projects.get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      const next: ProjectRow = { ...row };
+      delete next.agentFiles;
+      delete next.agentFilesUnreadable;
+      projects.put({ ...next, ...agentFilesRowOf(files) });
       done(undefined);
     });
   });
@@ -1110,11 +1222,11 @@ export function readBodySnapshots(store: RuntimeStore, projectId: string): Promi
   });
 }
 
-/** Drop a project and all of its documents, session lines and snapshots — one transaction, four stores. */
+/** Drop a project and all of its documents, session lines, snapshots, runs and run events — one transaction, six stores. */
 export function deleteProject(store: RuntimeStore, projectId: string): Promise<boolean> {
   return transact<boolean>(
     store.db,
-    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE],
+    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE],
     'readwrite',
     (tx, done, fail) => {
       const projects = tx.objectStore(PROJECT_STORE);
@@ -1145,7 +1257,27 @@ export function deleteProject(store: RuntimeStore, projectId: string): Promise<b
               for (const row of snapshotsRequest.result as SnapshotRow[]) {
                 snapshots.delete([projectId, row.docId, row.revision]);
               }
-              done(existed);
+              // The project's agent runs and their events go with it (agent-harness §5.1): a run log holds the writer's own text.
+              const runs = tx.objectStore(RUN_STORE);
+              const runEvents = tx.objectStore(RUN_EVENT_STORE);
+              const runsRequest = runs.index(RUN_PROJECT_INDEX).getAll(projectId);
+              runsRequest.onsuccess = guarded(fail, () => {
+                const ids = (runsRequest.result as { runId: string }[]).map((row) => row.runId);
+                for (const id of ids) runs.delete(id);
+                let left = ids.length;
+                if (left === 0) {
+                  done(existed);
+                  return;
+                }
+                for (const id of ids) {
+                  const eventsRequest = runEvents.index(RUN_EVENT_RUN_INDEX).getAll(id);
+                  eventsRequest.onsuccess = guarded(fail, () => {
+                    for (const event of eventsRequest.result as { runId: string; seq: number }[]) runEvents.delete([event.runId, event.seq]);
+                    left -= 1;
+                    if (left === 0) done(existed);
+                  });
+                }
+              });
             });
           });
         });

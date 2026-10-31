@@ -1,6 +1,6 @@
 /**
  * Settings (ui-modules §5): a dialog with four sections. Providers holds the profiles, the save-time probe, the usage totals
- * and the request log. Writing holds the session target and the autosave debounce. Appearance holds the theme. Data holds the
+ * and the request log. Writing holds the session target and the autosave debounce. Appearance holds the theme and the interface (Classic or Modern). Data holds the
  * browser's storage answer, the checkpoint figures and their limits.
  *
  * Every field is validated where it is typed, and the store answers the rest. A probe that fails is shown beside the profile
@@ -18,6 +18,7 @@ import {
   isLocalBase,
   modelRowFor,
   presetFor,
+  type CachePolicy,
   type ModelInfo,
   type PresetDef,
   type ProfileView,
@@ -36,9 +37,11 @@ import {
   DEBOUNCE_MAX_MS,
   DEBOUNCE_MIN_MS,
   TARGET_MAX_WORDS,
+  type AgentEditMode,
   type RoleRef,
   type RoleSettings,
 } from '../app/settings.js';
+import { MODERN_DEFAULT_FOR_NEW_USERS, applyInterface, rememberInterface, type Interface } from '../app/interface.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
 import { sameLanguageSetting } from '../i18n/catalogues.js';
@@ -53,9 +56,12 @@ import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/provi
 import { capsLine, modelDetails } from '../app/provider-details.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
+import { AgentRulesSettings } from './AgentRulesSettings.js';
+import { MacrosPanel } from './MacrosPanel.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
 import { PictureStorageMeter } from './PictureStorageMeter.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { formatCount, useComposingEnter } from './shared.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
@@ -77,12 +83,13 @@ function FormMessage({ message }: { message: { readonly text: string; readonly t
   );
 }
 
-export type SettingsSection = 'providers' | 'context' | 'agent' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
+export type SettingsSection = 'providers' | 'context' | 'agent' | 'macros' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
 
 const SECTIONS: readonly { readonly id: SettingsSection; readonly label: MessageDescriptor }[] = [
   { id: 'providers', label: msg`Providers` },
   { id: 'context', label: msg`Context` },
   { id: 'agent', label: msg`Agent` },
+  { id: 'macros', label: msg`Macros` },
   { id: 'writing', label: msg`Writing` },
   { id: 'coherence', label: msg`Coherence` },
   { id: 'mcp', label: msg`MCP & tools` },
@@ -97,6 +104,8 @@ export interface SettingsProps {
   readonly store: RuntimeStore | null;
   readonly initialSection?: SettingsSection;
   readonly onClose: () => void;
+  /** Called when a macro's run has started, so the agent panel is open for the card it shows. */
+  readonly onOpenAgent?: () => void;
   /** Called after a provider changes, so a view that shows the active provider reads it again. */
   readonly onProvidersChanged?: () => void;
   /** The storage bridge; tests pass their own. Defaults to the browser's. */
@@ -109,11 +118,13 @@ export function Settings({
   store,
   initialSection = 'providers',
   onClose,
+  onOpenAgent,
   onProvidersChanged,
   storage,
 }: SettingsProps): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const narrow = useNarrow();
   // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was (Menu and ExportDialog do
   // the same). It is read on the first render, before the dialog takes focus. While the dialog is modal the rest of the page is
   // inert, so the focus call made during a development double-mount is a no-op and the dialog keeps focus.
@@ -168,10 +179,19 @@ export function Settings({
           <div className="settings-body">
             {section === 'providers' ? <ProvidersSection services={services} onChanged={onProvidersChanged} /> : null}
             {section === 'context' ? <ContextSection services={services} session={session} /> : null}
-            {section === 'agent' ? <AgentSection services={services} /> : null}
+            {section === 'agent' ? <AgentSection services={services} session={session} /> : null}
+            {section === 'macros' ? (
+              <MacrosPanel
+                session={session}
+                onRan={() => {
+                  onOpenAgent?.();
+                  onClose();
+                }}
+              />
+            ) : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
-            {section === 'mcp' ? <McpSection mcp={services.mcp} /> : null}
+            {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
             {section === 'appearance' ? <AppearanceSection services={services} /> : null}
             {section === 'data' ? <DataSection services={services} session={session} store={store} storage={storage} /> : null}
           </div>
@@ -215,6 +235,10 @@ interface FormState {
   /** The two optional price fields, as typed: dollars per 1,000 prompt tokens and per 1,000 reply tokens. Empty is no price. */
   readonly promptPrice: string;
   readonly completionPrice: string;
+  /** Prompt caching for this profile (provider-gateway §3): on by default. */
+  readonly cacheOn: boolean;
+  /** Anthropic only: how long the provider keeps a cached prompt. */
+  readonly cacheTtl: '5m' | '1h';
 }
 
 const BLANK: FormState = {
@@ -229,6 +253,8 @@ const BLANK: FormState = {
   headersTouched: false,
   promptPrice: '',
   completionPrice: '',
+  cacheOn: true,
+  cacheTtl: '5m',
 };
 
 function formFor(view: ProfileView): FormState {
@@ -244,7 +270,18 @@ function formFor(view: ProfileView): FormState {
     headersTouched: false,
     promptPrice: view.pricePer1k === undefined ? '' : String(view.pricePer1k.prompt),
     completionPrice: view.pricePer1k === undefined ? '' : String(view.pricePer1k.completion),
+    cacheOn: view.promptCache?.mode !== 'off',
+    cacheTtl: view.promptCache?.ttl ?? '5m',
   };
+}
+
+/** The presets whose lifetime setting means something: Anthropic keeps a cached prompt 5 minutes, or an hour on request. */
+const CACHE_TTL_PRESETS: ReadonlySet<string> = new Set(['anthropic']);
+
+/** The caching policy a form saves: off, or on with Anthropic's lifetime when that preset is chosen. */
+function cachePolicyOf(form: FormState): CachePolicy {
+  if (!form.cacheOn) return { mode: 'off' };
+  return CACHE_TTL_PRESETS.has(form.preset) && form.cacheTtl === '1h' ? { mode: 'auto', ttl: '1h' } : { mode: 'auto' };
 }
 
 /** The preset field values a fresh pick starts with: each declared default, nothing else. */
@@ -392,6 +429,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           defaultModel: form.model,
           ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
           ...(price.price === undefined ? {} : { pricePer1k: price.price }),
+          promptCache: cachePolicyOf(form),
         });
         setForm(null);
         if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
@@ -418,6 +456,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         defaultModel: form.model,
         ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
         ...(priceChange === undefined ? {} : { pricePer1k: priceChange }),
+        ...(isMock === true ? {} : { promptCache: cachePolicyOf(form) }),
       });
       setForm(null);
       if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
@@ -772,6 +811,27 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 </span>
                 <input type="number" min={0} step="any" value={form.completionPrice} onChange={(event) => setForm({ ...form, completionPrice: event.target.value })} />
               </label>
+            </fieldset>
+          ) : null}
+          {isMock !== true ? (
+            <fieldset className="cache-fields" data-testid="profile-cache">
+              <legend>Prompt caching</legend>
+              <label className="settings-check">
+                <input type="checkbox" checked={form.cacheOn} onChange={(event) => setForm({ ...form, cacheOn: event.target.checked })} />
+                <span>
+                  Let the provider reuse the start of a prompt it has just seen. Where the provider supports it, repeated calls cost less
+                  and answer sooner; the provider keeps the reused part for a few minutes.
+                </span>
+              </label>
+              {form.cacheOn && CACHE_TTL_PRESETS.has(form.preset) ? (
+                <label>
+                  <span>Keep a cached prompt for</span>
+                  <select value={form.cacheTtl} onChange={(event) => setForm({ ...form, cacheTtl: event.target.value === '1h' ? '1h' : '5m' })}>
+                    <option value="5m">5 minutes (default)</option>
+                    <option value="1h">1 hour (costs more to write)</option>
+                  </select>
+                </label>
+              ) : null}
             </fieldset>
           ) : null}
           <div className="profile-form-actions">
@@ -1139,9 +1199,12 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
  * Agent
  * ------------------------------------------------------------------ */
 
-function AgentSection({ services }: { services: AppServices }): ReactNode {
+function AgentSection({ services, session }: { services: AppServices; session: ProjectSession | null }): ReactNode {
   const [loadEvery, setLoadEvery] = useState(services.settings.current().agent.loadEveryTool);
+  // Read live, so the Trace tab's own switch and this one never disagree.
+  const keepTraces = useSyncExternalStore(services.settings.subscribe, services.settings.current).agent.keepTraces;
   const [message, setMessage] = useState<string | null>(null);
+  const [traceMessage, setTraceMessage] = useState<{ readonly text: string; readonly tone: 'info' | 'error' } | null>(null);
 
   const change = (next: boolean): void => {
     setLoadEvery(next);
@@ -1168,7 +1231,26 @@ function AgentSection({ services }: { services: AppServices }): ReactNode {
         </Trans>
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
+      <p className="settings-note">
+        The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
+        reload clears it. Turn it off to gather nothing.
+      </p>
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={keepTraces}
+          data-testid="agent-keep-traces"
+          onChange={(event) => {
+            void services.settings.update({ agent: { keepTraces: event.target.checked } }).then((error) => {
+              setTraceMessage(error === null ? { text: 'Saved. It applies to what the agent records next.', tone: 'info' } : { text: error, tone: 'error' });
+            });
+          }}
+        />
+        <span>Keep agent traces for this tab</span>
+      </label>
+      <FormMessage message={traceMessage} />
       <AgentModeSettings services={services} />
+      <AgentRulesSettings services={services} session={session} />
     </section>
   );
 }
@@ -1182,6 +1264,7 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
   const [target, setTarget] = useState(String(current.session.dailyTargetWords ?? 0));
   const [debounce, setDebounce] = useState(String(current.editor.autosaveDebounceMs));
   const [hideRails, setHideRails] = useState(current.editor.focusModeHideRails);
+  const [agentEditMode, setAgentEditMode] = useState<AgentEditMode>(current.editor.agentEditMode);
   const [message, setMessage] = useState<string | null>(null);
   // The writing settings save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
   const ime = useComposingEnter();
@@ -1199,8 +1282,8 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
       setMessage(t`The save delay is a whole number of milliseconds from ${{ min: DEBOUNCE_MIN_MS }} to ${{ max: DEBOUNCE_MAX_MS }}.`);
       return;
     }
-    void services.settings.update({ session: { dailyTargetWords: words }, editor: { autosaveDebounceMs: ms, focusModeHideRails: hideRails } }).then((error) => {
-      setMessage(error ?? t`Saved. The save delay applies to the projects you open from now on.`);
+    void services.settings.update({ session: { dailyTargetWords: words }, editor: { autosaveDebounceMs: ms, focusModeHideRails: hideRails, agentEditMode } }).then((error) => {
+      setMessage(error ?? t`Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open.`);
     });
   };
 
@@ -1237,6 +1320,23 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
             <Trans>In focus mode, hide the binder and the inspector</Trans>
           </span>
         </label>
+        <label>
+          <span>When you apply an agent edit</span>
+          <select
+            value={agentEditMode}
+            aria-describedby="agent-edit-help"
+            onChange={(event) => setAgentEditMode(event.target.value === 'suggestions' ? 'suggestions' : 'ghost')}
+          >
+            <option value="ghost">Replace the text</option>
+            <option value="suggestions">Mark the changes for review</option>
+          </select>
+        </label>
+        <p className="muted" id="agent-edit-help">
+          Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back
+          each change. The agent’s text is already saved when the marks appear, so other tools and git see the accepted version, and rejecting
+          a change is what edits the file. It covers prose scenes only, not Ink or Fountain. Closing the tab with changes still marked keeps
+          the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.
+        </p>
         <button type="submit" className="button is-primary">
           <Trans>Save writing settings</Trans>
         </button>
@@ -1303,6 +1403,14 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
     });
   };
 
+  // The interface on the page now (app/interface.ts puts it there as data-shell).
+  const [shell, setShell] = useState<Interface>(() => (document.documentElement.dataset['shell'] === 'modern' ? 'modern' : 'classic'));
+  const chooseShell = (next: Interface): void => {
+    // Modern's stylesheet loads on first use; a failed load leaves its tokens out, and the radio still says what was chosen.
+    void applyInterface(next).catch(() => undefined);
+    rememberInterface(next);
+    setShell(next);
+  };
   return (
     <section className="settings-section" aria-labelledby="settings-appearance">
       <h3 id="settings-appearance">
@@ -1321,6 +1429,21 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
       </fieldset>
       <p className="muted">
         <Trans>The choice is kept in this browser. Until you choose, the page follows the system.</Trans>
+      </p>
+      <fieldset className="settings-radios">
+        <legend>{t`Interface`}</legend>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'classic'} onChange={() => chooseShell('classic')} /> <Trans>Classic</Trans>
+        </label>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'modern'} onChange={() => chooseShell('modern')} />{' '}
+          {MODERN_DEFAULT_FOR_NEW_USERS ? t`Modern` : t`Modern (Preview)`}
+        </label>
+      </fieldset>
+      <p className="muted">
+        {MODERN_DEFAULT_FOR_NEW_USERS
+          ? t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. The choice is kept in this browser and applies at once.`
+          : t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built, so for now it looks almost the same as Classic. The choice is kept in this browser and applies at once.`}
       </p>
 
       <fieldset className="settings-radios" data-testid="interface-language">

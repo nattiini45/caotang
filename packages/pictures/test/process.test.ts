@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PictureRefusal, checkHeic, checkOutput, finishPassthrough, fitLongEdge, planPicture, readHeicSize, validateProfile } from '../src/index.js';
 import type { PicturePlan, PictureProfile } from '../src/index.js';
-import { SECRETS, buildJpeg, buildPng, buildTiff, containsBytes } from './fixtures.js';
+import { SECRETS, buildJpeg, buildPng, buildTiff, containsBytes } from './byte-fixtures.js';
 
 const profile = (patch: Partial<PictureProfile> = {}): PictureProfile => ({
   maxEdge: 1600,
@@ -119,9 +119,11 @@ describe('finishPassthrough', () => {
     expect([result.mime, result.width, result.height]).toEqual(['image/jpeg', 20, 30]);
   });
 
-  it('refuses metadata it cannot walk safely, rather than claim it is gone', () => {
+  it('drops metadata it cannot walk safely whole, rather than claim the location is gone from it', () => {
     const jpeg = buildJpeg({ tiff: new Uint8Array([0x49, 0x49, 0x2a, 0, 0xff, 0xff, 0xff, 0x7f]), width: 30, height: 20 });
-    expect(refusalOf(() => finishPassthrough(jpeg, plan(jpeg), profile({ output: 'preserve' }))).code).toBe('malformed-metadata');
+    const out = finishPassthrough(jpeg, plan(jpeg), profile({ output: 'preserve' }));
+    expect(out.bytes.length).toBeLessThan(jpeg.length);
+    expect(String.fromCharCode(...out.bytes).includes('Exif')).toBe(false);
   });
 });
 

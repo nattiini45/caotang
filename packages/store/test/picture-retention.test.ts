@@ -132,7 +132,7 @@ interface Host {
   afterWrite: (() => Promise<void>) | undefined;
 }
 
-function host(state: ProjectState = project(), options: { readonly process?: ProjectAssetPort['process'] } = {}): Host {
+function host(state: ProjectState = project(), options: { readonly decoder?: ProjectAssetPort['decoder'] } = {}): Host {
   const files = new Map<string, Uint8Array>();
   const staging = createAssetStaging();
   const ledger = new UndoRetentionLedger();
@@ -146,7 +146,7 @@ function host(state: ProjectState = project(), options: { readonly process?: Pro
     },
     list: async () => ({ authoritative: true, files: [...files.keys()].map((path) => path.slice('assets/'.length)) }),
     readBytes: async (path) => files.get(path),
-    ...(options.process === undefined ? {} : { process: options.process }),
+    ...(options.decoder === undefined ? {} : { decoder: options.decoder }),
     deletion: {
       listRetention: async () => collectRetention([...stateRetentionRoots(state), ...handle.extraRoots]),
       remove: async (paths) => {
@@ -506,13 +506,11 @@ describe('asset.relink (rename by hash, §6.3)', () => {
 });
 
 describe('asset.storeWorkingCopies (the bulk working-copy batch)', () => {
-  /** A host whose canvas "process" returns a smaller PNG of the same mime. */
+  /** A host whose decoder (main's `PictureDecoder.workingCopy`, the import's own) returns a smaller PNG. */
   function processingHost(state: ProjectState = project()): Host {
     return host(state, {
-      process: async (input) => {
-        const width = Math.min(input.width, 8);
-        const height = Math.min(input.height, 8);
-        return { bytes: png({ width, height, sample: 0x66 }), mime: input.mime, width, height };
+      decoder: {
+        workingCopy: async () => png({ width: 8, height: 8, sample: 0x66 }),
       },
     });
   }
@@ -579,12 +577,12 @@ describe('asset.storeWorkingCopies (the bulk working-copy batch)', () => {
     const gate = new Promise<void>((resolve) => (release = resolve));
     const began = new Promise<void>((resolve) => (begin = resolve));
     const h = host(project(), {
-      process: async (input) => {
-        begin();
-        await gate;
-        const width = Math.min(input.width, 8);
-        const height = Math.min(input.height, 8);
-        return { bytes: png({ width, height, sample: 0x66 }), mime: input.mime, width, height };
+      decoder: {
+        workingCopy: async () => {
+          begin();
+          await gate;
+          return png({ width: 8, height: 8, sample: 0x66 });
+        },
       },
     });
     return { h, began, release };

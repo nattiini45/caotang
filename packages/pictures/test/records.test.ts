@@ -44,7 +44,7 @@ describe('readAssetRecords (tolerant)', () => {
   });
 
   it('drops a known optional field with an unusable value and says so', () => {
-    const read = readAssetRecords([record({ caption: 42, width: -3, tags: ['a', 1], decorative: false, source: { kind: 'carrier-pigeon' } })]);
+    const read = readAssetRecords([record({ caption: 42, width: -3, tags: ['a', 1], decorative: false, source: { kind: 42 } })]);
     const [kept] = read.records;
     expect(kept).toBeDefined();
     for (const key of ['caption', 'width', 'tags', 'decorative', 'source']) expect(kept).not.toHaveProperty(key);

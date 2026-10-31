@@ -1,4 +1,4 @@
-# The end-to-end suite in Firefox and WebKit. Nightly and on demand, not on pull requests: ci.yml gates a pull request on Chromium.
+# Firefox and WebKit E2E, called by ci.yml as part of the required PR gate; also runs nightly and on demand.
 #
 # What runs:
 #   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), each in two
@@ -13,6 +13,7 @@
 name: e2e-browsers
 
 on:
+  workflow_call:
   schedule:
     - cron: '30 3 * * *'
   workflow_dispatch:
@@ -21,13 +22,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: e2e-browsers-${{ github.ref }}
+  group: e2e-browsers-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   e2e:
     name: e2e (${{ matrix.browser }} ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    # Keep the preinstalled browser binaries and Linux dependencies aligned with the locked Playwright 1.63.0 package.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -47,12 +51,11 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Install ${{ matrix.browser }} for Playwright
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
-
       - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of 2)
         run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --reporter=blob
         env:
+          # GitHub's /github/home is owned by pwuser, but this container runs as root and Firefox checks HOME ownership.
+          HOME: /root
           CI: 'true'
           CAOTANG_E2E_BROWSERS: all
 

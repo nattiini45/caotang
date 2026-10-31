@@ -131,8 +131,7 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
               placeholder={kind === 'status' ? t`For example, Second pass` : t`For example, Act 2`}
               onChange={(event) => setDraftName(event.target.value)}
               onKeyDown={(event) => {
-                // The Enter that commits an IME candidate adds nothing; the candidate's text is still being composed.
-                if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) add();
+                if (event.key === 'Enter' && !isImeEnter(event)) add();
               }}
             />
           </label>
@@ -223,8 +222,7 @@ function TermRow({
         maxLength={40}
         onChange={(event) => draftName.change(event.target.value)}
         onKeyDown={(event) => {
-          // The Enter that commits an IME candidate saves nothing; the candidate's text is still being composed.
-          if (event.key === 'Enter' && changed && !isImeEnter(event.nativeEvent)) save();
+          if (event.key === 'Enter' && !isImeEnter(event) && changed) save();
         }}
       />
       <button type="button" className="button" disabled={!changed} onClick={save}>

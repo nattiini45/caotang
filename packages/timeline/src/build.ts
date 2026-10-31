@@ -327,7 +327,7 @@ export function buildTimeline(state: ProjectState, file: CoherenceFile, opts: Ti
   for (const scene of scenes) {
     const scheduled = scene.day !== undefined;
     const parentPart = scene.parentId === null ? undefined : parts.get(scene.parentId);
-    const partOverride = scene.meta.storyPart === 'main' && parentPart !== undefined && parentPart !== 'main';
+    const partOverride = scene.meta.storyPart === undefined && scene.meta.mainStory === true && parentPart !== undefined && parentPart !== 'main';
     let partNote: 'dated-inside-main' | undefined;
     if (scene.day !== undefined) {
       if (scene.part === 'prologue' && mainStart !== undefined && scene.day >= mainStart) partNote = 'dated-inside-main';

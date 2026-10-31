@@ -1608,16 +1608,19 @@ describe('the bus/store split these applies depend on', () => {
     // The knowledge facts add three names with applies of the store's own: 46 + 3 = 49 names, 37 + 3 = 40 implemented.
     // `mcp.readResource` (the writer's read of a resource) is descriptor-only until its injected half is supplied, like `mcp.invoke`: 50 names, 40 implemented.
     // `shot.importImages` (the batch of `shot.importImage`) is descriptor-only for the same reason as `shot.importImage`: 51 names, 40 implemented.
-    // `timeline.apply` (the timeline batch) has an apply of the store's own and needs no injected port: 52 names, 41 implemented.
-    // The picture registry adds eight names: the six that touch only the manifest (`asset.setMeta`, `asset.setLinkMeta`, `asset.link`,
-    // `asset.unlink`, `asset.reorderLinks`, `asset.delete`) have applies of the store's own, and the two imports register only with the
-    // host's asset port, so with nothing injected: 52 + 8 = 60 names, 41 + 6 = 47 implemented.
-    // The anchor and storage commands add four names; only `asset.repin` needs no host port: 64 names, 48 implemented.
-    // The seven comic commands need no port: 71 names, 55 implemented. The calendar's store apply needs no port either: 72 names, 56 implemented.
-    // The reviewed transcription batch needs no host port either: 73 names, 57 implemented.
-    // The document-level compound also has a store apply: 74 names, 58 implemented.
-    expect(Object.keys(registry)).toHaveLength(74);
-    expect(implemented).toHaveLength(58);
+    // The agent's files add three names with applies of the store's own: 51 + 3 = 54 names, 40 + 3 = 43 implemented.
+    // The macros add two names with applies of the store's own: 54 + 2 = 56 names, 43 + 2 = 45 implemented.
+    // The hooks add two names with applies of the store's own: 56 + 2 = 58 names, 45 + 2 = 47 implemented.
+    // The picture registry adds three names: `asset.setMeta` has an apply of the store's own, and `asset.import` and
+    // `asset.importBatch` register only with the asset port, like the cover import: 58 + 3 = 61 names, and the AV script's two settings add two names with store applies: 58 + 3 + 2 = 63 names, 47 + 1 + 2 = 50 implemented.
+    // The writer's codex batch import adds `codex.importBatch`, with an apply of the store's own: 63 + 1 = 64 names, 50 + 1 = 51 implemented.
+    // `timeline.apply` (the timeline batch) and the calendar setting have applies of the store's own: 66 names, 53 implemented.
+    // The rest of the picture registry adds eleven names: the eight that touch only the manifest (`asset.transcribe`, `asset.setLinkMeta`,
+    // `asset.link`, `asset.unlink`, `asset.makeDocumentLevel`, `asset.repin`, `asset.reorderLinks`, `asset.delete`) have applies of the
+    // store's own, and `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies` register only with the host's asset port: 77 names, 61 implemented.
+    // The seven comic commands need no port: 84 names, 68 implemented.
+    expect(Object.keys(registry)).toHaveLength(84);
+    expect(implemented).toHaveLength(68);
   });
 });
 

@@ -352,3 +352,29 @@ export function heavyAlwaysApp(count: number, chars: number, rotate = 0): AppSna
   app.state.manifest.codex = rotated;
   return app;
 }
+
+/** The writer's file in the fixtures that carry instructions. */
+export const INSTRUCTIONS_TEXT = [
+  'British spelling. Past tense, close third person on Mara.',
+  'No semicolons in dialogue.',
+  'Never summarise a scene in its last paragraph.',
+].join('\n');
+
+/** The memory index the fixtures carry beside it. */
+export const MEMORY_INDEX_TEXT = [
+  '- [Dialogue tags](style-dialogue.md) (style): Use "said" for tags.',
+  '- [Scene endings](process-endings.md) (process): End on a line of dialogue where possible.',
+].join('\n') + '\n';
+
+/** The app with the project's agent files set, as a project opened with CAOTANG.md and a memory folder has them. */
+export function withInstructions(app: AppSnapshot, options: { instructions?: string; index?: string; path?: 'CAOTANG.md' | 'AGENTS.md' } = {}): AppSnapshot {
+  const text = options.instructions ?? INSTRUCTIONS_TEXT;
+  app.state.agentFiles = {
+    instructions: { path: options.path ?? 'CAOTANG.md', text },
+    index: options.index ?? MEMORY_INDEX_TEXT,
+    memory: [],
+    declined: new Map(),
+    unreadable: [],
+  };
+  return app;
+}

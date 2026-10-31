@@ -6,8 +6,13 @@
  * unknown-tolerant rules that make them safe.
  */
 
-import type { SceneNumbersOption } from '@caotang/bus';
-import type { ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
+import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+
+import type { AssetRecord, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
+
+import type { PermissionRule } from './agent-rules.js';
+
+export type { AssetRecord, ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
@@ -54,10 +59,14 @@ export interface ExportRecipeOptions {
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). Absent = on. */
   continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6). Absent = A4. */
+  /** The paper of the screenplay PDF (screenplay.md §5.3) and the contact sheet (storyboard.md §6). Absent = Letter for the first, A4 for the second. */
   pageSize?: 'A4' | 'Letter';
+  /** The screenplay PDF's Latin face (screenplay.md §5.3). Absent = courier-prime. */
+  scriptFont?: RecipeScriptFont;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). Absent = off. */
   paperFrames?: boolean;
+  /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3). Absent = the format's default: off for the screenplay PDF, on for the contact sheet. */
+  colourEmoji?: boolean;
   /** The comic PDF carries its bleed (comics.md §5). Absent = on. A comic's reading direction is its book's, never a recipe's. */
   bleed?: boolean;
   /** The comic PDF draws crop marks outside the bleed (comics.md §5). Absent = off. */
@@ -116,8 +125,8 @@ export interface TreeNode {
   /** additive — app-owned; structure ops deliberately do not bump it */
   updatedAt?: string;
   /**
-   * The media-track kind marker (project-format.md §2, media note): `screenplay` on a document, `storyboard` on a
-   * folder, `branching` on a dialogue container. Absent on a plain node. Typed as a string because a later kind must
+   * The media-track kind marker (project-format.md §2, media note): `screenplay` or `av-script` on a document,
+   * `storyboard` or `show` on a folder, `branching` on a dialogue container. Absent on a plain node. Typed as a string because a later kind must
    * load as a kept, unknown value, not a refused one.
    */
   kind?: string;
@@ -140,6 +149,13 @@ export interface TreeNode {
   comic?: Record<string, unknown>;
   /** A comic page's stored value: its size, layout and panels (comics.md §2), carried unread like {@link TreeNode.comic}. */
   comicPage?: Record<string, unknown>;
+  /**
+   * A show folder's settings (av-script.md §2): feed title, description, default speaker, speech rate, cue vocabulary and
+   * the feed's channel fields. The store carries it as an object and does not read its fields: `@caotang/script` does.
+   */
+  showMeta?: Record<string, unknown>;
+  /** An episode document's settings (av-script.md §2): the enclosure, episode and season numbers, and two feed URLs. */
+  episodeMeta?: Record<string, unknown>;
 }
 
 export interface VocabularyTerm {
@@ -277,6 +293,19 @@ export interface Manifest {
    * that is on is still not offered to the agent until the writer has reviewed it, and the review is not kept here.
    */
   disabledSkills?: string[];
+  /**
+   * additive in v1 (extensibility.md §10): the writer's macros, plan templates over registry tools, changed only by `macro.save` and
+   * `macro.delete`. Absent = no macros. The shape is the bus's, which the load and the commands both check.
+   */
+  macros?: ProjectMacro[];
+  /**
+   * additive in v1 (agent-harness.md §4, Rules): the writer's rules for the agent that travel with the folder. Only `deny` and `ask` rules are
+   * read, so a project file can restrict the agent and never grant it power. Absent = no rules.
+   *
+   * `hooks` (hooks.md): the writer's checks for the agent's calls, changed only by `hook.save` and `hook.delete`; only the `check` handler
+   * is read from a file. Any other key under `agent` is kept as read and written back, so a newer build's key survives this build's save.
+   */
+  agent?: { rules?: PermissionRule[]; hooks?: ProjectHook[]; [other: string]: unknown };
   /** additive in v1 (timeline.md §3.8): the lens and the custom calendar. Absent = the built-in day lens. */
   timeline?: ProjectTimelineSettings;
   /**

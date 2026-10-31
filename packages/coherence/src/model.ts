@@ -8,7 +8,6 @@
  * truth for the manuscript: a finding quotes it, a scene declaration sits beside it.
  */
 
-import type { DeclaredStoryPart } from '@caotang/bus';
 import type { MessageRef } from '@caotang/i18n';
 
 /** project-format §1: a top-level file beside `caotang.json`, loaders ignore it when unknown. */
@@ -156,6 +155,16 @@ export const TIMELINE_MODES = [
 ] as const;
 export type TimelineMode = (typeof TIMELINE_MODES)[number];
 
+/**
+ * §5.2.2: `storyPart`. Absent means the main story. Declared, never inferred from days or binder position; independent of
+ * `timelineMode`. Its one check consumer is `timeline.gap`, which never compares two scenes across a part boundary.
+ */
+export const STORY_PARTS = ['prologue', 'epilogue'] as const;
+export type StoryPart = (typeof STORY_PARTS)[number];
+
+/** §5.2.2: `dayOffset` is a whole number from −this to +this. Day 0 is the reference day, usually the opening. */
+export const DAY_OFFSET_LIMIT = 10_000_000;
+
 /** A quoted span. Offsets are into the body projection (project-format §3), never into the editor. */
 export interface Evidence {
   docId: string;
@@ -272,7 +281,10 @@ export interface KnowledgeLink {
 export interface SceneMeta {
   /** A codex entry id (§5.2). Free text is accepted and reported as an unanchored finding. */
   pov?: string;
-  /** Whole days from project epoch 0, negative before it (§5.2.2), within ±10,000,000. Offsets, never real dates (§5.2). */
+  /**
+   * Whole days from day 0, the story's reference day. Offsets, never real dates (§5.2). May be negative, down to
+   * −{@link DAY_OFFSET_LIMIT}, for what happens before day 0, such as a prologue (§5.2.2).
+   */
   dayOffset?: number;
   /** Integer days, default 0 — a scene occupies one day unless declared (§5.2, §5.1 overlap note). */
   durationDays?: number;
@@ -282,12 +294,6 @@ export interface SceneMeta {
   expectedPresent?: string[];
   /** §5.2.1. Absent is `linear`. */
   timelineMode?: TimelineMode;
-  /**
-   * §5.2.2. The story part this scene or folder declares. Absent inherits the nearest declaration above it, then the main
-   * story; `main` is a declaration that overrides an inherited prologue or epilogue. Read through `effectiveStoryPart`,
-   * never copied into children.
-   */
-  storyPart?: DeclaredStoryPart;
   /** §5.5. Additive: absent and an empty list both mean the scene declares no thread. */
   threads?: SceneThread[];
   /** §4.4. Additive: absent and an empty list both mean the scene teaches no one anything. */
@@ -296,6 +302,13 @@ export interface SceneMeta {
   knows?: KnowledgeLink[];
   /** §5.1 `medium.speaker-parity`. Additive: the id of the dialogue container this scene's speakers are compared with; absent means not compared. */
   dialogueContainer?: string;
+  /**
+   * §5.2.2. Additive: the part of the book this scene belongs to. On a folder it covers the scenes under it, unless a scene
+   * (or a nearer folder) declares its own. Absent is the main story.
+   */
+  storyPart?: StoryPart;
+  /** timeline.md §2.3: declared in the main story, overriding a prologue or epilogue inherited from a folder above. Additive; only `true` is stored. */
+  mainStory?: true;
 }
 
 export interface WorldRule {

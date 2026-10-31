@@ -25,7 +25,7 @@ import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } fro
 import { addShotNode, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { emojiStyleOf, graphemesOf, sfntFromWoff, withCommon, type CommonFontLoader, type FontLoader } from '@caotang/pdf-fonts';
-import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkBoldFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { harfbuzzEmoji } from '../../pdf-fonts/test/harfbuzz-reference.js';
 import { HAN_FORMS, HAN_LANGUAGES, HAN_PUNCTUATION } from '../../pdf-fonts/test/fixtures/han-forms.js';
 import { drawnRuns } from './rtl-text.js';
@@ -57,6 +57,7 @@ function rig(
     assets?: ReadonlyMap<string, AssetRecord>;
     files?: Record<string, Uint8Array>;
     loadFallbackFont?: FontLoader;
+    loadBoldFallbackFont?: FontLoader;
     loadEmojiFont?: FontLoader;
     loadArabicFont?: FontLoader;
     loadHebrewFont?: FontLoader;
@@ -80,6 +81,7 @@ function rig(
       return options.readAsset === undefined ? (files[path] ?? null) : options.readAsset(path);
     },
     ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
+    ...(options.loadBoldFallbackFont === undefined ? {} : { loadBoldFallbackFont: options.loadBoldFallbackFont }),
     ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
     ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
     ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
@@ -623,6 +625,16 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
     for (const char of `${CHINESE}${JAPANESE}${KOREAN}`.replace(/\s/g, '')) expect(extracted).toContain(char);
     expect(result.log.notes).toContain('contact sheet: text outside Latin script is set in Noto Sans Mono CJK SC, embedded with only the glyphs it uses');
     expect(result.log.notes.some((note) => note.includes('drawn as "?"'))).toBe(false);
+  });
+
+  it('passes the Bold loader through the exporter: a storyboard named in Chinese has its header title set in the Bold (#253)', async () => {
+    const state = withAction(CHINESE);
+    const folder = state.manifest.tree.find((node) => node.id === MEDIA_IDS.shots);
+    if (folder === undefined) throw new Error('no storyboard folder');
+    (folder as { title: string }).title = '分镜';
+    const { result } = await compileSheet(rig({ state, files: {}, loadFallbackFont: loadCjkFontInNode, loadBoldFallbackFont: loadCjkBoldFontInNode }).exporter);
+    expect(result.log.notes).toContain('contact sheet: bold text outside Latin script is set in Noto Sans Mono CJK SC Bold, embedded with only the glyphs it uses');
+    expect(result.log.notes.some((note) => note.includes('bold fallback font'))).toBe(false);
   });
 
   it('embeds only the glyphs the sheet uses, each with an outline', async () => {

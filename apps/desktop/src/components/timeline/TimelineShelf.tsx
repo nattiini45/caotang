@@ -9,6 +9,7 @@ import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import type { Chain, TimelineItem, TimelineLabels, TimelineModel } from '@caotang/timeline';
 
+import { isImeEnter } from '../../app/keymap.js';
 import { SEVERITY_GLYPH, SHELF_LIMIT, badgeOf } from '../../app/timeline-model.js';
 import { accessibleText } from '../../i18n/accessible-text.js';
 import { formatCount } from './timeline-count.js';
@@ -73,6 +74,8 @@ export function TimelineShelf(props: TimelineShelfProps): ReactNode {
     const { item } = row;
     const badge = badgeOf(item.findings);
     const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
+      // The Enter that confirms an input method's candidate is the input method's (#188).
+      if (isImeEnter(event)) return;
       if (event.key === 'Enter') {
         event.preventDefault();
         props.onOpen(item.nodeId);

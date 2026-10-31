@@ -133,6 +133,26 @@ describe('mock provider — terminal chunk (§8 fix)', () => {
     ]);
   });
 
+  it('scripts a reply the provider cut at its output limit: a declared `length` finish ends the stream', async () => {
+    const p = createMockProvider({ scripts: [{ match: () => true, respond: () => ({ content: '{"steps": [{"tool"', finishReason: 'length' }) }] });
+    const chunks: ChatChunk[] = [];
+    for await (const chunk of p.complete(req('go'))) chunks.push(chunk);
+    expect(chunks.at(-1)).toEqual({
+      finishReason: 'length',
+      usage: { promptTokens: estimateTokens('go'), completionTokens: estimateTokens('{"steps": [{"tool"') },
+    });
+  });
+
+  it('scripts a native reply the provider cut: its calls ride the terminal chunk with the `length` finish', async () => {
+    const toolCalls = [{ id: 'call_1', name: 'doc.read', argumentsJson: '{"doc": "The Fr' }];
+    const p = createMockProvider({ scripts: [{ match: () => true, respond: () => ({ content: '', toolCalls, finishReason: 'length' }) }] });
+    const chunks: ChatChunk[] = [];
+    for await (const chunk of p.complete(req('go'))) chunks.push(chunk);
+    const terminals = chunks.filter((c) => c.finishReason !== undefined);
+    expect(terminals).toHaveLength(1);
+    expect(terminals[0]).toMatchObject({ finishReason: 'length', toolCalls });
+  });
+
   it('gives a non-iterable response the same terminal chunk', async () => {
     const p = createMockProvider({ scripts: [{ match: () => true, respond: () => ({ content: 'hello there' }) }] });
     const chunks: ChatChunk[] = [];

@@ -12,12 +12,14 @@ import type { CommandError, Result } from '@caotang/bus';
 import { err, ok } from '@caotang/bus';
 import type { MessageRef } from '@caotang/i18n';
 
+import type { HookRun } from '../hooks.js';
 import type { PlanPreflight, PlanStep } from '../plan.js';
 import type { SubagentName } from '../tools/delegate.js';
 import type { CallParams } from '../types.js';
 import { isRecord } from '../util.js';
 import { DEFAULT_MAX_OUTPUT_TOKENS, type ModelLimits, type PromptPreview } from '@caotang/context';
 import type { ThinkingLevel } from '@caotang/gateway';
+import type { ApprovalCaution, WireProgress } from '@caotang/mcp-client';
 import type { ReviewPlan } from '@caotang/coherence';
 import type { PictureTranscriptionPlan } from '../tools/transcription.js';
 import type { TraceEntry } from './events.js';
@@ -66,6 +68,16 @@ export interface StatusCard {
   readonly finishedAt?: number;
   /** Set on an `agent.delegate` call's card (agent-harness §8). */
   readonly delegation?: DelegationView;
+  /**
+   * The last progress report of a running external call: a bar when it has a `total`, a counter when it has not, and the server's own words in
+   * `message`, cut to 200 characters. Display only: it is never sent to the model, and it is gone once the card finishes.
+   */
+  readonly progress?: WireProgress;
+  /**
+   * Set on a card of an external call that was sent and then timed out or was cancelled: the server may already have done part of the
+   * work, and Caotang can neither tell nor undo it. The step's rewind menu says so (agent-harness §8).
+   */
+  readonly mayHaveActed?: true;
 }
 
 const NEXT: Readonly<Record<StatusState, readonly StatusState[]>> = {
@@ -85,17 +97,19 @@ export function canAdvance(from: StatusState, to: StatusState): boolean {
 export function advance(
   card: StatusCard,
   to: StatusState,
-  detail: { readonly summary?: string; readonly error?: string; readonly at?: number } = {},
+  detail: { readonly summary?: string; readonly error?: string; readonly at?: number; readonly mayHaveActed?: true } = {},
 ): StatusCard {
   if (!canAdvance(card.status, to)) {
     throw new Error(`status card ${card.id} cannot move from ${card.status} to ${to}`);
   }
   const finished = to === 'done' || to === 'failed' || to === 'cancelled';
+  const { progress: _running, ...rest } = card;
   return {
-    ...card,
+    ...(finished ? rest : card),
     status: to,
     ...(detail.summary === undefined ? {} : { summary: detail.summary }),
     ...(detail.error === undefined ? {} : { error: detail.error }),
+    ...(detail.mayHaveActed === undefined ? {} : { mayHaveActed: true as const }),
     ...(to === 'running' && card.startedAt === undefined && detail.at !== undefined ? { startedAt: detail.at } : {}),
     ...(finished && detail.at !== undefined ? { finishedAt: detail.at } : {}),
   };
@@ -149,6 +163,8 @@ export interface PlanStepView {
   readonly status: 'ready' | 'deferred' | 'refused' | 'done';
   readonly preview?: unknown;
   readonly error?: CommandError;
+  /** What the writer's hooks said about this step at preflight: a warning shown on the step, or the block beside the disabled Approve (hooks.md §3). */
+  readonly hooks?: readonly HookRun[];
   /** agent-harness §2: a flag on a step whose inputs an edit has moved. */
   readonly badges: readonly string[];
   /** The draft was written against a revision the document has since left. It cannot be approved until it is drafted again. */
@@ -176,12 +192,22 @@ export interface PlanCardView {
   readonly steps: readonly PlanStepView[];
   /** True when the latest preview is current, nothing is refused or stale or cut, and there is something to run. */
   readonly approvable: boolean;
-  /** True when the only thing stopping approval is a cut draft: the user may approve by accepting the cut text. */
+  /** True when the only thing stopping approval is a cut draft or a cut planner reply: the user may approve by accepting the cut text. */
   readonly canAcceptCut: boolean;
-  /** True when a step still to run is a draft the provider cut at its output limit. */
+  /** True when a step still to run is a draft the provider cut at its output limit, or the planner's reply itself was cut (`replyCut`). */
   readonly cut: boolean;
+  /**
+   * The planner's reply that proposed these steps was cut (finish reason `length`), though every call in it parsed (native wire only):
+   * the plan may be missing steps. Like a cut draft, it is approved only with `acceptTruncated`. Absent when the reply was whole.
+   */
+  readonly replyCut?: true;
   /** Why the last edit or draft was not applied, when one was refused. The card is shown as it was before it. */
   readonly notice?: string;
+  /**
+   * What the card says beside its steps (issue #54): the outside text the turn read before it, the project text an external step would send
+   * (with `step`, the step's number on the card), and whether Approve needs a second click. Absent when there is nothing to say.
+   */
+  readonly caution?: ApprovalCaution;
 }
 
 /** The text a dependent step carries after an edit moved something it reads (agent-harness §2). */
@@ -549,6 +575,9 @@ export function planCardOf(args: {
   /** The delegated agent each step was proposed by, aligned to the steps. */
   readonly proposedBy?: readonly (string | undefined)[];
   readonly notice?: string;
+  readonly caution?: ApprovalCaution;
+  /** The planner's reply was cut, though its calls all parsed (`PlanCardView.replyCut`). */
+  readonly replyCut?: boolean;
 }): PlanCardView {
   const badges = dependencyBadges(args.state.steps, args.state.origins, args.state.superseded);
   const staged = args.staged ?? [];
@@ -582,12 +611,13 @@ export function planCardOf(args: {
       status,
       ...(preview === undefined ? {} : { preview }),
       ...(checked?.error === undefined ? {} : { error: checked.error }),
+      ...(checked?.hooks === undefined ? {} : { hooks: checked.hooks }),
     };
   });
   const pending = steps.filter((step) => step.status !== 'done');
   const current = args.previewRevision === args.revision;
   const staleAny = pending.some((step) => step.stale);
-  const cutAny = pending.some((step) => step.cut);
+  const cutAny = pending.some((step) => step.cut) || args.replyCut === true;
   const usable = current && args.preflight.ok && pending.length > 0 && !staleAny;
   return {
     id: args.id,
@@ -600,6 +630,8 @@ export function planCardOf(args: {
     approvable: usable && !cutAny,
     canAcceptCut: usable && cutAny,
     cut: cutAny,
+    ...(args.replyCut === true ? { replyCut: true as const } : {}),
     ...(args.notice === undefined ? {} : { notice: args.notice }),
+    ...(args.caution === undefined ? {} : { caution: args.caution }),
   };
 }

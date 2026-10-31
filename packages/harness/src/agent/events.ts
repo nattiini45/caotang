@@ -10,11 +10,13 @@ import type { CommandError } from '@caotang/bus';
 
 import type { LayerReport } from '@caotang/context';
 
+import type { HookRun } from '../hooks.js';
 import type { AskBack, PlanStep } from '../plan.js';
 import type { PlanCardView, PlanEdit, StatusCard } from './cards.js';
 import type { BudgetSpend, BudgetStop, RunLimits } from './budget.js';
 import type { Finding } from './drafting.js';
 import type { BudgetUse, PermissionMode } from './mode.js';
+import type { TurnCacheUse } from './cache-watch.js';
 
 /** One tool call as it ran, in order. An eval's trace matcher reads these (agent-harness §9). */
 export interface TraceEntry {
@@ -45,6 +47,8 @@ export interface StepRecord {
   readonly tool: string;
   readonly expect: string;
   readonly status: 'done' | 'failed' | 'cancelled';
+  /** An external call that was sent and then timed out or was cancelled: the server may already have done part of the work. Such a step counts as spent against the step limit. */
+  readonly mayHaveActed?: true;
   readonly summary?: string;
   readonly data?: Readonly<Record<string, unknown>>;
   readonly error?: string;
@@ -88,6 +92,13 @@ export interface TurnReport {
   readonly dropped: readonly string[];
   /** The model calls the turn made, in order, including retries. */
   readonly modelCalls: number;
+  /** The planner replies the provider ended with `length`, parsed or not, at the request's cap or short of it (issue #97). Absent when none was. */
+  readonly cutReplies?: number;
+  /**
+   * What the turn's calls read from the provider's prompt cache, and each planner call that should have read it and did not, with
+   * the likely cause (agent-harness §5, "Prompt cache"). Absent when no call reported a cache breakdown.
+   */
+  readonly cache?: TurnCacheUse;
   /** Present when the writer stopped the turn. `status` is then `cancelled`, and whatever was applied before the stop stays in the undo group. */
   readonly stop?: TurnStop;
   /** Present when the turn ended on a run limit (agent-harness §7.1): the limit, and for a refused call what it would have needed. `status` is `failed`, never `cancelled`. */
@@ -102,12 +113,17 @@ export interface TurnReport {
   readonly budgetUse: BudgetUse;
   /** The write steps plan-only refused, in order, for the writer to run later: `submitPlan` takes them as they are. Absent when none was refused. */
   readonly heldSteps?: readonly PlanStep[];
+  /** What the writer's hooks said on the turn's calls: a warning, a block or a note, in the order they spoke (hooks.md §7). Absent when none did. */
+  readonly hooks?: readonly HookRun[];
+  /** The slash command that started the turn (`draft`, without the slash), so the panel and an eval can tell `/draft` from a request typed in words. Absent for any other turn. */
+  readonly command?: string;
 }
 
 /**
  * A decision the user makes on a card. A plan can be edited, and the edited card is shown again before it runs.
  * `acceptTruncated` is the explicit consent a cut draft needs: the provider stopped it at its output
  * limit, and approval keeps the cut text (context-assembly §5). Without it, a cut draft is not approvable.
+ * A plan whose planner reply was cut (`PlanCardView.replyCut`) needs the same consent: it may be missing steps.
  */
 export type Decision =
   | { readonly action: 'approve'; readonly acceptTruncated?: boolean }
@@ -154,6 +170,8 @@ export type AgentEvent =
   | { readonly type: 'checkpoint'; readonly turnId: string; readonly undoGroupId: string; readonly label: string; readonly note?: string; readonly mode: PermissionMode }
   /** The run's spend, after a model call was allowed and after it settled (agent-harness §7.1). Only a session with a meter emits it. */
   | { readonly type: 'budget'; readonly turnId: string; readonly spend: BudgetSpend; readonly limits: RunLimits }
+  /** A hook spoke on one of the turn's calls: it warned, it blocked the step, or it added a note for the model (hooks.md §7). The status card shows it as a row. */
+  | { readonly type: 'hook'; readonly turnId: string; readonly run: HookRun }
   /** A steering note reached the model: delivered with the request named in `note.deliveredAtCall`. */
   | { readonly type: 'steer'; readonly turnId: string; readonly note: SteeringNote }
   | { readonly type: 'report'; readonly turnId: string; readonly report: TurnReport };
@@ -166,3 +184,10 @@ export const CHECKPOINT_LABEL = 'restore to before this turn';
  * restoring the turn reverses Caotang's own changes, and cannot reverse what the external server did.
  */
 export const EXTERNAL_CHECKPOINT_NOTE = 'External side effects are not reversible. Restoring this turn puts back Caotang’s own changes only.';
+
+/** The same note for a step's own menu, where the restore it offers starts at that step and not at the turn. */
+export const STEP_EXTERNAL_CHECKPOINT_NOTE = 'External side effects are not reversible. Restoring from this step puts back Caotang’s own changes only.';
+
+/** The note a checkpoint row carries when the turn was resumed after a reload: the undo of a turn reaches what it applied since. */
+export const RESUMED_CHECKPOINT_NOTE =
+  'This turn was resumed after a reload. Restoring it puts back only what it applied since; the steps applied before the reload are kept.';

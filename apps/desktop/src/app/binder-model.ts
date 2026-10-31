@@ -16,7 +16,7 @@
 import { t } from '@lingui/core/macro';
 
 import { CHAPTERLESS_DOCUMENT_REFUSAL } from '@caotang/bus';
-import type { ProjectState, TreeNode } from '@caotang/store';
+import { isStructuralFolder, partFolderIds, type ProjectState, type TreeNode } from '@caotang/store';
 
 /* lingui-set comment="Interpolated values: refusal" */
 
@@ -46,6 +46,11 @@ export interface NodeRow {
   readonly container: boolean;
   readonly expanded: boolean;
   readonly hasChildren: boolean;
+  /**
+   * `part` for a folder that holds folders (Part → Chapter → Scene, project-format §2), `chapter` for any other folder, and absent
+   * for a document or a storyboard. The row shows a part's role in words, so the structure reads without the indent.
+   */
+  readonly role?: 'part' | 'chapter';
 }
 
 export type BinderRow = SectionRow | NodeRow;
@@ -72,6 +77,25 @@ export function childrenOf(state: ProjectState, parentId: string | null): TreeNo
 }
 
 /**
+ * The folders a node sits in, nearest first: its parent folder, that folder's parent folder, and so on up to the manuscript or
+ * research. A Fountain section is a binder folder (screenplay.md §2.2), so a screenplay scene's section is the first of these. The
+ * manuscript and research are the binder's own sections, not Fountain ones, so they are never listed: a node directly under one has none.
+ */
+export function enclosingFolders(state: ProjectState, nodeId: string): TreeNode[] {
+  const folders: TreeNode[] = [];
+  const seen = new Set<string>([nodeId]);
+  let parentId = nodeById(state, nodeId)?.parentId ?? null;
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = nodeById(state, parentId);
+    if (parent === undefined || parent.type !== 'folder' || isSectionId(parent.id)) break;
+    folders.push(parent);
+    parentId = parent.parentId;
+  }
+  return folders;
+}
+
+/**
  * The binder's default expansion (ui-modules §2.1: "expanded one level"): a folder
  * directly under a section is open, and anything deeper starts closed. An explicit
  * `view.setExpanded` override always wins over this default.
@@ -87,11 +111,12 @@ export function defaultExpanded(depth: number): boolean {
  */
 export function visibleRows(state: ProjectState, expanded: Readonly<Record<string, boolean>>): BinderRow[] {
   const rows: BinderRow[] = [];
+  const parts = partFolderIds(state.manifest.tree);
   for (const sectionId of SECTION_IDS) {
     const section = nodeById(state, sectionId);
     if (!section) continue;
     rows.push({ kind: 'section', node: section, depth: -1 });
-    walk(state, section.id, 0, expanded, rows);
+    walk(state, section.id, 0, expanded, parts, rows);
   }
   return rows;
 }
@@ -101,12 +126,14 @@ function walk(
   parentId: string,
   depth: number,
   expanded: Readonly<Record<string, boolean>>,
+  parts: ReadonlySet<string>,
   out: BinderRow[],
 ): void {
   for (const node of childrenOf(state, parentId)) {
     const container = isContainer(node);
     const isOpen = container && (expanded[node.id] ?? defaultExpanded(depth));
     const children = childrenOf(state, node.id);
+    const role = isStructuralFolder(node) ? (parts.has(node.id) ? 'part' : 'chapter') : undefined;
     out.push({
       kind: 'node',
       node,
@@ -114,9 +141,15 @@ function walk(
       container,
       expanded: isOpen,
       hasChildren: children.length > 0,
+      ...(role === undefined ? {} : { role }),
     });
-    if (isOpen) walk(state, node.id, depth + 1, expanded, out);
+    if (isOpen) walk(state, node.id, depth + 1, expanded, parts, out);
   }
+}
+
+/** Whether a node is a part: a folder that holds folders (`@caotang/store` `partFolderIds`). */
+export function isPart(state: ProjectState, nodeId: string): boolean {
+  return partFolderIds(state.manifest.tree).has(nodeId);
 }
 
 /** The node itself and every node beneath it. Fixed-point, like `removeNode`, so a deep subtree is complete. */
@@ -197,14 +230,13 @@ export type DropRefusal =
   | 'section-edge'
   | 'cycle'
   | 'same-place'
-  | 'chapterless'
-  | 'folder-in-folder';
+  | 'chapterless';
 
 /**
  * Turn a pointer position into a zone. The top and bottom quarters of a row are
  * `before`/`after`; the middle half is `into` for a container and `after` otherwise.
  * A section header accepts only `into`: a sibling of a section would sit directly
- * under the project root, which the three-tier binder never does.
+ * under the project root, which the binder never shows.
  */
 export function resolveZone(node: TreeNode, fraction: number): DropZone {
   if (!isMovable(node)) return 'into';
@@ -214,15 +246,14 @@ export function resolveZone(node: TreeNode, fraction: number): DropZone {
 }
 
 /**
- * The tree's shape rules for a move (ui-modules §2.4, project-format §2): a manuscript child is a chapter, so a document never
- * lands directly under the manuscript, and a folder never lands inside another folder, since the UI makes three tiers only.
- * Research takes its documents directly, as its board does. The drop and keyboard checks run this after their cycle checks.
+ * The tree's shape rules for a move (ui-modules §2.4, project-format §2): a manuscript child is a chapter or a part, so a document
+ * never lands directly under the manuscript. A folder may go into a folder, which makes that folder a part (Part → Chapter →
+ * Scene), at any depth. Research takes its documents directly, as its board does. The drop and keyboard checks run this after
+ * their cycle checks; the bus keeps the storyboard rule (a storyboard holds shots only) for itself.
  */
 function shapeRefusal(moving: TreeNode, parent: TreeNode): DropRefusal | undefined {
   // The two sections are stored as folders, so a section is told apart by its id, and a chapter is a folder that is not one.
   if (parent.id === 'manuscript') return moving.type === 'document' ? 'chapterless' : undefined;
-  if (isSectionId(parent.id)) return undefined;
-  if (parent.type === 'folder' && moving.type === 'folder') return 'folder-in-folder';
   return undefined;
 }
 
@@ -313,22 +344,30 @@ export function newDocumentRefusalText(parentId: string): string | undefined {
 }
 
 /**
- * Where a new folder goes. A folder never sits inside another folder: the UI creates the
- * three tiers only (ARCHITECTURE §2.2, project-format §2), so a folder goes straight into a
- * section. From a selection that is the section the selection sits in: the selected section
- * itself, or the first section found going up from a folder or a document. With nothing
- * selected, it is the manuscript.
+ * Where a new folder goes (ui-modules §2.2). Folders nest, Part → Chapter → Scene (project-format §2), so a new folder goes
+ * beside the chapter the selection is in, or inside the part that is selected:
+ *
+ *   - nothing selected: the manuscript;
+ *   - a section: that section;
+ *   - a part (a folder that holds folders): inside it, as a new chapter of that part;
+ *   - a chapter, or anything inside one (a scene, a storyboard): beside that chapter, in its section or its part.
+ *
+ * A folder inside a chapter of scenes, which turns the chapter into a part, is made from the chapter's own menu (New folder
+ * here), never from the toolbar.
  */
-export function newFolderParent(state: ProjectState, selectedId: string | null): SectionId {
+export function newFolderParent(state: ProjectState, selectedId: string | null): string {
   const seen = new Set<string>();
   let cursor = selectedId === null ? undefined : nodeById(state, selectedId);
-  while (cursor && !seen.has(cursor.id)) {
-    const id = cursor.id;
-    if (isSectionId(id)) return id;
-    seen.add(id);
+  // Up to the nearest section or structural folder: a scene, a dialogue or a storyboard is not a place a folder is made beside.
+  while (cursor && !seen.has(cursor.id) && !isSectionId(cursor.id) && !isStructuralFolder(cursor)) {
+    seen.add(cursor.id);
     cursor = cursor.parentId === null ? undefined : nodeById(state, cursor.parentId);
   }
-  return 'manuscript';
+  if (!cursor || seen.has(cursor.id)) return 'manuscript';
+  if (isSectionId(cursor.id)) return cursor.id;
+  if (isPart(state, cursor.id)) return cursor.id;
+  const parent = cursor.parentId === null ? undefined : nodeById(state, cursor.parentId);
+  return parent !== undefined && isContainer(parent) && parent.id !== 'root' ? parent.id : 'manuscript';
 }
 
 /** The refusal text the drop cursor and the row's status line show. */
@@ -350,8 +389,6 @@ export function dropRefusalText(reason: DropRefusal): string {
       // The bus's own sentence for the same rule, so a drop, New document and a refused create say the same words.
       // It is the package's untranslated constant until the bus's messages are ported (I6).
       return CHAPTERLESS_DOCUMENT_REFUSAL;
-    case 'folder-in-folder':
-      return t`A folder cannot go inside another folder.`;
   }
 }
 
@@ -362,8 +399,9 @@ export type KeyboardStep = 'up' | 'down' | 'out' | 'in';
  * The keyboard's move, planned the way a drop is: the same index convention as `planDrop` (an index counts the siblings that
  * are not moving), and the same refusals. `up` and `down` swap a node with its neighbour; `out` puts it after its folder, and
  * `in` puts it at the end of the folder before it. A node that is already at the edge it would move past is `same-place`.
- * The shape rules of `shapeRefusal` apply: a scene leaves a chapter for nowhere but another chapter, and a folder never goes
- * into a folder, so `out` of a chapter's scene and `in` for a folder are refused.
+ * The shape rules of `shapeRefusal` apply: a scene never lands directly under the manuscript, so `out` of a chapter that sits in
+ * the manuscript is refused for a scene, while `out` of a chapter inside a part puts the scene in the part. A folder may go `in`
+ * to the folder above, which makes that folder a part, and `out` of a part, which makes it a chapter of the level above.
  */
 export function planKeyboardMove(state: ProjectState, nodeId: string, step: KeyboardStep): DropPlan {
   const node = nodeById(state, nodeId);

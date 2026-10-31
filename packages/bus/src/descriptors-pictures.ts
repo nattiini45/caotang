@@ -7,8 +7,9 @@
  * holds, a placement is legal, a delete is not blocked by a typed use); what needs the bytes (the format, the size, the hash) is the
  * apply's, before it writes a file.
  *
- * Every command is undoable and none is an agent tool yet: the imports are `write-confirm` because they consume bytes only the writer's
- * host can stage, the rest are `write-auto` or `write-confirm` as pictures.md §2.4 sets them.
+ * Every command but the sweep is undoable and none is an agent tool yet. The imports are `write-auto`, as the registry's first commands
+ * were: they consume bytes only the writer's host can stage, so an agent's call is refused as not-found before anything is written. The
+ * rest are `write-auto` or `write-confirm` as pictures.md §2.4 sets them.
  */
 
 import {
@@ -17,6 +18,7 @@ import {
   PICTURE_LIMITS,
   collectUses,
   deletionBlockers,
+  inlineAssetIds,
   isAssetId,
   parseAssetFileName,
   placeLink,
@@ -55,10 +57,13 @@ import { err, ok, type CommandError, type Result } from './result.js';
  * Param shapes
  * ------------------------------------------------------------------ */
 
-/** What the writer chose for pictures above the size prompt (pictures.md §6.4 step 3), asked once for a batch. */
-export type LargePhotoChoice = 'keep-originals' | 'working-copies';
+/**
+ * What the writer chose for pictures above the size prompt (pictures.md §6.4 step 3, D6), asked once for a batch. `keep` is the name
+ * the first registry commands took and stays accepted beside `keep-originals`; both keep the originals. Absent is keep.
+ */
+export type LargePhotoChoice = 'keep' | 'keep-originals' | 'working-copies';
 
-export const LARGE_PHOTO_CHOICES: readonly LargePhotoChoice[] = ['keep-originals', 'working-copies'];
+export const LARGE_PHOTO_CHOICES: readonly LargePhotoChoice[] = ['keep', 'keep-originals', 'working-copies'];
 
 /** The most pictures one `asset.importBatch` takes. */
 export const ASSET_IMPORT_BATCH_MAX = 200;
@@ -121,8 +126,6 @@ export const ASSET_WORKING_COPIES_MAX = 200;
  * What the picture commands read of a snapshot
  * ------------------------------------------------------------------ */
 
-const INLINE_IMAGE = /!\[[^\]]*\]\(\s*<?(?:\.\.\/)?assets\/(a_[0-9A-HJKMNP-TV-Z]{10})\.(?:png|jpg|webp)/g;
-
 /**
  * The picture uses of a project, as `@caotang/pictures` takes them. The store reads the same function on its own state, so the
  * descriptor's refusal and the apply's agree on what a use is.
@@ -130,10 +133,8 @@ const INLINE_IMAGE = /!\[[^\]]*\]\(\s*<?(?:\.\.\/)?assets\/(a_[0-9A-HJKMNP-TV-Z]
 export function picturesUsesSnapshot(snapshot: ValidationSnapshot): UsesSnapshot {
   const inline: { assetId: string; nodeId: string }[] = [];
   for (const [nodeId, document] of snapshot.documents) {
-    for (const match of document.body.matchAll(INLINE_IMAGE)) {
-      const assetId = match[1];
-      if (assetId !== undefined) inline.push({ assetId, nodeId });
-    }
+    // The registry's own reading of an inline image, linear on a body of unclosed `![` (CodeQL js/polynomial-redos).
+    for (const assetId of inlineAssetIds(document.body)) inline.push({ assetId, nodeId });
   }
   const panels = snapshot.manifest.tree.flatMap((node) =>
     panelPictureRefs(node.comicPage).map((ref) => ({ assetId: ref.assetId, nodeId: node.id, ...(ref.panelId === undefined ? {} : { panelId: ref.panelId }) })),
@@ -195,14 +196,25 @@ function readTarget(value: unknown, snapshot: ValidationSnapshot, path: string):
   return ok(target);
 }
 
+/**
+ * The sources an import may record: the bytes are staged by the host, so they are a file the writer chose, a paste, or an image an
+ * MCP tool handed the host. `scan` and `agent` are records' own kinds (a transcription's page, a picture the agent made) and are
+ * never an import's.
+ */
+const IMPORT_SOURCE_KINDS: readonly (typeof ASSET_SOURCE_KINDS)[number][] = ['import', 'paste', 'mcp'];
+
 function readSource(value: unknown, path: string): Result<AssetSource, CommandError> {
   if (!isRecord(value)) return invalid(`${path} must be an object, got ${showValue(value)}`, 'use {kind, label?}', path);
   for (const key of Object.keys(value)) {
     if (!['kind', 'label', 'server', 'tool', 'url'].includes(key)) return invalid(`${path}.${key} is not a field of a picture's source`, 'a source carries kind, label, server, tool and url', `${path}.${key}`);
   }
   const kind = value['kind'];
-  if (typeof kind !== 'string' || !(ASSET_SOURCE_KINDS as readonly string[]).includes(kind)) {
-    return invalid(`${path}.kind must be one of ${ASSET_SOURCE_KINDS.join(', ')}, got ${showValue(kind)}`, undefined, `${path}.kind`);
+  if (typeof kind !== 'string' || !(IMPORT_SOURCE_KINDS as readonly string[]).includes(kind)) {
+    return invalid(
+      `${path}.kind must be one of ${IMPORT_SOURCE_KINDS.join(', ')}, got ${showValue(kind)}`,
+      'a picture an import brings is a file the writer chose, a paste, or an image an MCP tool returned to the host',
+      `${path}.kind`,
+    );
   }
   const out: Record<string, unknown> = { kind };
   for (const key of ['label', 'server', 'tool', 'url'] as const) {
@@ -270,7 +282,7 @@ const ITEM_KEYS = ['stagingId', 'links', 'caption', 'alt', 'source'] as const;
 const assetImport: CommandDescriptor<AssetImportParams> = {
   mutates: 'project',
   // The bytes are a file the writer's host staged, which an agent cannot do, so an agent's call is refused as not-found before anything is written.
-  agentRisk: 'write-confirm',
+  agentRisk: 'write-auto',
   // The undo removes the record and the links this import made; the file stays, so an undone import can be taken again without a second write.
   undo: 'compensable',
   asyncApply: true,
@@ -287,7 +299,7 @@ const assetImport: CommandDescriptor<AssetImportParams> = {
 
 const assetImportBatch: CommandDescriptor<AssetImportBatchParams> = {
   mutates: 'project',
-  agentRisk: 'write-confirm',
+  agentRisk: 'write-auto',
   // One entry for the batch: every record and link it made goes in one Undo.
   undo: 'compensable',
   asyncApply: true,

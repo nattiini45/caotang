@@ -1,7 +1,7 @@
 /**
  * The bus primitives exposed as deferred tools (agent-harness §3, "Primitives as deferred tools"): that each row takes its class
  * from its command, that the types and the runtime keep the never-exposed commands out, that every call goes through the ordinary
- * gate and the bus's validate, and what each of the five does.
+ * gate and the bus's validate, and what each of the seven does.
  */
 
 import {
@@ -22,7 +22,12 @@ import { NEVER_EXPOSED, primitiveTool, type ExposablePrimitive, type NeverExpose
 import { PRIMITIVE_TOOLS } from '../src/tools/primitive-tools.js';
 import { CHAPTER_ONE, LANDING, STORM, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
 
-const ALLOWLIST = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save', 'timeline.edit'];
+const FIRST_WAVE = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save'];
+/** The two rows issue #71 names (context-assembly.md §2, layer LI). */
+const MEMORY_ROWS = ['memory.write', 'instructions.propose'];
+/** The timeline's write (timeline.md §5.1, D5). */
+const TIMELINE_ROWS = ['timeline.edit'];
+const ALLOWLIST = [...FIRST_WAVE, ...MEMORY_ROWS, ...TIMELINE_ROWS];
 
 const rowFor = (name: string): ToolMetadata => {
   const row = TOOL_METADATA.find((meta) => meta.name === name);
@@ -37,7 +42,7 @@ function nodeOf(state: ReturnType<typeof makeState>, id: string) {
 }
 
 describe('the allowlist', () => {
-  it('is exactly the six tools the owner approved (the first five, and timeline.edit), each a deferred extension row outside the always-loaded set', () => {
+  it('is exactly the five tools the owner approved on #56, the two #71 names and timeline.edit, each a deferred extension row outside the always-loaded set', () => {
     expect(PRIMITIVE_TOOLS.map((tool) => tool.meta.name)).toEqual(ALLOWLIST);
     for (const name of ALLOWLIST) {
       expect(rowFor(name)).toMatchObject({ surface: 'extension', load: 'deferred' });
@@ -61,6 +66,8 @@ describe('the allowlist', () => {
       ['vocabulary.upsert', 'write-confirm'],
       ['filter.save', 'write-auto'],
       ['goal.save', 'write-auto'],
+      ['memory.write', 'write-confirm'],
+      ['instructions.propose', 'write-confirm'],
       ['timeline.edit', 'write-confirm'],
     ]);
   });
@@ -151,6 +158,18 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('skill.delete')),
       // @ts-expect-error a skill is an instruction the agent will read, so the agent never writes one
       () => primitiveTool(specFor('skill.setEnabled')),
+      // @ts-expect-error a macro is a plan the writer will run later, so the agent never writes one
+      () => primitiveTool(specFor('macro.save')),
+      // @ts-expect-error a macro is a plan the writer will run later, so the agent never writes one
+      () => primitiveTool(specFor('macro.delete')),
+      // @ts-expect-error a hook is a rule the agent is held to, so the agent never writes one
+      () => primitiveTool(specFor('hook.save')),
+      // @ts-expect-error a hook is a rule the agent is held to, so the agent never writes one
+      () => primitiveTool(specFor('hook.delete')),
+      // @ts-expect-error the writer's batch import is the app's; the agent imports through codex.import, capped at 20
+      () => primitiveTool(specFor('codex.importBatch')),
+      // @ts-expect-error a memory note is the writer's to forget: hard-denied for an agent as a deletion
+      () => primitiveTool(specFor('memory.forget')),
     ];
     expect(attempts.length).toBe(NEVER_EXPOSED.length);
     for (const attempt of attempts) expect(attempt).toThrow();
@@ -194,6 +213,8 @@ describe('the params of each tool', () => {
     'filter.save': { name: 'Short', root: 'manuscript', criteria: { text: 'ferry' }, id: 'q_0123456789' },
     'goal.save': { node: 'Chapter 1', comparator: 'at-least', target: 1000, id: 'g_0123456789' },
     'timeline.edit': { ops: [{ op: 'meta', nodeId: 'The Landing', patch: { dayOffset: 3 } }], label: 'Date the landing' },
+    'memory.write': { title: 'Dialogue tags', type: 'style', body: 'Use said.', slug: 'style-dialogue' },
+    'instructions.propose': { text: 'British spelling.' },
   };
 
   it('map onto keys the command declares, never beyond DECLARED_PARAMS', () => {

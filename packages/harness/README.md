@@ -63,15 +63,19 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 | File | Role |
 |---|---|
 | `src/runtime.ts` | `createHarness`: the call path, the tool gate, the port path, plan execution, external callers |
-| `src/plan.ts` | Plans: preflight, execution from a step (`from`), the shared `AskBack` envelope (four codes) |
+| `src/plan.ts` | Plans: preflight, execution from a step (`from`), the shared `AskBack` envelope (six codes) |
+| `src/hooks.ts` | Hooks (hooks.md): `createHookRunner`, the four pure checks, the literal whole-word matching, and the decisions. The runtime asks it at the plan's preflight, as a call runs, and after it returns |
+| `src/macro.ts` | Macros (extensibility.md §10): `checkMacro` against the registry, `expandMacro` into a `Plan`, the derived risk. A macro is the writer's, not a registry row |
 | `src/agent/preload.ts` | `PRELOAD_BY_CONTEXT`: the deferred rows a turn starts with when a dialogue container or a storyboard is open |
 | `src/agent/protocol.ts` | The two wire protocols, the reply shapes, the tool declarations, the planner's system messages, the model-facing messages |
 | `src/agent/context.ts` | `ContextPort` and the product's port over `@caotang/context`: the layers it assembles (L1–L7), the harness's own L0 role text, the turns before this one as L6, the drop reasons, the layer budgets and the prompt preview (`buildPreview`) |
-| `src/agent/drafting.ts` | Generation for the three model-backed tools, streamed through the gateway, with each finish reason read |
+| `src/agent/drafting.ts` | Generation for the three model-backed tools and the planner's reply, streamed through the gateway, with each finish reason (and the reported completion tokens) read |
 | `src/agent/ports.ts` | `codex.read` (via `@caotang/codex`), `scene.draft`, `synopsis.fill`, `continuity.scan`, and previews |
 | `src/agent/cards.ts` | Status cards (their lifecycle), grouping, plan cards, edits, the dependency badge, the steps that have run |
 | `src/agent/loop.ts` | `createAgentSession`: the turn, the decisions, the ladder, the conflict re-show, the bound, the report, the restore |
 | `src/agent/events.ts` | The event stream (§8), the report, the trace, the checkpoint label |
+| `src/agent/trace.ts` | The agent trace (§5.2): the `caotang.trace/1` records and their schema, the in-tab store, the gateway observer and `parseTrace` |
+| `src/commands/` | Slash commands (§2): `parseSlash`, `expandTemplate` and `resolveSlash` (`slash.ts`), the nine built-ins and the plans they build (`builtins.ts`), and the document resolver (`resolver.ts`); pure, no model |
 | `src/agent/eval.ts` | The scenario format, the runner, the matchers, the undo-replay check |
 
 ## How a turn runs
@@ -113,9 +117,9 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
     a failed model call, or stopped by the bound after an applied step still has its checkpoint, and its summary
     says what was written before the stop.
 
-### The four ask-back codes
+### The ask-back codes
 
-`AskBack.code` is one type with four values:
+`AskBack.code` is one type with six values:
 
 - `needs_input`: the user has to act. This covers a refusal the ladder may adjust, a turn that used its
   model-call bound, and a provider call that failed (a rejected key, an unreachable endpoint). A provider failure
@@ -126,12 +130,20 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 - `verify_failed`: a postcondition failed, or an internal defect. Reported, and not retried.
 - `anchor_unresolvable`: a selection the ladder could not place, with up to three candidates and the drift.
 - `budget_exhausted`: the run reached a limit the writer set (a run limit, agent-harness §7.1), or the call that would pass one was not sent.
+- `hook_blocked`: a hook the writer set refused the step (hooks.md). Only the writer can change a hook; the options say so.
 
 ### Model-call stops, and the draft a provider cut
 
 - **A cut draft.** The provider's finish reason `length` means it stopped at its output limit. The draft is staged
   as cut, the card shows it, and approval needs either a retry or `acceptTruncated: true`. A cut `continuity.scan`
   reply is not parsed as findings, because a cut list is not a complete one: it is refused back to the model.
+- **A cut planner reply.** A cut reply that parses is planned as it is. One that does not parse is answered with words
+  that name the cut ("cut off at the model's output limit" when the reported completion tokens reached the request's
+  cap, "cut off before it ended" otherwise) and asks for a shorter reply, not with a JSON syntax error; a native
+  refusal keeps its step number. The next request asks for twice the cap, never above the model's advertised cap
+  (`modelMaxOutputTokens`), and only after a reply that reached its cap. A second unreadable cut, or one that leaves no
+  call for the retry, ends the turn as `needs_input`, naming the output limit when a cut reached its request's cap. A native reply cut after calls that all
+  parsed is a card with `replyCut`, approved only with `acceptTruncated`. The report's `cutReplies` counts them.
 - **An errored stream.** Finish reason `error` means the answer ended on a failure with part of it. Nothing is
   staged from it. The turn stops as `needs_input`, and no ghost preview is offered.
 - **The bound.** A turn that uses `maxModelCalls` stops as `needs_input`, with the count in its reason.
@@ -182,7 +194,7 @@ and an expectation: the status and ask-back (with its candidates and drift), the
 matching, the trace with its params as a subset, the requests the model was sent (with what their system message
 carries), the drops, the token and model-call ceilings, a restore check, and a state check.
 
-- `test/eval/scenarios.test.ts`: fifteen scenarios across single-op, multi-step, plan-edit, verify-recovery,
+- `test/eval/scenarios.test.ts`: nineteen scenarios across single-op, multi-step, plan-edit, verify-recovery,
   permission, anchor and undo. The anchor scenario asserts its candidates and its revision drift, and the undo
   scenario asserts the restored project is byte-equal to the one before the turn.
 - `test/eval/codex.test.ts`: the five codex scenarios of codex.md §9. Budget-prune determinism is run twice.
@@ -212,8 +224,8 @@ is typed there, and the harness program has to see it.
   story-so-far at 6k) and `synopsis.fill` (the document capped at 25k, with L3). The codex layer is
   fitted in two phases (context-assembly A3): the `always` entries are reserved, the rest are fitted into what they
   leave, and `always` entries that alone exceed the budget are sent whole with the overflow named in the preview.
-- **The planner's reply.** A planner reply the provider cut at its output limit is not special-cased. It fails to
-  parse, and the model is asked again, which is the existing behaviour of a malformed reply.
+- **The planner's cut reply.** A cut planner reply's retry is once and asks for twice the cap; the plan card's cost
+  estimate is not recomputed for the raised cap, and a cut native reply of reads only runs its reads without a card.
 - **Ghost preview.** The ghost is a `ghost` event with Apply (approve), Retry (`retry`) and Discard (cancel).
   The region itself, the streamed rendering and the in-editor placement are the UI's, not this package's.
 - **Steering and queued messages** are v0.2 (agent-harness §10). A turn cannot be steered once it starts.

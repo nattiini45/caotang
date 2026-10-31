@@ -119,6 +119,8 @@ export { LAYOUT_COLUMN_WIDTH, LAYOUT_ROW_HEIGHT, layoutGraph, type GraphLayout, 
 export { binderOrder, dialogueSourcesIn, resolveContainer, type ContainerResolution } from './container.js';
 
 export {
+  DIALOGUE_DRAFT_RESULT,
+  DIALOGUE_TABLE_RESULT,
   DIALOGUE_TOOL_ENTRIES,
   DIALOGUE_TOOL_NAMES,
   asDialogueProposal,
@@ -126,6 +128,7 @@ export {
   dialogueTableTool,
   isDialogueToolName,
   runDialogueTool,
+  type DialogueDraftCheck,
   type DialogueProposal,
   type DialogueToolContext,
   type DialogueToolEntry,

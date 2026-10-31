@@ -150,8 +150,14 @@ describe('registration — the two names are implemented only with an exporter',
     // Everything but the two export names (commands.test.ts). The three coherence applies (two mutations and the run
     // discard) are among them, since they need no exporter; project export adds six and saved filters and goals four:
     // 21 + 6 + 4 = 31. The script imports add three more (the two imports and the container settings): 31 + 3 = 34.
-    // The skill commands add three more (`skill.write`, `skill.delete`, `skill.setEnabled`): 34 + 3 = 37. The three knowledge commands add three more: 37 + 3 = 40. `timeline.apply` adds one: 41. The six picture commands that need no asset port add six: 47. Re-pinning adds one: 48. The seven comic commands add seven: 55, and the calendar setting makes 56. The reviewed transcription batch makes 57, and the document-level compound makes 58.
-    expect(implemented).toHaveLength(58);
+    // The skill commands add three more (`skill.write`, `skill.delete`, `skill.setEnabled`): 34 + 3 = 37. The three knowledge commands add three more: 37 + 3 = 40.
+    // The agent's files add three more (`project.setInstructions`, `memory.write`, `memory.forget`): 40 + 3 = 43.
+    // The macros add two more (`macro.save`, `macro.delete`): 43 + 2 = 45.
+    // The hooks add two more (`hook.save`, `hook.delete`): 45 + 2 = 47.
+    // The picture registry adds one (`asset.setMeta`; the two imports need the asset port): 47 + 1 + 2 (`script.setShowMeta`, `script.setEpisodeMeta`) = 50.
+    // The writer's codex batch import adds one (`codex.importBatch`): 50 + 1 = 51.
+    // `timeline.apply` and the calendar setting add two: 53. The eight picture commands beyond `asset.setMeta` that need no asset port add eight: 61. The seven comic commands make 68.
+    expect(implemented).toHaveLength(68);
   });
 
   it('implements both names once an exporter is injected, and nothing else changes', () => {
@@ -159,8 +165,8 @@ describe('registration — the two names are implemented only with an exporter',
     expect(typeof registry['export.compile'].apply).toBe('function');
     expect(typeof registry['export.compileSelection'].apply).toBe('function');
     const implemented = Object.values(registry).filter((entry) => entry.apply !== undefined);
-    // All sixty: the exporter adds exactly the two export applies to the fifty-eight above (58 + 2).
-    expect(implemented).toHaveLength(60);
+    // The exporter adds exactly the two export applies to the sixty-eight above (68 + 2).
+    expect(implemented).toHaveLength(70);
     // The descriptors are the bus's own, unchanged: the store adds an apply, never a rule.
     expect(registry['export.compile'].descriptor).toBe(COMMAND_REGISTRY['export.compile'].descriptor);
   });

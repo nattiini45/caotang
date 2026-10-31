@@ -46,7 +46,7 @@ export const COMIC_TOOL_NAMES = ['comic.derive', 'comic.letter', 'comic.scriptFr
 export type ComicToolName = (typeof COMIC_TOOL_NAMES)[number];
 
 /** A metadata row in `ToolMetadata`'s shape, named by a comic tool until `metadata.ts` adds the names to `ToolName`. */
-export type ComicToolMetadata = Omit<ToolMetadata, 'name'> & { readonly name: ComicToolName };
+export type ComicToolMetadata = Omit<ToolMetadata, 'name' | 'targets'> & { readonly name: ComicToolName };
 
 const AUTO_SENTENCE = 'Applies automatically within an approved turn.';
 const CONFIRM_SENTENCE = 'Requires user confirmation.';

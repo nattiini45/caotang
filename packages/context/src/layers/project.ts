@@ -10,6 +10,11 @@
  * L1 is never truncated. Its budget decides the shape instead: the two-level tree when it
  * fits, and the depth-one summary with document counts when it does not (§2: "larger
  * trees → depth-1 + doc count").
+ *
+ * The lines that change as the writer types (the document and word counts, today's words and
+ * the target) are returned apart, as `status`: assembly sends them in a trailing Status part
+ * after L7, so the bytes of L1 before the prompt-cache boundary stay the same between calls
+ * (§2, "Cache boundary"). The budget still measures them as part of L1.
  */
 
 import { countBody, getBody, type ProjectState, type TreeNode } from '@caotang/store';
@@ -20,9 +25,15 @@ import { ROOT_ID, type TreeIndex } from '../tree.js';
 import { LAYER_NAMES, type AppSnapshot } from '../types.js';
 
 export interface ProjectLayer {
+  /** The stable lines: title, vocabulary, counts of filters and goals, the binder. */
   readonly text: string;
+  /** The volatile lines under their own heading, sent after L7. */
+  readonly status: string;
   readonly notes: readonly string[];
 }
+
+/** The heading of the trailing part that carries L1's volatile lines (§2). */
+export const STATUS_HEADING = '# Status';
 
 function wordsOf(state: ProjectState, node: TreeNode): number {
   return state.manifest.derived.wordCounts[node.id] ?? countBody(getBody(state, node.id)).words;
@@ -86,11 +97,10 @@ export function projectLayer(
   const filters = state.manifest.filters?.length ?? 0;
   const goals = state.manifest.goals?.length ?? 0;
 
+  const status = [STATUS_HEADING, `Documents: ${documents.length}. Words: ${formatCount(words)}.`, session].join('\n');
   const header = [
     `# ${LAYER_NAMES.L1}`,
     `Title: ${state.manifest.project.name}`,
-    `Documents: ${documents.length}. Words: ${formatCount(words)}.`,
-    session,
     `Statuses: ${vocabularyLine(state.manifest.vocabulary.statuses)}.`,
     `Labels: ${vocabularyLine(state.manifest.vocabulary.labels)}.`,
     `Saved filters: ${filters}. Goals: ${goals}.`,
@@ -100,10 +110,11 @@ export function projectLayer(
     header.push('The project has no documents yet. Use binder.restructure to create chapters.');
   }
 
+  // The shape is chosen on everything L1 sends, the status lines included, so moving them changes no layer's shape.
   const full = [...header, 'Binder:', ...binderLines(tree, 2)].join('\n');
-  if (estimateTokens(full) <= budgetTokens) return { text: full, notes };
+  if (estimateTokens(`${full}\n\n${status}`) <= budgetTokens) return { text: full, status, notes };
 
   notes.push('The binder is shown at depth one. binder.read_tree shows any part in full.');
   const shallow = [...header, 'Binder (depth one):', ...binderLines(tree, 1)].join('\n');
-  return { text: shallow, notes };
+  return { text: shallow, status, notes };
 }

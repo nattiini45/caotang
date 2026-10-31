@@ -14,10 +14,10 @@ import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, t } from '@lingui/core/macro';
 import type { ActivityEntry, CommandName, UndoGroup } from '@caotang/bus';
 import { CHECKPOINT_LABEL, type TurnReport } from '@caotang/harness';
-import { timeFormat } from '@caotang/i18n';
+import { dateTimeFormat } from '@caotang/i18n';
 
 import { formatterLocale } from '../i18n/format-locale.js';
-import { phaseLabel, type TurnView } from './agent-model.js';
+import { phaseLabel, promptCacheLines, type TurnView } from './agent-model.js';
 
 /**
  * A person's name for each command, as a message descriptor (I5). The descriptor is translated when the
@@ -103,6 +103,21 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, MessageDescriptor>> = 
   'comic.scriptFromPages': msg`Comic script written from the pages`,
   'comic.derive': msg`Comic pages derived from the script`,
   'comic.letter': msg`Comic balloons lettered from the script`,
+  // The AV script's settings (av-script.md §2).
+  'script.setShowMeta': msg`Show settings changed`,
+  'script.setEpisodeMeta': msg`Episode settings changed`,
+  // The writer's macros (extensibility.md §10).
+  'macro.save': msg`Macro saved`,
+  'macro.delete': msg`Macro deleted`,
+  // The writer's hooks (hooks.md).
+  'hook.save': msg`Hook saved`,
+  'hook.delete': msg`Hook deleted`,
+  // The writer's codex import (codex.md §7.1).
+  'codex.importBatch': msg`Codex entries imported`,
+  // The writer's instructions and the agent's memory (context-assembly.md §2, layer LI).
+  'project.setInstructions': msg`Instructions changed`,
+  'memory.write': msg`Memory note saved`,
+  'memory.forget': msg`Memory note forgotten`,
 };
 
 export function titleOf(command: string): string {
@@ -127,7 +142,7 @@ export function issuerLabel(issuedBy: ActivityEntry['issuedBy']): string {
 
 /** The row's time, as a clock time in the formatter locale (i18n.md §4.2), never the system locale by accident. */
 export function timeLabel(at: number, locale: string = formatterLocale()): string {
-  return timeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(at));
+  return dateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(at));
 }
 
 export interface ActivityRow {
@@ -237,6 +252,7 @@ export function activityMarkdown(input: ActivityMarkdownInput): string {
         lines.push(
           t`- Model calls: ${{ calls: turn.report.modelCalls }}; tokens in ${{ prompt: turn.report.tokens.promptTokens }}, out ${{ completion: turn.report.tokens.completionTokens }}`,
         );
+        for (const line of promptCacheLines(turn.report)) lines.push(`- ${line}`);
       }
       if (turn.checkpoint !== null) {
         lines.push(t`- Checkpoint: ${{ label: CHECKPOINT_LABEL }} (undo group \`${{ id: turn.checkpoint.undoGroupId }}\`)`);
@@ -293,3 +309,4 @@ function endedWord(report: TurnReport): string {
       return t`stopped`;
   }
 }
+

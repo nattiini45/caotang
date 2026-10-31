@@ -48,6 +48,7 @@ export type {
   UndoKind,
   UndoPayload,
   UndoScope,
+  ValidationAgentFiles,
   ValidationCodexEntry,
   ValidationDocument,
   ValidationNode,
@@ -78,6 +79,9 @@ export type {
   ShotCreateCommandParams,
   ShotImportImageParams,
   ShotImportImagesParams,
+  CodexImportBatchEntry,
+  CodexImportBatchParams,
+  CodexImportPage,
   ShotSetMetaCommandParams,
   StoryboardCreateCommandParams,
 } from './command.js';
@@ -121,6 +125,72 @@ export * as skillCommands from './descriptors-skills.js';
 // The timeline calendar setting (timeline.md §3.8): the descriptor the store attaches its apply to, and the bound the loader shares.
 export * as calendarCommands from './descriptors-calendar.js';
 export { CALENDAR_JSON_MAX_CHARS, SET_CALENDAR_KEYS, type ProjectSetCalendarParams } from './descriptors-calendar.js';
+// The macro commands (extensibility.md §10) and the shape and rules the store's loader shares with them.
+export * as macroCommands from './descriptors-macros.js';
+export {
+  MACROS_MAX,
+  MACRO_DEPTH_MAX,
+  MACRO_DESCRIPTION_MAX,
+  MACRO_EXPECT_MAX,
+  MACRO_NAME_MAX,
+  MACRO_NODES_MAX,
+  MACRO_PARAMS_MAX,
+  MACRO_SIZE_MAX,
+  MACRO_SLUG_MAX,
+  MACRO_STEPS_MAX,
+  isMacroId,
+  isMacroParamName,
+  isMacroPlaceholder,
+  isMacroSlug,
+  macroToolProblem,
+  placeholdersOf,
+  readMacro,
+  type MacroDraft,
+  type MacroPlaceholder,
+  type MacroStep,
+  type MacroValue,
+  type ProjectMacro,
+} from './macro-rules.js';
+// The hook commands (hooks.md) and the shape and rules the store's loader shares with them.
+export * as hookCommands from './descriptors-hooks.js';
+// The writer's batch import of codex entries (codex.md §7.1), by name, for the store's registration and the harness's planner.
+export * as codexImportCommands from './descriptors-codex-import.js';
+export {
+  HOOKS_MAX,
+  HOOK_EVENTS,
+  HOOK_EVENTS_RUN,
+  HOOK_ISSUERS,
+  HOOK_LIST_MAX,
+  HOOK_NAME_MAX,
+  HOOK_PATTERNS_MAX,
+  HOOK_SEVERITIES,
+  HOOK_STATUS_MAX,
+  HOOK_TEXT_MAX,
+  HOOK_TOOLS_MAX,
+  HOOK_WORDS_MAX,
+  isHookCheckId,
+  isHookId,
+  readHook,
+  type HookCheck,
+  type HookDraft,
+  type HookEvent,
+  type HookMatcher,
+  type ProjectHook,
+} from './hook-rules.js';
+// The agent-file commands (context-assembly.md §2, layer LI), by name, and the rules the store's file codec shares with them.
+export * as agentFileCommands from './descriptors-agent-files.js';
+export {
+  INSTRUCTIONS_MAX_CHARS,
+  MEMORY_BODY_MAX_CHARS,
+  MEMORY_MAX_FILES,
+  MEMORY_SLUG_MAX_CHARS,
+  MEMORY_TITLE_MAX_CHARS,
+  MEMORY_TYPES,
+  isMemorySlug,
+  slugOf,
+  textDigest,
+  type MemoryType,
+} from './agent-files-rules.js';
 export {
   AUTHOR_MAX,
   CHAR_LIMIT_MAX,
@@ -130,6 +200,8 @@ export {
   PICTURE_MODES,
   PROJECT_TITLE_MAX,
   RECIPE_NAME_MAX,
+  RECIPE_PAGE_SIZES,
+  RECIPE_SCRIPT_FONTS,
   SCENE_NUMBER_OPTIONS,
   VOCABULARY_NAME_MAX,
   normalizeIsbn,
@@ -137,6 +209,13 @@ export {
 export type {
   PictureMode,
   ProjectImportAssetParams,
+  HookDeleteParams,
+  HookSaveParams,
+  MacroDeleteParams,
+  MacroSaveParams,
+  MemoryForgetParams,
+  MemoryWriteParams,
+  ProjectSetInstructionsParams,
   SkillDeleteParams,
   SkillImportParams,
   SkillSetEnabledParams,
@@ -146,7 +225,9 @@ export type {
   ProjectSetMetadataParams,
   RecipeDeleteParams,
   RecipeOptionsParams,
+  RecipePageSize,
   RecipeSaveParams,
+  RecipeScriptFont,
   SceneNumbersOption,
   VocabularyKind,
   VocabularyRemoveParams,
@@ -175,7 +256,9 @@ export { ApplyRefusal, execute, executeAsync } from './pipeline.js';
 export type { IdempotencyCache } from './idempotency.js';
 export { createIdempotencyCache } from './idempotency.js';
 export type { SettledUndoScope, UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
-export { applyContext, createUndoScope, createUndoStore } from './undo.js';
+export { applyContext, createUndoScope, createUndoStore, entryOfCall } from './undo.js';
+export { FOOTPRINT_CLASS, restorePlan } from './restore-plan.js';
+export type { RestorePlan, RestoreTarget } from './restore-plan.js';
 export {
   createViewState,
   isViewState,
@@ -228,6 +311,7 @@ export type {
   KnowledgeLinkRecord,
   SceneMetaRecord,
   SceneThread,
+  StoryPartName,
   TimelineModeName,
 } from './coherence.js';
 export {
@@ -329,6 +413,26 @@ export {
   SCREENPLAY_IMPORT_FORMATS,
   SCREENPLAY_IMPORT_TEXT_MAX,
 } from './descriptors-script.js';
+// The AV script's show and episode settings (descriptors-av-script.ts), named by the store and by `@caotang/script`, which reads
+// the stored values with the same lists.
+export type {
+  EpisodeMetaPatch,
+  ScriptSetEpisodeMetaParams,
+  ScriptSetShowMetaParams,
+  ShowMetaPatch,
+} from './descriptors-av-script.js';
+export {
+  CUE_VOCABULARY_MAX,
+  ENCLOSURE_MIME_TYPES,
+  EPISODE_META_KEYS,
+  EPISODE_TYPES,
+  SCRIPT_LABEL_PATTERN,
+  SCRIPT_SETTING_TEXT_MAX,
+  SHOW_DESCRIPTION_MAX,
+  SHOW_META_KEYS,
+  SPEECH_RATE_PRESET_NAMES,
+  SPEECH_RATE_WPM_MAX,
+} from './descriptors-av-script.js';
 /**
  * codex.md §2's limits, shared with `@caotang/store`'s manifest validator rather
  * than retyped there — see `descriptors.ts` for why this is the only direction
@@ -356,21 +460,23 @@ export {
 
 // The shapes a tool package declares its tools with, so a media module needs no import of the harness
 // (which imports it). The harness re-exports each of them (schema.ts, errors.ts, types.ts).
-export { param, toJsonSchema } from './tool-schema.js';
+export { param, toJsonSchema, toResultSchema } from './tool-schema.js';
 export type {
   ArraySpec,
   BooleanSpec,
   EnumSpec,
   FreeObjectSpec,
   IntegerSpec,
+  NumberSpec,
   JsonSchema,
   ObjectSpec,
+  ObjectSpecOf,
   ParamSpec,
   StringSpec,
   TaggedSpec,
   UnionSpec,
 } from './tool-schema.js';
 export { refusal, type RefusalOptions } from './refusal.js';
-export type { ToolValue } from './tool-value.js';
+export type { HookNote, ToolData, ToolValue } from './tool-value.js';
 // The name a project with no recipes key holds (exporter.md §4). The exporter names its default recipe with it.
 export { DEFAULT_RECIPE_NAME } from './recipe-names.js';

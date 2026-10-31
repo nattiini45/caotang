@@ -6,7 +6,7 @@
  * (`projectTimeline`), so a tool reading the arrays never needs to know which way the book is read.
  */
 
-import type { FindingSeverity, MentionCacheSource, MentionDetector, StoryPart, TimelineMode } from '@caotang/coherence';
+import type { EffectiveStoryPart as StoryPart, FindingSeverity, MentionCacheSource, MentionDetector, TimelineMode } from '@caotang/coherence';
 
 import type { CalendarLens } from './calendar.js';
 import type { TimelineLabels } from './labels.js';

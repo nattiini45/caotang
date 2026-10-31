@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://caotang.invalid/schema/trace-1.json",
+  "title": "caotang.trace/1",
+  "description": "One line of an agent trace file (JSON Lines). The first line is a header. A reader skips a line whose kind it does not know and refuses a header whose version it does not read. packages/harness/src/agent/trace.ts is the source of the types; test/agent/trace.test.ts holds this file to its required fields.",
+  "type": "object",
+  "required": ["v", "seq", "at", "sessionId", "kind"],
+  "properties": {
+    "v": { "const": 1 },
+    "seq": { "type": "integer", "minimum": 0, "description": "Increases down the file." },
+    "at": { "type": "number", "description": "Milliseconds on the clock the session was given." },
+    "sessionId": { "type": "string" },
+    "kind": { "enum": ["header", "turn.start", "message", "model.request", "model.response", "context", "tool.call", "tool.result", "tool.progress", "card", "ladder", "hook", "turn.end"] },
+    "truncated": { "type": "object", "required": ["chars"], "properties": { "chars": { "type": "integer", "minimum": 1 } }, "description": "Present when the record was cut to the 64 KB record cap: the characters left out." }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/header" },
+    { "$ref": "#/$defs/turn.start" },
+    { "$ref": "#/$defs/message" },
+    { "$ref": "#/$defs/model.request" },
+    { "$ref": "#/$defs/model.response" },
+    { "$ref": "#/$defs/context" },
+    { "$ref": "#/$defs/tool.call" },
+    { "$ref": "#/$defs/tool.result" },
+    { "$ref": "#/$defs/tool.progress" },
+    { "$ref": "#/$defs/card" },
+    { "$ref": "#/$defs/ladder" },
+    { "$ref": "#/$defs/hook" },
+    { "$ref": "#/$defs/turn.end" }
+  ],
+  "$defs": {
+    "text": {
+      "description": "A text, or the stub an export that leaves out manuscript text puts in its place.",
+      "oneOf": [
+        { "type": "string" },
+        { "type": "object", "required": ["omitted"], "properties": { "omitted": { "type": "object", "required": ["chars"], "properties": { "chars": { "type": "integer", "minimum": 0 } } } } }
+      ]
+    },
+    "header": {
+      "properties": { "kind": { "const": "header" }, "format": { "const": "caotang.trace/1" }, "app": { "type": "string" }, "project": { "type": "object", "required": ["name"], "properties": { "name": { "$ref": "#/$defs/text" } } } },
+      "required": ["format", "app", "project"]
+    },
+    "turn.start": {
+      "properties": { "kind": { "const": "turn.start" }, "turnId": { "type": "string" }, "intent": { "$ref": "#/$defs/text" } },
+      "required": ["turnId", "intent"]
+    },
+    "message": {
+      "description": "A message kept once per trace; a model.request lists the ids it was sent. Ordinal ids (m1, m2) follow the order the messages were first seen.",
+      "properties": {
+        "kind": { "const": "message" },
+        "id": { "type": "string" },
+        "message": {
+          "type": "object",
+          "required": ["role", "content"],
+          "properties": {
+            "role": { "enum": ["system", "user", "assistant", "tool"] },
+            "content": { "$ref": "#/$defs/text" },
+            "toolCalls": { "type": "array", "items": { "type": "object", "required": ["id", "name", "argumentsJson"], "properties": { "argumentsJson": { "$ref": "#/$defs/text" } } } },
+            "toolCallId": { "type": "string" },
+            "isError": { "type": "boolean" },
+            "reasoning": { "type": "array", "items": { "type": "object", "required": ["text"], "properties": { "text": { "$ref": "#/$defs/text" }, "bytes": { "type": "integer", "description": "The size of the provider's opaque payload. The payload is never kept." } } } }
+          }
+        }
+      },
+      "required": ["id", "message"]
+    },
+    "model.request": {
+      "properties": {
+        "kind": { "const": "model.request" },
+        "callId": { "type": "integer", "description": "The gateway's number for the call; the response carries the same one." },
+        "turnId": { "type": "string", "description": "Absent for a call made outside a turn (the reviews)." },
+        "callIndex": { "type": "integer", "minimum": 1 },
+        "agentPath": { "type": "string" },
+        "profileId": { "type": "string" },
+        "preset": { "type": "string" },
+        "gen_ai.request.model": { "type": "string" },
+        "role": { "enum": ["chat", "drafting", "background"] },
+        "thinking": { "enum": ["off", "low", "medium", "high", "xhigh", "max"] },
+        "messages": { "type": "array", "items": { "type": "string" } },
+        "tools": { "type": "array", "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } } },
+        "responseFormat": { "enum": ["text", "json"] }
+      },
+      "required": ["callId", "profileId", "gen_ai.request.model", "messages"]
+    },
+    "model.response": {
+      "properties": {
+        "kind": { "const": "model.response" },
+        "callId": { "type": "integer" },
+        "turnId": { "type": "string" },
+        "callIndex": { "type": "integer", "minimum": 1 },
+        "agentPath": { "type": "string" },
+        "firstTokenAt": { "type": "number" },
+        "finishedAt": { "type": "number" },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "tries": { "type": "array", "items": { "type": "object", "required": ["attempt", "outcome", "at"], "properties": { "attempt": { "type": "integer" }, "outcome": { "type": "string" }, "status": { "type": "integer" }, "errorKind": { "type": "string" }, "at": { "type": "number" } } } },
+        "gen_ai.response.finish_reasons": { "type": "array", "items": { "enum": ["stop", "length", "error", "tool_calls"] } },
+        "content": { "$ref": "#/$defs/text" },
+        "reasoningText": { "$ref": "#/$defs/text" },
+        "reasoningBlocks": { "type": "array", "items": { "type": "object", "required": ["bytes"], "properties": { "bytes": { "type": "integer" } } } },
+        "toolCalls": { "type": "array", "items": { "type": "object", "required": ["id", "name", "argumentsJson"], "properties": { "argumentsJson": { "$ref": "#/$defs/text" } } } },
+        "gen_ai.usage.input_tokens": { "type": "integer" },
+        "gen_ai.usage.output_tokens": { "type": "integer" },
+        "usageSource": { "enum": ["provider", "estimate"] },
+        "error": { "type": "object", "required": ["kind", "message"] }
+      },
+      "required": ["callId", "finishedAt", "attempts", "tries", "gen_ai.response.finish_reasons", "content", "gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens", "usageSource"]
+    },
+    "context": {
+      "properties": {
+        "kind": { "const": "context" },
+        "turnId": { "type": "string" },
+        "callIndex": { "type": "integer", "minimum": 1 },
+        "layers": { "type": "array", "items": { "type": "object", "required": ["id", "tokens"] } },
+        "dropped": { "type": "array", "items": { "$ref": "#/$defs/text" } }
+      },
+      "required": ["turnId", "callIndex", "layers", "dropped"]
+    },
+    "tool.call": {
+      "properties": { "kind": { "const": "tool.call" }, "turnId": { "type": "string" }, "callId": { "type": "string" }, "tool": { "type": "string" }, "risk": { "type": "string" }, "agentPath": { "type": "string" }, "params": { "type": "object" } },
+      "required": ["turnId", "callId", "tool", "risk", "params"]
+    },
+    "tool.result": {
+      "properties": {
+        "kind": { "const": "tool.result" },
+        "turnId": { "type": "string" },
+        "callId": { "type": "string" },
+        "outcome": { "enum": ["ok", "refused", "not-run"] },
+        "code": { "type": "string" },
+        "startedAt": { "type": "number" },
+        "finishedAt": { "type": "number" },
+        "body": { "description": "The body the model was handed back." }
+      },
+      "required": ["turnId", "callId", "outcome", "finishedAt"]
+    },
+    "tool.progress": {
+      "properties": {
+        "kind": { "const": "tool.progress" },
+        "turnId": { "type": "string" },
+        "callId": { "type": "string" },
+        "progress": { "type": "number" },
+        "total": { "type": "number" },
+        "message": { "$ref": "#/$defs/text", "description": "The server's own words, cut to 200 characters." }
+      },
+      "required": ["turnId", "callId", "progress"]
+    },
+    "card": {
+      "properties": { "kind": { "const": "card" }, "turnId": { "type": "string" }, "card": { "type": "object", "required": ["kind", "tools", "decision", "edits", "retries"] } },
+      "required": ["turnId", "card"]
+    },
+    "ladder": {
+      "properties": { "kind": { "const": "ladder" }, "turnId": { "type": "string" }, "callId": { "type": "string" }, "attempt": { "type": "integer" }, "reason": { "$ref": "#/$defs/text" } },
+      "required": ["turnId", "callId", "attempt", "reason"]
+    },
+    "hook": {
+      "description": "A hook the writer set spoke on a call: it warned, blocked the step, or added a note for the model. A hook that only allowed writes nothing.",
+      "properties": {
+        "kind": { "const": "hook" },
+        "turnId": { "type": "string" },
+        "hookId": { "type": "string" },
+        "name": { "$ref": "#/$defs/text" },
+        "event": { "enum": ["tool.before", "tool.after"] },
+        "tool": { "type": "string" },
+        "callId": { "type": "string" },
+        "action": { "enum": ["warn", "block", "context"] },
+        "text": { "$ref": "#/$defs/text", "description": "The reason a warning or a block gave, or the note the model was handed." },
+        "ms": { "type": "number" },
+        "failed": { "$ref": "#/$defs/text", "description": "Present when the check threw: the decision is then the hook's failure and not a finding." }
+      },
+      "required": ["turnId", "hookId", "name", "event", "tool", "action", "text", "ms"]
+    },
+    "turn.end": {
+      "properties": { "kind": { "const": "turn.end" }, "turnId": { "type": "string" }, "report": { "type": "object", "description": "The TurnReport the turn returned." } },
+      "required": ["turnId", "report"]
+    }
+  }
+}

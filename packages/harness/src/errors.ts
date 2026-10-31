@@ -32,6 +32,20 @@ export function notFound(message: string, correctiveHint?: string, target?: stri
 }
 
 /**
+ * The refusal for a call or a plan step that names a hook command. A hook is a rule the agent is held to, so only the writer sets one
+ * (hooks.md §6), and the agent has no tool for it.
+ */
+export function hooksAreTheWriters(name: string): CommandError {
+  return refusal('not-found', `"${name}" is not a tool: hooks are set in Settings › Hooks, and the agent cannot add, change or remove one`, {
+    target: name,
+    correctiveHint: 'if a hook is in the way, tell the writer which one; do not try to change it',
+  });
+}
+
+/** Whether a name is one of the two hook commands. */
+export const isHookCommand = (name: string): boolean => name === 'hook.save' || name === 'hook.delete';
+
+/**
  * The capability exists in the registry but has no implementation in this build.
  *
  * Worded as the bus words its own unimplemented names (`registry.ts`), because it

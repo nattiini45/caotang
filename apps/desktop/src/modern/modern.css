@@ -1,0 +1,17 @@
+/*
+ * Modern's stylesheet (docs/architecture/modern-interface.md §5.2, §12). Loaded only while `data-shell="modern"` is on <html>
+ * (app/interface.ts imports it on demand), so it is a chunk of its own and Classic's first load never carries it.
+ *
+ * Every selector starts with :root[data-shell='modern'] (D7): that prefix outranks Classic's unprefixed rules by specificity, and
+ * the sheet stays in the page after a switch back to Classic without touching it.
+ *
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │ PLACEHOLDER (M1, #302). One token override, only to prove the switch and │
+ * │ the lazy load work: a larger radius. Modern's tokens (tokens/modern.css) │
+ * │ and shell (shell-modern.css) replace this block from M4 (#305).          │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ */
+
+:root[data-shell='modern'] {
+  --radius: 14px;
+}

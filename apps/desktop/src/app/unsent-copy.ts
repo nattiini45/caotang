@@ -12,7 +12,7 @@
  * keeps no storage, a full quota or a value this build did not write.
  */
 
-import { dateFormat } from '@caotang/i18n';
+import { dateTimeFormat } from '@caotang/i18n';
 import { t } from '@lingui/core/macro';
 import type { ProjectState } from '@caotang/store';
 
@@ -341,7 +341,7 @@ function isUnsentEntry(value: unknown): value is UnsentEntry {
  */
 export function unsentStamp(savedAt: string, locale: string = formatterLocale()): string {
   if (Number.isNaN(Date.parse(savedAt))) return '';
-  return dateFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(savedAt));
+  return dateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(savedAt));
 }
 
 function isUnsentDocument(value: unknown): value is UnsentDocument {

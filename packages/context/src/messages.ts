@@ -11,5 +11,10 @@ import type { ChatMessage } from '@caotang/gateway';
 import type { AssembledPrompt } from './types.js';
 
 export function toChatMessages(assembled: AssembledPrompt): ChatMessage[] {
-  return assembled.messages.map((message) => ({ role: message.role, content: message.content }));
+  // The user message's parts ride along, so an adapter that caches can mark the prefix (provider-gateway §3); the rest ignore them.
+  return assembled.messages.map((message) => ({
+    role: message.role,
+    content: message.content,
+    ...(message.parts === undefined ? {} : { parts: message.parts.map((part) => ({ ...part })) }),
+  }));
 }

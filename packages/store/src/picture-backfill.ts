@@ -16,8 +16,10 @@ import { picturesUsesSnapshot } from '@caotang/bus';
 import {
   parseAssetFileName,
   planBackfill,
+  recordOrientation,
   readPictureHeader,
   sha256Hex,
+  sniffPicture,
   usedAssetIds,
   type BackfillPlan,
   type ListedFile,
@@ -63,12 +65,21 @@ export async function backfillAssetRecords(state: ProjectState, port: Required<P
       files.push({ file: name });
       continue;
     }
+    // A file whose bytes are not the picture its name says is skipped: the image check and the exporter already say what they cannot show.
+    const sniffed = sniffPicture(bytes);
+    if (!sniffed.ok || sniffed.mime !== parsed.mime) {
+      files.push({ file: name });
+      continue;
+    }
     const header = readPictureHeader(bytes, parsed.mime);
     files.push({
       file: name,
       bytes: bytes.length,
       sha256: await sha256Hex(bytes),
-      ...(header.ok ? { width: header.displayWidth, height: header.displayHeight } : {}),
+      // The size the header states, as an import records it (an Orientation that turns the picture does not swap it).
+      ...(header.ok ? { width: header.width, height: header.height } : {}),
+      // …and the orientation beside it, so a layout can turn it (displaySizeOf).
+      ...(header.ok && recordOrientation(header.orientation) !== undefined ? { orientation: recordOrientation(header.orientation) } : {}),
     });
   }
 

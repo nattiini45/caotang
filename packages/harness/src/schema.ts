@@ -12,6 +12,7 @@ export {
   type EnumSpec,
   type FreeObjectSpec,
   type IntegerSpec,
+  type NumberSpec,
   type JsonSchema,
   type ObjectSpec,
   type ParamSpec,

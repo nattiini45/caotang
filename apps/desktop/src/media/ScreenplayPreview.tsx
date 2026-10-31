@@ -50,9 +50,7 @@ export function ScreenplayPreview({ source, title, lang, onOpenSource }: Screenp
   const tabbable = stop !== null && linked.includes(stop) ? stop : (linked[0] ?? null);
   // Up and Down move between the lines that open the Source tab, in the page's reading order.
   const onKey = (event: KeyboardEvent<HTMLElement>, line: LayoutLine): void => {
-    // The Enter that commits an IME candidate opens nothing; it is the candidate window's key.
-    if (event.key === 'Enter' && isImeEnter(event.nativeEvent)) return;
-    if (event.key === 'Enter' || event.key === ' ') {
+    if ((event.key === 'Enter' || event.key === ' ') && !isImeEnter(event)) {
       event.preventDefault();
       open(line);
       return;

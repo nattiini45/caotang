@@ -163,6 +163,9 @@ export const BUNDLE_EXTENSION = '.caotang';
 /** coherence.md §3's file name, at the bundle root. The coherence module's own constant has the same value (model.ts). */
 export const COHERENCE_FILE_NAME = 'coherence.json';
 
+/** agent-harness.md §12's file name, at the bundle root. The tasks module's own constant has the same value. */
+export const TASKS_FILE_NAME = 'tasks.json';
+
 /** §7: "export is lossless both ways" — the round-trip the module exists for. */
 export interface ExportZipOptions {
   /** Stamped on `project.modifiedAt` and on every zip entry's mtime. */
@@ -186,6 +189,12 @@ export interface ExportZipOptions {
    * Absent means the project has no findings file, and the bundle carries none.
    */
   coherence?: string;
+  /**
+   * The project's recurring tasks, as text (agent-harness.md §12): `tasks.json` at the zip root, beside `caotang.json`. Definitions only,
+   * so a bundle carries what to do and when, and never when a task last ran or whether the writer let it start by itself. Its `.bak.N`
+   * generations stay out, as the findings file's do. Absent means the project has none.
+   */
+  tasks?: string;
   /** Override the bundle filename stem. Defaults to `manifest.project.name`. */
   projectName?: string;
   /** Override the snapshot depth (tests). Defaults to {@link SNAPSHOT_COUNT}. */
@@ -408,6 +417,9 @@ export async function exportProjectZip(
   // so a bundle round-trips the bytes the writer's own save would have written.
   if (options.coherence !== undefined) {
     await fs.writeAtomic(COHERENCE_FILE_NAME, options.coherence);
+  }
+  if (options.tasks !== undefined) {
+    await fs.writeAtomic(TASKS_FILE_NAME, options.tasks);
   }
 
   // Text and binary are read apart, because the text view is typed as strings and a binary file is carried as its bytes.

@@ -13,12 +13,12 @@
  *    unknown top-level key is dropped on the next save, with a notice (§6).
  */
 
-import { STORY_PARTS, isDayOffset, type DeclaredStoryPart } from '@caotang/bus';
 import type { MessageRef } from '@caotang/i18n';
 
 import { isCoherenceId } from './ids.js';
 import {
   COHERENCE_FORMAT_VERSION,
+  DAY_OFFSET_LIMIT,
   DETERMINISTIC_CHECK_IDS,
   EVIDENCE_QUOTE_LIMIT,
   FINDING_CLASSES,
@@ -29,6 +29,7 @@ import {
   NOTE_LIMIT,
   RUN_KINDS,
   RUN_STATUSES,
+  STORY_PARTS,
   TIMELINE_MODES,
   WORLD_RULE_ORIGINS,
   WORLD_RULE_TEXT_LIMIT,
@@ -44,6 +45,7 @@ import {
   type ReviewStateEntry,
   type SceneMeta,
   type SceneThread,
+  type StoryPart,
   type TimelineMode,
   type WorldRule,
 } from './model.js';
@@ -89,7 +91,7 @@ const FINDING_KEYS = [
 const RUN_KEYS = [
   'id', 'at', 'kind', 'checkIds', 'scope', 'findingsUpserted', 'tokens', 'model', 'status', 'notes',
 ] as const;
-const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'storyPart', 'threads', 'learns', 'knows', 'dialogueContainer'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows', 'dialogueContainer', 'storyPart', 'mainStory'] as const;
 const KNOWLEDGE_LINK_KEYS = ['entryId', 'factId'] as const;
 const KNOWLEDGE_KEYS = ['id', 'text', 'ruleId', 'entryId', 'createdAt', 'updatedAt'] as const;
 const THREAD_KEYS = ['id', 'payoff', 'note'] as const;
@@ -98,6 +100,11 @@ const TOP_KEYS = ['formatVersion', 'findings', 'runs', 'sceneMeta', 'worldRules'
 
 function isRecord(value: unknown): value is Obj {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** §5.2.2: a whole number of days from −{@link DAY_OFFSET_LIMIT} to {@link DAY_OFFSET_LIMIT}. */
+function isDayOffset(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && Math.abs(value) <= DAY_OFFSET_LIMIT;
 }
 
 function isNonNegInt(value: unknown): value is number {
@@ -373,7 +380,7 @@ export function readSceneMeta(
   notices: LoadNotice[],
   key: string,
   modes: Set<string>,
-  parts: Set<string> = new Set<string>(),
+  parts: Set<string> = new Set(),
 ): SceneMeta | undefined {
   if (!isRecord(raw)) {
     notices.push({ code: 'dropped-scene-meta', message: `The scene declarations for "${key}" are not an object and were dropped.` });
@@ -391,6 +398,7 @@ export function readSceneMeta(
     else dropped('pov');
   }
   if (raw.dayOffset !== undefined) {
+    // §5.2.2: a day before day 0 is a day like any other; out of range or not whole is malformed.
     if (isDayOffset(raw.dayOffset)) meta.dayOffset = raw.dayOffset;
     else dropped('dayOffset');
   }
@@ -414,11 +422,6 @@ export function readSceneMeta(
       modes.add(String(mode));
     }
   }
-  if (raw.storyPart !== undefined) {
-    const part = raw.storyPart;
-    if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) meta.storyPart = part as DeclaredStoryPart;
-    else parts.add(String(part));
-  }
   if (raw.threads !== undefined) {
     if (Array.isArray(raw.threads)) {
       const threads = readThreads(raw.threads, notices, key);
@@ -435,6 +438,20 @@ export function readSceneMeta(
   if (raw.dialogueContainer !== undefined) {
     if (isNonEmptyString(raw.dialogueContainer)) meta.dialogueContainer = raw.dialogueContainer;
     else dropped('dialogueContainer');
+  }
+  // §5.2.2: an unknown part is read as the main story and named once in the load report, as an unknown mode is.
+  if (raw.storyPart !== undefined) {
+    const part = raw.storyPart;
+    if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) meta.storyPart = part as StoryPart;
+    // A file written while `main` was a part value (the PR's interim model) carries the same meaning as the main-story mark.
+    else if (part === 'main') meta.mainStory = true;
+    else parts.add(typeof part === 'string' ? part : JSON.stringify(part) ?? String(part));
+  }
+  // timeline.md §2.3: the additive main-story mark. Only `true` is a declaration; a node's own part wins over it.
+  if (raw.mainStory !== undefined) {
+    if (raw.mainStory === true) {
+      if (meta.storyPart === undefined) meta.mainStory = true;
+    } else if (raw.mainStory !== false) dropped('mainStory');
   }
   return meta;
 }
@@ -596,16 +613,16 @@ export function parseCoherenceFile(text: string): ParseOutcome {
     const meta = readSceneMeta(raw.sceneMeta[key], notices, key, modes, parts);
     if (meta !== undefined) file.sceneMeta[key] = meta;
   }
+  if (parts.size > 0) {
+    notices.push({
+      code: 'unknown-story-part',
+      message: `Unknown story part${parts.size > 1 ? 's' : ''} ${[...parts].map((p) => `"${p}"`).join(', ')} read as the main story. The parts are prologue and epilogue.`,
+    });
+  }
   if (modes.size > 0) {
     notices.push({
       code: 'unknown-timeline-mode',
       message: `Unknown timeline mode${modes.size > 1 ? 's' : ''} ${[...modes].map((m) => `"${m}"`).join(', ')} read as linear. The mode list is closed; a new mode needs a spec change.`,
-    });
-  }
-  if (parts.size > 0) {
-    notices.push({
-      code: 'unknown-story-part',
-      message: `Unknown story part${parts.size > 1 ? 's' : ''} ${[...parts].map((p) => `"${p}"`).join(', ')} ignored, so the scene${parts.size > 1 ? 's' : ''} inherit${parts.size > 1 ? '' : 's'} the part of the folder above (or the main story). The list is closed: main, prologue and epilogue.`,
     });
   }
   for (const item of raw.worldRules) {

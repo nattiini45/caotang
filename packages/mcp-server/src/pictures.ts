@@ -20,7 +20,7 @@ import { err, type CommandError, type CommandErrorCode, type JsonSchema } from '
 import { PictureReadError, pictureListOf, pictureSummaryOf, readPictureFile, type PictureFile } from '@caotang/sdk/folder';
 import type { CallToolResult, ImageContent, McpServer, TextContent } from '@modelcontextprotocol/server';
 
-import { advertisedSchema, toCallResult, type Structured, type ToolRuntime } from './tools.js';
+import { advertisedInput, toCallResult, type Structured, type ToolRuntime } from './tools.js';
 
 export const PICTURES_LIST = 'pictures.list';
 export const PICTURES_VIEW = 'pictures.view';
@@ -188,9 +188,21 @@ function viewIdsOf(params: Structured): string[] | CallToolResult {
   return ids;
 }
 
+/**
+ * The record's display size when the bytes gave none: the encoded size turned by the record's orientation (pictures.md §2.1, the same
+ * rule as `displaySizeOf` in @caotang/pictures, which this package does not depend on).
+ */
+function displaySizeOf(record: PictureFile['record']): { width: number; height: number } | undefined {
+  const { width, height } = record;
+  if (width === undefined || height === undefined) return undefined;
+  const orientation = (record as { readonly orientation?: unknown }).orientation;
+  return typeof orientation === 'number' && orientation >= 5 && orientation <= 8 ? { width: height, height: width } : { width, height };
+}
+
 function longEdgeOf(read: PictureFile): number | undefined {
-  const width = read.display?.width ?? read.record.width;
-  const height = read.display?.height ?? read.record.height;
+  const fallback = displaySizeOf(read.record);
+  const width = read.display?.width ?? fallback?.width;
+  const height = read.display?.height ?? fallback?.height;
   return width === undefined || height === undefined ? undefined : Math.max(width, height);
 }
 
@@ -236,7 +248,7 @@ async function viewBody(runtime: ToolRuntime, params: Structured): Promise<CallT
       return refused(
         PICTURES_VIEW,
         'limit-exceeded',
-        `Picture ${id} is ${read.display?.width ?? read.record.width} × ${read.display?.height ?? read.record.height} px, and its long edge of ${edge} px is over the ${VIEW_MAX_EDGE} px this server sends, so it was not sent. This server cannot shrink a picture.`,
+        `Picture ${id} is ${read.display?.width ?? displaySizeOf(read.record)?.width} × ${read.display?.height ?? displaySizeOf(read.record)?.height} px, and its long edge of ${edge} px is over the ${VIEW_MAX_EDGE} px this server sends, so it was not sent. This server cannot shrink a picture.`,
         `open the project in the Caotang app and store a working copy of it at or below ${VIEW_MAX_EDGE} px, or import a copy that size, then view it again`,
       );
     }
@@ -273,7 +285,7 @@ export function registerPictureTools(server: McpServer, runtime: ToolRuntime): r
     {
       description: PICTURES_LIST_DESCRIPTION,
       annotations: { readOnlyHint: true, openWorldHint: false },
-      inputSchema: advertisedSchema(PICTURES_LIST_SCHEMA),
+      inputSchema: advertisedInput(PICTURES_LIST_SCHEMA),
     },
     (args: Structured): CallToolResult => listBody(runtime, args ?? {}),
   );
@@ -282,7 +294,7 @@ export function registerPictureTools(server: McpServer, runtime: ToolRuntime): r
     {
       description: PICTURES_VIEW_DESCRIPTION,
       annotations: { readOnlyHint: true, openWorldHint: false },
-      inputSchema: advertisedSchema(PICTURES_VIEW_SCHEMA),
+      inputSchema: advertisedInput(PICTURES_VIEW_SCHEMA),
     },
     (args: Structured): Promise<CallToolResult> => viewBody(runtime, args ?? {}),
   );

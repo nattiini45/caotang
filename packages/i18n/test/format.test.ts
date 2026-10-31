@@ -1,147 +1,124 @@
-/**
- * The cached Intl factories — [i18n.md §4.2, §4.3](docs/architecture/i18n.md), decisions D3 and D9.
- *
- * Every factory is memoised by locale (and by the options it was called with), so a panel that formats
- * on every render builds no formatter after the first.
- */
 import { describe, expect, it } from 'vitest';
 
 import {
+  FSI,
+  PDI,
   collatorFor,
-  currencyFormat,
-  dateFormat,
+  dateTimeFormat,
   displayNames,
+  formatNumber,
+  isolate,
   listFormat,
   numberFormat,
+  pluralRules,
   relativeTimeFormat,
-  timeFormat,
+  type MessageRef,
 } from '../src/index.js';
 
-describe('the factories are cached per locale and options (§4.2)', () => {
-  it('returns the same instance for the same locale and the same options', () => {
-    expect(numberFormat('de-DE')).toBe(numberFormat('de-DE'));
-    expect(dateFormat('en-GB', { dateStyle: 'medium' })).toBe(dateFormat('en-GB', { dateStyle: 'medium' }));
-    expect(currencyFormat('en-US')).toBe(currencyFormat('en-US'));
-    expect(listFormat('en-US')).toBe(listFormat('en-US'));
-    expect(relativeTimeFormat('de-DE')).toBe(relativeTimeFormat('de-DE'));
-    expect(collatorFor('sv')).toBe(collatorFor('sv'));
-    expect(displayNames('de')).toBe(displayNames('de'));
-  });
+const DAY = new Date(2026, 9, 31);
 
-  it('keeps a different instance for a different locale or a different option record', () => {
-    expect(numberFormat('de-DE')).not.toBe(numberFormat('en-US'));
-    expect(dateFormat('en-GB', { dateStyle: 'medium' })).not.toBe(dateFormat('en-GB', { dateStyle: 'long' }));
-    expect(displayNames('de', 'language')).not.toBe(displayNames('de', 'region'));
-  });
-
-  it('memoises an option record by its content, not by the order the keys were written in', () => {
-    const written = dateFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    const reordered = dateFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
-    expect(reordered).toBe(written);
-  });
-});
-
-describe('numbers and prices (§4.2)', () => {
-  it('groups thousands the way the formatter locale does', () => {
-    expect(numberFormat('en-US').format(1_234_567)).toBe('1,234,567');
-    expect(numberFormat('de-DE').format(1_234_567)).toBe('1.234.567');
-    expect(numberFormat('de-DE').format(1200)).toBe('1.200');
-  });
-
-  it('prices provider USD with up to six fraction digits, and writes no trailing zeros the value does not have', () => {
-    const us = currencyFormat('en-US');
-    expect(us.format(0.0015)).toBe('$0.0015');
-    expect(us.format(0.002)).toBe('$0.002');
-    expect(us.format(1.5)).toBe('$1.5');
-    expect(us.format(3)).toBe('$3');
-    expect(us.resolvedOptions()).toMatchObject({ style: 'currency', currency: 'USD', maximumFractionDigits: 6 });
-  });
-
-  it('names USD the way the locale does, rather than assuming a bare dollar sign', () => {
-    // en-GB disambiguates the dollar; de-DE puts the amount first. Both are USD, not the local currency.
-    expect(currencyFormat('en-GB').format(0.002)).toBe('US$0.002');
-    expect(currencyFormat('de-DE').resolvedOptions().currency).toBe('USD');
-  });
-});
-
-describe('dates and times (§4.2)', () => {
-  const local = (year: number, month: number, day: number, hour = 9, minute = 0, second = 0): Date =>
-    new Date(year, month - 1, day, hour, minute, second);
-
-  it('reads a day as a short date in the formatter locale', () => {
-    const options = { day: 'numeric', month: 'short', year: 'numeric' } as const;
-    expect(dateFormat('en-GB', options).format(local(2026, 10, 31))).toBe('31 Oct 2026');
-    expect(dateFormat('en-US', options).format(local(2026, 10, 31))).toBe('Oct 31, 2026');
-    expect(dateFormat('de-DE', options).format(local(2026, 10, 31))).toBe('31. Okt. 2026');
-  });
-
-  it('reads a stamp as a medium day and a short time', () => {
-    expect(dateFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(local(2026, 10, 8))).toBe('Oct 8, 2026, 9:00 AM');
-    expect(dateFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' }).format(local(2026, 10, 8))).toBe('08.10.2026, 09:00');
-  });
-
-  it('reads a clock time with a day period only where the locale uses one', () => {
-    expect(timeFormat('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(local(2026, 10, 31, 3, 4, 5))).toBe('03:04:05 AM');
-    expect(timeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(local(2026, 10, 31, 3, 4, 5))).toBe('03:04:05');
-  });
-
-  it('gives a bare clock time all three fields, as `toLocaleTimeString` does', () => {
-    expect(timeFormat('en-US').format(local(2026, 10, 31, 3, 4, 5))).toBe('3:04:05 AM');
-    expect(timeFormat('de-DE').format(local(2026, 10, 31, 3, 4, 5))).toBe('03:04:05');
-  });
-});
-
-describe('relative time and lists (§4.2)', () => {
-  it('says "yesterday" rather than "-1 day"', () => {
-    const source = relativeTimeFormat('en-US');
-    expect(source.format(-1, 'day')).toBe('yesterday');
-    expect(source.format(3, 'minute')).toBe('in 3 minutes');
-    expect(relativeTimeFormat('de-DE').format(-1, 'day')).toBe('gestern');
-  });
-
-  it('joins a list with the locale’s conjunction', () => {
-    expect(listFormat('en-US').format(['Chapter 1', 'Chapter 2', 'Chapter 3'])).toBe('Chapter 1, Chapter 2, and Chapter 3');
-    expect(listFormat('de-DE').format(['Kapitel 1', 'Kapitel 2'])).toBe('Kapitel 1 und Kapitel 2');
-  });
-
-  it('names a language in the locale it is named for, for the picker', () => {
-    expect(displayNames('de').of('en')).toBe('Englisch');
-    expect(displayNames('en').of('de')).toBe('German');
-    expect(displayNames('de', 'region').of('DE')).toBe('Deutschland');
-  });
-});
-
-describe('sorting (§4.3)', () => {
-  it('sorts numbers numerically, so Chapter 10 follows Chapter 9', () => {
-    expect(['Chapter 10', 'Chapter 9', 'Chapter 1'].sort((a, b) => collatorFor('en').compare(a, b))).toEqual([
-      'Chapter 1',
-      'Chapter 9',
-      'Chapter 10',
-    ]);
-  });
-
-  it('ignores case and accents at the base sensitivity it is given', () => {
-    expect(collatorFor('en').compare('a', 'A')).toBe(0);
-    expect(collatorFor('en').compare('Anna', 'anna')).toBe(0);
-  });
-
-  it('sorts writer content by the language it is written in, which is the whole point of passing a tag', () => {
-    // D9: a Swedish novel sorts å after z under an English interface.
-    const names = ['öre', 'zebra', 'åland', 'äpple'];
-    expect([...names].sort((a, b) => collatorFor('sv').compare(a, b))).toEqual(['zebra', 'åland', 'äpple', 'öre']);
-    expect([...names].sort((a, b) => collatorFor('en').compare(a, b))).toEqual(['åland', 'äpple', 'öre', 'zebra']);
-  });
-
-  it('never throws on a tag Intl cannot read: an unreadable project language sorts like English', () => {
-    // §3.2: only valid tags reach Intl. A loaded project can carry one that is not (`en_US`, `en-a`), and a list must still render.
-    for (const tag of ['', '   ', 'not a tag', 'en_US', 'en-a', 'en-1']) {
-      expect(() => collatorFor(tag), JSON.stringify(tag)).not.toThrow();
-      expect(collatorFor(tag).compare('a', 'A'), JSON.stringify(tag)).toBe(0);
+describe('numberFormat (i18n.md §4.2): counts, tokens and words', () => {
+  it('groups en-US exactly as the pinned call sites did', () => {
+    for (const n of [0, 1, 999, 1_000, 12_000, 1_234_567, 32_767]) {
+      expect(formatNumber(n, 'en-US')).toBe(n.toLocaleString('en-US'));
     }
-    expect(collatorFor('not a tag')).toBe(collatorFor('en'));
+    expect(formatNumber(1_234_567, 'en-US')).toBe('1,234,567');
   });
 
-  it('caches a readable tag by its canonical form, so case does not build a second collator', () => {
-    expect(collatorFor('EN-gb')).toBe(collatorFor('en-GB'));
+  it('groups en-GB the same way, and other locales their own way', () => {
+    expect(formatNumber(1_234_567, 'en-GB')).toBe('1,234,567');
+    expect(formatNumber(1_234_567, 'de-DE')).toBe('1.234.567');
+  });
+
+  it('formats a provider price in US dollars with up to six decimals and no padding', () => {
+    const usd = { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 6 } as const;
+    // The same text `$${n.toLocaleString('en-US', { maximumFractionDigits: 6 })}` gave in Settings.
+    for (const n of [3, 0.0025, 0.000125, 1.5, 1_000]) expect(numberFormat('en-US', usd).format(n)).toBe(`$${n.toLocaleString('en-US', { maximumFractionDigits: 6 })}`);
+    expect(numberFormat('en-GB', usd).format(3)).toBe('US$3');
+  });
+
+  it('builds one formatter per locale and option set, whatever order the options were written in', () => {
+    expect(numberFormat('en-US')).toBe(numberFormat('en-US'));
+    expect(numberFormat('en-US', { maximumFractionDigits: 2, minimumFractionDigits: 0 })).toBe(
+      numberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+    );
+    expect(numberFormat('en-US')).not.toBe(numberFormat('en-GB'));
+  });
+
+  it('falls back to the source locale for a tag the engine refuses', () => {
+    expect(formatNumber(1_234, 'not a tag')).toBe('1,234');
+  });
+});
+
+describe('dateTimeFormat (i18n.md §4.2): dates and times', () => {
+  const short = { day: 'numeric', month: 'short', year: 'numeric' } as const;
+
+  it('writes the footer date in the day order of the locale', () => {
+    expect(dateTimeFormat('en-GB', short).format(DAY)).toBe('31 Oct 2026');
+    expect(dateTimeFormat('en-US', short).format(DAY)).toBe('Oct 31, 2026');
+    // The text the pinned call gave, so British writers see no change.
+    expect(dateTimeFormat('en-GB', short).format(DAY)).toBe(DAY.toLocaleDateString('en-GB', short));
+  });
+
+  it('is cached like the other formatters', () => {
+    expect(dateTimeFormat('en-GB', short)).toBe(dateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }));
+  });
+});
+
+describe('relativeTimeFormat, listFormat, pluralRules, displayNames (i18n.md §4.2)', () => {
+  it('says "yesterday" and "in 3 minutes"', () => {
+    expect(relativeTimeFormat('en-US').format(-1, 'day')).toBe('yesterday');
+    expect(relativeTimeFormat('en-US').format(3, 'minute')).toBe('in 3 minutes');
+  });
+
+  it('joins a list with the locale conjunction', () => {
+    expect(listFormat('en-US').format(['Chapter 1', 'Chapter 2', 'Chapter 3'])).toBe('Chapter 1, Chapter 2, and Chapter 3');
+    expect(listFormat('en-GB').format(['Chapter 1', 'Chapter 2', 'Chapter 3'])).toBe('Chapter 1, Chapter 2 and Chapter 3');
+    expect(listFormat('de-DE').format(['A', 'B'])).toBe('A und B');
+  });
+
+  it("gives CLDR's plural categories, not one versus many", () => {
+    expect(pluralRules('en').select(1)).toBe('one');
+    expect(pluralRules('en').select(2)).toBe('other');
+    expect(pluralRules('ar').select(2)).toBe('two');
+    expect(pluralRules('pl').select(5)).toBe('many');
+  });
+
+  it('names a language in its own language', () => {
+    expect(displayNames('de', { type: 'language' }).of('de')).toBe('Deutsch');
+    expect(displayNames('en', { type: 'language' }).of('de')).toBe('German');
+  });
+});
+
+describe('collatorFor (D9, i18n.md §4.3): the writer\'s own names', () => {
+  it('ignores case and accents, and orders numbers by value', () => {
+    const names = collatorFor('en');
+    expect(names.compare('anna', 'Anna')).toBe(0);
+    expect(names.compare('Éowyn', 'Eowyn')).toBe(0);
+    expect(['Chapter 10', 'Chapter 9', 'chapter 1'].sort(names.compare)).toEqual(['chapter 1', 'Chapter 9', 'Chapter 10']);
+  });
+
+  it('sorts by the project language: a Swedish novel puts å after z', () => {
+    expect(['Åsa', 'Zelda', 'Anna'].sort(collatorFor('sv').compare)).toEqual(['Anna', 'Zelda', 'Åsa']);
+    expect(['Åsa', 'Zelda', 'Anna'].sort(collatorFor('en').compare)).toEqual(['Anna', 'Åsa', 'Zelda']);
+  });
+
+  it('takes other options, and falls back to the source locale for a tag it cannot read', () => {
+    expect(collatorFor('en', { sensitivity: 'variant' }).compare('a', 'A')).not.toBe(0);
+    expect(['b', 'a'].sort(collatorFor('not a tag').compare)).toEqual(['a', 'b']);
+  });
+});
+
+describe('isolate and MessageRef (i18n.md §3.2, §5.3)', () => {
+  it('wraps text in FSI…PDI', () => {
+    expect(FSI).toBe('\u2068');
+    expect(PDI).toBe('\u2069');
+    expect(isolate('שלום')).toBe('\u2068שלום\u2069');
+    expect(`Delete ${isolate('Chapter 1')}?`).toBe('Delete \u2068Chapter 1\u2069?');
+  });
+
+  it('types a package message as an id, its values and its English', () => {
+    const ref: MessageRef = { id: 'coherence.timeline.orderDrift', values: { lateTitle: 'B', lateDay: 3 }, message: '{lateTitle} is on day {lateDay}' };
+    expect(ref.message).toContain('{lateTitle}');
   });
 });

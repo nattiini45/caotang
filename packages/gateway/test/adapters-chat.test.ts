@@ -356,6 +356,12 @@ describe('openai-chat stream parsing', () => {
     expect(pieces).toEqual([{ usage: { promptTokens: 7, completionTokens: 3 } }]);
   });
 
+  it('treats a negative or infinite usage figure as no usage', () => {
+    expect(parseStream(frame({ choices: [], usage: { prompt_tokens: -1, completion_tokens: 3 } })).pieces).toEqual([]);
+    // JSON.parse turns 1e999 into Infinity.
+    expect(parseStream(frame('{"choices":[],"usage":{"prompt_tokens":4,"completion_tokens":1e999}}')).pieces).toEqual([]);
+  });
+
   it('maps function_call to stop and unknown reasons to error', () => {
     expect(parseStream(frame({ choices: [{ delta: {}, finish_reason: 'function_call' }] })).pieces).toEqual([{ finish: 'stop' }]);
     expect(parseStream(frame({ choices: [{ delta: {}, finish_reason: 'content_filter' }] })).pieces).toEqual([{ finish: 'error' }]);

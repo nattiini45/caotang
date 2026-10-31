@@ -21,7 +21,6 @@ import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { hasDivider, splitNotes } from '../app/notes-model.js';
-import { projectCollator } from '../i18n/project-collator.js';
 import { InspectorGoals } from './InspectorGoals.js';
 import { SynopsisField } from './SynopsisField.js';
 import { openDialog } from './dialog-requests.js';
@@ -40,6 +39,7 @@ import {
   type MenuAnchor,
   type MenuItem,
 } from './shared.js';
+import { namesCollator } from '../i18n/locale.js';
 
 
 /* lingui-set comment="The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count." */
@@ -243,8 +243,7 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    // The Enter that commits an IME candidate adds nothing; the candidate's text is still being composed.
-    if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) {
+    if (event.key === 'Enter' && !isImeEnter(event)) {
       event.preventDefault();
       add();
     }
@@ -306,6 +305,7 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
 
 /** Every keyword any node in the project carries, for the suggestion list (§4.1: "autocomplete from existing keywords in-project"). The writer's own words sort by the project language (i18n.md §4.3, D9). */
 function allKeywords(state: ProjectState): string[] {
+  const names = namesCollator(state.manifest.project.language);
   const seen = new Map<string, string>();
   for (const node of state.manifest.tree) {
     for (const keyword of node.keywords) {
@@ -313,7 +313,7 @@ function allKeywords(state: ProjectState): string[] {
       if (!seen.has(key)) seen.set(key, keyword);
     }
   }
-  return [...seen.values()].sort(projectCollator(state.manifest.project.language).compare);
+  return [...seen.values()].sort((a, b) => names.compare(a, b));
 }
 
 /**

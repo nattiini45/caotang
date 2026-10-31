@@ -49,18 +49,63 @@ export const BUDGET = {
    * JS (5,397.5 kB raw) stayed under their existing caps, so neither moved. I6's catalogue growth carries the same measurement and
    * margin obligation.
    */
-  // I6's catalogue growth: measured bytes plus 5%, rounded up to 1,000; owner-approved basis in i18n.md §3.5.
+  // The entry measured 1,419.9 kB with the agent trace store, the Trace tab and the trace export (Wave 19); its cap was 1,450 kB.
+  // 1,458.6 kB measured with macros (#57): the bus's macro reader, the harness's checkMacro and expandMacro, the store's commands and loader, and the
+  // Save as macro dialog with its model; the cap is that plus about 1%. The Macros panel is in the Settings chunk.
+  // 1,481.1 kB measured with macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together, on top of main's wave 20 review fixes; the cap is that plus about 1%.
+  // MERGE of main into PR #322 (2026-10-31): each cap is the higher of the two sides until the merged build is measured.
+  // PR side: I6's catalogue growth: measured bytes plus 5%, rounded up to 1,000; owner-approved basis in i18n.md §3.5 (index 1,444,000).
   allow: {
     'fontkit.es': 750_000,
-    index: 1_444_000,
+    // 1,495.9 kB measured with the narrow layout (#18) and external-call progress (#79) together, on top of wave 22; the cap is that plus about 1%.
+    // 1,516.6 kB measured with the result schemas of every callable row (#58), whose specs the registry builds at start; the cap is that plus about 1%.
+    // 1,532.9 kB measured with those and hooks (#59) together: the bus's hook reader and commands, the store's loader and serializer, the harness's runner and
+    // its checks, and the plan card's hook line, which put the entry 0.9 kB over the old cap; the cap is that plus about 1%.
+    // 1,549.2 kB measured with prompt caching (#86): the gateway's cache parts, policy and per-provider markers, the assembler's per-layer
+    // parts and cache boundary, the harness's cache watch and the Settings switch, on top of main's context limits (#254), which put the
+    // entry 0.2 kB over the old cap; the cap is that plus about 1%.
+    // 1,565.0 kB measured with the FDX tree reader (#264) on top of the interface setting (#314), 22 bytes under the old cap; the FDX reader
+    // adds about 1 kB here (the rest of it is in the locale chunk); the cap is that plus about 1%.
+    index: 1_581_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
-  initialGzip: 848_000,
-  /**
-   * All JS, raw. PR #147's deep lazy-load pass brought first load to 824.0 kB gzip and removed every unlisted
-   * over-500 kB chunk, but the feature/library total measured 6,563.1 kB with no duplicated modules. The owner approved
-   * raising only this total ceiling to the measurement plus 5%, rounded up to the next thousand (2026-10-30).
-   */
+  // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
+  // 810.0 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
+  // 831.2 kB measured with the restore planner and rewind menus (#53) and the host-model rows (#81) together; the ceiling is that plus about 1%.
+  // 840.2 kB measured with macros (#57); 847.8 kB measured with macros, the injection guards and the export Preview together on top of wave 20's fixes,
+  // which left 0.2 kB under the old 848.0 kB ceiling, so it is raised to that plus about 1%.
+  // 858.2 kB measured with the result schemas (#58); the ceiling is that plus about 1%.
+  // 867.7 kB measured with the planner's cut-reply handling (#97): the loop's cut words and retry, and the plan card's cut-reply note,
+  // which put the first load 0.7 kB over the old 867.0 kB ceiling, so it is raised to that plus about 1%.
+  // The input-method guard in every Enter handler and the keymap (#188) adds about 0.05 kB on top; the 876.0 kB ceiling covers both.
+  // 877.5 kB measured with the picture registry (#152): the asset records, the backfill on open and the use scan, with the import
+  // pipeline and metadata strip loaded on first import; the ceiling is that plus about 1%.
+  // 887.3 kB measured with the FDX tree reader, its report and the Import script dialog (#264), 2.4 kB over main's 884.9 kB, which put
+  // the first load 1.3 kB over the old 886.0 kB ceiling (the FDX importer already sat in the first load through the store's
+  // screenplay.import); the ceiling is that plus about 1%.
+  // 891.6 kB measured with the codex batch import (#273) on top of that: `codex.importBatch`'s descriptor (its pre-validation of up to
+  // 5,000 entries and their Research pages, with a refusal per failing entry) is in the registry the app builds at start and lands in
+  // the first-load locale chunk; the ceiling is that plus about 1%.
+  // PR side: 848,000 (PR #147's deep lazy-load pass brought first load to 824.0 kB gzip). Higher of the two kept.
+  initialGzip: 900_000,
+  /** All JS, raw. */
+  // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
+  // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
+  // 5,902.2 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
+  // 5,975.3 kB measured with the restore planner and the step and conversation rewind menus (#53) and the four host-model rows (#81) together; the
+  // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
+  // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
+  // 6,076.1 kB measured with the narrow layout (#18): its model, notice and hook, the drawer, sheet and More menu in the workspace, and the row Actions button; the ceiling is that plus about 1%.
+  // 6,137.5 kB measured on main at #252, 2.5 kB under that ceiling, with eight feature PRs in flight (#175, #209, #86, #69, #106, #152, #192, #253)
+  // that each add a few kB of app code; the ceiling is raised once to the measured size plus about 1% so each PR is not trimmed to fit.
+  // 6,202.0 kB measured with this batch merged (#254, #255, #257, #258, #259, #261, #262) and the story parts (#175); the ceiling is that plus about 1%.
+  // The shared import readers (#268) are lazy chunks and leave the caps as they are: `xml` is 1.7 kB raw, 1.0 kB gzip, measured after #264 merged (the XML decoder
+  // the Final Draft import loads on use; the entry grew 0.5 kB raw for its loader and refusal handling). Measured standalone, minified, the whole XML reader is 14.1 kB
+  // (4.5 kB gzip) and the archive reader 8.5 kB (3.4 kB gzip) without fflate, which is already its own chunk; each lands in this table as the
+  // importers that use it are built (#263).
+  // PR side: PR #147's deep lazy-load pass removed every unlisted over-500 kB chunk, but the feature/library total measured 6,563.1 kB
+  // with no duplicated modules; the owner approved raising only this total ceiling to the measurement plus 5%, rounded up to the next
+  // thousand (2026-10-30): 6,892,000. Main's side was 6,265,000. Higher of the two kept until the merged build is measured.
   totalJs: 6_892_000,
 };
 

@@ -6,7 +6,8 @@
  * module imports neither the store nor the editor, so the dependency runs pictures <- store <- bus.
  */
 
-import { isAssetId, parseAssetFileName } from './asset-files.js';
+import { parseAssetFileName } from './files.js';
+import { ASSET_ID_PATTERN, isAssetId } from './ids.js';
 import { cardLinkOf, nodeIdOfTarget, sortByOrder, targetKey } from './links.js';
 import {
   ASSET_LINK_ROLES,
@@ -215,6 +216,8 @@ export interface ListedFile {
   sha256?: string;
   width?: number;
   height?: number;
+  /** The EXIF Orientation the bytes carry, 2–8; absent is upright. */
+  orientation?: 2 | 3 | 4 | 5 | 6 | 7 | 8;
 }
 
 export interface AssetListing {
@@ -263,6 +266,7 @@ export function planBackfill(input: { records: readonly { id: string; file?: str
         sha256: listed.sha256,
         bytes: listed.bytes,
         ...(hasSize ? { width: listed.width, height: listed.height } : {}),
+        ...(listed.orientation === undefined ? {} : { orientation: listed.orientation }),
         createdAt: input.now,
       });
     }
@@ -275,4 +279,49 @@ export function planBackfill(input: { records: readonly { id: string; file?: str
     plan.missingRecords.sort();
   }
   return plan;
+}
+
+/**
+ * The asset ids an inline image in a body names: a Markdown image whose target is `../assets/a_….<png|jpg|webp>` (or
+ * `assets/…`, which a hand-edited body may hold). Targets outside `assets/` are not pictures of this project (§3).
+ */
+export function inlineAssetIds(body: string): string[] {
+  const ids: string[] = [];
+  // The alt text excludes `[` as well as `]`, so a failed match from one `![` never rescans the next one: a body of many
+  // unclosed `![` stays linear (CodeQL js/polynomial-redos). Markdown alt text with brackets is not something we write.
+  const pattern = /!\[[^[\]]*\]\(\s*<?(?:\.\.\/)?assets\/(a_[0-9A-HJKMNP-TV-Z]{10})\.(?:png|jpg|webp)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
+  for (const match of body.matchAll(pattern)) {
+    const id = match[1];
+    if (id !== undefined && ASSET_ID_PATTERN.test(id) && !ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
+/** The parts of a project a picture can be used from, structurally: the store's `ProjectState` passes as is. */
+export interface PictureProject {
+  readonly manifest: {
+    readonly project: { readonly coverAssetId?: string | null | undefined };
+    readonly tree: readonly { readonly id: string; readonly type: string; readonly shot?: Readonly<Record<string, unknown>> | undefined }[];
+    readonly codex?: readonly { readonly id: string; readonly visualRefs?: readonly string[] | undefined }[] | undefined;
+    readonly assetLinks?: readonly (AssetLink | ReadAssetLink)[] | undefined;
+  };
+  readonly documents?: ReadonlyMap<string, { readonly body: string }>;
+}
+
+/**
+ * A project's typed uses as a {@link UsesSnapshot}: the cover, a shot's `image` (shots only), each codex entry's
+ * `visualRefs` once, every inline image in a body, and the links. Vendor references and comic panels are the caller's to add.
+ */
+export function usesSnapshotOf(project: PictureProject): UsesSnapshot {
+  const inline: InlineImageRef[] = [];
+  for (const [nodeId, doc] of project.documents ?? new Map<string, { body: string }>()) {
+    for (const assetId of inlineAssetIds(doc.body)) inline.push({ assetId, nodeId });
+  }
+  return {
+    coverAssetId: project.manifest.project.coverAssetId,
+    nodes: project.manifest.tree.filter((node) => node.type === 'shot').map((node) => ({ id: node.id, shot: node.shot as Record<string, unknown> | undefined })),
+    codex: (project.manifest.codex ?? []).map((entry) => ({ id: entry.id, visualRefs: [...new Set(entry.visualRefs ?? [])] })),
+    links: project.manifest.assetLinks ?? [],
+    inline,
+  };
 }

@@ -181,6 +181,8 @@ export interface HarnessOptions {
   loopbackPermission?: () => Promise<string | undefined>;
   /** the mock provider that answers mock profiles; defaults to the shipped script library */
   mock?: MockProvider;
+  /** the trace observer, as `GatewayOptions.observe` */
+  observe?: Parameters<typeof createGateway>[0]['observe'];
 }
 
 /**
@@ -205,6 +207,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     supportsAddressSpace: options.supportsAddressSpace ?? (() => false),
     loopbackPermission: options.loopbackPermission ?? (async () => undefined),
     ...(options.mock === undefined ? {} : { mock: options.mock }),
+    ...(options.observe === undefined ? {} : { observe: options.observe }),
   });
   return { clock, keys, profiles, net, gateway };
 }

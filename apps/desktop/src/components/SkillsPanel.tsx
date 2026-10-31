@@ -481,8 +481,7 @@ function NewSkill({ session, onBack, onCreated }: { session: ProjectSession; onB
           autoFocus
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => {
-            // The Enter that commits an IME candidate creates nothing; the candidate's text is still being composed.
-            if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) create();
+            if (event.key === 'Enter' && !isImeEnter(event)) create();
           }}
         />
         <span className="project-dialog-help"><Trans>Lower-case letters, digits and hyphens, such as close-third-person.</Trans></span>

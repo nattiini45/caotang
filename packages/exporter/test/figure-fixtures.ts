@@ -58,18 +58,21 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
   return out;
 }
 
-/** The marker a test hides in a picture's XMP; an export that kept the metadata still carries it. */
+/**
+ * The marker a test hides in a picture's XMP; an export that kept the metadata still carries it. Merge: main's strip drops an XMP
+ * packet only when it names a GPS property (pictures.md §6.4 step 4), so the packet here names a location.
+ */
 export const XMP_MARKER = 'PRIVATE-OWNER-NAME';
 
 /** `png` with an XMP block holding {@link XMP_MARKER}, which a metadata strip removes. */
 export function withPngXmp(png: Uint8Array): Uint8Array {
-  const xmp = pngChunk('iTXt', concat(ascii('XML:com.adobe.xmp'), Uint8Array.from([0, 0, 0, 0, 0]), ascii(`<x:xmpmeta>${XMP_MARKER}</x:xmpmeta>`)));
+  const xmp = pngChunk('iTXt', concat(ascii('XML:com.adobe.xmp'), Uint8Array.from([0, 0, 0, 0, 0]), ascii(`<x:xmpmeta exif:GPSLatitude="51,15.6N">${XMP_MARKER}</x:xmpmeta>`)));
   return concat(png.subarray(0, 33), xmp, png.subarray(33));
 }
 
 /** `jpeg` with an XMP segment holding {@link XMP_MARKER}. */
 export function withJpegXmp(jpeg: Uint8Array): Uint8Array {
-  const payload = ascii(`http://ns.adobe.com/xap/1.0/\0<x:xmpmeta>${XMP_MARKER}</x:xmpmeta>`);
+  const payload = ascii(`http://ns.adobe.com/xap/1.0/\0<x:xmpmeta exif:GPSLatitude="51,15.6N">${XMP_MARKER}</x:xmpmeta>`);
   const segment = new Uint8Array(4 + payload.length);
   segment.set([0xff, 0xe1, (payload.length + 2) >> 8, (payload.length + 2) & 0xff]);
   segment.set(payload, 4);

@@ -25,6 +25,21 @@ const XAI_DENY = ['presence_penalty', 'frequency_penalty', 'stop'] as const;
 /** The Cohere compatibility layer rejects these fields outright. */
 const COHERE_DENY = ['store', 'metadata', 'logit_bias', 'top_logprobs', 'n', 'modalities', 'prediction', 'audio', 'service_tier', 'parallel_tool_calls'] as const;
 /**
+ * Prompt caching on the Claude 5.x rows (provider-gateway §3): opt-in `cache_control` breakpoints, a 512-token minimum prefix,
+ * and a 5-minute write at 1.25x the prompt price. The read multiplier differs per model (0.05x on Opus 5.5 and Sonnet 5.5,
+ * 0.025x on Fable 5.1, 0.1x otherwise), so each row names its own. Anthropic's prompt-caching page, read 2026-10-30:
+ * https://platform.claude.com/docs/en/build-with-claude/prompt-caching
+ */
+const CLAUDE_CACHE = { cache: 'explicit', cacheMinTokens: 512, cacheWriteMultiplier: 1.25 } as const satisfies Partial<ModelCaps>;
+/**
+ * OpenAI's caching (provider-gateway §3), from its prompt-caching guide and price list, read 2026-10-30
+ * (https://developers.openai.com/api/docs/guides/prompt-caching, https://developers.openai.com/api/docs/pricing): GPT-5.6 and
+ * later take explicit `prompt_cache_breakpoint`s with implicit caching on, cache from 1,024 tokens and write at 1.25x; earlier
+ * models cache by themselves, routed by `prompt_cache_key`, with no write charge.
+ */
+const OPENAI_EXPLICIT_CACHE = { cache: 'explicit', cacheMinTokens: 1_024, cacheWriteMultiplier: 1.25 } as const satisfies Partial<ModelCaps>;
+
+/**
  * Anthropic 5-series rows share tools+vision+replay and the adaptive thinking shape (`thinking.type: 'adaptive'` + `output_config.effort`;
  * `enabled` with `budget_tokens` is a 400 on them); only the effort set and price differ.
  */
@@ -35,6 +50,7 @@ const CLAUDE_CAPS = {
   thinkingShape: 'adaptive',
   thinkingDisplay: 'summarized',
   denylist: CLAUDE_DENY,
+  ...CLAUDE_CACHE,
 } as const satisfies Partial<ModelCaps>;
 
 /**
@@ -59,7 +75,7 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'claude-sonnet-5-5',
     quirks: { browserAccess: true },
     cors: 'ok',
-    corsNote: 'Browser calls are supported; the adapter sends anthropic-dangerous-direct-browser-access.',
+    corsNote: 'Browser calls are supported; the adapter sends anthropic-dangerous-direct-browser-access. As of 2026-10 a wrong key makes the model list unreadable to a page (saving says so), while chat reports it as a rejected key.',
     docsUrl: 'https://platform.claude.com/docs',
     models: [
       // Window and output cap: Anthropic's model overview, "Compare models" table (1M and 128K tokens for all four),
@@ -67,13 +83,13 @@ export const PRESETS: readonly PresetDef[] = [
       // not named here gets no row, and so no guessed window. The output cap is informational (the profile's is sent).
       // Sonnet 5.5 turns thinking "off" via thinking.type between_tools, which the
       // Messages adapter does not emit — so Off is not offered on it.
-      { pattern: 'claude-sonnet-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.002, completion: 0.01 } },
+      { pattern: 'claude-sonnet-5-5', caps: { ...CLAUDE_CAPS, cacheReadMultiplier: 0.05, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.002, completion: 0.01 } },
       // Opus 5.5 cannot turn thinking off.
-      { pattern: 'claude-opus-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.004, completion: 0.02 } },
+      { pattern: 'claude-opus-5-5', caps: { ...CLAUDE_CAPS, cacheReadMultiplier: 0.05, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.004, completion: 0.02 } },
       // Haiku 5.5 accepts thinking.type disabled only with an effort at or below high; Off is sent alone, so max stays selectable.
-      { pattern: 'claude-haiku-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
+      { pattern: 'claude-haiku-5-5', caps: { ...CLAUDE_CAPS, cacheReadMultiplier: 0.1, effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
       // Fable 5.1 cannot turn thinking off.
-      { pattern: 'claude-fable-5-1', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
+      { pattern: 'claude-fable-5-1', caps: { ...CLAUDE_CAPS, cacheReadMultiplier: 0.025, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
     ],
   },
   {
@@ -88,13 +104,13 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://developers.openai.com/api/docs',
     models: [
-      { pattern: 'gpt-6-sol', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'items' } },
-      { pattern: 'gpt-6-luna', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'items' } },
+      { pattern: 'gpt-6-sol', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.1, tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'items' } },
+      { pattern: 'gpt-6-luna', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.1, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'items' } },
       // gpt-6-astra rejects none (400); functions work only on Responses, which is this route.
-      { pattern: 'gpt-6-astra', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' } },
+      { pattern: 'gpt-6-astra', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.1, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' } },
       // gpt-6.1-sol: no none, no minimal; functions only on Responses.
-      { pattern: 'gpt-6.1-sol', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' } },
-      { pattern: 'gpt-5.5', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high'], replayStyle: 'items' } },
+      { pattern: 'gpt-6.1-sol', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.05, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' } },
+      { pattern: 'gpt-5.5', caps: { cache: 'automatic', cacheReadMultiplier: 0.1, cacheWriteMultiplier: 1, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high'], replayStyle: 'items' } },
     ],
   },
   {
@@ -344,8 +360,9 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'glm-5.3',
     quirks: {},
     // The BYOK base is the general paas/v4 host; Coding Plan bases are excluded.
-    cors: 'ok',
-    corsNote: 'The paas/v4 API answers the browser preflight; the sweep read a 401 for a placeholder key.',
+    // The 2026-10-26 sweep found the chat route refusing the preflight; on 2026-10-30 it answered a browser POST (401 without a key),
+    // so it is no longer blocked. Z.ai documents no browser access, so it is 'unknown', not 'ok'.
+    cors: 'unknown',
     docsUrl: 'https://docs.z.ai',
     models: [
       // glm-5.3 family cannot disable thinking; medium is unsupported (send high).
@@ -465,8 +482,9 @@ export const PRESETS: readonly PresetDef[] = [
       // The docs ask clients to send their own user agent.
       extraHeaders: { 'user-agent': 'caotang' },
     },
-    cors: 'ok',
-    corsNote: 'The inference host answers the browser preflight; the sweep read a 401 for a placeholder key. `user-agent` is a forbidden header in the browser — it is sent only where fetch allows it (desktop/hosted).',
+    // The chat and Messages routes answer a preflight with 404 (only GET /models is allowed), so the page cannot call them (sweep, 2026-10-26).
+    cors: 'blocked',
+    corsNote: 'The inference host refuses the browser preflight on its chat routes (only the model list is allowed), so a web page cannot chat with it. `user-agent` is a forbidden header in the browser — it is sent only where fetch allows it (desktop/hosted).',
     docsUrl: 'https://opencode.ai/docs',
     // Vision, tools and thinking parameters are documented on no route: every row is
     // text-only (vision: false) and nothing else is claimed.

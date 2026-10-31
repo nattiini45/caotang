@@ -10,7 +10,7 @@
  *   back to the generator. The key is revealed from the vault and sealed again under that id, because the vault binds
  *   each key to its profile id.
  * - **Usage** (the ledger's day rows) and the **request log** (its last 50 entries) are kept in the app database. Turn
- *   rows are not: they belong to a session, and an agent turn does not survive a reload in the activity log either.
+ *   rows are not: they belong to a session. An agent turn's run log is kept in the runtime database, not here (agent-harness §5.1).
  *
  * ## The probes
  *
@@ -39,17 +39,20 @@ import {
   type NewProfile,
   type ProfilePatch,
   type ProfileStore,
+  type ModelLimits,
   type ProfileView,
   type RequestLogEntry,
   RequestLog,
   type TaskRole,
   type ThinkingLevel,
   UsageLedger,
+  systemClock,
 } from '@caotang/gateway';
 import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotang/gateway/mock';
 
 import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
+import { TabTrace } from './trace-store.js';
 
 /* lingui-set comment="Interpolated values: error, name" */
 
@@ -140,6 +143,9 @@ export class ProviderService {
   readonly gateway: Gateway;
   readonly ledger: UsageLedger;
   readonly requests: RequestLog;
+  /** The tab's agent trace, listening to this gateway while recording is on (agent-harness §5.2). Memory only. */
+  readonly trace: TabTrace;
+  private readonly clock: Clock;
   private readonly db: AppDb | null;
   /**
    * The task-role routing in force, in one cell the gateway's resolver reads at request time (provider-gateway
@@ -156,6 +162,7 @@ export class ProviderService {
     requests: RequestLog;
     db: AppDb | null;
     roleState: { current: RoleSettings | undefined };
+    clock: Clock;
   }) {
     this.profiles = parts.profiles;
     this.keys = parts.keys;
@@ -164,7 +171,12 @@ export class ProviderService {
     this.requests = parts.requests;
     this.db = parts.db;
     this.roleState = parts.roleState;
+    this.clock = parts.clock;
+    this.trace = new TabTrace(parts.gateway);
   }
+
+  /** The time the gateway reads. The agent sessions read it too, so a trace's model calls and its turns are stamped by one clock. */
+  now = (): number => this.clock.now();
 
   /**
    * The routing record as the settings slice holds it — absent or `'follow'` roles resolve through 'chat'. Set by
@@ -189,6 +201,16 @@ export class ProviderService {
    */
   resolveForRole(role: TaskRole): RoleResolution | undefined {
     return resolveRole(this.profiles, this.roleState.current, role);
+  }
+
+  /**
+   * The limits of the model a request under `role` would run on (context-assembly §5): its window, output cap and price, as the
+   * gateway knows them. Read at each call, so a preview before any turn shows the window and the cost of the active Chat role.
+   * Undefined only when no profile exists at all.
+   */
+  limitsForRole(role: TaskRole): ModelLimits | undefined {
+    const resolved = this.resolveForRole(role);
+    return resolved === undefined ? undefined : this.gateway.modelLimits(resolved.profile.id, resolved.model, resolved.thinking);
   }
 
   /**
@@ -254,7 +276,7 @@ export class ProviderService {
         },
       },
     });
-    const service = new ProviderService({ profiles, keys, gateway, ledger, requests, db: options.db, roleState });
+    const service = new ProviderService({ profiles, keys, gateway, ledger, requests, db: options.db, roleState, clock: options.clock ?? systemClock });
 
     if (options.db !== null) {
       await service.restore(options.db, notices, (id) => {
@@ -304,6 +326,7 @@ export class ProviderService {
             ...(record.temperature === undefined ? {} : { temperature: record.temperature }),
             ...(record.maxOutputTokens === undefined ? {} : { maxOutputTokens: record.maxOutputTokens }),
             ...(record.pricePer1k === undefined ? {} : { pricePer1k: record.pricePer1k }),
+            ...(record.promptCache === undefined ? {} : { promptCache: record.promptCache }),
           });
           if (view.id !== record.id) {
             notices.push(t`“${{ name: isolate(record.name) }}” came back under a new id, so its saved usage is not attached to it.`);

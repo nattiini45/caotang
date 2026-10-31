@@ -96,10 +96,10 @@ export const TIMELINE_OPS_MAX = 200;
 export const TIMELINE_SHIFT_NODES_MAX = 5000;
 
 /** The `patch` keys of a `meta` op: the scene fields a timeline gesture changes, a closed subset of the scene patch. */
-export const TIMELINE_META_PATCH_KEYS = ['dayOffset', 'durationDays', 'timelineMode', 'pov', 'storyPart', 'after_add', 'after_remove'] as const;
+export const TIMELINE_META_PATCH_KEYS = ['dayOffset', 'durationDays', 'timelineMode', 'pov', 'storyPart', 'mainStory', 'after_add', 'after_remove'] as const;
 
 /** The `expect` keys of a `meta` op. `after` is the whole before-array and guards both `after_add` and `after_remove`. */
-export const TIMELINE_META_EXPECT_KEYS = ['dayOffset', 'durationDays', 'timelineMode', 'pov', 'storyPart', 'after'] as const;
+export const TIMELINE_META_EXPECT_KEYS = ['dayOffset', 'durationDays', 'timelineMode', 'pov', 'storyPart', 'mainStory', 'after'] as const;
 
 export type TimelineMetaPatch = {
   dayOffset?: number | null;
@@ -107,6 +107,8 @@ export type TimelineMetaPatch = {
   timelineMode?: TimelineModeName;
   pov?: string | null;
   storyPart?: DeclaredStoryPart | null;
+  /** timeline.md §2.3: `true` marks the node as main story inside a prologue or epilogue folder; `null` clears the mark. */
+  mainStory?: true | null;
   after_add?: string[];
   after_remove?: string[];
 };
@@ -118,6 +120,7 @@ export type TimelineMetaExpect = {
   timelineMode?: TimelineModeName | null;
   pov?: string | null;
   storyPart?: DeclaredStoryPart | null;
+  mainStory?: true | null;
   after?: string[] | null;
 };
 
@@ -142,6 +145,7 @@ const PATCH_FIELD_OF_EXPECT: Readonly<Record<(typeof TIMELINE_META_PATCH_KEYS)[n
   timelineMode: 'timelineMode',
   pov: 'pov',
   storyPart: 'storyPart',
+  mainStory: 'mainStory',
   after_add: 'after',
   after_remove: 'after',
 };
@@ -234,6 +238,11 @@ function parsePatch(raw: unknown, index: number): Result<TimelineMetaPatch, Comm
     if (value !== null && typeof value !== 'string') return badOp(index, `patch.${key} must be a string, or null to clear it, got ${showValue(value)}`, undefined, `patch.${key}`);
     (patch as Record<string, unknown>)[key] = value;
   }
+  if (raw['mainStory'] !== undefined) {
+    const value = raw['mainStory'];
+    if (value !== null && value !== true) return badOp(index, `patch.mainStory must be true, or null to clear it, got ${showValue(value)}`, undefined, 'patch.mainStory');
+    patch.mainStory = value;
+  }
   if (raw['timelineMode'] !== undefined) {
     if (typeof raw['timelineMode'] !== 'string') return badOp(index, `patch.timelineMode must be a timeline mode, got ${showValue(raw['timelineMode'])}`, undefined, 'patch.timelineMode');
     patch.timelineMode = raw['timelineMode'] as TimelineModeName;
@@ -264,6 +273,11 @@ function parseMetaExpect(raw: unknown, patch: TimelineMetaPatch, index: number):
     if (value === undefined) continue;
     if (value !== null && typeof value !== 'string') return badOp(index, `expect.${key} must be the value the plan read, or null when it was not set, got ${showValue(value)}`, undefined, `expect.${key}`);
     (expect as Record<string, unknown>)[key] = value;
+  }
+  if (raw['mainStory'] !== undefined) {
+    const value = raw['mainStory'];
+    if (value !== null && value !== true) return badOp(index, `expect.mainStory must be true when the mark was set, or null when it was not, got ${showValue(value)}`, undefined, 'expect.mainStory');
+    expect.mainStory = value;
   }
   if (raw['after'] !== undefined) {
     if (raw['after'] !== null) {
@@ -451,7 +465,7 @@ export interface TimelineProjection {
   /** The shift ops, each with the scene it moved first and its size, for a one-op summary. */
   readonly shifts: readonly { readonly delta: number; readonly count: number }[];
   /** The `storyPart` meta ops, in order, for a one-op summary ("‘Coda’ is now the epilogue"). */
-  readonly partChanges: readonly { readonly nodeId: string; readonly part: DeclaredStoryPart | null }[];
+  readonly partChanges: readonly { readonly nodeId: string; readonly part: DeclaredStoryPart | 'main' | null }[];
 }
 
 const FIELD_WORDS = {
@@ -460,6 +474,7 @@ const FIELD_WORDS = {
   timelineMode: 'mode',
   pov: 'POV',
   storyPart: 'story part',
+  mainStory: 'main-story mark',
   after: 'order links',
 } as const;
 
@@ -528,7 +543,7 @@ export function projectTimelineBatch(snapshot: ValidationSnapshot, ops: readonly
   };
   const counts = { days: 0, durations: 0, modes: 0, povs: 0, parts: 0, orderings: 0, moves: 0, shifts: 0, shiftedScenes: 0, pins: 0 };
   const shifts: { delta: number; count: number }[] = [];
-  const partChanges: { nodeId: string; part: DeclaredStoryPart | null }[] = [];
+  const partChanges: { nodeId: string; part: DeclaredStoryPart | 'main' | null }[] = [];
 
   const noCoherence = (index: number): Result<never, CommandError> =>
     opError('not-found', index, 'no coherence file is open for this project, so there are no scene declarations to change', 'open the project with its coherence file loaded');
@@ -564,12 +579,13 @@ export function projectTimelineBatch(snapshot: ValidationSnapshot, ops: readonly
       }
       if (snapshot.coherence === undefined) return noCoherence(index);
       const record = metaOf(op.nodeId);
-      const read: Record<(typeof TIMELINE_META_EXPECT_KEYS)[number], string | number | string[] | null> = {
+      const read: Record<(typeof TIMELINE_META_EXPECT_KEYS)[number], string | number | string[] | true | null> = {
         dayOffset: record?.dayOffset ?? null,
         durationDays: record?.durationDays ?? null,
         timelineMode: record?.timelineMode === undefined || record.timelineMode === 'linear' ? null : record.timelineMode,
         pov: record?.pov ?? null,
         storyPart: record?.storyPart ?? null,
+        mainStory: record?.mainStory ?? null,
         after: record?.after === undefined ? null : [...record.after],
       };
       for (const key of TIMELINE_META_EXPECT_KEYS) {
@@ -597,9 +613,9 @@ export function projectTimelineBatch(snapshot: ValidationSnapshot, ops: readonly
       if (op.patch.durationDays !== undefined) counts.durations += 1;
       if (op.patch.timelineMode !== undefined) counts.modes += 1;
       if (op.patch.pov !== undefined) counts.povs += 1;
-      if (op.patch.storyPart !== undefined) {
+      if (op.patch.storyPart !== undefined || op.patch.mainStory !== undefined) {
         counts.parts += 1;
-        partChanges.push({ nodeId: op.nodeId, part: op.patch.storyPart });
+        partChanges.push({ nodeId: op.nodeId, part: op.patch.mainStory === true ? 'main' : (op.patch.storyPart ?? null) });
       }
       if (op.patch.after_add !== undefined || op.patch.after_remove !== undefined) counts.orderings += 1;
       continue;

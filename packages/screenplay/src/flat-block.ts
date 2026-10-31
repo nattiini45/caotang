@@ -10,8 +10,16 @@
 export type FlatBlock =
   | { readonly kind: 'frontmatter'; readonly fmKind: 'titlepage' | 'copyright' | 'custom'; readonly docId?: string }
   // `synopsis` is the section's `=` line (screenplay.md §2.2): present only when the folder has one, so a section with none
-  // has the same block it always had.
-  | { readonly kind: 'chapter'; readonly title: string; readonly level: number; readonly number: number; readonly synopsis?: string }
+  // has the same block it always had. `part` marks a folder that holds folders; the Fountain renderer writes it as the
+  // `#` section line it writes for any folder, so a screenplay's sections are written as they always were.
+  | {
+      readonly kind: 'chapter';
+      readonly title: string;
+      readonly level: number;
+      readonly number: number;
+      readonly synopsis?: string;
+      readonly part?: true;
+    }
   // `style` is the scene's export style (exporter.md §2), present only when it is not `normal`.
   | { readonly kind: 'scene'; readonly docId: string; readonly body: string; readonly title: string; readonly number: number; readonly style?: string }
   | { readonly kind: 'separator' }

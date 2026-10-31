@@ -61,7 +61,7 @@ export interface LanguageChoiceOptions {
 /** A language's name in its own language, or the tag when `Intl` has no name for it. */
 function nativeNameOf(tag: string): string {
   try {
-    return displayNames(tag, 'language').of(tag) ?? tag;
+    return displayNames(tag, { type: 'language' }).of(tag) ?? tag;
   } catch {
     return tag;
   }

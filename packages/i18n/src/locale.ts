@@ -1,101 +1,138 @@
 /**
- * The interface's locale and its direction — [i18n.md §3.1, §3.2, §4.1, §5.1](docs/architecture/i18n.md),
- * decisions D3 and D8.
- *
- * Two locale questions live here, and they are different questions:
- *
- * - **Which catalogue renders the interface?** {@link resolveUiLocale}. The answer is always one of
- *   the shipped tags, because a catalogue that is not shipped cannot be activated.
- * - **Which locale formats its numbers, dates and lists?** {@link formatLocale}. The UI language plus
- *   the system's region *when the languages match*, so a British writer keeps en-GB dates under an
- *   English interface while a German interface on an American machine formats as de-DE.
- *
- * Nothing here reads `navigator` or `document`: the caller passes `navigator.languages`, which keeps the
- * function pure, headless-testable and usable from Node as well as the app.
+ * Which locale the interface speaks, which locale formats its numbers and dates, and which way a language runs
+ * (i18n.md §3.1, §3.2, §4.1). Pure functions over BCP-47 tags: the caller passes `navigator.languages`, so nothing here
+ * reads a browser global and every rule is testable in Node.
  */
 
-/** The spec's right-to-left languages, for an engine without `Intl.Locale#getTextInfo` (§3.2, §5.5). */
+/** The source locale: the language the interface is written in, and the one every other locale falls back to per message. */
+export const SOURCE_LOCALE = 'en';
+
+/**
+ * The interface languages this build ships. Only the source today; Lingui (#193) and the first translation (#203) add to it.
+ * A locale in this list is one the interface can be shown in, before the release gates (D5) decide which are listed.
+ */
+export const SHIPPED_UI_LOCALES: readonly string[] = [SOURCE_LOCALE];
+
+/**
+ * The locale for numbers inside English text that a package hands to every host at once (the CLI, the MCP server and the
+ * app): compile-log notes, validation messages. That text stays English (D10) until it carries a {@link MessageRef} (#198),
+ * so its grouping stays the en-US one it has always had.
+ */
+export const PACKAGE_TEXT_LOCALE = 'en-US';
+
+/** The interface-language setting: `'system'` follows the browser's languages, or a shipped tag pins one. */
+export type UiLocaleSetting = 'system' | (string & {});
+
+/** The direction a language is written in. */
+export type Direction = 'ltr' | 'rtl';
+
+/** Languages written right to left, for engines whose `Intl.Locale` has no text info (i18n.md §3.2). */
 const RTL_LANGUAGES: ReadonlySet<string> = new Set(['ar', 'fa', 'he', 'ur', 'ps', 'sd', 'ug', 'yi', 'dv', 'ckb']);
 
-/** The source locale. It is always shipped (§3.3), so it is the fallback that satisfies "never unshipped". */
-const SOURCE_LOCALE = 'en';
-
-/**
- * A tag's language subtag, lower-cased. A malformed tag falls back to the text before its first
- * hyphen, so one bad `navigator.languages` entry cannot throw while the UI is starting.
- */
-function languageOf(tag: string): string {
+/** `tag` as an `Intl.Locale`, or `undefined` when it is not a well-formed BCP-47 tag. */
+function localeOf(tag: string): Intl.Locale | undefined {
+  if (tag.trim() === '') return undefined;
   try {
-    return new Intl.Locale(tag).language;
+    return new Intl.Locale(tag);
   } catch {
-    return (tag.split('-')[0] ?? '').toLowerCase();
+    return undefined;
   }
 }
 
 /**
- * The locale the interface renders in (§3.1, §3.2).
- *
- * - A shipped tag is returned as itself: the writer chose it, and availability thresholds were the
- *   picker's concern before this list was handed in.
- * - `'system'` takes the first `navigator.languages` entry whose **language** is shipped (so `en-GB`
- *   selects the `en` catalogue), and English when none matches.
- * - A stored tag that is not in the shipped list (a catalogue below the release gate) resolves like
- *   `'system'` rather than being returned, because this function must never name an unshipped tag.
+ * The tags a system language may match a shipped locale by, most specific first: the tag itself, its language and script
+ * (so `zh-TW` reaches a shipped `zh-Hant`), and its bare language.
  */
-export function resolveUiLocale(setting: string, navigatorLanguages: readonly string[], shipped: readonly string[]): string {
-  const stored = shipped.find((tag) => tag.toLowerCase() === setting.toLowerCase());
-  if (stored !== undefined) return stored;
-
-  for (const candidate of navigatorLanguages) {
-    const language = languageOf(candidate);
-    const match = shipped.find((tag) => languageOf(tag) === language);
-    if (match !== undefined) return match;
+function candidatesOf(tag: string): readonly string[] {
+  const locale = localeOf(tag);
+  if (locale === undefined) return [];
+  const out = [locale.baseName];
+  let script = locale.script;
+  if (script === undefined) {
+    try {
+      script = locale.maximize().script;
+    } catch {
+      script = undefined;
+    }
   }
+  if (script !== undefined) out.push(`${locale.language}-${script}`);
+  out.push(locale.language);
+  return out;
+}
 
-  return shipped.find((tag) => languageOf(tag) === SOURCE_LOCALE) ?? shipped[0] ?? SOURCE_LOCALE;
+/** The shipped tag that `tag` names, compared case-insensitively, or `undefined`. */
+function shippedMatch(tag: string, shipped: readonly string[]): string | undefined {
+  const byLower = new Map(shipped.map((entry) => [entry.toLowerCase(), entry] as const));
+  for (const candidate of candidatesOf(tag)) {
+    const hit = byLower.get(candidate.toLowerCase());
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
 }
 
 /**
- * The locale formatters use (§4.1, D3): the UI language plus the system's region **only when the
- * languages match**, and the language's default region otherwise.
- *
- * `formatLocale('en', ['en-GB'])` is `'en-GB'`. `formatLocale('de', ['en-US'])` is `'de-DE'`, the
- * language default — not the first system tag, which would format German dates as American ones.
+ * The interface language (i18n.md §3.1). A pinned setting wins when it is shipped. `'system'` takes the first of the
+ * browser's languages that matches a shipped locale, by tag, then language and script, then language. Anything else is the
+ * source locale, or the first shipped locale when a build ships no source.
+ */
+export function resolveUiLocale(
+  setting: UiLocaleSetting,
+  navigatorLanguages: readonly string[],
+  shipped: readonly string[] = SHIPPED_UI_LOCALES,
+): string {
+  if (setting !== 'system') {
+    const pinned = shippedMatch(setting, shipped);
+    if (pinned !== undefined) return pinned;
+  }
+  for (const language of navigatorLanguages) {
+    const hit = shippedMatch(language, shipped);
+    if (hit !== undefined) return hit;
+  }
+  return shipped.includes(SOURCE_LOCALE) ? SOURCE_LOCALE : (shipped[0] ?? SOURCE_LOCALE);
+}
+
+/**
+ * The formatter locale (D3, i18n.md §4.1): the interface language plus the system's region when the languages match.
+ * An `en` interface on an `en-GB` system formats as `en-GB`; a `de` interface on an `en-US` system formats as `de-DE`, the
+ * language's own default region. A tag that cannot be read formats as `en-US`.
  */
 export function formatLocale(ui: string, navigatorLanguages: readonly string[]): string {
-  const language = languageOf(ui);
-  for (const candidate of navigatorLanguages) {
-    if (languageOf(candidate) === language) return candidate;
+  const interfaceLocale = localeOf(ui);
+  if (interfaceLocale === undefined) return 'en-US';
+  const base = interfaceLocale.script === undefined ? interfaceLocale.language : `${interfaceLocale.language}-${interfaceLocale.script}`;
+  if (interfaceLocale.region !== undefined) return `${base}-${interfaceLocale.region}`;
+  for (const tag of navigatorLanguages) {
+    const system = localeOf(tag);
+    if (system === undefined || system.language !== interfaceLocale.language) continue;
+    if (system.region !== undefined) return `${base}-${system.region}`;
   }
-  return defaultRegionOf(ui);
+  try {
+    const region = interfaceLocale.maximize().region;
+    return region === undefined ? base : `${base}-${region}`;
+  } catch {
+    return base;
+  }
 }
 
-/** `en` → `en-US`, `de` → `de-DE`, `zh-Hant` → `zh-Hant-TW`: the tag's own language and script, the likely region. */
-function defaultRegionOf(tag: string): string {
-  try {
-    const locale = new Intl.Locale(tag);
-    const region = locale.maximize().region;
-    if (region === undefined) return locale.toString();
-    return `${locale.language}${locale.script === undefined ? '' : `-${locale.script}`}-${region}`;
-  } catch {
-    return tag;
-  }
+/** The `Intl.Locale` text info, where the engine has it: `getTextInfo()` (the current proposal) or the older `textInfo` getter. */
+function textDirection(locale: Intl.Locale): Direction | undefined {
+  const withInfo = locale as Intl.Locale & {
+    getTextInfo?: () => { direction?: string };
+    textInfo?: { direction?: string };
+  };
+  const info = typeof withInfo.getTextInfo === 'function' ? withInfo.getTextInfo() : withInfo.textInfo;
+  const direction = info?.direction;
+  return direction === 'rtl' || direction === 'ltr' ? direction : undefined;
 }
 
 /**
- * Which way a locale reads (§3.2, §5.5): `Intl.Locale#getTextInfo()` where the engine has it, else the
- * spec's list of right-to-left languages.
- *
- * It takes **language tags**, never catalogue or message ids: an opaque id is not a locale, and an id
- * passed by mistake reads left to right instead of throwing during a render.
+ * The direction `tag` is written in (i18n.md §3.2): the engine's text info where present, else the list of right-to-left
+ * languages. An unreadable tag is left to right.
  */
-export function directionOf(tag: string): 'ltr' | 'rtl' {
-  try {
-    const locale = new Intl.Locale(tag) as Intl.Locale & { getTextInfo?: () => { direction?: string } };
-    const direction = locale.getTextInfo?.().direction;
-    if (direction === 'rtl' || direction === 'ltr') return direction;
-  } catch {
-    // Not a tag: fall through to the list, which answers 'ltr' for anything it does not name.
-  }
-  return RTL_LANGUAGES.has(languageOf(tag)) ? 'rtl' : 'ltr';
+export function directionOf(tag: string): Direction {
+  const locale = localeOf(tag);
+  if (locale === undefined) return 'ltr';
+  const fromEngine = textDirection(locale);
+  if (fromEngine !== undefined) return fromEngine;
+  return RTL_LANGUAGES.has(locale.language) ? 'rtl' : 'ltr';
 }

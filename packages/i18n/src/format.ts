@@ -1,135 +1,80 @@
 /**
- * The cached `Intl` factories — [i18n.md §4.2, §4.3](docs/architecture/i18n.md), decisions D3 and D9.
- *
- * Every factory is memoised by locale and by the options it was called with. The set of keys is fixed
- * by the call sites (a handful of option records per locale), so a panel formatting on every render
- * builds no formatter after the first one, and the cache grows with the shipped locales in use rather
- * than with the number of calls.
+ * Cached `Intl` formatter factories (i18n.md §4.2, §4.3). Building an `Intl` formatter is the slow part, so each factory
+ * keeps one per locale and option set. The caller chooses the locale: the formatter locale for interface text
+ * ({@link formatLocale}), the project language for the writer's own names ({@link collatorFor}, D9).
  */
 
-/** The option records the call sites use are flat and hold primitives, so their content is their identity. */
-function keyOf(locale: string, options: object | undefined): string {
-  if (options === undefined) return locale;
+import { SOURCE_LOCALE } from './locale.js';
+
+const cache = new Map<string, unknown>();
+
+/** One stable key for an option bag, whatever order its properties were written in. */
+function keyOf(kind: string, locale: string, options: object | undefined): string {
+  if (options === undefined) return `${kind}|${locale}|`;
   const entries = Object.entries(options)
     .filter(([, value]) => value !== undefined)
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
-  return `${locale}\u0000${JSON.stringify(entries)}`;
-}
-
-const NUMBER_FORMATS = new Map<string, Intl.NumberFormat>();
-const CURRENCY_FORMATS = new Map<string, Intl.NumberFormat>();
-const DATE_FORMATS = new Map<string, Intl.DateTimeFormat>();
-const TIME_FORMATS = new Map<string, Intl.DateTimeFormat>();
-const RELATIVE_TIME_FORMATS = new Map<string, Intl.RelativeTimeFormat>();
-const LIST_FORMATS = new Map<string, Intl.ListFormat>();
-const DISPLAY_NAMES = new Map<string, Intl.DisplayNames>();
-const COLLATORS = new Map<string, Intl.Collator>();
-
-/** Counts, tokens and other bare numbers: the formatter locale's grouping (§4.2). */
-export function numberFormat(locale: string, options?: Intl.NumberFormatOptions): Intl.NumberFormat {
-  const key = keyOf(locale, options);
-  const cached = NUMBER_FORMATS.get(key);
-  if (cached !== undefined) return cached;
-  const made = new Intl.NumberFormat(locale, options);
-  NUMBER_FORMATS.set(key, made);
-  return made;
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `${kind}|${locale}|${JSON.stringify(entries)}`;
 }
 
 /**
- * Provider prices in USD (§4.2): at most six fraction digits and no trailing zeros, so `0.0015` reads
- * `$0.0015` and `3` reads `$3`. The locale decides grouping, the currency's name (`US$` in en-GB) and
- * where it sits.
+ * The formatter for `locale`, built once. A tag the engine refuses (a project language typed by hand, say) falls back to the
+ * source locale rather than throwing into a render.
  */
-export function currencyFormat(locale: string): Intl.NumberFormat {
-  const cached = CURRENCY_FORMATS.get(locale);
-  if (cached !== undefined) return cached;
-  const made = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  });
-  CURRENCY_FORMATS.set(locale, made);
-  return made;
-}
-
-/** A day, in the styles the app uses: `dateStyle`, or explicit day/month/year fields (§4.2). */
-export function dateFormat(locale: string, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-  const key = keyOf(locale, options);
-  const cached = DATE_FORMATS.get(key);
-  if (cached !== undefined) return cached;
-  const made = new Intl.DateTimeFormat(locale, options);
-  DATE_FORMATS.set(key, made);
-  return made;
-}
-
-/**
- * A clock time (§4.2). The default is the one `Date#toLocaleTimeString` gives: the hour, minute and
- * second, in the locale's own day-period convention.
- */
-export function timeFormat(
-  locale: string,
-  options: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric' },
-): Intl.DateTimeFormat {
-  const key = keyOf(locale, options);
-  const cached = TIME_FORMATS.get(key);
-  if (cached !== undefined) return cached;
-  const made = new Intl.DateTimeFormat(locale, options);
-  TIME_FORMATS.set(key, made);
-  return made;
-}
-
-/** "3 minutes ago", "yesterday": `numeric: 'auto'` names the day instead of counting it (§4.2). */
-export function relativeTimeFormat(locale: string): Intl.RelativeTimeFormat {
-  const cached = RELATIVE_TIME_FORMATS.get(locale);
-  if (cached !== undefined) return cached;
-  const made = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
-  RELATIVE_TIME_FORMATS.set(locale, made);
-  return made;
-}
-
-/** A UI list — "Chapter 1, Chapter 2 and Chapter 3" (§4.2). For interface lists only; export output keeps its own writing. */
-export function listFormat(locale: string): Intl.ListFormat {
-  const cached = LIST_FORMATS.get(locale);
-  if (cached !== undefined) return cached;
-  const made = new Intl.ListFormat(locale, { type: 'conjunction' });
-  LIST_FORMATS.set(locale, made);
-  return made;
-}
-
-/** A language (or region) named in a locale, for the picker (§4.2): each language in its own name. */
-export function displayNames(locale: string, type: Intl.DisplayNamesType = 'language'): Intl.DisplayNames {
-  const key = keyOf(locale, { type });
-  const cached = DISPLAY_NAMES.get(key);
-  if (cached !== undefined) return cached;
-  const made = new Intl.DisplayNames([locale], { type });
-  DISPLAY_NAMES.set(key, made);
-  return made;
-}
-
-/**
- * The tag a sort can use: canonical, or English when Intl cannot read the input. A project's language is
- * loaded from its file, and a hand-edited or foreign folder can carry `en_US` or `en-a`; a list must still
- * render, so an unreadable tag sorts like English rather than throwing during a render (§3.2, §4.3).
- */
-function readableTag(tag: string): string {
+function cached<T>(kind: string, locale: string, options: object | undefined, make: (tag: string) => T): T {
+  const key = keyOf(kind, locale, options);
+  const hit = cache.get(key) as T | undefined;
+  if (hit !== undefined) return hit;
+  let made: T;
   try {
-    return Intl.getCanonicalLocales(tag)[0] ?? 'en';
-  } catch {
-    return 'en';
+    made = make(locale);
+  } catch (error) {
+    if (!(error instanceof RangeError) || locale === SOURCE_LOCALE) throw error;
+    made = make(SOURCE_LOCALE);
   }
+  cache.set(key, made);
+  return made;
+}
+
+/** Counts, tokens, words and prices (`style: 'currency'`). */
+export function numberFormat(locale: string, options?: Intl.NumberFormatOptions): Intl.NumberFormat {
+  return cached('number', locale, options, (tag) => new Intl.NumberFormat(tag, options));
+}
+
+/** Dates and times. */
+export function dateTimeFormat(locale: string, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  return cached('date', locale, options, (tag) => new Intl.DateTimeFormat(tag, options));
+}
+
+/** "3 minutes ago", "yesterday". `numeric: 'auto'` unless the caller says otherwise. */
+export function relativeTimeFormat(locale: string, options: Intl.RelativeTimeFormatOptions = { numeric: 'auto' }): Intl.RelativeTimeFormat {
+  return cached('relative', locale, options, (tag) => new Intl.RelativeTimeFormat(tag, options));
+}
+
+/** "Chapter 1, Chapter 2 and Chapter 3". A conjunction unless the caller says otherwise. */
+export function listFormat(locale: string, options: Intl.ListFormatOptions = { type: 'conjunction' }): Intl.ListFormat {
+  return cached('list', locale, options, (tag) => new Intl.ListFormat(tag, options));
+}
+
+/** CLDR plural categories, for code that must pick a form outside a message (messages use ICU `plural`). */
+export function pluralRules(locale: string, options?: Intl.PluralRulesOptions): Intl.PluralRules {
+  return cached('plural', locale, options, (tag) => new Intl.PluralRules(tag, options));
+}
+
+/** Language, region and script names, such as a language's name in its own language for the picker. */
+export function displayNames(locale: string, options: Intl.DisplayNamesOptions): Intl.DisplayNames {
+  return cached('names', locale, options, (tag) => new Intl.DisplayNames(tag, options));
 }
 
 /**
- * The collator for a tag (§4.3, D9): base sensitivity (case and accents do not decide) and numeric
- * ordering ("Chapter 10" after "Chapter 9"). Writer content passes the **project language**; UI terms
- * pass the formatter locale. A readable tag is cached in its canonical form.
+ * The collator for the writer's own names (D9, i18n.md §4.3): the project language, accents and case ignored, and digits
+ * compared as numbers so "Chapter 10" follows "Chapter 9".
  */
-export function collatorFor(tag: string): Intl.Collator {
-  const locale = readableTag(tag);
-  const cached = COLLATORS.get(locale);
-  if (cached !== undefined) return cached;
-  const made = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
-  COLLATORS.set(locale, made);
-  return made;
+export function collatorFor(tag: string, options: Intl.CollatorOptions = { sensitivity: 'base', numeric: true }): Intl.Collator {
+  return cached('collator', tag, options, (locale) => new Intl.Collator(locale, options));
+}
+
+/** `value` as a number in `locale`: a shorthand for `numberFormat(locale, options).format(value)`. */
+export function formatNumber(value: number, locale: string, options?: Intl.NumberFormatOptions): string {
+  return numberFormat(locale, options).format(value);
 }

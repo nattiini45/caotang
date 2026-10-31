@@ -27,7 +27,8 @@
  * both directions, and the load path is where a version changes.
  */
 
-import { CHAR_LIMIT_MAX, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, PICTURE_MODES, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookCheck, type ProjectHook, type ProjectMacro } from '@caotang/bus';
+import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
 import type {
   CodexEntry,
@@ -176,6 +177,8 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
   { key: 'dialogue', value: (node: TreeNode) => node.dialogue, write: (value) => criterion(value, 'node.dialogue') },
   { key: 'comic', value: (node: TreeNode) => node.comic, write: (value) => criterion(value, 'node.comic') },
   { key: 'comicPage', value: (node: TreeNode) => node.comicPage, write: (value) => criterion(value, 'node.comicPage') },
+  { key: 'showMeta', value: (node: TreeNode) => node.showMeta, write: (value) => criterion(value, 'node.showMeta') },
+  { key: 'episodeMeta', value: (node: TreeNode) => node.episodeMeta, write: (value) => criterion(value, 'node.episodeMeta') },
   { key: 'style', value: (node: TreeNode) => node.style, write: (value) => str(value as string, 'node.style') },
   { key: 'createdAt', value: (node: TreeNode) => node.createdAt, write: (value) => str(value as string, 'node.createdAt') },
   { key: 'updatedAt', value: (node: TreeNode) => node.updatedAt, write: (value) => str(value as string, 'node.updatedAt') },
@@ -184,7 +187,7 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
 /** One optional node field: where its value is, and how it is written. */
 interface OptionalNodeField {
   /** The manifest key it is written under. */
-  readonly key: 'kind' | 'shot' | 'dialogue' | 'comic' | 'comicPage' | 'style' | 'createdAt' | 'updatedAt';
+  readonly key: 'kind' | 'shot' | 'dialogue' | 'comic' | 'comicPage' | 'showMeta' | 'episodeMeta' | 'style' | 'createdAt' | 'updatedAt';
   /** The node's value for it, or `undefined` when the node does not carry it. */
   readonly value: (node: TreeNode) => unknown;
   /** The text the serializer writes for it. */
@@ -317,6 +320,7 @@ const ASSET_RECORD_KEYS = [
   'bytes',
   'width',
   'height',
+  'orientation',
   'caption',
   'alt',
   'decorative',
@@ -351,6 +355,97 @@ function pictureArray(entries: readonly object[], unreadable: readonly unknown[]
   const lines = entries.map((entry) => pictureEntry(entry, known, field));
   for (const raw of unreadable ?? []) lines.push(criterion(raw, field));
   return objectArray(lines, 1);
+}
+
+/**
+ * extensibility.md §10. A macro is a block, not a line: its fields one to a line and its steps one to a line, so a changed step is a one-line
+ * diff. A step's params and the macro's param spec are written as the JSON they are, in the key order they hold.
+ */
+function macroBlock(m: ProjectMacro): string {
+  const inner = INDENT.repeat(3);
+  const steps = m.steps.map((step) =>
+    oneLine([
+      ['tool', str(step.tool, 'macro.step.tool')],
+      ['params', criterion(step.params, 'macro.step.params')],
+      ['expect', str(step.expect, 'macro.step.expect')],
+    ]),
+  );
+  return [
+    '{',
+    `${inner}"id": ${str(m.id, 'macro.id')},`,
+    `${inner}"slug": ${str(m.slug, 'macro.slug')},`,
+    `${inner}"name": ${str(m.name, 'macro.name')},`,
+    `${inner}"description": ${str(m.description, 'macro.description')},`,
+    `${inner}"params": ${criterion(m.params, 'macro.params')},`,
+    `${inner}"steps": ${objectArray(steps, 3)}`,
+    `${INDENT.repeat(2)}}`,
+  ].join('\n');
+}
+
+/**
+ * agent-harness §4, Rules. One rule per line under `agent.rules`, keys in a fixed order; `scope`, `access` and `note` are written only
+ * when present, so a rule round-trips with no new key. A project with no rules, no hooks and no other `agent` key writes no `agent` key at all.
+ */
+function agentRule(r: PermissionRule): string {
+  const pairs: [string, string][] = [['effect', str(r.effect, 'rule.effect')], ['tool', str(r.tool, 'rule.tool')]];
+  if (r.scope !== undefined) {
+    pairs.push(['scope', 'subtree' in r.scope ? oneLine([['subtree', str(r.scope.subtree, 'rule.scope')]]) : oneLine([['path', str(r.scope.path, 'rule.scope')]])]);
+  }
+  if (r.access !== undefined) pairs.push(['access', str(r.access, 'rule.access')]);
+  if (r.note !== undefined) pairs.push(['note', str(r.note, 'rule.note')]);
+  return oneLine(pairs);
+}
+
+/** A hook's check, with a pattern list one pattern to a line so a changed pattern is a one-line diff. */
+function hookCheck(check: HookCheck, depth: number): string {
+  if (check.kind !== 'pattern') return criterion(check, 'hook.handler.check');
+  const patterns = check.patterns.map((p) => oneLine([['match', str(p.match, 'hook.pattern.match')], ['message', str(p.message, 'hook.pattern.message')]]));
+  return `{ "kind": "pattern", "patterns": ${objectArray(patterns, depth)} }`;
+}
+
+/**
+ * hooks.md. A hook is a block, not a line: its fields one to a line, in a fixed order, and the optional ones only when present, so a
+ * hook round-trips with no new key.
+ */
+function hookBlock(h: ProjectHook): string {
+  const inner = INDENT.repeat(4);
+  const lines = [
+    `${inner}"id": ${str(h.id, 'hook.id')},`,
+    `${inner}"name": ${str(h.name, 'hook.name')},`,
+    `${inner}"event": ${str(h.event, 'hook.event')},`,
+  ];
+  if (h.matcher !== undefined) lines.push(`${inner}"matcher": ${criterion(h.matcher, 'hook.matcher')},`);
+  lines.push(`${inner}"handler": { "kind": "check", "check": ${hookCheck(h.handler.check, 4)} },`);
+  if (h.onBlock !== undefined) lines.push(`${inner}"onBlock": ${str(h.onBlock, 'hook.onBlock')},`);
+  if (h.failClosed !== undefined) lines.push(`${inner}"failClosed": ${scalar(h.failClosed, 'hook.failClosed')},`);
+  lines.push(`${inner}"enabled": ${scalar(h.enabled, 'hook.enabled')}`);
+  return ['{', ...lines, `${INDENT.repeat(3)}}`].join('\n');
+}
+
+const AGENT_KNOWN = new Set(['rules', 'hooks']);
+
+/**
+ * Keys a project never carries because the app's settings own them (agent-harness §4: a project carries no permission mode or budget). A
+ * file that names one is read and ignored, and a save leaves it out.
+ */
+const AGENT_SETTINGS_KEYS = new Set(['mode', 'defaultMode', 'lockAuto', 'budget', 'loadEveryTool', 'keepTraces']);
+
+/** The keys under `agent` this build does not know, in the order they were read: written back as they were, except the app's settings. */
+function agentExtras(agent: NonNullable<Manifest['agent']>): [string, unknown][] {
+  return Object.entries(agent).filter(([name, value]) => !AGENT_KNOWN.has(name) && !AGENT_SETTINGS_KEYS.has(name) && value !== undefined);
+}
+
+function hasAgentBlock(agent: Manifest['agent']): agent is NonNullable<Manifest['agent']> {
+  if (agent === undefined) return false;
+  return (agent.rules?.length ?? 0) > 0 || (agent.hooks?.length ?? 0) > 0 || agentExtras(agent).length > 0;
+}
+
+function agentBlock(agent: NonNullable<Manifest['agent']>): string {
+  const members: string[] = [];
+  if (agent.rules !== undefined && agent.rules.length > 0) members.push(`${INDENT.repeat(2)}"rules": ${objectArray(agent.rules.map(agentRule), 2)}`);
+  if (agent.hooks !== undefined && agent.hooks.length > 0) members.push(`${INDENT.repeat(2)}"hooks": ${objectArray(agent.hooks.map(hookBlock), 2)}`);
+  for (const [name, value] of agentExtras(agent)) members.push(`${INDENT.repeat(2)}${key(name)}: ${criterion(value, `agent.${name}`)}`);
+  return [`${INDENT}"agent": {`, members.join(',\n'), `${INDENT}},`].join('\n');
 }
 
 /** Best-effort inline rendering for a free-form map (saved-filter criteria). */
@@ -434,6 +529,10 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (o.pageSize === 'A4' || o.pageSize === 'Letter') {
     pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
   }
+  const font: unknown = o.scriptFont;
+  if (typeof font === 'string' && (RECIPE_SCRIPT_FONTS as readonly string[]).includes(font)) {
+    pairs.push(['scriptFont', str(font, 'recipe.options.scriptFont')]);
+  }
   if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
   if (typeof o.bleed === 'boolean') pairs.push(['bleed', String(o.bleed)]);
   if (typeof o.cropMarks === 'boolean') pairs.push(['cropMarks', String(o.cropMarks)]);
@@ -446,6 +545,7 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (typeof o.epubKeepWebp === 'boolean') pairs.push(['epubKeepWebp', String(o.epubKeepWebp)]);
   if (typeof o.keepPictureMetadata === 'boolean') pairs.push(['keepPictureMetadata', String(o.keepPictureMetadata)]);
   if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
+  if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 
@@ -552,7 +652,7 @@ export function serializeManifest(
   parts.push(`${INDENT}"tree": ${objectArray(manifest.tree.map(node), 1)},`);
   parts.push(derived(manifest.derived));
 
-  // Additive arrays are written only when present: absence is a valid v1 state
+  // Additive arrays are written only when present (the picture registry's only when it holds an entry, pictures.md §2.1): absence is a valid v1 state
   // and a load→write cycle must not invent entries the author never made.
   if (manifest.codex !== undefined) {
     parts.push(`${INDENT}"codex": ${objectArray(manifest.codex.map(codexEntry), 1)},`);
@@ -563,10 +663,10 @@ export function serializeManifest(
   if (manifest.goals !== undefined) {
     parts.push(`${INDENT}"goals": ${objectArray(manifest.goals.map(projectGoal), 1)},`);
   }
-  if (manifest.assets !== undefined || (manifest.unreadableAssets?.length ?? 0) > 0) {
+  if ((manifest.assets?.length ?? 0) > 0 || (manifest.unreadableAssets?.length ?? 0) > 0) {
     parts.push(`${INDENT}"assets": ${pictureArray(manifest.assets ?? [], manifest.unreadableAssets, ASSET_RECORD_KEYS, 'assets')},`);
   }
-  if (manifest.assetLinks !== undefined || (manifest.unreadableAssetLinks?.length ?? 0) > 0) {
+  if ((manifest.assetLinks?.length ?? 0) > 0 || (manifest.unreadableAssetLinks?.length ?? 0) > 0) {
     parts.push(`${INDENT}"assetLinks": ${pictureArray(manifest.assetLinks ?? [], manifest.unreadableAssetLinks, ASSET_LINK_KEYS, 'assetLinks')},`);
   }
   if (manifest.recipes !== undefined) {
@@ -574,6 +674,12 @@ export function serializeManifest(
   }
   if (manifest.disabledSkills !== undefined) {
     parts.push(`${INDENT}"disabledSkills": ${inlineArray(manifest.disabledSkills, 'disabledSkills')},`);
+  }
+  if (manifest.macros !== undefined && manifest.macros.length > 0) {
+    parts.push(`${INDENT}"macros": ${objectArray(manifest.macros.map(macroBlock), 1)},`);
+  }
+  if (hasAgentBlock(manifest.agent)) {
+    parts.push(agentBlock(manifest.agent));
   }
   if (manifest.timeline !== undefined && (manifest.timeline.lens !== undefined || manifest.timeline.calendar !== undefined)) {
     parts.push(timelineSettings(manifest.timeline));

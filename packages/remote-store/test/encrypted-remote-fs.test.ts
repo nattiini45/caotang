@@ -380,12 +380,14 @@ describe('a real project over the encrypted store', () => {
       'c_5H8QK2M9RT',
       'docs/',
       'codex/',
-      '.md',
     ];
     const dump = server.dump();
     expect(dump.length).toBeGreaterThan(4);
     expect(dump.some((o) => o.deleted)).toBe(true);
     for (const object of dump) {
+      // Three bytes turn up in random ciphertext by chance (about once in a few hundred runs of this dump), so the
+      // extension is looked for in the plaintext object name only; the file names above cover it inside the blobs.
+      expect(object.name.includes('.md'), `".md" in ${object.name}`).toBe(false);
       for (const version of object.versions) {
         const haystack = Buffer.concat([Buffer.from(object.name), Buffer.from('\0'), Buffer.from(version)]);
         for (const needle of planted) {

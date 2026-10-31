@@ -67,6 +67,27 @@ export function card(page: Page, title: string): Locator {
   return page.locator('article.card', { has: page.getByRole('heading', { name: title, exact: true }) });
 }
 
+/** Drag one storyboard card to another through stepped mouse input and wait for the board's real drop-target state. */
+export async function dragShotCard(page: Page, source: Locator, target: Locator): Promise<void> {
+  // Keep the source clear of the fixed agent footer, then recompute boxes after the scroll.
+  await source.scrollIntoViewIfNeeded();
+  const [sourceBox, targetBox] = await Promise.all([source.boundingBox(), target.boundingBox()]);
+  if (sourceBox === null || targetBox === null) throw new Error('shot card is not visible for dragging');
+
+  // Start in the blank gap below the header; end well inside the card, below the sticky board bar.
+  const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + 32 };
+  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height * 0.75 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(start.x + 10, start.y, { steps: 4 });
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await expect(target).toHaveClass(/is-drop-target/);
+  } finally {
+    await page.mouse.up();
+  }
+}
+
 /** Match a text exactly, so "Chapter 1" does not also match "Chapter 10". */
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
@@ -206,4 +227,34 @@ export async function selectionOf(page: Page): Promise<{ docId: string; from: nu
     }).__caotang;
     return caotang?.selection() ?? null;
   });
+}
+
+export type ImeBelt = 'isComposing' | 'keyCode';
+
+/**
+ * Compose `text` into a text field and confirm it with Enter, the way an input method does (#188): `compositionstart`, the candidate
+ * typed in, the confirming Enter (`isComposing`, or only `keyCode` 229 as Safari reports the last one), then `compositionend`.
+ * Resolves to whether a handler cancelled the Enter (`preventDefault`). A field leaves it alone; the agent's Intent box, which is in
+ * a form, cancels it so the form is not submitted.
+ */
+export async function composeAndConfirm(field: Locator, text: string, belt: ImeBelt = 'isComposing'): Promise<boolean> {
+  await field.focus();
+  return field.evaluate(
+    (element, { text, belt }) => {
+      const input = element as HTMLInputElement;
+      input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+      // React tracks a field's value through the prototype's setter, so the candidate goes in the way the browser puts it in.
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setValue?.call(input, text);
+      input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: text }));
+      input.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertCompositionText', isComposing: true }));
+      // Each belt alone: Chromium and Firefox say isComposing; Safari's last Enter says only keyCode 229.
+      const enter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true, isComposing: belt === 'isComposing' });
+      if (belt === 'keyCode') Object.defineProperty(enter, 'keyCode', { value: 229 });
+      input.dispatchEvent(enter);
+      input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
+      return enter.defaultPrevented;
+    },
+    { text, belt },
+  );
 }

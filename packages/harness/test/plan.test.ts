@@ -7,8 +7,8 @@
 import { err } from '@caotang/bus';
 import { describe, expect, it } from 'vitest';
 
-import { askBackFor, createHarness, type ToolPort } from '../src/index.js';
-import { CHAPTER_ONE, CHAPTER_TWO, LANDING, STORM, makeHarness, makeState, snapshotOf } from './fixtures.js';
+import { askBackFor, type ToolPort } from '../src/index.js';
+import { CHAPTER_ONE, CHAPTER_TWO, checkedHarness, LANDING, makeHarness, makeState, snapshotOf, STORM } from './fixtures.js';
 import type { CommandError } from '@caotang/bus';
 
 function step(tool: string, params: Record<string, unknown>, expect = `${tool} runs`) {
@@ -222,7 +222,7 @@ describe('executePlan', () => {
   it('stops at a failing step and returns the ask-back, keeping the completed steps and naming their undo group', () => {
     const state = makeState();
     const failing: ToolPort = (): ReturnType<ToolPort> => err({ code: 'internal', message: 'the export service is down', correctiveHint: 'try later' } as CommandError);
-    const harness = createHarness({ state, ports: { 'synopsis.fill': failing }, clock: () => 1 });
+    const harness = checkedHarness({ state, ports: { 'synopsis.fill': failing }, clock: () => 1 });
     const outcome = harness.executePlan(
       {
         steps: [
@@ -250,7 +250,7 @@ describe('executePlan', () => {
       context.dispatch('binder.setSynopsis', { nodeId: LANDING, synopsis: 'Written before the throw.' });
       throw new Error('the model connection dropped');
     };
-    const harness = createHarness({ state, ports: { 'synopsis.fill': writeThenThrow }, clock: () => 1 });
+    const harness = checkedHarness({ state, ports: { 'synopsis.fill': writeThenThrow }, clock: () => 1 });
     const outcome = harness.executePlan(
       { steps: [step('meta.set', { targets: [LANDING], status: 'final' }), step('synopsis.fill', { docs: [LANDING] })] },
       { turnId: 'turn-throw', callId: 'plan-throw' },

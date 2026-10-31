@@ -9,7 +9,8 @@
  * that: unknown keys, unknown roles, over-long text.
  */
 
-import { extensionOfMime, isAssetId, isSha256Hex } from './asset-files.js';
+import { extensionOfMime, isSha256Hex } from './asset-files.js';
+import { isAssetId } from './ids.js';
 import {
   ASSET_LINK_ROLES,
   ASSET_SOURCE_KINDS,
@@ -78,6 +79,7 @@ const stringList: Check = (value) => {
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) return invalid('must be a list of text');
   if (value.length > PICTURE_LIMITS.tags) return limit(`must have at most ${PICTURE_LIMITS.tags} entries`);
   if (value.some((item: string) => item.length > PICTURE_LIMITS.tagLength)) return limit(`each tag must be at most ${PICTURE_LIMITS.tagLength} characters`);
+  if (value.some((item: string) => item.trim() === '') || new Set(value).size !== value.length) return invalid('must be distinct, non-blank tags');
   return undefined;
 };
 
@@ -96,7 +98,7 @@ function oneOf(values: readonly string[], strictOnly: boolean): Check {
  */
 function checkAgainst(schema: Schema, value: unknown, strict: boolean): Problem | undefined {
   if (!isObject(value)) return invalid('must be an object');
-  const result = applySchema(value, schema, true, '');
+  const result = applySchema(value, schema, strict, '');
   if (result.ok) return undefined;
   const fatal = result.issues.filter((i) => i.code !== 'over-limit' && (strict || i.code !== 'unknown-field'));
   if (fatal.length > 0) return invalid(fatal[0]?.message ?? 'is not valid');
@@ -135,6 +137,10 @@ const RECORD_SCHEMA: Schema = {
   bytes: { required: true, check: integer(0) },
   width: { required: false, check: integer(1) },
   height: { required: false, check: integer(1) },
+  orientation: {
+    required: false,
+    check: (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 2 && v <= 8 ? undefined : invalid('must be an EXIF orientation from 2 to 8 (upright is stored as absence)')),
+  },
   caption: { required: false, check: text(PICTURE_LIMITS.caption) },
   alt: { required: false, check: text(PICTURE_LIMITS.alt) },
   decorative: { required: false, check: literalTrue },
@@ -142,7 +148,8 @@ const RECORD_SCHEMA: Schema = {
   source: {
     required: false,
     check: checkObject({
-      kind: { required: true, check: oneOf(ASSET_SOURCE_KINDS, false) },
+      // A kind from a newer build is kept as its string on a read, and refused on a write.
+      kind: { required: true, check: oneOf(ASSET_SOURCE_KINDS, true) },
       label: { required: false, check: text(PICTURE_LIMITS.label) },
       server: { required: false, check: text(PICTURE_LIMITS.label) },
       tool: { required: false, check: text(PICTURE_LIMITS.label) },
@@ -283,6 +290,12 @@ export function readAssetRecords(raw: unknown): ReadRecords {
       return;
     }
     const id = applied.value['id'] as string;
+    const mime = applied.value['mime'] as AssetRecord['mime'];
+    if (applied.value['file'] !== `${id}.${extensionOfMime(mime)}`) {
+      unreadable.push(entry);
+      notices.push({ code: 'unreadable', path: `${path}.file`, message: `${path}.file is not "${id}.${extensionOfMime(mime)}", the id's file for its type` });
+      return;
+    }
     if (seen.has(id)) {
       unreadable.push(entry);
       notices.push({ code: 'duplicate-id', path, message: `${path} repeats the id ${id}, so only the first is used` });

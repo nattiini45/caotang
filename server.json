@@ -12,7 +12,7 @@
     {
       "registryType": "mcpb",
       "identifier": "https://github.com/nattiini45/caotang/releases/download/v0.1.0/caotang-mcp-0.1.0.mcpb",
-      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "fileSha256": "35ad2ffe16ac52cab1c6551ead48c421e9680cca36a2be45035646b38ee3a5e7",
       "transport": {
         "type": "stdio"
       }

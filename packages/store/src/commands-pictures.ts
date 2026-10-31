@@ -43,17 +43,20 @@ import {
   parseAssetFileName,
   placeLink,
   readPictureHeader,
+  recordOrientation,
   removeLink,
   reorderLinks,
   setLinkNote,
   sha256Hex,
   sniffPicture,
-  stripPrivateMetadata,
+  formatOfMime,
   validateAssetRecord,
   WORKING_COPY_LONG_EDGE,
   type AssetTarget,
   type ReadAssetRecord,
 } from '@caotang/pictures';
+
+import { stripPrivateMetadata } from '@caotang/pictures/prepare';
 
 import type { ApplyClock, ProjectAssetPort } from './commands-project.js';
 import { applyAssetTranscribe } from './commands-transcription.js';
@@ -160,7 +163,9 @@ function assetSetMetaApply(clock: ApplyClock, ledger?: UndoRetentionLedger): Pic
     const fields = Object.keys(params.patch).map((key) => (key === 'sourceLabel' ? 'source label' : key));
     ledger?.note(context.commandId, [params.assetId], 'a record capture');
     compensate(context, `put back the ${fields.join(', ')} of ${nameOf(record)}`, [undo], state);
-    context.report({ affected: [], summary: `changed the ${fields.join(', ')} of ${nameOf(record)}` });
+    // Main's row (§8): a picture is named by its caption when it has one, never by its file name.
+    const named = record.caption !== undefined && record.caption !== '' ? `the picture "${record.caption}"` : 'a picture';
+    context.report({ affected: [], summary: `changed the ${fields.join(', ')} of ${named}` });
     return { assetId: params.assetId };
   };
 }
@@ -349,7 +354,15 @@ interface ImportedItem {
   assetId: string;
   path: string;
   created: boolean;
+  /** The bytes matched a record the project already held: nothing was written and no record was added. */
+  existing: boolean;
   linkIds: string[];
+  /** What the metadata strip took out (`location`, `maker notes`, …), when it took anything. */
+  stripped?: string[];
+  /** A working copy was stored in place of the original. */
+  workingCopy?: true;
+  /** The picture arrived as HEIC and was converted to JPEG. */
+  convertedFromHeic?: true;
 }
 
 /**
@@ -406,7 +419,16 @@ async function runImport(
   context.undo.compensate(`take back ${plural(published.createdRecordIds.length, 'picture', 'pictures')} and ${plural(published.links.length, 'placement', 'placements')}`, () => undoPublished(state, published));
   return published.items.map((item, index) => {
     const wanted = (items[index]?.links ?? []).map((target) => JSON.stringify(target));
-    return { ...item, linkIds: published.links.filter((link) => link.assetId === item.assetId && wanted.includes(JSON.stringify(link.target))).map((link) => link.id) };
+    const planned = plan.items[index];
+    return {
+      ...item,
+      // Main's rule: a picture whose record's file had to be written back is not reported as already held (pictures.md §6.2).
+      existing: planned?.action === 'reuse' && !planned.write,
+      linkIds: published.links.filter((link) => link.assetId === item.assetId && wanted.includes(JSON.stringify(link.target))).map((link) => link.id),
+      ...(planned === undefined || planned.stripped.length === 0 ? {} : { stripped: [...planned.stripped] }),
+      ...(planned?.workingCopy === undefined ? {} : { workingCopy: true as const }),
+      ...(planned?.convertedFromHeic === true ? { convertedFromHeic: true as const } : {}),
+    };
   });
 }
 
@@ -414,9 +436,11 @@ function reportImport(state: ProjectState, context: ApplyContext, items: readonl
   const created = imported.filter((item) => item.created).length;
   const reused = imported.length - created;
   const parts = [created > 0 ? `imported ${plural(created, 'picture', 'pictures')}` : undefined, reused > 0 ? `${plural(reused, 'picture', 'pictures')} the project already holds` : undefined];
+  // The strip is said once for the batch (pictures.md §6.4 step 4): a writer learns that a location left a photo.
+  const located = imported.filter((item) => item.stripped?.includes('location') === true).length;
   context.report({
     affected: affectedNodes(state, items.flatMap((item) => item.links ?? [])),
-    summary: parts.filter((part) => part !== undefined).join(' and '),
+    summary: `${parts.filter((part) => part !== undefined).join(' and ')}${located === 0 ? '' : `; removed the location from ${plural(located, 'photo', 'photos')}`}`,
   });
 }
 
@@ -538,6 +562,8 @@ interface WorkingCopyPlan {
   readonly sha256: string;
   readonly width: number;
   readonly height: number;
+  /** The copy's own orientation: the decoder turns it upright, so this is absent unless a host kept a tag. */
+  readonly orientation: 2 | 3 | 4 | 5 | 6 | 7 | 8 | undefined;
   readonly workingCopy: { fromBytes: number; fromWidth: number; fromHeight: number };
 }
 
@@ -551,10 +577,12 @@ function assetStoreWorkingCopiesApply(clock: ApplyClock, assets: ProjectAssetPor
   // The default is the pure pictures port, exactly as the registry's other applies get it: a host that injects nothing still maps.
   const anchors = injected ?? anchorPortOf({});
   async function storeWorkingCopies(state: ProjectState, params: AssetStoreWorkingCopiesParams, context: ApplyContext): Promise<{ assetIds: string[] }> {
-    const process = assets.process;
+    // Main's decoder (pictures.md §6.4 step 3) makes every working copy, the import's and this one: decoded upright with resize, so a
+    // full-size bitmap never exists, and re-encoded in the picture's own format.
+    const makeCopy = assets.decoder?.workingCopy;
     const readBytes = assets.readBytes;
     const list = assets.list;
-    if (process === undefined || readBytes === undefined || list === undefined) {
+    if (makeCopy === undefined || readBytes === undefined || list === undefined) {
       throw new ApplyRefusal({
         code: 'invalid-params',
         message: 'this host cannot make 4096 px working copies, so nothing was changed',
@@ -595,10 +623,11 @@ function assetStoreWorkingCopiesApply(clock: ApplyClock, assets: ProjectAssetPor
           correctiveHint: 'open the picture in the app once, then store the working copy',
         });
       }
-      const output = await process({ bytes, mime: record.mime, width: fromWidth, height: fromHeight }, { maxEdge: WORKING_COPY_LONG_EDGE, output: 'preserve', jpegQuality: 0.9, flattenAlpha: false, stripMetadata: true });
-      const sniffed = sniffPicture(output.bytes);
-      const outHeader = sniffed.ok ? readPictureHeader(output.bytes, sniffed.mime) : undefined;
-      if (!sniffed.ok || sniffed.mime !== record.mime || outHeader === undefined || !outHeader.ok) {
+      const format = formatOfMime(record.mime);
+      const copy = format === undefined ? undefined : await makeCopy.call(assets.decoder, bytes, format, Math.min(Math.max(fromWidth, fromHeight), WORKING_COPY_LONG_EDGE));
+      const sniffed = copy === undefined ? undefined : sniffPicture(copy);
+      const outHeader = copy !== undefined && sniffed !== undefined && sniffed.ok ? readPictureHeader(copy, sniffed.mime) : undefined;
+      if (copy === undefined || sniffed === undefined || !sniffed.ok || sniffed.mime !== record.mime || outHeader === undefined || !outHeader.ok) {
         throw new ApplyRefusal({
           code: 'invalid-params',
           message: `${nameOf(record)} could not be made into a working copy, so nothing was changed`,
@@ -606,8 +635,8 @@ function assetStoreWorkingCopiesApply(clock: ApplyClock, assets: ProjectAssetPor
           correctiveHint: 'keep the original instead',
         });
       }
-      const cleaned = stripPrivateMetadata(output.bytes, sniffed.mime);
-      const stored = cleaned.ok ? cleaned.bytes : output.bytes;
+      // The import's lossless strip (pictures.md §6.4 step 4): a working copy keeps Orientation and loses any location the encoder kept.
+      const stored = stripPrivateMetadata(copy, formatOfMime(sniffed.mime) ?? 'png').bytes;
       const newId = mintAssetId(taken, assets.randomBytes);
       taken.add(newId);
       plans.push({
@@ -616,8 +645,9 @@ function assetStoreWorkingCopiesApply(clock: ApplyClock, assets: ProjectAssetPor
         newFile: `${newId}.${extensionOfMime(sniffed.mime)}`,
         bytes: stored,
         sha256: await sha256Hex(stored),
-        width: outHeader.displayWidth,
-        height: outHeader.displayHeight,
+        width: outHeader.width,
+        height: outHeader.height,
+        orientation: recordOrientation(outHeader.orientation),
         workingCopy: { fromBytes: bytes.length, fromWidth, fromHeight },
       });
     }
@@ -683,8 +713,11 @@ function assetStoreWorkingCopiesApply(clock: ApplyClock, assets: ProjectAssetPor
     const bodiesBefore = new Map([...state.documents].map(([id, document]) => [id, { body: document.body, revision: document.revision }]));
     const newRecords: ReadAssetRecord[] = [];
     for (const plan of plans) {
+      // The original's orientation does not carry over: the copy states its own (pictures.md §2.1).
+      const { orientation: _originalOrientation, ...base } = currentOf.get(plan.record.id) ?? plan.record;
       const record: ReadAssetRecord = {
-        ...(currentOf.get(plan.record.id) ?? plan.record),
+        ...base,
+        ...(plan.orientation === undefined ? {} : { orientation: plan.orientation }),
         id: plan.newId,
         file: plan.newFile,
         mime: parseAssetFileName(plan.newFile)?.mime ?? plan.record.mime,

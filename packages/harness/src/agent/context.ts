@@ -23,6 +23,7 @@ import {
   buildPreview,
   tokensForChars,
   toChatMessages,
+  UNTRUSTED_RULE,
   type AgentTask,
   type AppSnapshot,
   type AssembledPrompt,
@@ -49,6 +50,8 @@ export interface ContextRequest {
   readonly activity?: readonly ActivityEntry[];
   /** The two languages the turn pinned at its start. Absent in a headless host: the call carries no language line (i18n §6.1). */
   readonly languages?: LanguagePolicy;
+  /** The id of the call's untrusted envelopes: the turn's (`nonceFor`). Absent, the fixed one (context `untrusted.ts`). */
+  readonly nonce?: string;
 }
 
 /** The interface language and the project language, as BCP 47 tags. The model writes to the writer in the first and the manuscript in the second. */
@@ -133,6 +136,11 @@ export interface ContextPortOptions {
    * function is read at each call, as the state is, so the limits follow the active model as it changes.
    */
   readonly config?: ContextConfig | (() => ContextConfig);
+  /**
+   * The binder nodes a read-deny keeps out of a call's prompt, by the tool the call is for (agent-harness §4, "Rules"). Read at each
+   * call. Absent, nothing is withheld.
+   */
+  readonly withheld?: (tool: string) => ReadonlySet<string>;
 }
 
 /**
@@ -141,8 +149,11 @@ export interface ContextPortOptions {
  * its system message first, so the rest of the messages are the user message.
  */
 export function withRole(prompt: AssembledPrompt, role: string): AssembledPrompt {
-  const messages: ChatMessage[] = [{ role: 'system', content: role }, ...prompt.messages.slice(1)];
-  const roleTokens = tokensForChars(role.length);
+  // A call whose user message carries an envelope (layer LI) is told what the markers mean, whatever its role text is (system prompt v2).
+  const enveloped = prompt.layers.some((layer) => layer.id === 'LI' && layer.included);
+  const sent = enveloped && !role.includes(UNTRUSTED_RULE) ? `${role}\n\n${UNTRUSTED_RULE}` : role;
+  const messages: ChatMessage[] = [{ role: 'system', content: sent }, ...prompt.messages.slice(1)];
+  const roleTokens = tokensForChars(sent.length);
   const layers = prompt.layers.map((layer) => (layer.id === 'L0' ? { ...layer, tokens: roleTokens } : layer));
   const promptTokens = promptTokensOf(messages);
   return {
@@ -175,15 +186,38 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
   const configOf: () => ContextConfig = typeof given === 'function' ? given : () => given ?? {};
   return {
     assemble(request: ContextRequest): AssembledCall {
+      const withheld = options.withheld?.(request.task.tool);
       const app: AppSnapshot = {
         state: request.state ?? stateOf(),
+        ...(withheld === undefined || withheld.size === 0 ? {} : { withheld }),
         ...(request.turns === undefined ? {} : { turns: request.turns }),
         ...(request.activity === undefined ? {} : { activity: request.activity }),
+        ...(request.nonce === undefined ? {} : { nonce: request.nonce }),
       };
       const prompt = withLanguages(withRole(assemble(request.task, app, configOf()), request.role), request.languages);
       return { prompt, messages: toChatMessages(prompt), preview: buildPreview(prompt) };
     },
   };
+}
+
+/**
+ * Each call's cost with the cache forecast applied (context-assembly §5, "Cache forecast"): a call whose reusable prefix an
+ * earlier call of the batch already sent (the same `cache.key`) is priced at the model's read multiplier for that prefix,
+ * since the earlier call wrote it. The first call of a prefix is priced in full. A call with no priced cache is unchanged.
+ */
+export function forecastReads(previews: readonly PromptPreview[]): (PromptPreview['cost'] | undefined)[] {
+  const written = new Set<string>();
+  return previews.map((preview) => {
+    const { cost, cache } = preview;
+    if (cache === undefined) return cost;
+    const seen = written.has(cache.key);
+    written.add(cache.key);
+    if (!seen || cost === undefined || preview.promptTokens <= 0) return cost;
+    const perToken = cost.promptUsd / preview.promptTokens;
+    const cachedTokens = Math.min(cache.prefixTokens, preview.promptTokens);
+    const promptUsd = cost.promptUsd - cachedTokens * perToken * (1 - cache.readMultiplier);
+    return { ...cost, promptUsd, totalUsd: promptUsd + cost.completionUsd, cachedTokens };
+  });
 }
 
 /**
@@ -216,7 +250,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
   }
 
   const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
-  const costs = previews.map((preview) => preview.cost);
+  const costs = forecastReads(previews);
   const cost =
     costs.every((item) => item !== undefined)
       ? {
@@ -224,6 +258,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
           completionUsd: sum(costs.map((item) => item?.completionUsd ?? 0)),
           totalUsd: sum(costs.map((item) => item?.totalUsd ?? 0)),
           ...(costs.some((item) => item?.includesThinking === true) ? { includesThinking: true as const } : {}),
+          ...(costs.some((item) => item?.cachedTokens !== undefined) ? { cachedTokens: sum(costs.map((item) => item?.cachedTokens ?? 0)) } : {}),
         }
       : undefined;
 

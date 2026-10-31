@@ -5,6 +5,8 @@
  * What is not here, and why:
  * - **Theme** stays in the browser's local storage (app/theme.ts). The page must choose its colours before its first paint,
  *   which happens before any database is open, and the theme specs read that key directly.
+ * - **Interface** (Classic or Modern, app/interface.ts) is kept beside the theme in local storage (`caotang.interface`) for the same
+ *   reason: it is on the page before its first paint.
  * - **Provider profiles** are not settings. They live in the app database with their own store (providers.ts), because the
  *   gateway owns their validation and their identity. The active profile is mirrored here only for the record §5.1 names.
  * - **Coherence** (the checks a scan runs, the default scope, the cap on a review) and **MCP** are slices here, each read by its
@@ -18,7 +20,7 @@ import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT, type D
 import type { ThinkingLevel } from '@caotang/gateway';
 import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
 import { numberFormat } from '@caotang/i18n';
-import { DEFAULT_RETENTION, resolveRetentionConfig, type RetentionConfig } from '@caotang/store';
+import { DEFAULT_RETENTION, parseRules, resolveRetentionConfig, type PermissionRule, type RetentionConfig } from '@caotang/store';
 import { EMPTY_MCP_SETTINGS, loadMcpSettings, type McpSettings } from '@caotang/mcp-client';
 
 import { formatterLocale } from '../i18n/format-locale.js';
@@ -67,8 +69,12 @@ export const CONTEXT_TOTAL_MAX = 200_000;
 export const CONTEXT_LAYER_MIN = 200;
 export const CONTEXT_LAYER_MAX = 50_000;
 
-/** The layers whose budgets the spec names as config-exposed: the codex (L2), the story so far (L4) and the continuity tail (L5). */
-export const CONTEXT_LAYERS = ['L2', 'L4', 'L5'] as const;
+/**
+ * Every layer with a budget of its own, in the stack's order (context-assembly §2): the writer's instructions (LI), the project summary
+ * (L1), the codex (L2), the structure around the focus (L3), the story so far (L4), the focus text (L5) and the recent turns (L6). L0 and
+ * L7 have no cap, so they are not here.
+ */
+export const CONTEXT_LAYERS = ['LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6'] as const;
 export type ContextLayerId = (typeof CONTEXT_LAYERS)[number];
 
 export interface ContextSettings {
@@ -84,12 +90,22 @@ export interface ContextSettings {
  */
 export interface AgentSettings {
   readonly loadEveryTool: boolean;
+  /**
+   * Keep the agent's trace for this tab (agent-harness §5.2): the prompts, replies and tool results of each turn, in memory only, for the Trace
+   * tab and its export. On unless turned off; off means nothing is gathered and what was is cleared. The trace itself is never saved.
+   */
+  readonly keepTraces: boolean;
   /** The permission mode a session starts in (agent-harness §4). `auto` reads as `ask` while `lockAuto` is on. */
   readonly defaultMode: PermissionMode;
   /** Turns Auto mode off: the panel does not offer it and a stored `auto` reads as Ask. */
   readonly lockAuto: boolean;
   /** The limits a turn is held to. A limit left out keeps the harness's default, or is not enforced (agent-harness §4, §7.1). */
   readonly budget: AgentBudgetSettings;
+  /**
+   * The writer's own rules for the agent, in every project (agent-harness §4, Rules): deny or ask a tool, never a folder, since a binder id
+   * belongs to one project. A rule for a folder is made in the binder and kept in that project's file.
+   */
+  readonly rules: readonly PermissionRule[];
 }
 
 /**
@@ -109,7 +125,7 @@ export interface AgentBudgetSettings {
   readonly maxSteps?: number;
 }
 
-export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}) });
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}), rules: Object.freeze([]), keepTraces: true });
 
 /** The whole numbers a budget field may hold. A field outside them reads as unset. */
 export const AGENT_BUDGET_RANGES = {
@@ -137,9 +153,12 @@ export function normalizeAgent(raw: unknown): AgentSettings {
   if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0 && cost <= 1_000_000) limits.maxCostUsd = cost;
   return {
     loadEveryTool: source['loadEveryTool'] === true,
+    keepTraces: source['keepTraces'] !== false,
     defaultMode: stored === 'auto' && lockAuto ? 'ask' : stored,
     lockAuto,
     budget: limits,
+    // A rule that cannot be read is dropped, field by field like the rest; the Settings list shows what is kept.
+    rules: parseRules(source['rules'], { toolOnly: true }).rules,
   };
 }
 
@@ -191,6 +210,12 @@ export interface AppSettings {
     readonly autosaveDebounceMs: number;
     /** Whether focus mode hides the binder and the inspector (ui-modules §5.2). On unless the writer turns it off. */
     readonly focusModeHideRails: boolean;
+    /**
+     * Where an approved agent edit lands (editor-engine §15). `ghost` replaces the text, as the draft preview showed it. `suggestions`
+     * keeps the new text but marks the changed words for review. App-wide, never a project field; a change applies to the next
+     * document the writer opens.
+     */
+    readonly agentEditMode: AgentEditMode;
   };
   readonly session: {
     /** The writer's daily target. Absent means no target is set (goals-progress §2.1). */
@@ -217,10 +242,14 @@ export interface AppSettings {
   readonly agent: AgentSettings;
 }
 
+/** The two places an approved agent edit can land (editor-engine §15). */
+export const AGENT_EDIT_MODES = ['ghost', 'suggestions'] as const;
+export type AgentEditMode = (typeof AGENT_EDIT_MODES)[number];
+
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   interfaceLanguage: 'system',
   provider: Object.freeze({ activeProfileId: null }),
-  editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true }),
+  editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true, agentEditMode: 'ghost' as AgentEditMode }),
   session: Object.freeze({}),
   retention: DEFAULT_RETENTION,
   firstRun: Object.freeze({ dismissed: false }),
@@ -240,7 +269,7 @@ export interface SettingsPatch {
    * empty record) clears every assignment, so each role follows the chat/active choice.
    */
   readonly provider?: { readonly activeProfileId?: string | null; readonly roles?: RoleSettings | null };
-  readonly editor?: { readonly autosaveDebounceMs?: number; readonly focusModeHideRails?: boolean };
+  readonly editor?: { readonly autosaveDebounceMs?: number; readonly focusModeHideRails?: boolean; readonly agentEditMode?: AgentEditMode };
   readonly session?: { readonly dailyTargetWords?: number };
   readonly retention?: Partial<RetentionConfig>;
   readonly firstRun?: { readonly dismissed?: boolean };
@@ -379,6 +408,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     editor: {
       autosaveDebounceMs: clampInteger(editor['autosaveDebounceMs'], DEBOUNCE_MIN_MS, DEBOUNCE_MAX_MS, DEFAULT_DEBOUNCE_MS),
       focusModeHideRails: typeof editor['focusModeHideRails'] === 'boolean' ? editor['focusModeHideRails'] : true,
+      agentEditMode: editor['agentEditMode'] === 'suggestions' ? 'suggestions' : 'ghost',
     },
     session: target === undefined ? {} : { dailyTargetWords: target },
     retention: resolveRetentionConfig({ checkpointCap: cap, checkpointDays: days }),

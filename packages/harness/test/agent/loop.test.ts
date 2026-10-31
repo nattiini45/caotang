@@ -15,19 +15,9 @@ import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { DRAFT_PREFIX, PLANNER_PREFIX, fail, isDraftCall, isPlannerCall, userTextOf } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
 
-import {
-  createAgentSession,
-  createContextPort,
-  createAgentPorts,
-  createHarness,
-  CHECKPOINT_LABEL,
-  type AgentEvent,
-  type ContextPort,
-  type Decision,
-  type StatusCard,
-} from '../../src/index.js';
+import { createAgentSession, createContextPort, createAgentPorts, CHECKPOINT_LABEL, type AgentEvent, type ContextPort, type Decision, type StatusCard } from '../../src/index.js';
 import { evaluate, type Scenario, type ScenarioRun } from '../../src/agent/eval.js';
-import { CHAPTER_TWO, FRIEND, LANDING, LANDING_BODY, OPENED, STORM, makeState } from '../fixtures.js';
+import { CHAPTER_TWO, checkedHarness, FRIEND, LANDING, LANDING_BODY, makeState, OPENED, STORM } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, prose, steps, transcript } from './scripts.js';
 import { textOf } from '@caotang/gateway';
@@ -194,7 +184,7 @@ describe('streaming, and the ghost-preview handoff (agent-harness §8)', () => {
 
 describe('the checkpoint row and its restore (command-bus §5, agent-harness §5)', () => {
   it('names the turn’s undo group, and restoring it puts the project back as it was', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([
       transcript('Label The Friend and give The Storm a synopsis.', [
         steps(
@@ -227,7 +217,7 @@ describe('the checkpoint row and its restore (command-bus §5, agent-harness §5
   });
 
   it('a turn that wrote nothing has no checkpoint, and cannot be restored', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([transcript('What is in The Storm?', [answer('Rain, and a failed lamp.')])]);
     const session = createAgentSession({
       harness,
@@ -429,7 +419,7 @@ describe('the checkpoint row and its restore (command-bus §5, agent-harness §5
 
 describe('token accounting, per turn (provider-gateway §6)', () => {
   it('each turn’s tokens are its own, read from the ledger rows the turn’s requests wrote', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([
       transcript('Tag The Storm.', [steps({ tool: 'meta.set', params: { targets: [STORM], keywords_add: ['storm'] }, expect: 'tagged' })]),
       transcript('What is in The Storm?', [answer('Rain.')]),
@@ -456,7 +446,7 @@ describe('token accounting, per turn (provider-gateway §6)', () => {
       transcript('Tag The Storm.', [steps({ tool: 'meta.set', params: { targets: [STORM], keywords_add: ['storm'] }, expect: 'tagged' })]),
       transcript('What is in The Friend?', [answer('Nothing yet.')]),
     ]);
-    const first = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const first = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const sessionA = createAgentSession({
       harness: first,
       gateway,
@@ -465,7 +455,7 @@ describe('token accounting, per turn (provider-gateway §6)', () => {
     });
     const reportA = await sessionA.submit('Tag The Storm.');
 
-    const second = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const second = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const sessionB = createAgentSession({
       harness: second,
       gateway,
@@ -662,7 +652,7 @@ describe('a draft the provider cut or broke (provider-gateway §3)', () => {
 
 describe('the turns a session has run are L6 (context-assembly §2)', () => {
   it('a later turn’s drafting call carries the intents of the two turns before it, and not of an older one', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([
       transcript('Name the ferryman.', [answer('Named.')]),
       transcript('Name the lamp.', [answer('Named.')]),
@@ -725,7 +715,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
   };
 
   it('a turn that only replied leaves its clipped answer as the outcome, since a reply writes no activity row', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const { gateway, sent } = recording(await mockGateway([transcript('Who rows the ferry?', [answer('Oren rows the ferry.\n\nHe has done so for years.')]), ...draftScripts]));
     const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }) });
     for (const intent of ['Who rows the ferry?', draftIntent]) await session.submit(intent);
@@ -737,7 +727,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
   });
 
   it('a long answer is held to one clipped line', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const { gateway, sent } = recording(await mockGateway([transcript('Tell me everything.', [answer('word '.repeat(200))]), ...draftScripts]));
     const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }) });
     for (const intent of ['Tell me everything.', draftIntent]) await session.submit(intent);
@@ -751,7 +741,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
   });
 
   it('turn ids follow the session id, in order', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([transcript('One.', [answer('A.')]), transcript('Two.', [answer('B.')])]);
     const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }), sessionId: 'panel' });
     const first = await session.submit('One.');
@@ -763,7 +753,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
 
 describe('a turn’s own pins, over the session’s (agent-harness §2)', () => {
   it('each turn’s model calls carry that turn’s model and thinking level, and the session keeps its conversation across them', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([transcript('Name the ferryman.', [answer('Named.')]), transcript('Name the lamp.', [answer('Named.')]), transcript('Name the storm.', [answer('Named.')])]);
     const sent: ChatRequest[] = [];
     const recording: Gateway = {
@@ -1040,7 +1030,7 @@ describe('a step the turn cannot ground is refused back to the model, not thrown
 
   it('a context assembly that refuses a step is a refusal to the model too, and the turn goes on', async () => {
     const intent = 'Continue The Landing.';
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const real = createContextPort({ state: harness.state });
     let refused = false;
     // The assembly refuses the first scene.draft it is asked for. The step must come back to the model, not end the turn.
@@ -1080,3 +1070,156 @@ function draftScriptFindings(): MockScript {
     respond: () => ({ content: JSON.stringify({ findings: [] }) }),
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * A planner reply the provider cut (issue #97), on the JSON wire.
+ * ------------------------------------------------------------------ */
+
+interface PlannerReply {
+  readonly content: string;
+  readonly finishReason?: 'stop' | 'length';
+}
+
+/** A half JSON object, as a provider that stopped at its cap sends it: 56 characters, so 14 tokens on the mock's count. */
+const CUT_REPLY = '{"steps": [{"tool": "meta.set", "params": {"targets": ["';
+
+/**
+ * A gateway whose planner answers one intent with `replies` in turn (the last repeats), recording each planner request, and whose
+ * `modelLimits` reports the given caps: the cap a request is sent with, and the cap the model advertises.
+ */
+function cutGateway(intent: string, replies: readonly PlannerReply[], seen: ChatRequest[], limits: { readonly maxOutputTokens: number; readonly modelMaxOutputTokens?: number }) {
+  return async (): Promise<Gateway> => {
+    const base = await mockGateway([
+      {
+        match: (req) => isPlannerCall(req) && userTextOf(req).includes(`Request: ${intent}`),
+        respond: (req) => {
+          seen.push(req);
+          const calls = req.messages.filter((message) => message.role === 'assistant').length;
+          return replies[Math.min(calls, replies.length - 1)] ?? { content: '' };
+        },
+      },
+    ]);
+    return {
+      ...base,
+      modelLimits: (profileId, model, thinking) => {
+        const { modelMaxOutputTokens: _drop, ...rest } = base.modelLimits(profileId, model, thinking);
+        return { ...rest, ...limits };
+      },
+    };
+  };
+}
+
+/** The last user message a request carries: what the model reads before it replies. */
+const lastUserOf = (req: ChatRequest | undefined): string => textOf([...(req?.messages ?? [])].reverse().find((message) => message.role === 'user')?.content ?? '');
+
+describe('a planner reply the provider cut (issue #97)', () => {
+  const intent = 'Label The Friend act-2.';
+
+  it('a cut reply that does not parse is answered with words that name the cut, not a JSON syntax error, and asked again with more room', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: named and retried', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('Labelled nothing yet.') }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'replied', maxModelCalls: 2 },
+      }),
+    );
+    expect(seen).toHaveLength(2);
+    const words = lastUserOf(seen[1]);
+    expect(words).toContain('cut off at the model’s output limit');
+    expect(words).toContain('Send a shorter reply');
+    expect(words).not.toContain('not valid JSON');
+    // The first request went with the profile's cap; the retry asks for twice it, inside the model's advertised cap.
+    expect(seen[0]?.maxOutputTokens).toBeUndefined();
+    expect(seen[1]?.maxOutputTokens).toBe(20);
+    expect(run.report.cutReplies).toBe(1);
+  });
+
+  it('a cut reply that parses is planned as it is: a cut is not a failure on its own', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: parses', intent, [], {
+        gateway: cutGateway(intent, [{ content: answer('Nothing to label.'), finishReason: 'length' }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'replied', maxModelCalls: 1 },
+      }),
+    );
+    expect(seen).toHaveLength(1);
+    expect(run.report.text).toBe('Nothing to label.');
+    expect(run.report.cutReplies).toBe(1);
+  });
+
+  it('the retry’s cap never passes the model’s advertised cap, and is not raised without one', async () => {
+    const bounded: ChatRequest[] = [];
+    await checked(
+      scenario('cut planner reply: bounded cap', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], bounded, { maxOutputTokens: 10, modelMaxOutputTokens: 15 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    expect(bounded[1]?.maxOutputTokens).toBe(15);
+
+    const unknown: ChatRequest[] = [];
+    await checked(
+      scenario('cut planner reply: no advertised cap', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], unknown, { maxOutputTokens: 10 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    expect(unknown[1]?.maxOutputTokens).toBeUndefined();
+    expect(lastUserOf(unknown[1])).toContain('cut off at the model’s output limit');
+  });
+
+  it('a reply cut short of its request’s cap is said to be cut, not to have hit the output limit, and keeps its cap', async () => {
+    const seen: ChatRequest[] = [];
+    await checked(
+      scenario('cut planner reply: below the cap', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], seen, { maxOutputTokens: 4_096, modelMaxOutputTokens: 32_000 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    const words = lastUserOf(seen[1]);
+    expect(words).toContain('cut off before it ended');
+    expect(words).not.toContain('output limit');
+    expect(seen[1]?.maxOutputTokens).toBeUndefined();
+  });
+
+  it('a second cut ends the turn on an ask-back that names the output limit, not the budget', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: cut twice', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'failed', askBack: 'needs_input', summaryIncludes: ['output limit'], maxModelCalls: 2 },
+      }),
+    );
+    expect(seen).toHaveLength(2);
+    // The retry was cut short of its raised cap, but it followed a reply that reached the profile's: that is the limit named.
+    expect(run.report.askBack?.reason).toContain('output limit (10 tokens)');
+    expect(run.report.askBack?.reason).not.toContain('model calls');
+    expect(run.report.cutReplies).toBe(2);
+  });
+
+  it('a cut with no model call left for the retry ends on the output limit too, and never passes the model-call bound', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: no call left', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        modelCallBound: 1,
+        expect: { status: 'failed', askBack: 'needs_input', summaryIncludes: ['output limit'], maxModelCalls: 1 },
+      }),
+    );
+    expect(seen).toHaveLength(1);
+    expect(run.report.askBack?.reason).not.toContain('model calls');
+  });
+
+  it('a malformed reply the provider did not cut still reads as malformed', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('malformed planner reply', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY }, { content: answer('ok') }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    expect(lastUserOf(seen[1])).toContain('not valid JSON');
+    expect(seen[1]?.maxOutputTokens).toBeUndefined();
+    expect(run.report.cutReplies).toBeUndefined();
+  });
+});

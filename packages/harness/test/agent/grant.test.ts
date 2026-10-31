@@ -43,7 +43,7 @@ describe('the proposal a port is handed', () => {
     const external = harness.external.call({ name: 'codex.read', callId: 'ext-1', params: {}, proposal: { injected: true } }, { turnId: 'ext' });
     expect(external.ok && external.value.data['proposal']).toBeNull();
     const native = harness.call({ name: 'codex.read', callId: 'nat-1', params: {}, proposal: { injected: true } }, { turnId: 'nat' });
-    expect(native.ok && native.value.data['proposal']).toEqual({ injected: true });
+    expect(native.ok && (native.value.data as Readonly<Record<string, unknown>>)['proposal']).toEqual({ injected: true });
     expect(seen).toEqual([null, { injected: true }]);
   });
 });

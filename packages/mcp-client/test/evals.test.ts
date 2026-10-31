@@ -265,3 +265,43 @@ describe('eval 12 — an instruction inside a resource body causes no tool call 
     for (const name of ['serverKey', 'uri', 'pickedBy', 'viaTemplate']) expect(credentialShaped.test(name)).toBe(false);
   });
 });
+
+describe('eval 14 — a declared output schema holds a structured answer to its shape, and only a non-error one', () => {
+  const LOOKUP_INPUT = { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] };
+  const OUTPUT = { type: 'object', properties: { entry: { type: 'string' } }, required: ['entry'], additionalProperties: false };
+  const scenarios = [
+    { name: 'declared and valid', declared: OUTPUT, answer: { content: [{ type: 'text', text: 'Mara' }], structuredContent: { entry: 'Mara' } }, ok: true },
+    { name: 'declared and invalid', declared: OUTPUT, answer: { content: [{ type: 'text', text: 'Mara' }], structuredContent: { entry: 4 } }, ok: false },
+    { name: 'undeclared', declared: undefined, answer: { content: [{ type: 'text', text: 'Mara' }], structuredContent: { entry: 4 } }, ok: true },
+    { name: 'declared, and the tool reported an error', declared: OUTPUT, answer: { content: [{ type: 'text', text: 'No entry.' }], isError: true, structuredContent: { entry: 4 } }, ok: true },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    it(`${scenario.name}: ${scenario.ok ? 'the answer is returned whole' : 'the answer is refused with the path, and the tool is said to have run'}`, async () => {
+      const scripts: Record<string, MockMcpScript> = {
+        [STORY_KEY]: {
+          listTools: [
+            {
+              name: 'lore_lookup',
+              description: 'Look up a lore entry.',
+              inputSchema: LOOKUP_INPUT,
+              annotations: { readOnlyHint: true },
+              ...(scenario.declared === undefined ? {} : { outputSchema: scenario.declared }),
+            },
+          ],
+          respond: () => scenario.answer,
+        },
+        [SHELF_KEY]: echoScript([]),
+      };
+      const { client, loaded } = await openClient({ scripts, approve: [STORY_KEY], trust: [STORY_KEY] });
+      loaded.beginTurn('turn-output');
+      loaded.load([qualified(STORY_KEY, 'lore_lookup')]);
+      const prepared = prepareInvoke({ client, loaded }, { serverKey: STORY_KEY, toolName: 'lore_lookup', args: { name: 'Mara' } });
+      if (!prepared.ok) throw new Error(prepared.error.message);
+      const outcome = await applyMcpInvoke({ client, loaded, transport: createMcpTransport(client) }, prepared.value, { report: () => undefined });
+      expect(outcome.ok).toBe(scenario.ok);
+      if (outcome.ok) expect(outcome.value.content).toEqual(scenario.answer.content);
+      else expect(outcome.error).toMatchObject({ code: 'postcondition', message: expect.stringContaining('/entry must be string') as unknown });
+    });
+  }
+});

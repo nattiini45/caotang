@@ -106,7 +106,7 @@ The active filter is **not a bus command**. The draft a writer types, and the sa
 
 - **Dataview-style free-form query language** — power beyond the validated pattern, at the cost of grammar design, injection-shaped edge cases, and eval instability; the market's validated shape (Ulysses filters, Scrivener saved searches) is named criteria, not a language. Revisit only with concrete usage evidence — the parallel verdict on saved **codex** queries was **rejected with all vendors checked** (no vendor ships them; browse-and-filter + the Mentions tab is the codex answer surface), and the same posture extends to a filter grammar here.
 - **A `filters.*` family of agent tools** — the Tier-1 band stays 14; the one agent tool is the deferred, allowlisted `filter.save` (agent-harness §3). No read tool (`project.overview` lists the filters) and no delete tool; the model composes `binder.read_tree` + `doc.read` to answer the same questions.
-- **Dynamic/smart collections that auto-appear in the tree** — blurs the three-tier invariant; filters are a rail-level view, not tree nodes (one metadata shape everywhere, and no new node kinds for views).
+- **Dynamic/smart collections that auto-appear in the tree** — blurs the binder's tree of sections, folders and documents; filters are a rail-level view, not tree nodes (one metadata shape everywhere, and no new node kinds for views).
 
 ## 8. Assumptions
 

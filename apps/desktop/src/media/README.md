@@ -15,7 +15,9 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. The element menu
   (the Element button, or Ctrl+E, Cmd+E on a Mac) rewrites the caret's line as the element chosen, through the screenplay engine's
   `convertLine` (element-menu.ts); a chord per element does the same from the text (*Known limits*, 3). All of these write through the session's autosave, which is the path the prose editor
-  uses.
+  uses. Two route chords leave the text alone and go to the binder's facts about the scene: the section chord selects the folder
+  the scene is in and focuses its binder row, and the synopsis chord focuses the scene's synopsis in the inspector (`routeChord`,
+  element-menu.ts; the shell's `onSourceRoute`).
 - **Write a dialogue container.** The Ink text sits under the outline, with its knots, stitches, choices, diverts,
   declarations and tags drawn in their own styles. Tab after a divert arrow completes the knot or stitch name. Clicking a
   card in the graph moves the caret to that knot's header in the text. Each choice's label is drawn on its arrow, and the
@@ -30,7 +32,9 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   file, and any other container writes the dialogue table. The locale fills each row's locale (the project's language when
   the container has none), and a container's own locale names its Ink story file (*Dialogue table and container settings*).
 - **Import a script, an Ink story or a Twee story.** The binder's *Import script* reads a `.fountain` or `.fdx` file: its sections become
-  folders, and its scenes become screenplay documents, in one undo step (`screenplay.import`). *Import Ink* reads a `.ink`
+  folders, and its scenes become screenplay documents, in one undo step (`screenplay.import`). A `.fdx` file is read with
+  `importFdx` first and `FdxImportDialog` lists its scenes, sections, script notes, dual-dialogue pairs and notices; nothing is
+  dispatched until **Import**. *Import Ink* reads a `.ink`
   file, and makes one branching container for each knot cluster, in one undo step (`dialogue.importInk`). Text above the
   first knot is not imported, and the status line says how many lines it was. The box *Add line ids to the imported containers (one time)* beside it starts unticked; when it is ticked, `mintImportIds` writes the ids into every planned body before the one dispatch, so one undo takes the containers and their ids together, and `autoLineIds` stays unset. The status line says how many ids were added and names a line that could not take one with its container and line. *Import Twee* (`.twee`, `.tw`) plans one container
   with `planTweeImport` and shows its report in `TweeImportDialog` before it writes: passages, choices, stripped macros,
@@ -146,8 +150,10 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
    `dialogue.table` tool reads them too, but stays the one table: §6's columns plus `locale`, with the target and locale in its
    `data` and a note when the export writes a Yarn strings file. Its `charLimit` column is empty, because the tool has no recipe.
 3. **Screenplay source affordances.** The element menu offers no section or synopsis: sections and synopses live in the binder and
-   the Inspector (screenplay.md §2.2). Each of the nine elements has a chord in the Source tab: Ctrl+Shift+1..9, or Cmd+Alt+1..9 on a
-   Mac, matched on the physical digit key. Playwright fakes the modifier state, so the chords are not checked on a real Mac, on a
+   the Inspector (screenplay.md §2.2), and the Source tab reaches them by chord instead, Ctrl+Shift+S for the section (the folder the
+   scene is in, selected and focused in the binder) and Ctrl+Shift+Y for the synopsis (Cmd+Alt+S and Cmd+Alt+Y on a Mac). A scene in
+   no folder has no section, and the chord says so on the status line. Each of the nine elements has a chord in the Source tab: Ctrl+Shift+1..9, or Cmd+Alt+1..9 on a
+   Mac, matched on the physical digit key; the route letters are matched as the app's other chords are (`chordKey`). Playwright fakes the modifier state, so the chords are not checked on a real Mac, on a
    German or Polish (AltGr) layout, in Safari, or against Linux and IME hotkeys. A chord the system or browser intercepts still works
    from the menu.
 4. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
@@ -162,9 +168,10 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
     *Add line ids on save* by it. An id the source already holds in two places is kept and reported, never renamed, and a line
     that cannot take an id is named on the status line. Otherwise ids come from the Add line ids action or from a container whose
     `autoLineIds` is on.
-9. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,
-    *Derive shots*), and the plan the agent proposes for it, its folder and its shots, needs a model that proposes shots, which
-    no test drives.
+9. **The agent's derive plan is verified against scripted answers, not a model.** The derive offers send their request to the agent
+    (*What a writer can do*, *Derive shots*). The `storyboard-derive` golden task replays a synthetic cassette (hand-written model
+    answers) through the loop and checks the plan, the card and the folder and shots it applies, but no model has been recorded
+    proposing shots, so how a real model plans them is not measured.
 
 ## Tests
 

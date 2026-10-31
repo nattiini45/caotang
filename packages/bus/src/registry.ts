@@ -32,6 +32,7 @@ import {
   coherenceRemoveKnowledgeFact,
 } from './descriptors-coherence.js';
 import * as shotImageDescriptors from './descriptors-shot-image.js';
+import * as avScriptDescriptors from './descriptors-av-script.js';
 import * as scriptDescriptors from './descriptors-script.js';
 import * as skillDescriptors from './descriptors-skills.js';
 import { timelineApply } from './descriptors-timeline.js';
@@ -39,6 +40,10 @@ import * as pictureDescriptors from './descriptors-pictures.js';
 import * as transcriptionDescriptors from './descriptors-transcription.js';
 import * as comicDescriptors from './descriptors-comic.js';
 import * as calendarDescriptors from './descriptors-calendar.js';
+import * as agentFileDescriptors from './descriptors-agent-files.js';
+import * as hookDescriptors from './descriptors-hooks.js';
+import * as codexImportDescriptors from './descriptors-codex-import.js';
+import * as macroDescriptors from './descriptors-macros.js';
 import {
   viewSetActiveDocApply,
   viewSetCorkboardScopeApply,
@@ -135,6 +140,9 @@ export function buildRegistry(): CommandRegistry {
     'screenplay.import': { descriptor: scriptDescriptors.screenplayImport },
     'dialogue.importInk': { descriptor: scriptDescriptors.dialogueImportInk },
     'dialogue.setMeta': { descriptor: scriptDescriptors.dialogueSetMeta },
+    // The AV script's show and episode settings (av-script.md §2). Descriptor only; the applies are the store's (`commands-script.ts`).
+    'script.setShowMeta': { descriptor: avScriptDescriptors.scriptSetShowMeta },
+    'script.setEpisodeMeta': { descriptor: avScriptDescriptors.scriptSetEpisodeMeta },
     // The project's skills (extensibility.md §10). User-only: every descriptor is `agentRisk: 'never'`. The applies are the store's
     // (`commands-skills.ts`), and `skill.import` is registered only when the host injects its staging.
     'skill.import': { descriptor: skillDescriptors.skillImport },
@@ -170,6 +178,18 @@ export function buildRegistry(): CommandRegistry {
     'comic.scriptFromPages': { descriptor: comicDescriptors.comicScriptFromPages },
     'comic.derive': { descriptor: comicDescriptors.comicDerive },
     'comic.letter': { descriptor: comicDescriptors.comicLetter },
+    // The agent's files (context-assembly.md §2, layer LI). The applies are the store's (`commands-agent-files.ts`).
+    'project.setInstructions': { descriptor: agentFileDescriptors.projectSetInstructions },
+    'memory.write': { descriptor: agentFileDescriptors.memoryWrite },
+    'memory.forget': { descriptor: agentFileDescriptors.memoryForget },
+    // The writer's macros (extensibility.md §10). User-only: both descriptors are `agentRisk: 'never'`. The applies are the store's (`commands-macros.ts`).
+    'macro.save': { descriptor: macroDescriptors.macroSave },
+    'macro.delete': { descriptor: macroDescriptors.macroDelete },
+    // The writer's hooks (hooks.md). User-only: both descriptors are `agentRisk: 'never'`. The applies are the store's (`commands-hooks.ts`).
+    'hook.save': { descriptor: hookDescriptors.hookSave },
+    'hook.delete': { descriptor: hookDescriptors.hookDelete },
+    // The writer's batch import of codex entries (codex.md §7.1). Descriptor only; the apply is the store's (`commands-codex-import.ts`).
+    'codex.importBatch': { descriptor: codexImportDescriptors.codexImportBatch },
   };
 }
 

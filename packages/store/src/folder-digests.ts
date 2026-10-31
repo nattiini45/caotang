@@ -14,6 +14,8 @@ import { isIdWithPrefix } from '@caotang/ids';
 
 import { ArtifactNotFoundError, type ArtifactFs } from './artifact-fs.js';
 import { CODEX_DIR, DOCS_DIR, bodyStemOf, isBodyFileName, isBodyType } from './paths.js';
+import { listAgentFilePaths } from './agent-files-fs.js';
+import { INSTRUCTIONS_FALLBACK, INSTRUCTIONS_FILE, MEMORY_INDEX, isAgentFilePath, memorySlugOfPath } from './agent-files.js';
 import { isSkillFilePath, listSkillFilePaths } from './skills-fs.js';
 import { SKILLS_DIR } from './paths.js';
 import type { ProjectState } from './state.js';
@@ -31,11 +33,12 @@ export async function digestOfBytes(bytes: Uint8Array): Promise<string> {
 }
 
 /**
- * Whether `path` is a project file: a document body whose stem is a document id, a codex redundancy file whose stem is a codex id, or a file of
- * a skill (`.agents/skills/<name>/…`). Anything else in `docs/` or `codex/` is the author's, and no save writes or removes it (project-format §1).
+ * Whether `path` is a project file: a document body whose stem is a document id, a codex redundancy file whose stem is a codex id, a file of
+ * a skill (`.agents/skills/<name>/…`), or an agent file (`CAOTANG.md`, `AGENTS.md`, `memory/MEMORY.md`, `memory/<slug>.md`). Anything else in
+ * `docs/` or `codex/` is the author's, and no save writes or removes it (project-format §1).
  */
 export function isProjectFile(path: string): boolean {
-  if (isSkillFilePath(path)) return true;
+  if (isSkillFilePath(path) || isAgentFilePath(path)) return true;
   const slash = path.lastIndexOf('/');
   if (slash < 0) return false;
   const dir = path.slice(0, slash);
@@ -53,7 +56,7 @@ export async function projectFilePaths(fs: ArtifactFs): Promise<string[]> {
   const codex = (await fs.listFiles(CODEX_DIR))
     .filter((name) => name.endsWith('.md') && isIdWithPrefix('c', name.slice(0, -3)))
     .map((name) => `${CODEX_DIR}/${name}`);
-  return [...documents, ...codex, ...(await listSkillFilePaths(fs))].sort();
+  return [...documents, ...codex, ...(await listSkillFilePaths(fs)), ...(await listAgentFilePaths(fs))].sort();
 }
 
 /** The codes a file system reports for a brief hold by another program (a sync client, or the Caotang MCP server, on Windows). */
@@ -181,6 +184,10 @@ export function projectFileLabel(
   holder: string,
 ): string {
   if (isSkillFilePath(path)) return `the skill “${path.slice(SKILLS_DIR.length + 1, path.indexOf('/', SKILLS_DIR.length + 1))}”`;
+  if (path === INSTRUCTIONS_FILE || path === INSTRUCTIONS_FALLBACK) return `the file ${path}`;
+  if (path === MEMORY_INDEX) return 'the memory index';
+  const slug = memorySlugOfPath(path);
+  if (slug !== undefined) return `the memory note “${slug}”`;
   const id = path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
   const title = current.get(id) ?? held.get(id);
   const codex = path.startsWith(`${CODEX_DIR}/`);

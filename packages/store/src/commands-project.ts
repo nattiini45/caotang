@@ -15,7 +15,6 @@
  */
 
 import { newId } from '@caotang/ids';
-import type { ProcessPicture } from '@caotang/pictures';
 import {
   projectCommands,
   type ApplyContext,
@@ -33,6 +32,8 @@ import {
   type VocabularyRemoveParams,
   type VocabularyUpsertParams,
 } from '@caotang/bus';
+import { PICTURE_MAX_BYTES, type PictureDecoder } from '@caotang/pictures';
+
 import { defaultLanguage, mintIdentifier } from './project-identity.js';
 import { defaultRecipe } from './create.js';
 import type { ExportRecipe, ProjectIdentity, VocabularyTerm } from './manifest.js';
@@ -68,8 +69,6 @@ export interface ProjectAssetPort {
   list?(): Promise<{ readonly authoritative: boolean; readonly files: readonly string[] }>;
   /** One file's bytes by project path (assets/a_….png), or nothing when it is not there. Lets an import match a file that has no record. */
   readBytes?(path: string): Promise<Uint8Array | null | undefined>;
-  /** Makes a smaller copy of a picture (the browser's canvas). A host without it refuses working copies before it writes. */
-  readonly process?: ProcessPicture;
   /** Random bytes for the picture ids, so a test can pin them. */
   readonly randomBytes?: (length: number) => Uint8Array;
   /**
@@ -78,6 +77,17 @@ export interface ProjectAssetPort {
    * injects this; without it the name stays descriptor-only and the bus refuses it as not wired.
    */
   readonly deletion?: AssetDeletionPort;
+  /**
+   * Whether a file under `assets/` is held. The import's dedup asks it before it trusts a record with the same hash: a record
+   * whose file is gone is re-created over the bytes being imported (pictures.md §6.2). Absent, a record is trusted as it stands.
+   */
+  has?(path: string): Promise<boolean>;
+  /**
+   * What the host can decode for an import (pictures.md §6.4): HEIC to JPEG, and working copies of large photos, which
+   * `asset.storeWorkingCopies` uses too. Absent (Node, a test), HEIC is refused with the remedy, large photos keep their originals and
+   * the bulk working-copy action refuses before it writes.
+   */
+  readonly decoder?: PictureDecoder;
 }
 
 /* ------------------------------------------------------------------ *
@@ -90,8 +100,11 @@ export interface CoverImageKind {
   readonly mime: 'image/png' | 'image/jpeg' | 'image/webp';
 }
 
-/** The largest cover file the command takes. A cover is a few megabytes at most; a larger file is refused, not stored. */
-export const COVER_MAX_BYTES = 16 * 1024 * 1024;
+/**
+ * The largest cover file the command takes. Since the picture registry it is `PICTURE_MAX_BYTES` (pictures.md §6.1), the one cap
+ * every picture import keeps; the name stays for the callers that read it.
+ */
+export const COVER_MAX_BYTES = PICTURE_MAX_BYTES;
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
@@ -113,11 +126,9 @@ export function sniffCoverImage(bytes: Uint8Array): CoverImageKind | undefined {
   return undefined;
 }
 
-/** The cover import's three refusals, as the writer has always read them. */
+/** The cover import's refusal for staged bytes that are gone, as the writer has always read it; the rest are the pipeline's. */
 const COVER_WORDING: ImportWording = {
   missing: () => 'the image is no longer held, so nothing was imported',
-  tooBig: (_label, bytes) => `the image is ${Math.round(bytes / (1024 * 1024))} MB, and a cover may be at most ${COVER_MAX_BYTES / (1024 * 1024)} MB`,
-  notPicture: () => 'the file is not a PNG, JPEG or WebP image, which is what a cover can be',
 };
 /** A vocabulary id from a name: lower-case words joined by hyphens (`Act 1` → `act-1`), made unique among the terms. */
 function mintTermId(name: string, terms: readonly VocabularyTerm[]): string {
@@ -165,6 +176,7 @@ function optionsParamsOf(options: NonNullable<ExportRecipe['options']>): RecipeO
     ...(options.sceneNumbers === undefined ? {} : { sceneNumbers: options.sceneNumbers }),
     ...(options.continued === undefined ? {} : { continued: options.continued }),
     ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
+    ...(options.scriptFont === undefined ? {} : { scriptFont: options.scriptFont }),
     ...(options.paperFrames === undefined ? {} : { paperFrames: options.paperFrames }),
     ...(options.bleed === undefined ? {} : { bleed: options.bleed }),
     ...(options.cropMarks === undefined ? {} : { cropMarks: options.cropMarks }),
@@ -174,6 +186,7 @@ function optionsParamsOf(options: NonNullable<ExportRecipe['options']>): RecipeO
     ...(options.epubKeepWebp === undefined ? {} : { epubKeepWebp: options.epubKeepWebp }),
     ...(options.keepPictureMetadata === undefined ? {} : { keepPictureMetadata: options.keepPictureMetadata }),
     ...(options.timelinePictures === undefined ? {} : { timelinePictures: options.timelinePictures }),
+    ...(options.colourEmoji === undefined ? {} : { colourEmoji: options.colourEmoji }),
   };
 }
 

@@ -28,8 +28,22 @@ import { isOwnWrite } from './rebase-model.js';
 import { SourceField } from './SourceField.js';
 import { fountainSegments } from './source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyEdit } from './screenplay-keys.js';
+import { OpenOnDesktop, useNarrow } from '../components/narrow.js';
 import { ScreenplayPreview } from './ScreenplayPreview.js';
-import { elementMenuLabel, chordAria, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
+import {
+  SOURCE_ROUTES,
+  chordAria,
+  chordPlatform,
+  chordRange,
+  elementChord,
+  elementEntries,
+  elementMenuLabel,
+  opensElementMenu,
+  routeAria,
+  routeChord,
+  type ElementEntry,
+  type SourceRoute,
+} from './element-menu.js';
 
 
 /* lingui-set comment="The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range." */
@@ -41,6 +55,11 @@ export interface ScreenplayViewProps {
   readonly onRevealHandled?: () => void;
   /** Sends a request to the agent. Absent: the scene does not offer to derive its shots (storyboard.md §4). */
   readonly onAgentIntent?: (intent: string) => void;
+  /**
+   * The Source tab's two routes to the binder (screenplay.md §3): the section chord shows the folder the scene is in, and the synopsis
+   * chord focuses the scene's synopsis in the inspector. Absent: that chord is not taken, and the key keeps its meaning.
+   */
+  readonly onRoute?: (route: SourceRoute) => void;
 }
 
 type Mode = 'script' | 'source' | 'pages';
@@ -82,7 +101,7 @@ interface OpenElementMenu {
   readonly entries: readonly ElementEntry[];
 }
 
-export function ScreenplayView({ session, node, reveal = null, onRevealHandled = NOOP, onAgentIntent }: ScreenplayViewProps): ReactNode {
+export function ScreenplayView({ session, node, reveal = null, onRevealHandled = NOOP, onAgentIntent, onRoute }: ScreenplayViewProps): ReactNode {
   useLingui();
   useSession(session);
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
@@ -96,12 +115,16 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   const stored = getBody(session.state, docId);
   const revision = getRevision(session.state, docId);
   const [mode, setMode] = useState<Mode>('script');
+  // Pages is the printed layout and the PDF's preview; a narrow window names it as a desktop view (ui-modules §1).
+  const narrow = useNarrow();
   const [draft, setDraft] = useState(stored);
   // The body and revision this view last agreed with the store. The effect below tells its own write from a change made
   // underneath it, the way the editor does (EditorPane).
   const [opened] = useState(() => ({ body: stored, revision }));
   const synced = useRef<{ body: string; revision: number }>(opened);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  // A browser may collapse a textarea's selection when it loses focus; keep the caret for the Element button's click and keyboard path.
+  const lastSourceCaret = useRef<number | null>(null);
   // The formatted view reads the draft a moment late, so a fast typist never waits on a re-parse.
   const deferred = useDeferredValue(draft);
   const model = useMemo(() => screenplayModelOf(deferred), [deferred]);
@@ -159,9 +182,9 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   };
 
   /**
-   * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E, read through the app's layout rule, so a Russian layout's
-   * Ctrl+У opens it) opens the element menu, the element chords (Ctrl+Shift+1..9, or Cmd+Alt+1..9 on a Mac) rewrite the
-   * caret's line, Enter works after a cue and on empty dialogue, and Tab on a half-typed cue.
+   * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E) opens the element menu, the element chords (Ctrl+Shift+1..9, or
+   * Cmd+Alt+1..9 on a Mac) rewrite the caret's line, the route chords (Ctrl+Shift+S and Ctrl+Shift+Y, or Cmd+Alt+S and Cmd+Alt+Y)
+   * show the scene's section and synopsis, Enter works after a cue and on empty dialogue, and Tab on a half-typed cue.
    * Any other key with a modifier, or one that is not one of these, keeps its meaning, and so does Enter or Tab with a selection.
    */
   const onSourceKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -176,13 +199,20 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
       changeElement(event.currentTarget, chosen);
       return;
     }
+    const route = onRoute === undefined ? null : routeChord(event.nativeEvent, platform);
+    if (route !== null) {
+      event.preventDefault();
+      onRoute?.(route);
+      return;
+    }
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const field = event.currentTarget;
     if (field.selectionStart !== field.selectionEnd) return;
     const at = field.selectionStart;
     let edit: KeyEdit | null = null;
-    // The Enter that commits an IME candidate belongs to the input method: the field keeps its own newline, and no cue edit runs.
-    if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) edit = enterAfterCue(field.value, at) ?? enterOnEmptyDialogue(field.value, at);
+    // The Enter (or Tab) that confirms an input method's candidate is the input method's, not a cue's (#188).
+    if (isImeEnter(event)) return;
+    if (event.key === 'Enter') edit = enterAfterCue(field.value, at) ?? enterOnEmptyDialogue(field.value, at);
     else if (event.key === 'Tab') edit = cueCompletion(field.value, at, completions);
     if (edit === null) return;
     event.preventDefault();
@@ -208,10 +238,11 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     const field = sourceRef.current;
     if (field === null) return;
     const rect = (elementButtonRef.current ?? field).getBoundingClientRect();
+    const caret = field.ownerDocument.activeElement === field ? field.selectionStart : (lastSourceCaret.current ?? field.selectionStart);
     setElementMenu({
       anchor: { x: rect.left, y: rect.bottom + 4 },
       text: field.value,
-      entries: elementEntries(field.value, field.selectionStart, platform),
+      entries: elementEntries(field.value, caret, platform),
     });
   };
 
@@ -344,6 +375,15 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                 model.units.map((unit) => <UnitView key={keyOf(unit)} unit={unit} />)
               )}
             </article>
+          ) : mode === 'pages' && narrow ? (
+            <OpenOnDesktop
+              feature="screenplay-pages"
+              actions={
+                <button type="button" className="button" onClick={() => setMode('script')}>
+                  Show the script
+                </button>
+              }
+            />
           ) : mode === 'pages' ? (
             <ScreenplayPreview
               source={deferred}
@@ -375,6 +415,10 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                 segments={segments}
                 onChange={onSourceChange}
                 onKeyDown={onSourceKeyDown}
+                keyShortcuts={onRoute === undefined ? undefined : SOURCE_ROUTES.map((route) => routeAria(route, platform)).join(' ')}
+                onBlur={(event) => {
+                  lastSourceCaret.current = event.currentTarget.selectionStart;
+                }}
               />
               {elementMenu === null ? null : (
                 <Menu

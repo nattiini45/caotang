@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 
 import { getBody, getRevision, type ProjectState } from '@caotang/store';
 
-import { createAgentSession, createAgentPorts, createContextPort, createHarness, type Decision, type PendingCard } from '../../src/index.js';
-import { LANDING, clock, makeState } from '../fixtures.js';
+import { createAgentSession, createAgentPorts, createContextPort, type Decision, type PendingCard } from '../../src/index.js';
+import { checkedHarness, clock, LANDING, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { prose } from './scripts.js';
 
@@ -38,7 +38,7 @@ function planOf(state: ProjectState) {
 /** A session on the project, with the writer's decision on every card it shows, and the cards it showed. */
 async function sessionFor(state: ProjectState, decision: Decision, pending: PendingCard[]) {
   const gateway = await mockGateway([prose('Brief: Make the ferry on time.', REWRITTEN)]);
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+  const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
   return createAgentSession({
     harness,
     gateway,

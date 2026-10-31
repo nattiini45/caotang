@@ -25,8 +25,8 @@ import {
   type TreeNode,
 } from '@caotang/store';
 
-import { projectCollator } from '../i18n/project-collator.js';
 import { childrenOf } from './binder-model.js';
+import { namesCollator } from '../i18n/locale.js';
 
 /** codex.md §2's type names, for a person. The enum itself is the store's. */
 export const TYPE_LABELS: Readonly<Record<string, string>> = {
@@ -95,20 +95,19 @@ export interface CodexGroup {
 
 /**
  * The entries in groups by type, in codex.md §2's enum order, with unknown types last. Within a
- * group the names are in alphabetical order, case-insensitively, so the list reads top to bottom.
- * Names are writer content and sort by the **project language** (i18n.md §4.3, D9); a project that
- * names no language yet falls back to the formatter locale.
+ * group the names are in alphabetical order in the project language (D9), case-insensitively and with numbers by value, so
+ * the list reads top to bottom.
  */
 export function groupByType(entries: readonly CodexEntry[], projectLanguage?: string): CodexGroup[] {
+  const names = namesCollator(projectLanguage);
   const rank = (type: string): number => {
     const at = CODEX_TYPE_ORDER.indexOf(type);
     return at === -1 ? CODEX_TYPE_ORDER.length : at;
   };
-  const byName = projectCollator(projectLanguage);
   const ordered = [...entries].sort(
     (a, b) =>
       rank(a.type) - rank(b.type) ||
-      byName.compare(a.name, b.name) ||
+      names.compare(a.name, b.name) ||
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
   const groups: { type: string; label: string; entries: CodexEntry[] }[] = [];

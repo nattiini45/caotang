@@ -140,6 +140,8 @@ describe('emoji as grapheme clusters', () => {
     expect(textUnits('Café 草堂')).toEqual([...'Café 草堂']);
     // A text-style selector stays with its character, which is not an emoji.
     expect(textUnits('❤︎!')).toEqual(['❤︎', '!']);
+    // A combining mark on a pictographic base stays in the same grapheme.
+    expect(textUnits('😀\u0301')).toEqual(['😀\u0301']);
   });
 
   it('knows an emoji from a text-style pictograph', () => {
@@ -158,6 +160,14 @@ describe('emoji as grapheme clusters', () => {
   it('never splits an emoji across lines, and fills a line to its 60 columns', () => {
     const lines = linesOf(text('👨‍👩‍👧'.repeat(31))).map((line) => line.text);
     expect(lines).toEqual(['👨‍👩‍👧'.repeat(30), '👨‍👩‍👧']);
+  });
+
+  it('keeps a combining mark on its pictographic base across a line break', () => {
+    const marked = '😀\u0301';
+    const source = `${'x'.repeat(LAYOUT.width.dialogue - 2)}${marked}`;
+    const dialogue = linesOf(text('ANNA', source)).filter((line) => line.kind === 'dialogue');
+    expect(dialogue.map((line) => line.text).join('')).toBe(source);
+    expect(dialogue.every((line) => !line.text.includes('\u0301') || line.text.includes(marked))).toBe(true);
   });
 
   it('wraps a dialogue line of emoji and text by columns', () => {

@@ -18,7 +18,7 @@
  *
  * **What comes back** is text, no more than the external answer cap, marked untrusted: a blob is refused naming its MIME type, and an
  * answer over the cap is refused naming the cap. Nothing is trimmed, because a cut resource would be a different resource. This module
- * puts nothing in a prompt: the attach path that would carry the text to the model waits for the untrusted-output marking (issue #54).
+ * puts nothing in a prompt: the attach path that would carry the text to the model is not built, and when it is the text goes in the envelope of context `untrusted.ts` (issue #54).
  *
  * As with `mcp.invoke`, a failure never comes back as a value from the registration's apply: the bus would store it as a completed
  * command, so the apply rejects with an {@link McpReadResourceFailure} that carries the `CommandError`.

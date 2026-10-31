@@ -165,9 +165,13 @@ import { loadComicBook } from '@caotang/comic';
 import type { CodexEntry, CodexIncludePolicy, TreeNode } from './manifest.js';
 import { projectCommandRegistrations, type ProjectAssetPort } from './commands-project.js';
 import { assetIdsInText, type UndoRetentionLedger } from './picture-retention.js';
-import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
-import { shotImageCommandRegistrations } from './commands-shot-image.js';
 import { pictureCommandRegistrations } from './commands-pictures.js';
+import { agentFileCommandRegistrations } from './commands-agent-files.js';
+import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
+import { hookCommandRegistrations } from './commands-hooks.js';
+import { codexImportCommandRegistrations } from './commands-codex-import.js';
+import { macroCommandRegistrations } from './commands-macros.js';
+import { shotImageCommandRegistrations } from './commands-shot-image.js';
 import { furnitureApplies } from './commands-furniture.js';
 import { scriptApplies } from './commands-script.js';
 import { timelineApplies } from './commands-timeline.js';
@@ -231,7 +235,7 @@ export interface ProjectCommandOptions {
    */
   readonly shots?: ShotCommandPort;
   /**
-   * The project's asset port, for `project.importAsset` (the cover image). **Injected, not imported**, for the reason the
+   * The project's asset port, for `project.importAsset` (the cover image), `asset.import` and `asset.importBatch` (pictures.md §2.4). **Injected, not imported**, for the reason the
    * other ports are: the host owns where the bytes are written. Without it the name stays descriptor-only and is refused as not wired.
    */
   readonly assets?: ProjectAssetPort;
@@ -1790,6 +1794,9 @@ export function createProjectCommandRegistry(
   registry['screenplay.import'] = { descriptor: registry['screenplay.import'].descriptor, apply: narrow(script['screenplay.import']) };
   registry['dialogue.importInk'] = { descriptor: registry['dialogue.importInk'].descriptor, apply: narrow(script['dialogue.importInk']) };
   registry['dialogue.setMeta'] = { descriptor: registry['dialogue.setMeta'].descriptor, apply: narrow(script['dialogue.setMeta']) };
+  // The AV script's show and episode settings (av-script.md §2), applies of the store's own.
+  registry['script.setShowMeta'] = { descriptor: registry['script.setShowMeta'].descriptor, apply: narrow(script['script.setShowMeta']) };
+  registry['script.setEpisodeMeta'] = { descriptor: registry['script.setEpisodeMeta'].descriptor, apply: narrow(script['script.setEpisodeMeta']) };
 
   // The timeline batch (timeline.md §4.3): the bus's descriptor, validated and applied through one projection.
   const timeline = timelineApplies();
@@ -1912,6 +1919,14 @@ export function createProjectCommandRegistry(
   // The project's skills (extensibility.md §10): the writer's own files in `.agents/skills/`. The three that need nothing from the host
   // are always registered; `skill.import` is added only when the host injects its staging.
   Object.assign(registry, skillCommandRegistrations({ clock, ...(options.skillStaging === undefined ? {} : { staging: options.skillStaging }) }));
+  // The agent's files (context-assembly.md §2, layer LI): CAOTANG.md and the memory notes (commands-agent-files.ts).
+  Object.assign(registry, agentFileCommandRegistrations({ clock }));
+  // The writer's macros (extensibility.md §10): `macros[]` in the manifest (commands-macros.ts).
+  Object.assign(registry, macroCommandRegistrations({ clock }));
+  // The writer's hooks (hooks.md): `agent.hooks` in the manifest (commands-hooks.ts).
+  Object.assign(registry, hookCommandRegistrations({ clock }));
+  // The writer's batch import of codex entries (codex.md §7.1): one command, one undo group (commands-codex-import.ts).
+  Object.assign(registry, codexImportCommandRegistrations({ clock }));
   // Storyboard: the shot image import needs both the asset port and the storyboard port (commands-shot-image.ts).
   Object.assign(
     registry,

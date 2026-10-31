@@ -4,7 +4,9 @@
  * this package, never the other way round.
  */
 
-export type PictureMime = 'image/png' | 'image/jpeg' | 'image/webp';
+import type { PictureMime } from './files.js';
+
+export type { PictureMime };
 
 export const PICTURE_MIMES: readonly PictureMime[] = ['image/png', 'image/jpeg', 'image/webp'];
 
@@ -84,9 +86,14 @@ export interface AssetRecord {
   /** Lower-case hex SHA-256 of the bytes as stored; the dedup key. */
   sha256: string;
   bytes: number;
-  /** Display size: what the writer sees once EXIF orientation is applied. */
+  /**
+   * The size the file encodes, as its header states it (an EXIF Orientation that turns the picture does not swap it). A layout reads
+   * the display size through `displaySizeOf`, which swaps it for `orientation` 5–8.
+   */
   width?: number;
   height?: number;
+  /** The EXIF Orientation the stored bytes carry, 2–8; absent is upright (1). Additive: a record written without it reads as upright. */
+  orientation?: 2 | 3 | 4 | 5 | 6 | 7 | 8;
   caption?: string;
   alt?: string;
   decorative?: true;

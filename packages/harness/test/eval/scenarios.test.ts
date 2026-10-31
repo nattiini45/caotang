@@ -42,8 +42,9 @@ const scenarios: Scenario[] = [
       ],
       // The planner lists the core rows on each call and loads the deferred ones on demand (agent-harness §3), so the ceiling
       // tracks the core band: 13 rows and tool.search, with export.compile's recipeName parameter and codex.write's
-      // `visualRefs`. Measured at 4767, so the ceiling is 4800 (it was 8000 when every wired tool was listed).
-      maxTokens: 4800,
+      // `visualRefs`, and the outside-text rule that system prompt v2 adds. Measured at 4903, so the ceiling is 4950 (it
+      // was 8000 when every wired tool was listed).
+      maxTokens: 4950,
       state: (state) => (state.manifest.tree.find((node) => node.id === FRIEND)?.label === 'act-2' ? [] : ['The Friend is not labelled act-2']),
     },
   },
@@ -116,10 +117,11 @@ const scenarios: Scenario[] = [
         { content: `Fill the synopsis of ${quote(STORM)}`, state: 'done' },
       ],
       // Three model calls (a read's planner, a plan's planner, a synopsis), each carrying the core tool schemas; the deferred
-      // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was. Measured at 9904,
-      // so the ceiling is 9950 (it was 9900 before the comic and timeline formats joined export.compile's enum — 92 more
-      // characters in the system message, on each of the two planner calls — and 16300 when every wired tool was listed).
-      maxTokens: 9950,
+      // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was, and each carries the
+      // outside-text rule that system prompt v2 adds. Measured at 10126 on main, so the ceiling was 10150 (it was 16300 when
+      // every wired tool was listed). Merge: the comic and timeline formats joined export.compile's enum (on each of the two planner
+      // calls), measured at 10178, so the ceiling is 10200.
+      maxTokens: 10200,
       maxModelCalls: 3,
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === STORM);
@@ -576,6 +578,36 @@ const scenarios: Scenario[] = [
         const tagged = state.manifest.tree.filter((node) => node.keywords.includes('storm')).map((node) => node.id);
         return tagged.length === 1 && tagged[0] === STORM ? [] : [`the scenes tagged storm are ${JSON.stringify(tagged)}`];
       },
+    },
+  },
+  {
+    // Issue #97: a planner reply the provider cut at its output limit is named as cut, not as malformed JSON, and asked again
+    // with twice the cap (inside the model's advertised cap). The mock profile's limits are wrapped to a 10-token cap.
+    name: 'verify-recovery: a planner reply cut at the output limit is named as cut and asked again with more room',
+    category: 'verify-recovery',
+    intent: 'Move The Friend into Act 2, carefully.',
+    project: makeState,
+    gateway: async () => {
+      const base = await mockGateway([
+        plannerScript((req) => {
+          if (!userTextOf(req).includes('Request: Move The Friend into Act 2, carefully.')) return undefined;
+          return req.messages.some((message) => message.role === 'assistant') ? answer('Ready when you are.') : undefined;
+        }),
+        {
+          match: (req) => userTextOf(req).includes('Request: Move The Friend into Act 2, carefully.') && !req.messages.some((message) => message.role === 'assistant'),
+          respond: () => ({ content: '{"steps": [{"tool": "meta.set", "params": {"targets": ["', finishReason: 'length' }),
+        },
+      ]);
+      return { ...base, modelLimits: (profileId, model, thinking) => ({ ...base.modelLimits(profileId, model, thinking), maxOutputTokens: 10, modelMaxOutputTokens: 40 }) };
+    },
+    expect: {
+      status: 'replied',
+      requests: [
+        { excludes: ['cut off'] },
+        { includes: ['Your reply was cut off at the model’s output limit', 'Send a shorter reply'], excludes: ['not valid JSON'] },
+      ],
+      maxModelCalls: 2,
+      state: (state) => (state.manifest.tree.find((node) => node.id === FRIEND)?.label === null ? [] : ['The Friend was labelled by a reply that was cut']),
     },
   },
 ];

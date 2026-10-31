@@ -51,7 +51,7 @@ test('the export dialog offers the prose formats, then the media formats, then t
   await expect(media.getByRole('radio', { name: /^Fountain \(\.fountain\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Screenplay PDF \(\.pdf\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Prompt pack \(video\)/ })).toBeVisible();
-  await expect(dialog.getByRole('group', { name: 'Review' }).getByRole('radio')).toHaveCount(2);
+  await expect(dialog.getByRole('group', { name: 'Review', exact: true }).getByRole('radio')).toHaveCount(2);
 });
 
 test('a recipe’s title-page setting is saved to the recipe, and is still off when the dialog opens again', async ({ page }) => {

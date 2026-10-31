@@ -449,8 +449,7 @@ function NameField({ value, onCommit }: { value: string; onCommit: (name: string
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
-          // The Enter that commits an IME candidate is the input method's: it does not commit the name.
-          if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) {
+          if (event.key === 'Enter' && !isImeEnter(event)) {
             event.preventDefault();
             commit();
           }
@@ -538,8 +537,7 @@ function ChipField({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    // The Enter that commits an IME candidate adds nothing; the candidate's text is still being composed.
-    if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) {
+    if (event.key === 'Enter' && !isImeEnter(event)) {
       event.preventDefault();
       add();
     }

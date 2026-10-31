@@ -8,9 +8,10 @@
  * The work is split in two. {@link layoutPdf} is synchronous and pure: it paginates, so the page
  * count and every page-break rule are known before anything is drawn, and the exporter can refuse
  * or log a compile without loading the font. {@link drawPdf} writes the file with Courier Prime
- * embedded (A3). The font is about 70 KB, so it is loaded by a dynamic import ({@link loadCourierPrime}),
+ * embedded (A3), or with Cousine (about 300 KB) or the base-14 Courier when the recipe asks for them ({@link ScriptFont}).
+ * A font is loaded by a dynamic import ({@link loadScriptFont}),
  * the lazy-import pattern the DOCX and EPUB renderers use: the editor bundle never carries it, and
- * nothing is fetched from outside the app.
+ * nothing is fetched from outside the app. The page is US Letter or A4 ({@link PdfRenderOptions.pageSize}).
  *
  * A character WinAnsi cannot encode is printed in the CJK fallback, Noto Sans Mono CJK SC, when the font has it
  * (cjk-font.ts). The layout knows which characters those are without loading the font (the coverage table in
@@ -55,14 +56,24 @@ import {
 import { languageDirection } from '@caotang/pdf-fonts/bidi';
 
 import type { FlatBlock } from './flat-block.js';
-import { paginate, type LayoutPage, type PaginateOptions } from './paginate.js';
+import { COUSINE_METRICS } from './fonts/cousine-metrics.js';
+import { paginate, type LayoutPage, type PageSize, type PaginateOptions } from './paginate.js';
 import { parseFountain } from './parse.js';
-import { isPrintable, writePdf, type PdfCidFont, type PdfEmojiFont, type PdfFont, type PdfRtlFonts } from './pdf.js';
+import { isPrintable, writePdf, type PdfCidFont, type PdfColourEmojiFont, type PdfEmojiFont, type PdfFont, type PdfRtlFonts } from './pdf.js';
 import { renderFountain, type FountainRenderOptions } from './render-fountain.js';
 import type { RtlFontLoaders, RtlSupport } from './rtl-font.js';
 import { textUnits, withMeasure, type MeasureRun } from './width.js';
 
 export const PDF_MIME = 'application/pdf';
+
+/**
+ * The Latin faces of the screenplay PDF, one list for the type and the runtime guard. All three advance 600 units, so the text
+ * breaks at the same places in each. The bus holds the same list for the recipe option (`packages/bus/src/descriptors-project.ts`).
+ * `courier` embeds nothing: the file names the base-14 Courier, which every viewer draws with its own face.
+ */
+export const SCRIPT_FONTS = ['courier-prime', 'courier', 'cousine'] as const;
+
+export type ScriptFont = (typeof SCRIPT_FONTS)[number];
 
 export type PdfRenderOptions = FountainRenderOptions &
   Pick<PaginateOptions, 'titlePage' | 'sceneNumbers' | 'continued'> & {
@@ -72,11 +83,21 @@ export type PdfRenderOptions = FountainRenderOptions &
      * its forms: Japanese, Korean, Traditional Chinese or Hong Kong, and Simplified Chinese for any other.
      */
     readonly language?: string;
+    /**
+     * Colour emoji (screenplay.md §5.3): an emoji that Noto Color Emoji has prints in colour. Absent is off: a script is usually
+     * printed in black and white. Only {@link preparePdf} reads it, because the pictures are a file the host loads.
+     */
+    readonly colourEmoji?: boolean;
+    /** The paper (default Letter). It changes the page, not the text: the lines break where they do on Letter. */
+    readonly pageSize?: PageSize;
+    /** The Latin face (default Courier Prime). Only {@link preparePdf} reads it, because it loads the font. */
+    readonly scriptFont?: ScriptFont;
   };
 
 /** A paginated screenplay, ready to draw. */
 export interface PdfLayout {
   readonly pages: readonly LayoutPage[];
+  readonly pageSize: PageSize;
   /** The script pages, the title page left out. */
   readonly scriptPageCount: number;
   readonly title: string;
@@ -90,6 +111,10 @@ export interface PdfLayout {
    * emoji font is not loaded.
    */
   readonly emojiCharacters: readonly string[];
+  /** The emoji clusters the colour set prints, in order of first use. Empty unless the layout was given the colour set's coverage. */
+  readonly colourCharacters: readonly string[];
+  /** What the colour set leaves out of this layout, as a note for the compile log (empty when it leaves nothing out). */
+  readonly colourNotes: readonly string[];
   /** The scripts of the text that the Arabic, Hebrew and Devanagari fonts print. Empty: none of them is loaded. */
   readonly shapedScripts: readonly ShapedScript[];
 }
@@ -106,6 +131,8 @@ export interface PdfRenderResult {
 interface Unprintable {
   readonly cjk: string[];
   readonly emoji: string[];
+  /** The emoji the colour set prints. */
+  readonly colour: string[];
   /** Emoji sequences the emoji font has no glyph for, which print as their first emoji. */
   readonly partial: string[];
   /** What no font has: printed as "?". */
@@ -114,15 +141,19 @@ interface Unprintable {
   readonly scripts: ShapedScript[];
 }
 
-function unprintable(pages: readonly LayoutPage[]): Unprintable {
+function unprintable(pages: readonly LayoutPage[], colour?: (cluster: string) => boolean): Unprintable {
   const seen = new Set<string>();
-  const found: Unprintable = { cjk: [], emoji: [], partial: [], missing: [], scripts: [] };
+  const found: Unprintable = { cjk: [], emoji: [], colour: [], partial: [], missing: [], scripts: [] };
   for (const page of pages) {
     for (const line of page.lines) {
       for (const unit of textUnits(line.text)) {
         if (seen.has(unit)) continue;
         seen.add(unit);
         if ((unit.length > 1 || unit.charCodeAt(0) >= 0x231a) && isEmojiCluster(unit)) {
+          if (colour?.(unit) === true) {
+            found.colour.push(unit);
+            continue;
+          }
           const print = emojiPrint(unit);
           if (print === 'none') found.missing.push(unit);
           else found.emoji.push(unit);
@@ -177,8 +208,11 @@ function marksOf(pages: readonly LayoutPage[]): Record<RtlScript, number> {
 /**
  * Paginates the blocks. Pure and synchronous: the same blocks, options and measure always give the same pages. `measure` is the
  * width of a shaped word of Arabic or Hebrew in columns ({@link RtlSupport.measure}); without one a word counts a column for each letter.
+ * `colour` says which emoji the colour set prints (`colourEmojiCovers` of `@caotang/pdf-fonts/colour`): those are left out of
+ * the monochrome font's list and named in {@link PdfLayout.colourCharacters}; the rest keep the monochrome path, and the log names
+ * them. Without it, no emoji is set in colour.
  */
-export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, measure?: MeasureRun): PdfLayout {
+export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, measure?: MeasureRun, colour?: (cluster: string) => boolean): PdfLayout {
   const fountain = renderFountain(blocks, opts);
   const parsed = parseFountain(fountain.text);
   const holdsRtl = hasRtlScript(fountain.text);
@@ -195,7 +229,7 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
     }),
   );
   const notes = [...fountain.notes];
-  const outside = unprintable(pages);
+  const outside = unprintable(pages, colour);
   if (outside.missing.length > 0) {
     const { what, verb, shown } = counted(outside.missing, 'character', 'characters');
     notes.push(`pdf: neither Courier Prime nor the CJK or emoji fallback font can print ${what}, so ${verb} printed as "?": ${shown}`);
@@ -203,6 +237,14 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
   if (outside.partial.length > 0) {
     const { what, verb, shown } = counted(outside.partial, 'emoji sequence', 'emoji sequences');
     notes.push(`pdf: the emoji font has no glyph for ${what}, so ${verb} printed as ${outside.partial.length === 1 ? 'its' : 'their'} first emoji: ${shown}`);
+  }
+  const colourNotes: string[] = [];
+  if (colour !== undefined && outside.emoji.length > 0) {
+    const plain = outside.emoji.filter((unit) => isEmojiCluster(unit));
+    if (plain.length > 0) {
+      const { what, verb, shown } = counted(plain, 'emoji', 'emoji');
+      colourNotes.push(`pdf: Noto Color Emoji has no picture for ${what}, so ${verb} printed in black and white: ${shown}`);
+    }
   }
   const marks = outside.scripts.length === 0 ? { arabic: 0, hebrew: 0 } : marksOf(pages);
   if (marks.hebrew > 0) {
@@ -215,12 +257,15 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
   }
   return {
     pages,
+    pageSize: opts.pageSize ?? 'Letter',
     scriptPageCount: pages.filter((page) => page.kind === 'script').length,
     title: opts.title,
     ...(opts.author === undefined ? {} : { author: opts.author }),
     notes,
     fallbackCharacters: outside.cjk,
     emojiCharacters: outside.emoji,
+    colourCharacters: outside.colour,
+    colourNotes,
     shapedScripts: outside.scripts,
   };
 }
@@ -231,14 +276,15 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
  * ({@link loadEmojiFallback}), the emoji print in it; with the Arabic, Hebrew and Devanagari fonts ({@link loadRtlFallback}), the
  * scripts print in them; without them they print as "?".
  */
-export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts): Uint8Array<ArrayBuffer> {
+export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): Uint8Array<ArrayBuffer> {
   return writePdf(
     layout.pages.map((page) => page.lines.map((line) => ({ text: line.text, x: line.x, y: line.y, ...(line.rtl === true ? { rtl: true as const } : {}) }))),
-    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }) },
+    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }), ...(layout.pageSize === 'Letter' ? {} : { pageSize: layout.pageSize }) },
     font,
     fallback,
     emoji,
     rtl,
+    colour,
   );
 }
 
@@ -264,6 +310,17 @@ export async function loadEmojiFallback(layout: PdfLayout, load?: FontLoader): P
 }
 
 /**
+ * The colour emoji a layout needs, or undefined when it needs none, or when the host passes no loader for them. Only a layout with a
+ * colour emoji loads colour-emoji-font.ts, the asset (checked by length and SHA-256) by a dynamic
+ * import. A file that is not the shipped one, or cannot be read, throws: {@link preparePdf} then prints the whole file in monochrome.
+ */
+export async function loadColourEmojiFallback(layout: PdfLayout, load?: FontLoader): Promise<PdfColourEmojiFont | undefined> {
+  if (layout.colourCharacters.length === 0 || load === undefined) return undefined;
+  const [{ openColourEmoji, deflater }, { subsetColourEmoji }] = await Promise.all([import('@caotang/pdf-fonts/colour'), import('./colour-emoji-font.js')]);
+  return subsetColourEmoji(await openColourEmoji(load), layout.colourCharacters, await deflater());
+}
+
+/**
  * The Arabic, Hebrew and Devanagari subsets a layout needs and the plan of its lines, or undefined when it needs none or the host
  * passes no loader for a font it needs. Only a layout with one of the scripts loads rtl-font.ts, the shapers, bidi-js and the font
  * files, by a dynamic import. `support` is what {@link loadRtlSupport} gave for the same document; the layout must have been laid out with
@@ -281,6 +338,18 @@ export async function loadCourierPrime(): Promise<PdfFont> {
   return { bytes: decodeBase64(COURIER_PRIME_REGULAR_BASE64) };
 }
 
+/** Cousine Regular's bytes, with its metrics. */
+export async function loadCousine(): Promise<PdfFont> {
+  const { COUSINE_REGULAR_BASE64 } = await import('./fonts/cousine-regular.js');
+  return { bytes: decodeBase64(COUSINE_REGULAR_BASE64), metrics: COUSINE_METRICS };
+}
+
+/** The font a recipe's `scriptFont` names: Courier Prime when absent, and undefined for `courier`, which the file names without embedding. */
+export async function loadScriptFont(name: ScriptFont = 'courier-prime'): Promise<PdfFont | undefined> {
+  if (name === 'courier') return undefined;
+  return name === 'cousine' ? loadCousine() : loadCourierPrime();
+}
+
 function decodeBase64(text: string): Uint8Array {
   const binary = atob(text);
   const bytes = new Uint8Array(binary.length);
@@ -293,6 +362,7 @@ function decodeBase64(text: string): Uint8Array {
  * fallbacks are drawn as {@link drawPdf} draws them: pass what {@link loadCjkFallback} and {@link loadEmojiFallback} give
  * for the same blocks and options; `rtl` and `measure` are what {@link loadRtlFallback} and {@link RtlSupport.measure} give. A character whose fallback the call does not pass, or that the fallback has no glyph
  * for, is not printed as written (a plain "?", or the base character of a keycap- or VS16-style unit, such as © for ©️), and the notes name it.
+ * With `colour` (what {@link loadColourEmojiFallback} gives) and `colourCovers` (the colour set's coverage), the emoji it has print in colour.
  */
 export function renderPdf(
   blocks: readonly FlatBlock[],
@@ -302,12 +372,15 @@ export function renderPdf(
   emoji?: PdfEmojiFont,
   rtl?: PdfRtlFonts,
   measure?: MeasureRun,
+  colour?: PdfColourEmojiFont,
+  colourCovers?: (cluster: string) => boolean,
 ): PdfRenderResult {
-  const layout = layoutPdf(blocks, opts, measure);
+  const layout = layoutPdf(blocks, opts, measure, colour === undefined ? undefined : colourCovers);
   const notes = [...layout.notes];
   const cjkMissing = layout.fallbackCharacters.filter((ch) => fallback?.glyphs.has(ch) !== true);
   const emojiMissing = layout.emojiCharacters.filter((unit) => emoji?.glyphs.has(unit) !== true);
-  const unprinted = [...cjkMissing, ...emojiMissing];
+  const colourMissing = layout.colourCharacters.filter((unit) => colour?.glyphs.has(unit) !== true);
+  const unprinted = [...cjkMissing, ...emojiMissing, ...colourMissing];
   if (unprinted.length > 0) {
     const { what, verb, shown } = counted(unprinted, 'character', 'characters');
     notes.push(`pdf: the CJK or emoji fallback font that prints ${what} was not passed to renderPdf, or has no glyph for ${unprinted.length === 1 ? 'it' : 'them'}, so ${verb} not printed as written: ${shown}`);
@@ -318,7 +391,7 @@ export function renderPdf(
     }
   }
   // A script that prints nothing writes one blank page (writePdf), so the reported count agrees with the file.
-  return { bytes: drawPdf(layout, font, fallback, emoji, rtl), pageCount: Math.max(1, layout.pages.length), notes };
+  return { bytes: drawPdf(layout, font, fallback, emoji, rtl, colour), pageCount: Math.max(1, layout.pages.length), notes: [...notes, ...layout.colourNotes] };
 }
 
 export interface PdfRenderer {
@@ -329,15 +402,21 @@ export interface PdfRenderer {
 export interface PdfFontLoaders extends RtlFontLoaders {
   readonly cjk?: FontLoader;
   readonly emoji?: FontLoader;
+  /** Reads the colour emoji file (`@caotang/font-noto-color-emoji`). Read only with {@link PdfRenderOptions.colourEmoji} on and an emoji in the script. */
+  readonly colourEmoji?: FontLoader;
 }
 
 /** Everything {@link drawPdf} needs, loaded: the layout (measured with the Arabic, Hebrew and Devanagari fonts when it needs them) and the fonts. */
 export interface PreparedPdf {
   readonly layout: PdfLayout;
-  readonly font: PdfFont;
+  /** Absent for the base-14 Courier. */
+  readonly font?: PdfFont;
   readonly cjk?: PdfCidFont;
   readonly emoji?: PdfEmojiFont;
   readonly rtl?: PdfRtlFonts;
+  readonly colour?: PdfColourEmojiFont;
+  /** What the colour emoji left out of the file, for the compile log: the emoji the set lacks, or the file that could not be read. */
+  readonly colourNotes: readonly string[];
 }
 
 /**
@@ -346,28 +425,42 @@ export interface PreparedPdf {
  * without any is laid out once, with no shaper and no such font loaded.
  */
 export async function preparePdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, loaders: PdfFontLoaders = {}): Promise<PreparedPdf> {
-  let layout = layoutPdf(blocks, opts);
+  // Colour emoji need the colour set's coverage before the first layout: it decides which emoji the monochrome font is asked for.
+  const colourOn = opts.colourEmoji === true && loaders.colourEmoji !== undefined;
+  const colourCovers = colourOn ? (await import('@caotang/pdf-fonts/colour')).colourEmojiCovers : undefined;
+  let layout = layoutPdf(blocks, opts, undefined, colourCovers);
   let support: RtlSupport | undefined;
   if (layout.shapedScripts.length > 0 && (loaders.arabic !== undefined || loaders.hebrew !== undefined || loaders.devanagari !== undefined)) {
     const { loadRtlSupport } = await import('./rtl-font.js');
     support = await loadRtlSupport(layout.shapedScripts, loaders, undefined, opts.language === undefined ? {} : { language: opts.language });
-    layout = layoutPdf(blocks, opts, support.measure);
+    layout = layoutPdf(blocks, opts, support.measure, colourCovers);
+  }
+  const colourNotes = [...layout.colourNotes];
+  let colour: PdfColourEmojiFont | undefined;
+  if (colourCovers !== undefined && layout.colourCharacters.length > 0 && loaders.colourEmoji !== undefined) {
+    try {
+      colour = await loadColourEmojiFallback(layout, loaders.colourEmoji);
+    } catch (error) {
+      // The whole file falls back to the monochrome font, and says so.
+      layout = layoutPdf(blocks, opts, support?.measure);
+      colourNotes.splice(0, colourNotes.length, `pdf: the colour emoji could not be read (${error instanceof Error ? error.message : String(error)}), so the emoji are printed in black and white`);
+    }
   }
   const [font, cjk, emoji, rtl] = await Promise.all([
-    loadCourierPrime(),
+    loadScriptFont(opts.scriptFont),
     loadCjkFallback(layout, loaders.cjk, opts.language),
     loadEmojiFallback(layout, loaders.emoji),
     loadRtlFallback(layout, support),
   ]);
-  return { layout, font, ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }) };
+  return { layout, ...(font === undefined ? {} : { font }), ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }), ...(colour === undefined ? {} : { colour }), colourNotes };
 }
 
-/** The renderer seam of screenplay.md §5.3. Its files always embed Courier Prime, and the CJK, emoji, Arabic, Hebrew and Devanagari fonts when the script needs them and the host gave a loader. */
+/** The renderer seam of screenplay.md §5.3. Its files embed Courier Prime unless the options name another face (`scriptFont`), and the CJK, emoji, Arabic, Hebrew and Devanagari fonts when the script needs them and the host gave a loader. */
 export function createPdfRenderer(loaders: PdfFontLoaders = {}): PdfRenderer {
   return {
     async emit(blocks, opts) {
-      const { layout, font, cjk, emoji, rtl } = await preparePdf(blocks, opts, loaders);
-      const bytes = drawPdf(layout, font, cjk, emoji, rtl);
+      const { layout, font, cjk, emoji, rtl, colour } = await preparePdf(blocks, opts, loaders);
+      const bytes = drawPdf(layout, font, cjk, emoji, rtl, colour);
       return new Blob([bytes], { type: PDF_MIME });
     },
   };

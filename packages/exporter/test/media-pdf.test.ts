@@ -334,6 +334,35 @@ describe('pdf — through the bus', () => {
     expect(pdf).not.toContain('(Ada Lovelace) Tj');
   });
 
+  it('a recipe’s paper and font reach the file: A4 pages in Cousine, Letter pages in the base-14 Courier, and Letter in Courier Prime when it says neither', async () => {
+    const r = rig();
+    holdRecipe(r.state, { name: 'A4 Cousine', includeRootIds: ['manuscript'], format: 'pdf', options: { pageSize: 'A4', scriptFont: 'cousine' } });
+    holdRecipe(r.state, { name: 'Plain Courier', includeRootIds: ['manuscript'], format: 'pdf', options: { scriptFont: 'courier' } });
+    holdRecipe(r.state, { name: 'Plain', includeRootIds: ['manuscript'], format: 'pdf', options: { titlePage: true } });
+    await r.exporter.ready();
+    const compiled = async (recipeName: string): Promise<{ pdf: string; notes: readonly string[] }> => {
+      const digest = okValue(r.run('export.compile', { format: 'pdf', recipeName })).result as { output: string };
+      await r.exporter.idle();
+      const rows = JSON.parse(r.fs.snapshot()['exports/compile-log.json'] ?? '[]') as Array<{ output: string; notes: string[] }>;
+      return { pdf: ascii(r.bytes.get(digest.output) ?? new Uint8Array()), notes: rows.find((row) => row.output === digest.output)?.notes ?? [] };
+    };
+    const boxes = (pdf: string): Set<string | undefined> => new Set([...pdf.matchAll(/\/MediaBox \[([^\]]+)\]/g)].map((match) => match[1]));
+    const a4 = await compiled('A4 Cousine');
+    expect(boxes(a4.pdf)).toEqual(new Set(['0 0 595.28 841.89']));
+    expect(a4.pdf).toContain('/BaseFont /Cousine-Regular');
+    expect(a4.pdf).toContain('(INT. KITCHEN - DAY) Tj');
+    expect(a4.notes).toContain('pdf: 1 script page, and a title page, on A4, in Cousine, about 1 minute of screen time at a page a minute');
+    const courier = await compiled('Plain Courier');
+    expect(courier.pdf).toContain('/BaseFont /Courier ');
+    expect(courier.pdf).not.toContain('FontFile2');
+    expect(boxes(courier.pdf)).toEqual(new Set(['0 0 612 792']));
+    expect(courier.notes).toContain('pdf: 1 script page, and a title page, in the base-14 Courier, about 1 minute of screen time at a page a minute');
+    const plain = await compiled('Plain');
+    expect(plain.pdf).toContain('/BaseFont /CourierPrime');
+    expect(boxes(plain.pdf)).toEqual(new Set(['0 0 612 792']));
+    expect(plain.notes).toContain('pdf: 1 script page, and a title page, about 1 minute of screen time at a page a minute');
+  });
+
   it('a recipe’s continuation setting decides whether a speech that crosses a page carries (MORE) and (CONT’D)', async () => {
     const r = rig();
     // Some action, then a speech of 60 one-row sentences: taller than a page, so it must cross one.

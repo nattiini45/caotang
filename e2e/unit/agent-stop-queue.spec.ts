@@ -66,12 +66,16 @@ function door(): { readonly isOpen: () => boolean; readonly open: () => void } {
 
 const planner = (intent: string) => (req: Parameters<MockScript['match']>[0]): boolean => isPlannerCall(req) && userTextOf(req).includes(`Request: ${intent}`);
 
-/** The planner's reply to `intent`, sent once `gate` opens. Until then the stream idles in small steps, so a stop can interrupt it. */
-function heldReply(intent: string, text: string, gate: ReturnType<typeof door>): MockScript {
+/**
+ * The planner's reply to `intent`, sent once `gate` opens. Until then the stream idles in small steps, so a stop can interrupt it.
+ * `reached` opens when the model has been asked: before that the turn is still writing its run log (agent-harness §5.1) and is not yet planning.
+ */
+function heldReply(intent: string, text: string, gate: ReturnType<typeof door>, reached?: ReturnType<typeof door>): MockScript {
   return {
     match: planner(intent),
     respond: () =>
       (async function* (): AsyncGenerator<ChatChunk> {
+        reached?.open();
         while (!gate.isOpen()) {
           yield { reasoningDelta: '' };
           await sleep(5);
@@ -143,10 +147,11 @@ async function open(scripts: readonly MockScript[]) {
 
 test('Stop ends a turn that is planning, as the writer’s, and the controller is ready for the next message', async () => {
   const gate = door();
-  const { session, controller } = await open([heldReply('Think about it.', 'Done thinking.', gate)]);
+  const reached = door();
+  const { session, controller } = await open([heldReply('Think about it.', 'Done thinking.', gate, reached)]);
 
   const running = controller.submit('Think about it.');
-  await until(() => controller.snapshot().busy, 'the turn to start');
+  await until(() => controller.snapshot().busy && reached.isOpen(), 'the turn to ask the model');
   expect(controller.snapshot().stoppable).toBe(true);
   // A turn is busy while its harness still loads; the stop is "during planning" only once the planner has been asked.
   await untilPlanning(controller);
@@ -272,13 +277,13 @@ test('a queued message can be edited, reordered and removed before it runs', asy
 
 test('a note the running turn ended without reading becomes the first queued message, and is never merged with the others', async () => {
   const gate = door();
-  const { session, controller } = await open([heldReply('Read it.', 'Read.', gate), quickReply('Later one.', 'Later.'), quickReply('Also check the ending.', 'Checked.')]);
+  const reached = door();
+  const { session, controller } = await open([heldReply('Read it.', 'Read.', gate, reached), quickReply('Later one.', 'Later.'), quickReply('Also check the ending.', 'Checked.')]);
   const seen: AgentSnapshot[] = [];
   controller.subscribe(() => seen.push(controller.snapshot()));
 
   const running = controller.submit('Read it.');
-  // The planner is already asked, so the note below is one the turn cannot read before it ends.
-  await untilPlanning(controller);
+  await until(() => controller.snapshot().busy && reached.isOpen(), 'the turn to ask the model');
   controller.enqueue('Later one.');
   expect(controller.steer('Also check the ending.')).toBe('sent');
   expect(controller.snapshot().notes).toEqual([expect.objectContaining({ text: 'Also check the ending.', lands: 'next-model-call' })]);

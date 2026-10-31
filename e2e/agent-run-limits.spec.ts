@@ -57,7 +57,7 @@ test('a turn that reaches the model-call limit stops on a card that says so, and
   await settings.getByRole('button', { name: 'Close' }).click();
 
   await openSample(page);
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   await expect(field).toBeEnabled();
   await field.fill(DEMO_INTENTS.fillSynopses);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
@@ -82,7 +82,7 @@ test('a cost limit on a profile with no prices stops the turn before any request
   await settings.getByRole('button', { name: 'Close' }).click();
 
   await openSample(page);
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   await expect(field).toBeEnabled();
   await field.fill(DEMO_INTENTS.fillSynopses);
   await page.getByRole('button', { name: 'Send', exact: true }).click();

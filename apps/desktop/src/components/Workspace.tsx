@@ -7,15 +7,17 @@
  * the delete being confirmed, the export dialog, the theme, the status line). Project and view state live in the
  * session, and every change to them is a dispatch.
  */
-/* lingui-set comment="Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words" */
+/* lingui-set comment="Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words" */
 
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
 import { plural, select, t } from '@lingui/core/macro';
@@ -23,12 +25,23 @@ import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 import { pictureStorageReport, type ProjectState, type RuntimeStore, type SweepCandidate } from '@caotang/store';
 
-import type { AgentController } from '../app/agent.js';
-import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
+import type { AgentController, SubmitOptions } from '../app/agent.js';
+import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
-import { isImeEnter, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
-import { exportBundle, noteLeaveSuggestion, saveFolder, type FolderFileChange, type FolderSaveAnswers } from '../app/lifecycle.js';
+import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
+import { narrowMediaFeature, togglePanel, type NarrowPanel } from '../app/narrow-model.js';
+import {
+  exportBundle,
+  folderOverwriteSnapshotFor,
+  noteLeaveSuggestion,
+  previewFolderChanges,
+  saveFolder,
+  type FolderFileChange,
+  type FolderFilePreview,
+  type FolderOverwriteSnapshot,
+  type FolderSaveAnswers,
+} from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
 import { contextConfigOf } from '../app/settings.js';
@@ -43,10 +56,12 @@ import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
+import { RecurringTasks } from '../app/recurring-tasks.js';
 import { Binder, type CenterMode } from './Binder.js';
 import { CodexPanel } from './CodexPanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
 import type { PictureFocusRequest } from '../media/picture-board-model.js';
+import type { SourceRoute } from '../media/element-menu.js';
 
 import { Corkboard } from './Corkboard.js';
 import { LazyBoundary, lazyView } from './lazy-view.js';
@@ -59,6 +74,7 @@ import { openFindingCount } from '../app/findings-model.js';
 import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
+import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
 import { VocabularyEditor } from './VocabularyEditor.js';
 import { Inspector } from './Inspector.js';
@@ -73,13 +89,15 @@ import {
   explain,
   liveSelection,
   selectNode,
+  setExpanded,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type StatusMessage } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, Menu, ReportContext, useSession, type MenuAnchor, type MenuItem, type StatusMessage } from './shared.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
 
-type RailTab = 'binder' | 'codex' | 'activity' | 'findings';
+type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
 
 /** The rail's tabs in the order the arrow keys walk them (WAI-ARIA tabs). */
-const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'findings'];
+const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'trace', 'findings'];
 /** The centre views, in the order the arrow keys walk the radio group. */
 const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard', 'timeline', 'pictures'];
 
@@ -91,6 +109,7 @@ const ExportDialog = lazyView(() => import('./ExportDialog.js').then((module) =>
 // The Findings and Activity tabs carry the coherence review and the agent's turn reports, which the first screen does not read.
 const FindingsPanel = lazyView(() => import('./FindingsPanel.js').then((module) => ({ default: module.FindingsPanel })));
 const ActivityPanel = lazyView(() => import('./ActivityPanel.js').then((module) => ({ default: module.ActivityPanel })));
+const TracePanel = lazyView(() => import('./TracePanel.js').then((module) => ({ default: module.TracePanel })));
 
 /** The id of a rail tab, which its tabpanel names itself by (`aria-labelledby`). */
 function railTabId(tab: RailTab): string {
@@ -170,6 +189,15 @@ export function Workspace({
   const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);
   const [findingsFocus, setFindingsFocus] = useState<{ readonly factGroup: string; readonly serial: number } | null>(null);
   const focusSerial = useRef(0);
+  // The narrow layout (ui-modules §1): which panel is open over the centre, and the toolbar's overflow menu. View state only; a wide
+  // window never reads it.
+  const narrow = useNarrow();
+  const [panel, setPanel] = useState<NarrowPanel | null>(null);
+  const [overflow, setOverflow] = useState<MenuAnchor | null>(null);
+  if (!narrow && (panel !== null || overflow !== null)) {
+    setPanel(null);
+    setOverflow(null);
+  }
   const [focusMode, setFocusMode] = useState(false);
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
@@ -228,9 +256,23 @@ export function Workspace({
     };
   }, [session, services.providers, services.settings]);
   /** Starts a turn for intent once the controller has loaded: the request waits for it, so a click before the download is not lost. */
-  const submitToAgent = useCallback((intent: string): void => {
-    void whenAgent(session).then((controller) => controller.submit(intent));
-  }, [session]);
+  const submitToAgent = useCallback(
+    (intent: string, options?: SubmitOptions): void => {
+      void whenAgent(session).then((controller) => controller.submit(intent, options));
+    },
+    [session],
+  );
+  // The project's recurring tasks (agent-harness.md §12): looked at as the project opens and every minute while the tab is visible.
+  // They run through the agent, so they start once its controller has loaded.
+  const recurring = useMemo(
+    () => (agent === null ? null : new RecurringTasks({ session, agent, enabledChecks: () => services.settings.current().coherence.enabledChecks })),
+    [session, agent, services.settings],
+  );
+  useEffect(() => {
+    if (recurring === null) return;
+    void recurring.attach();
+    return () => recurring.detach();
+  }, [recurring]);
   // Today's stored words, read now and every few seconds: a sitting that ends elsewhere still counts toward the target.
   useEffect(() => {
     let alive = true;
@@ -250,6 +292,7 @@ export function Workspace({
   const target = targetProgress(storedToday + session.sittingWords(), settingsNow.session.dailyTargetWords);
   // Focus mode hides the rails only when the writer's Writing setting says so (ui-modules §5.2). Off, focus mode leaves them shown.
   const hideRails = focusMode && settingsNow.editor.focusModeHideRails;
+  const openPanel = narrow && !hideRails ? panel : null;
   const durability = session.durability();
   const pictureStorage = pictureStorageReport(state);
   const pictureFacts: EvictionFacts = {
@@ -338,9 +381,69 @@ export function Workspace({
       : shotBoard !== undefined && mediaKindOf(shotBoard) === 'storyboard'
         ? shotBoard
         : undefined;
+  /**
+   * The screenplay Source tab's section route (screenplay.md §3): the binder selects the folder the scene is in, its Fountain section,
+   * and focuses its row, as Left does in the tree. The folders above it are opened so the row is on screen, and the rails come back
+   * if focus mode hid them. A scene directly under the manuscript has no section, and the status line says so.
+   */
+  const showSceneSection = (sceneId: string): void => {
+    const [section, ...above] = enclosingFolders(state, sceneId);
+    if (section === undefined) {
+      report({ text: 'This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it.', tone: 'info' });
+      return;
+    }
+    if (hideRails) setFocusMode(false);
+    setRail('binder');
+    if (narrow) setPanel('rail');
+    for (const folder of above) setExpanded(session, folder.id, true);
+    selectNode(session, section.id);
+    if (!narrow) setCenter('corkboard');
+    requestAnimationFrame(() => {
+      const row = document.querySelector<HTMLElement>(`.binder-tree [data-node-id="${CSS.escape(section.id)}"]`);
+      if (row !== null) row.focus();
+      // A missing row is a filter that hides it, unless the folder went in the frame since the key (an agent's delete).
+      else if (nodeById(session.state, section.id) === undefined) report({ text: `"${section.title}" is no longer in the binder.`, tone: 'info' });
+      else report({ text: `The binder filter hides "${section.title}". Clear the filter to see it.`, tone: 'info' });
+    });
+  };
+
+  /**
+   * The Source tab's synopsis route (screenplay.md §3): the scene's synopsis field in the inspector takes the focus, as the binder's
+   * Edit synopsis does. The field edits the manifest's synopsis, which is the one truth (§2.2), never a `=` line in the text.
+   */
+  const focusSceneSynopsis = (sceneId: string): void => {
+    if (hideRails) setFocusMode(false);
+    if (selected !== sceneId) selectNode(session, sceneId);
+    if (narrow) setPanel('inspector');
+    // Unlike the binder's Edit synopsis, a miss is said: the chord was pressed in the text, and nothing else would show it failed.
+    requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLElement>('#inspector-synopsis');
+      if (field !== null) field.focus();
+      else report({ text: 'The scene’s synopsis is not showing, so the chord could not open it.', tone: 'info' });
+    });
+  };
+
+  /** The Source tab's routes, one handler each, so a route added to `SourceRoute` without a handler does not compile. */
+  const sceneRoutes: Readonly<Record<SourceRoute, (sceneId: string) => void>> = {
+    section: showSceneSection,
+    synopsis: focusSceneSynopsis,
+  };
+
+  // In the narrow layout a storyboard and a dialogue container say "Open on desktop" in place of their view (ui-modules §1).
+  const desktopOnly = narrow && mediaNode !== undefined ? narrowMediaFeature(mediaKindOf(mediaNode)) : null;
   const mediaView =
-    mediaNode !== undefined && center !== 'timeline' && center !== 'pictures' && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard')
-      ? mediaViewFor(mediaNode, {
+    mediaNode !== undefined && center !== 'timeline' && center !== 'pictures' && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard') ? (
+      desktopOnly !== null ? (
+        <OpenOnDesktop
+          feature={desktopOnly}
+          actions={
+            <button type="button" className="button" onClick={() => setPanel('rail')}>
+              <Trans>Open the binder</Trans>
+            </button>
+          }
+        />
+      ) : (
+        mediaViewFor(mediaNode, {
           session,
           ports: mediaPortsFor(session),
           reveal,
@@ -353,8 +456,10 @@ export function Workspace({
             setAgentOpen(true);
             submitToAgent(intent);
           },
+          onSourceRoute: (route, scene) => sceneRoutes[route](scene.id),
         })
-      : null;
+      )
+    ) : null;
   const undoLabel = session.undoLabel();
   const saveState = session.saveState();
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
@@ -414,6 +519,7 @@ export function Workspace({
     (docId: string, offset?: number): void => {
       selectNode(session, docId);
       setCenter('editor');
+      setPanel(null);
       if (offset !== undefined) setReveal({ docId, from: offset, to: offset });
     },
     [session, setCenter],
@@ -451,9 +557,10 @@ export function Workspace({
 
   /** An empty state's next step (ui-modules §0.3): the agent panel opens, and the controller runs the request through its usual path. */
   const runAgentIntent = useCallback(
-    (intent: string): void => {
+    (intent: string, options?: SubmitOptions): void => {
       setAgentOpen(true);
-      submitToAgent(intent);
+      setPanel(null);
+      submitToAgent(intent, options);
     },
     [submitToAgent],
   );
@@ -461,6 +568,7 @@ export function Workspace({
   /** A mention chip's click: the codex tab shows the entry (codex.md §8). */
   const openCodexEntry = useCallback((entryId: string): void => {
     setRail('codex');
+    setPanel('rail');
     setCodexFocus((previous) => ({ entryId, serial: (previous?.serial ?? 0) + 1 }));
   }, []);
 
@@ -482,16 +590,7 @@ export function Workspace({
       target instanceof HTMLInputElement ||
       (target instanceof HTMLElement && target.isContentEditable);
     const action = resolveKey(
-      {
-        key: event.key,
-        code: event.code,
-        ctrl: event.ctrlKey,
-        meta: event.metaKey,
-        shift: event.shiftKey,
-        alt: event.altKey,
-        altGraph: event.getModifierState('AltGraph'),
-        composing: isImeEnter(event),
-      },
+      { ...keyFacts(event), composing: isImeEnter(event) },
       { inTextField, inBinder: false },
     );
     if (action === null) return;
@@ -510,6 +609,7 @@ export function Workspace({
         event.preventDefault();
         setFocusMode(false);
         setRail('binder');
+        if (narrow) setPanel('rail');
         setFilterFocusRequest((count) => count + 1);
         return;
       case 'new-document':
@@ -529,6 +629,39 @@ export function Workspace({
   useEffect(() => {
     if (filterFocusRequest > 0) focusBinderFilter();
   }, [filterFocusRequest]);
+
+  /**
+   * The binder asks for a centre view as a row is chosen. In the narrow layout a folder leaves the centre alone: the corkboard is one
+   * switch away and says "Open on desktop", and a chapter chosen to add a scene under it should not swap the writer's page for that notice.
+   */
+  const showCenter = (mode: CenterMode): void => {
+    if (narrow && mode === 'corkboard') return;
+    setCenter(mode);
+  };
+
+  // Focus goes into a panel as it opens and back to its button as it closes, unless the writer's focus has already gone somewhere else
+  // (the editor, after a document was chosen). The toolbar and the centre are inert while a panel is open, so focus cannot wander behind it.
+  const shownPanel = useRef<NarrowPanel | null>(null);
+  useEffect(() => {
+    const before = shownPanel.current;
+    shownPanel.current = openPanel;
+    if (openPanel === 'rail') document.getElementById(railTabId(rail))?.focus();
+    else if (openPanel === 'inspector') document.getElementById('narrow-close-inspector')?.focus();
+    else if (before !== null) {
+      const active = document.activeElement;
+      const left = document.getElementById(before === 'rail' ? 'narrow-rail' : 'narrow-sheet');
+      if (active === null || active === document.body || left?.contains(active)) document.getElementById(`narrow-toggle-${before}`)?.focus();
+    }
+  }, [openPanel, rail]);
+  const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault();
+    setPanel(null);
+  };
+  const openOverflow = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+    const box = event.currentTarget.getBoundingClientRect();
+    setOverflow({ x: Math.max(8, box.right - 240), y: box.bottom + 4 });
+  };
 
   // The rail's tabs and the centre's radio group: arrows (and Home and End) move the selection and its focus together.
   const onRailTabKey = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
@@ -654,10 +787,16 @@ export function Workspace({
       try {
         const outcome = await saveFolder(session, folder, answers);
         if (outcome.kind === 'refused') {
+          const overwriteSnapshot = folderOverwriteSnapshotFor(outcome);
+          if (overwriteSnapshot === undefined) throw new Error('The folder save question no longer matches the folder state. Save again to review it.');
+          const previewBatch = await previewFolderChanges(session, folder, outcome.previewFiles ?? [], outcome.omittedPreviewFiles ?? 0);
           setFolderOffer({
             folder,
             reason: outcome.reason,
+            overwriteSnapshot,
             files: outcome.files,
+            previews: previewBatch.previews,
+            omittedPreviews: previewBatch.omitted,
             partial: outcome.partial === true,
             after: outcome.after === true,
             removed: outcome.removed === true,
@@ -732,9 +871,11 @@ export function Workspace({
   /** The writer's yes to the question a folder save asked: the answer that question needs, and the save again. */
   const answerFolderQuestion = (): void => {
     if (folderOffer === null) return;
-    const { folder, reason, answers } = folderOffer;
+    const { folder, reason, answers, overwriteSnapshot } = folderOffer;
     setFolderOffer(null);
-    writeFolder(folder, reason === 'locked' ? { ...answers, lockConfirmed: true } : { ...answers, overwriteConfirmed: true });
+    writeFolder(folder, reason === 'locked'
+      ? { ...answers, lockConfirmed: true }
+      : { ...answers, overwriteConfirmed: true, overwriteSnapshot });
   };
 
   const toggleTheme = (): void => {
@@ -781,82 +922,164 @@ export function Workspace({
     if (next === 'home') leaveNow();
     else if (next !== null) setCenterNow(next);
   };
+  // The toolbar's controls beyond the two panels, in the narrow layout. They are the wide toolbar's buttons, with the same handlers.
+  const overflowItems: readonly MenuItem[] = [
+    { key: 'projects', label: t`Projects`, onSelect: leave },
+    { key: 'details', label: t`Project details`, onSelect: () => openDialog({ kind: 'project' }) },
+    { key: 'undo', label: t`Undo`, disabled: undoLabel === null, onSelect: undoNow },
+    { key: 'focus', label: focusMode ? t`Leave focus mode` : t`Focus mode`, onSelect: toggleFocus },
+    { key: 'skills', label: t`Skills`, separatorBefore: true, onSelect: () => openDialog({ kind: 'skills' }) },
+    { key: 'instructions', label: t`Instructions`, onSelect: () => openDialog({ kind: 'agent-instructions' }) },
+    { key: 'compile', label: t`Compile…`, separatorBefore: true, onSelect: () => setExporting(true) },
+    { key: 'bundle', label: t`Export bundle`, onSelect: exportBundleOffering },
+    ...(folderAccessSupported() ? [{ key: 'folder', label: t`Save to folder`, onSelect: saveToFolder }] : []),
+    { key: 'settings', label: t`Settings`, separatorBefore: true, onSelect: () => setSettingsSection('providers') },
+    { key: 'theme', label: theme === 'dark' ? t`Light theme` : t`Dark theme`, onSelect: toggleTheme },
+  ];
 
   return (
     <ReportContext.Provider value={report}>
       <div className={`workspace${hideRails ? ' is-focus' : ''}`}>
-        <header className="toolbar">
+        <header className="toolbar" inert={openPanel !== null}>
           <div className="toolbar-start">
-            <button type="button" className="button is-quiet" onClick={leave}>
-              <Trans>Projects</Trans>
-            </button>
-            <h1 className="project-name">
-              {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
+            {narrow ? (
+              hideRails ? null : (
+                <button
+                  type="button"
+                  id="narrow-toggle-rail"
+                  className="button"
+                  aria-expanded={openPanel === 'rail'}
+                  aria-controls="narrow-rail"
+                  onClick={() => setPanel(togglePanel(openPanel, 'rail'))}
+                >
+                  <Trans>Binder</Trans>
+                </button>
+              )
+            ) : (
+              <button type="button" className="button is-quiet" onClick={leave}>
+                <Trans>Projects</Trans>
+              </button>
+            )}
+            {narrow ? (
+              // The save state sits under the name: a toolbar of three buttons has no room for a sentence beside them.
+              <div className="toolbar-title">
+                <h1 className="project-name">{state.manifest.project.name}</h1>
+                <SaveIndicator state={saveState} onExport={exportNow} />
+              </div>
+            ) : (
+              <h1 className="project-name">
+                {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
+                <button
+                  type="button"
+                  className="project-name-button"
+                  title={t`Project details: title, author, language, ISBN and cover`}
+                  onClick={() => openDialog({ kind: 'project' })}
+                >
+                  {state.manifest.project.name}
+                </button>
+              </h1>
+            )}
+          </div>
+          {narrow ? (
+            // Narrow: the rail and the inspector open from here, and every other control is in the overflow menu (ui-modules §1).
+            <div className="toolbar-end">
+              {hideRails ? null : (
+                <button
+                  type="button"
+                  id="narrow-toggle-inspector"
+                  className="button"
+                  aria-expanded={openPanel === 'inspector'}
+                  aria-controls="narrow-sheet"
+                  onClick={() => setPanel(togglePanel(openPanel, 'inspector'))}
+                >
+                  <Trans>Inspector</Trans>
+                </button>
+              )}
+              <button type="button" className="button" aria-haspopup="menu" aria-expanded={overflow !== null} onClick={openOverflow}>
+                <Trans>More</Trans>
+              </button>
+            </div>
+          ) : (
+            <div className="toolbar-end">
               <button
                 type="button"
-                className="project-name-button"
-                title={t`Project details: title, author, language, ISBN and cover`}
-                onClick={() => openDialog({ kind: 'project' })}
+                className="button"
+                disabled={undoLabel === null}
+                title={undoLabel === null ? t`Nothing to undo` : t`Undo: ${{ label: undoLabel }}`}
+                onClick={undoNow}
               >
-                {state.manifest.project.name}
+                <Trans>Undo</Trans>
               </button>
-            </h1>
-          </div>
-          <div className="toolbar-end">
-            <button
-              type="button"
-              className="button"
-              disabled={undoLabel === null}
-              title={undoLabel === null ? t`Nothing to undo` : t`Undo: ${{ label: undoLabel }}`}
-              onClick={undoNow}
-            >
-              <Trans>Undo</Trans>
-            </button>
-            <button
-              type="button"
-              className="button"
-              aria-pressed={focusMode}
-              title={t`Focus mode (${{ shortcut: shortcutLabel('focus-mode', keyboardLayout) }})`}
-              onClick={toggleFocus}
-            >
-              <Trans>Focus</Trans>
-            </button>
-            <button type="button" className="button" title={t`Reusable writing instructions for the agent`} onClick={() => openDialog({ kind: 'skills' })}>
-              <Trans>Skills</Trans>
-            </button>
-            <button type="button" className="button" onClick={() => setExporting(true)}>
-              <Trans>Compile…</Trans>
-            </button>
-            <button type="button" className="button" onClick={exportBundleOffering}>
-              <Trans>Export bundle</Trans>
-            </button>
-            {folderAccessSupported() ? (
-              <button type="button" className="button" onClick={saveToFolder}>
-                <Trans>Save to folder</Trans>
+              <button
+                type="button"
+                className="button"
+                aria-pressed={focusMode}
+                title={t`Focus mode (${{ shortcut: shortcutLabel('focus-mode', keyboardLayout) }})`}
+                onClick={toggleFocus}
+              >
+                <Trans>Focus</Trans>
               </button>
-            ) : null}
-            <button type="button" className="button" onClick={() => setSettingsSection('providers')} data-testid="open-settings">
-              <Trans>Settings</Trans>
-            </button>
-            <button
-              type="button"
-              className="button"
-              aria-label={theme === 'dark' ? t`Light theme` : t`Dark theme`}
-              title={theme === 'dark' ? t`Use the light theme` : t`Use the dark theme`}
-              onClick={toggleTheme}
-            >
-              {theme === 'dark' ? <Trans>Light theme</Trans> : <Trans>Dark theme</Trans>}
-            </button>
-            <SaveIndicator state={saveState} onExport={exportNow} />
-          </div>
+              <button type="button" className="button" title={t`Reusable writing instructions for the agent`} onClick={() => openDialog({ kind: 'skills' })}>
+                <Trans>Skills</Trans>
+              </button>
+              <button
+                type="button"
+                className="button"
+                title={t`CAOTANG.md, your standing instructions, and the notes the agent keeps`}
+                onClick={() => openDialog({ kind: 'agent-instructions' })}
+              >
+                <Trans>Instructions</Trans>
+              </button>
+              <button type="button" className="button" onClick={() => setExporting(true)}>
+                <Trans>Compile…</Trans>
+              </button>
+              <button type="button" className="button" onClick={exportBundleOffering}>
+                <Trans>Export bundle</Trans>
+              </button>
+              {folderAccessSupported() ? (
+                <button type="button" className="button" onClick={saveToFolder}>
+                  <Trans>Save to folder</Trans>
+                </button>
+              ) : null}
+              <button type="button" className="button" onClick={() => setSettingsSection('providers')} data-testid="open-settings">
+                <Trans>Settings</Trans>
+              </button>
+              <button
+                type="button"
+                className="button"
+                aria-label={theme === 'dark' ? t`Light theme` : t`Dark theme`}
+                title={theme === 'dark' ? t`Use the light theme` : t`Use the dark theme`}
+                onClick={toggleTheme}
+              >
+                {theme === 'dark' ? <Trans>Light theme</Trans> : <Trans>Dark theme</Trans>}
+              </button>
+              <SaveIndicator state={saveState} onExport={exportNow} />
+            </div>
+          )}
         </header>
 
         {hideRails ? null : (
-          <nav className="rail" aria-label={t`Project panels`}>
+          <nav
+            id="narrow-rail"
+            className={`rail${narrow ? ' is-drawer' : ''}${openPanel === 'rail' ? ' is-open' : ''}`}
+            aria-label={t`Project panels`}
+            onKeyDown={narrow ? onPanelKey : undefined}
+          >
+            {narrow ? (
+              <div className="panel-head">
+                <span className="panel-title">
+                  <Trans>Project panels</Trans>
+                </span>
+                <button type="button" className="button" aria-label={t`Close panels`} onClick={() => setPanel(null)}>
+                  <Trans>Close</Trans>
+                </button>
+              </div>
+            ) : null}
             <div role="tablist" aria-label={t`Panels`} className="rail-tabs" onKeyDown={onRailTabKey}>
               <RailTabButton tab="binder" current={rail} label={t`Binder`} onSelect={setRail} />
               <RailTabButton tab="codex" current={rail} label={t`Codex`} onSelect={setRail} />
               <RailTabButton tab="activity" current={rail} label={t`Activity`} onSelect={setRail} />
+              <RailTabButton tab="trace" current={rail} label={t`Trace`} onSelect={setRail} />
               <RailTabButton
                 tab="findings"
                 current={rail}
@@ -873,8 +1096,12 @@ export function Workspace({
                     renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
                     onRename={renameOn('binder')}
                     onAskDelete={askDelete}
-                    onShowCenter={setCenter}
-                    onFocusSynopsis={() => focusSoon('#inspector-synopsis')}
+                    onShowCenter={showCenter}
+                    onOpened={() => setPanel(null)}
+                    onFocusSynopsis={() => {
+                      if (narrow) setPanel('inspector');
+                      focusSoon('#inspector-synopsis');
+                    }}
                     onAgentIntent={runAgentIntent}
                   />
                   <BinderFooter session={session} runtime={store} target={target} />
@@ -888,12 +1115,19 @@ export function Workspace({
                     onReveal={revealPassage}
                     settings={settingsNow.coherence}
                     providers={services.providers}
-                    onOpenAgent={() => setAgentOpen(true)}
+                    onOpenAgent={() => {
+                      setAgentOpen(true);
+                      setPanel(null);
+                    }}
                     onOpenDocument={openDocument}
                     focusGroup={findingsFocus}
                     onGroupFocused={() => setFindingsFocus(null)}
                     onShowOnTimeline={showOnTimeline}
                   />
+                </LazyBoundary>
+              ) : rail === 'trace' ? (
+                <LazyBoundary label={t`Trace`}>
+                  <TracePanel services={services} projectName={state.manifest.project.name} />
                 </LazyBoundary>
               ) : (
                 <LazyBoundary label={t`Activity`}>
@@ -907,7 +1141,7 @@ export function Workspace({
           </nav>
         )}
 
-        <main className="center">
+        <main className="center" inert={openPanel !== null}>
           <div role="radiogroup" aria-label={t`Centre view`} className="center-switch" onKeyDown={onCenterKey}>
             <button
               type="button"
@@ -958,12 +1192,22 @@ export function Workspace({
           {showStorageBanner ? (
             <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
               <div>
-                <p>
-                  <Trans>
-                    Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
-                    can open anywhere.
-                  </Trans>
-                </p>
+                {narrow ? (
+                  <p>
+                    <Trans>
+                      Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
+                      storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home.
+                      Export a backup often and keep it somewhere else.
+                    </Trans>
+                  </p>
+                ) : (
+                  <p>
+                    <Trans>
+                      Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
+                      can open anywhere.
+                    </Trans>
+                  </p>
+                )}
                 {explainStorage ? (
                   <p className="muted">
                     <Trans>
@@ -1018,8 +1262,19 @@ export function Workspace({
             agent={agent}
             target={target}
             onSetTarget={saveTarget}
+            agentEditMode={settingsNow.editor.agentEditMode}
           />
-          {center === 'corkboard' && mediaView === null ? (
+          {center === 'corkboard' && mediaView === null && narrow ? (
+            <OpenOnDesktop
+              feature="corkboard"
+              actions={
+                <button type="button" className="button" onClick={() => setCenter('editor')}>
+                  Back to the editor
+                </button>
+              }
+            />
+          ) : null}
+          {center === 'corkboard' && mediaView === null && !narrow ? (
             <Corkboard
               session={session}
               zoom={zoom}
@@ -1052,10 +1307,11 @@ export function Workspace({
           ) : null}
           {hideRails ? null : (
             <LazyBoundary label={t`the agent`}>
-              {agent === null ? null : (
+              {agent === null || recurring === null ? null : (
                 <AgentPanel
                   session={session}
                   agent={agent}
+                  recurring={recurring}
                   startIntent={startIntent}
                   open={agentOpen}
                   onToggle={() => setAgentOpen((on) => !on)}
@@ -1066,15 +1322,23 @@ export function Workspace({
           )}
         </main>
 
-        {hideRails ? null : (
-          <Inspector
-            session={session}
-            nodeId={selected}
-            onOpenCodex={openCodexEntry}
-            onAgentIntent={runAgentIntent}
-            onOpenPicture={openPictureBoard}
-          />
+        {hideRails ? null : narrow ? (
+          <div id="narrow-sheet" className={`sheet${openPanel === 'inspector' ? ' is-open' : ''}`} onKeyDown={onPanelKey}>
+            <div className="panel-head">
+              <span className="panel-title">
+                <Trans>Inspector</Trans>
+              </span>
+              <button type="button" id="narrow-close-inspector" className="button" aria-label={t`Close inspector`} onClick={() => setPanel(null)}>
+                <Trans>Close</Trans>
+              </button>
+            </div>
+            <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
+          </div>
+        ) : (
+          <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
         )}
+        {openPanel === null ? null : <div className="scrim" data-testid="panel-scrim" aria-hidden="true" onClick={() => setPanel(null)} />}
+        {overflow === null ? null : <Menu label={t`More`} anchor={overflow} items={overflowItems} onClose={() => setOverflow(null)} />}
 
         {message ? (
           <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
@@ -1126,6 +1390,7 @@ export function Workspace({
         ) : null}
         <ProjectPanel session={session} />
         <SkillsPanel session={session} />
+        <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
         <VocabularyEditor session={session} />
 
 
@@ -1170,6 +1435,7 @@ export function Workspace({
             store={store}
             initialSection={settingsSection}
             onClose={() => setSettingsSection(null)}
+            onOpenAgent={() => setAgentOpen(true)}
             onProvidersChanged={() => agent?.refresh()}
           />
         ) : null}
@@ -1259,8 +1525,13 @@ function SaveIndicator({ state, onExport }: { state: SaveState; onExport: () => 
 interface FolderOffer {
   readonly folder: DirectoryHandleLike;
   readonly reason: 'locked' | 'changed' | 'unknown' | 'earlier' | 'files';
+  readonly overwriteSnapshot: FolderOverwriteSnapshot;
   /** The documents and codex entries another program changed, removed or added, named in words (lifecycle `folderChanges`). */
   readonly files: readonly FolderFileChange[];
+  /** A read-only comparison of each named file's folder text and this tab's text. */
+  readonly previews: readonly FolderFilePreview[];
+  /** Number of exact file comparisons omitted by the preview-size limits. */
+  readonly omittedPreviews: number;
   /** The change was found part way through the save, so the files before it and the pictures were written, and these were not. */
   readonly partial: boolean;
   /** The change was found after the save was written in full: the folder holds the other program's version of these files. */
@@ -1271,23 +1542,66 @@ interface FolderOffer {
 }
 
 /** The changed files, one line each, for a question that names them. Nothing renders for a save with none. */
-function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
+function changedFilesList(files: readonly FolderFileChange[], previews: readonly FolderFilePreview[], omittedPreviews: number): ReactNode {
   if (files.length === 0) return null;
+  const MAX_VISIBLE_FOLDER_FILE_LABELS = 12;
   return (
     <ul>
-      {files.map((file, index) => {
+      {files.slice(0, MAX_VISIBLE_FOLDER_FILE_LABELS).map((file, index) => {
         const kind = file.change;
+        const filePreviews = previews.filter((item) => item.label === file.label && item.change === file.change);
+        const count = filePreviews.length;
         return (
           <li key={index}>
-            {t`${{ file: isolate(file.label) }}: ${select(kind, {
-              changed: 'changed',
-              removed: 'removed',
-              added: 'added',
-              other: 'changed',
-            })}`}
+            <div>
+              {t`${{ file: isolate(file.label) }}: ${select(kind, {
+                changed: 'changed',
+                removed: 'removed',
+                added: 'added',
+                other: 'changed',
+              })}`}
+            </div>
+            {filePreviews.map((preview, previewIndex) => {
+              const position = previewIndex + 1;
+              return (
+                <section
+                  className="folder-file-preview"
+                  key={preview.path}
+                  role="region"
+                  aria-label={
+                    count > 1
+                      ? t`Changes for ${{ file: isolate(file.label) }}, file ${{ position }} of ${{ count }}`
+                      : t`Changes for ${{ file: isolate(file.label) }}`
+                  }
+                >
+                  <p className="field-note">
+                    {count > 1 ? t`File ${{ position }} of ${{ count }} · − In the folder · + In this tab` : t`− In the folder · + In this tab`}
+                  </p>
+                  <pre className="folder-diff">
+                    {preview.lines.map((line, lineIndex) => {
+                      const marker = line.kind === 'folder' ? '− ' : line.kind === 'tab' ? '+ ' : line.kind === 'context' ? '  ' : '… ';
+                      return <span className={`folder-diff-line is-${line.kind}`} key={lineIndex}>{marker}{line.text || ' '}{'\n'}</span>;
+                    })}
+                  </pre>
+                </section>
+              );
+            })}
           </li>
         );
       })}
+      {files.length > MAX_VISIBLE_FOLDER_FILE_LABELS ? (
+        <li className="field-note">
+          {plural(files.length - MAX_VISIBLE_FOLDER_FILE_LABELS, { one: '# more changed file label is not shown.', other: '# more changed file labels are not shown.' })}
+        </li>
+      ) : null}
+      {omittedPreviews > 0 ? (
+        <li className="field-note">
+          {plural(omittedPreviews, {
+            one: 'Detailed comparisons for # more file are not shown to keep the question manageable.',
+            other: 'Detailed comparisons for # more files are not shown to keep the question manageable.',
+          })}
+        </li>
+      ) : null}
     </ul>
   );
 }
@@ -1296,10 +1610,12 @@ function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
 function folderQuestion({
   reason,
   files,
+  previews,
+  omittedPreviews,
   partial,
   after,
   removed,
-}: Pick<FolderOffer, 'reason' | 'files' | 'partial' | 'after' | 'removed'>): {
+}: Pick<FolderOffer, 'reason' | 'files' | 'previews' | 'omittedPreviews' | 'partial' | 'after' | 'removed'>): {
   readonly title: string;
   readonly body: ReactNode;
   readonly confirm: string;
@@ -1327,7 +1643,7 @@ function folderQuestion({
               </Trans>
             </p>
           ) : null}
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
           <p>
             <Trans>
               Saving writes this tab’s version over them. The folder’s version is kept first, in <code>.caotang-backup</code> in the folder,
@@ -1379,7 +1695,7 @@ function folderQuestion({
               Saving here writes <code>caotang.json</code> back into the folder from this tab, with the project as this tab holds it.
             </Trans>
           </p>
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
       confirm: t`Write it back`,
@@ -1409,7 +1725,7 @@ function folderQuestion({
               To see the folder’s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here writes <code>caotang.json</code> from this tab, and an older one that is there is kept as a backup.
             </Trans>
           </p>
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
       confirm: t`Save over it`,

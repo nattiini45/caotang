@@ -1,6 +1,8 @@
 /**
  * The binder — ui-modules §2. A flat tree (ARIA `tree` with `aria-level` on each row)
- * over the three tiers: the two fixed sections, their folders, and their documents.
+ * over the two fixed sections, their folders and their documents. Folders nest: a part
+ * is a folder that holds chapters (Part → Chapter → Scene, project-format §2), and its
+ * row says "Part" in words, so the structure is read out as well as indented.
  *
  * Every change it makes is one dispatch (see `actions.ts`). What it owns is only what
  * the spec says it owns: the expansion overrides and selection (both bus view state),
@@ -20,7 +22,7 @@ import {
   type ReactNode,
 } from 'react';
 import { defaultTitleOf, isolate } from '@caotang/i18n';
-import type { ProjectState, TreeNode } from '@caotang/store';
+import { isStructuralFolder, type ProjectState, type TreeNode } from '@caotang/store';
 
 import {
   SECTION_IDS,
@@ -48,11 +50,14 @@ import { accessibleText } from '../i18n/accessible-text.js';
 import { uiIsRtl } from '../i18n/direction.js';
 import { EMPTY_STATE_INTENTS } from '../app/empty-intents.js';
 import { filterResultFor, furnitureFor } from '../app/furniture-store.js';
-import { isImeEnter, resolveKey } from '../app/keymap.js';
+import { keyFacts, resolveKey } from '../app/keymap.js';
+import { isImeEnter } from '../app/ime.js';
 import type { ProjectSession } from '../app/session.js';
 import { BinderFilterBar } from './BinderFilters.js';
+import { ACCESS_LABELS, ACCESS_MARKERS, accessOf, effectiveAccess } from '../app/agent-rules-model.js';
 import { mediaCreateItems, type MediaCreateSpec } from '../media/create-menu.js';
 import { openDialog } from './dialog-requests.js';
+import { useNarrow } from './narrow.js';
 import { EmptyState, InlineText, Menu, useReport, useSession, wordsLabel, type MenuAnchor, type MenuItem } from './shared.js';
 import { ScriptImportActions } from './ScriptImport.js';
 import {
@@ -78,6 +83,8 @@ export interface BinderProps {
   readonly onRename: (nodeId: string | null) => void;
   readonly onAskDelete: (nodeId: string) => void;
   readonly onShowCenter: (mode: CenterMode) => void;
+  /** A document was chosen to be written in, from a row or its menu (not made by "New document"). The narrow layout closes the drawer on it. */
+  readonly onOpened?: () => void;
   readonly onFocusSynopsis: () => void;
   /** Sends a plain-language request to the agent: the empty states' next step (ui-modules §0.3). Opens the agent panel. */
   readonly onAgentIntent: (intent: string) => void;
@@ -96,8 +103,9 @@ type Picker =
 
 export function Binder(props: BinderProps): ReactNode {
   useLingui();
-  const { session, renaming, onRename, onAskDelete, onShowCenter, onFocusSynopsis, onAgentIntent } = props;
+  const { session, renaming, onRename, onAskDelete, onShowCenter, onOpened, onFocusSynopsis, onAgentIntent } = props;
   useSession(session);
+  const narrow = useNarrow();
   const report = useReport();
   const { state, view } = session;
   const furniture = furnitureFor(session);
@@ -241,16 +249,7 @@ export function Binder(props: BinderProps): ReactNode {
     if (event.target instanceof HTMLInputElement) return; // a rename field owns its keys
     if (event.ctrlKey || event.metaKey) return;
     const action = resolveKey(
-      {
-        key: event.key,
-        code: event.nativeEvent.code,
-        ctrl: false,
-        meta: false,
-        shift: event.shiftKey,
-        alt: event.altKey,
-        altGraph: event.nativeEvent.getModifierState('AltGraph'),
-        composing: isImeEnter(event.nativeEvent),
-      },
+      { ...keyFacts(event), ctrl: false, meta: false, composing: isImeEnter(event) },
       { inTextField: false, inBinder: true, rtl: uiIsRtl() },
     );
     if (action === null) return;
@@ -421,6 +420,7 @@ export function Binder(props: BinderProps): ReactNode {
         onSelect: () => {
           session.dispatch('view.setActiveDoc', { docId: node.id });
           onShowCenter('editor');
+          onOpened?.();
         },
       });
     }
@@ -429,8 +429,9 @@ export function Binder(props: BinderProps): ReactNode {
       if (node.id !== 'manuscript') {
         items.push({ key: 'new-document', label: t`New document here`, onSelect: () => create(node.id, 'document') });
       }
-      // A folder sits directly in a section and never in another folder (ARCHITECTURE §2.2), so only a section offers one.
-      if (isSection) {
+      // Folders nest (project-format §2): a section takes a chapter or a part, a part takes a chapter, and a folder made inside a
+      // chapter turns that chapter into a part. A storyboard holds shots only, so it offers no folder.
+      if (isSection || isStructuralFolder(node)) {
         items.push({ key: 'new-folder', label: t`New folder here`, onSelect: () => create(node.id, 'folder') });
       }
     }
@@ -446,6 +447,28 @@ export function Binder(props: BinderProps): ReactNode {
         },
       });
       items.push({ key: 'rename', label: t`Rename`, onSelect: () => onRename(node.id) });
+    }
+    // How far the agent may go here (agent-harness §4, Rules): one project rule, kept in the project's file. A section is not a place the
+    // writer restricts as a whole, but its folders are, so the manuscript and research roots offer it too.
+    const held = effectiveAccess(session.agentRules(), state, node.id);
+    if (held.inheritedFrom !== undefined) {
+      items.push({
+        key: 'agent-inherited',
+        label: `${ACCESS_LABELS[held.access]} (set on ${held.inheritedFrom.title})`,
+        onSelect: () => undefined,
+        disabled: true,
+        separatorBefore: true,
+      });
+    } else {
+      for (const [index, access] of (['full', 'read-only', 'none'] as const).entries()) {
+        items.push({
+          key: `agent-${access}`,
+          label: ACCESS_LABELS[access],
+          checked: held.access === access,
+          ...(index === 0 ? { separatorBefore: true } : {}),
+          onSelect: () => session.setAgentAccess(node.id, access),
+        });
+      }
     }
     if (isMovable(node)) {
       // The keyboard's moves, as menu entries, so a writer who does not use Alt+arrow still reorders (ui-modules §0.4).
@@ -472,6 +495,17 @@ export function Binder(props: BinderProps): ReactNode {
     setPicker({ kind, nodeId, anchor: { x: rect.left, y: rect.bottom + 4 } });
   };
 
+  /**
+   * The row's Actions button, shown in the narrow layout: a touch screen has no right click, and a long press opens no menu on every
+   * browser. It opens the row's own menu under the button.
+   */
+  const actionsAt = (event: ReactMouseEvent<HTMLElement>, nodeId: string): void => {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    session.dispatch('view.setSelection', { nodeIds: [nodeId] });
+    setPicker({ kind: 'context', nodeId, anchor: { x: Math.max(8, rect.right - 220), y: rect.bottom + 4 } });
+  };
+
   const contextMenuAt = (event: ReactMouseEvent<HTMLElement>, nodeId: string): void => {
     event.preventDefault();
     event.stopPropagation();
@@ -483,8 +517,13 @@ export function Binder(props: BinderProps): ReactNode {
    * Rendering
    * ------------------------------------------------------------------ */
 
+  const agentRules = session.agentRules();
+  const agentAccessOf = (nodeId: string): 'read-only' | 'none' | null => {
+    const access = accessOf(agentRules, nodeId);
+    return access === 'full' ? null : access;
+  };
   const parentForNew = newItemParent(state, selected);
-  const sectionForNewFolder = newFolderParent(state, selected);
+  const parentForNewFolder = newFolderParent(state, selected);
   // Roving focus (ui-modules §2.5): one row is in the tab order, the selected one when it is showing, and
   // otherwise the first. Without that, a load with nothing selected leaves no row for Tab to reach.
   const tabStopId = rows.some((row) => row.node.id === selected) ? selected : (rows[0]?.node.id ?? null);
@@ -500,7 +539,7 @@ export function Binder(props: BinderProps): ReactNode {
         <button type="button" className="button" onClick={() => create(parentForNew, 'document')} aria-keyshortcuts="Control+N">
           <Trans>New document</Trans>
         </button>
-        <button type="button" className="button" onClick={() => create(sectionForNewFolder, 'folder')}>
+        <button type="button" className="button" onClick={() => create(parentForNewFolder, 'folder')}>
           <Trans>New folder</Trans>
         </button>
       </div>
@@ -542,7 +581,10 @@ export function Binder(props: BinderProps): ReactNode {
               focusable={row.node.id === tabStopId}
               renaming={isRenaming}
               hover={rowHover}
-              onSelect={() => choose(row.node.id)}
+              onSelect={() => {
+                choose(row.node.id);
+                if (row.node.type === 'document' || row.node.type === 'dialogue') onOpened?.();
+              }}
               onToggle={() => setExpanded(session, row.node.id, row.kind === 'node' ? !row.expanded : true)}
               onRenameStart={() => onRename(row.node.id)}
               onRenameCommit={(text) => commitRename(row.node.id, text)}
@@ -550,6 +592,8 @@ export function Binder(props: BinderProps): ReactNode {
               onStatusPicker={(event) => openPicker(event, 'status', row.node.id)}
               onLabelPicker={(event) => openPicker(event, 'label', row.node.id)}
               onContextMenu={(event) => contextMenuAt(event, row.node.id)}
+              onActions={narrow ? (event) => actionsAt(event, row.node.id) : undefined}
+              agentAccess={agentAccessOf(row.node.id)}
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', row.node.id);
@@ -640,6 +684,10 @@ interface RowViewProps {
   readonly onStatusPicker: (event: ReactMouseEvent<HTMLElement>) => void;
   readonly onLabelPicker: (event: ReactMouseEvent<HTMLElement>) => void;
   readonly onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
+  /** Opens the row's menu from a button, where the narrow layout has no right click. Absent on a wide window. */
+  readonly onActions?: (event: ReactMouseEvent<HTMLElement>) => void;
+  /** How far the agent may go here, when a rule limits it. */
+  readonly agentAccess: 'read-only' | 'none' | null;
   readonly onDragStart: (event: DragEvent<HTMLElement>) => void;
   readonly onDragEnd: () => void;
   readonly onDragOver: (event: DragEvent<HTMLElement>) => void;
@@ -683,7 +731,15 @@ function BinderRowView(props: RowViewProps): ReactNode {
         <span className="row-title" {...content}>
           {node.title}
         </span>
-        <span className="row-meta">{itemsLabel(childrenOf(state, node.id).length)}</span>
+        <span className="row-meta">
+          {props.agentAccess === null ? null : (
+            <span className="row-agent" data-agent-access={props.agentAccess}>
+              <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {ACCESS_MARKERS[props.agentAccess]}
+            </span>
+          )}
+          {itemsLabel(childrenOf(state, node.id).length)}
+        </span>
+        <RowActions title={node.title} onActions={props.onActions} />
       </div>
     );
   }
@@ -705,6 +761,7 @@ function BinderRowView(props: RowViewProps): ReactNode {
       className={`row${selected ? ' is-selected' : ''}${dropClass}`}
       data-node-id={node.id}
       data-type={node.type}
+      data-role={row.role}
       style={{ paddingInlineStart: `${indent}px` }}
       onClick={props.onSelect}
       onDoubleClick={(event) => {
@@ -776,9 +833,27 @@ function BinderRowView(props: RowViewProps): ReactNode {
             {vocabLabel?.name ?? t`Unknown label`}
           </button>
         ) : null}
+        {props.agentAccess === null ? null : (
+          <span className="row-agent" data-agent-access={props.agentAccess}>
+            <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {ACCESS_MARKERS[props.agentAccess]}
+          </span>
+        )}
+        {/* A part's role is in words, inside the row's name, so a screen reader hears "Part One, Part" and not only its level. */}
+        {row.role === 'part' ? <span className="row-role">Part</span> : null}
         {node.type === 'document' ? <span className="row-count">{wordsLabel(wordCountOf(state, node.id))}</span> : null}
         {container ? <span className="row-count">{itemsLabel(count)}</span> : null}
       </span>
+      <RowActions title={node.title} onActions={props.onActions} />
     </div>
+  );
+}
+
+/** The Actions button of a row in the narrow layout. It is not a tab stop: the row's own menu key opens the same menu. */
+function RowActions({ title, onActions }: { title: string; onActions: ((event: ReactMouseEvent<HTMLElement>) => void) | undefined }): ReactNode {
+  if (onActions === undefined) return null;
+  return (
+    <button type="button" tabIndex={-1} className="row-actions" aria-haspopup="menu" aria-label={`Actions for ${title}`} onClick={onActions}>
+      <span aria-hidden="true">⋯</span>
+    </button>
   );
 }

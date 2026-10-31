@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { priceFromInputs } from '../../apps/desktop/src/app/providers.js';
 import {
+  CONTEXT_LAYER_MAX,
   CONTEXT_LAYER_MIN,
   CONTEXT_TOTAL_MAX,
   DEFAULT_SETTINGS,
@@ -23,6 +24,12 @@ test.describe('the context budgets load clamped, and an unset record keeps the s
       totalBudgetTokens: CONTEXT_TOTAL_MAX,
       layerBudgets: { L2: CONTEXT_LAYER_MIN, L5: 9_000 },
     });
+  });
+
+  test('every budgeted layer loads and reaches the config, L1, L3 and L6 as well as LI, L2, L4 and L5 (issue #69, phase 4)', () => {
+    const layerBudgets = { LI: 1_000, L1: 900, L2: 1_100, L3: 800, L4: 2_500, L5: 3_000, L6: 600 };
+    expect(normalizeContext({ layerBudgets: { ...layerBudgets, L0: 500, L7: 500 } })).toEqual({ layerBudgets });
+    expect(contextConfigOf(normalizeContext({ layerBudgets: { L1: 50, L6: 90_000 } }))).toEqual({ layerBudgets: { L1: CONTEXT_LAYER_MIN, L6: CONTEXT_LAYER_MAX } });
   });
 
   test('a missing record is the default: no total, and no layer caps', () => {

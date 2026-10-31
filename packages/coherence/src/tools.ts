@@ -13,14 +13,15 @@
  * model reads next, because a bare error would send it looking for a way round.
  */
 
+import { param, type ObjectSpec } from '@caotang/bus';
 import type { RandomBytes } from '@caotang/ids';
-import type { ProjectState } from '@caotang/store';
+import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { groupFindings, type FindingGroup } from './groups.js';
 import { runDeterministic } from './run.js';
 import { CoherenceError, NoProviderError } from './errors.js';
 import { setFindingStatusForAgent } from './lifecycle.js';
-import { LLM_CATEGORIES, DETERMINISTIC_CHECK_IDS, NOTE_LIMIT, SCAN_DOC_GUARD, type CoherenceFile, type CoherenceRun, type DeterministicCheckId, type LlmCategory } from './model.js';
+import { FINDING_SEVERITIES, LLM_CATEGORIES, DETERMINISTIC_CHECK_IDS, NOTE_LIMIT, RUN_STATUSES, SCAN_DOC_GUARD, type CoherenceFile, type CoherenceRun, type DeterministicCheckId, type LlmCategory } from './model.js';
 import type { MentionCacheSource, MentionDetector } from './mentions.js';
 import { planReview, runReview, type ReviewContext, type ReviewPlan } from './llm/review.js';
 import type { CoherenceModel } from './llm/port.js';
@@ -83,9 +84,68 @@ export interface CoherenceToolEntry {
   readonly meta: CoherenceToolMeta;
   readonly params: ToolParamsObject;
   readonly port: CoherenceToolName;
+  /** What `data` holds on success: the answer of the engine's tool, as the harness hands it on (agent-harness §3). */
+  readonly result: ObjectSpec;
+  /** False while the spec still lets an unlisted key through. */
+  readonly resultClosed: boolean;
   /** A cross-field rule the closed-set shape cannot express. Returns a model-facing error, or nothing. */
   readonly refine?: (params: Readonly<Record<string, unknown>>) => string | undefined;
 }
+
+const GROUPS_RESULT = param.list(
+  'The findings, grouped by check and fact group, the most severe first.',
+  param.object(
+    'One group.',
+    {
+      checkId: param.string('The check that found them.'),
+      factGroup: param.string('The fact the findings share.'),
+      type: param.string('The finding type.'),
+      severity: param.choice('The most severe finding in the group.', FINDING_SEVERITIES),
+      count: param.integer('How many findings the group holds.'),
+      findingIds: param.list('Their ids.', param.string('A finding id.')),
+      docIds: param.list('The documents they touch.', param.string('A document id.')),
+    },
+    ['checkId', 'factGroup', 'type', 'severity', 'count', 'findingIds', 'docIds'],
+  ),
+);
+
+/** `coherence.scan`'s answer (`ScanData`), less the groups the response cap left out. */
+export const COHERENCE_SCAN_RESULT = param.object(
+  'The run, and its findings by group.',
+  {
+    runId: param.string('The run that was recorded.'),
+    status: param.choice('Whether every check finished.', RUN_STATUSES),
+    findingsUpserted: param.integer('How many findings the run recorded or refreshed.'),
+    documents: param.integer('How many documents the scope held once archived and withheld ones were left out.'),
+    groups: GROUPS_RESULT,
+    notes: param.list('What the run says aloud.', param.string('One note.')),
+  },
+  ['runId', 'status', 'findingsUpserted', 'documents', 'groups', 'notes'],
+);
+
+/** `coherence.review`'s answer (`ReviewRunData`), less the groups the response cap left out. */
+export const COHERENCE_REVIEW_RESULT = param.object(
+  'The run, and its findings by group.',
+  {
+    runId: param.string('The run that was recorded.'),
+    status: param.choice('Whether the review finished.', ['complete', 'partial']),
+    findingsUpserted: param.integer('How many findings the run recorded or refreshed.'),
+    groups: GROUPS_RESULT,
+    notes: param.list('What the run says aloud.', param.string('One note.')),
+  },
+  ['runId', 'status', 'findingsUpserted', 'groups', 'notes'],
+);
+
+/** `coherence.setFindingStatus`'s answer (`SetStatusData`). */
+export const COHERENCE_SET_STATUS_RESULT = param.object(
+  'The finding, and whether it was already fixed.',
+  {
+    findingId: param.string('The finding.'),
+    status: param.choice('Always fixed: the only status an agent sets.', ['fixed']),
+    alreadyFixed: param.boolean('True when the finding was fixed before this call.'),
+  },
+  ['findingId', 'status', 'alreadyFixed'],
+);
 
 const SCOPE_PARAM: ToolParamSpec = {
   kind: 'object',
@@ -166,6 +226,8 @@ export const COHERENCE_TOOL_ENTRIES: readonly CoherenceToolEntry[] = [
       required: [],
     },
     port: 'coherence.scan',
+    result: COHERENCE_SCAN_RESULT,
+    resultClosed: false,
     refine: (params) => scopeRefine(params.scope),
   },
   {
@@ -202,6 +264,8 @@ export const COHERENCE_TOOL_ENTRIES: readonly CoherenceToolEntry[] = [
       required: ['scope'],
     },
     port: 'coherence.review',
+    result: COHERENCE_REVIEW_RESULT,
+    resultClosed: false,
     refine: (params) => scopeRefine(params.scope),
   },
   {
@@ -228,6 +292,8 @@ export const COHERENCE_TOOL_ENTRIES: readonly CoherenceToolEntry[] = [
       required: ['findingId', 'status'],
     },
     port: 'coherence.setFindingStatus',
+    result: COHERENCE_SET_STATUS_RESULT,
+    resultClosed: false,
   },
 ];
 
@@ -253,6 +319,8 @@ export interface CoherenceToolContext {
   readonly currentFile?: () => CoherenceFile;
   /** The writer's stop: a review that sees it fired ends its run as partial, with the findings it has (`ReviewRunOptions.signal`). */
   readonly signal?: AbortSignal;
+  /** Documents a read rule keeps from the agent (agent-harness §4): they are not scanned or reviewed. Absent, only archived documents are left out. */
+  readonly isExcluded?: (node: TreeNode) => boolean;
 }
 
 export interface ToolSuccess<T> {
@@ -281,6 +349,8 @@ export interface ScanData {
   readonly runId: string;
   readonly status: CoherenceRun['status'];
   readonly findingsUpserted: number;
+  /** How many documents the scope held once archived and withheld ones were left out. */
+  readonly documents: number;
   readonly groups: readonly FindingGroup[];
   readonly notes: readonly string[];
 }
@@ -323,7 +393,10 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
   try {
     const scope = toScope(params.scope);
     const includeDocIds = scope.mode === 'doc' ? new Set(scope.docIds) : undefined;
-    const snapshot = snapshotManuscript(context.state, context.file, includeDocIds === undefined ? {} : { includeDocIds });
+    const snapshot = snapshotManuscript(context.state, context.file, {
+      ...(includeDocIds === undefined ? {} : { includeDocIds }),
+      ...(context.isExcluded === undefined ? {} : { isExcluded: context.isExcluded }),
+    });
     const count = resolveScope(snapshot, context.file, scope).length;
     if (count > SCAN_DOC_GUARD && context.approvedLargeScope !== true) {
       return {
@@ -334,6 +407,7 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
     }
     const result = runDeterministic(context.state, context.file, {
       scope,
+      ...(context.isExcluded !== undefined ? { isExcluded: context.isExcluded } : {}),
       ...(picked.checks !== undefined ? { checks: picked.checks } : {}),
       now: context.now,
       ...(context.mentions !== undefined ? { mentions: context.mentions } : {}),
@@ -350,6 +424,7 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
         runId: result.run.id,
         status: result.run.status,
         findingsUpserted: result.run.findingsUpserted.length,
+        documents: count,
         groups,
         notes: result.run.notes ?? [],
       },
@@ -383,6 +458,7 @@ export function previewReviewTool(params: Readonly<Record<string, unknown>>, con
         scope: toScope(params.scope),
         ...(Array.isArray(params.categories) ? { categories: params.categories as LlmCategory[] } : {}),
         ...(typeof params.maxFindings === 'number' ? { maxFindings: params.maxFindings } : {}),
+        ...(context.isExcluded !== undefined ? { isExcluded: context.isExcluded } : {}),
       },
       context.review,
     );
@@ -418,6 +494,7 @@ export async function executeReviewTool(
       ...(context.review !== undefined ? { context: context.review } : {}),
       ...(context.currentFile !== undefined ? { currentFile: context.currentFile } : {}),
       ...(context.signal !== undefined ? { signal: context.signal } : {}),
+      ...(context.isExcluded !== undefined ? { isExcluded: context.isExcluded } : {}),
       randomBytes: context.randomBytes,
     });
     const upserted = new Set(result.run.findingsUpserted);

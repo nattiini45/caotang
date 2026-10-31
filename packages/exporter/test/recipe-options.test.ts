@@ -25,7 +25,7 @@ import {
   type ExportRecipe,
   type ProjectState,
 } from '@caotang/store';
-import { createExporter, recipesOf, type ExporterService } from '../src/index.js';
+import { COLOUR_EMOJI_FORMATS, COLOUR_EMOJI_HINT, COLOUR_EMOJI_LABEL, colourEmojiDefault, createExporter, recipesOf, type ExporterService } from '../src/index.js';
 import { COMPILED_AT, IDS, makeProject, PROJECT_NAME } from './fixture.js';
 import { ASSETS, makeMediaProject } from './media-fixture.js';
 
@@ -247,5 +247,52 @@ describe('paper frames — the contact sheet’s option, read by no other format
     const refused = r.run('recipe.save', { name: 'Odd', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { paperFrames: 'yes' } });
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.error.message).toContain('params.options.paperFrames must be true or false');
+  });
+});
+
+// screenplay.md §5.3, storyboard.md §6: Colour emoji, the option both PDFs have.
+describe('colourEmoji', () => {
+  it('is saved by recipe.save with an explicit false kept, survives a read of the recipe, and is refused when it is not a boolean', () => {
+    const r = rig(makeMediaProject());
+    okValue(r.run('recipe.save', { name: 'Colour', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { colourEmoji: false } }));
+    expect(recipesOf(r.state).find((recipe) => recipe.name === 'Colour')?.options).toEqual({ colourEmoji: false });
+    okValue(r.run('recipe.save', { name: 'Script', includeRootIds: ['manuscript'], format: 'pdf', options: { colourEmoji: true } }));
+    expect(recipesOf(r.state).find((recipe) => recipe.name === 'Script')?.options).toEqual({ colourEmoji: true });
+
+    const refused = r.run('recipe.save', { name: 'Odd', includeRootIds: ['manuscript'], format: 'pdf', options: { colourEmoji: 'yes' } });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.message).toContain('params.options.colourEmoji must be true or false');
+  });
+
+  it('is on by default for the contact sheet only, and its words say what the default is for', () => {
+    expect(colourEmojiDefault('contact-sheet-pdf')).toBe(true);
+    expect(colourEmojiDefault('pdf')).toBe(false);
+    expect(COLOUR_EMOJI_FORMATS).toEqual(['pdf', 'contact-sheet-pdf']);
+    // The words are pinned: the Export dialog shows them, and the guide quotes them.
+    expect(COLOUR_EMOJI_LABEL).toBe('Colour emoji: print emoji in colour, with their skin tones');
+    expect(COLOUR_EMOJI_HINT.pdf).toBe(
+      'Scripts are usually printed in black and white, so this is off unless you turn it on. Without colour a skin tone prints as the plain figure; colour is how to get skin tones.',
+    );
+    expect(COLOUR_EMOJI_HINT['contact-sheet-pdf']).toBe(
+      'On by default, because a contact sheet is a picture to look at. Turn it off for black and white, where a skin tone prints as the plain figure; colour is how to get skin tones.',
+    );
+  });
+
+  it('leaves every other format’s output the same with it on or off', async () => {
+    for (const format of ['md', 'txt', 'fountain', 'ink-json', 'dialogue-csv', 'shot-list-csv', 'coherence-md'] as const) {
+      const state = makeMediaProject();
+      const r = rig(state);
+      await r.exporter.ready();
+      okValue(r.run('recipe.save', { name: 'On', includeRootIds: ['manuscript'], format, options: { colourEmoji: true } }));
+      okValue(r.run('recipe.save', { name: 'Off', includeRootIds: ['manuscript'], format, options: {} }));
+      const compiled = async (recipeName: string): Promise<string> => {
+        const outcome = okValue(r.run('export.compile', { format, recipeName }));
+        await r.exporter.idle();
+        return r.fs.snapshot()[(outcome.result as { output: string }).output] ?? '';
+      };
+      const off = await compiled('Off');
+      expect(off.length, format).toBeGreaterThan(0);
+      expect(await compiled('On'), format).toBe(off);
+    }
   });
 });

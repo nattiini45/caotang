@@ -19,12 +19,16 @@
  * The store moves a document in two ways. A write from this session moves it to the revision the editor already holds, so
  * there is nothing to do but tell the editor its revision (`setRevision`). Anything else (an undo, a restore, an agent apply)
  * replaces the body, and the editor takes it with `setContent`, outside the user's undo history (editor-engine §7, lane 2).
+ *
+ * An agent apply the controller recorded (`consumeApply`) is the one replacement that can take another road: with Settings > Writing set to
+ * mark the changes for review, the editor shows it as marks over the saved text (`showAgentEdit`, editor-engine §15) and the review bar
+ * resolves them. The store already holds the text when the marks appear.
  */
 
 import { isolate } from '@caotang/i18n';
 import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { t } from '@lingui/core/macro';
 import { keyboardLayoutStore, shortcutLabel } from '../app/keymap.js';
 import {
@@ -37,14 +41,18 @@ import {
 } from '@caotang/editor/tiptap';
 import { countBody, getBody, getRevision } from '@caotang/store';
 
+import { activeAppDb } from '../app/app-db.js';
 import { nodeById } from '../app/binder-model.js';
 import { publishEditorCaret, type EditorCaret } from '../app/editor-selection.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { GhostView } from '../app/agent-model.js';
 import { describeLossGroup, reStyleSentence } from '../app/load-banner.js';
 import { isOwnWrite } from '../app/integrity-model.js';
+import { takePending } from '../app/review-notice.js';
+import { pendingNotice } from '../app/review-text.js';
 import type { ProjectSession } from '../app/session.js';
 import { createHistorySaver, loadHistoryJournal } from '../app/history-store.js';
+import type { AgentEditMode } from '../app/settings.js';
 import { registerSelectionReader } from '../app/test-hook.js';
 import type { TargetProgress } from '../app/session-progress.js';
 import { listAssets } from '../media/engines.js';
@@ -53,6 +61,9 @@ import type { ImportReport } from '../media/picture-board-model.js';
 import { IMAGE_ACCEPT } from '../media/shot-image-model.js';
 import { EmptyState, useReport, useSession, wordsLabel } from './shared.js';
 import { TargetQuickSet } from './TargetQuickSet.js';
+
+/** The review bar and the hold on the marks are fetched only by an editor in review mode (Settings > Writing), so the default path does not carry them. */
+const ReviewSide = lazy(() => import('./ReviewSide.js').then((module) => ({ default: module.ReviewSide })));
 
 /* lingui-set comment="Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count" */
 
@@ -89,6 +100,8 @@ export interface EditorPaneProps {
   readonly target: TargetProgress;
   /** Saves the writer's daily target from the status bar's quick-set (goals-progress §4). */
   readonly onSetTarget: (words: number) => void;
+  /** Where an approved agent edit lands (Settings > Writing). Read when a document is opened: a change applies to the next one. */
+  readonly agentEditMode?: AgentEditMode;
 }
 
 export function EditorPane({
@@ -104,6 +117,7 @@ export function EditorPane({
   agent,
   target,
   onSetTarget,
+  agentEditMode = 'ghost',
 }: EditorPaneProps): ReactNode {
   useLingui();
   useSession(session);
@@ -149,6 +163,7 @@ export function EditorPane({
       agent={agent}
       target={target}
       onSetTarget={onSetTarget}
+      agentEditMode={agentEditMode}
     />
   );
 }
@@ -240,6 +255,7 @@ function DocumentEditor({
   agent,
   target,
   onSetTarget,
+  agentEditMode,
 }: {
   session: ProjectSession;
   docId: string;
@@ -252,10 +268,13 @@ function DocumentEditor({
   agent: AgentController | null;
   target: TargetProgress;
   onSetTarget: (words: number) => void;
+  agentEditMode: AgentEditMode;
 }): ReactNode {
   const { i18n } = useLingui();
   useSession(session);
   const report = useReport();
+  // The mode this editor was opened with. The mount effect reads it once, so a change in Settings applies to the next document.
+  const [modeAtOpen] = useState(agentEditMode);
   const snapshot: AgentDraftView = useSyncExternalStore(agent?.subscribe ?? noAgentSubscribe, agent?.snapshot ?? noAgentSnapshot);
   // The editor is made once per document, so it reaches the controller through a ref: the controller arriving later does not rebuild it.
   const agentRef = useRef(agent);
@@ -377,6 +396,7 @@ function DocumentEditor({
             lastSelection.current = caret;
             publishSelection(mounted, caret);
           },
+          agentEditMode: modeAtOpen,
           ghost: {
             onApply: () => agentRef.current?.answer({ action: 'approve' }),
             onRetry: () => agentRef.current?.answer({ action: 'retry' }),
@@ -411,7 +431,7 @@ function DocumentEditor({
       void saver.dispose();
     };
   // The editor's own words are set when it mounts; a language switch keeps the live editor and its unsaved text.
-  }, [session, docId]);
+  }, [session, docId, modeAtOpen]);
 
   // The store moved this document. Its own write is acknowledged to the editor; anything else replaces the body.
   useEffect(() => {
@@ -427,8 +447,12 @@ function DocumentEditor({
     // The store's body is the truth: this replacement is an undo, a restore or an agent apply. An undo and a restore save the
     // writer's typing first (`undoLast` flushes); an agent apply waits for the writer's typing to be saved too (`answer`
     // flushes before an approval), so the discard only ever drops text the store already holds.
-    editor
-      .setContent(stored, { historyExcluded: true, discardUnsaved: true })
+    const apply = agent?.consumeApply(docId, revision) ?? null;
+    const landing =
+      apply !== null && modeAtOpen === 'suggestions'
+        ? editor.showAgentEdit(stored, { toolCallId: apply.toolCallId, revision }).then((outcome) => import('./ReviewSide.js').then((module) => module.reportLanding(outcome, report)))
+        : editor.setContent(stored, { historyExcluded: true, discardUnsaved: true });
+    landing
       .then(() => editor.setRevision(revision))
       .catch((error: unknown) => {
         report({
@@ -436,7 +460,19 @@ function DocumentEditor({
           tone: 'error',
         });
       });
-  }, [editor, stored, revision, session, docId, report]);
+  }, [editor, stored, revision, session, docId, report, agent, modeAtOpen]);
+
+  // What an earlier visit left marked is said once, whichever mode this visit opened in: the row is taken on every open, so it cannot
+  // outlive the mode and be said later about a scene the writer has since edited another way (editor-engine §15).
+  useEffect(() => {
+    let live = true;
+    void takePending(session.projectId, docId, activeAppDb()).then((left) => {
+      if (left !== null && live) report({ text: pendingNotice(left.count), tone: 'info' });
+    });
+    return () => {
+      live = false;
+    };
+  }, [session.projectId, docId, report]);
 
   // The scene's ghost region is on screen while this editor is shown. The controller counts a draft as shown only then.
   useEffect(() => {
@@ -519,6 +555,12 @@ function DocumentEditor({
         {importer.dialog}
 
         <div ref={host} className="editor-host" lang={contentLang} dir="auto" />
+
+        {editor !== null && agent !== null && modeAtOpen === 'suggestions' ? (
+          <Suspense fallback={null}>
+            <ReviewSide projectId={session.projectId} docId={docId} agent={agent} editor={editor} report={report} />
+          </Suspense>
+        ) : null}
 
         {ghostHere !== null && ghostFor !== undefined ? (
           <GhostBar

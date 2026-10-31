@@ -151,6 +151,8 @@ describe('the node fields the writer persists are the ones the load knows', () =
     dialogue: { speaker: 'Elena' },
     comic: { readingDirection: 'rtl' },
     comicPage: { size: 'us-comic', panels: [] },
+    showMeta: { ratePreset: 'broadcast' },
+    episodeMeta: { episode: 12 },
     style: 'section',
     createdAt: STAMP.toISOString(),
     updatedAt: STAMP.toISOString(),

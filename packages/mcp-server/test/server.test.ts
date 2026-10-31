@@ -36,6 +36,7 @@ import {
   type Fixture,
   LANDING,
   CHAPTER_ONE,
+  CHAPTER_TWO,
   SHOTS_FOLDER,
 } from './support.js';
 
@@ -57,8 +58,10 @@ async function listedNames(client: Client): Promise<string[]> {
   return tools.map((tool) => tool.name).sort();
 }
 
-/** The registry's write rows: every one of them is listed with --allow-writes, unless it needs a model (MODEL_BACKED). */
-const WRITE_TOOLS = TOOL_METADATA.filter((meta) => meta.risk === 'write-auto' || meta.risk === 'write-confirm').map((meta) => meta.name);
+/** The two write rows this server never lists, with writes on: a standing instruction is changed in the app, at a card (tools.ts, `IN_APP_ONLY`). */
+const IN_APP_ONLY = ['memory.write', 'instructions.propose'];
+/** The registry's write rows: every one of them is listed with --allow-writes, unless it needs a model (MODEL_BACKED), is in-app only, or has no port here. */
+const WRITE_TOOLS = TOOL_METADATA.filter((meta) => (meta.risk === 'write-auto' || meta.risk === 'write-confirm') && !IN_APP_ONLY.includes(meta.name)).map((meta) => meta.name);
 
 /** Writes whose ports need the writer's own files or vision/review host: unwired here, so never listed. */
 const NO_PORT_HERE = ['pictures.import', 'pictures.transcribe'];
@@ -217,7 +220,7 @@ describe('the tool surface', () => {
           continue;
         }
         // tool.search is the one exposed tool this server leaves out: it has no tool server to search (tools.ts).
-        if (!exposure.exposed || !listing.wired || listing.name === 'tool.search') {
+        if (!exposure.exposed || !listing.wired || listing.name === 'tool.search' || IN_APP_ONLY.includes(listing.name)) {
           expect(byName.has(listing.name), `${listing.name} must not be listed`).toBe(false);
           continue;
         }
@@ -271,6 +274,26 @@ describe('the tool surface', () => {
       expect(names(confirmText!.split('Add `--create')[0]!)).toEqual([...confirm].sort());
     } finally {
       await client.close();
+    }
+  });
+
+  it('is described with the tool counts it lists, in the package README, the host checks and the spec', async () => {
+    const reader = await connectClient(readOnly.url, readOnly.token);
+    const writer = await connectClient(writable.url, writable.token, acceptConfirm);
+    try {
+      const reads = (await reader.listTools()).tools.length;
+      const { tools } = await writer.listTools();
+      const confirms = tools.filter((tool) => tool.description?.startsWith('Requires user confirmation.')).length;
+      const text = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+      expect(text('../README.md')).toContain(`**Read-only server (${reads} tools), and always:**`);
+      expect(text('../README.md')).toContain(`**With \`--allow-writes\` (${tools.length} tools):**`);
+      expect(text('../HOST-CHECKS.md')).toContain(`the host lists ${tools.length} tools`);
+      const spec = text('../../../docs/architecture/extensibility.md');
+      expect(spec).toContain(`lists **${reads} read tools in every mode**`);
+      expect(spec).toContain(`**${tools.length - reads} more** (${tools.length - reads - confirms} write-auto, ${confirms} write-confirm`);
+    } finally {
+      await reader.close();
+      await writer.close();
     }
   });
 
@@ -858,12 +881,15 @@ describe('the registry seam', () => {
             'binder.read_tree',
             'codex.read',
             'coherence.scan',
+            'dialogue.brief',
             'dialogue.table',
             'doc.read',
+            'memory.read',
             'notes.read',
             'pictures.list',
             'pictures.view',
             'project.overview',
+            'scene.brief',
             'timeline.read',
           ]);
           expect(await listedNames(rwClient)).toEqual([
@@ -877,12 +903,15 @@ describe('the registry seam', () => {
             'comic.derive',
             'comic.letter',
             'comic.scriptFromPages',
+            'dialogue.apply',
+            'dialogue.brief',
             'dialogue.table',
             'doc.import',
             'doc.read',
             'export.compile',
             'filter.save',
             'goal.save',
+            'memory.read',
             'meta.set',
             'notes.append',
             'notes.read',
@@ -893,6 +922,8 @@ describe('the registry seam', () => {
             'pictures.place',
             'pictures.view',
             'project.overview',
+            'scene.apply',
+            'scene.brief',
             'shots.annotate',
             'synopsis.set',
             'timeline.edit',
@@ -1269,6 +1300,32 @@ describe('the confirmation round trip on the wire', () => {
     }
   }, 30_000);
 
+  it('export.compile through a recipe with paper A4 and the font Cousine writes the screenplay PDF on A4 pages in Cousine', async () => {
+    const fixture = await startFixture({
+      label: 'export-a4',
+      allowWrites: true,
+      seed: true,
+      writing: true,
+      recipes: [{ name: 'A4 script', includeRootIds: [CHAPTER_TWO], format: 'pdf', options: { pageSize: 'A4', scriptFont: 'cousine' } }],
+    });
+    const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
+    try {
+      const result = await client.callTool({ name: 'export.compile', arguments: { format: 'pdf', recipeName: 'A4 script' } });
+      expect(result.isError).not.toBe(true);
+      const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
+      const boxes = [...bytes.matchAll(/\/MediaBox \[([^\]]+)\]/g)].map((match) => match[1]);
+      expect(boxes.length).toBeGreaterThan(0);
+      expect(new Set(boxes)).toEqual(new Set(['0 0 595.28 841.89']));
+      expect(bytes).toContain('/BaseFont /Cousine-Regular');
+      expect(bytes).toContain('(INT. HARBOUR - NIGHT) Tj');
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  }, 30_000);
+
   it('export.compile draws a contact sheet with Chinese text in the Noto Sans Mono CJK fallback font, read from its package', async () => {
     const fixture = await startFixture({ label: 'export-cjk', allowWrites: true, seed: true, shot: true, shotAction: '港口空无一人。' });
     const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
@@ -1317,7 +1374,7 @@ describe('the confirmation round trip on the wire', () => {
     }
   }, 30_000);
 
-  it('export.compile draws a contact sheet with emoji in the Noto Emoji fallback font, read from its package', async () => {
+  it('export.compile draws a contact sheet with emoji in colour by default, as Type 3 pictures read from the colour emoji package', async () => {
     const fixture = await startFixture({ label: 'export-emoji', allowWrites: true, seed: true, shot: true, shotAction: 'Harbour 🌊 at dawn 👨‍👩‍👧 🇩🇪 1️⃣' });
     const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
     try {
@@ -1330,9 +1387,11 @@ describe('the confirmation round trip on the wire', () => {
       const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
       expect(pdf).toHaveLength(1);
       const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
-      // The emoji subset is embedded as a TrueType program under its own name; the CJK font is not read for emoji.
-      expect(bytes).toContain('/BaseFont /CAOTEM+NotoEmoji-Regular');
-      expect(bytes.match(/\/FontFile2/g)).toHaveLength(1);
+      // The contact sheet's emoji are Type 3 pictures in their own colours, so no TrueType program is embedded: neither the monochrome
+      // emoji font nor the CJK font is read for them.
+      expect(bytes).toContain('/Subtype /Type3');
+      expect(bytes).not.toContain('NotoEmoji-Regular');
+      expect(bytes.match(/\/FontFile2/g)).toBeNull();
     } finally {
       await client.close();
       await fixture.close();

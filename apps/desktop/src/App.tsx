@@ -19,7 +19,8 @@ import { fixtureWireFactory } from './app/mcp.js';
 import { openAppServices, type AppServices } from './app/services.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
 import { initializeInterfaceLanguage, languageRevision, subscribeLanguage } from './i18n/language.js';
-import { openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
+import { listProjects, openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
+import { interfacePending, settleInterface } from './app/interface.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
 import type { ProjectSession } from './app/session.js';
 import { installTestHook } from './app/test-hook.js';
@@ -50,6 +51,8 @@ export function App(): ReactNode {
   // A switch activates in place; re-rendering the tree keeps the editor, its journal and every open
   // card exactly where they are (i18n.md §3.3: no reload).
   useSyncExternalStore(subscribeLanguage, languageRevision);
+  // False while the interface's default waits for the stores (app/interface.ts, modern-interface.md §3.2).
+  const [shellReady, setShellReady] = useState(() => !interfacePending());
 
   useEffect(() => {
     let alive = true;
@@ -85,7 +88,9 @@ export function App(): ReactNode {
         const { editor, retention } = opened.settings.current();
         // The agent's coherence scans follow the Coherence settings, and its review runs through the active provider (coherence.md §7).
         const coherence = { checks: () => opened.settings.current().coherence.enabledChecks, providers: opened.providers };
-        setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: opened.mcp.client }, coherence });
+        // The writer's own agent rules are read at each agent call, so an edit in Settings applies to the turn in flight at its next call.
+        const appRules = () => opened.settings.current().agent.rules;
+        setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: opened.mcp.client }, coherence, appRules });
       };
       apply();
       opened.settings.subscribe(apply);
@@ -98,6 +103,23 @@ export function App(): ReactNode {
   useEffect(() => {
     installTestHook(() => current.current);
   }, []);
+
+  // With nothing in local storage to go on, the stores decide the default before the first screen shows (resolveInterface): a project
+  // or a settings record from an earlier visit means Classic. A list that cannot be read counts as a project, so Classic stays.
+  useEffect(() => {
+    if (shellReady || store === null || services === null) return;
+    let alive = true;
+    void listProjects(store)
+      .then((projects) => projects.length > 0, () => true)
+      .then((projects) => settleInterface(projects, services.settingsKept))
+      .catch(() => undefined)
+      .then(() => {
+        if (alive) setShellReady(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [shellReady, store, services]);
 
   const show = (opened: Opened): void => {
     const previous = current.current;
@@ -171,7 +193,7 @@ export function App(): ReactNode {
       </main>
     );
   }
-  if (store === null || services === null) {
+  if (store === null || services === null || !shellReady) {
     return (
       <main className="loading" role="status">
         <Trans>Opening your projects…</Trans>

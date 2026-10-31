@@ -351,6 +351,18 @@ describe('anthropic-messages stream parsing', () => {
     expect(parseStream(text).pieces).toEqual([{ usage: { promptTokens: 12, completionTokens: 9 } }]);
   });
 
+  it('treats a negative or infinite usage figure as no usage', () => {
+    const negative =
+      frame({ type: 'message_start', message: { usage: { input_tokens: -3, output_tokens: 1 } } }, 'message_start') +
+      frame({ type: 'message_delta', delta: {}, usage: { output_tokens: -9 } }, 'message_delta');
+    expect(parseStream(negative).pieces).toEqual([{ usage: { promptTokens: 0, completionTokens: 1 } }]);
+    // JSON.parse turns 1e999 into Infinity.
+    const infinite =
+      frame('{"type":"message_start","message":{"usage":{"input_tokens":1e999,"output_tokens":2}}}', 'message_start') +
+      frame('{"type":"message_delta","delta":{},"usage":{"output_tokens":1e999}}', 'message_delta');
+    expect(parseStream(infinite).pieces).toEqual([{ usage: { promptTokens: 0, completionTokens: 2 } }]);
+  });
+
   it('shows the summarised thinking of a Claude 5.x row and replays the signed block verbatim', () => {
     const route = resolveRoute({ preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' }, 'claude-opus-5-5');
     const five = ctx(route.quirks, route.caps, 'claude-opus-5-5');

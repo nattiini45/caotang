@@ -6,7 +6,7 @@ const none = { error: 0, warning: 0, info: 0 };
 
 describe('exitCodeFor', () => {
   it('freezes 7 as the code for open findings at or above the threshold', () => {
-    expect(SCAN_EXIT).toEqual({ Clean: 0, Findings: 7 });
+    expect(SCAN_EXIT).toEqual({ Clean: 0, Findings: 7, Unread: 8 });
   });
 
   it.each([
@@ -20,6 +20,17 @@ describe('exitCodeFor', () => {
     ['never', { error: 5, warning: 5, info: 5 }, 0],
   ] as const)('--fail-on %s with %j is %i', (failOn, counts, code) => {
     expect(exitCodeFor(counts, failOn)).toBe(code);
+  });
+
+  it('exits 8 for an unread file when no finding fails the run, and 7 when one does', () => {
+    expect(exitCodeFor(none, 'error', 1)).toBe(8);
+    expect(exitCodeFor({ ...none, warning: 1 }, 'error', 2)).toBe(8);
+    expect(exitCodeFor({ ...none, error: 1 }, 'error', 1)).toBe(7);
+    expect(exitCodeFor(none, 'error', 0)).toBe(0);
+  });
+
+  it('keeps --fail-on never as a run that only reports, unread files included', () => {
+    expect(exitCodeFor(none, 'never', 3)).toBe(0);
   });
 
   it('fails on an error by default', () => {

@@ -1,0 +1,44 @@
+# Visual baselines (modern-interface.md §15.4): rewrites the Classic snapshots in e2e/visual/__snapshots__/ in the same pinned
+# Playwright image the `visual` job of ci.yml compares in, and uploads them as the visual-baselines artifact. Nothing is committed
+# here: the PNGs are reviewed and committed in the pull request that changes them, the only way a baseline changes.
+name: visual baselines
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baselines:
+    name: write the Classic snapshots
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Write the snapshots
+        env:
+          HOME: /root
+          CI: 'true'
+          CAOTANG_VISUAL: '1'
+        run: pnpm exec playwright test --project=visual --update-snapshots=all
+
+      - name: Upload the snapshots
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-baselines
+          path: e2e/visual/__snapshots__/
+          retention-days: 14

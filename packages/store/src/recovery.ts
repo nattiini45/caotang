@@ -41,7 +41,7 @@ import {
 } from './paths.js';
 import { createEmptyManifest } from './create.js';
 import { createProjectState, type ProjectState } from './state.js';
-import { importOrphanCodex, importOrphanDocuments, importSkills, readProject, type LoadNotice } from './read.js';
+import { importAgentFiles, importOrphanCodex, importOrphanDocuments, importSkills, readProject, type LoadNotice } from './read.js';
 import type { EncodingIssue } from './encoding.js';
 import { PRODUCTION_FORMAT, type FormatContext } from './migrations.js';
 import { writeProject, type WriteReport } from './write.js';
@@ -315,6 +315,7 @@ async function rebuildFromRedundancy(
   const documents = await importOrphanDocuments(fs, state, [...docFiles].sort(), notices, now, encodingIssues);
   const codex = await importOrphanCodex(fs, state, notices, encodingIssues);
   await importSkills(fs, state, notices);
+  await importAgentFiles(fs, state, notices, encodingIssues);
 
   return { state, notices, encodingIssues, documents, codex };
 }

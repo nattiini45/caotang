@@ -40,12 +40,12 @@ const auditManifest = join(repoRoot, 'packages', 'editor-audit', 'package.json')
 const lockfile = join(repoRoot, 'pnpm-lock.yaml');
 
 /**
- * §2's pin table, as the adopted numbers. Keyed by package.
- * This is the **v0.1 set only** — `@handlewithcare/prosemirror-suggest-changes`
- * is deliberately absent, because §2 marks it v0.2-only, and its absence from
- * the tree is asserted below.
+ * §2's pin table, as the adopted numbers. Keyed by package. The suggestion layer
+ * (§15, apply-then-review) is in it: it is declared by `packages/editor`, which
+ * is where it is built on, and asserted below.
  */
 const EXPECTED_PINS: Readonly<Record<string, string>> = {
+  '@handlewithcare/prosemirror-suggest-changes': '0.1.8',
   '@handlewithcare/remark-prosemirror': '0.1.5',
   '@tiptap/core': '3.31.4',
   '@tiptap/extension-character-count': '3.31.4',
@@ -64,8 +64,9 @@ const EXPECTED_PINS: Readonly<Record<string, string>> = {
   'unified': '11.0.5',
 };
 
-/** §2 marks this v0.2-only, so it must not be installed. */
-const V02_ONLY = '@handlewithcare/prosemirror-suggest-changes';
+/** §15's review layer. It is declared by the editor package, not by the audit. */
+const SUGGEST_CHANGES = '@handlewithcare/prosemirror-suggest-changes';
+const editorManifest: Manifest = JSON.parse(readFileSync(join(repoRoot, 'packages', 'editor', 'package.json'), 'utf8'));
 
 interface Manifest {
   dependencies?: Record<string, string>;
@@ -266,11 +267,12 @@ describe('pin preflight · §2\'s pin table, as declarations and as resolutions'
     expect([...versions]).toEqual(['3.31.4']);
   });
 
-  it('the v0.1 exclusion holds — the v0.2 suggestion layer is NOT installed', () => {
-    // §2 marks `@handlewithcare/prosemirror-suggest-changes` v0.2-only. An
-    // exclusion asserted only by the table is not an exclusion.
-    expect(declared[V02_ONLY]).toBeUndefined();
-    expect(resolved(V02_ONLY)).toEqual([]);
+  it('the review layer is declared by the editor at exactly 0.1.8 and resolves once', () => {
+    // §15 builds apply-then-review on it. A pin only means something if the manifest and the tree
+    // agree, and a second resolution of the library would be a second copy of its mark code.
+    expect(editorManifest.dependencies?.[SUGGEST_CHANGES]).toBe('0.1.8');
+    expect(declared[SUGGEST_CHANGES], 'the audit does not build on the layer').toBeUndefined();
+    expect(resolved(SUGGEST_CHANGES)).toEqual(['0.1.8']);
   });
 });
 

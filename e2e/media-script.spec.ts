@@ -6,7 +6,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, treeOf, waitForSaved, writerText } from './support.js';
+import { binderRow, binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, treeOf, waitForSaved, writerText } from './support.js';
 
 const PROJECT = 'Night Shift';
 
@@ -73,6 +73,93 @@ test('a whole Fountain file imports as sections and scenes, and the import is on
   await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY\n\nAlice waves.');
 });
 
+test('a Final Draft file saved as UTF-16 imports as its author wrote it (#268)', async ({ page }) => {
+  await createProject(page, PROJECT);
+  const fdx = [
+    '<?xml version="1.0" encoding="UTF-16" standalone="no" ?>',
+    '<FinalDraft DocumentType="Script" Template="No" Version="3">',
+    '  <Content>',
+    '    <Paragraph Type="Scene Heading"><Text>INT. CAFÉ GRÖNLAND - NIGHT</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>草堂 waits.</Text></Paragraph>',
+    '  </Content>',
+    '</FinalDraft>',
+  ].join('\r\n');
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'cafe.fdx',
+    mimeType: 'application/xml',
+    buffer: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(fdx, 'utf16le')]),
+  });
+
+  await page.getByRole('dialog', { name: 'Import this Final Draft script?' }).getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page.getByText(/Imported 1 scene and .* from cafe\.fdx/)).toBeVisible();
+  await waitForSaved(page);
+  expect((await treeOf(page)).some((node) => node.title === 'INT. CAFÉ GRÖNLAND - NIGHT')).toBe(true);
+});
+
+test('a Final Draft file whose bytes are not valid in its encoding is refused on the status line, and nothing is imported (#268)', async ({ page }) => {
+  await createProject(page, PROJECT);
+  const before = (await treeOf(page)).length;
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'broken.fdx',
+    mimeType: 'application/xml',
+    // 0xFF can never start a UTF-8 character, so the reader refuses the file rather than importing U+FFFD noise.
+    buffer: Buffer.concat([Buffer.from('<FinalDraft><Content><Paragraph Type="Action"><Text>'), Buffer.from([0xff]), Buffer.from('</Text></Paragraph></Content></FinalDraft>')]),
+  });
+
+  await expect(page.getByText(/broken\.fdx could not be read: .*not valid utf-8/)).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Import this Final Draft script?' })).toBeHidden();
+  expect(await traceNames(page)).not.toContain('screenplay.import');
+  expect(await treeOf(page)).toHaveLength(before);
+});
+
+test('a Final Draft file shows its notes and dual dialogue before it imports, then imports with its scene numbers', async ({ page }) => {
+  await createProject(page, PROJECT);
+  // A byte order mark and Windows line ends, as a Windows editor saves the file. The note and the wrapped dual-dialogue pair
+  // nest paragraphs inside paragraphs, as Final Draft writes them (issue #264).
+  const fdx = [
+    '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>',
+    '<FinalDraft DocumentType="Script" Template="No" Version="3">',
+    '  <TitlePage><Content><Paragraph><Text>Title: Night Watch</Text></Paragraph></Content></TitlePage>',
+    '  <Content>',
+    '    <Paragraph Type="Scene Heading" Number="2A"><Text>INT. HOUSE - DAY</Text></Paragraph>',
+    '    <Paragraph Type="Action"><ScriptNote><Paragraph><Text>Louder?</Text></Paragraph></ScriptNote><Text>Alice waves.</Text></Paragraph>',
+    '    <Paragraph><DualDialogue>',
+    '      <Paragraph Type="Character"><Text>ALICE</Text></Paragraph><Paragraph Type="Dialogue"><Text>Hi.</Text></Paragraph>',
+    '      <Paragraph Type="Character"><Text>BOB</Text></Paragraph><Paragraph Type="Dialogue"><Text>Hey.</Text></Paragraph>',
+    '    </DualDialogue></Paragraph>',
+    '  </Content>',
+    '</FinalDraft>',
+  ].join('\r\n');
+  const choose = async (): Promise<void> => {
+    await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+      name: 'night.fdx',
+      mimeType: 'application/xml',
+      buffer: Buffer.from(`\uFEFF${fdx}`, 'utf8'),
+    });
+  };
+
+  await choose();
+  const dialog = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
+  await expect(dialog).toBeVisible();
+  const report = dialog.getByRole('list', { name: 'What the import does' });
+  await expect(report).toContainText('1 scene and 0 sections will be made, in one undo step.');
+  await expect(report).toContainText('1 script note kept as Fountain notes');
+  await expect(report).toContainText('1 dual-dialogue pair kept side by side');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+  expect(await traceNames(page)).not.toContain('screenplay.import');
+
+  await choose();
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
+  await expect(page.getByText(/The title page was read but not stored/)).toBeVisible();
+  await waitForSaved(page);
+
+  const house = (await treeOf(page)).find((node) => node.title === 'INT. HOUSE - DAY');
+  expect(house).toBeDefined();
+  await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY #2A#\n\nAlice waves. [[Louder?]]\n\nALICE\nHi.\n\nBOB ^\nHey.');
+});
+
 test('the Source tab draws a scene heading and a cue, and Tab completes a cue from the cues already in the scene', async ({ page }) => {
   await createProject(page, PROJECT);
   await makeScene(page);
@@ -128,9 +215,19 @@ test('the element menu turns the caret\'s line into the element chosen, from the
   await expect(source(page)).toBeFocused();
   await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
 
-  // The caret is after the cue, so the next line down is the dialogue. The Element button opens the menu too, and a digit chooses.
+  // Start at the converted cue's end, then keep the vertical navigation under test after the edit.
+  const converted = ['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n');
+  const cueCaret = converted.indexOf('@marcus') + '@marcus'.length;
+  const dialogueCaret = converted.indexOf('Hi.') + 'Hi.'.length;
+  await source(page).evaluate((field, at) => {
+    const input = field as HTMLTextAreaElement;
+    input.focus();
+    input.setSelectionRange(at, at);
+  }, cueCaret);
   await source(page).press('ArrowDown');
   await source(page).press('End');
+  expect(await caretOf(page)).toEqual([dialogueCaret, dialogueCaret]);
+  // The Element button opens the menu too, and a digit chooses.
   await page.getByRole('button', { name: 'Element', exact: true }).click();
   await expect(menu.getByRole('menuitemradio', { name: 'Dialogue' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('4');
@@ -494,6 +591,8 @@ test('Ctrl+Z after a chord leaves the text a menu choice leaves', async ({ page 
       await page.keyboard.press(await chord(page, 7));
     }
     await expect(source(page)).toHaveValue('> Anna waits. <');
+    // Menu selection restores the editor focus asynchronously; send Undo only after the same control is active.
+    await expect(source(page)).toBeFocused();
     await page.keyboard.press('ControlOrMeta+z');
     afterUndo[route] = await source(page).inputValue();
   }
@@ -517,4 +616,67 @@ test('a browser that reports a Mac gets the Cmd+Alt chords, and its Ctrl+Shift c
   await source(page).focus();
   await page.keyboard.press('Meta+Alt+Digit3');
   await expect(source(page)).toHaveValue('@Anna waits.');
+});
+
+/** The route chord for a letter, spelled for Playwright, on the platform the browser reports. */
+async function route(page: Page, letter: 'S' | 'Y'): Promise<string> {
+  return `${(await onMac(page)) ? 'Meta+Alt' : 'Control+Shift'}+Key${letter}`;
+}
+
+test('the section chord on the Source tab selects the folder the scene is in and focuses its binder row, and changes no text', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('INT. HOUSE - DAY');
+  const field = source(page);
+  await expect(field).toHaveAttribute('aria-keyshortcuts', (await onMac(page)) ? 'Meta+Alt+S Meta+Alt+Y' : 'Control+Shift+S Control+Shift+Y');
+  await page.keyboard.press(await route(page, 'S'));
+  const row = binderRow(page, 'Chapter 1');
+  await expect(row).toBeFocused();
+  await expect(row).toHaveAttribute('aria-selected', 'true');
+  // The scene's text is as it was: the chord typed nothing and wrote nothing.
+  const id = await idOf(page, 'Untitled scene');
+  await waitForSaved(page);
+  await expect.poll(() => bodyOf(page, id)).toBe('INT. HOUSE - DAY');
+});
+
+test('the synopsis chord focuses the scene\'s synopsis in the inspector, and what is typed there is the scene\'s synopsis', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('INT. HOUSE - DAY');
+  await page.keyboard.press(await route(page, 'Y'));
+  const synopsis = page.locator('#inspector-synopsis');
+  await expect(synopsis).toBeFocused();
+  await page.keyboard.type('Marcus comes home.');
+  await synopsis.blur();
+  // The synopsis is the binder's field (screenplay.md §2.2), never a `=` line in the scene's text.
+  await expect(source(page)).toHaveValue('INT. HOUSE - DAY');
+  await page.getByRole('radio', { name: 'Script', exact: true }).click();
+  await binderTitle(page, 'Untitled scene').click();
+  await expect(page.locator('#inspector-synopsis')).toHaveValue('Marcus comes home.');
+  const id = await idOf(page, 'Untitled scene');
+  await waitForSaved(page);
+  await expect.poll(() => bodyOf(page, id)).toBe('INT. HOUSE - DAY');
+});
+
+test('AltGraph with S, and the route chords with a key held down, change nothing and move no focus', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('Anna waits.');
+  const mac = await onMac(page);
+  const fire = (init: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; modifierAltGraph?: boolean }) =>
+    source(page).evaluate((field, eventInit) => {
+      const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'KeyS', key: 'S', ...eventInit });
+      field.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, init);
+  const own = mac ? { metaKey: true, altKey: true } : { ctrlKey: true, shiftKey: true };
+  // Polish: AltGr+S types ś, and Windows reports AltGr as Ctrl+Alt.
+  expect(await fire({ ctrlKey: true, altKey: true, modifierAltGraph: true })).toBe(false);
+  expect(await fire({ ...own, modifierAltGraph: true })).toBe(false);
+  expect(await fire({ ...own, repeat: true })).toBe(false);
+  await expect(source(page)).toBeFocused();
+  await expect(source(page)).toHaveValue('Anna waits.');
 });

@@ -1,23 +1,48 @@
 /**
- * `@caotang/i18n` — the pure localisation contracts: which locale is the interface's, which locale
- * formats it, its direction, the isolated interpolation of writer content, the cached `Intl`
- * formatters, and the `MessageRef` a package hands to a UI.
- *
- * This package has no React and no message library. Catalogs and the locale runtime arrive in I3/I4;
- * they consume what is here. See [i18n.md §3.2](docs/architecture/i18n.md).
+ * `@caotang/i18n` — interface locale resolution, the formatter locale, cached `Intl` formatters, collation, bidi isolation
+ * and the `MessageRef` type (i18n.md §3.2, §4). No React and no message library: packages and the app share it, and the
+ * catalogs (Lingui, #193) live in `apps/desktop/src/i18n/`.
  */
 
-export { directionOf, formatLocale, resolveUiLocale } from './locale.js';
+export {
+  PACKAGE_TEXT_LOCALE,
+  SHIPPED_UI_LOCALES,
+  SOURCE_LOCALE,
+  directionOf,
+  formatLocale,
+  resolveUiLocale,
+  type Direction,
+  type UiLocaleSetting,
+} from './locale.js';
 export {
   collatorFor,
-  currencyFormat,
-  dateFormat,
+  dateTimeFormat,
   displayNames,
+  formatNumber,
   listFormat,
   numberFormat,
+  pluralRules,
   relativeTimeFormat,
-  timeFormat,
 } from './format.js';
 export { defaultTitleOf, isDefaultTitle, type DefaultTitleKind } from './default-titles.js';
-export { isolate } from './isolation.js';
-export type { MessageRef } from './message-ref.js';
+
+/** First strong isolate (U+2068): opens a run whose direction comes from its own first strong character. */
+export const FSI = '\u2068';
+/** Pop directional isolate (U+2069): closes the run {@link FSI} opened. */
+export const PDI = '\u2069';
+
+/**
+ * `text` isolated for a plain string or an attribute (i18n.md §5.3): FSI…PDI, so a Hebrew title or a number beside it does
+ * not reorder the sentence around it. JSX uses `<bdi>` instead.
+ */
+export function isolate(text: string): string {
+  return `${FSI}${text}${PDI}`;
+}
+
+/** Text a package hands to a UI: a stable id, its values, and the English it renders as today (i18n.md §3.2). */
+export interface MessageRef {
+  readonly id: string;
+  readonly values?: Readonly<Record<string, string | number>>;
+  /** English, ICU MessageFormat. */
+  readonly message: string;
+}

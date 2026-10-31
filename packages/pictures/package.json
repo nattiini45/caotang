@@ -4,11 +4,12 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "The picture registry, links, uses and safe-import rules — pure, with structural inputs and no DOM, store or codec dependency (pictures.md).",
+  "description": "The picture registry's pure parts — the record and link model, their readers and validators, uses, the dedup and backfill plan, paragraph anchors, the assets/ file names, sniffing, image sizes, the lossless GPS strip and the hash (pictures.md). No DOM, store or codec dependency.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./prepare": "./src/prepare.ts"
   },
   "dependencies": {
     "@caotang/ids": "workspace:*"

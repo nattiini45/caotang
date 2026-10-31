@@ -9,12 +9,12 @@
 import { useState, type ReactNode } from 'react';
 import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { STORY_PARTS, TIMELINE_MODES, type DeclaredStoryPart } from '@caotang/bus';
+import { STORY_PARTS, TIMELINE_MODES } from '@caotang/bus';
 import type { CalendarLens, TimelineLabels, TimelineModel } from '@caotang/timeline';
 
 import { modeLabel, storyPartLabel } from '../../app/findings-model.js';
 import { SEVERITY_GLYPH, agendaOf, badgeOf, type AgendaColumn, type AgendaSort } from '../../app/timeline-model.js';
-import type { Declared, MetaIntent, MetaRow } from '../../app/timeline-proposals.js';
+import type { Declared, MetaIntent, MetaRow, ProposalPart } from '../../app/timeline-proposals.js';
 import { accessibleText } from '../../i18n/accessible-text.js';
 import { UserText } from '../../i18n/UserText.js';
 import { ValueField } from './ValueField.js';
@@ -220,9 +220,10 @@ export function Agenda({ model, lens, labels, language, povName, activeDocId, on
                         <select
                           aria-label={accessibleText(t`Story part for ${{ title: item.title }}`)}
                           value={proposed?.row.part !== undefined ? (proposed.row.part.to ?? '') : (declared?.part ?? '')}
-                          onChange={(event) => edit.onMeta(item.nodeId, { part: event.target.value === '' ? null : (event.target.value as DeclaredStoryPart) })}
+                          onChange={(event) => edit.onMeta(item.nodeId, { part: event.target.value === '' ? null : (event.target.value as ProposalPart) })}
                         >
                           <option value="">{t`Inherit the folder’s part (${{ part: labels.partName(item.part) }})`}</option>
+                          <option value="main">{storyPartLabel('main')}</option>
                           {STORY_PARTS.map((part) => (
                             <option key={part} value={part}>
                               {storyPartLabel(part)}

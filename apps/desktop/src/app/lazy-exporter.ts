@@ -11,7 +11,7 @@ import type { ProjectState } from '@caotang/store';
 import { createComicRasterizer } from '../media/comic-raster.js';
 import { browserRasterHost } from '../media/comic-raster-host.js';
 import { coherenceReportWords } from './coherence-report-words.js';
-import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadComicLetteringFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
+import { loadArabicFontOverHttp, loadCjkBoldFontOverHttp, loadCjkFontOverHttp, loadColourEmojiOverHttp, loadComicLetteringFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
 import { processPictureInBrowser, transcodePictureInBrowser } from './picture-transcoder.js';
 import type { ExportStore } from './exports.js';
 import type { ProjectAssets } from './project-assets.js';
@@ -44,8 +44,12 @@ export function exporterFor(
     assets: images,
     // The contact sheet's font for text outside Latin script, fetched from this origin only when a sheet needs it.
     loadFallbackFont: loadCjkFontOverHttp,
+    // Its Bold, fetched from this origin only when the sheet's title, page label or a number chip holds such text.
+    loadBoldFallbackFont: loadCjkBoldFontOverHttp,
     // Its emoji font (Noto Emoji, monochrome), fetched from this origin only when a sheet holds an emoji.
     loadEmojiFont: loadEmojiFontOverHttp,
+    // Noto Color Emoji's vector pictures, fetched from this origin only when an export has Colour emoji on and an emoji the file has.
+    loadColourEmoji: loadColourEmojiOverHttp,
     // Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, fetched from this origin only when a file holds their script.
     loadArabicFont: loadArabicFontOverHttp,
     loadHebrewFont: loadHebrewFontOverHttp,

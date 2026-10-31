@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 
 import { addDocument, type ProjectState } from '@caotang/store';
 
-import { createAgentPorts, createAgentSession, createContextPort, createHarness, type AgentEvent, type Decision, type PendingCard } from '../../src/index.js';
-import { OPENED, clock, makeState } from '../fixtures.js';
+import { createAgentPorts, createAgentSession, createContextPort, type AgentEvent, type Decision, type PendingCard } from '../../src/index.js';
+import { checkedHarness, clock, makeState, OPENED } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { prose, steps, transcript } from './scripts.js';
 
@@ -30,7 +30,7 @@ async function draftTurn(state: ProjectState, decision: Decision): Promise<{ pen
     transcript(INTENT, [steps({ tool: 'dialogue.draft', params: { doc: CONTAINER, instruction: 'A thank-you.' }, expect: 'the reply is drafted' })]),
     prose('Brief: A thank-you.', '=== reply ===\nThanks for the drink.\n-> END'),
   ]);
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+  const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
   const pending: PendingCard[] = [];
   const events: AgentEvent[] = [];
   const session = createAgentSession({

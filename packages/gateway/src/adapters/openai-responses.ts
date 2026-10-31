@@ -22,8 +22,10 @@ import type {
   ToolCall,
   Usage,
 } from '../types.js';
+import { boundaryIndex, partsOf, tokensOf, type CacheSettings } from './cache.js';
 import { applyEffort } from './effort.js';
 import { parseModels } from './models.js';
+import { withBreakdown } from './openai-chat.js';
 import type {
   BodyInput,
   ProviderAdapter,
@@ -36,24 +38,68 @@ function usageOf(raw: unknown): Usage | undefined {
   const record = raw as Record<string, unknown>;
   const prompt = record.input_tokens ?? record.prompt_tokens;
   const completion = record.output_tokens ?? record.completion_tokens;
+  // A figure that cannot be a count (negative, or not finite) is no usage.
   if (typeof prompt !== 'number' || typeof completion !== 'number') return undefined;
-  return { promptTokens: prompt, completionTokens: completion };
+  if (!(Number.isFinite(prompt) && prompt >= 0 && Number.isFinite(completion) && completion >= 0)) return undefined;
+  // `input_tokens` already counts the cached and the written tokens; the details are subsets of it (issue #78, step 2).
+  const inputDetails = detailsOf(record.input_tokens_details) ?? detailsOf(record.prompt_tokens_details);
+  const outputDetails = detailsOf(record.output_tokens_details) ?? detailsOf(record.completion_tokens_details);
+  return withBreakdown(
+    { promptTokens: prompt, completionTokens: completion },
+    { cached: inputDetails?.cached_tokens, written: inputDetails?.cache_write_tokens, reasoning: outputDetails?.reasoning_tokens },
+  );
 }
 
-/** System messages gather into `instructions`; the rest become input items. */
-function wireInput(req: BodyInput['req']): { instructions?: string; input: unknown[] } {
+function detailsOf(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+/** OpenAI's explicit breakpoint on an `input_text` block (GPT-5.6 and later). The lifetime is the request's, the 30-minute default. */
+const BREAKPOINT = { mode: 'explicit' } as const;
+
+/**
+ * System messages gather into `instructions`; the rest become input items.
+ *
+ * Cached (provider-gateway §3), the schema hint moves after the system text, so a structured call and a plain one of the same
+ * kind share their prefix. On an `explicit` row the system text cannot stay in `instructions`, which takes no breakpoint: it
+ * becomes a developer message of `input_text` parts with a breakpoint on its last part, the hint a second developer message,
+ * and the first user message that marks a boundary is sent as parts with a breakpoint on that part. Implicit caching stays on,
+ * so the growing thread is cached as well. Each breakpoint is sent only when the prefix it closes reaches the row's minimum.
+ */
+function wireInput(req: BodyInput['req'], cache?: CacheSettings): { instructions?: string; input: unknown[] } {
   const instructions: string[] = [];
   const input: unknown[] = [];
 
   const format = req.responseFormat;
-  if (format !== undefined && format !== 'text') {
-    instructions.push(`Respond with JSON matching: ${JSON.stringify(format.jsonSchemaHint)}`);
+  const hint = format !== undefined && format !== 'text' ? `Respond with JSON matching: ${JSON.stringify(format.jsonSchemaHint)}` : undefined;
+  if (hint !== undefined && cache === undefined) instructions.push(hint);
+
+  const explicit = cache?.style === 'explicit' ? cache : undefined;
+  const systems = req.messages.filter((m) => m.role === 'system');
+  let prefixChars = 0;
+  if (explicit !== undefined && systems.length > 0) {
+    const parts = systems.flatMap((m) => partsOf(m));
+    prefixChars = parts.reduce((sum, part) => sum + part.text.length, 0);
+    const marked = tokensOf(prefixChars) >= explicit.minTokens;
+    input.push({
+      role: 'developer',
+      content: parts.map((part, index) => ({
+        type: 'input_text',
+        text: part.text,
+        ...(marked && index === parts.length - 1 ? { prompt_cache_breakpoint: BREAKPOINT } : {}),
+      })),
+    });
   }
+  if (hint !== undefined && explicit !== undefined) {
+    input.push({ role: 'developer', content: [{ type: 'input_text', text: hint }] });
+    prefixChars += hint.length;
+  }
+  let boundaryPlaced = false;
 
   for (const m of req.messages) {
     assertValidMessage(m, 'openai-responses');
     if (m.role === 'system') {
-      instructions.push(textOf(m.content));
+      if (explicit === undefined) instructions.push(textOf(m.content));
       continue;
     }
     if (m.role === 'tool') {
@@ -75,17 +121,37 @@ function wireInput(req: BodyInput['req']): { instructions?: string; input: unkno
       }
       continue;
     }
-    // A user message's part array becomes the route's input blocks (input_text + input_image);
-    // a string, or a text-only array, stays its input_text.
-    const images = imagePartsOf(m.content);
-    const content =
-      typeof m.content === 'string' || images.length === 0
-        ? [{ type: 'input_text', text: textOf(m.content) }]
-        : m.content.map((part) =>
-            part.type === 'text' ? { type: 'input_text', text: part.text } : { type: 'input_image', image_url: dataUrlOf(part) },
-          );
-    input.push({ role: 'user', content });
+    // Only a string user message can carry the cache breakpoint; one with image parts goes as its own blocks.
+    const parts = explicit === undefined || boundaryPlaced || typeof m.content !== 'string' ? [] : partsOf(m);
+    const at = boundaryIndex(parts);
+    if (explicit !== undefined && at >= 0) {
+      boundaryPlaced = true;
+      const chars = prefixChars + parts.slice(0, at + 1).reduce((sum, part) => sum + part.text.length, 0);
+      const marked = tokensOf(chars) >= explicit.minTokens;
+      input.push({
+        role: 'user',
+        content: parts.map((part, index) => ({
+          type: 'input_text',
+          text: part.text,
+          ...(marked && index === at ? { prompt_cache_breakpoint: BREAKPOINT } : {}),
+        })),
+      });
+    } else {
+      // A user message's part array becomes the route's input blocks (input_text + input_image);
+      // a string, or a text-only array, stays its input_text.
+      const images = imagePartsOf(m.content);
+      const content =
+        typeof m.content === 'string' || images.length === 0
+          ? [{ type: 'input_text', text: textOf(m.content) }]
+          : m.content.map((part) =>
+              part.type === 'text' ? { type: 'input_text', text: part.text } : { type: 'input_image', image_url: dataUrlOf(part) },
+            );
+      input.push({ role: 'user', content });
+    }
+    prefixChars += textOf(m.content).length;
   }
+  // An automatic row keeps `instructions`, with the hint after the system text rather than before it.
+  if (hint !== undefined && cache !== undefined && explicit === undefined) instructions.push(hint);
   return { instructions: instructions.length > 0 ? instructions.join('\n\n') : undefined, input };
 }
 
@@ -251,7 +317,7 @@ export const openaiResponsesAdapter: ProviderAdapter = {
   buildBody(input: BodyInput): Record<string, unknown> {
     const { req, ctx, temperature, effective } = input;
     const maxTokens = effective.maxTokens;
-    const { instructions, input: items } = wireInput(req);
+    const { instructions, input: items } = wireInput(req, input.cache);
     const deny = new Set(ctx.caps.denylist ?? []);
     const body: Record<string, unknown> = {
       model: ctx.model,
@@ -270,6 +336,8 @@ export const openaiResponsesAdapter: ProviderAdapter = {
       }));
       body.tool_choice = req.toolChoice === 'none' ? 'none' : 'auto';
     }
+    // A row that caches by itself (before GPT-5.6) is routed to its cache by a stable key: a hash, never a project name.
+    if (input.cache?.style === 'automatic') body.prompt_cache_key = input.cache.key;
     if (ctx.quirks.store === true) body.store = false;
     if (ctx.quirks.includeEncryptedReasoning === true) body.include = ['reasoning.encrypted_content'];
     applyEffort(body, ctx.caps.effortStyle, effective.level, ctx.caps, effective.budget);

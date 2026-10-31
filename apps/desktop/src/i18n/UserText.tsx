@@ -30,5 +30,6 @@ export function UserText({ value, lang }: UserTextProps): ReactNode {
 
 /** Writer text interpolated into an attribute or a plain string, where a `<bdi>` cannot go. */
 export function isolatedText(value: string): string {
-  return isolate(value);
+  // Empty text stays empty: an isolate around nothing is two invisible marks a field or a title would carry for no reason.
+  return value === '' ? '' : isolate(value);
 }

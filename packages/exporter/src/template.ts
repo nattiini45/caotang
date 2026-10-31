@@ -12,8 +12,16 @@ export interface ExportTemplate {
   readonly id: string;
   readonly titlePage: boolean;
   readonly toc: boolean;
-  /** `{chapterNumber}` and `{chapterTitle}` are filled in; the spec's default is `{chapterNumber}. {chapterTitle}`. */
+  /**
+   * `{chapterNumber}` and `{chapterTitle}` are filled in, and `{partNumber}` and `{partTitle}` with the part the chapter sits in
+   * (empty outside a part); the spec's default is `{chapterNumber}. {chapterTitle}`. Chapter numbers run on across parts.
+   */
   readonly chapterLabel: string;
+  /**
+   * A part heading (a folder that holds chapters, project-format §2): `{partNumber}` and `{partTitle}` are filled in. The default
+   * is the title alone, because a writer's part titles usually carry their own word for it ("Part One", "Erster Teil").
+   */
+  readonly partLabel: string;
   /** exporter.md E4: `***` for Markdown (it is the CommonMark thematic break), `* * *` for the plain-text family. */
   readonly separator: { readonly md: string; readonly plain: string };
 }
@@ -25,6 +33,7 @@ export const DEFAULT_TEMPLATE: ExportTemplate = {
   titlePage: true,
   toc: true,
   chapterLabel: '{chapterNumber}. {chapterTitle}',
+  partLabel: '{partTitle}',
   separator: { md: '***', plain: '* * *' },
 };
 
@@ -53,8 +62,23 @@ export function fill(pattern: string, values: Readonly<Record<string, string | n
   );
 }
 
-export function chapterLabel(template: ExportTemplate, number: number, title: string): string {
-  return fill(template.chapterLabel, { chapterNumber: number, chapterTitle: title });
+/** The part a chapter heading sits in, for the template's `{partNumber}` and `{partTitle}`. */
+export interface EnclosingPart {
+  readonly number: number;
+  readonly title: string;
+}
+
+export function chapterLabel(template: ExportTemplate, number: number, title: string, part?: EnclosingPart): string {
+  return fill(template.chapterLabel, {
+    chapterNumber: number,
+    chapterTitle: title,
+    partNumber: part === undefined ? '' : part.number,
+    partTitle: part === undefined ? '' : part.title,
+  });
+}
+
+export function partLabel(template: ExportTemplate, number: number, title: string): string {
+  return fill(template.partLabel, { partNumber: number, partTitle: title });
 }
 
 /**

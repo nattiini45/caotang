@@ -20,3 +20,20 @@ export function redact(text: string, secrets: readonly (string | undefined)[] = 
   }
   return out.replace(BEARER, 'Bearer [redacted]').replace(SK_TOKEN, '[redacted]');
 }
+
+/**
+ * `redact` applied to every string in a plain value: arrays and plain objects are copied, a string is scrubbed, anything else
+ * (numbers, booleans, null, a class instance) is returned as it is. The trace observer's events pass through here so no
+ * consumer ever sees the call's secrets.
+ */
+export function redactDeep<T>(value: T, secrets: readonly (string | undefined)[] = []): T {
+  if (typeof value === 'string') return redact(value, secrets) as T;
+  if (Array.isArray(value)) return value.map((item: unknown) => redactDeep(item, secrets)) as T;
+  const proto: unknown = value !== null && typeof value === 'object' ? Object.getPrototypeOf(value) : undefined;
+  if (value !== null && typeof value === 'object' && (proto === Object.prototype || proto === null)) {
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) out[key] = redactDeep(item, secrets);
+    return out as T;
+  }
+  return value;
+}

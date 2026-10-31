@@ -206,6 +206,8 @@ function portContext(w: World, permission?: PermissionContext, turnId: string = 
   return {
     state: w.state,
     turnId,
+    // The port reads the card's approval here, as the runtime passes it (merge: pictures.import holds its confirm rule itself).
+    ...(permission === undefined ? {} : { permission }),
     dispatch: (name, params) => execute(command(name, params, turnId, id()), w.bus(granted()), w.registry),
     dispatchInherited: (name, params) => execute(command(name, params, turnId, id()), w.bus(granted('write-confirm')), w.registry),
     dispatchAsync: (name, params) => executeAsync(command(name, params, turnId, id()), w.bus(granted()), w.registry),
@@ -258,7 +260,9 @@ describe('the picture tools and the registry', () => {
     expect(risk('asset.setLinkMeta')).toBe('write-auto');
     expect(row('pictures.attach').risk).toBe(risk('asset.link'));
     expect(risk('asset.unlink')).toBe('write-auto');
-    expect(row('pictures.import').risk).toBe(risk('asset.import'));
+    // Merge: asset.import is write-auto (main: the writer's own import asks nothing); the agent's import stays a confirm card.
+    expect(risk('asset.import')).toBe('write-auto');
+    expect(row('pictures.import').risk).toBe('write-confirm');
     // The place tool is a confirm card over a primitive no model can name.
     expect(row('pictures.place').risk).toBe('write-confirm');
     expect(row('pictures.transcribe').risk).toBe(risk('asset.transcribe'));

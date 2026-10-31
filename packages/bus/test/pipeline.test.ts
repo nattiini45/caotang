@@ -1172,11 +1172,15 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // The project's skills add `skill.import`, `skill.write`, `skill.delete` and `skill.setEnabled`, descriptors here and applies in the store: 42 + 4 = 46. The knowledge facts add `coherence.addKnowledgeFact`, `coherence.editKnowledgeFact` and `coherence.removeKnowledgeFact`, descriptors here and applies in the store: 46 + 3 = 49.
     // `mcp.readResource` (the writer's read of a resource, extensibility §6) is the same kind of name as `mcp.invoke`: a descriptor here, its apply injected: 49 + 1 = 50.
     // The paper-photo round trip adds `shot.importImages`, the batch form of `shot.importImage`, a descriptor here with its apply in the store: 50 + 1 = 51.
-    // The timeline batch adds `timeline.apply`, a descriptor here with its apply in the store: 51 + 1 = 52.
-    // The picture registry adds `asset.import`, `asset.importBatch`, `asset.setMeta`, `asset.setLinkMeta`, `asset.link`, `asset.unlink`, `asset.reorderLinks` and `asset.delete`, descriptors here and applies in the store: 52 + 8 = 60.
-    // The anchor and storage commands add `asset.repin`, `asset.relink`, `asset.sweep` and `asset.storeWorkingCopies`: 60 + 4 = 64.
-    // The seven comic commands make 71, the writer-only calendar setting makes 72, transcription makes 73, and the document-level compound makes 74.
-    expect(COMMAND_NAMES.length).toBe(74);
+    // The writer's macros add `macro.save` and `macro.delete`, descriptors here and applies in the store: 54 + 2 = 56.
+    // The writer's hooks add `hook.save` and `hook.delete`, descriptors here and applies in the store: 56 + 2 = 58.
+    // The picture registry adds `asset.import`, `asset.importBatch` and `asset.setMeta`, descriptors here and applies in the store: 58 + 3 + 2 (the AV script's `script.setShowMeta` and `script.setEpisodeMeta`) = 63.
+    // The writer's codex batch import adds `codex.importBatch`, a descriptor here with its apply in the store: 63 + 1 = 64.
+    // The timeline batch adds `timeline.apply` and the writer-only calendar setting `project.setCalendar`: 64 + 2 = 66.
+    // The rest of the picture registry adds `asset.transcribe`, `asset.setLinkMeta`, `asset.link`, `asset.unlink`, `asset.makeDocumentLevel`,
+    // `asset.repin`, `asset.reorderLinks`, `asset.delete`, `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies`: 66 + 11 = 77.
+    // The seven comic commands make 84.
+    expect(COMMAND_NAMES.length).toBe(84);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {

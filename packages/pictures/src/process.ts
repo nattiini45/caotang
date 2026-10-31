@@ -10,7 +10,8 @@
 
 import { startsWith, u32 } from './bytes.js';
 import { decideImportSize, readPictureHeader, sniffPicture } from './asset-files.js';
-import { stripPrivateMetadata } from './metadata.js';
+import { stripPrivateMetadata } from './exif.js';
+import { formatOfMime } from './files.js';
 import type { Orientation } from './metadata.js';
 import type { PictureBytes, PictureMime, PictureProfile } from './model.js';
 
@@ -133,13 +134,12 @@ export function planPicture(bytes: Uint8Array, profile: PictureProfile): Picture
 
 /**
  * The bytes of a passthrough plan, with GPS, maker notes and serial numbers removed when the profile says so. The picture is not
- * re-encoded, so Orientation and the colour profile stay and the stored size is the input's. Metadata that cannot be walked
- * safely is refused, because the host could not promise it is gone.
+ * re-encoded, so Orientation and the colour profile stay and the stored size is the input's. The strip is the import's own
+ * (`exif.ts`): an EXIF block it cannot walk is dropped whole, so the location never survives.
  */
 export function finishPassthrough(bytes: Uint8Array, plan: Extract<PicturePlan, { kind: 'passthrough' }>, profile: PictureProfile): PictureBytes {
   if (!profile.stripMetadata) return { bytes, mime: plan.mime, width: plan.width, height: plan.height };
-  const stripped = stripPrivateMetadata(bytes, plan.mime);
-  if (!stripped.ok) throw new PictureRefusal('malformed-metadata', stripped.message, 'Export the picture again from the program that made it.');
+  const stripped = stripPrivateMetadata(bytes, formatOfMime(plan.mime) ?? 'png');
   return { bytes: stripped.bytes, mime: plan.mime, width: plan.width, height: plan.height };
 }
 
