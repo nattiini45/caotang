@@ -61,7 +61,8 @@ export async function saveTimelineImage(request: TimelineImageRequest, deps: Tim
     if (drawing.chips === 0) {
       return { ok: false, message: t`There is no scene in this part of the timeline, so there is no image to save. Choose a different scope and try again.` };
     }
-    const png = await exporter.rasterizeSvgToPng(drawing.svg);
+    // A font that did not load still saves the image (in a fallback face); the note goes to the console for diagnostics.
+    const png = await exporter.rasterizeSvgToPng(drawing.svg, { onNote: (note) => console.warn(note) });
     const bytes = new Uint8Array(await png.arrayBuffer());
     if (bytes.byteLength === 0) {
       return { ok: false, message: t`The browser drew an empty image, so nothing was saved. Try again, or compile the timeline as SVG from the export dialog.` };

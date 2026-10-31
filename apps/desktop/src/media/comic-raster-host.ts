@@ -91,13 +91,9 @@ function createSurface(width: number, height: number): RasterSurface {
   };
 }
 
+/** A decode the browser refuses rejects with its reason, so the raster's note names why (corrupt bytes, an unknown format, memory). */
 async function decodePicture(bytes: Uint8Array): Promise<RasterImage | null> {
-  let bitmap: ImageBitmap;
-  try {
-    bitmap = await createImageBitmap(new Blob([bytes as BlobPart]), { imageOrientation: 'from-image' });
-  } catch {
-    return null;
-  }
+  const bitmap = await createImageBitmap(new Blob([bytes as BlobPart]), { imageOrientation: 'from-image' });
   return { width: bitmap.width, height: bitmap.height, source: bitmap, close: () => bitmap.close() };
 }
 

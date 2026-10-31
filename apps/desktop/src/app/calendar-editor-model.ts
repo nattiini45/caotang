@@ -56,7 +56,8 @@ export function previewOf(definition: CalendarDefinition, options: DayLensOption
  * always kept, even beside the day lens, so choosing the day numbers for a while never loses what was typed.
  */
 export function savePlan(choice: 'day' | 'calendar', draft: CalendarDraft): { readonly calendar?: Readonly<Record<string, unknown>>; readonly lens: 'day' | 'calendar' } | null {
-  const kept = (definition: CalendarDefinition): Readonly<Record<string, unknown>> => definition as unknown as Readonly<Record<string, unknown>>;
+  // The bus carries the calendar as the JSON object the store validates; a spread copy is that object, typed by the compiler rather than a cast.
+  const kept = (definition: CalendarDefinition): Readonly<Record<string, unknown>> => ({ ...definition });
   if (choice === 'calendar') return draft.kind === 'valid' ? { calendar: kept(draft.definition), lens: 'calendar' } : null;
   return draft.kind === 'valid' ? { calendar: kept(draft.definition), lens: 'day' } : { lens: 'day' };
 }

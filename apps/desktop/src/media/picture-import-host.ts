@@ -64,7 +64,9 @@ async function readPictures(files: readonly Readable[]): Promise<{ readonly pict
     let bytes: Uint8Array;
     try {
       bytes = new Uint8Array(await file.arrayBuffer());
-    } catch {
+    } catch (error) {
+      // The sentence stays translated; the browser's own reason (permission, a locked file, memory) is English, so it goes to the console.
+      console.warn(`picture import: ${file.name} could not be read:`, error);
       skipped.push({ name: file.name, reason: t`The file could not be read.` });
       continue;
     }

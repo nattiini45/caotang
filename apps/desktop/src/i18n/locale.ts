@@ -100,6 +100,8 @@ export function pinFormatLocale(tag: string | undefined): void {
  * A count as the interface shows it, grouped in the formatter locale: "12,000" in English. A model that takes a `locale` argument
  * (so a test can pin it) passes it first; every other caller passes options, or nothing.
  */
+export function formatCount(value: number, options?: Intl.NumberFormatOptions): string;
+export function formatCount(value: number, locale: string, options?: Intl.NumberFormatOptions): string;
 export function formatCount(value: number, localeOrOptions?: string | Intl.NumberFormatOptions, options?: Intl.NumberFormatOptions): string {
   const locale = typeof localeOrOptions === 'string' ? localeOrOptions : appFormatLocale();
   return numberFormat(locale, typeof localeOrOptions === 'string' ? options : localeOrOptions).format(value);

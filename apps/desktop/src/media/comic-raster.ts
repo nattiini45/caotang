@@ -66,7 +66,10 @@ export interface ComicRasterHost {
   /** Loads the lettering faces and resolves once they can be drawn. */
   loadFaces(signal: AbortSignal): Promise<void>;
   createSurface(width: number, height: number): RasterSurface;
-  /** Decodes a picture's bytes, or gives `null` when they are not an image the browser can read. */
+  /**
+   * Decodes a picture's bytes, or gives `null` when they are not an image the browser can read. A host may instead reject with
+   * the decoder's reason; the raster then names it in the page's note, beside the same grey frames.
+   */
   decodePicture(bytes: Uint8Array): Promise<RasterImage | null>;
 }
 
