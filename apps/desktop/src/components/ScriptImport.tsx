@@ -2,7 +2,8 @@
  * The import actions for a whole script, a whole Ink story and a Twee story (screenplay.md §2.2, dialogue-narrative.md §4). The file
  * is read in the browser and handed to the bus: `screenplay.import` takes a Fountain or FDX file, and `dialogue.importInk` takes the
  * containers an Ink or Twee plan makes. Each import is one undo group, and what it could not bring in is read back on the status
- * line. A Twee story strips logic, so its report is shown first, and nothing is written until the writer confirms it. Each file is scanned
+ * line. A Twee story strips logic and a Final Draft file carries notes and dual dialogue, so the report of each is shown first, and
+ * nothing is written until the writer confirms it. Each file is scanned
  * for passages that read like instructions to an AI (hidden characters, role markers, "ignore previous instructions"), and the status line
  * says so; the file is imported as it is either way (issue #54).
  */
@@ -11,12 +12,14 @@ import { useRef, useState, type ReactNode } from 'react';
 
 import { compileInk, mintImportIds, planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
 import { importScanSentence, scanImport } from '@caotang/harness';
+import { importFdx, type FdxImportedScript } from '@caotang/screenplay';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
 import type { ProjectSession } from '../app/session.js';
 import { importLineIdsSentence } from '../media/ink-model.js';
 import { useReport, useSession } from './shared.js';
+import { FdxImportDialog } from './FdxImportDialog.js';
 import { TweeImportDialog } from './TweeImportDialog.js';
 
 /** What `screenplay.import` hands back (screenplay.md §2.2): the counts it made, and the notices it raised. */
@@ -40,18 +43,41 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
   const tweeFile = useRef<HTMLInputElement>(null);
   const [addIds, setAddIds] = useState(false);
   const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan; readonly scan: string[] } | null>(null);
+  const [pendingFdx, setPendingFdx] = useState<{
+    readonly fileName: string;
+    readonly text: string;
+    readonly script: FdxImportedScript;
+    readonly scan: string[];
+  } | null>(null);
 
-  const importScript = async (file: File): Promise<void> => {
-    const format = /\.fdx$/i.test(file.name) ? 'fdx' : 'fountain';
-    const text = await file.text();
+  const writeScript = (fileName: string, format: 'fdx' | 'fountain', text: string, scan: readonly string[]): void => {
     const outcome = session.dispatch('screenplay.import', { format, text });
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });
       return;
     }
     const result = outcome.value.result as ScriptImportResult;
-    const made = `Imported ${countOf(result.scenes, 'scene')} and ${countOf(result.folders, 'section')} from ${file.name}.`;
-    report({ text: [made, ...result.notices, ...scanSentenceOf(file.name, text)].join(' '), tone: 'info' });
+    const made = `Imported ${countOf(result.scenes, 'scene')} and ${countOf(result.folders, 'section')} from ${fileName}.`;
+    report({ text: [made, ...result.notices, ...scan].join(' '), tone: 'info' });
+  };
+
+  const importScript = async (file: File): Promise<void> => {
+    const text = await file.text();
+    // The scan reads the whole file, so the text of script notes and hidden runs is scanned as well as the script.
+    const scan = scanSentenceOf(file.name, text);
+    if (!/\.fdx$/i.test(file.name)) {
+      writeScript(file.name, 'fountain', text, scan);
+      return;
+    }
+    // A Final Draft file is read first, so the dialog can count the notes and dual dialogue it keeps before anything is written.
+    setPendingFdx({ fileName: file.name, text, script: importFdx(text), scan });
+  };
+
+  const importFdxFile = (): void => {
+    if (pendingFdx === null) return;
+    const { fileName, text, scan } = pendingFdx;
+    setPendingFdx(null);
+    writeScript(fileName, 'fdx', text, scan);
   };
 
   const importInk = async (file: File): Promise<void> => {
@@ -160,6 +186,13 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
           event.currentTarget.value = '';
           if (file !== undefined) void planTwee(file);
         }}
+      />
+      <FdxImportDialog
+        fileName={pendingFdx?.fileName ?? null}
+        script={pendingFdx?.script ?? null}
+        warnings={pendingFdx?.scan ?? []}
+        onImport={importFdxFile}
+        onCancel={() => setPendingFdx(null)}
       />
       <TweeImportDialog
         fileName={pendingTwee?.fileName ?? null}
