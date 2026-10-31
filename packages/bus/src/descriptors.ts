@@ -108,6 +108,7 @@ import {
   type CoherenceStatusName,
   type ScenePatch,
 } from './coherence.js';
+import { CODEX_POLICIES, CODEX_TYPES } from './codex-enums.js';
 
 /**
  * project-format.md §2's node limits, **exported**, for the same
@@ -135,10 +136,10 @@ const CODEX_BATCH_MAX = 20;
  * split; §9's Params column versus the accepted-key lists).
  *
  * `CODEX_TYPES` and `CODEX_POLICIES` are **not** re-exported from here and stay
- * local to each package: they are enum *membership*, and §2's answer to an
+ * local to each package (`codex-enums.ts` in this one): they are enum *membership*, and §2's answer to an
  * unknown member is a coercion that differs per surface — a refusal at the
  * command boundary, a coerced value on load. Same members, deliberately not the
- * same record, and `codex-enums-agree` in `packages/store/test/codex-manifest.test.ts`
+ * same record, and the enum test in `packages/store/test/commands-codex-import.test.ts`
  * holds the two member lists together.
  */
 export const CODEX_NAME_MAX = 120;
@@ -165,8 +166,6 @@ const VISUAL_REF_PATTERN = /^a_[0-9A-HJKMNP-TV-Z]{10}$/;
  * filename, so the shape is a load-time contract: the store refuses a manifest that carries another shape.
  */
 const NODE_ID_PATTERN = /^n_[0-9A-HJKMNP-TV-Z]{10}$/;
-const CODEX_TYPES = ['character', 'location', 'object', 'lore', 'subplot', 'other'];
-const CODEX_POLICIES = ['always', 'detected', 'manual', 'never'];
 
 function rangeHint(length: number): string {
   return `offsets run 0-${length} in body coordinates - re-read the document for its current length`;

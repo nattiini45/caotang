@@ -168,6 +168,7 @@ import { pictureCommandRegistrations } from './commands-pictures.js';
 import { agentFileCommandRegistrations } from './commands-agent-files.js';
 import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
 import { hookCommandRegistrations } from './commands-hooks.js';
+import { codexImportCommandRegistrations } from './commands-codex-import.js';
 import { macroCommandRegistrations } from './commands-macros.js';
 import { shotImageCommandRegistrations } from './commands-shot-image.js';
 import { furnitureApplies } from './commands-furniture.js';
@@ -1841,6 +1842,8 @@ export function createProjectCommandRegistry(
   Object.assign(registry, macroCommandRegistrations({ clock }));
   // The writer's hooks (hooks.md): `agent.hooks` in the manifest (commands-hooks.ts).
   Object.assign(registry, hookCommandRegistrations({ clock }));
+  // The writer's batch import of codex entries (codex.md §7.1): one command, one undo group (commands-codex-import.ts).
+  Object.assign(registry, codexImportCommandRegistrations({ clock }));
   // The picture registry (pictures.md §2.4): `asset.setMeta` always, the two imports only with the asset port (commands-pictures.ts).
   Object.assign(registry, pictureCommandRegistrations({ clock, ...(options.assets === undefined ? {} : { assets: options.assets }) }));
   // Storyboard: the shot image import needs both the asset port and the storyboard port (commands-shot-image.ts).

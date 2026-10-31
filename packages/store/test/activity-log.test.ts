@@ -534,6 +534,13 @@ const CASES: readonly Case[] = [
     digestMentions: 'changed the episode settings of "Episode 12"',
     show: true,
   },
+  // The writer's codex import (codex.md §7.1): one entry citing the one research page the same command makes. The page is the node it attaches to.
+  {
+    name: 'codex.importBatch',
+    params: { entries: [{ name: 'Marta', page: 0, cite: { from: 0, to: 5, quote: 'Marta' } }], pages: [{ title: 'Marta (wiki)', body: 'Marta keeps the lamp.' }] },
+    titles: ['Marta (wiki)'],
+    digestMentions: 'imported 1 codex entry and 1 research page',
+  },
 ];
 
 describe('§8 — the activity row for every shipped store apply', () => {
