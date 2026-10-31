@@ -2133,11 +2133,11 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-6);
 }
 
 .first-run {
-  padding: 14px 16px;
+  padding: 14px var(--space-6);
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius);
@@ -2153,11 +2153,11 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .first-run-next {
-  margin: 12px 0 8px;
+  margin: var(--space-5) 0 var(--space-4);
 }
 
 .settings {
@@ -2169,7 +2169,7 @@ dialog.confirm:has(.folder-file-preview) {
   border-radius: var(--radius);
   background: var(--raised);
   color: var(--ink);
-  box-shadow: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--elev-3);
 }
 
 .settings::backdrop {
@@ -2186,7 +2186,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--line);
 }
 
@@ -2205,8 +2205,8 @@ dialog.confirm:has(.folder-file-preview) {
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px 8px;
+  gap: var(--space-1);
+  padding: 10px var(--space-4);
   border-right: 1px solid var(--line);
   background: var(--panel);
 }
@@ -2216,7 +2216,7 @@ dialog.confirm:has(.folder-file-preview) {
   text-align: left;
   padding: 7px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
@@ -2229,22 +2229,22 @@ dialog.confirm:has(.folder-file-preview) {
 
 .settings-body {
   overflow-y: auto;
-  padding: 16px 20px 28px;
+  padding: var(--space-6) 20px 28px;
 }
 
 .settings-section h3 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   font-size: 15px;
 }
 
 .settings-section h4 {
-  margin: 18px 0 6px;
+  margin: 18px 0 var(--space-3);
   font-size: 13.5px;
 }
 
 .profile-list {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
   padding: 0;
   border-top: 1px solid var(--line);
 }
@@ -2254,7 +2254,7 @@ dialog.confirm:has(.folder-file-preview) {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
 }
@@ -2263,7 +2263,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
+  gap: var(--space-2) 10px;
   min-width: 0;
 }
 
@@ -2274,7 +2274,7 @@ dialog.confirm:has(.folder-file-preview) {
 .profile-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .profile-form,
@@ -2282,15 +2282,15 @@ dialog.confirm:has(.folder-file-preview) {
   display: grid;
   gap: 10px;
   max-width: 520px;
-  margin: 12px 0;
+  margin: var(--space-5) 0;
 }
 
 .profile-form label,
 .settings-form label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12.5px;
+  gap: var(--space-2);
+  font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
@@ -2302,17 +2302,17 @@ dialog.confirm:has(.folder-file-preview) {
 .plan-expect input,
 .plan-step textarea {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
 }
 
 .profile-form-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 /* The provider form's selects and preset fields style like its inputs. */
@@ -2320,10 +2320,10 @@ dialog.confirm:has(.folder-file-preview) {
 .role-row select,
 .role-row input {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
 }
@@ -2332,7 +2332,7 @@ dialog.confirm:has(.folder-file-preview) {
 .header-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   align-items: center;
 }
 
@@ -2340,10 +2340,10 @@ dialog.confirm:has(.folder-file-preview) {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
 }
@@ -2351,29 +2351,29 @@ dialog.confirm:has(.folder-file-preview) {
 /* The task-role picker: one line per role, the name leading. */
 .role-rows {
   display: grid;
-  gap: 8px;
-  margin: 8px 0;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
 }
 
 .role-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .role-title {
   min-width: 120px;
-  font-size: 13px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
 .form-message {
   margin: 10px 0;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: var(--space-4) 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .form-message.is-error {
@@ -2383,7 +2383,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .models ul {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 18px;
   columns: 2;
 }
@@ -2392,8 +2392,8 @@ dialog.confirm:has(.folder-file-preview) {
 .request-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
-  margin-top: 6px;
+  font-size: var(--text-md);
+  margin-top: var(--space-3);
 }
 
 .usage-table th,
@@ -2401,7 +2401,7 @@ dialog.confirm:has(.folder-file-preview) {
 .request-table th,
 .request-table td {
   text-align: left;
-  padding: 5px 8px 5px 0;
+  padding: 5px var(--space-4) 5px 0;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
@@ -2418,9 +2418,9 @@ dialog.confirm:has(.folder-file-preview) {
 .budget {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 4px 14px;
-  margin: 8px 0 12px;
-  font-size: 13px;
+  gap: var(--space-2) 14px;
+  margin: var(--space-4) 0 var(--space-5);
+  font-size: var(--text-lg);
 }
 
 .budget dt {
@@ -2433,14 +2433,14 @@ dialog.confirm:has(.folder-file-preview) {
 
 .settings-radios {
   display: flex;
-  gap: 16px;
+  gap: var(--space-6);
   border: none;
   padding: 0;
-  margin: 8px 0;
+  margin: var(--space-4) 0;
 }
 
 .storage-row p {
-  margin: 4px 0;
+  margin: var(--space-2) 0;
 }
 
 /* The agent drawer: under the editor, never over its ghost region (ui-modules §1). */
@@ -2462,23 +2462,23 @@ dialog.confirm:has(.folder-file-preview) {
 /* Runs a reload left unfinished: shown above the drawer's body, open or closed, and scrolled inside themselves when there are several. */
 .agent-interrupted {
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
   max-height: 40vh;
   overflow-y: auto;
-  padding: 0 16px 8px;
+  padding: 0 var(--space-6) var(--space-4);
 }
 
 .interrupted-run-lost {
-  margin: 4px 0;
-  font-size: 12.5px;
+  margin: var(--space-2) 0;
+  font-size: var(--text-md);
 }
 
 .agent-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 16px;
-  font-size: 12.5px;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -2498,13 +2498,13 @@ dialog.confirm:has(.folder-file-preview) {
 
 .agent-body {
   overflow-y: auto;
-  padding: 4px 16px 16px;
+  padding: var(--space-2) var(--space-6) var(--space-6);
 }
 
 .agent-intent {
   display: flex;
-  gap: 8px;
-  margin: 6px 0 10px;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 10px;
 }
 
 .agent-intent input {
@@ -2527,24 +2527,24 @@ dialog.confirm:has(.folder-file-preview) {
   right: 0;
   z-index: 20;
   margin: 0;
-  padding: 4px;
+  padding: var(--space-2);
   list-style: none;
   max-height: 260px;
   overflow-y: auto;
   background: var(--raised);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  box-shadow: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--elev-2);
 }
 
 .command-menu li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 10px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  font-size: 12.5px;
+  gap: var(--space-1) 10px;
+  padding: 5px var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
   cursor: pointer;
 }
 
@@ -2572,15 +2572,15 @@ dialog.confirm:has(.folder-file-preview) {
 /* What the last slash command said under the box. */
 .agent-command-note {
   margin: 0 0 10px;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .agent-command-note p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .agent-command-title {
@@ -2588,16 +2588,16 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-command-note ul {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-3);
   padding-left: 18px;
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   color: var(--ink-soft);
 }
 
 .agent-turn-command {
   font-family: var(--mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 /* Stop sits in the header while a turn runs, at the end of the line. */
@@ -2608,48 +2608,48 @@ dialog.confirm:has(.folder-file-preview) {
 /* Notes sent to a running turn, and the queue of messages typed behind it (agent-harness §8, "Stop and steer"). */
 .agent-notes {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   padding: 0;
   display: grid;
-  gap: 2px;
-  font-size: 12.5px;
+  gap: var(--space-1);
+  font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
 .agent-held {
   margin: 0 0 10px;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .agent-held p {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-3);
 }
 
 .agent-held-actions,
 .agent-chip-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .agent-queue {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
 }
 
 .agent-queue h4 {
-  margin: 0 0 4px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
   color: var(--muted);
   font-weight: 600;
 }
 
 .agent-queue-paused {
-  margin: 0 0 6px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
 }
 
 .agent-queue-list {
@@ -2657,19 +2657,19 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .agent-chip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
   cursor: grab;
 }
 
@@ -2686,24 +2686,24 @@ dialog.confirm:has(.folder-file-preview) {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 /* Background tasks and the offer before a big plan is staged (agent-harness §8). */
 .agent-tasks {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
 }
 
 .agent-tasks h4 {
-  margin: 0 0 4px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
   color: var(--muted);
   font-weight: 600;
 }
 
 .agent-tasks-note {
-  margin: 0 0 6px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
 }
 
 .agent-task-list {
@@ -2711,15 +2711,15 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .agent-task {
-  padding: 6px 10px;
+  padding: var(--space-3) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .agent-task[data-status='ready'] {
@@ -2733,7 +2733,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-task p {
-  margin: 2px 0;
+  margin: var(--space-1) 0;
 }
 
 .agent-task-status {
@@ -2741,26 +2741,26 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-task-errors {
-  margin: 2px 0;
+  margin: var(--space-1) 0;
   padding-left: 18px;
 }
 
 .agent-task-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .plan-offer-steps {
-  margin: 6px 0;
+  margin: var(--space-3) 0;
   padding-left: 20px;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .plan-offer-calls {
-  margin: 4px 0;
-  font-size: 12.5px;
+  margin: var(--space-2) 0;
+  font-size: var(--text-md);
 }
 
 .agent-turns {
@@ -2772,7 +2772,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-turn {
-  padding: 10px 12px;
+  padding: 10px var(--space-5);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
@@ -2781,8 +2781,8 @@ dialog.confirm:has(.folder-file-preview) {
 .agent-turn-head {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
+  gap: var(--space-5);
+  font-size: var(--text-lg);
 }
 
 .agent-intent-text {
@@ -2796,8 +2796,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-stream {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
   color: var(--muted);
   white-space: pre-wrap;
   max-height: 4.5em;
@@ -2806,27 +2806,27 @@ dialog.confirm:has(.folder-file-preview) {
 
 /* The model's thinking channel on a turn: collapsed and muted, never inline (provider-gateway §6, D12). */
 .agent-reasoning {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 .agent-reasoning-text {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   white-space: pre-wrap;
   max-height: 10em;
   overflow-y: auto;
 }
 
 .agent-context {
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 /* The turn's task list (agent-harness §8). The state is also written as text, so colour is never the only signal. */
 .agent-tasks {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
 }
 
 .agent-tasks summary {
@@ -2836,17 +2836,17 @@ dialog.confirm:has(.folder-file-preview) {
 
 .task-list {
   list-style: none;
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .task-item {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0 8px;
+  gap: 0 var(--space-4);
   color: var(--ink-soft);
 }
 
@@ -2858,7 +2858,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .task-state {
   margin-left: auto;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -2888,7 +2888,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .task-calls {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--muted);
 }
 
@@ -2903,18 +2903,18 @@ dialog.confirm:has(.folder-file-preview) {
 
 .status-cards {
   list-style: none;
-  margin: 8px 0;
+  margin: var(--space-4) 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .status-card {
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
   border-left: 3px solid var(--dot-empty);
-  border-radius: 6px;
-  font-size: 12.5px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
 }
 
 .status-card.is-running {
@@ -2935,12 +2935,12 @@ dialog.confirm:has(.folder-file-preview) {
 .status-card-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 
 .status-card-text {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
 }
 
 .status-card-text.is-error {
@@ -2951,8 +2951,8 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  margin-top: 6px;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .status-card-progress progress {
@@ -2964,7 +2964,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .status-card-progress-count {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .status-card-progress-message {
@@ -2974,21 +2974,21 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .status-card-args pre {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   white-space: pre-wrap;
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
 }
 
 .delegation {
-  margin: 6px 0 2px;
+  margin: var(--space-3) 0 var(--space-1);
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .delegation-line {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-4);
   flex-wrap: wrap;
   margin: 0;
 }
@@ -3003,12 +3003,12 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .delegation-trace ol {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 20px;
 }
 
 .status-pill {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -3018,13 +3018,13 @@ dialog.confirm:has(.folder-file-preview) {
 
 .status-group summary {
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 .plan-card {
   margin: 10px 0;
-  padding: 10px 12px;
+  padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--paper);
@@ -3038,7 +3038,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .plan-head h3 {
@@ -3047,24 +3047,24 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .plan-state {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
 .plan-steps {
   list-style: none;
-  margin: 8px 0;
+  margin: var(--space-4) 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .plan-step {
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .plan-step.is-done {
@@ -3079,7 +3079,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
+  gap: var(--space-3) var(--space-4);
 }
 
 .plan-step-number {
@@ -3089,17 +3089,17 @@ dialog.confirm:has(.folder-file-preview) {
   height: 20px;
   border-radius: 50%;
   background: var(--accent-soft);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .plan-step-controls {
   margin-left: auto;
   display: flex;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .plan-step-status {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -3109,13 +3109,13 @@ dialog.confirm:has(.folder-file-preview) {
 
 .plan-step-error {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--danger);
 }
 
 .plan-step-hook {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--warn);
 }
 
@@ -3126,14 +3126,14 @@ dialog.confirm:has(.folder-file-preview) {
 .plan-params {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .plan-param {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--ink-soft);
 }
 
@@ -3151,28 +3151,28 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .plan-notice {
-  margin: 8px 0 0;
-  font-size: 12.5px;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-md);
   color: var(--warn);
 }
 
 .plan-step-note {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
 .plan-draft {
   margin: 0;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px dashed var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .plan-draft figcaption {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
   color: var(--muted);
 }
 
@@ -3193,12 +3193,12 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-on {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
 }
 
 .context-preview {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -3208,17 +3208,17 @@ dialog.confirm:has(.folder-file-preview) {
 
 .context-layers {
   list-style: none;
-  margin: 6px 0;
+  margin: var(--space-3) 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .context-layers li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 90px max-content;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .context-bar {
@@ -3237,41 +3237,41 @@ dialog.confirm:has(.folder-file-preview) {
 
 .context-reasons,
 .context-dropped {
-  margin: 4px 0;
+  margin: var(--space-2) 0;
   padding-left: 18px;
 }
 
 .askback {
-  margin: 8px 0;
-  padding: 8px 10px;
+  margin: var(--space-4) 0;
+  padding: var(--space-4) 10px;
   border-left: 3px solid var(--warn);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .askback h4 {
-  margin: 0 0 4px;
-  font-size: 13px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
 }
 
 .askback p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .askback-options {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 18px;
 }
 
 .findings {
-  margin: 8px 0;
-  font-size: 12.5px;
+  margin: var(--space-4) 0;
+  font-size: var(--text-md);
 }
 
 .findings h4 {
-  margin: 0 0 4px;
-  font-size: 13px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
 }
 
 .findings ul {
@@ -3281,11 +3281,11 @@ dialog.confirm:has(.folder-file-preview) {
 
 .checkpoint-row {
   justify-content: space-between;
-  margin: 8px 0 0;
-  padding: 6px 8px;
-  border-radius: 6px;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .checkpoint-label {
@@ -3293,8 +3293,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-report {
-  margin: 8px 0 0;
-  font-size: 13px;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-lg);
 }
 
 .agent-report-text {
@@ -3302,8 +3302,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-report-meta {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
 }
 
 .badge.is-warn {
@@ -3312,22 +3312,22 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .ghost-bar {
-  margin: 12px 0 0;
-  padding: 10px 12px;
+  margin: var(--space-5) 0 0;
+  padding: 10px var(--space-5);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   background: var(--accent-soft);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .ghost-bar p {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
 }
 
 .editor-target {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .storage-banner {
@@ -3335,25 +3335,25 @@ dialog.confirm:has(.folder-file-preview) {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin: 12px 24px 0;
-  padding: 10px 12px;
+  gap: var(--space-5);
+  margin: var(--space-5) 24px 0;
+  padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .storage-banner p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .activity-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 
@@ -3661,7 +3661,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 2px 10px;
+  gap: var(--space-1) 10px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -3670,7 +3670,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .agent-mode legend {
   float: left;
-  margin-right: 8px;
+  margin-right: var(--space-4);
   padding: 0;
   color: var(--muted);
 }
@@ -3678,7 +3678,7 @@ dialog.confirm:has(.folder-file-preview) {
 .agent-mode-option {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   cursor: pointer;
 }
 
@@ -3688,7 +3688,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-turn-mode {
-  font-size: 12px;
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
@@ -3703,10 +3703,10 @@ dialog.confirm:has(.folder-file-preview) {
   right: 0;
   top: 100%;
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 260px;
   max-width: min(360px, 90vw);
-  padding: 6px;
+  padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
@@ -3715,29 +3715,29 @@ dialog.confirm:has(.folder-file-preview) {
 
 .turn-menu-item {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   justify-items: start;
   text-align: left;
   height: auto;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
 }
 
 .turn-menu-hint,
 .turn-menu-note {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .turn-menu-note {
-  margin: 4px 8px 2px;
+  margin: var(--space-2) var(--space-4) var(--space-1);
 }
 
 /* Turns the writer rewound: kept in the panel, collapsed, and not sent to the model. */
 .agent-rewound {
-  padding: 6px 12px;
+  padding: var(--space-3) var(--space-5);
   border: 1px dashed var(--line);
   border-radius: var(--radius);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .agent-rewound > details > .agent-turns {
@@ -3745,13 +3745,13 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-old-instruction {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
 }
 
 .plan-auto {
   margin: 10px 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .plan-auto > summary {
@@ -3760,25 +3760,25 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .badge.is-auto {
-  margin-left: 6px;
+  margin-left: var(--space-3);
 }
 
 .held-plan {
   margin: 10px 0;
-  padding: 8px 12px;
+  padding: var(--space-4) var(--space-5);
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius);
 }
 
 .held-plan h3 {
-  margin: 0 0 4px;
-  font-size: 13px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
 }
 
 .held-plan ol {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   padding-left: 20px;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 /* ------------------------------------------------------------------ *
@@ -4002,16 +4002,16 @@ dialog.confirm:has(.folder-file-preview) {
 .review-bar {
   position: sticky;
   bottom: 0;
-  margin: 12px 0 0;
-  padding: 10px 12px;
+  margin: var(--space-5) 0 0;
+  padding: 10px var(--space-5);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .review-bar p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .review-count {
@@ -4021,15 +4021,15 @@ dialog.confirm:has(.folder-file-preview) {
 .review-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }
 
 .agent-review {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin: 8px 0 0;
-  font-size: 13px;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-lg);
 }

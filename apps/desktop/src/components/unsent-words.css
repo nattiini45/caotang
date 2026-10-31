@@ -2,13 +2,13 @@
 
 .unsent-words {
   border: 1px solid var(--line-strong, currentColor);
-  border-radius: var(--radius, 6px);
-  padding: 10px 12px;
+  border-radius: var(--radius, var(--radius-sm));
+  padding: 10px var(--space-5);
 }
 
 .unsent-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }
