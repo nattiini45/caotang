@@ -36,7 +36,7 @@
   font: inherit;
   padding: 0.4rem 0.55rem;
   border: 1px solid var(--line-strong, currentColor);
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
   background: var(--panel, Field);
   color: inherit;
 }
@@ -82,7 +82,7 @@
   min-width: 0;
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--line-strong, currentColor);
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
   background: var(--panel, Field);
   color: inherit;
 }
@@ -118,7 +118,7 @@
   padding: 0;
   cursor: pointer;
   text-align: start;
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
 }
 
 .project-name-button:focus-visible {
@@ -137,7 +137,7 @@
   font: inherit;
   padding: 0.4rem 0.55rem;
   border: 1px solid var(--line-strong, currentColor);
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
   background: var(--panel, Field);
   color: inherit;
 }

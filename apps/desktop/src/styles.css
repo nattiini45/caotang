@@ -27,54 +27,62 @@
   --suggest-del-ink: #5a1d14;
   --dot-empty: #bdb8ae;
   --shadow: 0 1px 2px rgba(31, 30, 27, 0.06), 0 4px 12px rgba(31, 30, 27, 0.05);
+  --radius: 8px;
   --ui: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --manuscript: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --rail-w: 288px;
   --inspector-w: 296px;
 
   /* ---------------------------------------------------------------------------------------------------------------- *
-   * Semantic tokens. Components read these; the palette above (and the dark blocks below) only feeds them. Three axes
-   * choose their values, each an attribute on <html>:
-   *   shell  data-shell="classic|modern" (app/shell.ts). Modern overrides this block in modern/modern.css, loaded on demand.
-   *   skin   data-skin, only the default for now. A skin for Classic is a token-level override of this block and the
-   *          palette, scoped to :root[data-shell='classic'][data-skin='…'], and restyles no component by class.
-   *   theme  data-theme="light|dark", or the system (app/theme.ts). The palette changes; these follow it.
-   * Classic's values are exactly the ones the shell used before these existed, so Classic renders as it did, pixel for pixel.
+   * Semantic tokens (docs/architecture/modern-interface.md §2, §5.1). The names above (--paper … --inspector-w) are
+   * Classic's semantic colour, type and layout tokens and keep their names and values (D6). The tokens below are the
+   * groundwork for what has no token yet; each Classic value is today's literal or an alias of a token above, and no
+   * Classic rule reads them yet, so Classic renders exactly as before. Later milestones move literals onto them, one area
+   * per pull request, against the Classic screenshots (e2e/visual/).
    *
-   *   --surface-0, -1, -2         the page, a panel (rails, toolbar, sections), a raised surface (cards, fields, menus)
-   *   --elevation-0 … -4          none, the base shadow, a menu, a popover, a floating panel (all none in dark, as --shadow)
-   *   --elevation-sheet, -modal   the narrow layout's drawer and sheet, a modal dialog
-   *   --radius-2xs … -xl, -pill   3, 4, 6, 8, 10, 12 px and a pill; --radius is --radius-md, kept for older rules
-   *   --material-blur             the backdrop blur of a translucent surface; 0 in Classic, which has none
-   *   --motion-fast, -base, -ease 0.1 s, 0.2 s, ease (prefers-reduced-motion turns transitions off where they exist)
-   *   --density                   1 is Classic's spacing; a multiplier a denser skin may lower (not read by Classic yet)
-   *   --target-min, --target-touch  24 px pointer target (WCAG 2.5.8), 44 px touch target in the narrow layout (WCAG 2.5.5)
+   * Three axes choose values, each an attribute on <html>, composed by attribute selectors alone:
+   *   shell   data-shell="classic|modern" (app/interface.ts); Modern overrides under :root[data-shell='modern'] in its
+   *           lazily loaded stylesheet (modern/modern.css).
+   *   skin    data-skin, absent for the default; a Classic skin redefines tokens under
+   *           :root[data-shell='classic'][data-skin='<name>'] (designed, not built).
+   *   scheme  data-theme="light|dark", or the system (app/theme.ts).
+   *
+   *   --surface-app, --surface-page   the stage and the manuscript page (= --paper); --panel and --raised stay as they are
+   *   --radius-xs, -sm, -md, -lg, -pill   3, 6, 8 (= --radius), 12 px and a pill
+   *   --elev-0 … -3                   none, the base shadow (= --shadow), a popover, a floating panel
+   *   --focus-width, -offset, -halo   2 px, 2 px, none
+   *   --dur-2, --ease-standard        the shell's one transition today: 0.2 s, ease
+   *   --target-min, --control-pad-x   24 px pointer target (WCAG 2.5.8), a button's 12 px side padding
+   *   --mat-*, --scrim, --wallpaper   Modern's materials; solid in Classic, so a stray use renders sanely
    * ---------------------------------------------------------------------------------------------------------------- */
-  --surface-0: var(--paper);
-  --surface-1: var(--panel);
-  --surface-2: var(--raised);
-  --elevation-0: none;
-  --elevation-1: var(--shadow);
-  --elevation-2: var(--shadow), 0 2px 8px rgba(0, 0, 0, 0.08);
-  --elevation-3: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
-  --elevation-4: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
-  --elevation-sheet: var(--shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
-  --elevation-modal: 0 20px 60px rgba(0, 0, 0, 0.25);
-  --radius-2xs: 3px;
-  --radius-xs: 4px;
+  --surface-app: var(--paper);
+  --surface-page: var(--paper);
+  --radius-xs: 3px;
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
-  --radius-xl: 12px;
+  --radius-md: var(--radius);
+  --radius-lg: 12px;
   --radius-pill: 999px;
-  --radius: var(--radius-md);
-  --material-blur: 0px;
-  --motion-fast: 0.1s;
-  --motion-base: 0.2s;
-  --motion-ease: ease;
-  --density: 1;
+  --elev-0: none;
+  --elev-1: var(--shadow);
+  --elev-2: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+  --elev-3: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --focus-halo: none;
+  --dur-2: 0.2s;
+  --ease-standard: ease;
   --target-min: 24px;
-  --target-touch: 44px;
+  --control-pad-x: 12px;
+  --mat-glass-bg: var(--raised);
+  --mat-glass-blur: 0px;
+  --mat-glass-saturate: 100%;
+  --mat-glass-edge-hi: transparent;
+  --mat-glass-edge-lo: transparent;
+  --mat-thick-bg: var(--raised);
+  --mat-thick-blur: 0px;
+  --mat-frost-bg: var(--paper);
+  --scrim: transparent;
+  --wallpaper: none;
   font-family: var(--ui);
 }
 
@@ -134,7 +142,7 @@
 
 body {
   margin: 0;
-  background: var(--surface-0);
+  background: var(--paper);
   color: var(--ink);
   font-size: 14px;
   line-height: 1.45;
@@ -170,16 +178,16 @@ h3 {
   font-size: 13px;
   line-height: 1.2;
   padding: 6px 12px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   border: 1px solid var(--line-strong);
-  background: var(--surface-2);
+  background: var(--raised);
   color: var(--ink);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .button:hover:not(:disabled) {
-  background: var(--surface-1);
+  background: var(--panel);
 }
 
 .button:disabled {
@@ -205,7 +213,7 @@ h3 {
 }
 
 .button.is-quiet:hover:not(:disabled) {
-  background: var(--surface-1);
+  background: var(--panel);
 }
 
 .button.is-danger {
@@ -222,8 +230,8 @@ input[type='text'],
   font-size: 13px;
   padding: 7px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: 6px;
+  background: var(--raised);
   color: var(--ink);
   width: 100%;
 }
@@ -270,9 +278,9 @@ label > span {
   font: inherit;
   font-size: 11.5px;
   padding: 2px 8px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   border: 1px solid var(--line);
-  background: var(--surface-2);
+  background: var(--raised);
   color: var(--ink-soft);
   white-space: nowrap;
   max-width: 16ch;
@@ -301,8 +309,8 @@ button.chip {
    place in the row. A minimum, not a fixed size: a bare chip that carries words ("Unknown status", for a status the
    project no longer holds) grows to fit them instead of spilling into the title. */
 .chip.is-bare.chip-status {
-  min-width: var(--target-min);
-  min-height: var(--target-min);
+  min-width: 24px;
+  min-height: 24px;
   justify-content: center;
   margin: -8px;
 }
@@ -353,7 +361,7 @@ button.chip {
   grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   min-width: 960px;
-  background: var(--surface-0);
+  background: var(--paper);
 }
 
 /* Focus mode keeps one column. The toolbar stays on the first row and the centre takes the row under it: without the explicit
@@ -381,7 +389,7 @@ button.chip {
   height: 52px;
   padding: 0 14px 0 12px;
   border-bottom: 1px solid var(--line);
-  background: var(--surface-0);
+  background: var(--paper);
 }
 
 .toolbar-start,
@@ -421,7 +429,7 @@ button.chip {
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--line);
-  background: var(--surface-1);
+  background: var(--panel);
 }
 
 .rail-tabs {
@@ -476,7 +484,7 @@ button.chip {
   overflow-y: auto;
   padding: 16px 16px 28px;
   border-left: 1px solid var(--line);
-  background: var(--surface-1);
+  background: var(--panel);
 }
 
 .inspector.is-empty {
@@ -494,10 +502,10 @@ button.chip {
   align-items: center;
   gap: 12px;
   padding: 10px 10px 10px 16px;
-  border-radius: var(--radius-lg);
+  border-radius: 10px;
   border: 1px solid var(--line-strong);
-  background: var(--surface-2);
-  box-shadow: var(--elevation-2);
+  background: var(--raised);
+  box-shadow: var(--shadow), 0 2px 8px rgba(0, 0, 0, 0.08);
   font-size: 13px;
   z-index: 40;
 }
@@ -558,14 +566,14 @@ button.chip {
   gap: 6px;
   min-height: 30px;
   padding: 4px 8px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   cursor: pointer;
   user-select: none;
   color: var(--ink);
 }
 
 .row:hover {
-  background: var(--surface-2);
+  background: var(--raised);
 }
 
 .row.is-selected {
@@ -706,7 +714,7 @@ button.chip {
   align-self: flex-start;
   margin: 12px 24px 0;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -716,7 +724,7 @@ button.chip {
   padding: 5px 12px;
   border: none;
   border-right: 1px solid var(--line);
-  background: var(--surface-2);
+  background: var(--raised);
   color: var(--ink-soft);
   cursor: pointer;
 }
@@ -727,7 +735,7 @@ button.chip {
 
 .segmented-item[aria-checked='true'] {
   background: var(--ink);
-  color: var(--surface-0);
+  color: var(--paper);
 }
 
 .segmented-item:focus-visible {
@@ -855,8 +863,8 @@ button.chip {
 .ProseMirror pre {
   margin: 0 0 0.9em;
   padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  background: var(--surface-1);
+  border-radius: 6px;
+  background: var(--panel);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 0.9em;
   white-space: pre-wrap;
@@ -964,8 +972,8 @@ button.chip {
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--warn);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   font-family: var(--ui);
   font-size: 13px;
   line-height: 1.5;
@@ -1005,8 +1013,8 @@ button.chip {
   width: 100%;
   padding: 6px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: 6px;
+  background: var(--raised);
   color: var(--ink);
 }
 
@@ -1026,8 +1034,8 @@ button.chip {
   font-size: 12px;
   padding: 3px 9px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
+  border-radius: 999px;
+  background: var(--raised);
   color: var(--ink-soft);
   cursor: pointer;
 }
@@ -1074,7 +1082,7 @@ button.chip {
   width: 100%;
   padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: none;
   color: var(--ink);
   font: inherit;
@@ -1084,7 +1092,7 @@ button.chip {
 }
 
 .codex-row:hover {
-  background: var(--surface-2);
+  background: var(--raised);
   border-color: var(--line);
 }
 
@@ -1099,7 +1107,7 @@ button.chip {
 .codex-row-policy {
   padding: 1px 6px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   font-size: 11px;
   white-space: nowrap;
   color: var(--muted);
@@ -1160,8 +1168,8 @@ button.chip {
   gap: 5px;
   padding: 4px 9px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-pill);
-  background: var(--surface-2);
+  border-radius: 999px;
+  background: var(--raised);
   font-size: 12.5px;
   cursor: pointer;
 }
@@ -1194,10 +1202,10 @@ dialog.export-dialog {
   overflow-y: auto;
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-xl);
-  background: var(--surface-2);
+  border-radius: 12px;
+  background: var(--raised);
   color: var(--ink);
-  box-shadow: var(--elevation-modal);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 }
 
 dialog.export-dialog::backdrop {
@@ -1236,7 +1244,7 @@ dialog.export-dialog::backdrop {
   gap: 10px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   cursor: pointer;
 }
 
@@ -1282,7 +1290,7 @@ dialog.export-dialog::backdrop {
   overflow-y: auto;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   font-size: 13px;
 }
 
@@ -1403,8 +1411,8 @@ dialog.export-dialog::backdrop {
   gap: 3px;
   padding: 9px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: 8px;
+  background: var(--raised);
 }
 
 .activity-row.is-agent {
@@ -1447,7 +1455,7 @@ dialog.export-dialog::backdrop {
 .badge {
   padding: 1px 6px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
   font-size: 10.5px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -1520,7 +1528,7 @@ dialog.export-dialog::backdrop {
 .corkboard-controls .segmented {
   display: inline-flex;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   overflow: hidden;
 }
 
@@ -1597,7 +1605,7 @@ dialog.export-dialog::backdrop {
 
 .filter-chip {
   border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   padding: 1px 8px;
   font-size: 0.8em;
 }
@@ -1667,9 +1675,9 @@ dialog.export-dialog::backdrop {
   min-height: 116px;
   padding: 12px 12px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface-2);
-  box-shadow: var(--elevation-1);
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
   cursor: pointer;
 }
 
@@ -1752,7 +1760,7 @@ dialog.export-dialog::backdrop {
   resize: none;
   padding: 4px 6px;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: transparent;
   color: var(--ink-soft);
   font: inherit;
@@ -1765,7 +1773,7 @@ dialog.export-dialog::backdrop {
 }
 
 .synopsis:focus {
-  background: var(--surface-0);
+  background: var(--paper);
   border-color: var(--focus);
 }
 
@@ -1785,7 +1793,7 @@ dialog.export-dialog::backdrop {
   margin: 16px 0;
   padding: 28px 24px;
   border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-xl);
+  border-radius: 12px;
   text-align: center;
   color: var(--ink-soft);
 }
@@ -1860,8 +1868,8 @@ dialog.export-dialog::backdrop {
   resize: vertical;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: 6px;
+  background: var(--raised);
   color: var(--ink);
   font: inherit;
   font-size: 13.5px;
@@ -1924,8 +1932,8 @@ dialog.export-dialog::backdrop {
   min-width: 0;
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: 6px;
+  background: var(--raised);
   color: var(--ink);
   font: inherit;
   font-size: 13px;
@@ -1948,9 +1956,9 @@ dialog.export-dialog::backdrop {
   flex-direction: column;
   padding: 4px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
-  box-shadow: var(--elevation-3);
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .menu-item {
@@ -1969,7 +1977,7 @@ dialog.export-dialog::backdrop {
 
 .menu-item:hover:not(:disabled),
 .menu-item:focus-visible {
-  background: var(--surface-1);
+  background: var(--panel);
   outline: none;
 }
 
@@ -2018,10 +2026,10 @@ dialog.confirm {
   width: min(460px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-xl);
-  background: var(--surface-2);
+  border-radius: 12px;
+  background: var(--raised);
   color: var(--ink);
-  box-shadow: var(--elevation-modal);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 }
 
 dialog.confirm::backdrop {
@@ -2038,8 +2046,8 @@ dialog.confirm:has(.folder-file-preview) {
   margin-top: 8px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-0);
+  border-radius: 8px;
+  background: var(--paper);
 }
 
 .folder-file-preview .field-note {
@@ -2175,8 +2183,8 @@ dialog.confirm:has(.folder-file-preview) {
   padding: 0;
   list-style: none;
   border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  background: var(--surface-2);
+  border-radius: 10px;
+  background: var(--raised);
 }
 
 .project-row {
@@ -2255,8 +2263,8 @@ dialog.confirm:has(.folder-file-preview) {
   padding: 14px 16px;
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--accent);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
 }
 
 .first-run-actions,
@@ -2281,10 +2289,10 @@ dialog.confirm:has(.folder-file-preview) {
   max-height: none;
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   color: var(--ink);
-  box-shadow: var(--elevation-4);
+  box-shadow: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
 }
 
 .settings::backdrop {
@@ -2323,7 +2331,7 @@ dialog.confirm:has(.folder-file-preview) {
   gap: 2px;
   padding: 10px 8px;
   border-right: 1px solid var(--line);
-  background: var(--surface-1);
+  background: var(--panel);
 }
 
 .settings-nav-item {
@@ -2331,7 +2339,7 @@ dialog.confirm:has(.folder-file-preview) {
   text-align: left;
   padding: 7px 10px;
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
@@ -2420,8 +2428,8 @@ dialog.confirm:has(.folder-file-preview) {
   font-size: 13px;
   padding: 6px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
+  border-radius: 6px;
+  background: var(--paper);
   color: var(--ink);
 }
 
@@ -2438,8 +2446,8 @@ dialog.confirm:has(.folder-file-preview) {
   font-size: 13px;
   padding: 6px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
+  border-radius: 6px;
+  background: var(--paper);
   color: var(--ink);
 }
 
@@ -2458,8 +2466,8 @@ dialog.confirm:has(.folder-file-preview) {
   font-size: 13px;
   padding: 6px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface-0);
+  border-radius: 6px;
+  background: var(--paper);
   color: var(--ink);
 }
 
@@ -2486,7 +2494,7 @@ dialog.confirm:has(.folder-file-preview) {
 .form-message {
   margin: 10px 0;
   padding: 8px 10px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   border: 1px solid var(--line-strong);
   font-size: 13px;
 }
@@ -2564,7 +2572,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-direction: column;
   border-top: 1px solid var(--line);
-  background: var(--surface-1);
+  background: var(--panel);
   min-height: 0;
 }
 
@@ -2646,10 +2654,10 @@ dialog.confirm:has(.folder-file-preview) {
   list-style: none;
   max-height: 260px;
   overflow-y: auto;
-  background: var(--surface-2);
+  background: var(--raised);
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--elevation-3);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
 }
 
 .command-menu li {
@@ -2658,7 +2666,7 @@ dialog.confirm:has(.folder-file-preview) {
   align-items: baseline;
   gap: 2px 10px;
   padding: 5px 8px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   font-size: 12.5px;
   cursor: pointer;
 }
@@ -2689,8 +2697,8 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0 0 10px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   font-size: 12.5px;
 }
 
@@ -2735,8 +2743,8 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0 0 10px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   font-size: 12.5px;
 }
 
@@ -2782,8 +2790,8 @@ dialog.confirm:has(.folder-file-preview) {
   gap: 8px;
   padding: 4px 8px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   font-size: 12.5px;
   cursor: grab;
 }
@@ -2832,8 +2840,8 @@ dialog.confirm:has(.folder-file-preview) {
 .agent-task {
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   font-size: 12.5px;
 }
 
@@ -2889,8 +2897,8 @@ dialog.confirm:has(.folder-file-preview) {
 .agent-turn {
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
 }
 
 .agent-turn-head {
@@ -3028,7 +3036,7 @@ dialog.confirm:has(.folder-file-preview) {
   padding: 6px 8px;
   border: 1px solid var(--line);
   border-left: 3px solid var(--dot-empty);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   font-size: 12.5px;
 }
 
@@ -3141,8 +3149,8 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 10px 0;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface-0);
+  border-radius: var(--radius);
+  background: var(--paper);
 }
 
 .plan-card.is-live {
@@ -3177,7 +3185,7 @@ dialog.confirm:has(.folder-file-preview) {
 .plan-step {
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   display: grid;
   gap: 6px;
 }
@@ -3281,7 +3289,7 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0;
   padding: 8px 10px;
   border: 1px dashed var(--accent);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: var(--accent-soft);
   font-size: 12.5px;
 }
@@ -3339,7 +3347,7 @@ dialog.confirm:has(.folder-file-preview) {
 .context-bar {
   display: block;
   height: 6px;
-  border-radius: var(--radius-2xs);
+  border-radius: 3px;
   background: var(--line);
   overflow: hidden;
 }
@@ -3360,8 +3368,8 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 8px 0;
   padding: 8px 10px;
   border-left: 3px solid var(--warn);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  border-radius: 6px;
+  background: var(--raised);
   font-size: 12.5px;
 }
 
@@ -3398,7 +3406,7 @@ dialog.confirm:has(.folder-file-preview) {
   justify-content: space-between;
   margin: 8px 0 0;
   padding: 6px 8px;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: var(--accent-soft);
   font-size: 12.5px;
 }
@@ -3430,7 +3438,7 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 12px 0 0;
   padding: 10px 12px;
   border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   background: var(--accent-soft);
   font-size: 13px;
 }
@@ -3455,8 +3463,8 @@ dialog.confirm:has(.folder-file-preview) {
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--warn);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   font-size: 13px;
 }
 
@@ -3537,10 +3545,10 @@ dialog.confirm:has(.folder-file-preview) {
     z-index: 30;
     display: flex;
     flex-direction: column;
-    background: var(--surface-1);
-    box-shadow: var(--elevation-sheet);
+    background: var(--panel);
+    box-shadow: var(--shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
     visibility: hidden;
-    transition: transform var(--motion-base) var(--motion-ease), visibility 0s linear var(--motion-base);
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
   }
 
   .workspace .rail.is-drawer {
@@ -3569,7 +3577,7 @@ dialog.confirm:has(.folder-file-preview) {
   .workspace .sheet.is-open {
     visibility: visible;
     transform: none;
-    transition: transform var(--motion-base) var(--motion-ease), visibility 0s;
+    transition: transform 0.2s ease, visibility 0s;
   }
 
   .workspace .sheet .inspector {
@@ -3647,12 +3655,12 @@ dialog.confirm:has(.folder-file-preview) {
 
   /* Touch targets: every control in the shell is at least 44 by 44 px (WCAG 2.5.5). A sentence's own inline link keeps its line. */
   #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea, input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
-    min-width: var(--target-touch);
-    min-height: var(--target-touch);
+    min-width: 44px;
+    min-height: 44px;
   }
 
   #root label:has(> input[type='checkbox'], > input[type='radio']) {
-    min-height: var(--target-touch);
+    min-height: 44px;
   }
 
   /* A row's Actions button, where there is no right click. */
@@ -3661,7 +3669,7 @@ dialog.confirm:has(.folder-file-preview) {
     margin: 0 -4px 0 0;
     padding: 0;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: 6px;
     background: none;
     color: var(--muted);
     font: inherit;
@@ -3828,8 +3836,8 @@ dialog.confirm:has(.folder-file-preview) {
   max-width: min(360px, 90vw);
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
 }
 
@@ -3855,7 +3863,7 @@ dialog.confirm:has(.folder-file-preview) {
 .agent-rewound {
   padding: 6px 12px;
   border: 1px dashed var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   color: var(--muted);
   font-size: 13px;
 }
@@ -3887,7 +3895,7 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 10px 0;
   padding: 8px 12px;
   border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
 }
 
 .held-plan h3 {
@@ -3943,7 +3951,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .trace-turn {
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: var(--bg);
 }
 
@@ -3973,8 +3981,8 @@ dialog.confirm:has(.folder-file-preview) {
 
 .trace-row {
   border-left: 3px solid var(--line-strong);
-  border-radius: var(--radius-2xs);
-  background: var(--surface-1);
+  border-radius: 3px;
+  background: var(--panel);
 }
 
 .trace-row.is-call {
@@ -4005,7 +4013,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: block;
   height: 5px;
   margin-top: 3px;
-  border-radius: var(--radius-2xs);
+  border-radius: 3px;
   background: var(--line);
 }
 
@@ -4013,7 +4021,7 @@ dialog.confirm:has(.folder-file-preview) {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-radius: var(--radius-2xs);
+  border-radius: 3px;
   background: var(--accent);
 }
 
@@ -4029,7 +4037,7 @@ dialog.confirm:has(.folder-file-preview) {
 .trace-message {
   margin: 3px 0;
   border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
 }
 
 .trace-message > summary {
@@ -4125,8 +4133,8 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 12px 0 0;
   padding: 10px 12px;
   border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
-  background: var(--surface-2);
+  border-radius: var(--radius);
+  background: var(--raised);
   font-size: 13px;
 }
 

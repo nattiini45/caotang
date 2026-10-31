@@ -20,7 +20,7 @@
   gap: 8px;
   padding: 12px;
   border: 1px solid var(--line, rgb(0 0 0 / 0.14));
-  border-radius: var(--radius-lg);
+  border-radius: 10px;
 }
 
 .encoding-file h3 {
@@ -63,7 +63,7 @@
   max-height: 12rem;
   overflow: auto;
   border: 1px solid var(--line, rgb(0 0 0 / 0.14));
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   background: var(--paper, Canvas);
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 12px;
