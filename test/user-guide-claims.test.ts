@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { COMMAND_REGISTRY, HOOKS_MAX, HOOK_EVENTS_RUN, HOOK_PATTERNS_MAX, HOOK_TEXT_MAX, MACROS_MAX, MACRO_DESCRIPTION_MAX, MACRO_STEPS_MAX, readHook } from '../packages/bus/src/index.js';
+import { COMMAND_REGISTRY, HOOKS_MAX, codexImportCommands, HOOK_EVENTS_RUN, HOOK_PATTERNS_MAX, HOOK_TEXT_MAX, MACROS_MAX, MACRO_DESCRIPTION_MAX, MACRO_STEPS_MAX, readHook } from '../packages/bus/src/index.js';
 import { BUILTIN_COMMAND_NAMES } from '../packages/harness/src/commands/slash.js';
 import { macroCommandName } from '../packages/harness/src/macro.js';
 
@@ -597,5 +597,19 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(guide.slice(guide.indexOf('## What is not in this build yet'))).toContain('- **Hooks.** There is no Settings › Hooks');
     expect(read('README.md')).toContain('- **Hooks.** Write a check the agent is held to');
     expect(read('docs/decisions.md')).toMatch(/hooks/i);
+  });
+
+  it('says the AI tool’s codex import is capped at 20 and the app’s own is one step without that cap, whose window is not built', () => {
+    // The agent's tool keeps its cap (codex-import.ts), and the writer's batch command is the app's alone (codex.md §7.1).
+    expect(read('packages/harness/src/tools/codex-import.ts')).toContain('const CODEX_IMPORT_MAX = 20;');
+    expect(COMMAND_REGISTRY['codex.importBatch'].descriptor.agentRisk).toBe('never');
+    expect(COMMAND_REGISTRY['codex.importBatch'].descriptor.undo).toBe('compensable');
+    expect(codexImportCommands.CODEX_IMPORT_BATCH_MAX).toBe(5000);
+    expect(guide).toContain('The limit of 20 is this tool\'s: an import you run in Caotang itself is one step with no such limit');
+    const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
+    expect(notYet).toContain('- **Importing codex entries in the app.**');
+    expect(notYet).toContain('The import window that offers this for a CSV file, a wiki export or another writing app is not built yet');
+    expect(changelog).toContain(`adds up to ${codexImportCommands.CODEX_IMPORT_BATCH_MAX.toLocaleString('en-GB')} codex entries`);
+    expect(read('docs/architecture/codex.md')).toContain('### 7.1 The writer\'s batch import (`codex.importBatch`)');
   });
 });
