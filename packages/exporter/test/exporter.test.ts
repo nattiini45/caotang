@@ -36,7 +36,10 @@ import {
   type SceneStyleRow,
 } from '../src/index.js';
 import { BODIES, COMPILED_AT, IDS, makeProject, PROJECT_NAME } from './fixture.js';
-import { pngHeaderOf } from './epub-fixtures.js';
+import { solidPng } from './figure-fixtures.js';
+import { processPictureInNode } from '../src/picture-process-node.js';
+import { imageSizeOf } from '../src/image-size.js';
+import type { ProcessPicture } from '@caotang/pictures';
 
 type Dispatch = Result<ExecutionOutcome, CommandError>;
 
@@ -64,6 +67,8 @@ function rig(options: {
   metadata?: ExportMetadataInput;
   readAsset?: (path: string) => Promise<Uint8Array | null>;
   sceneStyles?: readonly SceneStyleRow[];
+  /** The host's picture processor. A cover that needs a transcode is refused without one, so a cover test supplies it. */
+  processPicture?: ProcessPicture;
 } = {}): Rig {
   const state = makeProject();
   const fs = new MemoryArtifactFs();
@@ -84,6 +89,7 @@ function rig(options: {
     metadata: () => options.metadata ?? {},
     ...(options.sceneStyles === undefined ? {} : { sceneStyles: options.sceneStyles }),
     ...(options.readAsset === undefined ? {} : { readAsset: options.readAsset }),
+    ...(options.processPicture === undefined ? {} : { processPicture: options.processPicture }),
   });
   const registry = createProjectCommandRegistry({ clock, exporter: exporter.commandPort() });
   const undo: UndoStore = createUndoStore({ dispatch: (command) => execute(command, bus, registry) });
@@ -234,12 +240,15 @@ describe('export.compile — the whole manuscript', () => {
   });
 
   it('reads the cover through the asset reader, so an image the artifact port does not hold still reaches the EPUB', async () => {
-    const cover = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
+    // A real picture: the cover now takes the figures' own transcode (pictures.md §4), so bytes that are not a picture are
+    // refused and left out with a note rather than copied. 4 × 4 keeps the fixture and its re-encode small.
+    const cover = solidPng(4, 4);
     const coverPath = 'assets/a_ABCDEFGHJK.png';
     const asked: string[] = [];
     const r = rig({
       bytes: true,
       metadata: { identifier: EPUB_IDENTIFIER, coverAssetId: 'a_ABCDEFGHJK' },
+      processPicture: processPictureInNode,
       readAsset: async (path) => {
         asked.push(path);
         return path === coverPath ? cover : null;
@@ -252,8 +261,12 @@ describe('export.compile — the whole manuscript', () => {
     const output = (outcome.result as { output: string }).output;
     const files = unzipSync(r.bytes.get(output) ?? new Uint8Array());
     expect(strFromU8(files['OEBPS/content.opf'] ?? new Uint8Array())).toContain('properties="cover-image"');
-    expect(Array.from(files['OEBPS/cover.png'] ?? [])).toEqual(Array.from(cover));
     expect(asked).toContain(coverPath);
+    // The book carries the cover the reader returned, at the pixels it had: the EPUB profile flattens a PNG onto white, so
+    // the bytes are re-encoded and it is the *size* that proves the right file reached the book.
+    const carried = files['OEBPS/cover.png'];
+    expect(carried).toBeDefined();
+    expect(imageSizeOf(carried ?? new Uint8Array())).toMatchObject({ width: 4, height: 4 });
   });
 
   it('notes in the compile log a cover below the retail minimum on its short side, and no cover at or above it', async () => {
@@ -261,14 +274,16 @@ describe('export.compile — the whole manuscript', () => {
       const r = rig({
         bytes: true,
         metadata: { identifier: EPUB_IDENTIFIER, coverAssetId: 'a_ABCDEFGHJK' },
-        readAsset: async (path) => (path === 'assets/a_ABCDEFGHJK.png' ? pngHeaderOf(width, height) : null),
+        processPicture: processPictureInNode,
+        readAsset: async (path) => (path === 'assets/a_ABCDEFGHJK.png' ? solidPng(width, height) : null),
       });
       await r.exporter.ready();
       okValue(r.run('export.compile', { format: 'epub' }));
       await r.exporter.idle();
       return (logRows(r.fs)[0]?.['notes'] ?? []) as string[];
     };
-    // The short side decides it: a tall cover that is 1000 px across is below the minimum, and one 1400 px across is not.
+    // The short side decides it, and the cover keeps its pixels: a cover is capped at 2560 px, not at the figures' 1600, so
+    // a 1400 × 2100 cover is not downscaled under the minimum it already meets.
     const small = await notesFor(800, 1000);
     expect(small.some((note) => note.startsWith('epub: cover below common retail minimums'))).toBe(true);
     expect(small.find((note) => note.includes('retail minimums'))).toContain('its short side is 800 px');
@@ -280,7 +295,8 @@ describe('export.compile — the whole manuscript', () => {
     const r = rig({
       bytes: true,
       metadata: { identifier: EPUB_IDENTIFIER, coverAssetId: 'a_ABCDEFGHJK' },
-      readAsset: async (path) => (path === 'assets/a_ABCDEFGHJK.png' ? pngHeaderOf(600, 800) : null),
+      processPicture: processPictureInNode,
+      readAsset: async (path) => (path === 'assets/a_ABCDEFGHJK.png' ? solidPng(600, 800) : null),
     });
     await r.exporter.ready();
     const result = await r.exporter.compile({ includeRootIds: ['manuscript'] }, 'epub');
@@ -451,7 +467,7 @@ describe('refusals — nothing is written, logged or grouped', () => {
     expect(outcome.error.message).toContain('"rtf" is not an export format in this build');
     // `rtf` is the probe for a format nothing ships.
     expect(outcome.error.message).toContain(
-      'The formats are md, txt, docx, epub, fountain, fdx, ink-json, dialogue-csv, shot-list-csv, promptpack, coherence-md, coherence-json, dialogue-xlsx, shot-list-xlsx, pdf, contact-sheet-pdf.',
+      'The formats are md, txt, docx, epub, fountain, fdx, ink-json, dialogue-csv, shot-list-csv, promptpack, coherence-md, coherence-json, dialogue-xlsx, shot-list-xlsx, pdf, contact-sheet-pdf, comic-pdf, timeline-csv, timeline-xlsx, timeline-svg, timeline-pdf, cbz, comic-epub.',
     );
     expect(r.bus.log.length).toBe(0);
     expect(r.undo.groups()).toHaveLength(0);
@@ -639,5 +655,41 @@ describe('the compile log names a scene style a format dropped (exporter.md §2,
 
   it('says nothing for a stored style the build has no row for: it is a normal scene, and the load notice told the writer', async () => {
     expect((await notesOf('txt')).some((note) => note.includes('style'))).toBe(false);
+  });
+});
+
+describe('the contents heading follows the project language (i18n.md §7.1)', () => {
+  const navOf = async (language: string, recipeLabel?: string): Promise<string> => {
+    const r = rig({ bytes: true, metadata: { identifier: EPUB_IDENTIFIER, language } });
+    await r.exporter.ready();
+    if (recipeLabel !== undefined) {
+      holdRecipe(r, { name: 'House style', includeRootIds: ['manuscript'], format: 'epub', options: { contentsLabel: recipeLabel } });
+    }
+    const params = recipeLabel === undefined ? { format: 'epub' } : { format: 'epub', recipeName: 'House style' };
+    const output = (okValue(r.run('export.compile', params)).result as { output: string }).output;
+    await r.exporter.idle();
+    const files = unzipSync(r.bytes.get(output) ?? new Uint8Array());
+    return strFromU8(files['OEBPS/nav.xhtml'] ?? new Uint8Array());
+  };
+
+  it('writes the English word for an English project, whatever the interface language is', async () => {
+    expect(await navOf('en')).toContain('<h1>Contents</h1>');
+  });
+
+  it('writes the German word for a German project and the Japanese one for a Japanese project', async () => {
+    expect(await navOf('de')).toContain('<h1>Inhalt</h1>');
+    expect(await navOf('ja')).toContain('<h1>目次</h1>');
+  });
+
+  it('reads Traditional Chinese by script or by region, and an unknown language as English', async () => {
+    expect(await navOf('zh-Hant')).toContain('<h1>目錄</h1>');
+    expect(await navOf('zh-TW')).toContain('<h1>目錄</h1>');
+    expect(await navOf('zh-CN')).toContain('<h1>目录</h1>');
+    expect(await navOf('xx')).toContain('<h1>Contents</h1>');
+  });
+
+  it('lets a recipe’s own label win over the language’s word, escaped, and ignores a blank one', async () => {
+    expect(await navOf('ja', 'Chapters & parts')).toContain('<h1>Chapters &amp; parts</h1>');
+    expect(await navOf('ja', '   ')).toContain('<h1>目次</h1>');
   });
 });

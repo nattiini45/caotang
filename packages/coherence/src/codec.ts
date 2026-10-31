@@ -8,10 +8,12 @@
  *    newer format is `newer` and is never overwritten.
  *  - **Per item.** A finding, run, rule or declaration that fails its field
  *    contract is dropped and named in a notice. One bad item never blocks the load.
- *  - **Per field.** An unknown timeline mode reads as `linear` (§5.2.1). An
+ *  - **Per field.** An unknown timeline mode reads as `linear` (§5.2.1), and an unknown story part is ignored so the
+ *    scene inherits (§5.2.2). An
  *    unknown top-level key is dropped on the next save, with a notice (§6).
  */
 
+import { STORY_PARTS, isDayOffset, type DeclaredStoryPart } from '@caotang/bus';
 import type { MessageRef } from '@caotang/i18n';
 
 import { isCoherenceId } from './ids.js';
@@ -50,6 +52,7 @@ import { codePointLength } from './text.js';
 export type LoadNoticeCode =
   | 'unknown-field'
   | 'unknown-timeline-mode'
+  | 'unknown-story-part'
   | 'dropped-finding'
   | 'dropped-run'
   | 'dropped-scene-meta'
@@ -86,7 +89,7 @@ const FINDING_KEYS = [
 const RUN_KEYS = [
   'id', 'at', 'kind', 'checkIds', 'scope', 'findingsUpserted', 'tokens', 'model', 'status', 'notes',
 ] as const;
-const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows', 'dialogueContainer'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'storyPart', 'threads', 'learns', 'knows', 'dialogueContainer'] as const;
 const KNOWLEDGE_LINK_KEYS = ['entryId', 'factId'] as const;
 const KNOWLEDGE_KEYS = ['id', 'text', 'ruleId', 'entryId', 'createdAt', 'updatedAt'] as const;
 const THREAD_KEYS = ['id', 'payoff', 'note'] as const;
@@ -365,7 +368,13 @@ export function readReviewState(raw: unknown): Read<ReviewStateEntry> {
  * failure, because a declaration with one bad field keeps its good fields: the
  * writer loses the bad one, and the report says which.
  */
-export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, modes: Set<string>): SceneMeta | undefined {
+export function readSceneMeta(
+  raw: unknown,
+  notices: LoadNotice[],
+  key: string,
+  modes: Set<string>,
+  parts: Set<string> = new Set<string>(),
+): SceneMeta | undefined {
   if (!isRecord(raw)) {
     notices.push({ code: 'dropped-scene-meta', message: `The scene declarations for "${key}" are not an object and were dropped.` });
     return undefined;
@@ -382,7 +391,7 @@ export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, 
     else dropped('pov');
   }
   if (raw.dayOffset !== undefined) {
-    if (isNonNegInt(raw.dayOffset)) meta.dayOffset = raw.dayOffset;
+    if (isDayOffset(raw.dayOffset)) meta.dayOffset = raw.dayOffset;
     else dropped('dayOffset');
   }
   if (raw.durationDays !== undefined) {
@@ -404,6 +413,11 @@ export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, 
     } else {
       modes.add(String(mode));
     }
+  }
+  if (raw.storyPart !== undefined) {
+    const part = raw.storyPart;
+    if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) meta.storyPart = part as DeclaredStoryPart;
+    else parts.add(String(part));
   }
   if (raw.threads !== undefined) {
     if (Array.isArray(raw.threads)) {
@@ -577,14 +591,21 @@ export function parseCoherenceFile(text: string): ParseOutcome {
     else notices.push({ code: 'dropped-run', message: `A run in coherence.json could not be read (${read.reason}) and was dropped.` });
   }
   const modes = new Set<string>();
+  const parts = new Set<string>();
   for (const key of Object.keys(raw.sceneMeta).sort()) {
-    const meta = readSceneMeta(raw.sceneMeta[key], notices, key, modes);
+    const meta = readSceneMeta(raw.sceneMeta[key], notices, key, modes, parts);
     if (meta !== undefined) file.sceneMeta[key] = meta;
   }
   if (modes.size > 0) {
     notices.push({
       code: 'unknown-timeline-mode',
       message: `Unknown timeline mode${modes.size > 1 ? 's' : ''} ${[...modes].map((m) => `"${m}"`).join(', ')} read as linear. The mode list is closed; a new mode needs a spec change.`,
+    });
+  }
+  if (parts.size > 0) {
+    notices.push({
+      code: 'unknown-story-part',
+      message: `Unknown story part${parts.size > 1 ? 's' : ''} ${[...parts].map((p) => `"${p}"`).join(', ')} ignored, so the scene${parts.size > 1 ? 's' : ''} inherit${parts.size > 1 ? '' : 's'} the part of the folder above (or the main story). The list is closed: main, prologue and epilogue.`,
     });
   }
   for (const item of raw.worldRules) {

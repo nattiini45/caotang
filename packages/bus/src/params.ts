@@ -119,6 +119,29 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'skill.write': ['name', 'path', 'text'],
   'skill.delete': ['name'],
   'skill.setEnabled': ['name', 'enabled'],
+  'timeline.apply': ['ops', 'label'],
+  'project.setCalendar': ['calendar', 'lens'],
+  'asset.import': ['stagingId', 'links', 'caption', 'alt', 'source', 'largePhotos'],
+  'asset.importBatch': ['items', 'largePhotos'],
+  'asset.setMeta': ['assetId', 'patch', 'expect'],
+  'asset.transcribe': ['into', 'pages', 'title'],
+  'asset.setLinkMeta': ['linkId', 'patch', 'expect'],
+  'asset.link': ['assetId', 'target', 'role', 'note'],
+  'asset.unlink': ['linkId'],
+  'asset.makeDocumentLevel': ['linkId'],
+  'asset.repin': ['linkId', 'selection'],
+  'asset.reorderLinks': ['target', 'orderedIds'],
+  'asset.delete': ['assetId'],
+  'asset.sweep': [],
+  'asset.relink': ['pairs'],
+  'asset.storeWorkingCopies': ['assetIds'],
+  'comic.createBook': ['parentId', 'title', 'settings', 'pages'],
+  'comic.setBook': ['nodeId', 'stored', 'expect'],
+  'comic.setPage': ['nodeId', 'stored', 'expect'],
+  'comic.setScript': ['nodeId', 'scriptDocId', 'expect'],
+  'comic.scriptFromPages': ['nodeId', 'expectedRevision'],
+  'comic.derive': ['nodeId', 'doc', 'expectedRevision', 'expect'],
+  'comic.letter': ['nodeId', 'doc', 'expectedRevision', 'expect', 'panel', 'line'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */
@@ -243,11 +266,12 @@ export function requireDeclaredParams(
   const unexpected = Object.keys(p.value).filter((key) => !accepted.includes(key));
   if (unexpected.length > 0) {
     const named = unexpected.map((key) => `"${key}"`).join(', ');
-    return invalid(
-      `${name} takes no ${unexpected.length === 1 ? 'param' : 'params'} ${named}`,
-      `${name} accepts only: ${accepted.join(', ')} — drop ${unexpected.length === 1 ? 'that key' : 'those keys'} and resend`,
-      unexpected[0],
-    );
+    // A command that takes no params at all says so, rather than printing an empty accepted list.
+    const hint =
+      accepted.length === 0
+        ? `${name} takes no params at all — drop ${unexpected.length === 1 ? 'that key' : 'those keys'} and resend`
+        : `${name} accepts only: ${accepted.join(', ')} — drop ${unexpected.length === 1 ? 'that key' : 'those keys'} and resend`;
+    return invalid(`${name} takes no ${unexpected.length === 1 ? 'param' : 'params'} ${named}`, hint, unexpected[0]);
   }
   return p;
 }

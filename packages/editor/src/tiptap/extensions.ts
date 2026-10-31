@@ -98,43 +98,16 @@ import Text from '@tiptap/extension-text';
 import { Dropcursor, Gapcursor, Placeholder, UndoRedo } from '@tiptap/extensions';
 import { plainPasteHtml } from './paste.js';
 import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
+import { EDIT_PICTURE_EVENT, aloneImages, createImageView } from './image-view.js';
+import { isAppLocalSource } from './local-source.js';
+import type { PictureController } from './pictures.js';
+import { CaotangProvenance } from './provenance-plugin.js';
+import { slashMenu } from './slash-menu.js';
 
 /** §3.1's list item name. Tiptap's list extensions look it up by option, not by name. */
 const LIST_ITEM = 'list_item';
 
-/**
- * Removes the C0 controls and the space from both ends of a reference, which is what the URL
- * standard does before it reads a scheme (U+0000 to U+0020). Written as a character loop rather
- * than a regular expression, because a control character in a pattern is a lint error.
- */
-const stripEdges = (text: string): string => {
-  let start = 0;
-  let end = text.length;
-  while (start < end && text.charCodeAt(start) <= 0x20) start += 1;
-  while (end > start && text.charCodeAt(end - 1) <= 0x20) end -= 1;
-  return text.slice(start, end);
-};
-
-/**
- * Whether an image source may be loaded by the editor: an app-local reference, with no
- * scheme and no network-path prefix. The browser cleans a URL before it reads it, in this
- * order: tabs and newlines are removed, C0 controls and spaces are stripped from both ends,
- * and backslashes read as slashes. The stripping used to be the JavaScript `trim`, which
- * removes neither NUL nor SOH, so a leading SOH made a remote source look local.
- * The test runs on the cleaned form, so it agrees with the browser about which references
- * leave the document.
- *
- * Everything else is a network or data reference. `https:` names a host, `//host` is the
- * same host under the page's scheme, and `data:` carries its own bytes. A manuscript that
- * could make the editor contact any of them would make opening a file contact the network,
- * which §2.1 and assumption A2 rule out for a local-first app.
- */
-export const isAppLocalSource = (src: string): boolean => {
-  const cleaned = stripEdges(src.replace(/[\t\n\r]/g, '')).replace(/\\/g, '/');
-  if (cleaned.length === 0) return false;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(cleaned)) return false;
-  return !cleaned.startsWith('//');
-};
+export { isAppLocalSource } from './local-source.js';
 
 /**
  * §10's paste policy (§10 names it as a v0.1 scope item). The transform runs on the HTML
@@ -154,6 +127,35 @@ const CaotangPaste = Extension.create({
 });
 
 /**
+ * Everything a picture needs beyond the node: the files a drop or a paste carries, the slash menu, the mark on an image that is
+ * alone in its paragraph, and Enter on a selected picture to open its settings.
+ */
+const CaotangPictures = (controller: PictureController, labels: EditorLabels): Extension =>
+  Extension.create({
+    name: 'caotangPictures',
+    addProseMirrorPlugins() {
+      return [
+        ...controller.plugins(),
+        aloneImages(),
+        slashMenu(controller, labels),
+        new Plugin({
+          key: new PluginKey('caotangPictureKeys'),
+          props: {
+            handleKeyDown(view, event) {
+              const { selection } = view.state;
+              if (event.key !== 'Enter' || !('node' in selection)) return false;
+              const picked = (selection as { node: { type: { name: string } } }).node;
+              if (picked.type.name !== 'image') return false;
+              view.nodeDOM(selection.from)?.dispatchEvent(new Event(EDIT_PICTURE_EVENT));
+              return true;
+            },
+          },
+        }),
+      ];
+    },
+  });
+
+/**
  * Which instance the set is for. `focus` is the editable document and carries the
  * interactive extensions; `ghost` is the read-only preview (§8) and carries only
  * what shapes the document.
@@ -167,6 +169,11 @@ export interface CaotangExtensionOptions {
   placeholder?: string;
   /** The editor's own words; the app passes its translated set, and the package's English defaults fill any it leaves out. */
   labels?: Partial<EditorLabels>;
+  /**
+   * The pictures the editor may show and insert (`createPictureController`). Without it an app-local image is an `<img>` the page
+   * resolves itself, and there is no insert path: the headless callers and the ghost take that.
+   */
+  pictures?: PictureController;
 }
 
 /**
@@ -179,8 +186,14 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
   // The schema-shaping half. Its order is the mark rank: `Italic` precedes `Bold`
   // and `Strike` precedes `Code`, because the list is what the stable priority sort
   // keeps. Changing this order changes which way nested marks save.
+  const pictures = options.pictures;
   const shape: Extensions = [
-    Document,
+    // The source-provenance map (source-provenance.ts) rides on the document; it is never rendered.
+    Document.extend({
+      addAttributes() {
+        return { provenance: { default: undefined, rendered: false, parseHTML: () => undefined } };
+      },
+    }),
     Paragraph,
     Text,
     Heading,
@@ -206,13 +219,20 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
       priority: 50,
       inclusive: false,
       addAttributes() {
-        return { href: { isRequired: true }, title: { default: null } };
+        return { href: { isRequired: true }, title: { default: null }, prov: { default: undefined, rendered: false, parseHTML: () => undefined } };
       },
     }).configure({ openOnClick: false, autolink: false, linkOnPaste: false }),
     Image.extend({
       addAttributes() {
-        return { src: { isRequired: true }, alt: { default: null }, title: { default: null } };
+        return {
+          src: { isRequired: true },
+          alt: { default: null },
+          title: { default: null },
+          prov: { default: undefined, rendered: false, parseHTML: () => undefined },
+        };
       },
+      // With a picture port the view resolves the bytes, so a picture the project holds shows and one it does not has a placeholder.
+      ...(pictures === undefined ? {} : { addNodeView: () => createImageView({ port: pictures.port, labels }) }),
       // Tiptap's default renders `<img src>` for every source, and the browser fetches
       // that source when the view is shown. Only app-local sources become an image here;
       // the rest render as their alt text, which is inert (`isAppLocalSource`).
@@ -227,6 +247,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
   if (role === 'ghost') return shape;
   return [
     ...shape,
+    CaotangProvenance,
     ListKeymap.configure({
       listTypes: [{ itemName: LIST_ITEM, wrapperNames: ['bullet_list', 'ordered_list'] }],
     }),
@@ -235,5 +256,6 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     Placeholder.configure({ placeholder: options.placeholder ?? labels.placeholder }),
     UndoRedo,
     CaotangPaste,
+    ...(pictures === undefined ? [] : [CaotangPictures(pictures, labels)]),
   ];
 };

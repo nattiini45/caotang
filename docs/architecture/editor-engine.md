@@ -42,7 +42,7 @@ The schema is exactly "what can be expressed in CommonMark + GFM-strike + images
 
 | Node | Group | Content | Attrs | Markdown source |
 |---|---|---|---|---|
-| `doc` | — | block+ | — | body projection root ([project-format.md](project-format.md) §3) |
+| `doc` | — | block+ | `provenance?: SourceProvenance` | body projection root ([project-format.md](project-format.md) §3). The one attr is the editor-only source-provenance map (§3.4): where each reference-style image or link, and each link-reference definition, was written in the loaded body. It is never rendered and is not part of the visible text or offsets. |
 | `paragraph` | block | inline* | — | paragraph |
 | `heading` | block | inline* | `level: 1\|2\|3\|4\|5\|6` | ATX/setext heading |
 | `blockquote` | block | block+ | — | `>` blockquote |
@@ -52,7 +52,7 @@ The schema is exactly "what can be expressed in CommonMark + GFM-strike + images
 | `horizontal_rule` | block | — | — | `***` thematic break — **the scene separator** |
 | `code_block` | block | text* | `language?: string` | fenced/indented code |
 | `hard_break` | inline | — | — | two-space or `\` line break |
-| `image` | inline | — | `src: string` (required), `alt?: string`, `title?: string` | image (parse+serialize only in v0.1 — **no insert UI yet**; round-trips hand-written images losslessly). The title holds the caption and, when present, the versioned placement suffix of [pictures.md](pictures.md) §2.2.1; the editor treats the title as one opaque string and preserves it byte for byte, including a suffix version it does not decode. **That opacity is a guarantee about the project body, not the exported file:** the editor stores and saves the title exactly as written, while the Markdown export separately decodes the suffix and rewrites the image construct in its own output (pictures.md §2.2.1, §4). |
+| `image` | inline | — | `src: string` (required), `alt?: string`, `title?: string`, `prov?: string` | image (round-trips hand-written images losslessly, including the `![alt][ref]`, `![alt][]` and `![alt]` reference forms, whose written source is held under `prov` and the document provenance map of §3.4; inserted by the toolbar, a drop, a paste or the `/picture` slash trigger). The title holds the caption and, when present, the versioned placement suffix of [pictures.md](pictures.md) §2.2.1; the editor treats the title as one opaque string and preserves it byte for byte, including a suffix version it does not decode. **That opacity is a guarantee about the project body, not the exported file:** the editor stores and saves the title exactly as written, while the Markdown export separately decodes the suffix and rewrites the image construct in its own output (pictures.md §2.2.1, §4). |
 | `text` | inline | — | — | text |
 
 **The Content column is a ProseMirror content expression, measured against the built schema.** `code_block: text` would not describe a schema that can be built at all (the constructor throws *"Only non-generatable nodes (text) in a required position"*), and `paragraph`/`heading: inline+` would round-trip `>`, `-` and `1.` as `> \`, `- \` and `1. \` because the required slot is filled with an empty text node. `packages/editor/test/spec-parity.test.ts` re-derives the rows from this table, so a future edit has to argue with the measurement rather than with the code.
@@ -65,7 +65,7 @@ The schema is exactly "what can be expressed in CommonMark + GFM-strike + images
 | `strong` | — | `**x**` |
 | `strike` | — | `~~x~~` (GFM) |
 | `code` | — | `` `x` `` |
-| `link` | `href: string` (required), `title?: string` | `[text](href "title")` |
+| `link` | `href: string` (required), `title?: string`, `prov?: string` | `[text](href "title")`; `prov` is the editor-only id of a reference-style link's written source (§3.4) |
 
 ### 3.3 mdast handler table (the round-trip contract)
 
@@ -82,7 +82,7 @@ remark-prosemirror maps mdast ↔ PM via per-type handlers against **our** schem
 | `table` (GFM) | — | **degrade** | each row serialized as one paragraph line; warning `lossy-structure` |
 | an inline mark **nested inside the same mark** — `emphasis` in `emphasis`, `strong` in `strong`, `delete` in `delete` | one marked run | **degrade** | the inner run's boundary is lost: the text merges into the surrounding run, so a save re-parses as a *different* document; warning `lossy-structure` |
 | `footnoteDefinition` / `footnoteReference` | — | **degrade** | inline `[^n]` text kept, definition appended as paragraph; warning `unsupported-node` |
-| `definition` / `linkReference` / `imageReference` | — | **degrade** | expanded to direct link/image with resolved URL; warning `lossy-attribute` |
+| `definition` / `linkReference` / `imageReference` | direct link/image **plus provenance** (§3.4) | **degrade** | the schema has no node for them, so the target resolves to a direct link/image for display, and the written source (`![a][b]`, `![a][]`, `![a]`, `[t][b]`, and every definition line) is kept in the document provenance map and written back on save while the node is untouched; no warning. Only a reference whose source cannot be kept (multi-line or formatted label text, or a definition nested in a quote or list) expands to a direct link/image with warning `lossy-attribute`. |
 | `listItem` with a GFM `checked` (task item) | `list_item`, checkbox dropped | **degrade** | warning `lossy-attribute`; the item's *content* stays exact per the exact-content row above |
 | `code` with a fence info string that carries a `meta` | `code_block`, info-string meta dropped | **degrade** | warning `lossy-attribute`; the code's *content* stays exact per the exact-content row above |
 | `yaml` | — | **never enters PM** | front matter stripped pre-parse (§5) |
@@ -113,6 +113,18 @@ interface LossWarning { code: 'unsupported-node' | 'lossy-attribute' | 'lossy-st
 The reason it cannot be *prevented* rather than declared is ProseMirror's `Fragment.join`, which coalesces adjacent text nodes carrying identical mark sets — measured, three same-mark runs collapse to one at **every** construction path (`NodeType.create`, `Fragment.fromArray`, a document round trip) while `em, strong, em` survives as three, and an empty separator text node is rejected outright (`RangeError: Empty text nodes are not allowed`). **Two adjacent text runs carrying identical marks are not a document this engine can hold**, so the only available fix is to say so. The same code as `table` is deliberate and is the same shape of loss: a table's rows become paragraphs and this run's boundary disappears, and in both cases every character survives and the *structure* does not.
 
 The condition is a comparison of mdast type names, not a mark comparison, and it is exact for exactly the three types where one type always produces one mark. It reaches any depth, not just the direct parent — the third row above is the reason, and it is why the check is a walk over the mdast rather than a handler: the library passes `(node, parent, state)` and mdast has no parent back-pointer, so a mark handler cannot see its own ancestors. **`link` is excluded on purpose**: it carries `href`/`title` (§3.2), so two links are interchangeable only when their attributes match, which is a different question. Measured consequence, recorded rather than fixed here: `[a](u)[a](u)` merges into one `[aa](u)` run, and it is **not** a loss — nothing visible changes, the target is unchanged and the rendering is identical — so it belongs to §5's re-spelling channel if it is ever counted at all, and not to this one.
+
+### 3.4 Source provenance — Markdown the schema cannot hold, kept so a save writes it back
+
+The schema has no node for a link definition and no way to say an image or a link was written as a reference. Expanding them on load and saving direct links rewrote every such body the writer touched and dropped a definition nothing referenced. So the load keeps, from the same mdast parse, **where each reference and each definition was written and its raw spelling**, and a save writes them again while the document still says what the parse captured (`packages/editor/src/source-provenance.ts`, `save-tree.ts`).
+
+- **Where it lives.** One JSON value, `doc.attrs.provenance` (`{ v: 1, refs, defs }`): editor and history state only, never rendered, never part of the visible text or of any body offset. JSON, undo history and the history journal carry it because they carry node attrs. A `prov` id on an `image` node or on a `link` mark ties one reference to its entry; ids are assigned in document order, so a re-parse of the same body gives the same ids.
+- **What an entry holds.** A reference: its form (`full` `![a][b]`, `collapsed` `![a][]`, `shortcut` `![a]`), raw text, identifier, the text and the resolved target. A definition: identifier, raw line, target, the block boundary it stood at, and whether it was written on the line directly after the previous definition.
+- **Positions.** A definition's position is a ProseMirror boundary between two top-level blocks. After every transaction that changed the text, a plugin appends a transaction that moves the boundaries through the mapping (a definition at the end of the document stays at the end), and the history library groups it with the edit, so undo restores the positions with the text. A save writes each definition between the blocks it stood between.
+- **When raw text is reused.** Only while the node still says what the parse captured: an image's `src`, `alt` and `title`; a link run's text, `href` and `title`; and the definition the reference names still exists with the same target. Anything else is dirty and is written as an ordinary direct image or link, so a stale spelling is never written over an edit. A placement edit therefore converts only that placement; the definition stays, and so do the other references that share it.
+- **What is not kept.** A reference whose text carries marks or an image (`[*a* b][x]`), a reference that spans lines, and a definition nested in a quote or a list expand as before and warn `lossy-attribute`. A nested definition is kept and a save writes it at the top level.
+- **A body that is only definitions** loads as the empty document with the definitions in its provenance, and saves byte for byte.
+- **The dialect sniffer and the projection map** render through the same save tree as `serialize`, without the definitions between blocks (a definition belongs to no block), so the three agree on what a save writes for a block.
 
 ## 4. `EditorApi` — the engine-agnostic seam
 

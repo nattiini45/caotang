@@ -40,6 +40,7 @@ import { createReplayCache } from './replay.js';
 import { guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
 import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
+import { registerPictureTools } from './pictures.js';
 import { registerCaotangPrompts } from './prompts.js';
 import { registerCaotangResources } from './resources.js';
 import { forwardChanges, forwardToListeners } from './subscriptions.js';
@@ -68,6 +69,9 @@ const INSTRUCTIONS =
   'caotang://doc/{id} is a document whole, caotang://notes/{id} its synopsis and notes, caotang://codex lists the codex and caotang://codex/{id} is one entry. ' +
   'It also serves prompts (draft-scene, fill-synopsis, continuity-check, codex-from-doc, revise-with-codex) that carry the context of Caotang’s own agent for that job; ' +
   'they are written for your model, and nothing on this server calls one. ' +
+  'The story timeline is served read-only: caotang://timeline is the whole model as JSON and caotang://timeline.csv its rows, and timeline.read reads it capped. ' +
+  'The pictures are served read-only: caotang://assets is the registry as JSON, caotang://asset/{id} one picture’s bytes, pictures.list lists them with where they are placed, and pictures.view sends up to four as images. ' +
+  'This server cannot shrink a picture, so one over the size a message carries is refused with its size. ' +
   'A host that reads through tools reads it first with project.overview for the summary, then binder.read_tree for the structure, and doc.read for a document. ' +
   'Writes are exposed only when the project was started with --allow-writes. A write tool whose description starts with "Requires user confirmation." ' +
   'asks the user to confirm it in the host before it changes anything. The other write tools apply at once. ' +
@@ -148,6 +152,8 @@ export function buildMcpServer(runtime: ServerRuntime, options: McpServerOptions
     registerRecoveryTools(server, runtime, roundTimeoutMs);
   } else {
     registerCaotangTools(server, runtime, roundTimeoutMs);
+    // The picture reads are listed in every mode: they never reach the bus and never save the folder (pictures.ts).
+    registerPictureTools(server, runtime);
     registerCaotangResources(server, runtime);
     registerCaotangPrompts(server, runtime);
     if (options.live === true && runtime.session.allowWrites) forwardChanges(server, runtime);

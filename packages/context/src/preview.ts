@@ -12,6 +12,7 @@
 
 import { PREVIEW_CHARS, DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
 import { formatCount, headOf } from './text.js';
+import { contentSummaryOf, imagePartsOf, isContentParts, placeholderOf, type ChatMessage } from '@caotang/gateway';
 import { toChatMessages } from './messages.js';
 import {
   LAYER_NAMES,
@@ -35,8 +36,25 @@ function layerOf(assembled: AssembledPrompt, id: LayerId): LayerReport {
   return layer;
 }
 
+/**
+ * The execution payload as a preview may hold it. A preview is kept: a staged draft's card carries it into a background task's
+ * stored record. String contents pass through as they are, so the payload still matches what is sent byte for byte; an image part
+ * becomes its placeholder (the hash, size and type, never the bytes) so the card shows where the picture sits.
+ */
+function payloadOf(messages: readonly ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => {
+    if (!isContentParts(message.content) || imagePartsOf(message.content).length === 0) return message;
+    let imageIndex = 0;
+    return {
+      ...message,
+      content: message.content.map((part) => (part.type === 'text' ? part : { type: 'text' as const, text: placeholderOf(part, ++imageIndex) })),
+    };
+  });
+}
+
 export function buildPreview(assembled: AssembledPrompt): PromptPreview {
-  const payload = toChatMessages(assembled);
+  const sent = toChatMessages(assembled);
+  const payload = payloadOf(sent);
   const promptTokens = assembled.estimate.promptTokens;
   const thinkingTokens = assembled.model.thinkingTokens ?? 0;
   const completionTokens = (assembled.model.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS) + thinkingTokens;
@@ -107,6 +125,7 @@ export function buildPreview(assembled: AssembledPrompt): PromptPreview {
     payload,
     promptTokens,
     completionTokens,
+    images: contentSummaryOf(sent).images,
     layers,
     codex: {
       included: codex.kept.map((item) => ({ name: item.label, reason: item.reason })),

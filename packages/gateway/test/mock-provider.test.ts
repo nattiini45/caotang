@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { createMockProvider, echo, estimateTokens, fail, stream, toolJson, type FailMode, type MockScript } from '../src/mock/index.js';
-import { MOCK_BASE_URL, ProviderError, providerMessages, type ProviderErrorKind } from '../src/index.js';
+import { MOCK_BASE_URL, ProviderError, providerMessages, textOf, type ProviderErrorKind } from '../src/index.js';
 import type { ChatChunk, ChatRequest } from '../src/types.js';
 import { collect } from './helpers.js';
 
@@ -53,7 +53,7 @@ describe('mock provider', () => {
     const res = await p.completeOnce(
       req('draft a scene', { responseFormat: { jsonSchemaHint: { type: 'object' } } }),
     );
-    const parsed = JSON.parse(res.content) as { tool: string };
+    const parsed = JSON.parse(textOf(res.content)) as { tool: string };
     expect(parsed.tool).toBe('binder.create');
   });
 

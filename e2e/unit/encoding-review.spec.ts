@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { withoutIsolates } from '../support.js';
 
 import {
   MANIFEST_FILE,
@@ -121,7 +122,7 @@ function trackedFolder(name: string): { handle: DirectoryHandleLike; tree: Direc
 
 /** A project state with one document, and the id of it. */
 function bookState(title = 'The Lighthouse Keeper', body = BODY): { state: ProjectState; docId: string } {
-  const state = createProjectState(createEmptyManifest(title, NOW), { now: NOW });
+  const state = createProjectState(createEmptyManifest(title, NOW, { locale: 'en-US' }), { now: NOW });
   const node = addDocument(state, { parentId: 'manuscript', title: 'The Landing', body, now: NOW });
   return { state, docId: node.id };
 }
@@ -318,7 +319,7 @@ test.describe('a folder whose files are not UTF-8 pauses the open', () => {
     // The backup is the folder's own file, byte-for-byte, a sibling of docs/ the format does not name.
     expect(folderBytes(tree, encodingBackupPath(path))).toEqual(original);
     // The writer hears it by title, not by path.
-    expect(outcome.opened.notices.some((line) => line.includes('“The Landing”') && line.includes('converted'))).toBe(true);
+    expect(outcome.opened.notices.some((line) => withoutIsolates(line).includes('“The Landing”') && line.includes('converted'))).toBe(true);
     await outcome.opened.session.close();
   });
 

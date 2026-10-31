@@ -16,6 +16,7 @@
  */
 
 import { canonicalJson } from '../util.js';
+import { PICTURE_ACCEPT_EDITS_TOOLS } from '../tools/pictures.js';
 
 export const PERMISSION_MODES = ['plan-only', 'ask', 'accept-edits', 'auto'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
@@ -41,7 +42,7 @@ export const MODE_LABELS: Readonly<Record<PermissionMode, string>> = Object.free
  * `pictures.transcribe`, `comic.derive`, `comic.scriptFromPages` and `timeline.edit` need the approved plan, so they ask under
  * Accept edits and are approved under Auto.
  */
-export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = new Set([
+export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = /* @__PURE__ */ new Set([
   'scene.draft',
   'synopsis.fill',
   'synopsis.set',
@@ -53,6 +54,12 @@ export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = new Set([
   'prompt.draft',
   'shots.derive',
   'shots.annotate',
+  ...PICTURE_ACCEPT_EDITS_TOOLS,
+  // The comic write-auto rows (comics.md §3.2); derive and scriptFromPages stay confirm-class.
+  'comic.createBook',
+  'comic.setPage',
+  'comic.setScript',
+  'comic.letter',
 ]);
 
 /** What a turn may spend before it stops on a question. A missing limit is not enforced. */

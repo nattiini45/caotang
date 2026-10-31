@@ -36,6 +36,7 @@ import {
   type TransportDeps,
 } from './transport.js';
 import { DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
+import { checkRequestImages, imageBase64Of } from './parts.js';
 import { usageFor } from './tokens.js';
 import { adapterFor } from './adapters/index.js';
 import { effectiveOutput, nominalThinkingTokens } from './adapters/effort.js';
@@ -250,9 +251,11 @@ export function createGateway(options: GatewayOptions): Gateway {
       body: JSON.stringify(body),
       maxTokens: effective.maxTokens,
       headers: adapter.headers(ctx, revealed.secrets, 'complete'),
-      secrets: revealed.redact,
+      // The redaction list carries the key and headers as before, plus every image's base64 form:
+      // a provider that echoes the request body in an error has the image scrubbed like a secret.
+      secrets: [...revealed.redact, ...imageBase64Of(req.messages)],
       createParser: () => adapter.createStreamParser(ctx),
-      promptTokens: usageFor(req.messages, '').promptTokens,
+      promptTokens: usageFor(req.messages, '', adapter.id).promptTokens,
       ...localCall(profile),
     };
   };
@@ -274,6 +277,13 @@ export function createGateway(options: GatewayOptions): Gateway {
     const model = req.model ?? routed?.model ?? profile.defaultModel;
     const sent: ChatRequest =
       req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
+    // §3's image gate, before anything is sent or any key is revealed: a request carrying image
+    // parts needs the active model's `vision` capability and must fit the route's image caps.
+    // A refusal names the remedy and never carries the bytes.
+    const route = profile.kind === 'mock' ? undefined : routeOf(profile, model);
+    const caps = profile.kind === 'mock' ? mock.modelCaps(profile.id, model) : route?.ctx.caps;
+    const imageProblem = checkRequestImages(sent.messages, caps ?? {}, route?.adapter.id, model);
+    if (imageProblem !== undefined) throw new EgressDeniedError(imageProblem);
     const startedAt = clock.now();
     const stats: StreamStats = { attempts: 0, usage: undefined };
 
@@ -287,17 +297,17 @@ export function createGateway(options: GatewayOptions): Gateway {
         return;
       }
 
-      const route = routeOf(profile, model);
+      const resolved = route ?? routeOf(profile, model);
       // The §5 probe answer governs, and a capability row that names jsonObject false
       // can refuse it — but a row that says nothing leaves the probe to decide.
       const jsonObject =
         sent.responseFormat !== undefined &&
         sent.responseFormat !== 'text' &&
         profile.responseFormat?.supportsJsonObject === true &&
-        route.ctx.caps.jsonObject !== false;
-      assertEgress(deps, `${profile.baseUrl}${route.adapter.completePath(model)}`, profile.id);
+        resolved.ctx.caps.jsonObject !== false;
+      assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
       const revealed = await secretsFor(profile);
-      const spec = { ...chatSpec(profile, sent, route, jsonObject, revealed), signal };
+      const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed), signal };
       yield* streamChat(deps, spec, stats);
     } finally {
       if (stats.attempts > 0) {

@@ -59,7 +59,7 @@
 }
 
 .media-view .badge {
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 /* ------------------------------------------------------------------ *
@@ -436,7 +436,7 @@
 
 .sb-editor .counter {
   margin: -6px 0 0;
-  text-align: right;
+  text-align: end;
 }
 
 /* ------------------------------------------------------------------ *
@@ -517,7 +517,7 @@
 
 .pp-audio {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   font-size: 12.5px;
   color: var(--ink-soft);
 }
@@ -564,7 +564,7 @@
 .dlg-errors {
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--danger);
+  border-inline-start: 3px solid var(--danger);
   border-radius: var(--radius);
   background: var(--danger-soft);
   font-size: 13px;
@@ -639,7 +639,7 @@
   background: var(--raised);
   color: var(--ink);
   font: inherit;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   overflow: hidden;
   box-shadow: var(--shadow);
@@ -656,7 +656,7 @@
 }
 
 .dlg-node.is-flagged {
-  border-left: 3px solid var(--warn);
+  border-inline-start: 3px solid var(--warn);
 }
 
 .dlg-node-name {
@@ -673,7 +673,7 @@
 }
 
 .dlg-badge {
-  margin-right: 0;
+  margin-inline-end: 0;
 }
 
 .dlg-side {
@@ -704,7 +704,7 @@
   color: var(--ink);
   font: inherit;
   font-size: 12.5px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -718,7 +718,7 @@
 
 .dlg-lines {
   margin: 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
   font-size: 13px;
   display: flex;
   flex-direction: column;
@@ -730,14 +730,14 @@
 }
 
 .dlg-line-id {
-  margin-left: 6px;
+  margin-inline-start: 6px;
   font-size: 11px;
   color: var(--muted);
 }
 
 .dlg-choices {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   font-size: 12.5px;
 }
 
@@ -935,7 +935,7 @@
 
 .sb-covers {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   font-size: 13px;
 }
 
@@ -1159,7 +1159,7 @@
 /* The report a Twee import shows before it writes: the dialog is the shared .confirm one, with a list in it. */
 .twee-report ul {
   margin: 8px 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   font-size: 13.5px;
   line-height: 1.55;
   color: var(--ink-soft);
@@ -1180,4 +1180,322 @@
   .sp-page-sheet {
     padding: 16px 10px;
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Comic page (comics.md §4): the read-only page, drawn in millimetres of the trim
+ * ------------------------------------------------------------------ */
+
+.comic-note {
+  margin: 0;
+}
+
+.comic-sheet {
+  inline-size: min(100%, 520px);
+  block-size: auto;
+  max-block-size: 70vh;
+  margin-inline: auto;
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+
+.comic-trim {
+  fill: var(--raised);
+  stroke: var(--line);
+  stroke-width: 0.4;
+}
+
+.comic-live {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.3;
+  stroke-dasharray: 2 2;
+}
+
+.comic-panel {
+  fill: var(--surface, var(--raised));
+  stroke: var(--ink);
+  stroke-width: 0.6;
+}
+
+.comic-panel.has-picture {
+  fill: var(--line);
+}
+
+.comic-panel-number {
+  font-size: 6px;
+  fill: var(--ink);
+}
+
+.comic-panel-picture {
+  font-size: 5px;
+  fill: var(--ink);
+}
+
+.comic-balloon {
+  fill: var(--raised);
+  stroke: var(--ink);
+  stroke-width: 0.5;
+}
+
+.comic-balloon-text {
+  padding: 1px 2px;
+  font-size: 3.2px;
+  line-height: 1.2;
+  color: var(--ink);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ *
+ * Comic page editor (comics.md §3.3): the same sheet, now interactive
+ * ------------------------------------------------------------------ */
+
+.comic-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.comic-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.comic-file-input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.comic-sheet-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: start;
+}
+
+.comic-sheet-wrap .comic-sheet {
+  flex: 1 1 320px;
+}
+
+.comic-panel-g {
+  cursor: move;
+  outline: none;
+}
+
+.comic-panel-g:focus-visible .comic-panel-frame,
+.comic-balloon-g:focus-visible .comic-balloon-shape {
+  stroke: var(--accent, var(--ink));
+  stroke-dasharray: 1.5 1.5;
+}
+
+.comic-panel-placeholder {
+  fill: var(--surface, var(--raised));
+  stroke: none;
+}
+
+.comic-panel-frame {
+  fill: transparent;
+  stroke: var(--ink);
+  stroke-width: 0.6;
+  pointer-events: all;
+}
+
+.comic-panel-frame.is-borderless {
+  stroke: none;
+}
+
+.comic-panel-frame.is-bold {
+  stroke-width: 1.4;
+}
+
+.comic-panel-g.is-selected .comic-panel-frame {
+  stroke: var(--accent, var(--ink));
+}
+
+.comic-panel-note {
+  font-size: 4.5px;
+  fill: var(--muted, var(--ink));
+  pointer-events: none;
+}
+
+.comic-panel-number {
+  font-size: 6px;
+  fill: var(--ink);
+  pointer-events: none;
+}
+
+.comic-handle {
+  fill: var(--raised);
+  stroke: var(--accent, var(--ink));
+  stroke-width: 0.4;
+  cursor: nwse-resize;
+  pointer-events: all;
+}
+
+.comic-balloon-g {
+  cursor: move;
+  outline: none;
+}
+
+.comic-balloon-shape {
+  pointer-events: none;
+}
+
+.comic-balloon-tail,
+.comic-balloon-circle {
+  pointer-events: none;
+}
+
+.comic-tail-handle {
+  fill: var(--raised);
+  stroke: var(--accent, var(--ink));
+  stroke-width: 0.5;
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.comic-balloon-text {
+  padding: 1px 2px;
+  font-size: 3.2px;
+  line-height: 1.2;
+  color: var(--ink);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-family: 'Comic Neue', 'Comic Sans MS', 'Segoe Print', 'Comic Sans', cursive, sans-serif;
+  pointer-events: none;
+}
+
+.comic-balloon-text.is-sfx {
+  font-family: 'Bangers', 'Comic Neue', 'Comic Sans MS', sans-serif;
+  font-size: 4.2px;
+  letter-spacing: 0.2px;
+}
+
+.comic-balloon-text.is-italic {
+  font-style: italic;
+}
+
+.comic-notice {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border-inline-start: 3px solid var(--warn, var(--ink));
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.comic-inspector {
+  margin-block-start: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-inline-size: 520px;
+}
+
+.comic-inspector h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.comic-inspector-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.comic-check {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 12px;
+}
+
+/* The photo-return review (comics.md §3.4) */
+
+.comic-review {
+  flex: 0 1 340px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-block-size: 70vh;
+  overflow: auto;
+}
+
+.comic-review-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.comic-review-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.comic-review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.comic-review-sheet {
+  inline-size: 100%;
+  block-size: auto;
+  border: 1px solid var(--line);
+  background: var(--raised);
+}
+
+.comic-crop {
+  fill: rgba(0, 0, 0, 0.08);
+  stroke: var(--accent, var(--ink));
+  stroke-width: 0.4;
+  vector-effect: non-scaling-stroke;
+  cursor: move;
+}
+
+.comic-crop-handle {
+  fill: var(--raised);
+  stroke: var(--accent, var(--ink));
+  stroke-width: 0.3;
+  vector-effect: non-scaling-stroke;
+  cursor: nwse-resize;
+}
+
+.comic-crop-number {
+  font-size: 4px;
+  fill: var(--ink);
+  pointer-events: none;
+}
+
+.comic-review-missing {
+  fill: var(--surface, var(--raised));
+}
+
+.comic-review-missing-text {
+  font-size: 4px;
+  fill: var(--muted, var(--ink));
+}
+
+.comic-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }

@@ -457,24 +457,18 @@ describe('merged runs: three measurements that used to live only in prose', () =
   });
 
   it('two references to the same target coalesce too, and only the attribute row declares it', async () => {
-    // **The door the row that cut this slice predicted, measured rather than
-    // argued.** `link` is excluded from the set on attribute grounds, and
-    // `linkReference` reaches the same `link` mark through §3.3's degrade row,
-    // so two references to one target coalesce by exactly the mechanism this file
-    // exists to declare — and no `lossy-structure` is emitted.
+    // `link` is excluded from the set on attribute grounds, and two direct links to one target still coalesce. A reference link
+    // carries the id of its own written source (source-provenance.ts), so two references are two different marks: nothing merges,
+    // each saves as written, and no warning is emitted.
     const { doc, warnings } = await parseWithDiagnostics('[a][x][a][x]\n\n[x]: u\n');
-    expect(markedRuns(doc)).toEqual(['aa[link]']);
-    expect(serialize(doc)).toBe('[aa](u)\n');
-    // Every warning is the attribute the reference expansion already declares.
-    // Two *different* targets are the control: unequal `href` means unequal
-    // marks, so nothing merges and the save keeps both links.
-    expect(codes(warnings)).toEqual([
-      'lossy-attribute:linkReference',
-      'lossy-attribute:linkReference',
-      'lossy-attribute:definition',
-    ]);
-    expect(warnings.every((w) => w.code !== 'lossy-structure')).toBe(true);
+    expect(markedRuns(doc)).toEqual(['a[link]', 'a[link]']);
+    expect(serialize(doc)).toBe('[a][x][a][x]\n\n[x]: u\n');
+    expect(warnings).toEqual([]);
+    // Two *different* targets are the control: nothing merges there either.
     const split = await parseWithDiagnostics('[a][x][a][y]\n\n[x]: u\n[y]: v\n');
-    expect(serialize(split.doc)).toBe('[a](u)[a](v)\n');
+    expect(serialize(split.doc)).toBe('[a][x][a][y]\n\n[x]: u\n[y]: v\n');
+    // Two direct links to one target do merge, which is the attribute row's claim.
+    const direct = await parseWithDiagnostics('[a](u)[a](u)\n');
+    expect(markedRuns(direct.doc)).toEqual(['aa[link]']);
   });
 });

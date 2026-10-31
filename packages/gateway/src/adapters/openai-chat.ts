@@ -19,8 +19,10 @@
  */
 
 import type { SseEvent } from '../sse.js';
+import { assertValidMessage, dataUrlOf, imagePartsOf, textOf } from '../parts.js';
 import type {
   ChatMessage,
+  ContentPart,
   FinishReason,
   ModelInfo,
   ReasoningBlock,
@@ -73,15 +75,18 @@ function replayReasoning(msg: ChatMessage, style: string | undefined): Reasoning
 /** The messages array, with §5's schema-hint system message appended when one is set. */
 export function wireMessages(req: Pick<BodyInput['req'], 'messages' | 'responseFormat'>, caps: { replayStyle?: string }): WireMessage[] {
   const messages: WireMessage[] = req.messages.map((m) => {
+    assertValidMessage(m, 'openai-chat');
     const wire: WireMessage = { role: m.role };
     if (m.role === 'tool') {
       wire.tool_call_id = m.toolCallId;
-      wire.content = m.content;
+      wire.content = textOf(m.content);
       return wire;
     }
     const replay = m.role === 'assistant' ? replayReasoning(m, caps.replayStyle) : {};
     const prefix = replay.contentPrefix ?? '';
-    wire.content = prefix + m.content;
+    // A string content is sent as the string it always was; a part array with images becomes the
+    // route's content blocks (text + image_url data URLs), a text-only array its joined string.
+    wire.content = typeof m.content === 'string' ? prefix + m.content : chatContentOf(m.content, prefix);
     if (replay.reasoning_content !== undefined) wire.reasoning_content = replay.reasoning_content;
     if (m.toolCalls !== undefined && m.toolCalls.length > 0) {
       wire.tool_calls = m.toolCalls.map((call) => ({
@@ -89,7 +94,7 @@ export function wireMessages(req: Pick<BodyInput['req'], 'messages' | 'responseF
         type: 'function',
         function: { name: call.name, arguments: call.argumentsJson },
       }));
-      if (m.content === '' && prefix === '') wire.content = null;
+      if (textOf(m.content) === '' && prefix === '') wire.content = null;
     }
     return wire;
   });
@@ -98,6 +103,17 @@ export function wireMessages(req: Pick<BodyInput['req'], 'messages' | 'responseF
     messages.push({ role: 'system', content: `Respond with JSON matching: ${JSON.stringify(format.jsonSchemaHint)}` });
   }
   return messages;
+}
+
+/** A part array onto Chat Completions content: blocks when it carries images, else the joined text. */
+function chatContentOf(content: readonly ContentPart[], prefix: string): string | unknown[] {
+  if (imagePartsOf(content).length === 0) return prefix + textOf(content);
+  const blocks: unknown[] = [];
+  if (prefix !== '') blocks.push({ type: 'text', text: prefix });
+  for (const part of content) {
+    blocks.push(part.type === 'text' ? { type: 'text', text: part.text } : { type: 'image_url', image_url: { url: dataUrlOf(part) } });
+  }
+  return blocks;
 }
 
 function authHeaders(ctx: AdapterContext, secrets: CallSecrets): Record<string, string> {

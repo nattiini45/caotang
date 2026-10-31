@@ -72,6 +72,13 @@ function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
 
+/** A pattern for visible text that holds isolated writer values: the isolation marks may sit between any two characters. `exact` anchors it to the whole text. */
+export function loose(text: string, exact = false): RegExp {
+  const marks = '[\\u2066-\\u2069]*';
+  const body = [...text].map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(marks);
+  return new RegExp(exact ? `^${marks}${body}${marks}$` : body);
+}
+
 /** A region's text with the visible writer-text isolates removed, for a sentence that names several titles. */
 export function withoutIsolates(value: string | null): string {
   return (value ?? '').replace(/[\u2066-\u2069]/g, '');

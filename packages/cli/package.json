@@ -14,6 +14,7 @@
     "caotang": "./dist/caotang.mjs"
   },
   "dependencies": {
+    "@caotang/font-comic-lettering": "workspace:*",
     "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
     "@caotang/font-noto-devanagari": "workspace:*",

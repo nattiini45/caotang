@@ -54,6 +54,9 @@ export function makeSnapshot(overrides: {
   skills?: Record<string, { path: string; length: number }[]>;
   /** The skills the writer turned off. Absent means every skill is on. */
   disabledSkills?: string[];
+  /** The picture records and placements (pictures.md §2.1), for the `asset.*` rows whose validate reads them. Absent means none. */
+  assets?: NonNullable<ValidationSnapshot['manifest']['assets']>;
+  assetLinks?: NonNullable<ValidationSnapshot['manifest']['assetLinks']>;
 } = {}): ValidationSnapshot {
   const tree =
     overrides.tree ??
@@ -91,6 +94,8 @@ export function makeSnapshot(overrides: {
       codex: overrides.codex ?? [{ id: CODEX_ENTRY, name: 'Elena' }],
       ...(overrides.recipes === undefined ? {} : { recipes: overrides.recipes }),
       ...(overrides.disabledSkills === undefined ? {} : { disabledSkills: overrides.disabledSkills }),
+      ...(overrides.assets === undefined ? {} : { assets: overrides.assets }),
+      ...(overrides.assetLinks === undefined ? {} : { assetLinks: overrides.assetLinks }),
     },
     documents,
     ...(overrides.coherence === undefined ? {} : { coherence: overrides.coherence }),

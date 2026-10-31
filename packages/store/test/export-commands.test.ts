@@ -150,8 +150,8 @@ describe('registration — the two names are implemented only with an exporter',
     // Everything but the two export names (commands.test.ts). The three coherence applies (two mutations and the run
     // discard) are among them, since they need no exporter; project export adds six and saved filters and goals four:
     // 21 + 6 + 4 = 31. The script imports add three more (the two imports and the container settings): 31 + 3 = 34.
-    // The skill commands add three more (`skill.write`, `skill.delete`, `skill.setEnabled`): 34 + 3 = 37. The three knowledge commands add three more: 37 + 3 = 40.
-    expect(implemented).toHaveLength(40);
+    // The skill commands add three more (`skill.write`, `skill.delete`, `skill.setEnabled`): 34 + 3 = 37. The three knowledge commands add three more: 37 + 3 = 40. `timeline.apply` adds one: 41. The six picture commands that need no asset port add six: 47. Re-pinning adds one: 48. The seven comic commands add seven: 55, and the calendar setting makes 56. The reviewed transcription batch makes 57, and the document-level compound makes 58.
+    expect(implemented).toHaveLength(58);
   });
 
   it('implements both names once an exporter is injected, and nothing else changes', () => {
@@ -159,8 +159,8 @@ describe('registration — the two names are implemented only with an exporter',
     expect(typeof registry['export.compile'].apply).toBe('function');
     expect(typeof registry['export.compileSelection'].apply).toBe('function');
     const implemented = Object.values(registry).filter((entry) => entry.apply !== undefined);
-    // All forty-two: the exporter adds exactly the two export applies to the forty above (40 + 2).
-    expect(implemented).toHaveLength(42);
+    // All sixty: the exporter adds exactly the two export applies to the fifty-eight above (58 + 2).
+    expect(implemented).toHaveLength(60);
     // The descriptors are the bus's own, unchanged: the store adds an apply, never a rule.
     expect(registry['export.compile'].descriptor).toBe(COMMAND_REGISTRY['export.compile'].descriptor);
   });

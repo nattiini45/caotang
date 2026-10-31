@@ -32,6 +32,23 @@ export const TIMELINE_MODES = [
 export type TimelineModeName = (typeof TIMELINE_MODES)[number];
 
 /**
+ * coherence.md §5.2.2 / timeline.md §2.3: the parts of the story a scene or folder can declare. Absence is not a fourth
+ * value: it inherits the nearest declaration above it, then the main story. `'main'` is a declaration (it overrides an
+ * inherited prologue or epilogue), and `null` in a patch clears one.
+ */
+export const STORY_PARTS = ['main', 'prologue', 'epilogue'] as const;
+
+export type DeclaredStoryPart = (typeof STORY_PARTS)[number];
+
+/** coherence.md §5.2.2: `dayOffset` is a whole number of days between the negative and the positive limit, both included. */
+export const DAY_OFFSET_LIMIT = 10_000_000;
+
+/** True for a whole number within ±{@link DAY_OFFSET_LIMIT}: the one rule for a signed `dayOffset`, shared by the patch and the codec. */
+export function isDayOffset(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= -DAY_OFFSET_LIMIT && value <= DAY_OFFSET_LIMIT;
+}
+
+/**
  * §6.3's dismissal picker, by id. The labels and tooltips live in the coherence module
  * (`DISMISSAL_REASONS`); the bus needs only the ids to validate a reason.
  */
@@ -72,11 +89,14 @@ export interface KnowledgeLinkRecord {
 /** §5.2 plus §5.2.1, §5.5 and §4.4: one document's declarations. Absent keys are "not declared". */
 export interface SceneMetaRecord {
   pov?: string;
+  /** A whole number of days from day 0, negative before it (coherence.md §5.2.2). */
   dayOffset?: number;
   durationDays?: number;
   after?: string[];
   expectedPresent?: string[];
   timelineMode?: string;
+  /** coherence.md §5.2.2: a declared story part. Absent inherits the nearest folder's declaration, then the main story. */
+  storyPart?: DeclaredStoryPart;
   /** Kept sorted by handle, so an add and the undo of a remove leave the list as it was. */
   threads?: SceneThread[];
   /** §4.4: characters who learn a fact in this scene. Kept in the order they were declared. */
@@ -97,6 +117,8 @@ export interface ScenePatch {
   expectedPresent_add?: string[];
   expectedPresent_remove?: string[];
   timelineMode?: string;
+  /** coherence.md §5.2.2: `main`, `prologue` or `epilogue`. `null` clears the declaration and restores inheritance. */
+  storyPart?: DeclaredStoryPart | null;
   /** §5.5: threads to declare. A handle already declared is refused unless `threads_remove` takes it in the same patch. */
   threads_add?: SceneThread[];
   /** §5.5: handles to remove, matched without regard to case. Applied before `threads_add`, so the two together edit a thread. */
@@ -122,6 +144,7 @@ export const SCENE_PATCH_KEYS = [
   'expectedPresent_add',
   'expectedPresent_remove',
   'timelineMode',
+  'storyPart',
   'threads_add',
   'threads_remove',
   'learns_add',
@@ -184,12 +207,18 @@ export function applySceneMetaPatch(
     } else next.pov = patch.pov;
   }
 
-  for (const field of ['dayOffset', 'durationDays'] as const) {
-    const value = patch[field];
-    if (value === undefined) continue;
-    if (value === null) delete next[field];
-    else if (isNonNegativeInteger(value)) next[field] = value;
-    else return { ok: false, error: `${field} must be a whole number of days, zero or more; got ${String(value)}` };
+  if (patch.dayOffset !== undefined) {
+    const value = patch.dayOffset;
+    if (value === null) delete next.dayOffset;
+    else if (isDayOffset(value)) next.dayOffset = value;
+    else return { ok: false, error: `dayOffset must be a whole number of days between −${DAY_OFFSET_LIMIT.toLocaleString('en-US')} and ${DAY_OFFSET_LIMIT.toLocaleString('en-US')}; got ${String(value)}` };
+  }
+
+  if (patch.durationDays !== undefined) {
+    const value = patch.durationDays;
+    if (value === null) delete next.durationDays;
+    else if (isNonNegativeInteger(value)) next.durationDays = value;
+    else return { ok: false, error: `durationDays must be a whole number of days, zero or more; got ${String(value)}` };
   }
 
   if (patch.after_add !== undefined || patch.after_remove !== undefined) {
@@ -229,6 +258,13 @@ export function applySceneMetaPatch(
     else next.timelineMode = mode;
   }
 
+  if (patch.storyPart !== undefined) {
+    const part = patch.storyPart;
+    if (part === null) delete next.storyPart;
+    else if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) next.storyPart = part;
+    else return { ok: false, error: `storyPart ${showPartValue(part)} is not a story part; valid parts are ${STORY_PARTS.join(', ')}, or null to clear it` };
+  }
+
   if (patch.threads_add !== undefined || patch.threads_remove !== undefined) {
     const threads = applyThreads(docId, next.threads ?? [], patch, context);
     if (!threads.ok) return threads;
@@ -255,6 +291,10 @@ export function applySceneMetaPatch(
   }
 
   return { ok: true, meta: next };
+}
+
+function showPartValue(value: unknown): string {
+  return typeof value === 'string' ? `"${value}"` : String(value);
 }
 
 function linkKey(link: KnowledgeLinkRecord): string {
@@ -404,6 +444,7 @@ export function inverseScenePatch(before: SceneMetaRecord | undefined, forward: 
   if (forward.dayOffset !== undefined) inverse.dayOffset = prior.dayOffset ?? null;
   if (forward.durationDays !== undefined) inverse.durationDays = prior.durationDays ?? null;
   if (forward.timelineMode !== undefined) inverse.timelineMode = prior.timelineMode ?? 'linear';
+  if (forward.storyPart !== undefined) inverse.storyPart = prior.storyPart ?? null;
   if (forward.dialogueContainer !== undefined) inverse.dialogueContainer = prior.dialogueContainer ?? null;
   if (forward.after_add !== undefined || forward.after_remove !== undefined) {
     const { added, removed } = membershipChange(prior.after ?? [], after.after ?? []);

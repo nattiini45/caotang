@@ -19,6 +19,7 @@ import { createAgentPorts } from '../../src/agent/ports.js';
 import { CHAPTER_ONE, FRIEND, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, prose, steps, transcript } from '../agent/scripts.js';
+import { textOf } from '@caotang/gateway';
 
 const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
 const STYLE = 'Keep every sentence in close third person, past tense, and never name the narrator.';
@@ -94,7 +95,7 @@ describe('a style skill in a turn', () => {
 
   it('puts the body ahead of the brief, and the loaded skill in the card’s prompt preview', async () => {
     const run = await runScenario(draftWithStyle(STYLE));
-    const request = run.requests.find((candidate) => candidate.messages[0]?.content.startsWith(DRAFT_PREFIX));
+    const request = run.requests.find((candidate) => textOf(candidate.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX));
     const text = userTextOf(request as ChatRequest);
     expect(text.indexOf(STYLE)).toBeGreaterThan(-1);
     expect(text.indexOf(STYLE)).toBeLessThan(text.indexOf('Brief: The friend arrives by boat.'));
@@ -186,7 +187,7 @@ describe('skills the model must not see', () => {
     };
     const run = await runScenario(scenario);
     expect(run.report.status).toBe('replied');
-    const sent = run.requests.map((request) => request.messages.map((message) => message.content).join('\n')).join('\n');
+    const sent = run.requests.map((request) => request.messages.map((message) => textOf(message.content)).join('\n')).join('\n');
     expect(sent).not.toContain('SECRET');
     expect(sent).toContain('- shown: The one skill on offer.');
     for (const hidden of ['not-reviewed', 'turned-off', 'edited-since', 'writer-only']) expect(sent.split('\n').filter((line) => line.startsWith(`- ${hidden}`))).toEqual([]);
@@ -241,7 +242,7 @@ describe('the turn after', () => {
     const later = requests.slice(firstCount);
     expect(later.length).toBeGreaterThan(0);
     for (const request of later) {
-      const text = request.messages.map((message) => message.content).join('\n');
+      const text = request.messages.map((message) => textOf(message.content)).join('\n');
       expect(text).not.toContain(STYLE);
       expect(text).not.toContain(skillLabel('close-third'));
       expect(text).toContain('- close-third: Draft scenes in close third person, past tense.');

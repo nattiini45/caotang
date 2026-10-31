@@ -41,6 +41,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { loadComicBook, pageFromTemplate, serializeComicBook, serializeComicPage } from '@caotang/comic';
 import {
   createActivityLog,
   createIdempotencyCache,
@@ -59,6 +60,7 @@ import {
 import {
   addDocument,
   addFolder,
+  addNode,
   createEmptyManifest,
   createProjectCommandRegistry,
   createProjectState,
@@ -68,6 +70,13 @@ import {
 } from '../src/index.js';
 
 const OPENED = new Date('2026-10-02T15:00:00.000Z');
+
+/** The comic book the comic cases act on: one page, and one comic-script document the book does not link yet. */
+const BOOK = 'n_COMICBOOK00';
+const BOOK_PAGE = 'n_COMICPAGE00';
+const BOOK_SCRIPT = 'n_COMICSCRIPT';
+const BOOK_SETTINGS = serializeComicBook(loadComicBook({}).value);
+const PAGE_VALUE = serializeComicPage(pageFromTemplate({ size: 'us-comic' }));
 const CHAPTER_ONE = 'n_CHAPTERONE0';
 const CHAPTER_TWO = 'n_CHAPTERTWO0';
 const LANDING = 'n_LANDING00000';
@@ -75,6 +84,15 @@ const STORM = 'n_STORM000000';
 const OTHER = 'n_OTHER000000';
 const ENTRY = 'c_ELENA000000';
 const CELLAR = 'n_CELLAR000000';
+const PICTURE_ONE = 'a_7K2QX9M4A1';
+const PICTURE_TWO = 'a_3W8RN2TQ6C';
+const LINK_ONE = 'l_7K2QX9M4A1';
+const LINK_TWO = 'l_3W8RN2TQ6C';
+const LINK_PARAGRAPH = 'l_PARAGRAPH0';
+
+function pictureRecord(id: string): NonNullable<ProjectState['manifest']['assets']>[number] {
+  return { id, file: `${id}.png`, mime: 'image/png', sha256: id.slice(2).toLowerCase().padEnd(64, '0'), bytes: 1024, createdAt: OPENED.toISOString() };
+}
 
 const TICK = 1_760_000_000_000;
 const clock = { now: () => TICK };
@@ -152,6 +170,10 @@ interface Case {
   readonly dialogue?: boolean;
   /** The case needs a skill in the state: the skill commands name one. */
   readonly skill?: boolean;
+  /** The case needs two pictures, placed on The Landing, in the state: the picture commands name them. */
+  readonly pictures?: boolean;
+  /** The case needs a comic book with one page and an unlinked script in the state: the comic commands name them. */
+  readonly comic?: boolean;
 }
 
 /** The finding the coherence cases act on: one open finding that quotes the storm scene. */
@@ -223,6 +245,15 @@ const CASES: readonly Case[] = [
     titles: ['The Landing'],
     ids: [LANDING],
     digestMentions: 'keyword',
+  },
+  {
+    // timeline.md §4.3: one batch is one row, naming every scene its ops named.
+    name: 'timeline.apply',
+    params: { ops: [{ op: 'meta', nodeId: STORM, patch: { dayOffset: 3 }, expect: { dayOffset: null } }] },
+    titles: ['The Storm'],
+    ids: [STORM],
+    digestMentions: 'Timeline: 1 change (1 day)',
+    coherence: true,
   },
   {
     // coherence.md §7.1: the scene's declarations change, and the row names the scene it changed.
@@ -478,6 +509,72 @@ const CASES: readonly Case[] = [
     digestMentions: 'changed the dialogue settings of "The Cellar"',
     dialogue: true,
   },
+  // The picture commands that touch only the manifest. `pictures` seeds two pictures placed on The Landing.
+  { name: 'asset.setMeta', params: { assetId: PICTURE_ONE, patch: { caption: 'The harbour' } }, titles: [], digestMentions: 'changed the caption of', pictures: true },
+  { name: 'asset.setLinkMeta', params: { linkId: LINK_ONE, patch: { note: 'Arrival' } }, titles: ['The Landing'], digestMentions: 'changed a placement note', pictures: true },
+  { name: 'asset.link', params: { assetId: PICTURE_ONE, target: { kind: 'node', nodeId: CHAPTER_TWO } }, titles: ['Chapter 2'], digestMentions: 'placed', pictures: true },
+  { name: 'asset.unlink', params: { linkId: LINK_ONE }, titles: ['The Landing'], digestMentions: 'took a picture off where it was placed', pictures: true },
+  { name: 'asset.makeDocumentLevel', params: { linkId: LINK_PARAGRAPH }, titles: ['The Landing'], digestMentions: 'placed a picture on the whole item', pictures: true },
+  { name: 'asset.repin', params: { linkId: LINK_PARAGRAPH, selection: { from: 0, to: 4 } }, titles: ['The Landing'], digestMentions: 're-pinned a picture to the paragraph under the selection', pictures: true },
+  { name: 'asset.reorderLinks', params: { target: { kind: 'node', nodeId: LANDING }, orderedIds: [LINK_TWO, LINK_ONE] }, titles: ['The Landing'], digestMentions: 'reordered 2 pictures', pictures: true },
+  { name: 'asset.delete', params: { assetId: PICTURE_ONE }, titles: ['The Landing'], digestMentions: 'deleted', pictures: true },
+  {
+    name: 'asset.transcribe',
+    params: { into: 'searchable', pages: [{ assetId: PICTURE_ONE, text: 'The ferry was late.', expect: null }] },
+    titles: [],
+    digestMentions: 'no document was created',
+    pictures: true,
+  },
+  // The comic track (comics.md §3.2). The book is seeded for every case but the one that makes it.
+  { name: 'comic.createBook', params: { parentId: CHAPTER_ONE, title: 'Issue Two', pages: 1 }, titles: ['Issue Two', 'Page 1'], digestMentions: 'created the comic book "Issue Two" with 1 page' },
+  {
+    name: 'comic.setBook',
+    params: { nodeId: BOOK, stored: { ...BOOK_SETTINGS, readingDirection: 'rtl' }, expect: BOOK_SETTINGS },
+    titles: ['Issue One'],
+    ids: [BOOK],
+    digestMentions: 'changed the settings of the comic book "Issue One"',
+    comic: true,
+  },
+  {
+    name: 'comic.setPage',
+    params: { nodeId: BOOK_PAGE, stored: { ...PAGE_VALUE, layout: 'freeform' }, expect: PAGE_VALUE },
+    titles: ['Page 1'],
+    ids: [BOOK_PAGE],
+    digestMentions: 'changed the page "Page 1"',
+    comic: true,
+  },
+  {
+    name: 'comic.setScript',
+    params: { nodeId: BOOK, scriptDocId: BOOK_SCRIPT, expect: null },
+    titles: ['Issue One'],
+    ids: [BOOK],
+    digestMentions: 'linked "Cover script" as the script of the comic book "Issue One"',
+    comic: true,
+  },
+  {
+    name: 'comic.scriptFromPages',
+    params: { nodeId: BOOK },
+    titles: ['Issue One', 'Issue One script'],
+    digestMentions: 'wrote "Issue One script" from the pages of the comic book "Issue One"',
+    comic: true,
+  },
+  {
+    name: 'comic.derive',
+    params: { nodeId: BOOK, doc: BOOK_SCRIPT, expectedRevision: 0, expect: [PAGE_VALUE] },
+    titles: ['Issue One', 'Page 1'],
+    ids: [BOOK, BOOK_PAGE],
+    digestMentions: 'derived 1 page of the comic book "Issue One"',
+    comic: true,
+  },
+  {
+    name: 'comic.letter',
+    params: { nodeId: BOOK_PAGE, doc: BOOK_SCRIPT, expectedRevision: 0, expect: PAGE_VALUE },
+    titles: ['Page 1'],
+    ids: [BOOK_PAGE],
+    digestMentions: 'lettered the page "Page 1"',
+    comic: true,
+  },
+  { name: 'project.setCalendar', params: { lens: 'day' }, titles: [], digestMentions: 'chose the day lens for the timeline' },
 ];
 
 describe('§8 — the activity row for every shipped store apply', () => {
@@ -510,7 +607,14 @@ describe('§8 — the activity row for every shipped store apply', () => {
     // unimplemented here for the same reason `mcp.invoke` is. Its row is asserted with the port in its own test file.
     // `shot.importImage` registers only with both the asset port and the storyboard port, so it
     // is unimplemented here too. Its row is asserted with both ports in `commands-shot-image.test.ts`.
+    // `asset.import` and `asset.importBatch` register only with the asset port, so they are unimplemented here as well; their rows
+    // are asserted with the port in `pictures-import.test.ts`.
     expect(withoutApply).toEqual([
+      'asset.import',
+      'asset.importBatch',
+      'asset.relink',
+      'asset.storeWorkingCopies',
+      'asset.sweep',
       'export.compile',
       'export.compileSelection',
       'mcp.invoke',
@@ -530,6 +634,44 @@ describe('§8 — the activity row for every shipped store apply', () => {
       const state = fixture();
       if (testCase.coherence === true) state.coherence = coherenceWithFinding();
       if (testCase.skill === true) state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new TextEncoder().encode(['---', 'name: close-third', 'description: d', '---', 'Body', ''].join('\n')) }]);
+      if (testCase.pictures === true) {
+        state.manifest.assets = [pictureRecord(PICTURE_ONE), pictureRecord(PICTURE_TWO)];
+        // Transcription validates the whole record it publishes; the other picture fixtures deliberately use a readable dummy hash.
+        if (testCase.name === 'asset.transcribe') for (const record of state.manifest.assets) record.sha256 = '0'.repeat(64);
+        state.manifest.assetLinks = [
+          { id: LINK_ONE, assetId: PICTURE_ONE, target: { kind: 'node', nodeId: LANDING }, role: 'reference', order: 10 },
+          { id: LINK_TWO, assetId: PICTURE_TWO, target: { kind: 'node', nodeId: LANDING }, role: 'reference', order: 20 },
+        ];
+        if (testCase.name === 'asset.repin' || testCase.name === 'asset.makeDocumentLevel') {
+          state.manifest.assetLinks.push({
+            id: LINK_PARAGRAPH,
+            assetId: PICTURE_ONE,
+            target: {
+              kind: 'paragraph',
+              nodeId: LANDING,
+              anchor: { from: 0, to: 4, exact: 'The ', prefix: '', suffix: 'ferry', capturedRevision: 0, blockHash: 'ab12cd34ef567890', ordinal: 0 },
+              orphaned: true,
+            },
+            role: 'reference',
+            order: 30,
+          });
+        }
+      }
+      if (testCase.comic === true) {
+        const book = addNode(state, { parentId: CHAPTER_ONE, title: 'Issue One', kind: 'comic', now: OPENED, id: BOOK });
+        book.comic = structuredClone(BOOK_SETTINGS);
+        addNode(state, { parentId: BOOK, title: 'Page 1', type: 'comic-page', now: OPENED, id: BOOK_PAGE }).comicPage = structuredClone(PAGE_VALUE);
+        addDocument(state, {
+          parentId: BOOK,
+          title: 'Cover script',
+          kind: 'comic-script',
+          body: 'PAGE 1 (6 panels)\n\nPANEL 1\n\n1. ELENA VOSS: The ferry is late.\n',
+          now: OPENED,
+          id: BOOK_SCRIPT,
+        });
+        // Lettering works on the book's existing script; deriving may link a free script itself.
+        if (testCase.name === 'comic.letter') book.comic = { ...structuredClone(BOOK_SETTINGS), scriptDocId: BOOK_SCRIPT };
+      }
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
       }

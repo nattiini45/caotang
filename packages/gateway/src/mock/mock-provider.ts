@@ -106,12 +106,15 @@ export interface MockProviderOptions {
   profileId?: string;
   /** `modelCaps()` reports the native-tools row `{tools: true}` when set. Default false: the conservative empty row. */
   capsTools?: boolean;
+  /** `modelCaps()` reports `{vision: true}` when set, so image parts can be sent to the mock (and refused without it). Default false. */
+  capsVision?: boolean;
 }
 
 export class MockProvider implements ProviderGateway {
   private readonly scripts: MockScript[];
   private readonly profileId: string;
   private readonly capsTools: boolean;
+  private readonly capsVision: boolean;
   /** The count of `complete()` calls served — the `callIndex` scripts see. */
   private sequence = 0;
   /** Every request this provider has seen — lets evals assert on call history. */
@@ -126,6 +129,7 @@ export class MockProvider implements ProviderGateway {
     this.scripts = options.scripts ?? defaultScripts;
     this.profileId = options.profileId ?? 'mock';
     this.capsTools = options.capsTools ?? false;
+    this.capsVision = options.capsVision ?? false;
   }
 
   private pick(req: ChatRequest): MockScript {
@@ -160,11 +164,15 @@ export class MockProvider implements ProviderGateway {
 
   /**
    * The capability row a caller reads to pick native-vs-fallback mode. The mock reports
-   * the conservative empty row unless `capsTools` was set, in which case `{tools: true}`.
-   * The gateway reads this for a mock profile; `ProviderGateway` itself has no `modelCaps`.
+   * the conservative empty row unless `capsTools`/`capsVision` were set, in which case the
+   * rows say `{tools: true}` / `{vision: true}`. The gateway reads this for a mock profile;
+   * `ProviderGateway` itself has no `modelCaps`.
    */
   modelCaps(_profileId?: string, _model?: string): ModelCaps {
-    return this.capsTools ? { tools: true } : {};
+    return {
+      ...(this.capsTools ? { tools: true } : {}),
+      ...(this.capsVision ? { vision: true } : {}),
+    };
   }
 
   /** Test affordance: which profile id this provider answers for. */

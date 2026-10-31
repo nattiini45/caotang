@@ -58,14 +58,11 @@ import { plural, select, t } from '@lingui/core/macro';
 import type { GhostPreview } from '@caotang/editor/tiptap';
 import type { ProfileView } from '@caotang/gateway';
 import {
-  createAgentSession,
-  createBudgetMeter,
-  createContextPort,
-  preloadFor,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
   type BudgetMeter,
   type ContextConfig,
+  type LanguagePolicy,
   type AgentEvent,
   type AgentSession,
   type Decision,
@@ -79,8 +76,9 @@ import {
   type TurnReport,
 } from '@caotang/harness';
 import { newId } from '@caotang/ids';
-import { nodeById } from '@caotang/store';
+import { nodeById, valueRetentionRoot } from '@caotang/store';
 
+import { registerAgent } from './agent-registry.js';
 import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
@@ -90,6 +88,21 @@ import type { ProjectSession, RestoreResult } from './session.js';
 import { TaskQueue, type TaskAgent } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
 import { TaskStore, type TaskRecord } from './task-store.js';
+import type * as LazyHarness from './lazy-harness.js';
+import { uiLocale } from '../i18n/format-locale.js';
+
+/** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
+type HarnessModule = typeof LazyHarness;
+
+/** The download is one request for the page: a later turn reuses it, and one that failed is asked for again. */
+let harnessModule: Promise<HarnessModule> | null = null;
+function loadHarnessModule(): Promise<HarnessModule> {
+  harnessModule ??= import('./lazy-harness.js').catch((error: unknown) => {
+    harnessModule = null;
+    throw error;
+  });
+  return harnessModule;
+}
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
@@ -187,13 +200,7 @@ function noProviderText(): string {
   return t`No provider is active. Add one in Settings > Providers to use the agent.`;
 }
 
-/** The controller each open project's session has, so a panel outside the agent panel (the findings tab) can start a turn in it. */
-const controllers = new WeakMap<ProjectSession, AgentController>();
-
-/** The agent controller of an open project, or `undefined` when its panel has not been made. */
-export function agentFor(session: ProjectSession): AgentController | undefined {
-  return controllers.get(session);
-}
+export { agentFor } from './agent-registry.js';
 
 export class AgentController {
   private turns: TurnView[] = [];
@@ -215,6 +222,8 @@ export class AgentController {
   private queuePaused = false;
   private queueSeq = 0;
   private pendingNotes: PendingNote[] = [];
+  /** Notes written before the turn's session existed; they are in `pendingNotes` under a provisional id until the turn starts. */
+  private earlyNotes: { readonly noteId: string; readonly text: string }[] = [];
   private announcement = '';
   private intentForNextTurn: string | null = null;
   private providerForNextTurn: string | null = null;
@@ -250,6 +259,8 @@ export class AgentController {
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
   private detached = false;
+  /** Lets go of the sweep's root for the drafts this controller holds (`attach` registers it). */
+  private letGoOfRetention: () => void = () => undefined;
   /** The offer the loop is waiting on, with the way to answer it. */
   private offer: { view: OfferView; resolve: (answer: OfferAnswer) => void } | null = null;
   private readonly tasks: TaskQueue;
@@ -341,8 +352,8 @@ export class AgentController {
     if (trimmed === '') return null;
     // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
     // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
-    const preload = preloadFor(this.activeNode());
-    return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn }));
+    const node = this.activeNode();
+    return this.turnWith(trimmed, options, (agent, turn, loop) => agent.submit(trimmed, { preload: loop.preloadFor(node), ...turn }));
   }
 
   /**
@@ -437,7 +448,7 @@ export class AgentController {
   private async turnWith(
     intent: string,
     options: SubmitOptions,
-    start: (agent: AgentSession, turn: TurnOptions) => Promise<TurnReport>,
+    start: (agent: AgentSession, turn: TurnOptions, loop: HarnessModule) => Promise<TurnReport>,
   ): Promise<TurnReport | null> {
     if (this.busy) return null;
     this.message = null;
@@ -473,12 +484,19 @@ export class AgentController {
       // settlement, so a cancelled/refused/failed turn cannot leave its state behind in the shared session.
       const model = resolved?.model;
       const thinking = resolved?.thinking;
+      this.session.setPictureVision(() => this.providers.gateway.modelCaps(profile.id, model).vision === true);
+      // The harness and the agent loop are a separate download, made when the first turn starts (lazy-harness.ts).
+      const [loop, harness] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
       const agent: AgentSession =
         this.session_ ??
-        (this.session_ = createAgentSession({
-          harness: this.session.harness,
+        (this.session_ = loop.createAgentSession({
+          harness,
           gateway: this.providers.gateway,
-          context: createContextPort({ state: this.session.state, config: this.contextConfig }),
+          pictureOutbox: this.session.pictureOutbox,
+          transcribe: (input) => this.session.transcribePictures(input),
+          transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
+          context: loop.createContextPort({ state: this.session.state, config: this.contextConfig }),
+          languages: () => this.languagePolicy(),
           decide: (pending) => this.decide(pending),
           emit: (event) => this.onEvent(event),
           role: 'chat',
@@ -497,13 +515,17 @@ export class AgentController {
           beforeAutoApply: (card) => this.beforeAutoApply(card),
         }));
       this.runningAgent = agent;
-      this.meter = createBudgetMeter(this.runLimits());
-      report = await start(agent, {
-        signal: abort.signal,
-        profileId: profile.id,
-        ...(model === undefined ? {} : { model }),
-        ...(thinking === undefined ? {} : { thinking }),
-      });
+      this.meter = loop.createBudgetMeter(this.runLimits());
+      report = await start(
+        agent,
+        {
+          signal: abort.signal,
+          profileId: profile.id,
+          ...(model === undefined ? {} : { model }),
+          ...(thinking === undefined ? {} : { thinking }),
+        },
+        loop,
+      );
       return report;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -518,6 +540,7 @@ export class AgentController {
       this.meter = null;
       this.runningAgent = null;
       this.runningTurnId = null;
+      this.earlyNotes = [];
       if (this.turnOwner === owner) {
         this.turnOwner = 0;
         this.intentForNextTurn = null;
@@ -593,9 +616,24 @@ export class AgentController {
   steer(text: string): SteerResult {
     const note = text.trim();
     if (note === '') return 'refused';
-    if (!this.busy || this.runningAgent === null || this.runningTurnId === null) return 'idle';
+    if (!this.busy) return 'idle';
+    if (this.runningAgent === null || this.runningTurnId === null) return this.holdNote(note);
     if (this.pending !== null) return 'card-waiting';
     return this.sendNote(note);
+  }
+
+  /**
+   * A turn is busy from the moment it is submitted, but its session is not ready until the harness has loaded. A note written in
+   * that gap would otherwise read as "no turn running" and be submitted as a message that `busy` refuses, losing it. It is held,
+   * shown as a waiting note, and handed to the turn when the turn starts, before its first request.
+   */
+  private holdNote(note: string): SteerResult {
+    const held = { noteId: `early-${this.nextQueueId()}`, text: note };
+    this.earlyNotes = [...this.earlyNotes, held];
+    this.pendingNotes = [...this.pendingNotes, { ...held, lands: 'next-model-call' }];
+    this.announcement = t`Note sent. The agent reads it at its next step.`;
+    this.bump();
+    return 'sent';
   }
 
   /** Cancels the waiting card, and sends the note with the Cancel: the turn goes back to the model with it (agent-harness §2). */
@@ -772,10 +810,24 @@ export class AgentController {
    * Events
    * ------------------------------------------------------------------ */
 
+  /** Gives the turn the notes written while its session was loading, in order, and swaps each provisional id for the turn's own. */
+  private handEarlyNotes(turnId: string): void {
+    const early = this.earlyNotes;
+    this.earlyNotes = [];
+    if (early.length === 0 || this.runningAgent === null) return;
+    for (const held of early) {
+      const receipt = this.runningAgent.steer(turnId, held.text);
+      // A refused note stays waiting under its provisional id, so it still becomes a queued message when the turn ends.
+      if (!receipt.ok) continue;
+      this.pendingNotes = this.pendingNotes.map((note) => (note.noteId === held.noteId ? { ...note, noteId: receipt.value.noteId, lands: receipt.value.lands } : note));
+    }
+  }
+
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
       this.runningTurnId = event.turnId;
       this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn)];
+      this.handEarlyNotes(event.turnId);
     }
     // A note has reached the model: it is no longer waiting.
     if (event.type === 'steer') this.pendingNotes = this.pendingNotes.filter((note) => note.noteId !== event.note.noteId);
@@ -1009,17 +1061,53 @@ export class AgentController {
     return this.tasks.idle();
   }
 
+  /** The configured routes a writer may explicitly choose for a transcription's second read. */
+  transcriptionRoutes(): readonly { profileId: string; model?: string; label: string; vision: boolean }[] {
+    return this.providers.list().map((profile) => ({
+      profileId: profile.id,
+      model: profile.defaultModel,
+      label: `${profile.name}, ${profile.defaultModel}`,
+      vision: this.providers.gateway.modelCaps(profile.id, profile.defaultModel).vision === true,
+    }));
+  }
+
+  /** Resolves one route without silently substituting another profile or the primary model. */
+  private transcriptionRoute(profileId: string | undefined, model: string | undefined) {
+    const id = profileId ?? this.providers.active()?.id;
+    if (id === undefined) return undefined;
+    const profile = this.providers.get(id);
+    if (profile === undefined) return undefined;
+    const concrete = model ?? profile.defaultModel;
+    return {
+      profileId: id,
+      model: concrete,
+      label: `${profile.name}, ${concrete}`,
+      vision: this.providers.gateway.modelCaps(id, concrete).vision === true,
+    };
+  }
+
+  /** The interface and project languages, read once at the start of each turn (i18n §6.1). */
+  private languagePolicy(): LanguagePolicy {
+    return { ui: uiLocale(), project: this.session.state.manifest.project.language ?? 'en' };
+  }
+
   /** The session a task is staged with: the Background role's profile, the task's id as its name, and no way to decide a card. */
-  private agentForTask(sessionId: string, maxModelCalls: number): TaskAgent | string {
+  private async agentForTask(sessionId: string, maxModelCalls: number): Promise<TaskAgent | string> {
     const resolved = this.providers.resolveForRole?.('background');
     const profile = resolved?.profile ?? this.providers.active();
     if (profile === undefined) return noProviderText();
-    return createAgentSession({
-      harness: this.session.harness,
+    this.session.setPictureVision(() => this.providers.gateway.modelCaps(profile.id, resolved?.model).vision === true);
+    const [loop, harness] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
+    return loop.createAgentSession({
+      harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: this.contextConfig }),
+      pictureOutbox: this.session.pictureOutbox,
+      transcribe: (input) => this.session.transcribePictures(input),
+      transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
+      context: loop.createContextPort({ state: this.session.state, config: this.contextConfig }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
+      languages: () => this.languagePolicy(),
       role: 'background',
       sessionId,
       maxModelCalls,
@@ -1049,6 +1137,8 @@ export class AgentController {
   /** Ends the controller. A decision still waiting is cancelled, so the turn ends and nothing is left parked. */
   detach(): void {
     this.detached = true;
+    this.letGoOfRetention();
+    this.letGoOfRetention = () => undefined;
     const resolve = this.resolveDecision;
     this.resolveDecision = null;
     this.pending = null;
@@ -1066,9 +1156,18 @@ export class AgentController {
    */
   attach(): void {
     this.detached = false;
+    this.letGoOfRetention();
+    this.letGoOfRetention = this.session.addRetentionRoot(
+      valueRetentionRoot(t`the agent’s drafts`, () => {
+        // A round trip through JSON: a value that cannot be written out cannot be read for the pictures it names, and a root that
+        // cannot be read refuses the sweep rather than counting as empty.
+        const held = { pending: this.pending, ghosts: this.ghosts, streams: [...this.streams], notes: this.pendingNotes, tasks: this.tasks.snapshot() };
+        return JSON.parse(JSON.stringify(held)) as unknown;
+      }),
+    );
     this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.
-    controllers.set(this.session, this);
+    registerAgent(this.session, this);
   }
 }

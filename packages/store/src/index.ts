@@ -13,6 +13,7 @@ export {
   type CodexSource,
   type SavedFilter,
   type ProjectGoal,
+  type ProjectTimelineSettings,
 } from './manifest.js';
 export {
   FIRST_FORMAT_VERSION,
@@ -85,6 +86,7 @@ export {
   snapshotFile,
 } from './paths.js';
 export { createSkillStaging, type SkillStaging, type StagedSkill } from './commands-skills.js';
+export { SET_CALENDAR_COMMAND, calendarCommandRegistrations, setCalendarApply, type CalendarClock } from './commands-calendar.js';
 export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
 export { createBinderNode, type MediaCreateParams } from './commands-media.js';
 
@@ -181,6 +183,16 @@ export {
   type ProjectCommandOptions,
   type SnapshotSink,
 } from './commands.js';
+
+export {
+  anchorPortOf,
+  mapLinksThroughWrite,
+  paragraphLinksOfDoc,
+  reconcileAdoptedBody,
+  type AnchorPort,
+  type BodyWriteUndo,
+  type MappedLinks,
+} from './body-write.js';
 
 export {
   FolderDriftError,
@@ -375,18 +387,76 @@ export {
 export { loadZipEngine } from './zip.js';
 export type { ExportRecipe, ExportRecipeOptions } from './manifest.js';
 
-// Storyboard: the browser's copy of the project's images, in its own IndexedDB database (storyboard.md §2.2).
+// Storyboard: the browser's copy of the project's images, in its own IndexedDB database (storyboard.md §2.2). Version 2 adds only
+// the `thumbs` store (pictures.md §6.5): derived, per-browser thumbnails, never in the app database, the folder or a bundle.
 export {
   ASSET_DB_NAME,
   ASSET_DB_VERSION,
   ASSET_PROJECT_INDEX,
   ASSET_STORE,
+  deleteAssetBytes,
   deleteProjectAssets,
   getAssetBytes,
+  getThumb,
   listAssetPaths,
+  listThumbs,
   openAssetStore,
   putAssetBytes,
+  putThumb,
+  THUMBS_PROJECT_INDEX,
+  THUMBS_STORE,
   type AssetRow,
   type AssetStore,
+  type ThumbRow,
 } from './runtime/asset-store.js';
 export { shotImageCommandRegistrations } from './commands-shot-image.js';
+export { pictureCommandRegistrations } from './commands-pictures.js';
+export { applyAssetTranscribe, type TranscribePage, type TranscribeParams } from './commands-transcription.js';
+export { StagingError, isRetryable } from './asset-staging.js';
+export type { AssetReservation, RetryableAssetStaging } from './asset-staging.js';
+export { backfillAssetRecords } from './picture-backfill.js';
+export type { BackfillResult } from './picture-backfill.js';
+export { PictureWriteError, planPictureImport, publishPlan, undoPublished } from './picture-import.js';
+export type { ImportOptions, ImportPlan, ImportWording, PictureRequest, PlannedPicture, PublishedImport } from './picture-import.js';
+// Retention-safe picture storage (pictures.md §6.4.2, §6.5, §6.6.1): the retention inventory's root contracts, the sweep's preview
+// and rechecked execution, the rename-by-hash re-link, the bulk working-copy reference rewrite, the storage budget and the bundle's
+// file set, and the undo-capture ledger. The deletion port is declared on `ProjectAssetPort.deletion`.
+export {
+  applyRelink,
+  assetIdPathsIn,
+  assetIdsInText,
+  assetIdsInValue,
+  bundleAssetFileNamesOf,
+  collectRetention,
+  executeSweep,
+  idsRetentionRoot,
+  PICTURE_STORAGE_BUDGET_BYTES,
+  pictureStorageReport,
+  planRelinkPairs,
+  previewSweep,
+  refusingRetentionRoot,
+  rewriteInlineRefs,
+  rewriteTypedRefs,
+  stateRetentionRoots,
+  textsRetentionRoot,
+  typedRefsOf,
+  undoGroupRetention,
+  UndoRetentionLedger,
+  unknownInlineShapes,
+  usesSnapshotOfState,
+  valueRetentionRoot,
+} from './picture-retention.js';
+export type {
+  AssetDeletionPort,
+  AssetRetentionSnapshot,
+  PictureStorageReport,
+  RelinkPair,
+  RelinkPlan,
+  RetentionRoot,
+  RetentionRootListing,
+  RewrittenRefs,
+  SweepCandidate,
+  SweepPort,
+  SweepPreview,
+  SweepReport,
+} from './picture-retention.js';

@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { textOf } from '@caotang/gateway';
 import { LLM_CATEGORIES, extractionPrompt, verificationPrompt, type PairBlock } from '@caotang/coherence';
 import { DEMO_INTENTS, DRAFT_PREFIX, EXTRACTOR_PREFIX, VERIFIER_PREFIX, createMockProvider, demoScripts } from '@caotang/gateway/mock';
 import type { ProjectState } from '@caotang/store';
@@ -157,7 +158,7 @@ describe('the zero-key demo intents, end to end', () => {
         { role: 'user', content: extraction.user },
       ],
     });
-    const spans = (JSON.parse(extracted.content) as { spans: { docId: string; quote: string }[] }).spans;
+    const spans = (JSON.parse(textOf(extracted.content)) as { spans: { docId: string; quote: string }[] }).spans;
     expect(spans, 'the extraction script read the focus document from its markers').toHaveLength(1);
     expect(spans[0]?.docId).toBe(STORM);
 
@@ -176,7 +177,7 @@ describe('the zero-key demo intents, end to end', () => {
         { role: 'user', content: verification.user },
       ],
     });
-    const verdicts = (JSON.parse(judged.content) as { verdicts: { pairId: string; verdict: string }[] }).verdicts;
+    const verdicts = (JSON.parse(textOf(judged.content)) as { verdicts: { pairId: string; verdict: string }[] }).verdicts;
     expect(verdicts.map((verdict) => verdict.pairId), 'the verification script read the [pair] blocks').toEqual(['p1']);
   });
 });

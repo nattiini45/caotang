@@ -19,6 +19,7 @@
  * gateway must not depend on the harness, and the harness's own test asserts the two copies agree.
  */
 
+import { textOf } from '../parts.js';
 import type { ChatChunk, ChatMessage, ChatRequest } from '../types.js';
 import type { MockResponse, MockScript } from './scripts.js';
 
@@ -49,14 +50,14 @@ export const DEMO_INTENTS = {
 
 function systemOf(req: ChatRequest): string {
   const first = req.messages[0];
-  return first?.role === 'system' ? first.content : '';
+  return first?.role === 'system' && typeof first.content === 'string' ? first.content : first?.role === 'system' ? textOf(first.content) : '';
 }
 
 /** Every user message of a request, in order, joined. A script reads the request's wording through it. */
 export function userTextOf(req: ChatRequest): string {
   return req.messages
     .filter((message: ChatMessage) => message.role === 'user')
-    .map((message) => message.content)
+    .map((message) => textOf(message.content))
     .join('\n\n');
 }
 
@@ -82,7 +83,8 @@ function repliesSoFar(req: ChatRequest): number {
 
 /** The text of the last message, whichever role sent it. */
 function lastMessageOf(req: ChatRequest): string {
-  return req.messages.at(-1)?.content ?? '';
+  const last = req.messages.at(-1)?.content ?? '';
+  return typeof last === 'string' ? last : textOf(last);
 }
 
 /** A script that answers planner calls with `reply(req)`, and passes every other request on. */

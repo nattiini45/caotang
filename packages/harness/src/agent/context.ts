@@ -31,7 +31,8 @@ import {
   type PromptPreview,
   type RecentTurn,
 } from '@caotang/context';
-import type { ChatMessage } from '@caotang/gateway';
+import type { ChatMessage, MessageContent } from '@caotang/gateway';
+import { contentTokens, partsOf, promptTokensOf } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 
 /** One model call to assemble: its task, the role text that is its system message, and the history it may draw on. */
@@ -46,6 +47,67 @@ export interface ContextRequest {
   readonly turns?: readonly RecentTurn[];
   /** The activity rows of those turns, which give L6 its outcome lines. */
   readonly activity?: readonly ActivityEntry[];
+  /** The two languages the turn pinned at its start. Absent in a headless host: the call carries no language line (i18n §6.1). */
+  readonly languages?: LanguagePolicy;
+}
+
+/** The interface language and the project language, as BCP 47 tags. The model writes to the writer in the first and the manuscript in the second. */
+export interface LanguagePolicy {
+  readonly ui: string;
+  readonly project: string;
+}
+
+/** The English name of a language tag, as the model reads it; the tag itself when the runtime has no name for it. */
+function languageNameOf(tag: string): string {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'language' }).of(tag) ?? tag;
+  } catch {
+    return tag;
+  }
+}
+
+/** The one line the model reads about languages (i18n §6.1). The prompts around it stay English. */
+export function languageDirective(policy: LanguagePolicy): string {
+  return `Write messages to the writer (plan titles, step summaries, questions, findings' explanations, notes) in ${languageNameOf(policy.ui)}. Write manuscript, synopsis and codex text in ${languageNameOf(policy.project)}. Quote evidence exactly as written.`;
+}
+
+/** A system message with the language line after it; the message as it was when no policy is pinned. String contents stay strings, part arrays keep their parts. */
+export function appendLanguageLine(system: MessageContent, policy: LanguagePolicy | undefined): MessageContent {
+  if (policy === undefined) return system;
+  const line = `
+
+${languageDirective(policy)}`;
+  if (typeof system === 'string') return `${system}${line}`;
+  // A part array keeps its shape: the line is appended to its last text part (or added as one), so
+  // image parts ride through unchanged and text-only arrays still serialise the same.
+  const parts = [...partsOf(system)];
+  const last = parts.at(-1);
+  if (last !== undefined && last.type === 'text') parts[parts.length - 1] = { type: 'text', text: `${last.text}${line}` };
+  else parts.push({ type: 'text', text: line.trimStart() });
+  return parts;
+}
+
+/**
+ * The prompt with the language line appended to its system message. It runs after {@link withRole}, which replaces
+ * the system message: a line added before would be discarded. L0 and the estimate are measured again on what is sent.
+ */
+export function withLanguages(prompt: AssembledPrompt, policy: LanguagePolicy | undefined): AssembledPrompt {
+  if (policy === undefined) return prompt;
+  const [system, ...rest] = prompt.messages;
+  if (system === undefined || system.role !== 'system') return prompt;
+  const content = appendLanguageLine(system.content, policy);
+  const messages: ChatMessage[] = [{ ...system, content }, ...rest];
+  // The estimate is part-aware: text parts count as text, image parts by the route-agnostic
+  // (conservative) formula — never the base64 as text tokens (provider-gateway §3).
+  const roleTokens = contentTokens(content);
+  const layers = prompt.layers.map((layer) => (layer.id === 'L0' ? { ...layer, tokens: roleTokens } : layer));
+  const promptTokens = promptTokensOf(messages);
+  return {
+    ...prompt,
+    messages,
+    layers,
+    estimate: { promptTokens, byLayer: { ...prompt.estimate.byLayer, L0: roleTokens } },
+  };
 }
 
 /** One model call, assembled: what it sends, and what the card shows of it. */
@@ -82,7 +144,7 @@ export function withRole(prompt: AssembledPrompt, role: string): AssembledPrompt
   const messages: ChatMessage[] = [{ role: 'system', content: role }, ...prompt.messages.slice(1)];
   const roleTokens = tokensForChars(role.length);
   const layers = prompt.layers.map((layer) => (layer.id === 'L0' ? { ...layer, tokens: roleTokens } : layer));
-  const promptTokens = tokensForChars(messages.reduce((sum, message) => sum + message.content.length, 0));
+  const promptTokens = promptTokensOf(messages);
   return {
     ...prompt,
     messages,
@@ -118,7 +180,7 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
         ...(request.turns === undefined ? {} : { turns: request.turns }),
         ...(request.activity === undefined ? {} : { activity: request.activity }),
       };
-      const prompt = withRole(assemble(request.task, app, configOf()), request.role);
+      const prompt = withLanguages(withRole(assemble(request.task, app, configOf()), request.role), request.languages);
       return { prompt, messages: toChatMessages(prompt), preview: buildPreview(prompt) };
     },
   };
@@ -169,6 +231,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
     payload: previews.flatMap((preview) => preview.payload),
     promptTokens: sum(previews.map((preview) => preview.promptTokens)),
     completionTokens: sum(previews.map((preview) => preview.completionTokens)),
+    images: previews.flatMap((preview) => preview.images),
     layers: [...layers.values()],
     codex: {
       included: previews.flatMap((preview) => preview.codex.included),

@@ -20,6 +20,7 @@
     "@caotang/coherence": "workspace:*",
     "@caotang/context": "workspace:*",
     "@caotang/exporter": "workspace:*",
+    "@caotang/font-comic-lettering": "workspace:*",
     "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
     "@caotang/font-noto-devanagari": "workspace:*",
@@ -30,6 +31,7 @@
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/sdk": "workspace:*",
     "@caotang/store": "workspace:*",
+    "@caotang/timeline": "workspace:*",
     "@jsquash/webp": "1.5.0"
   },
   "devDependencies": {

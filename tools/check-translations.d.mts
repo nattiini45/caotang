@@ -51,6 +51,7 @@ export function positionalPlaceholders(message: string): readonly string[];
 export function checkCompile(catalogues: Readonly<Record<string, Catalogue>>): readonly string[];
 export function checkPlaceholderParity(catalogues: Readonly<Record<string, Catalogue>>): readonly string[];
 export function checkTranslatorHygiene(catalogues: Readonly<Record<string, Catalogue>>): readonly string[];
+export function checkNoShippedFuzzy(catalogues: Readonly<Record<string, Catalogue>>): readonly string[];
 export function findConcatenations(roots: readonly string[]): readonly string[];
 export function findModelFacingImports(roots: readonly string[]): readonly string[];
 export function repositorySourceRoots(repoRoot: string): readonly string[];

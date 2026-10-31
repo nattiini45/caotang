@@ -277,6 +277,29 @@ test.describe('the D5 picker gates', () => {
     expect(list.find((entry) => entry.setting === 'en-XA')).toMatchObject({ pseudo: true, preview: false });
   });
 
+  test('the gates at 95, 60, 59, 55 and 54 percent, with hysteresis for a language already listed', () => {
+    const at = (completion: number, previouslyListed: readonly string[] = []) =>
+      languageChoices({
+        setting: 'system',
+        navigatorLanguages: ['en-US'],
+        stats: { sourceLocale: 'en', locales: { de: { completion } } },
+        exposeDeveloperLanguages: false,
+        previouslyListed,
+        catalogues: [
+          { id: 'en', tag: 'en', pseudo: false },
+          { id: 'de', tag: 'de', pseudo: false },
+        ],
+      }).find((entry) => entry.setting === 'de');
+    expect(at(95)).toMatchObject({ preview: false });
+    expect(at(94)).toMatchObject({ preview: true });
+    expect(at(60)).toMatchObject({ preview: true });
+    expect(at(59)).toBeUndefined();
+    expect(at(55)).toBeUndefined();
+    expect(at(59, ['de'])).toMatchObject({ preview: true });
+    expect(at(55, ['de'])).toMatchObject({ preview: true });
+    expect(at(54, ['de'])).toBeUndefined();
+  });
+
   test('a below-gate language that is already selected stays visible, so the writer can switch away', () => {
     const list = choices({ setting: 'ja' });
     expect(settingsOf(list)).toContain('ja');
@@ -303,7 +326,7 @@ test.describe('the project bundle and the interface preference', () => {
   const NOW = new Date('2026-10-25T00:00:00.000Z');
 
   test('carries no interface-language preference in any entry, and repeated exports of one state are byte-identical', async () => {
-    const state = createProjectState(createEmptyManifest('Bundle Check', NOW));
+    const state = createProjectState(createEmptyManifest('Bundle Check', NOW, { locale: 'en-US' }));
 
     // The preference lives in app settings only; the state handed to the exporter has no field for it.
     // The every-entry scan below is the evidence, and the two exports prove the export is deterministic.

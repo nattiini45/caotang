@@ -5,11 +5,17 @@
  * background task list is a different thing and is named differently.
  */
 
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { AgentController, AgentSnapshot, QueuedMessage } from '../app/agent.js';
 import { isImeEnter } from '../app/keymap.js';
 import { queuePausedText } from '../app/agent.js';
+import { UserText } from '../i18n/UserText.js';
+
+/* lingui-set comment="Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue." */
 
 /** The note the writer wrote while a card waits. The card is neither approved nor dropped by it: the writer chooses what happens to both. */
 export interface HeldNote {
@@ -36,6 +42,7 @@ export function AgentQueue({
   onHold: (note: HeldNote) => void;
   onRelease: () => void;
 }): ReactNode {
+  useLingui();
   const { queue, notes } = snapshot;
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -73,9 +80,11 @@ export function AgentQueue({
   return (
     <>
       {held !== null ? (
-        <div className="agent-held" role="group" aria-label="A note while a card waits">
+        <div className="agent-held" role="group" aria-label={t`A note while a card waits`}>
           <p>
-            A card is waiting for your decision. Your note: <q>{held.text}</q>
+            <Trans>
+              A card is waiting for your decision. Your note: <q><UserText value={held.text} /></q>
+            </Trans>
           </p>
           <div className="agent-held-actions">
             <button
@@ -87,7 +96,7 @@ export function AgentQueue({
                 onRelease();
               }}
             >
-              Send with Cancel
+              <Trans>Send with Cancel</Trans>
             </button>
             <button
               type="button"
@@ -98,38 +107,40 @@ export function AgentQueue({
                 onRelease();
               }}
             >
-              Queue as next turn
+              <Trans>Queue as next turn</Trans>
             </button>
             <button type="button" className="button is-quiet" onClick={onRelease}>
-              Keep waiting
+              <Trans>Keep waiting</Trans>
             </button>
           </div>
         </div>
       ) : null}
 
       {notes.length > 0 ? (
-        <ul className="agent-notes" aria-label="Notes sent to the agent">
+        <ul className="agent-notes" aria-label={t`Notes sent to the agent`}>
           {notes.map((note) => (
             <li key={note.noteId}>
-              <span className="muted">{note.lands === 'after-decision' ? 'Note, read after your decision' : 'Note, read at the next step'}:</span> {note.text}
+              <span className="muted">{note.lands === 'after-decision' ? t`Note, read after your decision:` : t`Note, read at the next step:`}</span> <UserText value={note.text} />
             </li>
           ))}
         </ul>
       ) : null}
 
       {queue.length > 0 ? (
-        <section className="agent-queue" aria-label="Queued messages" data-testid="agent-queue">
-          <h4>Queued messages</h4>
+        <section className="agent-queue" aria-label={t`Queued messages`} data-testid="agent-queue">
+          <h4><Trans>Queued messages</Trans></h4>
           {snapshot.queuePaused ? (
             <p className="agent-queue-paused">
               {queuePausedText()}{' '}
               <button type="button" className="button" onClick={() => agent.runQueue()}>
-                Run the queue
+                <Trans>Run the queue</Trans>
               </button>
             </p>
           ) : null}
           <ol className="agent-queue-list">
-            {queue.map((entry, index) => (
+            {queue.map((entry, index) => {
+              const number = index + 1;
+              return (
               <li
                 key={entry.id}
                 className={`agent-chip${dragging === entry.id ? ' is-dragging' : ''}`}
@@ -144,7 +155,7 @@ export function AgentQueue({
                   <input
                     type="text"
                     className="agent-chip-edit"
-                    aria-label={`Edit queued message ${index + 1}`}
+                    aria-label={t`Edit queued message ${number}`}
                     value={draft}
                     autoFocus
                     onChange={(event) => setDraft(event.target.value)}
@@ -153,36 +164,37 @@ export function AgentQueue({
                   />
                 ) : (
                   <span className="agent-chip-text">
-                    {entry.fromUndeliveredNote === true ? <span className="badge is-warn">Note not read in time</span> : null} {entry.intent}
+                    {entry.fromUndeliveredNote === true ? <span className="badge is-warn"><Trans>Note not read in time</Trans></span> : null} <UserText value={entry.intent} />
                   </span>
                 )}
                 <span className="agent-chip-actions">
-                  <button type="button" className="button is-quiet" disabled={index === 0} aria-label={`Move queued message ${index + 1} up`} onClick={() => agent.moveQueued(entry.id, index - 1)}>
+                  <button type="button" className="button is-quiet" disabled={index === 0} aria-label={t`Move queued message ${number} up`} onClick={() => agent.moveQueued(entry.id, index - 1)}>
                     ↑
                   </button>
                   <button
                     type="button"
                     className="button is-quiet"
                     disabled={index === queue.length - 1}
-                    aria-label={`Move queued message ${index + 1} down`}
+                    aria-label={t`Move queued message ${number} down`}
                     onClick={() => agent.moveQueued(entry.id, index + 1)}
                   >
                     ↓
                   </button>
-                  <button type="button" className="button is-quiet" aria-label={`Edit queued message ${index + 1}`} onClick={() => startEdit(entry)}>
-                    Edit
+                  <button type="button" className="button is-quiet" aria-label={t`Edit queued message ${number}`} onClick={() => startEdit(entry)}>
+                    <Trans>Edit</Trans>
                   </button>
                   {snapshot.busy ? (
-                    <button type="button" className="button is-quiet" aria-label={`Steer now with queued message ${index + 1}`} onClick={() => steerNow(entry)}>
-                      Steer now
+                    <button type="button" className="button is-quiet" aria-label={t`Steer now with queued message ${number}`} onClick={() => steerNow(entry)}>
+                      <Trans>Steer now</Trans>
                     </button>
                   ) : null}
-                  <button type="button" className="button is-quiet is-danger" aria-label={`Remove queued message ${index + 1}`} onClick={() => agent.removeQueued(entry.id)}>
-                    Remove
+                  <button type="button" className="button is-quiet is-danger" aria-label={t`Remove queued message ${number}`} onClick={() => agent.removeQueued(entry.id)}>
+                    <Trans>Remove</Trans>
                   </button>
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ol>
         </section>
       ) : null}

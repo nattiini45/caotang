@@ -272,6 +272,7 @@ test.describe('the session: the agent is told of a skill only after the writer h
     const state = project();
     const { session } = await sessionFor(state);
     try {
+      await session.harnessReady();
       expect(session.harness.skillCatalog()).toBeUndefined();
       const imported = session.importSkill('close-third', folderOf('close-third'));
       expect(imported.ok).toBe(true);

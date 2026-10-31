@@ -43,7 +43,7 @@ const PNG = Uint8Array.from(
 );
 
 function board(): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Scene 1 — Shots', id: FOLDER, now: NOW });
   addShotNode(state, { parentId: FOLDER, id: SHOT, title: 'Wide', stored: { shotSize: 'WS', durationSec: 4, image: ASSET }, now: NOW });
   return state;

@@ -111,7 +111,7 @@ describe('the metadata table as a whole', () => {
     const extensions = TOOL_METADATA.filter((meta) => meta.surface === 'extension').map((meta) => meta.name);
     // Then tool.search (extensibility §5), then the storyboard and prompt-pack modules' tools. Each is an
     // extension row, so none can be mistaken for part of the frozen v0.1 surface. The dialogue module's two rows close the
-    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), and the five allowlisted bus primitives close it (agent-harness §3).
+    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), then the timeline read (timeline.md §5.1), and the allowlisted bus primitives close it, the sixth of them `timeline.edit` (agent-harness §3).
     expect(extensions).toEqual([
       'doc.import',
       'codex.import',
@@ -127,11 +127,23 @@ describe('the metadata table as a whole', () => {
       'dialogue.table',
       'skill.load',
       'agent.delegate',
+      'timeline.read',
+      'pictures.list',
+      'pictures.view',
+      'pictures.annotate',
+      'pictures.attach',
+      'pictures.import',
+      'pictures.place',
+      'pictures.transcribe',
+      'comic.derive',
+      'comic.letter',
+      'comic.scriptFromPages',
       'notes.replace',
       'synopsis.set',
       'vocabulary.upsert',
       'filter.save',
       'goal.save',
+      'timeline.edit',
     ]);
     expect(TOOL_METADATA.filter((meta) => meta.surface === 'v0.1')).toHaveLength(14);
   });

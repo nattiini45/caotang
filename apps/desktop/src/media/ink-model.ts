@@ -8,10 +8,14 @@
  * the view asks the writer to confirm it first, because it changes the text they can see.
  */
 
+import { isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
 import { AUTOSAVE_DEBOUNCE_MS } from '@caotang/store';
 
 import { ensureLineIds, missingLineIds, type ImportIdResult, type MintOptions, type UnplaceableLine } from './engines.js';
 
+
+/* lingui-set comment="Sentences about Ink line ids. Interpolated values: title and titles are container titles the writer wrote; line, minted and the other counts are numbers; lines, where, first and shown are lists of line positions or ids; room is the reason a line could not take an id; rest counts the ids not shown." */
 /**
  * How long the writer must stop typing before the findings are read again. It is the autosave's own window (editor-engine
  * §9), so the graph and the save move on the same beat, and a change to the window moves this with it.
@@ -51,15 +55,33 @@ export function addLineIds(text: string, options: MintOptions = {}): InkMintResu
   return { text: result.body, minted: result.minted.length, unplaceable: result.unplaceable };
 }
 
-const ROOM_FOR_ID = 'move the choice or jump so the line has room for its id.';
 const IDS_SHOWN = 3;
+
+function roomForId(): string {
+  return t`move the choice or jump so the line has room for its id.`;
+}
+
+function lineNumber(line: number): string {
+  return t`line ${line}`;
+}
+
+function titledLine(title: string, line: number): string {
+  return t`${{ title: isolate(title) }} line ${line}`;
+}
 
 /** The sentence the writer reads after the action. It says what was written, and which lines still need the writer. */
 export function addLineIdsSentence(result: InkMintResult): string {
-  const written = result.minted === 0 ? 'No line needed an id.' : `Added ${countWord(result.minted, 'line id')} to the Ink text.`;
+  const minted = result.minted;
+  const written = minted === 0 ? t`No line needed an id.` : plural(minted, { one: 'Added # line id to the Ink text.', other: 'Added # line ids to the Ink text.' });
   if (result.unplaceable.length === 0) return written;
-  const lines = result.unplaceable.map((line) => `line ${line.line}`).join(', ');
-  return `${written} ${countWord(result.unplaceable.length, 'line')} (${lines}) could not take one: ${ROOM_FOR_ID}`;
+  const unplaceable = result.unplaceable.length;
+  const lines = result.unplaceable.map((line) => lineNumber(line.line)).join(', ');
+  const room = roomForId();
+  const could = plural(unplaceable, {
+    one: `# line (${lines}) could not take one: ${room}`,
+    other: `# lines (${lines}) could not take one: ${room}`,
+  });
+  return `${written} ${could}`;
 }
 
 /**
@@ -68,22 +90,41 @@ export function addLineIdsSentence(result: InkMintResult): string {
  * the source already used twice (kept, never renamed).
  */
 export function importLineIdsSentence(result: ImportIdResult): string {
+  const minted = result.minted;
   const parts = [
-    result.minted === 0
-      ? 'No line needed an id.'
-      : `Added ${countWord(result.minted, 'line id')} to the imported containers, once. "Add line ids on save" was left as it was.`,
+    minted === 0
+      ? t`No line needed an id.`
+      : plural(minted, {
+          one: 'Added # line id to the imported containers, once. "Add line ids on save" was left as it was.',
+          other: 'Added # line ids to the imported containers, once. "Add line ids on save" was left as it was.',
+        }),
   ];
   if (result.unplaceable.length > 0) {
-    const where = result.unplaceable.map((line) => `${line.title} line ${line.line}`).join(', ');
-    parts.push(`${countWord(result.unplaceable.length, 'line')} (${where}) could not take one: ${ROOM_FOR_ID}`);
+    const unplaceable = result.unplaceable.length;
+    const where = result.unplaceable.map((line) => titledLine(line.title, line.line)).join(', ');
+    const room = roomForId();
+    parts.push(
+      plural(unplaceable, {
+        one: `# line (${where}) could not take one: ${room}`,
+        other: `# lines (${where}) could not take one: ${room}`,
+      }),
+    );
   }
   if (result.kept.length > 0) {
-    parts.push(`${result.kept.map((title) => `"${title}"`).join(', ')} kept the Ink as written, because the ids would have stopped it compiling.`);
+    const titles = result.kept.map((title) => `"${isolate(title)}"`).join(', ');
+    parts.push(t`${titles} kept the Ink as written, because the ids would have stopped it compiling.`);
   }
   if (result.duplicatesInSource.length > 0) {
-    const shown = result.duplicatesInSource.slice(0, IDS_SHOWN).join(', ');
-    const more = result.duplicatesInSource.length > IDS_SHOWN ? ` and ${result.duplicatesInSource.length - IDS_SHOWN} more` : '';
-    parts.push(`${countWord(result.duplicatesInSource.length, 'id')} (${shown}${more}) already appear more than once in the source and were kept as written: the export refuses duplicates, so change them in the Ink.`);
+    const duplicates = result.duplicatesInSource.length;
+    const rest = duplicates - IDS_SHOWN;
+    const first = result.duplicatesInSource.slice(0, IDS_SHOWN).join(', ');
+    const shown = duplicates > IDS_SHOWN ? t`${first} and ${rest} more` : first;
+    parts.push(
+      plural(duplicates, {
+        one: `# id (${shown}) already appear more than once in the source and were kept as written: the export refuses duplicates, so change them in the Ink.`,
+        other: `# ids (${shown}) already appear more than once in the source and were kept as written: the export refuses duplicates, so change them in the Ink.`,
+      }),
+    );
   }
   return parts.join(' ');
 }
@@ -93,14 +134,13 @@ export function importLineIdsSentence(result: ImportIdResult): string {
  * the verb agrees with the count: one line has none, three lines have none.
  */
 export function confirmLineIdsSentence(missing: number): string {
-  return `This writes an id tag into ${countWord(missing, 'line')} that ${missing === 1 ? 'has' : 'have'} none. The ids stay with their lines when the text around them changes.`;
+  return plural(missing, {
+    one: 'This writes an id tag into # line that has none. The ids stay with their lines when the text around them changes.',
+    other: 'This writes an id tag into # lines that have none. The ids stay with their lines when the text around them changes.',
+  });
 }
 
 /** "Add 3 line ids" and "Add 1 line id", for the confirm button. */
 export function addLineIdsLabel(count: number): string {
-  return `Add ${countWord(count, 'line id')}`;
-}
-
-function countWord(count: number, singular: string): string {
-  return `${count} ${count === 1 ? singular : `${singular}s`}`;
+  return plural(count, { one: 'Add # line id', other: 'Add # line ids' });
 }

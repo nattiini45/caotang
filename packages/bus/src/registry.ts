@@ -34,6 +34,11 @@ import {
 import * as shotImageDescriptors from './descriptors-shot-image.js';
 import * as scriptDescriptors from './descriptors-script.js';
 import * as skillDescriptors from './descriptors-skills.js';
+import { timelineApply } from './descriptors-timeline.js';
+import * as pictureDescriptors from './descriptors-pictures.js';
+import * as transcriptionDescriptors from './descriptors-transcription.js';
+import * as comicDescriptors from './descriptors-comic.js';
+import * as calendarDescriptors from './descriptors-calendar.js';
 import {
   viewSetActiveDocApply,
   viewSetCorkboardScopeApply,
@@ -136,6 +141,35 @@ export function buildRegistry(): CommandRegistry {
     'skill.write': { descriptor: skillDescriptors.skillWrite },
     'skill.delete': { descriptor: skillDescriptors.skillDelete },
     'skill.setEnabled': { descriptor: skillDescriptors.skillSetEnabled },
+    // The timeline batch (timeline.md §4.3). Descriptor only; its apply is the store's (`commands-timeline.ts`).
+    'timeline.apply': { descriptor: timelineApply },
+    // The calendar setting is manifest state, so only its descriptor lives here; the store attaches the apply.
+    'project.setCalendar': { descriptor: calendarDescriptors.projectSetCalendar },
+    // The picture registry (pictures.md §2.4). Descriptors only; the applies are the store's (`commands-pictures.ts`), and the imports are registered only when the host injects its asset port.
+    'asset.import': { descriptor: pictureDescriptors.pictureCommands.assetImport },
+    'asset.importBatch': { descriptor: pictureDescriptors.pictureCommands.assetImportBatch },
+    'asset.setMeta': { descriptor: pictureDescriptors.pictureCommands.assetSetMeta },
+    'asset.transcribe': { descriptor: transcriptionDescriptors.assetTranscribeDescriptor },
+    'asset.setLinkMeta': { descriptor: pictureDescriptors.pictureCommands.assetSetLinkMeta },
+    'asset.link': { descriptor: pictureDescriptors.pictureCommands.assetLink },
+    'asset.unlink': { descriptor: pictureDescriptors.pictureCommands.assetUnlink },
+    'asset.makeDocumentLevel': { descriptor: pictureDescriptors.pictureCommands.assetMakeDocumentLevel },
+    'asset.repin': { descriptor: pictureDescriptors.pictureCommands.assetRepin },
+    'asset.reorderLinks': { descriptor: pictureDescriptors.pictureCommands.assetReorderLinks },
+    'asset.delete': { descriptor: pictureDescriptors.pictureCommands.assetDelete },
+    // The storage-management three (pictures.md §6.3, §6.5, §6.6.1). Descriptors only; the applies are the store's
+    // (commands-pictures.ts), wired when the host injects the asset port — the sweep also its deletion port.
+    'asset.sweep': { descriptor: pictureDescriptors.pictureCommands.assetSweep },
+    'asset.relink': { descriptor: pictureDescriptors.pictureCommands.assetRelink },
+    'asset.storeWorkingCopies': { descriptor: pictureDescriptors.pictureCommands.assetStoreWorkingCopies },
+    // The comic track (comics.md §3.2). Descriptors only; the applies are the store's (`commands-comic.ts`).
+    'comic.createBook': { descriptor: comicDescriptors.comicCreateBook },
+    'comic.setBook': { descriptor: comicDescriptors.comicSetBook },
+    'comic.setPage': { descriptor: comicDescriptors.comicSetPage },
+    'comic.setScript': { descriptor: comicDescriptors.comicSetScript },
+    'comic.scriptFromPages': { descriptor: comicDescriptors.comicScriptFromPages },
+    'comic.derive': { descriptor: comicDescriptors.comicDerive },
+    'comic.letter': { descriptor: comicDescriptors.comicLetter },
   };
 }
 

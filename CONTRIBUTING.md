@@ -52,6 +52,8 @@ The numbers are in one object, `BUDGET`, at the top of `tools/check-bundle-size.
 
 See [i18n.md §8.2](docs/architecture/i18n.md#82-ci-checks-all-in-pnpm-verify) for the contract.
 
+To add or improve an interface language, follow [TRANSLATING.md](TRANSLATING.md); `node tools/translation-report.mjs` prints completion and credits.
+
 ### PDF validation
 
 CI's `pdf-validate` job checks both PDFs the app writes with tools other than the ones that wrote them. To run it yourself after changing a PDF writer:

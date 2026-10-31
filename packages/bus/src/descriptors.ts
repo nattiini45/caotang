@@ -97,6 +97,7 @@ import {
 } from './params.js';
 import type { PerOpFailure } from './result.js';
 import { recipeNameMissing } from './recipe-names.js';
+import { COMIC_SCRIPT_KIND, isComicFolder } from './descriptors-comic.js';
 import {
   COHERENCE_NOTE_LIMIT,
   COHERENCE_STATUSES,
@@ -342,8 +343,8 @@ export const binderCreate: CommandDescriptor<BinderCreateParams> = {
     if (!type.ok) return type;
     if (!(BINDER_CREATE_TYPES as readonly string[]).includes(type.value)) {
       return invalid(
-        `params.type must be "folder", "document", "shot" or "dialogue", got "${type.value}"`,
-        'folder and document are the prose types; shot and dialogue are the media-track types (storyboard.md, dialogue-narrative.md)',
+        `params.type must be "folder", "document", "shot", "dialogue" or "comic-page", got "${type.value}"`,
+        'folder and document are the prose types; shot, dialogue and comic-page are the media-track types (storyboard.md, dialogue-narrative.md, comics.md)',
         'type',
       );
     }
@@ -369,6 +370,8 @@ export const binderCreate: CommandDescriptor<BinderCreateParams> = {
         'parentId',
       );
     }
+    const comicPlacement = comicPlacementRefusal(type.value, paired.kind, parent.value);
+    if (comicPlacement !== undefined) return invalid(comicPlacement.message, comicPlacement.hint, 'parentId');
     // The chapter rule: a manuscript child is a chapter, so a new document
     // or dialogue is not made directly under the manuscript. The sentence is the binder's own (binder-model.ts `dropRefusalText`).
     // Only a new one is refused: a chapterless document an older project holds still loads, and moves, since an undo of its move into a
@@ -393,6 +396,32 @@ export const binderCreate: CommandDescriptor<BinderCreateParams> = {
   },
 };
 
+/**
+ * The comic book's placement rules (comics.md §2), the same in both directions and checked by both binder commands: a page sits in a
+ * comic book, and a book holds its pages and its script and nothing else. `type` and `kind` are the node's own; a script is a
+ * `document` of kind `comic-script`.
+ */
+function comicPlacementRefusal(
+  type: string,
+  kind: string | undefined,
+  parent: ValidationNode,
+): { message: string; hint: string } | undefined {
+  if (type === 'comic-page') {
+    if (isComicFolder(parent)) return undefined;
+    return {
+      message: `a comic page must sit in a comic book, and "${parent.id}" is not one`,
+      hint: 'create a comic book first (comic.createBook), and create the page inside it',
+    };
+  }
+  if (isComicFolder(parent) && !(type === 'document' && kind === COMIC_SCRIPT_KIND)) {
+    return {
+      message: `"${parent.id}" is a comic book, and a comic book holds only its pages and its script, so a ${type} cannot be made in it`,
+      hint: 'make the node beside the comic book, under the same parent',
+    };
+  }
+  return undefined;
+}
+
 /** The manuscript root's fixed id (project-format §2). */
 const MANUSCRIPT_ID = 'manuscript';
 
@@ -403,7 +432,7 @@ const MANUSCRIPT_ID = 'manuscript';
 export const CHAPTERLESS_DOCUMENT_REFUSAL = 'A document goes inside a chapter, not directly under the manuscript.';
 
 /** The node types `binder.create` takes: the two prose types, and the two media types (screenplay, branching dialogue, storyboard). */
-const BINDER_CREATE_TYPES = ['folder', 'document', 'shot', 'dialogue'] as const;
+const BINDER_CREATE_TYPES = ['folder', 'document', 'shot', 'dialogue', 'comic-page'] as const;
 
 /**
  * The kind a create carries, paired with its type. A dialogue container always carries `branching` (its graph-view
@@ -412,12 +441,13 @@ const BINDER_CREATE_TYPES = ['folder', 'document', 'shot', 'dialogue'] as const;
 function pairCreateKind(
   type: string,
   kind: string | undefined,
-): { ok: true; kind?: 'screenplay' | 'storyboard' | 'branching' } | { ok: false; message: string; hint: string } {
+): { ok: true; kind?: 'screenplay' | 'storyboard' | 'branching' | 'comic-script' } | { ok: false; message: string; hint: string } {
   const allowed: Readonly<Record<string, readonly string[]>> = {
     folder: ['storyboard'],
-    document: ['screenplay'],
+    document: ['screenplay', 'comic-script'],
     dialogue: ['branching'],
     shot: [],
+    'comic-page': [],
   };
   const choices = allowed[type] ?? [];
   if (kind === undefined) {
@@ -429,11 +459,11 @@ function pairCreateKind(
       message: `kind "${kind}" does not go with type "${type}"`,
       hint:
         choices.length === 0
-          ? 'a shot takes no kind — its type is its kind; omit kind'
+          ? `a ${type} takes no kind — its type is its kind; omit kind`
           : `a ${type} takes ${choices.map((c) => `"${c}"`).join(' or ')}, or no kind at all`,
     };
   }
-  return { ok: true, kind: kind as 'screenplay' | 'storyboard' | 'branching' };
+  return { ok: true, kind: kind as 'screenplay' | 'storyboard' | 'branching' | 'comic-script' };
 }
 
 export const binderMove: CommandDescriptor<BinderMoveParams> = {
@@ -483,6 +513,22 @@ export const binderMove: CommandDescriptor<BinderMoveParams> = {
       return invalid(
         `"${parent.value.id}" is a storyboard, and a storyboard holds only shots, so "${node.value.id}" (a ${node.value.type}) cannot move into it`,
         'move it beside the storyboard instead, and keep the storyboard for its shots',
+        'newParentId',
+      );
+    }
+    // The comic book's rules (comics.md §2): a page stays in a book, and a book takes pages and its script only. A book itself
+    // does not move into a book. The kind a moved node carries is its own, so a script moves in by being a comic-script document.
+    if (node.value.type === 'comic-page' && !isComicFolder(parent.value)) {
+      return invalid(
+        `a comic page must sit in a comic book, and "${parent.value.id}" is not one`,
+        'move the page into a comic book, or leave it where it is',
+        'newParentId',
+      );
+    }
+    if (isComicFolder(parent.value) && node.value.type !== 'comic-page' && !(node.value.type === 'document' && node.value.kind === COMIC_SCRIPT_KIND)) {
+      return invalid(
+        `"${parent.value.id}" is a comic book, and a comic book holds only its pages and its script, so "${node.value.id}" (a ${node.value.type}) cannot move into it`,
+        'move it beside the comic book instead',
         'newParentId',
       );
     }
@@ -1375,6 +1421,16 @@ export const EXPORT_FORMATS = [
   'pdf',
   // The storyboard's contact sheet (storyboard.md §6), appended as the sixteenth.
   'contact-sheet-pdf',
+  // The comic PDF (comics.md §5), the seventeenth.
+  'comic-pdf',
+  // The timeline's exports (timeline.md §8): the table as CSV and XLSX, the drawn axis as SVG and PDF. Appended as the eighteenth to twenty-first.
+  'timeline-csv',
+  'timeline-xlsx',
+  'timeline-svg',
+  'timeline-pdf',
+  // The comic's raster formats (comics.md §5), appended as the twenty-second and twenty-third. Only the app makes them; a Node host refuses.
+  'cbz',
+  'comic-epub',
 ] as const;
 
 function exportFormatRefusal(format: string): Result<never, CommandError> | undefined {

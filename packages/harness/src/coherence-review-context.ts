@@ -8,7 +8,6 @@
  */
 
 import {
-  estimateTokens,
   type CoherenceModel,
   type ContextBlock,
   type ModelReply,
@@ -16,8 +15,9 @@ import {
   type ReviewContext,
 } from '@caotang/coherence';
 import { detect, selectCandidates } from '@caotang/codex';
-import type { ProfileView, ProviderGateway, ThinkingLevel } from '@caotang/gateway';
+import { contentTokens, textOf, type ProfileView, type ProviderGateway, type ThinkingLevel } from '@caotang/gateway';
 import { getBody, type ProjectState, type TreeNode } from '@caotang/store';
+import { appendLanguageLine, type LanguagePolicy } from './agent/context.js';
 
 /** The manuscript's documents in binder order, the order the story-so-far layer reads them in. */
 function manuscriptDocuments(state: ProjectState): TreeNode[] {
@@ -76,6 +76,14 @@ export function reviewContextOf(state: ProjectState): ReviewContext {
   };
 }
 
+/** A review model whose every request carries the language line (i18n §6.1). The languages are read at each call, so a switch applies to the next review. */
+export function withReviewLanguages(model: CoherenceModel, languages: () => LanguagePolicy | undefined): CoherenceModel {
+  return {
+    model: model.model,
+    complete: (request) => model.complete({ ...request, system: textOf(appendLanguageLine(request.system, languages())) }),
+  };
+}
+
 /**
  * The provider gateway as the engine's model port. The reply is the model's text; the token counts are the engine's own estimate
  * (`ceil(chars/4)`, context-assembly §3), because a one-shot reply carries no usage. The run says so in its notes.
@@ -83,7 +91,7 @@ export function reviewContextOf(state: ProjectState): ReviewContext {
 export function gatewayCoherenceModel(
   gateway: ProviderGateway,
   profile: ProfileView,
-  defaults?: { readonly model?: string; readonly thinking?: ThinkingLevel },
+  defaults?: { readonly model?: string; readonly thinking?: ThinkingLevel; readonly languages?: LanguagePolicy },
 ): CoherenceModel {
   return {
     model: defaults?.model ?? profile.defaultModel,
@@ -95,7 +103,7 @@ export function gatewayCoherenceModel(
           // profile stays pinned to the one the caller resolved.
           role: 'chat',
           messages: [
-            { role: 'system', content: request.system },
+            { role: 'system', content: appendLanguageLine(request.system, defaults?.languages) },
             { role: 'user', content: request.user },
           ],
           responseFormat: { jsonSchemaHint: request.jsonSchemaHint },
@@ -107,10 +115,10 @@ export function gatewayCoherenceModel(
         request.signal,
       );
       return {
-        content: message.content,
+        content: textOf(message.content),
         usage: {
-          promptTokens: estimateTokens(request.system + request.user),
-          completionTokens: estimateTokens(message.content),
+          promptTokens: contentTokens(request.system + request.user),
+          completionTokens: contentTokens(message.content),
         },
       };
     },

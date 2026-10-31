@@ -48,8 +48,9 @@ import { FolderChangedError } from '@caotang/sdk/folder';
 
 import type { ChangeFeed } from './changes.js';
 import { idempotencyKeyOf, type ReplayAnswer, type ReplayCache } from './replay.js';
-import { notMadeError, type ProjectSession } from './session.js';
+import { notMadeError, type ConfirmationRound, type ProjectSession } from './session.js';
 import { projectFileLabel, projectFileTitles } from '@caotang/store';
+import type { TimelineWriteResult } from '@caotang/sdk/folder';
 
 /** Everything a tool needs to run: the open project, the confirmation machinery, and the feed of changes the project's writes announce. */
 export interface ToolRuntime {
@@ -284,7 +285,12 @@ export interface ConfirmHooks {
   /** Checks that await, run before the ledger is read. A result stops the call with it; nothing is asked. */
   prepare(): Promise<CallToolResult | undefined>;
   /** The refusal the accept would return, found with no effect, or `undefined` when the call would be accepted. Synchronous, so nothing awaits between the ledger read and the write. */
-  check(): CommandError | undefined;
+  check(round: ConfirmationRound): CommandError | undefined;
+  /**
+   * Drops what `check` held for a round that ends with no accept (nothing asked, declined, cancelled, or the host cannot be asked).
+   * An accept drops it by running.
+   */
+  release?(callId: string): void;
   /** The change, in words, for the question. */
   summary(): string;
   /** Runs an accepted call and resolves to what the caller is told. It starts its write before it returns its promise. */
@@ -308,23 +314,39 @@ export async function confirmRound(
 
   // This await comes before the ledger is read, not after it: of two accepts of one round, the second must find the first's answer in
   // the ledger with nothing awaited between that read and the write.
+  // The pair of this round: an earlier round's when the state carries one, else new. Fixed before the first check so what a check holds
+  // for the accept is keyed by the round, not by the arguments, which two requests may share.
+  const turnId = bound?.turnId ?? newTurnId();
+  const callId = bound?.callId ?? newId('cmd');
+  const release = (): void => hooks.release?.(callId);
+
   const stopped = await hooks.prepare();
-  if (stopped !== undefined) return stopped;
+  if (stopped !== undefined) {
+    release();
+    return stopped;
+  }
 
   // A replay of an accepted retry is answered first, from the ledger. The first accept has already changed the project, so the same
   // arguments may no longer check against it (a codex create whose name the first accept took), and a refusal here would tell the agent
   // to rename and create again. The replay gets the first answer, and writes nothing.
   if (bound !== undefined && accepted) {
     const replay = runtime.ledger.recall(bound.nonce, Date.now());
-    if (replay !== undefined) return replay;
+    if (replay !== undefined) {
+      release();
+      return replay;
+    }
   }
 
   // The arguments are checked before the host is asked. A dialog that asks for a change which the accept would refuse misleads the
   // person, so the refusal the accept would return comes back now: nothing is asked, and nothing is written.
-  const invalid = hooks.check();
-  if (invalid !== undefined) return refusal(invalid);
+  const invalid = hooks.check({ callId, accepted: bound !== undefined });
+  if (invalid !== undefined) {
+    release();
+    return refusal(invalid);
+  }
   const declared = declaredCapabilities(server, ctx);
   if (!canAnswerForm(declared)) {
+    release();
     // Undefined means this request shows no capabilities at all: a request with no session id, on the stateless leg, which
     // never saw an `initialize`. A 2025-era connection that did see one keeps its capabilities on its own server (see
     // legacy-sessions.ts), so this is not a host that declared nothing. The refusal names the two routes that can ask:
@@ -354,13 +376,12 @@ export async function confirmRound(
       runtime.ledger.remember(bound.nonce, answer, now + ROUND_TTL_SECONDS * 1000, now);
       return answer;
     }
+    release();
     const status = reply.action === 'decline' ? 'declined' : reply.action === 'cancel' ? 'cancelled' : 'not confirmed';
     return notWritten(name, status);
   }
 
-  // No answer for these arguments yet: ask. The state carries the pair of an earlier round, when there was one.
-  const turnId = bound?.turnId ?? newTurnId();
-  const callId = bound?.callId ?? newId('cmd');
+  // No answer for these arguments yet: ask.
   const state = await runtime.codec.mint({ v: 1, tool: name, digest, turnId, callId, nonce: randomUUID() });
   return inputRequired({
     inputRequests: {
@@ -371,6 +392,27 @@ export async function confirmRound(
     },
     requestState: state,
   });
+}
+
+/**
+ * The checks a write-confirm call runs before the host is asked: the images listed again, and the folder checked as the accept would
+ * check it (`verifyFolder`). A folder that changed is refused now, so the host is never asked about a change the save would refuse.
+ */
+async function prepareConfirmed(session: ProjectSession, name: string): Promise<CallToolResult | undefined> {
+  // The images an export names are listed now, before the check below reads them: a listing held from an earlier call may be one
+  // that failed, or one that has since stopped being true.
+  await session.refreshAssets();
+  try {
+    await session.verifyFolder();
+  } catch (error) {
+    return refusal({
+      code: 'io-error',
+      message: `"${name}" was not made: the project folder could not be read (${reason(error, session)}). Nothing was written.`,
+      correctiveHint: 'make sure the project folder can be read, then make the change again',
+      target: name,
+    });
+  }
+  return undefined;
 }
 
 /** One write-confirm harness tool: the round of {@link confirmRound}, with the project's own checks and write. */
@@ -391,25 +433,9 @@ function runConfirmed(
     {
       name,
       params,
-      async prepare() {
-        // The images an export names are listed now, before the check below reads them: a listing held from an earlier call may be one
-        // that failed, or one that has since stopped being true.
-        await session.refreshAssets();
-        // The folder is checked before the host is asked, as the accept would check it (verifyFolder). A folder that changed is refused now, and
-        // the host is not asked about a change the save would refuse.
-        try {
-          await session.verifyFolder();
-        } catch (error) {
-          return refusal({
-            code: 'io-error',
-            message: `"${name}" was not made: the project folder could not be read (${reason(error, session)}). Nothing was written.`,
-            correctiveHint: 'make sure the project folder can be read, then make the change again',
-            target: name,
-          });
-        }
-        return undefined;
-      },
-      check: () => session.check(name, params),
+      prepare: () => prepareConfirmed(session, name),
+      check: (round) => session.check(name, params, round),
+      release: (callId) => session.releaseConfirmation(callId),
       summary: () =>
         confirmationSummary(
           name,
@@ -424,6 +450,106 @@ function runConfirmed(
 }
 
 /**
+ * The timeline's write-confirm round (timeline.md §9.2, T12). The round trip is every other confirmed call's — the same question, the
+ * same bound state, the same ledger — and only the accepted write differs: it runs on the folder's two-file path
+ * (`ProjectSession.callConfirmedTimeline`), so the answer is the typed outcome with its read-back rather than a bare success.
+ */
+function runConfirmedTimeline(
+  server: McpServer,
+  listing: ToolListing,
+  params: Structured,
+  ctx: ServerContext,
+  runtime: ToolRuntime,
+  waitSeconds: number | undefined,
+): Promise<CallToolResult | InputRequiredResult> {
+  const name = listing.name;
+  const { session } = runtime;
+  return confirmRound(
+    server,
+    ctx,
+    runtime,
+    {
+      name,
+      params,
+      prepare: () => prepareConfirmed(session, name),
+      check: (round) => session.check(name, params, round),
+      release: (callId) => session.releaseConfirmation(callId),
+      summary: () =>
+        confirmationSummary(
+          name,
+          params,
+          (id) => titleOfNode(session.state, id),
+          (id) => codexEntryNameOf(session.state, id),
+        ),
+      apply: async (bound) => {
+        try {
+          return timelineResult(name, await session.callConfirmedTimeline(name, bound.callId, params, bound.turnId));
+        } catch (error) {
+          return failed(name, error, session);
+        }
+      },
+    },
+    waitSeconds,
+  );
+}
+
+/**
+ * A timeline batch's answer as a tool result, typed by what the folder came to hold — the one place a caller is told whether a
+ * two-file write is on disk. `persisted` alone is success. `partial` is **not** success: it carries the files the save reached, the
+ * files it did not, and a read-back of what the folder holds now, so a host can re-read and propose only what is missing.
+ */
+function timelineResult(name: string, result: TimelineWriteResult<ToolOutcome>): CallToolResult {
+  const text = (body: Structured): CallToolResult => ({ content: [{ type: 'text', text: JSON.stringify(body) }], structuredContent: body });
+  const failedResult = (body: Structured): CallToolResult => ({ isError: true, ...text(body) });
+  if (result.status === 'refused') return toCallResult(result.outcome);
+  if (result.status === 'conflict') {
+    return failedResult({
+      status: 'conflict',
+      written: false,
+      tool: name,
+      error: result.conflict.error,
+      ...(result.conflict.scenes.length === 0 ? {} : { scenes: result.conflict.scenes }),
+    });
+  }
+  const outcome = result.outcome;
+  const body: Structured = {
+    status: result.status,
+    written: result.status === 'persisted',
+    tool: name,
+    ...(outcome.ok
+      ? {
+          summary: outcome.value.summary,
+          data: outcome.value.data,
+          affected: outcome.value.affected,
+          ...(outcome.value.undoGroupId === undefined ? {} : { undoGroupId: outcome.value.undoGroupId }),
+          ...(outcome.value.notes === undefined ? {} : { notes: outcome.value.notes }),
+        }
+      : { refusal: outcome.error }),
+    files: result.status === 'persisted' ? result.files : result.written,
+    ...(result.status === 'partial'
+      ? {
+          unwritten: result.unwritten,
+          readback: result.readback,
+          error: {
+            code: 'io-error',
+            message: result.recovery,
+            correctiveHint: 'restart caotang-mcp, then read the timeline again and propose only what the folder does not hold',
+            target: name,
+          },
+        }
+      : { readback: result.readback }),
+  };
+  return result.status === 'persisted' && outcome.ok ? text(body) : failedResult(body);
+}
+
+/**
+ * The picture reads this server registers itself, beside the registry (`pictures.ts`): their own descriptions, their own size checks
+ * and their image blocks are that module's. The registry has rows for the same names now, so a row here would be registered a second
+ * time and every request would fail. The skip goes when the server stops registering them itself.
+ */
+const PICTURES_SERVED_BESIDE = new Set(['pictures.list', 'pictures.view']);
+
+/**
  * Registers every exposed harness tool on `server`. Returns the names registered, in table order. `roundWaitMs` is the
  * deadline of a confirmation on this server's connection, when it has one; the question says so (confirm.ts).
  */
@@ -436,6 +562,7 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
     // tool.search searches the tool servers that Caotang's own MCP client connects to. This server connects to none, so the
     // tool could only answer that no servers are connected, and an outside agent would plan around a dead end (§9).
     if (listing.name === 'tool.search') continue;
+    if (PICTURES_SERVED_BESIDE.has(listing.name)) continue;
     // A tool whose implementation this server does not have is not advertised: listed, it
     // would refuse every call, and an outside agent would plan around a tool that cannot run.
     if (!listing.wired) continue;
@@ -454,7 +581,22 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
       },
       async (args: Structured, ctx: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
         const params: Structured = args ?? {};
-        if (listing.risk === 'write-confirm') return runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
+        // A timeline batch that was only partly saved leaves the folder and this copy out of step, so nothing more is written: the
+        // refusal comes before the check and before any question, because no later write would be safe to make (timeline.md §9.2).
+        const partway = runtime.session.writtenPartway;
+        if (partway !== undefined && listing.risk !== 'read') {
+          return refusal({
+            code: 'io-error',
+            message: `"${listing.name}" was not made: an earlier timeline batch was only partly saved, so the project folder and this server's copy may not agree. ${partway} Nothing was written.`,
+            correctiveHint: 'restart caotang-mcp and read the project again before making another change',
+            target: listing.name,
+          });
+        }
+        if (listing.risk === 'write-confirm') {
+          return listing.name === 'timeline.edit'
+            ? runConfirmedTimeline(server, listing, params, ctx, runtime, waitSeconds)
+            : runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
+        }
         const key = listing.risk === 'write-auto' ? idempotencyKeyOf(ctx.mcpReq._meta) : undefined;
         if (key !== undefined) return runKeyed(runtime, key, listing.name, params);
         return (await runDirect(runtime, listing.name, params)).result;

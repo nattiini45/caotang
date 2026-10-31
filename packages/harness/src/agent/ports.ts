@@ -30,6 +30,7 @@ import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { CallParams, PortContext, PortToolName, ToolPort, ToolValue } from '../types.js';
 import { batchRefusal } from '../tools/common.js';
 import { delegatePort } from '../tools/delegate.js';
+import { transcriptionPreview, type PictureTranscriptionPlan } from '../tools/transcription.js';
 import { asFindingsProposal, asSceneProposal, asSynopsisProposal, wordsOf } from './drafting.js';
 import { storyboardOf } from './storyboard-model.js';
 
@@ -512,6 +513,15 @@ export function previewFor(state: ProjectState, tool: string, params: CallParams
       shots: plan.shots.map((shot) => ({ number: shot.number, title: shot.title, spec: specRowOf(shot.stored) })),
       lines: plan.treeDiff,
       notes: plan.notes,
+    };
+  }
+  if (tool === 'pictures.transcribe') {
+    const plan = proposal as (PictureTranscriptionPlan & { readonly routes?: unknown; readonly routeCosts?: unknown }) | undefined;
+    if (plan?.kind !== 'pictures.transcribe' || !Array.isArray(plan.pages)) return undefined;
+    return {
+      ...transcriptionPreview(plan),
+      ...(plan.routes === undefined ? {} : { routes: plan.routes }),
+      ...(plan.routeCosts === undefined ? {} : { routeCosts: plan.routeCosts }),
     };
   }
   if (tool === 'coherence.review') {

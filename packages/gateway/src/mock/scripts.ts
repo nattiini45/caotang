@@ -14,6 +14,7 @@
  */
 
 import type { ProviderErrorKind } from '../errors.js';
+import { textOf } from '../parts.js';
 import type { ChatChunk, ChatRequest, FinishReason, ModelInfo, ToolCall } from '../types.js';
 
 // The token rule lives in one module so the mock and the real gateway agree on it.
@@ -70,13 +71,14 @@ function tick(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
-/** Last user message, or the last message of any role — the mock's "the prompt". */
+/** Last user message, or the last message of any role — the mock's "the prompt". Image parts read as their placeholder, never their bytes. */
 function promptOf(req: ChatRequest): string {
   for (let i = req.messages.length - 1; i >= 0; i -= 1) {
     const m = req.messages[i];
-    if (m && m.role === 'user') return m.content;
+    if (m && m.role === 'user') return textOf(m.content);
   }
-  return req.messages.at(-1)?.content ?? '';
+  const last = req.messages.at(-1)?.content ?? '';
+  return typeof last === 'string' ? last : textOf(last);
 }
 
 const always = () => true;

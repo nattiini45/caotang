@@ -11,6 +11,7 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { ZOOM_LEVELS, type ZoomLevel } from '../app/corkboard-model.js';
 
 import { radioStep } from './radio-keys.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 
 /**
  * What each level means on the corkboard. A level's accessible name is its letter, then its label (`S: Small cards, title only`), so
@@ -48,7 +49,7 @@ export function ZoomControl({ zoom, onZoom, labels, ariaLabel }: ZoomControlProp
     event.currentTarget.querySelector<HTMLElement>(`[data-zoom="${next}"]`)?.focus();
   };
   return (
-    <div role="radiogroup" aria-label={groupLabel} className="segmented" onKeyDown={onKeyDown}>
+    <div role="radiogroup" aria-label={accessibleText(groupLabel)} className="segmented" onKeyDown={onKeyDown}>
       {ZOOM_LEVELS.map((level) => {
         const label = labelText(level, labels);
         return (

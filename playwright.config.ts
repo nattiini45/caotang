@@ -50,6 +50,10 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: `http://127.0.0.1:${port}`,
+    // A new project's language defaults to the app locale (packages/store project-identity), so a machine whose system locale is
+    // de-DE would hand the specs German labels while they assert English. Pin the browser locale here; every project inherits it,
+    // production-preview included, and a spec that wants another locale overrides it with test.use.
+    locale: 'en-US',
     trace: 'on-first-retry',
   },
   projects: [

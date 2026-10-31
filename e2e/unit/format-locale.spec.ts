@@ -12,9 +12,9 @@ import { projectCollator } from '../../apps/desktop/src/i18n/project-collator.js
  * expectations do not depend on the machine running them.
  */
 test.describe('the app’s formatter locale (i18n.md §4.1, D3)', () => {
-  test('the interface resolves to English while only the English catalogue ships', () => {
+  test('the interface resolves to English while the English and German catalogues ship', () => {
     setUiLocaleTag('en');
-    expect(SHIPPED_UI_LOCALES).toEqual(['en']);
+    expect(SHIPPED_UI_LOCALES).toEqual(['en', 'de']);
     expect(uiLocale()).toBe('en');
   });
 

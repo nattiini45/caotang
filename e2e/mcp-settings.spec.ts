@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { loose } from './support.js';
 
 /**
  * Settings › MCP & tools (extensibility §3–§4, §8): the master switch, a server added and connected by a person, the review of
@@ -58,7 +59,7 @@ async function addServer(settings: ReturnType<Page['getByTestId']>, name: string
   await form.getByLabel('Name').fill(name);
   await form.getByLabel('Server address (https://…, or http://localhost…)').fill(url);
   await form.getByRole('button', { name: 'Add server' }).click();
-  await expect(settings.getByText(`Added “${name}”`)).toBeVisible();
+  await expect(settings.getByText(loose(`Added “${name}”`))).toBeVisible();
 }
 
 /** A row of the settings table in the app database, read back the way the next start would read it. */
@@ -162,7 +163,7 @@ test('an import names the entry it refuses, and adds the rest without a trust gr
   await settings.getByRole('button', { name: 'Import', exact: true }).click();
 
   const result = settings.getByTestId('mcp-import-result');
-  await expect(result).toContainText('Added 1: Good.');
+  await expect(result).toContainText(loose('Added 1: Good.'));
   await expect(result.getByRole('list', { name: 'Refused entries' })).toContainText('"Trusted": it sets "trustReads"');
   await expect(card(settings, 'Good')).toBeVisible();
   await expect(card(settings, 'Trusted')).toHaveCount(0);
@@ -175,7 +176,7 @@ test('an import selection is kept through a reload, and a tool it left out stays
   const list = JSON.stringify({ servers: [{ name: 'Story bible', url: FIXTURE_URL, enabledTools: ['search_lore'] }] });
   await settings.getByLabel('Server list to import').fill(list);
   await settings.getByRole('button', { name: 'Import', exact: true }).click();
-  await expect(settings.getByTestId('mcp-import-result')).toContainText('Added 1: Story bible.');
+  await expect(settings.getByTestId('mcp-import-result')).toContainText(loose('Added 1: Story bible.'));
   await expect.poll(async () => storedRecord(page, 'settings')).toContain('enabledTools');
 
   // Before anything connects, a reload keeps the selection: the server is still unconnected, and its record still holds it.
@@ -273,7 +274,7 @@ test('the server list survives a reload, and the token it was given is kept out 
   await form.getByLabel('Sign-in').selectOption('bearer');
   await form.getByRole('textbox', { name: 'Bearer token', exact: true }).fill('tok-visible-once');
   await form.getByRole('button', { name: 'Add server' }).click();
-  await expect(settings.getByText('Added “Story bible”')).toBeVisible();
+  await expect(settings.getByText(loose('Added “Story bible”'))).toBeVisible();
 
   await expect.poll(() => storedRecord(page, 'settings')).toContain('Story bible');
   expect(await storedRecord(page, 'settings')).not.toContain('tok-visible-once');

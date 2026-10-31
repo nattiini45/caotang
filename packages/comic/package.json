@@ -1,0 +1,20 @@
+{
+  "name": "@caotang/comic",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Comic books, pages, panels and balloons: the model, the codec, the comic-script parser, lettering rules and coverage — pure, no DOM (comics.md).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/i18n": "workspace:*",
+    "@caotang/ids": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

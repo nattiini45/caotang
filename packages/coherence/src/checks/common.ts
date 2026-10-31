@@ -13,7 +13,7 @@ import type { CodexEntry } from '@caotang/store';
 import type { CueFacts } from '../cues.js';
 import { effectiveMode } from '../scene-meta.js';
 import type { DeterministicCheckId, Evidence, FindingSeverity, KnowledgeFact, TimelineMode } from '../model.js';
-import type { ManuscriptFolder, ScannedScene, ShotFact } from '../scope.js';
+import type { ManuscriptFolder, ScannedScene, ShotFact, ComicBookFact } from '../scope.js';
 
 /** One finding as a check produced it, before the lifecycle has placed it. */
 export interface DraftFinding {
@@ -64,6 +64,13 @@ export interface CheckInput {
   readonly hits: ReadonlyMap<string, ReadonlyMap<string, number>>;
   /** Every storyboard shot in the project (storyboard.md §5). Absent is the same as none. */
   readonly shots?: readonly ShotFact[];
+  /**
+   * Every comic book in the project, read from the tree (comics.md §2). Absent is the same as none. The comic lint
+   * checks (`comic.*`) read these on any scope, because a book is structure, not a scanned document.
+   */
+  readonly comics?: readonly ComicBookFact[];
+  /** The project's language, a BCP 47 tag (the manifest project identity's `language`), for rules that take one. */
+  readonly language?: string;
   /** The dialogue module's validation, when the app supplied it. Absent means the branch checks are not evaluated. */
   readonly dialogue?: DialogueFacts;
   /**

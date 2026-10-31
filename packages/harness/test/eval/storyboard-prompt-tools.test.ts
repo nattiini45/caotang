@@ -17,6 +17,7 @@ import { parseDeriveReply } from '../../src/agent/storyboard-model.js';
 import { CHAPTER_ONE, FRIEND, OPENED, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps, transcript } from '../agent/scripts.js';
+import { textOf } from '@caotang/gateway';
 
 const LAMP = 'n_LAMPSCN001';
 const BOARD = 'n_SBOARD0001';
@@ -25,7 +26,7 @@ const VENDOR = VIDEO_TEMPLATE_IDS[0] as string;
 const SHOT_FOLDER_TITLE = 'Lamp Scene — Shots';
 
 /** The system message of a request, which names each drafting call's role. */
-const systemOf = (req: ChatRequest): string => req.messages[0]?.content ?? '';
+const systemOf = (req: ChatRequest): string => textOf(req.messages[0]?.content ?? '');
 
 /** A model reply that answers the one call whose system message carries the marker. */
 function replyTo(marker: string, content: string): MockScript {

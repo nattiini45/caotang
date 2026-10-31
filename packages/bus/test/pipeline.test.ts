@@ -1172,7 +1172,11 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // The project's skills add `skill.import`, `skill.write`, `skill.delete` and `skill.setEnabled`, descriptors here and applies in the store: 42 + 4 = 46. The knowledge facts add `coherence.addKnowledgeFact`, `coherence.editKnowledgeFact` and `coherence.removeKnowledgeFact`, descriptors here and applies in the store: 46 + 3 = 49.
     // `mcp.readResource` (the writer's read of a resource, extensibility §6) is the same kind of name as `mcp.invoke`: a descriptor here, its apply injected: 49 + 1 = 50.
     // The paper-photo round trip adds `shot.importImages`, the batch form of `shot.importImage`, a descriptor here with its apply in the store: 50 + 1 = 51.
-    expect(COMMAND_NAMES.length).toBe(51);
+    // The timeline batch adds `timeline.apply`, a descriptor here with its apply in the store: 51 + 1 = 52.
+    // The picture registry adds `asset.import`, `asset.importBatch`, `asset.setMeta`, `asset.setLinkMeta`, `asset.link`, `asset.unlink`, `asset.reorderLinks` and `asset.delete`, descriptors here and applies in the store: 52 + 8 = 60.
+    // The anchor and storage commands add `asset.repin`, `asset.relink`, `asset.sweep` and `asset.storeWorkingCopies`: 60 + 4 = 64.
+    // The seven comic commands make 71, the writer-only calendar setting makes 72, transcription makes 73, and the document-level compound makes 74.
+    expect(COMMAND_NAMES.length).toBe(74);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {

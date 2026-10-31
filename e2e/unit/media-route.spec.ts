@@ -8,7 +8,7 @@ const NOW = new Date('2026-10-08T09:00:00Z');
 
 /** One node of every kind the routing has to tell apart, each under the manuscript. */
 function project(): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addDocument(state, { parentId: 'manuscript', title: 'Prose scene', id: 'n_PROSE00001', body: 'Once upon a time.', now: NOW });
   addDocument(state, { parentId: 'manuscript', title: 'Kitchen', id: 'n_SCENE00001', body: 'INT. KITCHEN - NIGHT', now: NOW });
   Object.assign(nodeById(state, 'n_SCENE00001') as TreeNode, { kind: 'screenplay' });

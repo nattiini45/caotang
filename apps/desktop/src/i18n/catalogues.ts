@@ -30,6 +30,7 @@ export interface InterfaceCatalogue {
  */
 export const INTERFACE_CATALOGUES: readonly InterfaceCatalogue[] = [
   { id: 'en', tag: 'en', pseudo: false },
+  { id: 'de', tag: 'de', pseudo: false },
   { id: 'pseudo-LOCALE', tag: 'en-XA', pseudo: true },
   { id: 'pseudo-RTL', tag: 'ar-XB', pseudo: true },
 ];

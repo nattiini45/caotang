@@ -27,7 +27,7 @@
  * both directions, and the load path is where a version changes.
  */
 
-import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, PICTURE_MODES, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
 import { jsonValueProblem } from './json-value.js';
 import type {
   CodexEntry,
@@ -174,6 +174,8 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
   { key: 'kind', value: (node: TreeNode) => node.kind, write: (value) => str(value as string, 'node.kind') },
   { key: 'shot', value: (node: TreeNode) => node.shot, write: (value) => criterion(value, 'node.shot') },
   { key: 'dialogue', value: (node: TreeNode) => node.dialogue, write: (value) => criterion(value, 'node.dialogue') },
+  { key: 'comic', value: (node: TreeNode) => node.comic, write: (value) => criterion(value, 'node.comic') },
+  { key: 'comicPage', value: (node: TreeNode) => node.comicPage, write: (value) => criterion(value, 'node.comicPage') },
   { key: 'style', value: (node: TreeNode) => node.style, write: (value) => str(value as string, 'node.style') },
   { key: 'createdAt', value: (node: TreeNode) => node.createdAt, write: (value) => str(value as string, 'node.createdAt') },
   { key: 'updatedAt', value: (node: TreeNode) => node.updatedAt, write: (value) => str(value as string, 'node.updatedAt') },
@@ -182,7 +184,7 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
 /** One optional node field: where its value is, and how it is written. */
 interface OptionalNodeField {
   /** The manifest key it is written under. */
-  readonly key: 'kind' | 'shot' | 'dialogue' | 'style' | 'createdAt' | 'updatedAt';
+  readonly key: 'kind' | 'shot' | 'dialogue' | 'comic' | 'comicPage' | 'style' | 'createdAt' | 'updatedAt';
   /** The node's value for it, or `undefined` when the node does not carry it. */
   readonly value: (node: TreeNode) => unknown;
   /** The text the serializer writes for it. */
@@ -307,6 +309,50 @@ function projectGoal(g: ProjectGoal): string {
   return oneLine(pairs);
 }
 
+const ASSET_RECORD_KEYS = [
+  'id',
+  'file',
+  'mime',
+  'sha256',
+  'bytes',
+  'width',
+  'height',
+  'caption',
+  'alt',
+  'decorative',
+  'tags',
+  'source',
+  'transcription',
+  'workingCopy',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+const ASSET_LINK_KEYS = ['id', 'assetId', 'target', 'role', 'order', 'note', 'when'] as const;
+
+/**
+ * One `assets[]` or `assetLinks[]` entry: the keys this build knows, in the spec's order, then any key a newer build added, in the
+ * order it was read, so a record that passes through this build comes out with every field it came in with (pictures.md §2.1).
+ */
+function pictureEntry(entry: object, known: readonly string[], field: string): string {
+  const record = entry as Record<string, unknown>;
+  const pairs: [string, string][] = [];
+  for (const name of known) {
+    if (record[name] !== undefined) pairs.push([name, criterion(record[name], `${field}.${name}`)]);
+  }
+  for (const name of Object.keys(record)) {
+    if (!known.includes(name) && record[name] !== undefined) pairs.push([name, criterion(record[name], `${field}.${name}`)]);
+  }
+  return oneLine(pairs);
+}
+
+/** Readable entries first, then the ones this build could not read, untouched. */
+function pictureArray(entries: readonly object[], unreadable: readonly unknown[] | undefined, known: readonly string[], field: string): string {
+  const lines = entries.map((entry) => pictureEntry(entry, known, field));
+  for (const raw of unreadable ?? []) lines.push(criterion(raw, field));
+  return objectArray(lines, 1);
+}
+
 /** Best-effort inline rendering for a free-form map (saved-filter criteria). */
 function inlineObject(value: Record<string, unknown>): string {
   const parts = Object.entries(value).map(([k, v]) => `${key(k)}: ${criterion(v, `filter.criteria.${k}`)}`);
@@ -389,7 +435,42 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
     pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
   }
   if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
+  if (typeof o.bleed === 'boolean') pairs.push(['bleed', String(o.bleed)]);
+  if (typeof o.cropMarks === 'boolean') pairs.push(['cropMarks', String(o.cropMarks)]);
+  if (typeof o.contentsLabel === 'string') pairs.push(['contentsLabel', str(o.contentsLabel, 'recipe.options.contentsLabel')]);
+  if (typeof o.pictures === 'string' && (PICTURE_MODES as readonly string[]).includes(o.pictures)) pairs.push(['pictures', str(o.pictures, 'recipe.options.pictures')]);
+  const imageMax: unknown = o.epubImageMaxPx;
+  if (typeof imageMax === 'number' && Number.isSafeInteger(imageMax) && imageMax >= EPUB_IMAGE_MAX_PX_MIN && imageMax <= EPUB_IMAGE_MAX_PX_MAX) {
+    pairs.push(['epubImageMaxPx', String(imageMax)]);
+  }
+  if (typeof o.epubKeepWebp === 'boolean') pairs.push(['epubKeepWebp', String(o.epubKeepWebp)]);
+  if (typeof o.keepPictureMetadata === 'boolean') pairs.push(['keepPictureMetadata', String(o.keepPictureMetadata)]);
+  if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
+}
+
+/**
+ * The timeline's lens setting: the lens choice, then the calendar with one member per line and one month, intercalary entry, leap
+ * rule or era per line, so a rename or a new month is a one-line diff. Members keep the order the editor saved them in.
+ */
+function timelineSettings(timeline: NonNullable<Manifest['timeline']>): string {
+  const members: string[] = [];
+  if (timeline.lens !== undefined) members.push(`${INDENT.repeat(2)}"lens": ${str(timeline.lens, 'timeline.lens')}`);
+  if (timeline.calendar !== undefined) {
+    const lines = Object.entries(timeline.calendar).map(([name, value]) => {
+      const field = `timeline.calendar.${name}`;
+      const items = Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'object' && item !== null && !Array.isArray(item))
+        ? objectArray(value.map((item) => criterion(item, field)), 3)
+        : criterion(value, field);
+      return `${INDENT.repeat(3)}${key(name)}: ${items}`;
+    });
+    members.push(
+      lines.length === 0
+        ? `${INDENT.repeat(2)}"calendar": {}`
+        : `${INDENT.repeat(2)}"calendar": {\n${lines.join(',\n')}\n${INDENT.repeat(2)}}`,
+    );
+  }
+  return `${INDENT}"timeline": {\n${members.join(',\n')}\n${INDENT}},`;
 }
 
 function derived(d: Derived): string {
@@ -482,11 +563,20 @@ export function serializeManifest(
   if (manifest.goals !== undefined) {
     parts.push(`${INDENT}"goals": ${objectArray(manifest.goals.map(projectGoal), 1)},`);
   }
+  if (manifest.assets !== undefined || (manifest.unreadableAssets?.length ?? 0) > 0) {
+    parts.push(`${INDENT}"assets": ${pictureArray(manifest.assets ?? [], manifest.unreadableAssets, ASSET_RECORD_KEYS, 'assets')},`);
+  }
+  if (manifest.assetLinks !== undefined || (manifest.unreadableAssetLinks?.length ?? 0) > 0) {
+    parts.push(`${INDENT}"assetLinks": ${pictureArray(manifest.assetLinks ?? [], manifest.unreadableAssetLinks, ASSET_LINK_KEYS, 'assetLinks')},`);
+  }
   if (manifest.recipes !== undefined) {
     parts.push(`${INDENT}"recipes": ${objectArray(manifest.recipes.map(exportRecipe), 1)},`);
   }
   if (manifest.disabledSkills !== undefined) {
     parts.push(`${INDENT}"disabledSkills": ${inlineArray(manifest.disabledSkills, 'disabledSkills')},`);
+  }
+  if (manifest.timeline !== undefined && (manifest.timeline.lens !== undefined || manifest.timeline.calendar !== undefined)) {
+    parts.push(timelineSettings(manifest.timeline));
   }
 
   // Drop the trailing comma of the last member, then close.

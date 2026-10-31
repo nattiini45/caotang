@@ -45,7 +45,7 @@ export type TaskAgent = Pick<AgentSession, 'stageOnly'>;
  * Builds the session a run stages with, or says why there is none. `sessionId` names the run's turns in the ledger, and `maxModelCalls`
  * is what the task has left.
  */
-export type TaskAgentFactory = (task: TaskRecord, sessionId: string, maxModelCalls: number) => TaskAgent | string;
+export type TaskAgentFactory = (task: TaskRecord, sessionId: string, maxModelCalls: number) => TaskAgent | string | Promise<TaskAgent | string>;
 
 export interface TaskQueueOptions {
   readonly projectId: string;
@@ -280,11 +280,12 @@ export class TaskQueue {
     if (started === undefined) return;
     // A run's session id is a stored token, not a message: keep it out of the catalogue.
     const sessionId = started.runs === 1 ? started.id : started.id + '.run' + started.runs;
-    const agent = this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used));
     const abort = new AbortController();
     const active: NonNullable<TaskQueue['active']> = { id, abort, reason: 'interrupted' };
+    // The run is active before its agent exists, because the agent can be a download: a cancel or a close that comes meanwhile stops this run.
     this.active = active;
     try {
+      const agent = await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used));
       if (typeof agent === 'string') {
         for (const item of started.items) if (item.state === 'pending') await this.updateItem(id, item.key, { state: 'failed', error: agent });
       } else {

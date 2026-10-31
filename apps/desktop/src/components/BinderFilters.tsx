@@ -4,13 +4,19 @@
  * bar always says how to get back to the whole binder. Nothing here changes the project: a filter is a view over the tree.
  */
 
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { isolate } from '@caotang/i18n';
 import type { SavedFilter } from '@caotang/furniture';
 
 import { filterResultFor, furnitureFor, isEmptyDraft, tagsOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
 import { useComposingEnter, useSession } from './shared.js';
 
+
+/* lingui-set comment="The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number." */
 /** binder-filters §5: the text field is debounced, so a filter follows the writer's typing without a re-render per key. */
 export const FILTER_TEXT_DEBOUNCE_MS = 150;
 
@@ -29,6 +35,7 @@ export function focusBinderFilter(): boolean {
 }
 
 export function BinderFilterBar({ session }: { session: ProjectSession }): ReactNode {
+  useLingui();
   useSession(session);
   const store = furnitureFor(session);
   const furniture = useSyncExternalStore(store.subscribe, store.snapshot);
@@ -55,6 +62,7 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
 
   const applied = furniture.applied;
   const matches = applied === null ? null : filterResultFor(session.state, applied.criteria, new Date()).matchCount;
+  const filterName = isolate(applied?.name ?? '');
   const statuses = session.state.manifest.vocabulary.statuses;
   const labels = session.state.manifest.vocabulary.labels;
   const nothingSet = isEmptyDraft(draft);
@@ -79,20 +87,20 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
   };
 
   return (
-    <section className="binder-filters" aria-label="Filter the binder" data-testid="binder-filters">
+    <section className="binder-filters" aria-label={t`Filter the binder`} data-testid="binder-filters">
       <input
         id={FILTER_TEXT_ID}
         type="search"
         className="filter-text"
-        aria-label="Filter the binder by text"
-        placeholder="Filter by title, synopsis or text"
+        aria-label={t`Filter the binder by text`}
+        placeholder={t`Filter by title, synopsis or text`}
         maxLength={200}
         value={text}
         onChange={(event) => setText(event.target.value)}
       />
       <div className="filter-fields">
-        <select aria-label="Status filter" value={draft.statusId} onChange={(event) => store.setDraft({ statusId: event.target.value })}>
-          <option value="">Any status</option>
+        <select aria-label={t`Status filter`} value={draft.statusId} onChange={(event) => store.setDraft({ statusId: event.target.value })}>
+          <option value=""><Trans>Any status</Trans></option>
           {statuses.map((status) => (
             <option key={status.id} value={status.id}>
               {status.name}
@@ -100,12 +108,12 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
           ))}
           {unknownStatus ? (
             <option value={draft.statusId} disabled>
-              Unknown status
+              <Trans>Unknown status</Trans>
             </option>
           ) : null}
         </select>
-        <select aria-label="Label filter" value={draft.labelId} onChange={(event) => store.setDraft({ labelId: event.target.value })}>
-          <option value="">Any label</option>
+        <select aria-label={t`Label filter`} value={draft.labelId} onChange={(event) => store.setDraft({ labelId: event.target.value })}>
+          <option value=""><Trans>Any label</Trans></option>
           {labels.map((label) => (
             <option key={label.id} value={label.id}>
               {label.name}
@@ -113,23 +121,23 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
           ))}
           {unknownLabel ? (
             <option value={draft.labelId} disabled>
-              Unknown label
+              <Trans>Unknown label</Trans>
             </option>
           ) : null}
         </select>
         <input
           type="number"
           min={0}
-          aria-label="Minimum words"
-          placeholder="Min words"
+          aria-label={t`Minimum words`}
+          placeholder={t`Min words`}
           value={draft.minWords}
           onChange={(event) => store.setDraft({ minWords: event.target.value })}
         />
         <input
           type="number"
           min={0}
-          aria-label="Maximum words"
-          placeholder="Max words"
+          aria-label={t`Maximum words`}
+          placeholder={t`Max words`}
           value={draft.maxWords}
           onChange={(event) => store.setDraft({ maxWords: event.target.value })}
         />
@@ -137,22 +145,22 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
 
       <div className="filter-fields filter-keywords">
         <label className="filter-field">
-          <span>Has all of these keywords</span>
+          <span><Trans>Has all of these keywords</Trans></span>
           <input
             type="text"
-            aria-label="Keywords, all of these"
-            placeholder="sea, grief"
+            aria-label={t`Keywords, all of these`}
+            placeholder={t`sea, grief`}
             maxLength={600}
             value={draft.keywordsAll}
             onChange={(event) => store.setDraft({ keywordsAll: event.target.value })}
           />
         </label>
         <label className="filter-field">
-          <span>Has any of these keywords</span>
+          <span><Trans>Has any of these keywords</Trans></span>
           <input
             type="text"
-            aria-label="Keywords, any of these"
-            placeholder="sea, storm"
+            aria-label={t`Keywords, any of these`}
+            placeholder={t`sea, storm`}
             maxLength={600}
             value={draft.keywordsAny}
             onChange={(event) => store.setDraft({ keywordsAny: event.target.value })}
@@ -160,7 +168,7 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
         </label>
       </div>
       {allTags.length + anyTags.length > 0 ? (
-        <p className="filter-chips" aria-label="Keyword criteria">
+        <p className="filter-chips" aria-label={t`Keyword criteria`}>
           {allTags.map((tag) => (
             <span key={`all-${tag}`} className="filter-chip" data-kind="all">
               {tag}
@@ -176,36 +184,36 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
 
       <div className="filter-fields filter-dates">
         <label className="filter-field">
-          <span>Changed in the last</span>
+          <span><Trans>Changed in the last</Trans></span>
           <span className="filter-days">
             <input
               type="number"
               min={1}
-              placeholder="days"
+              placeholder={t`days`}
               value={draft.modifiedWithinDays}
               onChange={(event) => store.setDraft({ modifiedWithinDays: event.target.value })}
             />
-            days
+            <Trans>days</Trans>
           </span>
         </label>
         <label className="filter-field">
-          <span>Created in the last</span>
+          <span><Trans>Created in the last</Trans></span>
           <span className="filter-days">
             <input
               type="number"
               min={1}
-              placeholder="days"
+              placeholder={t`days`}
               value={draft.createdWithinDays}
               onChange={(event) => store.setDraft({ createdWithinDays: event.target.value })}
             />
-            days
+            <Trans>days</Trans>
           </span>
         </label>
       </div>
 
       <div className="filter-row">
         <select
-          aria-label="Saved filters"
+          aria-label={t`Saved filters`}
           value={applied?.savedId ?? ''}
           onChange={(event) => {
             const saved = furniture.filters.find((filter) => filter.id === event.target.value);
@@ -213,7 +221,7 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
             else store.clearFilter();
           }}
         >
-          <option value="">{furniture.filters.length === 0 ? 'No saved filters yet' : 'Saved filters'}</option>
+          <option value="">{furniture.filters.length === 0 ? t`No saved filters yet` : t`Saved filters`}</option>
           {furniture.filters.map((filter) => (
             <option key={filter.id} value={filter.id}>
               {filter.name}
@@ -226,26 +234,33 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
           disabled={nothingSet}
           onClick={() => setNaming({ id: applied?.savedId ?? null, name: applied?.name ?? '' })}
         >
-          {applied?.savedId ? 'Update saved filter…' : 'Save current…'}
+          {applied?.savedId ? t`Update saved filter…` : t`Save current…`}
         </button>
         {nothingSet && applied === null ? null : (
-          <button type="button" className="button is-quiet" aria-label="Clear the filter" onClick={() => store.clearFilter()}>
-            Clear
+          <button type="button" className="button is-quiet" aria-label={t`Clear the filter`} onClick={() => store.clearFilter()}>
+            <Trans>Clear</Trans>
           </button>
         )}
       </div>
 
       {applied !== null && matches !== null ? (
         <p className="filter-status" role="status" data-testid="filter-status">
-          {matches === 1 ? '1 scene match' : `${matches} scenes match`}
-          {applied.name !== '' ? ` “${applied.name}”` : ''}. Clear the filter to see the whole binder.
+          {applied.name !== ''
+            ? plural(matches, {
+                one: `# scene matches “${filterName}”. Clear the filter to see the whole binder.`,
+                other: `# scenes match “${filterName}”. Clear the filter to see the whole binder.`,
+              })
+            : plural(matches, {
+                one: '# scene matches. Clear the filter to see the whole binder.',
+                other: '# scenes match. Clear the filter to see the whole binder.',
+              })}
         </p>
       ) : null}
 
       {naming !== null ? (
-        <form className="filter-naming" aria-label="Name this filter" onKeyDown={ime.noteKey} onSubmit={submitName}>
+        <form className="filter-naming" aria-label={t`Name this filter`} onKeyDown={ime.noteKey} onSubmit={submitName}>
           <label>
-            <span>Filter name</span>
+            <span><Trans>Filter name</Trans></span>
             <input
               type="text"
               maxLength={60}
@@ -255,10 +270,10 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
             />
           </label>
           <button type="submit" className="button is-primary">
-            Save filter
+            <Trans>Save filter</Trans>
           </button>
           <button type="button" className="button is-quiet" onClick={() => setNaming(null)}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           {nameError !== null ? (
             <p className="form-message is-error" role="alert">

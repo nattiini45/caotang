@@ -74,7 +74,8 @@ test.describe('switching while the writer is working', () => {
     await page.clock.install();
     await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1_000);
 
-    const surface = page.getByRole('textbox', { name: 'Document text' });
+    // The accessible name is translated with the interface, so keep one language-neutral locator across the switch.
+    const surface = page.locator('.editor-host [contenteditable="true"]');
     await surface.click();
     await page.keyboard.type('The harbour was quiet.');
     // The save delay has not elapsed: this text exists only in the editor and its journal.

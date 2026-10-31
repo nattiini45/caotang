@@ -10,11 +10,13 @@
  */
 
 import { readShotMeta, shotFieldOf, SHOT_NODE_TYPE, type DialogueCoverage } from '@caotang/storyboard';
+import { loadComicBook, loadComicPage, type ComicBookSettings, type ComicPageInput } from '@caotang/comic';
 import { getBody, getRevision, type CodexEntry, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { ScopeError } from './errors.js';
 import { EVIDENCE_QUOTE_LIMIT, type CoherenceFile, type Evidence, type SceneMeta } from './model.js';
 import { codePointPrefix } from './text.js';
+import { effectiveStoryParts, type StoryPart } from './timeline.js';
 
 /** §6.2's three run scopes. A `doc` scope names exactly one document. */
 export type ScopeSpec =
@@ -35,6 +37,11 @@ export interface ScannedScene {
   readonly revision: number;
   /** Declared metadata. Absent fields are absent, never defaulted here. */
   readonly meta: SceneMeta;
+  /**
+   * The effective story part (§5.2.2): this scene's own declaration, else the nearest folder's, else `main`. Derived from
+   * the tree on every snapshot and never stored. Absent (a hand-built scene) reads as `main`.
+   */
+  readonly part?: StoryPart;
   /** The document kind the tree node declares (`screenplay`, and so on). Absent for prose. */
   readonly kind?: string;
 }
@@ -64,10 +71,40 @@ export interface ManuscriptSnapshot {
   readonly folders: readonly ManuscriptFolder[];
   /** Every storyboard shot in the project, in tree order. Shots are read wherever they sit, since they are not documents. */
   readonly shots: readonly ShotFact[];
+  /**
+   * Every comic book in the project, in tree order, with its pages in binder order (comics.md §2). Books are read
+   * wherever they sit, like shots: a page is structure, not a document, so no scope narrows it.
+   */
+  readonly comics: readonly ComicBookFact[];
   /** Manuscript documents with no text. Named in run reports, never scanned. */
   readonly emptyDocIds: readonly string[];
   /** Documents the exclusion rule removed from scanning. */
   readonly excludedDocIds: readonly string[];
+}
+
+/**
+ * A comic book as the comic checks read it (comics.md §2): the `comic` folder with its settings loaded tolerantly,
+ * and its `comic-page` children in binder order, the page number derived from that order (the shotNumber precedent).
+ * Read from the tree, not from a document, because a page has no body: its panels and balloons are structure.
+ */
+export interface ComicBookFact {
+  readonly id: string;
+  readonly title: string;
+  readonly settings: ComicBookSettings;
+  readonly pages: readonly ComicPageInput[];
+  /**
+   * The book's linked script (comics.md §2) as `balloon-coverage` reads it: its body now. Absent when the book has no link, and
+   * also when the link is broken (the document is gone or is not a comic script), because a link is never re-matched by title; the
+   * check says which of the two it found.
+   */
+  readonly script?: ComicScriptFact;
+}
+
+export interface ComicScriptFact {
+  readonly docId: string;
+  readonly title: string;
+  readonly body: string;
+  readonly revision: number;
 }
 
 export interface SnapshotOptions {
@@ -106,6 +143,7 @@ export function snapshotManuscript(
     list.sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 
+  const parts = effectiveStoryParts(state.manifest.tree, file.sceneMeta);
   const scanned: ScannedScene[] = [];
   const folders: ManuscriptFolder[] = [];
   const emptyDocIds: string[] = [];
@@ -138,6 +176,7 @@ export function snapshotManuscript(
         body,
         revision: getRevision(state, node.id),
         meta: { ...(file.sceneMeta[node.id] ?? {}) },
+        part: parts.get(node.id) ?? 'main',
         ...(kind !== undefined ? { kind } : {}),
       });
       return;
@@ -159,7 +198,7 @@ export function snapshotManuscript(
     if (top.parentId === null) visit(top, [], false);
   }
 
-  return { scanned, folders, shots: shotsOf(state), emptyDocIds, excludedDocIds };
+  return { scanned, folders, shots: shotsOf(state), comics: comicsOf(state, children), emptyDocIds, excludedDocIds };
 }
 
 /** The `kind` marker a node declares, when it declares one. The store does not type it, so it is read as an unknown field. */
@@ -186,6 +225,33 @@ function shotsOf(state: ProjectState): ShotFact[] {
     });
   }
   return shots;
+}
+
+/**
+ * The comic books of the tree, read through the comic codec's tolerant loaders (comics.md §2), so a page whose stored
+ * value the loader cannot fully render still contributes what it kept; the codec's notices are the comic module's to
+ * show, not the check's. `children` is the snapshot's sorted sibling map, so a page's number is its binder position.
+ */
+function comicsOf(state: ProjectState, children: ReadonlyMap<string, TreeNode[]>): ComicBookFact[] {
+  const books: ComicBookFact[] = [];
+  for (const node of state.manifest.tree) {
+    if (kindOf(node) !== 'comic') continue;
+    const stored = node as unknown as Record<string, unknown>;
+    const settings = loadComicBook(stored['comic']).value;
+    const pages = (children.get(node.id) ?? [])
+      .filter((child) => child.type === 'comic-page')
+      .map((pageNode, index) => {
+        const storedPage = pageNode as unknown as Record<string, unknown>;
+        return { id: pageNode.id, number: index + 1, page: loadComicPage(storedPage['comicPage']).value };
+      });
+    const linked = settings.scriptDocId === undefined ? undefined : state.manifest.tree.find((candidate) => candidate.id === settings.scriptDocId);
+    const script: ComicScriptFact | undefined =
+      linked !== undefined && linked.type === 'document' && kindOf(linked) === 'comic-script'
+        ? { docId: linked.id, title: linked.title || linked.id, body: getBody(state, linked.id), revision: getRevision(state, linked.id) }
+        : undefined;
+    books.push({ id: node.id, title: node.title || node.id, settings, pages, ...(script !== undefined ? { script } : {}) });
+  }
+  return books;
 }
 
 /**

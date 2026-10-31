@@ -89,7 +89,7 @@ async function sessionFor(intent: string, replies: readonly string[], decisions:
 }
 
 /** The reply that finds the write tool: a read, which loads it for the turn, and nothing else. */
-const FIND_WRITE = steps({ tool: 'tool.search', params: { query: 'write' }, expect: 'the write tool is loaded' });
+const FIND_WRITE = steps({ tool: 'tool.search', params: { query: 'write_note' }, expect: 'the write tool is loaded' });
 
 describe('an external write asks the writer on its own confirm card (extensibility §4 rule 2, §6)', () => {
   it('runs an external write once its one-step confirm card is approved', async () => {

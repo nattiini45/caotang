@@ -78,4 +78,24 @@ test('a pseudo-locale run shows a localised timeline finding with each title iso
   expect(message).not.toContain('\u2069\u2069');
   // A message with values rendered as a sentence: no ICU placeholder survived.
   expect(message).not.toMatch(/\{[a-zA-Z]+\}/);
+
+  const panel = page.getByTestId('findings-panel');
+  for (const selector of ['.findings-head .eyebrow', '.findings-count', '.findings-coverage', '.finding-type', '.status-chip']) {
+    await expect(panel.locator(selector).first()).toContainText('⟦');
+  }
+  for (const option of await panel.locator('.findings-actions option').all()) {
+    await expect(option).toContainText('⟦');
+  }
+  await expect(panel.locator('.findings-actions button').first()).toContainText('⟦');
+  await expect(panel.getByTestId('run-history').locator('li').first()).toContainText('⟦');
+  await panel.locator('[data-dismiss]').first().click();
+  const picker = page.getByTestId('dismiss-picker');
+  await expect(picker.locator('legend')).toContainText('⟦');
+  for (const reason of await picker.locator('.dismiss-reason > span:first-of-type').all()) {
+    await expect(reason).toContainText('⟦');
+  }
+  await expect(picker.locator('textarea')).toHaveAttribute('aria-label', /⟦/);
+  await expect(page.getByTestId('scene-meta').locator('summary')).toContainText('⟦');
+  await expect(page.getByTestId('scene-meta').locator('input[type="number"]').first()).toHaveAttribute('aria-label', /⟦/);
+  await expect(page.locator('[contenteditable="true"][role="textbox"]')).toContainText('Long before, the island sank.');
 });

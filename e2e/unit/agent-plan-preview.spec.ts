@@ -319,6 +319,52 @@ test.describe('the view model of a derive carries its shot list, the folder it c
   });
 });
 
+test.describe('the view model of a timeline edit carries every changed field before and after, and the findings it resolves and raises (timeline.md §5.1)', () => {
+  const card = {
+    kind: 'timeline-edit',
+    rows: [
+      { node: 'Departure', part: 'main', field: 'day', before: 'day 6', after: 'day 9' },
+      { node: 'The quarrel', part: 'epilogue', field: 'story part', before: 'inherited', after: 'epilogue' },
+      { node: 'The quarrel', part: 'epilogue', field: 'position', before: 'position 3 under ‘Manuscript’', after: 'position 0 under ‘Coda’' },
+    ],
+    findingsDelta: {
+      resolved: [{ checkId: 'timeline.gap', severity: 'warning', message: 'A gap of 90 days.' }],
+      added: [{ checkId: 'timeline.order-drift', severity: 'error', message: '‘The quarrel’ comes before ‘Arrival’.' }],
+      resolvedCount: 1,
+      addedCount: 3,
+    },
+  };
+
+  test('keeps each row’s scene, part, field and its complete before and after values', () => {
+    const view = stepPreviewOf('timeline.edit', card, state);
+    expect(view).toEqual(card);
+  });
+
+  test('keeps the counts the lists were cut from, so the card can say how many it did not list', () => {
+    const view = stepPreviewOf('timeline.edit', { ...card, omittedRows: 20 }, state);
+    expect(view).toMatchObject({ kind: 'timeline-edit', omittedRows: 20, findingsDelta: { addedCount: 3 } });
+    expect(view?.kind === 'timeline-edit' ? view.findingsDelta.added : []).toHaveLength(1);
+  });
+
+  test('reads only text and counts from a preview, so a damaged one cannot put anything else on the card', () => {
+    const view = stepPreviewOf(
+      'timeline.edit',
+      { kind: 'timeline-edit', rows: [{ node: 3, part: null, field: {}, before: 'day 1', after: 'day 2', extra: '<b>x</b>' }, 'row'], findingsDelta: { resolved: 'none', added: [{ message: 'm' }], resolvedCount: -4, addedCount: 'two' } },
+      state,
+    );
+    expect(view).toEqual({
+      kind: 'timeline-edit',
+      rows: [{ node: '', part: '', field: '', before: 'day 1', after: 'day 2' }],
+      findingsDelta: { resolved: [], added: [{ checkId: '', severity: '', message: 'm' }], resolvedCount: 0, addedCount: 1 },
+    });
+  });
+
+  test('has no view for another tool’s preview, for a preview of another kind, or for one without its findings', () => {
+    expect(stepPreviewOf('notes.append', card, state)).toBeUndefined();
+    expect(stepPreviewOf('timeline.edit', { ...card, kind: 'other' }, state)).toBeUndefined();
+    expect(stepPreviewOf('timeline.edit', { kind: 'timeline-edit', rows: [] }, state)).toBeUndefined();
+  });
+});
 test.describe('the reason a refused step gives is shown beside a disabled Approve (agent-harness §2)', () => {
   test('is the first refused step’s own message in the preflight’s words, and none when no step was refused', () => {
     expect(

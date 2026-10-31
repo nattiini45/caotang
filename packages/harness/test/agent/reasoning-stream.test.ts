@@ -17,6 +17,7 @@ import { PLANNER_SYSTEM_PREFIX, type AgentEvent } from '../../src/index.js';
 import { makeState, FRIEND } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, steps } from './scripts.js';
+import { textOf } from '@caotang/gateway';
 
 const INTENT = 'Draft the opening of The Friend.';
 const DRAFT = 'The ferry came in with the tide.';
@@ -28,7 +29,7 @@ function thinkingTranscript(intent: string, replies: readonly { readonly content
     respond: (req): MockResponse => {
       const calls = req.messages.filter((message) => message.role === 'assistant').length;
       const reply = replies[Math.min(calls, replies.length - 1)] ?? replies[0];
-      return { content: reply?.content ?? '', ...(reply?.reasoning === undefined ? {} : { reasoning: reply.reasoning }) };
+      return { content: textOf(reply?.content ?? ''), ...(reply?.reasoning === undefined ? {} : { reasoning: reply.reasoning }) };
     },
   };
 }
@@ -44,7 +45,7 @@ function thinkingProse(marker: string, text: string, reasoning: string): MockScr
 /** A request on the native wire: the planner's system message with tools declared. */
 function isNativePlanner(req: ChatRequest): boolean {
   const first = req.messages[0];
-  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && first.content.startsWith(PLANNER_SYSTEM_PREFIX);
+  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && textOf(first.content).startsWith(PLANNER_SYSTEM_PREFIX);
 }
 
 /** The mock gateway reporting a tool-capable model, which is all native mode asks of it (native.test.ts does the same). */

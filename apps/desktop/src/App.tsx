@@ -14,7 +14,6 @@ import { RuntimeStoreNewerError, type RuntimeStore } from '@caotang/store';
 /* lingui-set comment="Interpolated values: error" */
 
 import { runtimeStore } from './app/runtime.js';
-import { activeCoherenceModel } from './app/coherence-review.js';
 import { droppedFieldsSentence } from './app/integrity-model.js';
 import { fixtureWireFactory } from './app/mcp.js';
 import { openAppServices, type AppServices } from './app/services.js';
@@ -85,7 +84,7 @@ export function App(): ReactNode {
       const apply = (): void => {
         const { editor, retention } = opened.settings.current();
         // The agent's coherence scans follow the Coherence settings, and its review runs through the active provider (coherence.md §7).
-        const coherence = { checks: () => opened.settings.current().coherence.enabledChecks, model: () => activeCoherenceModel(opened.providers) };
+        const coherence = { checks: () => opened.settings.current().coherence.enabledChecks, providers: opened.providers };
         setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: opened.mcp.client }, coherence });
       };
       apply();

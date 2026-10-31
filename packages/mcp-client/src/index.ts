@@ -155,6 +155,24 @@ export {
 export { clipChars } from './util.js';
 
 export {
+  EXTERNAL_IMAGE_BYTES_CAP,
+  EXTERNAL_IMAGE_COUNT_CAP,
+  IMAGE_STUB_ESTIMATE,
+  STAGED_ARGUMENT_PREFIX,
+  STAGED_IMAGE_LIFETIME_MS,
+  createImageStager,
+  imageStub,
+  resolveStagedArguments,
+  routeImages,
+  type ExternalImages,
+  type ImageStager,
+  type ImageStagerOptions,
+  type ImageStagingPort,
+  type StagedImage,
+  type StagedImageSource,
+} from './images.js';
+
+export {
   EXTERNAL_RESULT_TOKEN_CAP,
   MCP_INVOKE_NAME,
   McpInvokeFailure,

@@ -8,6 +8,7 @@
  * truth for the manuscript: a finding quotes it, a scene declaration sits beside it.
  */
 
+import type { DeclaredStoryPart } from '@caotang/bus';
 import type { MessageRef } from '@caotang/i18n';
 
 /** project-format §1: a top-level file beside `caotang.json`, loaders ignore it when unknown. */
@@ -73,7 +74,7 @@ export type WorldRuleOrigin = (typeof WORLD_RULE_ORIGINS)[number];
  * The deterministic registry, closed (§5.4: adding a check is a spec change with fixtures). The first eight are §5.1's.
  * Six more come from the media-track specs, which each say they ride this rule: screenplay.md §4 adds two
  * (`script.cue-*`), storyboard.md §5 adds one (`script.shot-coverage`), and dialogue-narrative.md §5 adds three
- * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1), `plot.unresolved-thread` (§5.5) and `knowledge.leak` (§4.4) follow, and `medium.speaker-parity` (§5.1, the first cross-medium check) is last. The count is 8 + 2 + 1 + 3 + 1 + 1 + 1 + 1 = 18.
+ * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1), `plot.unresolved-thread` (§5.5) and `knowledge.leak` (§4.4) follow, and `medium.speaker-parity` (§5.1, the first cross-medium check) is last of the first landing. The comic lint of comics.md §4 (D9, #173) appends last: `comic.balloon-density`, `comic.em-dash` and `comic.caps-policy`, computed by `@caotang/comic` and registered here, and the comic book's `comic.balloon-coverage` (comics.md §3.2) follows them. The count is 8 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 3 + 1 = 22.
  * New ids are appended, so the order of the first eight, which the run report and the check order depend on, does not move.
  */
 export const DETERMINISTIC_CHECK_IDS = [
@@ -95,6 +96,10 @@ export const DETERMINISTIC_CHECK_IDS = [
   'plot.unresolved-thread',
   'knowledge.leak',
   'medium.speaker-parity',
+  'comic.balloon-density',
+  'comic.em-dash',
+  'comic.caps-policy',
+  'comic.balloon-coverage',
 ] as const;
 export type DeterministicCheckId = (typeof DETERMINISTIC_CHECK_IDS)[number];
 
@@ -125,6 +130,10 @@ export const DETERMINISTIC_CHECK_LABELS: Readonly<Record<DeterministicCheckId, s
   'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
   'knowledge.leak': 'A character knows something before they learn it',
   'medium.speaker-parity': 'The screenplay and its dialogue name different speakers',
+  'comic.balloon-density': 'A balloon or panel carries more words than the lettering guidance',
+  'comic.em-dash': 'A balloon uses an em dash instead of a double dash',
+  'comic.caps-policy': 'A ß in a caps book will be lettered as SS',
+  'comic.balloon-coverage': 'A script line has no balloon, or a balloon no longer matches its script line',
 };
 
 /** §5.3's five ConStory categories. The enum is closed; subtypes are model-proposed strings. */
@@ -263,7 +272,7 @@ export interface KnowledgeLink {
 export interface SceneMeta {
   /** A codex entry id (§5.2). Free text is accepted and reported as an unanchored finding. */
   pov?: string;
-  /** Integer days from project epoch 0. Offsets, never real dates (§5.2). */
+  /** Whole days from project epoch 0, negative before it (§5.2.2), within ±10,000,000. Offsets, never real dates (§5.2). */
   dayOffset?: number;
   /** Integer days, default 0 — a scene occupies one day unless declared (§5.2, §5.1 overlap note). */
   durationDays?: number;
@@ -273,6 +282,12 @@ export interface SceneMeta {
   expectedPresent?: string[];
   /** §5.2.1. Absent is `linear`. */
   timelineMode?: TimelineMode;
+  /**
+   * §5.2.2. The story part this scene or folder declares. Absent inherits the nearest declaration above it, then the main
+   * story; `main` is a declaration that overrides an inherited prologue or epilogue. Read through `effectiveStoryPart`,
+   * never copied into children.
+   */
+  storyPart?: DeclaredStoryPart;
   /** §5.5. Additive: absent and an empty list both mean the scene declares no thread. */
   threads?: SceneThread[];
   /** §4.4. Additive: absent and an empty list both mean the scene teaches no one anything. */

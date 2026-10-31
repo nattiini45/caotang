@@ -158,7 +158,7 @@ describe('the user guide’s reviewed claims match the code', () => {
   it('says a large scope asks on the status line at more than 20 documents, and Scan it anyway runs the scope that asked', () => {
     expect(guide).toContain('A scope of more than 20 documents asks first: the status line asks, and the panel shows **Scan it anyway**. **Scan it anyway** runs the scope that asked');
     const panel = read('apps/desktop/src/components/FindingsPanel.tsx');
-    expect(panel).toContain("report({ text: APPROVAL_SENTENCE, tone: 'info' });");
+    expect(panel).toContain("report({ text: t`This scope covers more than ${{ limit: SCAN_DOC_GUARD }} documents. Split it, or press “Scan it anyway” to scan all of it.`, tone: 'info' });");
     expect(panel).toContain('const scope = approved && pendingScope !== null ? pendingScope : scopeFor(scopeChoice, currentDocId);');
     expect(read('packages/coherence/src/model.ts')).toContain('export const SCAN_DOC_GUARD = 20;');
   });
@@ -250,16 +250,16 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The recipe controls, in the words the export dialog shows.
     const dialog = read('apps/desktop/src/components/ExportDialog.tsx');
     expect(pdfSection).toContain('**Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them.');
-    expect(dialog).toContain('<span className="export-option-label">Scene numbers</span>');
+    expect(dialog).toContain('<span className="export-option-label"><Trans>Scene numbers</Trans></span>');
     expect(read('packages/screenplay/src/paginate.ts')).toContain("opts.sceneNumbers ?? 'off'");
     expect(dialog).toContain("sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',");
     expect(read('packages/exporter/src/media.ts')).toContain("sceneNumbers: request.sceneNumbers ?? 'off',");
-    expect(dialog).toContain("left: 'Left margin',");
-    expect(dialog).toContain("right: 'Right margin',");
-    expect(dialog).toContain("both: 'Both margins',");
+    expect(dialog).toContain('return t`Left margin`;');
+    expect(dialog).toContain('return t`Right margin`;');
+    expect(dialog).toContain('return t`Both margins`;');
     expect(dialog).toContain("...(shown.sceneNumbers === 'off' ? {} : { sceneNumbers: shown.sceneNumbers }),");
     expect(pdfSection).toContain('You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.');
-    expect(dialog).toContain('<span className="export-option-label">(MORE) and (CONT’D) where a speech crosses a page</span>');
+    expect(dialog).toContain('<span className="export-option-label"><Trans>(MORE) and (CONT’D) where a speech crosses a page</Trans></span>');
   });
 
   it('says the screenplay PDF prints emoji in Noto Emoji, two columns each, whole, loaded only when needed', () => {
@@ -283,7 +283,7 @@ describe('the user guide’s reviewed claims match the code', () => {
   it('says how the engine target and the locale change the dialogue exports, in the names the compile writes', () => {
     expect(guide).toContain("A container set to **Yarn string table (CSV)** goes into a Yarn Spinner strings file, `<name> (dialogue, Yarn).csv`, with Yarn's columns and `line:` ids.");
     expect(guide).toContain('A container with no locale uses the project\'s language. A container with its own locale puts it in the Ink story\'s file name, such as `Tavern.de.ink.json`.');
-    expect(read('apps/desktop/src/components/InspectorDialogue.tsx')).toContain("'yarn-csv': 'Yarn string table (CSV)'");
+    expect(read('apps/desktop/src/components/InspectorDialogue.tsx')).toMatch(/get 'yarn-csv'\(\) \{\s*return t`Yarn string table \(CSV\)`;/);
     const media = read('packages/exporter/src/media.ts');
     expect(media).toContain('name: `${request.base} (dialogue, Yarn).csv`');
     expect(media).toContain('`${fileStem(title)}.${locale}.ink.json`');
@@ -326,9 +326,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     const view = read('apps/desktop/src/media/ScreenplayView.tsx');
     const menu = read('apps/desktop/src/media/element-menu.ts');
     // The button's visible word, and the chord the view opens the menu on.
-    expect(view).toMatch(/>\s*Element\s*<\/button>/);
+    expect(view).toMatch(/<Trans>Element<\/Trans>\s*<\/button>/);
     // The letter is read through the keymap's one layout rule, so a Russian layout's Ctrl+У opens the menu too.
-    expect(menu).toContain("import { layoutLetter } from '../app/keymap.js';");
+    expect(menu).toContain("import { layoutLetter, printedKeyLabel, shortcutNames, type KeyboardLayoutMap } from '../app/keymap.js';");
     expect(menu).toMatch(/layoutLetter\(event\.key, event\.code\) === 'e'/);
     const keymap = read('apps/desktop/src/app/keymap.ts');
     expect(keymap).toContain('export function layoutLetter(key: string, code: string): string {');
@@ -338,7 +338,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const screenplay = guide.slice(guide.indexOf('## Writing a screenplay'), guide.indexOf('## Writing dialogue'));
     expect(screenplay).toContain('**Element**, above the text, or Ctrl+E (Cmd+E on a Mac), opens the element menu for the line the caret is on.');
     // Each entry the guide names is a label of the menu, and the guide names every one, in the menu's order.
-    const labels = [...menu.matchAll(/^ {2}[a-z_]+: '([^']+)',$/gm)].map((match) => match[1] ?? '');
+    const labels = [...menu.matchAll(/^ {2}get [a-z_]+\(\) \{\n {4}return t`([^`]+)`;/gm)].map((match) => match[1] ?? '');
     expect(labels).toHaveLength(9);
     expect(screenplay).toContain(`It lists ${labels.slice(0, -1).map((label) => `**${label}**`).join(', ')} and **${labels.at(-1)}**,`);
     // The keyboard table's one Mac note covers every Ctrl row, because the keymap's command() reads Ctrl or Cmd
@@ -358,9 +358,9 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('names the agent panel’s Stop, queue and note controls, and their keys, as the panel and the keymap have them', () => {
     const keymap = read('apps/desktop/src/app/keymap.ts');
-    expect(keymap).toMatch(/case 'agent-send':\s+return 'Enter';/);
-    expect(keymap).toMatch(/case 'agent-steer':\s+return 'Ctrl\+Enter';/);
-    expect(keymap).toMatch(/case 'agent-stop':\s+return 'Esc';/);
+    expect(keymap).toContain("'agent-send': [[], { named: 'enter' }]");
+    expect(keymap).toContain("'agent-steer': [['ctrl'], { named: 'enter' }]");
+    expect(keymap).toContain("'agent-stop': [[], { named: 'escape' }]");
     expect(guide).toContain('**Enter** queues what you type as the next turn, and **Ctrl+Enter** (Cmd+Enter on a Mac) sends it to the turn that is running as a note');
     expect(guide).toContain('**Stop**, in the header while a turn runs, ends the turn; so does **Esc** with the Intent box empty. With text in the box, Esc leaves the turn alone.');
     expect(guide).toContain('| Esc | Close a menu or a dialog. A menu returns focus to the control that opened it. In the agent panel, with the Intent box empty, stop the running turn. |');
@@ -369,7 +369,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The controls the guide names are the buttons and headings the panel shows.
     const panel = read('apps/desktop/src/components/AgentPanel.tsx');
     const queue = read('apps/desktop/src/components/AgentQueue.tsx');
-    expect(panel).toContain("{snapshot.stopping ? 'Stopping…' : 'Stop'}");
+    expect(panel).toContain('{snapshot.stopping ? t`Stopping…` : t`Stop`}');
     for (const label of ['Send with Cancel', 'Queue as next turn', 'Run the queue', 'Steer now', 'Queued messages']) {
       expect(queue).toContain(label);
       expect(guide).toContain(`**${label}**`);
@@ -396,9 +396,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     const panel = read('apps/desktop/src/components/AgentPanel.tsx');
     const settings = read('apps/desktop/src/components/AgentModeSettings.tsx');
     const modes = read('packages/harness/src/agent/mode.ts');
-    expect(panel).toContain('<legend>Mode</legend>');
+    expect(panel).toContain('<legend><Trans>Mode</Trans></legend>');
     expect(panel).toContain('Switch to Ask and run this plan');
-    expect(panel).toContain('Plan, not run');
+    expect(panel).toContain('t`Plan, not run`');
     expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Auto-approved');
     expect(settings).toContain('<span>Turn Auto mode off</span>');
     for (const label of ["'plan-only': 'Plan only'", "ask: 'Ask'", "'accept-edits': 'Accept edits'", "auto: 'Auto'"]) expect(modes).toContain(label);

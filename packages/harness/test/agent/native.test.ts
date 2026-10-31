@@ -30,6 +30,7 @@ import { mockGateway } from './gateway.js';
 import { prose } from './scripts.js';
 import { CHAPTER_ONE, FRIEND, makeHarness, makeState } from '../fixtures.js';
 import type { ProjectState } from '@caotang/store';
+import { textOf } from '@caotang/gateway';
 
 /* ------------------------------------------------------------------ *
  * Native replies, scripted.
@@ -52,7 +53,7 @@ interface NativeReply {
 /** Whether a request is the planner's on the native wire: the agent's system message, with tools declared. */
 function isNativePlanner(req: ChatRequest): boolean {
   const first = req.messages[0];
-  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && first.content.startsWith(PLANNER_SYSTEM_PREFIX);
+  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && textOf(first.content).startsWith(PLANNER_SYSTEM_PREFIX);
 }
 
 /** How many planner replies a request already carries. */
@@ -69,12 +70,12 @@ function messagesFor(req: ChatRequest, id: string) {
 function resultFor(req: ChatRequest, id: string) {
   const message = messagesFor(req, id)[0];
   if (message === undefined) return undefined;
-  return { message, body: JSON.parse(message.content) as { ok?: boolean; data?: unknown; error?: unknown } };
+  return { message, body: JSON.parse(textOf(message.content)) as { ok?: boolean; data?: unknown; error?: unknown } };
 }
 
 function responseOf(reply: NativeReply | undefined) {
   return {
-    content: reply?.content ?? '',
+    content: textOf(reply?.content ?? ''),
     ...(reply?.calls === undefined || reply.calls.length === 0
       ? {}
       : {
@@ -259,7 +260,10 @@ describe('the planner on the native tool-call wire', () => {
     const intent = 'Find the lore tools, read the bible, and label The Friend.';
     const fixture = await nativeFixture(
       nativeTranscript(intent, [
-        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: '', limit: 20 } }] },
+        // A named query, not an empty one: the deferred native rows (the timeline and picture rows included) now
+        // outnumber the 20-match cap, and an empty query lists Caotang's own tools first, so the server's tools
+        // only surface under a word of theirs. "bible" matches both of the story-bible tools and no native row.
+        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: 'bible', limit: 20 } }] },
         {
           content: 'The bible is loaded; reading it and labelling.',
           calls: [
@@ -277,7 +281,7 @@ describe('the planner on the native tool-call wire', () => {
     // The request carries the tools, declared for the model to call natively — and no envelope.
     expect(first?.toolChoice).toBe('auto');
     expect(first?.responseFormat).toBeUndefined();
-    const system = first?.messages[0]?.content ?? '';
+    const system = textOf(first?.messages[0]?.content ?? '');
     expect(system.startsWith(PLANNER_SYSTEM_PREFIX)).toBe(true);
     expect(system).not.toContain('"steps"');
     expect(system).not.toContain('"reply"');
@@ -299,7 +303,7 @@ describe('the planner on the native tool-call wire', () => {
     expect(surfaced).toContain(SEARCH);
     expect(surfaced).toContain(WRITE);
     const resultsAt = second?.messages.findIndex((m) => m.role === 'tool' && m.toolCallId === 'call_s') ?? -1;
-    const loadedAt = second?.messages.findIndex((m) => m.role === 'user' && m.content.includes('Tools loaded for this turn')) ?? -1;
+    const loadedAt = second?.messages.findIndex((m) => m.role === 'user' && textOf(m.content).includes('Tools loaded for this turn')) ?? -1;
     expect(loadedAt).toBeGreaterThan(resultsAt);
     // And the freshly loaded tools are declared on that very request, by qualified name.
     expect(namesOf(second as ChatRequest)).toEqual(expect.arrayContaining([SEARCH, WRITE]));
@@ -391,7 +395,7 @@ describe('the planner on the native tool-call wire', () => {
     const answer = resultFor(second as ChatRequest, 'c1');
     expect(answer?.message.isError).toBe(true);
     expect(answer?.body).toEqual({ ok: false, error: expect.stringContaining('act-9') });
-    const told = second?.messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n') ?? '';
+    const told = second?.messages.filter((m) => m.role === 'user').map((m) => textOf(m.content)).join('\n') ?? '';
     expect(told).toContain('refused before anything ran');
     // The refusal is a status card, as a refused step is on the JSON wire — and no step ran.
     expect(report.steps).toHaveLength(0);
@@ -575,10 +579,10 @@ describe('the wire the planner speaks', () => {
     });
     const report = await session.submit(intent);
     expect(report.status).toBe('applied');
-    const planner = seen.find((req) => req.messages[0]?.content.startsWith(PLANNER_SYSTEM_PREFIX));
+    const planner = seen.find((req) => textOf(req.messages[0]?.content ?? '').startsWith(PLANNER_SYSTEM_PREFIX));
     expect(planner?.tools).toBeUndefined();
     expect(planner?.responseFormat).toEqual(expect.objectContaining({ jsonSchemaHint: expect.anything() }));
-    const system = planner?.messages[0]?.content ?? '';
+    const system = textOf(planner?.messages[0]?.content ?? '');
     expect(system).toContain('"steps"');
     expect(state.manifest.tree.find((node) => node.id === FRIEND)?.label).toBe('act-2');
   });
@@ -603,12 +607,12 @@ describe('a steering note on the native wire', () => {
 
     const [first, second] = plannerRequests(fixture.seen);
     const note = 'Note from the writer, sent while you were working: Keep Elena out of it.';
-    expect(first?.messages.some((message) => message.content === note)).toBe(false);
+    expect(first?.messages.some((message) => textOf(message.content) === note)).toBe(false);
     const messages = second?.messages ?? [];
-    expect(messages.filter((message) => message.content === note)).toHaveLength(1);
+    expect(messages.filter((message) => textOf(message.content) === note)).toHaveLength(1);
     // [... assistant (two calls), tool, tool, user note]: no user message sits between the calls and their results.
     const assistantAt = messages.findIndex((message) => message.role === 'assistant');
-    const noteAt = messages.findIndex((message) => message.content === note);
+    const noteAt = messages.findIndex((message) => textOf(message.content) === note);
     expect(messages.slice(assistantAt, noteAt + 1).map((message) => message.role)).toEqual(['assistant', 'tool', 'tool', 'user']);
     expect(messages.slice(assistantAt + 1, noteAt).map((message) => message.role === 'tool' && message.toolCallId)).toEqual(['call_r', 'call_t']);
     expect(report.steering).toEqual([{ noteId: 'nvt.turn-1.note-1', text: 'Keep Elena out of it.', deliveredAtCall: 2 }]);

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { withoutIsolates } from '../support.js';
 
 import { ProjectAssets } from '../../apps/desktop/src/app/project-assets.js';
 import { ProjectSession } from '../../apps/desktop/src/app/session.js';
@@ -34,7 +35,7 @@ const ASSET = 'a_ABCDEF2345';
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 function board(): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Scene 1 — Shots', id: FOLDER, now: NOW });
   addShotNode(state, { parentId: FOLDER, id: SHOT, title: 'Wide', stored: { shotSize: 'WS', durationSec: 4 }, now: NOW });
   addShotNode(state, { parentId: FOLDER, id: OTHER, title: 'Close', stored: {}, now: NOW });
@@ -110,7 +111,7 @@ test.describe('the animatic line in the board header', () => {
     const state = board();
     const timed = animaticLineOf(state, FOLDER);
     expect(timed.text).toContain('left out');
-    const empty = createProjectState(createEmptyManifest('Film', NOW));
+    const empty = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
     addStoryboardFolder(empty, { parentId: 'manuscript', title: 'Empty', id: 'n_EMPTY00001', now: NOW });
     expect(animaticLineOf(empty, 'n_EMPTY00001')).toMatchObject({ seconds: 0, timed: 0, untimed: 0, text: '0 s of animatic' });
   });
@@ -240,26 +241,26 @@ test.describe('the notice after a drop on the board', () => {
   test('names the shot each file landed on by number and title, and says one Undo takes them all back', () => {
     const report = dropReportOf(planPictureDrop(named('1.png', '03.jpg'), SHOTS), 3, { ok: true });
     expect(report.summary).toBe('Put 2 pictures on their shots. One Undo takes them all back.');
-    expect(report.lines).toEqual(['1.png: shot 1, Wide', '03.jpg: shot 3, The Ferry']);
+    expect(report.lines.map(withoutIsolates)).toEqual(['1.png: shot 1, Wide', '03.jpg: shot 3, The Ferry']);
   });
 
   test('names a file that matched no shot and why, beside the ones that did', () => {
     const report = dropReportOf(planPictureDrop(named('2.png', 'notes.txt'), SHOTS), 3, { ok: true });
     expect(report.summary).toBe('Put 1 picture on its shot; 1 file was not imported. One Undo takes it back.');
-    expect(report.lines).toEqual(['2.png: shot 2, Close', 'notes.txt: not imported, it is not a PNG, JPEG or WebP picture']);
+    expect(report.lines.map(withoutIsolates)).toEqual(['2.png: shot 2, Close', 'notes.txt: not imported, it is not a PNG, JPEG or WebP picture']);
   });
 
   test('says nothing was imported when no file matched, and hints at a sheet from a longer board when a number is past the last shot', () => {
     const report = dropReportOf(planPictureDrop(named('12.png'), SHOTS), 3, { ok: true });
     expect(report.summary).toContain('Nothing was imported.');
     expect(report.summary).toContain('The board has 3 shots; a sheet printed from a longer board does not match it');
-    expect(report.lines).toEqual(['12.png: not imported, the board has 3 shots and none is numbered 12']);
+    expect(report.lines.map(withoutIsolates)).toEqual(['12.png: not imported, the board has 3 shots and none is numbered 12']);
   });
 
   test('says nothing was imported when the command refused, and that each matched file was not', () => {
     const report = dropReportOf(planPictureDrop(named('1.png'), SHOTS), 3, { ok: false, message: 'the project cannot be written to' });
     expect(report.summary).toBe('Nothing was imported: the project cannot be written to');
-    expect(report.lines).toEqual(['1.png: not imported (it was for shot 1, Wide)']);
+    expect(report.lines.map(withoutIsolates)).toEqual(['1.png: not imported (it was for shot 1, Wide)']);
   });
 });
 

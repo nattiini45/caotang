@@ -152,6 +152,8 @@ describe('the projection map, measured over the whole §13 corpus', () => {
       ],
       // The fence whose content is backticks: the fenced wrapper is not the leaf.
       'code-fence-longer-than-content': [{ matched: 'raw', text: '```' }],
+      // A reference link saves as its written source, `[text][ref]`, which is not the leaf's own direct-link spelling.
+      'link-reference': [{ matched: 'raw', text: 'text' }],
     };
 
     let loaded = 0;
@@ -194,11 +196,11 @@ describe('the projection map, measured over the whole §13 corpus', () => {
     // byte-identical uncut. Cutting does not change **which** locator finds a leaf
     // — `raw` is 4 and `escaped` is 0 either way — so the per-leaf assertions
     // above are unaffected, which is the point of keeping them primary.
-    expect({ standalone, raw, escaped }).toEqual({ standalone: 77, raw: 4, escaped: 0 });
+    expect({ standalone, raw, escaped }).toEqual({ standalone: 76, raw: 5, escaped: 0 });
     // And the control in the direction the field can lie: a `matched` that was
     // always `'standalone'` passes every total above and fails these two.
     expect(raw, 'leaves the first search could not find').toBeGreaterThan(0);
-    expect(Object.keys(expected), 'leaves named per leaf in the test').toHaveLength(2);
+    expect(Object.keys(expected), 'leaves named per leaf in the test').toHaveLength(3);
   });
 
   it("the map's body is serialize(doc), and the block spans partition it", async () => {

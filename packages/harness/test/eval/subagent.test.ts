@@ -17,6 +17,7 @@ import { evaluate, type Scenario } from '../../src/agent/eval.js';
 import { LANDING, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps, transcript } from '../agent/scripts.js';
+import { textOf as wireTextOf } from '@caotang/gateway';
 
 const INTENT = 'Who knows about the lamp, across the harbor scenes?';
 interface Call {
@@ -72,7 +73,7 @@ function scenario(name: string, scripts: readonly MockScript[], held: { gateway?
   };
 }
 
-const textOf = (request: ChatRequest | undefined): string => request?.messages.map((message) => message.content).join('\n') ?? '';
+const textOf = (request: ChatRequest | undefined): string => request?.messages.map((message) => wireTextOf(message.content)).join('\n') ?? '';
 
 describe('delegating read-only research', () => {
   it('hands the reading to the reader, answers from its notes, and writes nothing', async () => {
@@ -110,7 +111,7 @@ describe('delegating read-only research', () => {
     expect(report.text).toBe('Only the keeper knows.');
 
     // The planner reads the agent's notes behind the fixed notice, as data.
-    const resultText = planned.at(-1)?.messages.at(-1)?.content ?? '';
+    const resultText = wireTextOf(planned.at(-1)?.messages.at(-1)?.content ?? '');
     expect(resultText).toContain(DELEGATE_NOTICE);
     expect(resultText).toContain(NOTES);
     expect(resultText.indexOf(DELEGATE_NOTICE)).toBeLessThan(resultText.indexOf(NOTES));
@@ -187,7 +188,7 @@ describe('a delegated agent that wants a change', () => {
     expect(seenInCard).toEqual({ proposedBy: 'general', codexBefore: makeState().manifest.codex?.length });
 
     // The planner was told the step is a proposal to read, with no approval in it.
-    const resultText = planned.at(-1)?.messages.at(-1)?.content ?? '';
+    const resultText = wireTextOf(planned.at(-1)?.messages.at(-1)?.content ?? '');
     expect(resultText).toContain(DELEGATE_NOTICE);
     expect(resultText).toContain('"proposedSteps":[{"tool":"codex.write"');
     // One approval, one undo group: the single group the turn registered holds the one write.

@@ -8,6 +8,11 @@
  * are in `InspectorSections.tsx`, shown below the node's own fields.
  */
 
+import { accessibleText } from '../i18n/accessible-text.js';
+import { isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
@@ -20,8 +25,9 @@ import { projectCollator } from '../i18n/project-collator.js';
 import { InspectorGoals } from './InspectorGoals.js';
 import { SynopsisField } from './SynopsisField.js';
 import { openDialog } from './dialog-requests.js';
-import { CodexSection, SceneMetaSection, SceneStyleSection } from './InspectorSections.js';
+import { CodexSection, FolderPartSection, SceneMetaSection, SceneStyleSection } from './InspectorSections.js';
 import { DialogueMetaSection } from './InspectorDialogue.js';
+import { InspectorPictures } from './InspectorPictures.js';
 import { addKeyword, explain, removeKeyword, setLabel, setNotes, setStatus } from './actions.js';
 import {
   EmptyState,
@@ -35,6 +41,8 @@ import {
   type MenuItem,
 } from './shared.js';
 
+
+/* lingui-set comment="The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count." */
 /** ui-modules §4.1 and project-format §2: the limits the inspector enforces before the command does. */
 export const NOTES_MAX_CHARS = 50_000;
 export const KEYWORDS_MAX = 32;
@@ -45,21 +53,25 @@ export function Inspector({
   nodeId,
   onOpenCodex,
   onAgentIntent,
+  onOpenPicture,
 }: {
   session: ProjectSession;
   nodeId: string | null;
+  /** Shows a picture's details on the picture board (the strip's "Open on the board"). */
+  onOpenPicture?: (assetId: string) => void;
   /** Shows a codex entry in the codex panel (a mention chip's click). */
   onOpenCodex?: (entryId: string) => void;
   /** Sends a demo request to the agent (ui-modules §4.3): the empty state's three next steps. */
   onAgentIntent?: (intent: string) => void;
 }): ReactNode {
+  useLingui();
   useSession(session);
   const node = nodeId === null ? undefined : nodeById(session.state, nodeId);
   if (node === undefined) {
     return (
-      <aside className="inspector is-empty" aria-label="Inspector">
+      <aside className="inspector is-empty" aria-label={t`Inspector`}>
         <EmptyState
-          title="Select a document"
+          title={t`Select a document`}
           actions={
             onAgentIntent === undefined ? undefined : (
               <div className="demo-choices">
@@ -72,7 +84,7 @@ export function Inspector({
             )
           }
         >
-          Choose a document in the binder to see and edit its synopsis, notes and keywords.
+          <Trans>Choose a document in the binder to see and edit its synopsis, notes and keywords.</Trans>
         </EmptyState>
       </aside>
     );
@@ -81,8 +93,8 @@ export function Inspector({
   // node it was typed for. Switching selection remounts the fields, so a pending commit
   // is flushed to the node that was edited, and nothing is written to the next one.
   return (
-    <aside className="inspector" aria-label="Inspector">
-      <InspectorContent key={node.id} session={session} node={node} onOpenCodex={onOpenCodex} />
+    <aside className="inspector" aria-label={t`Inspector`}>
+      <InspectorContent key={node.id} session={session} node={node} onOpenCodex={onOpenCodex} onOpenPicture={onOpenPicture} />
     </aside>
   );
 }
@@ -91,22 +103,25 @@ function InspectorContent({
   session,
   node,
   onOpenCodex,
+  onOpenPicture,
 }: {
   session: ProjectSession;
   node: TreeNode;
   onOpenCodex: ((entryId: string) => void) | undefined;
+  onOpenPicture: ((assetId: string) => void) | undefined;
 }): ReactNode {
+  useLingui();
   return (
     <>
       <header className="inspector-head">
-        <p className="eyebrow">{node.type === 'document' ? 'Document' : isContainer(node) ? 'Folder' : 'Item'}</p>
+        <p className="eyebrow">{node.type === 'document' ? t`Document` : isContainer(node) ? t`Folder` : t`Item`}</p>
         <h2 className="inspector-title">{node.title}</h2>
         <p className="inspector-meta">{metaLine(session.state, node)}</p>
       </header>
 
       <section className="inspector-section" aria-labelledby="inspector-synopsis-label">
         <h3 id="inspector-synopsis-label" className="field-label">
-          Synopsis
+          <Trans>Synopsis</Trans>
         </h3>
         <SynopsisField session={session} nodeId={node.id} variant="inspector" fieldId="inspector-synopsis" />
       </section>
@@ -116,7 +131,7 @@ function InspectorContent({
       <KeywordsField key={node.id} session={session} node={node} />
       {node.type === 'document' ? null : <InspectorGoals session={session} node={node} />}
 
-      <section className="inspector-section" aria-label="Status and label">
+      <section className="inspector-section" aria-label={t`Status and label`}>
         <div className="picker-row">
           <MetaPicker session={session} node={node} kind="status" />
           <MetaPicker session={session} node={node} kind="label" />
@@ -127,7 +142,9 @@ function InspectorContent({
 
       <CodexSection session={session} node={node} onOpenCodex={onOpenCodex} />
       {node.type === 'document' ? <SceneMetaSection session={session} node={node} /> : null}
+      {node.type === 'folder' ? <FolderPartSection session={session} node={node} /> : null}
       {node.type === 'dialogue' ? <DialogueMetaSection session={session} node={node} /> : null}
+      <InspectorPictures session={session} node={node} onOpenPicture={onOpenPicture} />
     </>
   );
 }
@@ -135,10 +152,12 @@ function InspectorContent({
 function metaLine(state: ProjectState, node: TreeNode): string {
   if (node.type === 'document') return wordsLabel(wordCountOf(state, node.id));
   const count = state.manifest.tree.filter((child) => child.parentId === node.id).length;
-  return count === 1 ? '1 item inside' : `${formatCount(count)} items inside`;
+  const shown = formatCount(count);
+  return plural(count, { one: '1 item inside', other: `${shown} items inside` });
 }
 
 function NotesField({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
+  useLingui();
   const report = useReport();
   const field = useDebouncedText(node.notes, (text) => {
     const outcome = setNotes(session, node.id, text);
@@ -156,14 +175,14 @@ function NotesField({ session, node }: { session: ProjectSession; node: TreeNode
   return (
     <section className="inspector-section" aria-labelledby="inspector-notes-label">
       <h3 id="inspector-notes-label" className="field-label">
-        Notes
+        <Trans>Notes</Trans>
       </h3>
       {reading ? (
         <div className="notes-read" data-testid="notes-read">
           {splitNotes(field.value).map((segment, index) =>
             segment.kind === 'divider' ? (
-              <div key={`divider-${index}`} className="notes-divider" role="separator" aria-label={`Agent note, ${segment.date}`}>
-                <span>Agent note · {segment.date}</span>
+              <div key={`divider-${index}`} className="notes-divider" role="separator" aria-label={t`Agent note, ${{ date: segment.date }}`}>
+                <span>{t`Agent note · ${{ date: segment.date }}`}</span>
               </div>
             ) : (
               <p key={`run-${index}`} className="notes-run">
@@ -172,16 +191,16 @@ function NotesField({ session, node }: { session: ProjectSession; node: TreeNode
             ),
           )}
           <button type="button" className="button is-quiet" onClick={() => setEditing(true)}>
-            Edit notes
+            <Trans>Edit notes</Trans>
           </button>
         </div>
       ) : (
       <textarea
         className="notes"
-        aria-label="Notes"
+        aria-label={t`Notes`}
         maxLength={NOTES_MAX_CHARS}
         rows={8}
-        placeholder="Notes for this scene. Plain text, kept out of the manuscript."
+        placeholder={t`Notes for this scene. Plain text, kept out of the manuscript.`}
         value={field.value}
         onChange={(event) => field.change(event.target.value)}
         onBlur={field.flush}
@@ -195,6 +214,7 @@ function NotesField({ session, node }: { session: ProjectSession; node: TreeNode
 }
 
 function KeywordsField({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
+  useLingui();
   const report = useReport();
   const [draft, setDraft] = useState('');
   const [complaint, setComplaint] = useState<string | null>(null);
@@ -205,11 +225,12 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
     const keyword = draft.trim();
     if (keyword.length === 0) return;
     if (keyword.length > KEYWORD_CHARS_MAX) {
-      setComplaint(`A keyword is at most ${KEYWORD_CHARS_MAX} characters.`);
+      const limit = KEYWORD_CHARS_MAX;
+      setComplaint(t`A keyword is at most ${limit} characters.`);
       return;
     }
     if (node.keywords.some((existing) => existing.toLowerCase() === keyword.toLowerCase())) {
-      setComplaint(`“${keyword}” is already a keyword here.`);
+      setComplaint(t`“${{ keyword: isolate(keyword) }}” is already a keyword here.`);
       return;
     }
     const outcome = addKeyword(session, node.id, keyword);
@@ -232,16 +253,16 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
   return (
     <section className="inspector-section" aria-labelledby="inspector-keywords-label">
       <h3 id="inspector-keywords-label" className="field-label">
-        Keywords
+        <Trans>Keywords</Trans>
       </h3>
-      <ul className="keyword-list" aria-label="Keywords">
+      <ul className="keyword-list" aria-label={t`Keywords`}>
         {node.keywords.map((keyword) => (
           <li key={keyword} className="chip chip-keyword">
             <span>{keyword}</span>
             <button
               type="button"
               className="chip-remove"
-              aria-label={`Remove keyword ${keyword}`}
+              aria-label={accessibleText(t`Remove keyword ${{ keyword: isolate(keyword) }}`)}
               onClick={() => {
                 // A complaint about the keyword list is about the list as it was; removing a keyword changes it, so it goes.
                 setComplaint(null);
@@ -257,7 +278,7 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
       <input
         type="text"
         className="keyword-input"
-        aria-label="Add keyword"
+        aria-label={t`Add keyword`}
         list="keyword-suggestions"
         maxLength={KEYWORD_CHARS_MAX}
         disabled={full}
@@ -309,12 +330,13 @@ function MetaPicker({
   node: TreeNode;
   kind: 'status' | 'label';
 }): ReactNode {
+  useLingui();
   const report = useReport();
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const vocab = kind === 'status' ? session.state.manifest.vocabulary.statuses : session.state.manifest.vocabulary.labels;
   const current = kind === 'status' ? node.status : node.label;
   const term = current === null ? undefined : vocab.find((entry) => entry.id === current);
-  const shown = term?.name ?? (current === null ? (kind === 'status' ? 'No status' : 'No label') : `Unknown ${kind}`);
+  const shown = term?.name ?? (current === null ? (kind === 'status' ? t`No status` : t`No label`) : kind === 'status' ? t`Unknown status` : t`Unknown label`);
   const color = term && kind === 'status' ? term.color : undefined;
 
   const apply = (value: string | null): void => {
@@ -325,7 +347,7 @@ function MetaPicker({
   // "+ Add" opens the vocabulary editor (ui-modules §2.2). With no label yet, it is the only entry.
   const addTerm: MenuItem = {
     key: `${kind}-add`,
-    label: kind === 'status' ? '+ Add status…' : '+ Add label…',
+    label: kind === 'status' ? t`+ Add status…` : t`+ Add label…`,
     separatorBefore: vocab.length > 0,
     onSelect: () => openDialog({ kind: 'vocabulary', term: kind }),
   };
@@ -341,7 +363,7 @@ function MetaPicker({
           })),
           {
             key: `${kind}-none`,
-            label: kind === 'status' ? 'No status' : 'No label',
+            label: kind === 'status' ? t`No status` : t`No label`,
             checked: current === null,
             separatorBefore: true,
             onSelect: () => apply(null),
@@ -351,12 +373,12 @@ function MetaPicker({
 
   return (
     <div className="picker">
-      <span className="field-label">{kind === 'status' ? 'Status' : 'Label'}</span>
+      <span className="field-label">{kind === 'status' ? t`Status` : t`Label`}</span>
       <button
         type="button"
         className="picker-button"
         aria-haspopup="menu"
-        aria-label={`${kind === 'status' ? 'Status' : 'Label'}: ${shown}. Change ${kind}`}
+        aria-label={accessibleText(kind === 'status' ? t`Status: ${{ value: isolate(shown) }}. Change status` : t`Label: ${{ value: isolate(shown) }}. Change label`)}
         onClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
           const rect = event.currentTarget.getBoundingClientRect();
           setAnchor({ x: rect.left, y: rect.bottom + 4 });
@@ -366,7 +388,7 @@ function MetaPicker({
         {shown}
       </button>
       {anchor ? (
-        <Menu label={kind === 'status' ? 'Status' : 'Label'} anchor={anchor} items={items} onClose={() => setAnchor(null)} />
+        <Menu label={kind === 'status' ? t`Status` : t`Label`} anchor={anchor} items={items} onClose={() => setAnchor(null)} />
       ) : null}
     </div>
   );

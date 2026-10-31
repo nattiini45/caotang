@@ -130,6 +130,66 @@ test('the built app renders the transform witness in English, and a `?pseudo=1` 
   expect(offenders, 'no shipped script carries a pseudo catalogue entry').toEqual([]);
 });
 
+test('the built app lazy-loads German under its policy and restores the saved choice after a reload', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
+  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await expect(settings.locator('input[name="interface-language"][value="de"]')).toBeChecked();
+  await expect(settings.locator('h2')).toHaveText('Einstellungen');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  await expect(settings).toContainText('Maschinell erstellte Übersetzung; nicht muttersprachlich geprüft');
+  await expect(settings.getByRole('link', { name: 'Benutzerhandbuch lesen', exact: true })).toHaveAttribute(
+    'href',
+    'https://github.com/nattiini45/caotang/blob/main/docs/i18n/de/USER-GUIDE.md#einstellungen',
+  );
+  expect(chunks()).toContain('messages');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Einstellungen', exact: true }).click();
+  await expect(page.getByTestId('settings').locator('h2')).toHaveText('Einstellungen');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+});
+
+test('a failed production German download changes nothing and choosing Deutsch again retries it', async ({ page }) => {
+  // The aborted download is a console error by design, so only the policy-violation listener this installs is read here.
+  await watchForProblems(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
+  const german = settings.locator('input[name="interface-language"][value="de"]');
+  const system = settings.locator('input[name="interface-language"][value="system"]');
+  const catalogueRequest = /\/assets\/.*messages.*\.js(?:\?.*)?$/;
+  let aborted = 0;
+  await page.route(catalogueRequest, (route) => {
+    aborted += 1;
+    return route.abort('failed');
+  });
+  const notice =
+    'The interface language could not be loaded, so nothing changed. Check your connection and choose the language again.';
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await german.click();
+    await expect.poll(() => aborted).toBe(attempt);
+    await expect(settings.getByRole('alert')).toHaveText(notice);
+    await expect(system).toBeChecked();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  }
+  await page.unroute(catalogueRequest);
+  await german.click();
+  await expect(german).toBeChecked();
+  await expect(settings.locator('h2')).toHaveText('Einstellungen');
+  await expect(settings.getByRole('alert')).toHaveCount(0);
+  expect(await violations(page)).toEqual([]);
+});
+
 test('the built app carries its Content-Security-Policy, unchanged', async ({ page }) => {
   await page.goto('/');
   const policy = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
@@ -170,7 +230,7 @@ test('the built app writes a scene, sets a cover, and compiles Word and EPUB wit
   expect(await compile(page, /^EPUB \(\.epub\)/)).toMatch(/\.epub$/);
 
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await expect(page.getByTestId('agent-provider')).toHaveText('Provider: Demo (no key)');
+  await expect(page.getByTestId('agent-provider')).toHaveText(/^Provider: \u2068?Demo \(no key\)\u2069?$/);
 
   expect(problems).toEqual([]);
   expect(await violations(page)).toEqual([]);
@@ -201,6 +261,35 @@ test('the first load leaves out Settings and the MCP SDK, and a project with no 
   expect(await violations(page)).toEqual([]);
 });
 
+test('the agent harness and the exporter are fetched when first used, not with the project', async ({ page }) => {
+  test.setTimeout(90_000);
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await createProject(page, 'Lazy Heavy');
+  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+  await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+  await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
+  await page.keyboard.press('Enter');
+  await page.getByRole('textbox', { name: 'Document text' }).fill('The boat came in with the tide.');
+  await waitForSaved(page);
+  // The editor, the binder and the rails are up and a scene is saved; the tool registry, the provider gateway's agent loop and the exporter are not.
+  expect(chunks()).not.toContain('lazy-harness');
+  expect(chunks()).not.toContain('exporter');
+
+  expect(await compile(page, /^Word \(\.docx\)/)).toMatch(/\.docx$/);
+  expect(chunks()).toContain('exporter');
+  expect(chunks()).not.toContain('lazy-harness');
+
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  const field = page.getByRole('textbox', { name: 'Intent' });
+  await expect(field).toBeEnabled();
+  await field.fill('Check for continuity problems');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(chunks).toContain('lazy-harness');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+});
+
 test('connecting a server loads the MCP SDK from the build, under the policy', async ({ page }) => {
   await watchForProblems(page);
   const chunks = watchChunks(page);
@@ -213,7 +302,7 @@ test('connecting a server loads the MCP SDK from the build, under the policy', a
   await form.getByLabel('Name').fill('Local tools');
   await form.getByLabel('Server address (https://…, or http://localhost…)').fill('http://127.0.0.1:5997/mcp');
   await form.getByRole('button', { name: 'Add server' }).click();
-  await expect(settings.getByText('Added “Local tools”')).toBeVisible();
+  await expect(settings.getByText(/Added “\u2068?Local tools\u2069?”/)).toBeVisible();
   expect(chunks()).not.toContain('wire');
 
   // The address is a closed port: the connection is refused, and the card says so. The SDK chunk was fetched to try it.

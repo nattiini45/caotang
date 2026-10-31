@@ -32,13 +32,14 @@ import { evaluate, type Scenario } from '../../src/agent/eval.js';
 import { FRIEND, makeHarness, makeState, run, valueOf } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, steps, transcript } from './scripts.js';
+import { textOf as wireTextOf } from '@caotang/gateway';
 
 const COHERENCE_SCAN = { scope: { mode: 'full' } };
 
 const wiredHarness = (): Harness => makeHarness({ ports: createAgentPorts() });
 const namesOf = (request: ChatRequest | undefined): string[] => (request?.tools ?? []).map((tool) => tool.name);
-const textOf = (request: ChatRequest | undefined): string => (request?.messages ?? []).map((message) => message.content).join('\n');
-const systemOf = (request: ChatRequest | undefined): string => request?.messages[0]?.content ?? '';
+const textOf = (request: ChatRequest | undefined): string => (request?.messages ?? []).map((message) => wireTextOf(message.content)).join('\n');
+const systemOf = (request: ChatRequest | undefined): string => wireTextOf(request?.messages[0]?.content ?? '');
 
 /* ------------------------------------------------------------------ *
  * The declared surface: core rows up front, and the size that buys.
@@ -205,7 +206,7 @@ describe('search, load, call on the JSON wire', () => {
     // The system message is the cached prefix: a mid-turn load does not touch a byte of it.
     expect(systemOf(second)).toBe(systemOf(first));
     expect(systemOf(first)).not.toContain('coherence.scan');
-    expect(second?.messages.findIndex((message) => message.content.includes('- coherence.scan [read]'))).toBeGreaterThan(0);
+    expect(second?.messages.findIndex((message) => wireTextOf(message.content).includes('- coherence.scan [read]'))).toBeGreaterThan(0);
     expect(textOf(second)).toContain('Tools loaded for this turn.');
     expect(textOf(first)).not.toContain('Tools loaded for this turn.');
   });
@@ -298,7 +299,7 @@ describe('search, load, call on the JSON wire', () => {
 
 function isNativePlanner(req: ChatRequest): boolean {
   const first = req.messages[0];
-  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && first.content.startsWith(PLANNER_SYSTEM_PREFIX);
+  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && wireTextOf(first.content).startsWith(PLANNER_SYSTEM_PREFIX);
 }
 
 const repliesSoFar = (req: ChatRequest): number => req.messages.filter((message) => message.role === 'assistant').length;
@@ -317,7 +318,7 @@ function nativeScripts(intent: string, replies: readonly { readonly content?: st
       respond: (req) => {
         const reply = replies[Math.min(repliesSoFar(req), replies.length - 1)];
         return {
-          content: reply?.content ?? '',
+          content: wireTextOf(reply?.content ?? ''),
           ...(reply?.calls === undefined ? {} : { toolCalls: reply.calls.map((call) => ({ id: call.id, name: call.name, argumentsJson: JSON.stringify(call.args) })) }),
         };
       },
@@ -372,7 +373,7 @@ describe('search, load, call on the native wire', () => {
     expect(systemOf(second)).toBe(systemOf(first));
     expect(systemOf(third)).toBe(systemOf(first));
     const answered = second?.messages.findIndex((message) => message.role === 'tool' && message.toolCallId === 'call_s') ?? -1;
-    const described = second?.messages.findIndex((message) => message.role === 'user' && message.content.includes('- coherence.scan [read]')) ?? -1;
+    const described = second?.messages.findIndex((message) => message.role === 'user' && wireTextOf(message.content).includes('- coherence.scan [read]')) ?? -1;
     expect(answered).toBeGreaterThan(0);
     expect(described).toBeGreaterThan(answered);
   });

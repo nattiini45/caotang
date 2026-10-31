@@ -115,17 +115,17 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.18 `pictures` 🧭
 - **Responsibility:** one picture registry with hashes and dedup, links from the project, a folder, a document or a paragraph, inline pictures in prose carried into EPUB, Word and Markdown, the import pipeline (HEIC, pixel budget, GPS strip), vision input for the agent, MCP pictures in both directions, and handwriting transcription.
-- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store, the retention inventory a sweep must read. A host capability gate (browser canvas; Node's WebP→PNG path only) refuses a picture operation a host cannot run. Specified, not built.
+- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store, the retention inventory a sweep must read. A host capability gate (browser canvas; Node's WebP→PNG path only) refuses a picture operation a host cannot run. Built, including the guarded sweep and reviewed transcription; HEIC decoding remains unavailable.
 - **Spec:** [architecture/pictures.md](architecture/pictures.md).
 
 ### 2.19 `timeline` 🧭
 - **Responsibility:** an interactive view of the story on story time, reading order or both, where every edit gesture is a proposal the writer approves and applies as one undoable `timeline.apply`; prologues, the main story and epilogues as declared parts (§5.2.2); both axes in the project language's direction while the data stays in logical order; timeline exports, agent tools and an MCP resource from one pure layout package, with confirmed MCP writes reporting typed persisted, conflict or partial outcomes.
-- **Owns:** `packages/timeline` (layout, calendar lens, medium adapters), the proposed-changes tray (view state). Scene timing stays in `coherence.json` `sceneMeta`. Specified, not built.
+- **Owns:** `packages/timeline` (layout, calendar lens, medium adapters), the proposed-changes tray (view state). Scene timing stays in `coherence.json` `sceneMeta`. Built across the desktop, exports, agent, SDK and MCP surfaces.
 - **Spec:** [architecture/timeline.md](architecture/timeline.md); the coherence-model change is [architecture/coherence.md](architecture/coherence.md) §5.2.2.
 
 ### 2.20 `i18n` 🧭
 - **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
-- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The pure contracts and the app's formatter accessor are built (I2), the live language setting and switcher are built (I4), and deterministic package text carries `MessageRef`s (I7); real translated catalogues, the rest of the surface strings and RTL are specified, not built.
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The contracts, formatter accessor, live switcher, surface strings, `MessageRef`s and RTL mirroring are built; English and a production-loadable, machine-assisted German catalogue and guide ship. German and RTL still need native-reader review, and their review status remains explicit.
 - **Spec:** [architecture/i18n.md](architecture/i18n.md).
 
 ## 3. Data model (sketch)
@@ -147,12 +147,12 @@ SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent?, sto
 ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2
-AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (planned)
-AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
-ComicBook      { readingDirection, letteringFace, capsTransform, esszett, pageSize, scriptDocId? }                       // comics.md §2 (planned)
-ComicPage      { size, layout?, panels: Panel[] }                                                                       // comics.md §2 (planned)
-Panel          { id, rect, assetId?, crop?, border?, balloons: Balloon[] }                                              // comics.md §2 (planned)
-TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
+AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1
+AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1
+ComicBook      { readingDirection, letteringFace, capsTransform, esszett, pageSize, scriptDocId? }                       // comics.md §2
+ComicPage      { size, layout?, panels: Panel[] }                                                                       // comics.md §2
+Panel          { id, rect, assetId?, crop?, border?, balloons: Balloon[] }                                              // comics.md §2
+TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (I7)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
@@ -190,5 +190,5 @@ Caotang covers games, video and film as well as prose. The full inventory lives 
 | **Storyboarding & shot planning** | scene → shot breakdown: frame, camera, action, dialogue covered, duration; shot list exports | `shot` node kind, corkboard variant with image fields, `inspector` | [storyboard.md](architecture/storyboard.md) |
 | **AI video prompt packs** | per-shot prompt packs for several video models. **Caotang writes prompts; it does not render video** — generation stays in the writer's own tool with their own account | `context-assembly`, `codex`, `exporter` (vendor templates), harness tools | [video-prompt-pack.md](architecture/video-prompt-pack.md) |
 | **Plot coherence & continuity** | deterministic checks (structure + codex, no model call) and model-judged findings (evidence-cited reports, never silent edits) | `coherence` module over `codex` + `context-assembly` | [coherence.md](architecture/coherence.md) |
-| **Comics** 🧭 | comic books, pages, panels and balloons; comic scripts (full script or Marvel method) linked explicitly by `scriptDocId`; lettering rules; comic PDF, CBZ and fixed-layout EPUB. The CBZ and the comic EPUB are made in the browser only; the PDF is written by both hosts. Specified, not built | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
+| **Comics** | comic books, pages, panels and balloons; comic scripts (full script or Marvel method) linked explicitly by `scriptDocId`; lettering rules; comic PDF, CBZ and fixed-layout EPUB. The CBZ and the comic EPUB are made in the browser only; the PDF is written by both hosts. Built; target-reader and visual acceptance remain manual checks | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
 | **One story, many outputs** | a single narrative source compiled to prose, screenplay, game dialogue, storyboard, prompt pack and report targets — media targets are **export recipes**, not separate apps | the `exporter` contract and per-kind renderers | [media-track.md](architecture/media-track.md) §1 |

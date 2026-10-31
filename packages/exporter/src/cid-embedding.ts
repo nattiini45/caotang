@@ -110,6 +110,47 @@ export class CidEmbedding {
   }
 
   /**
+   * Draws glyphs with the font's pair kerning: one text-showing operator whose array takes `kern` font units off the pen after each
+   * glyph. The widths the file states stay the glyphs' own advances, so a reader that ignores the array still sets the text, only
+   * looser. Used by the comic lettering, whose capitals the font kerns (comics.md §4).
+   */
+  drawKerned(
+    page: PdfLib.PDFPage,
+    glyphs: readonly (CidGlyph & { readonly kern: number })[],
+    x: number,
+    y: number,
+    size: number,
+    ink: { r: number; g: number; b: number },
+  ): void {
+    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, moveText, PDFHexString, PDFNumber, PDFOperator, PDFOperatorNames } = this.lib;
+    let key = this.keys.get(page);
+    if (key === undefined) {
+      key = page.node.newFontDictionary(this.names.resource, this.ref);
+      this.keys.set(page, key);
+    }
+    const items: PdfLib.PDFObject[] = [];
+    let codes = '';
+    for (const glyph of glyphs) {
+      codes += hex4(this.cidOf(glyph));
+      if (glyph.kern !== 0) {
+        items.push(PDFHexString.of(codes), PDFNumber.of(Math.round((glyph.kern * 1000 * 100) / this.font.unitsPerEm) / 100));
+        codes = '';
+      }
+    }
+    if (codes !== '') items.push(PDFHexString.of(codes));
+    page.pushOperators(
+      pushGraphicsState(),
+      setFillingRgbColor(ink.r, ink.g, ink.b),
+      beginText(),
+      setFontAndSize(key, size),
+      moveText(x, y),
+      PDFOperator.of(PDFOperatorNames.ShowTextAdjusted, [this.doc.context.obj(items) as unknown as PdfLib.PDFName]),
+      endText(),
+      popGraphicsState(),
+    );
+  }
+
+  /**
    * Draws a shaped run glyph by glyph, each at its own position (a pen that moves by the advances, and the glyph's offset from
    * it). pdf-lib's own text operators write advances only, so the offsets that place a joined or marked word are drawn here.
    * With `actual`, the run's logical text, the glyphs are inside marked content that gives it to a reader (`/ActualText`); that

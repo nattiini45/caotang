@@ -390,7 +390,8 @@ describe('what no mode takes from the writer or the bus', () => {
     return client;
   }
 
-  const FIND = steps({ tool: 'tool.search', params: { query: 'write' }, expect: 'the write tool is loaded' });
+  // Name the external tool: a broad "write" query exercises the native-first search cap, not the permission gate under test.
+  const FIND = steps({ tool: 'tool.search', params: { query: 'write_note' }, expect: 'the write tool is loaded' });
 
   it('an external write asks the writer in accept-edits and auto, and is refused outright in plan-only', async () => {
     const intent = 'Note the lore.';

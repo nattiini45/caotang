@@ -1,0 +1,137 @@
+{
+  "sourceLocale": "en",
+  "locales": {
+    "de": {
+      "sections": {
+        "caotang-user-guide": {
+          "hash": "633bef70",
+          "anchor": "caotang-benutzerhandbuch"
+        },
+        "your-work-and-where-it-lives": {
+          "hash": "ee2e3fa7",
+          "anchor": "ihre-arbeit-und-wo-sie-lebt"
+        },
+        "projects": {
+          "hash": "1b9e44ab",
+          "anchor": "projekte"
+        },
+        "the-binder": {
+          "hash": "ae206aa7",
+          "anchor": "der-binder"
+        },
+        "filter-the-binder": {
+          "hash": "6cf0e455",
+          "anchor": "den-binder-filtern"
+        },
+        "the-footer-under-the-binder": {
+          "hash": "fc212e4e",
+          "anchor": "die-fußzeile-unter-dem-binder"
+        },
+        "the-corkboard": {
+          "hash": "3918cd1e",
+          "anchor": "die-pinnwand"
+        },
+        "the-picture-board": {
+          "hash": "35d7c859",
+          "anchor": "die-bildtafel"
+        },
+        "the-timeline": {
+          "hash": "fb356458",
+          "anchor": "die-zeitachse"
+        },
+        "proposing-changes-on-the-timeline": {
+          "hash": "b4789a8c",
+          "anchor": "änderungen-auf-der-zeitachse-vorschlagen"
+        },
+        "the-inspector": {
+          "hash": "bcdec977",
+          "anchor": "der-inspektor"
+        },
+        "the-editor": {
+          "hash": "d90fc40d",
+          "anchor": "der-editor"
+        },
+        "writing-a-screenplay": {
+          "hash": "dfc6cfce",
+          "anchor": "ein-drehbuch-schreiben"
+        },
+        "the-screenplay-pdf": {
+          "hash": "8e8deb82",
+          "anchor": "das-drehbuch-pdf"
+        },
+        "writing-dialogue": {
+          "hash": "6432e2fe",
+          "anchor": "dialoge-schreiben"
+        },
+        "planning-a-storyboard": {
+          "hash": "b08263c9",
+          "anchor": "ein-storyboard-planen"
+        },
+        "writing-a-comic": {
+          "hash": "176caa82",
+          "anchor": "einen-comic-schreiben"
+        },
+        "the-codex": {
+          "hash": "0af900f6",
+          "anchor": "der-kodex"
+        },
+        "findings": {
+          "hash": "cbd41b57",
+          "anchor": "feststellungen"
+        },
+        "knowledge": {
+          "hash": "6e10c440",
+          "anchor": "wissen"
+        },
+        "speakers-in-a-screenplay-and-its-dialogue": {
+          "hash": "5865ab47",
+          "anchor": "sprecher-in-einem-drehbuch-und-seinem-dialog"
+        },
+        "the-agent": {
+          "hash": "bdb8cecf",
+          "anchor": "der-agent"
+        },
+        "skills": {
+          "hash": "23df5c09",
+          "anchor": "skills"
+        },
+        "export": {
+          "hash": "6b7949ce",
+          "anchor": "export"
+        },
+        "settings": {
+          "hash": "7fcdaac8",
+          "anchor": "einstellungen"
+        },
+        "keyboard": {
+          "hash": "c75ae84d",
+          "anchor": "tastatur"
+        },
+        "attaching-your-writing-in-an-ai-tool": {
+          "hash": "81b20de8",
+          "anchor": "eigene-texte-in-einem-ki-werkzeug-anhängen"
+        },
+        "bringing-existing-writing-in-through-the-mcp-server": {
+          "hash": "1864d33a",
+          "anchor": "vorhandene-texte-über-den-mcp-server-hereinholen"
+        },
+        "installing-the-mcp-bundle": {
+          "hash": "4651f5c6",
+          "anchor": "das-mcp-bundle-installieren"
+        },
+        "scripting-caotang": {
+          "hash": "288c79cd",
+          "anchor": "caotang-per-skript-steuern"
+        },
+        "when-something-seems-wrong": {
+          "hash": "0028e42a",
+          "anchor": "wenn-etwas-nicht-stimmt"
+        },
+        "what-is-not-in-this-build-yet": {
+          "hash": "935c8030",
+          "anchor": "was-in-diesem-build-noch-fehlt"
+        }
+      }
+    }
+  }
+}

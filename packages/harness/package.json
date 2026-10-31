@@ -14,6 +14,7 @@
     "@caotang/bus": "workspace:*",
     "@caotang/codex": "workspace:*",
     "@caotang/coherence": "workspace:*",
+    "@caotang/comic": "workspace:*",
     "@caotang/context": "workspace:*",
     "@caotang/dialogue": "workspace:*",
     "@caotang/editor": "workspace:*",
@@ -21,9 +22,11 @@
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
+    "@caotang/pictures": "workspace:*",
     "@caotang/skills": "workspace:*",
     "@caotang/store": "workspace:*",
     "@caotang/storyboard": "workspace:*",
+    "@caotang/timeline": "workspace:*",
     "@caotang/video-prompt-pack": "workspace:*"
   },
   "scripts": {

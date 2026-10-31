@@ -11,7 +11,7 @@
   /* A long list scrolls inside the dialog rather than growing past the viewport. */
   max-height: min(60vh, 36rem);
   overflow-y: auto;
-  padding-right: 4px;
+  padding-inline-end: 4px;
 }
 
 .encoding-file {

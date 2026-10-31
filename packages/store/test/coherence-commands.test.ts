@@ -236,6 +236,70 @@ describe('coherence.setSceneMeta (coherence.md §5.2, §7.1)', () => {
   });
 });
 
+describe('coherence.setSceneMeta signed days and story parts (coherence.md §5.2.2)', () => {
+  it.each([-1, -3650, -10_000_000, 10_000_000])('accepts day %i on a scene and on a folder, and undo puts the prior day back', (day) => {
+    const h = harness();
+    expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dayOffset: 7 } }));
+    const scene = expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dayOffset: day } }));
+    expect(h.state.coherence?.sceneMeta[STORM]?.dayOffset).toBe(day);
+    expect(h.undo.undo(scene.undoGroupId!).ok).toBe(true);
+    expect(h.state.coherence?.sceneMeta[STORM]?.dayOffset).toBe(7);
+    expectOk(h.send('coherence.setSceneMeta', { docId: CHAPTER, patch: { dayOffset: day, durationDays: 2 } }));
+    expect(h.state.coherence?.sceneMeta[CHAPTER]).toEqual({ dayOffset: day, durationDays: 2 });
+  });
+
+  it.each([-10_000_001, 10_000_001, 1.5, '3', '−3', Number.NaN])('refuses day %j and changes nothing', (day) => {
+    const h = harness();
+    expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { durationDays: 1 } }));
+    const before = snapshotOf(h.state);
+    const refused = h.send('coherence.setSceneMeta', { docId: STORM, patch: { dayOffset: day } });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.message).toContain('a whole number of days between −10,000,000 and 10,000,000');
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
+  it('keeps a duration at zero or more', () => {
+    const h = harness();
+    expect(h.send('coherence.setSceneMeta', { docId: STORM, patch: { durationDays: -1 } }).ok).toBe(false);
+    expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { durationDays: 0 } }));
+  });
+
+  it('declares a part on a folder and on a scene, writes nothing into the children, and undoes each declaration', () => {
+    const h = harness();
+    const folder = expectOk(h.send('coherence.setSceneMeta', { docId: CHAPTER, patch: { storyPart: 'prologue' } }));
+    expect(h.state.coherence?.sceneMeta[CHAPTER]).toEqual({ storyPart: 'prologue' });
+    expect(h.state.coherence?.sceneMeta[STORM]).toBeUndefined();
+    expect(h.state.coherence?.sceneMeta[LETTER]).toBeUndefined();
+
+    const before = snapshotOf(h.state);
+    const scene = expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { storyPart: 'main' } }));
+    expect(h.state.coherence?.sceneMeta[STORM]).toEqual({ storyPart: 'main' });
+    expect(h.undo.undo(scene.undoGroupId!).ok).toBe(true);
+    expect(snapshotOf(h.state)).toBe(before);
+
+    expect(h.undo.undo(folder.undoGroupId!).ok).toBe(true);
+    expect(h.state.coherence?.sceneMeta[CHAPTER]).toBeUndefined();
+  });
+
+  it('clears a declaration with null, drops the emptied record, and undo restores the explicit main', () => {
+    const h = harness();
+    expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { storyPart: 'main' } }));
+    const cleared = expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { storyPart: null } }));
+    expect(Object.prototype.hasOwnProperty.call(h.state.coherence?.sceneMeta ?? {}, STORM)).toBe(false);
+    expect(h.undo.undo(cleared.undoGroupId!).ok).toBe(true);
+    expect(h.state.coherence?.sceneMeta[STORM]).toEqual({ storyPart: 'main' });
+  });
+
+  it.each(['interlude', '', 'Main', 3, true])('refuses the part %j, listing the three valid ones', (part) => {
+    const h = harness();
+    const before = snapshotOf(h.state);
+    const refused = h.send('coherence.setSceneMeta', { docId: STORM, patch: { storyPart: part } });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.message).toContain('main, prologue, epilogue');
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+});
+
 describe('coherence.setSceneMeta dialogueContainer (coherence.md §5.1 medium.speaker-parity)', () => {
   const COURT = 'n_COURT00001';
 

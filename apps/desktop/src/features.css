@@ -267,7 +267,7 @@
 }
 
 .mcp-import-result {
-  border-left: 3px solid var(--line-strong);
+  border-inline-start: 3px solid var(--line-strong);
   padding-inline-start: 0.6rem;
 }
 

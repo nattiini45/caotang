@@ -7,7 +7,14 @@ import { describe, expect, it } from 'vitest';
 
 import { createEmptyManifest, createProjectState, emptyCoherenceState, type CoherenceFindingState, type CoherenceState, type ProjectState } from '@caotang/store';
 
-import { coherenceReportJson, coherenceReportMarkdown, renderMedia, type CoherenceReportInput } from '../src/index.js';
+import {
+  coherenceReportJson,
+  coherenceReportMarkdown,
+  ENGLISH_REPORT_WORDS,
+  renderMedia,
+  type CoherenceReportInput,
+  type CoherenceReportWords,
+} from '../src/index.js';
 
 const NOW = new Date('2026-10-08T09:00:00.000Z');
 const STORM = 'n_TEMPEST001';
@@ -168,5 +175,41 @@ describe('the report through the media compile (renderMedia)', () => {
     const json = renderMedia({ ...base, format: 'coherence-json', includeRootIds: [] });
     expect(json.files).toEqual([expect.objectContaining({ name: 'Keeper (coherence report).json', mimeType: 'application/json' })]);
     expect(JSON.parse(json.files[0]?.text ?? '{}')).toMatchObject({ summary: { open: 1 } });
+  });
+});
+
+describe('the Markdown report in another language (i18n.md §7.1)', () => {
+  const german: CoherenceReportWords = {
+    ...ENGLISH_REPORT_WORDS,
+    heading: (title) => `Kohärenzbericht: ${title}`,
+    summaryHeading: 'Zusammenfassung',
+    severity: { error: 'Fehler', warning: 'Warnungen', info: 'Hinweise' },
+    status: { open: 'Offen', dismissed: 'Verworfen', fixed: 'Als behoben markiert' },
+    runHistoryHeading: 'Verlauf der Läufe',
+    dismissedAs: (reason) => `Verworfen als: ${reason}`,
+  };
+
+  it('uses the supplied words for the headings, statuses and labels, and leaves the writer’s own text as written', () => {
+    const text = coherenceReportMarkdown({ ...input(fileWithFindings()), words: german });
+    expect(text.startsWith('# Kohärenzbericht: The Lighthouse Keeper\n')).toBe(true);
+    expect(text).toContain('## Zusammenfassung');
+    expect(text).toContain('## Fehler');
+    expect(text).toContain('## Verlauf der Läufe');
+    expect(text).toContain('- Offen');
+    expect(text).toContain('Verworfen als: deep POV');
+    expect(text).toContain('> “the gale arrived” (The Storm)');
+  });
+
+  it('leaves the JSON report, a machine format, unchanged by the words', () => {
+    const file = fileWithFindings();
+    expect(coherenceReportJson({ ...input(file), words: german })).toBe(coherenceReportJson(input(file)));
+  });
+
+  it('writes the supplied words through a media compile', () => {
+    const state = createProjectState(createEmptyManifest('The Lighthouse Keeper', NOW));
+    state.coherence = fileWithFindings();
+    const base = { state, includeRootIds: ['manuscript'], title: 'The Lighthouse Keeper', author: '', date: '2026-10-08', titlePage: false, base: 'Keeper', assets: new Map() };
+    const md = renderMedia({ ...base, format: 'coherence-md', reportWords: german });
+    expect(md.files[0]?.text).toContain('# Kohärenzbericht: The Lighthouse Keeper');
   });
 });

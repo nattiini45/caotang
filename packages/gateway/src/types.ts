@@ -149,9 +149,46 @@ export interface ReasoningBlock {
   raw?: unknown;
 }
 
+/** The image formats an image part may carry. Anything else is refused at validation, before any request. */
+export type ImageMime = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+
+/** A text content part, the array form of a plain string content. */
+export interface TextPart {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+/**
+ * An image content part. The bytes travel on the wire and nowhere else: they are never logged,
+ * never persisted and never quoted in an error. `hash` (sha-256, hex), `size` and `mime` are the
+ * record that survives in history metadata, previews and summaries in place of the bytes.
+ */
+export interface ImagePart {
+  readonly type: 'image';
+  readonly mime: ImageMime;
+  /** The image bytes. Transient: approved for the one request that carries them, nothing else. */
+  readonly bytes: Uint8Array;
+  /** sha-256 of `bytes`, as 64 lowercase hex characters. */
+  readonly hash: string;
+  /** `bytes.length`, recorded alongside the hash so a part is checkable without its bytes. */
+  readonly size: number;
+  /** An optional caption shown beside the image placeholder in previews. */
+  readonly caption?: string;
+}
+
+/** One discriminated content part of a message. */
+export type ContentPart = TextPart | ImagePart;
+
+/**
+ * A message's content: a plain string, or an array of parts when the message carries images.
+ * String contents are byte-for-byte unchanged on every wire route; only the array form maps
+ * onto a route's block shapes (provider-gateway §3).
+ */
+export type MessageContent = string | readonly ContentPart[];
+
 export interface ChatMessage {
   role: ChatRole;
-  content: string;
+  content: MessageContent;
   /** assistant only: the calls it asked for. May accompany empty content on a tools-only reply. */
   toolCalls?: readonly ToolCall[];
   /** tool role only: the call this message answers. */

@@ -298,7 +298,7 @@ describe('§6 — a stale expectedRevision is refused before any effect', () => 
   });
 
   it('declares the guard on exactly §9\'s expectedRevision rows — read out of the spec', () => {
-    // The list of three names used to be written out here, and that is a guard over
+    // A fixed list of names used to be written out here, and that is a guard over
     // a constant defined in the test file that asserts it: only this file could ever
     // change it, so it could not see §9 gain or lose an `expectedRevision?` row —
     // the one drift that would leave a document-writing command unguarded. §9 is the
@@ -308,7 +308,11 @@ describe('§6 — a stale expectedRevision is refused before any effect', () => 
       .map(([name]) => name)
       .sort();
 
-    const specGuarded = specExpectedRevisionRows();
+    // These comic commands name an `expectedRevision` too, but not a `docId` for the pipeline's generic guard:
+    // scriptFromPages finds the document through the book, and derive/letter name it as `doc`. Their own validates
+    // hold the guard, so `guardsRevision` is deliberately not set on them.
+    const customGuarded = new Set(['comic.scriptFromPages', 'comic.derive', 'comic.letter']);
+    const specGuarded = specExpectedRevisionRows().filter((name) => !customGuarded.has(name));
     // A broken parse must fail on its own count, not hand an empty expectation to
     // the equality below — the failure mode registry.test.ts:78 names for §9.
     expect(specGuarded).toHaveLength(3);

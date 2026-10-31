@@ -68,10 +68,10 @@ describe('binder.create', () => {
     expect(r.ok).toBe(true);
   });
 
-  it('refuses a type outside the four node types the binder creates', () => {
+  it('refuses a type outside the five node types the binder creates', () => {
     const e = refusal(validate('binder.create', { parentId: CHAPTER_ONE, type: 'script', title: 'X' }));
     expect(e.code).toBe('invalid-params');
-    expect(e.message).toContain('type must be "folder", "document", "shot" or "dialogue"');
+    expect(e.message).toContain('type must be "folder", "document", "shot", "dialogue" or "comic-page"');
     expect(e.target).toBe('type');
   });
 
@@ -923,6 +923,16 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       'pdf',
       // The storyboard contact sheet (storyboard.md §6), the sixteenth.
       'contact-sheet-pdf',
+      // The comic PDF (comics.md §5), the seventeenth.
+      'comic-pdf',
+      // The timeline's exports (timeline.md §8), the eighteenth to twenty-first.
+      'timeline-csv',
+      'timeline-xlsx',
+      'timeline-svg',
+      'timeline-pdf',
+      // The comic's raster formats (comics.md §5), the twenty-second and twenty-third.
+      'cbz',
+      'comic-epub',
     ]);
   });
 

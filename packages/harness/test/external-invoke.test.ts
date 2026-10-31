@@ -33,6 +33,7 @@ import {
 import { mockGateway } from './agent/gateway.js';
 import { answer, steps, transcript } from './agent/scripts.js';
 import { CHAPTER_ONE, FRIEND, OPENED, makeHarness, makeState, refusalOf, run, valueOf } from './fixtures.js';
+import { textOf } from '@caotang/gateway';
 
 const KEY = 's_STORYB0001';
 const SEARCH = qualifiedNameOf(KEY, 'search_lore');
@@ -108,7 +109,7 @@ describe('tool.search — the Tier-2 gateway (extensibility §5)', () => {
     const harness = makeHarness({ mcp: { client } });
     run(harness, 'tool.search', { query: 'lore' }, { turnId: 'turn-native' });
     // An external search for the write tool loads it for the external turn, and that load is put back when the call returns.
-    run(harness, 'tool.search', { query: 'write' }, { turnId: 'turn-external', source: 'mcp' });
+    run(harness, 'tool.search', { query: 'write_note' }, { turnId: 'turn-external', source: 'mcp' });
     expect(harness.loadedExternalTools().map((tool) => tool.qualifiedName)).toEqual([SEARCH]);
     const outcome = await harness.callExternal({ name: SEARCH, callId: 'call-native', params: { query: 'x' } }, { turnId: 'turn-native' });
     expect(outcome.ok).toBe(true);
@@ -160,7 +161,7 @@ describe('mcp.invoke — an external call through the bus (extensibility §6)', 
   it('refuses a write-confirm external tool without an approval, and runs it once the turn carries a one-step confirmation', async () => {
     const calls: string[] = [];
     const harness = makeHarness({ mcp: { client: await connectedClient(calls) } });
-    run(harness, 'tool.search', { query: 'write' }, { turnId: 'turn-write' });
+    run(harness, 'tool.search', { query: 'write_note' }, { turnId: 'turn-write' });
     const refused = await harness.callExternal({ name: WRITE, callId: 'call-write-0', params: { text: 'A note.' } }, { turnId: 'turn-write' });
     expect(refused.ok).toBe(false);
     if (refused.ok) return;
@@ -177,7 +178,7 @@ describe('mcp.invoke — an external call through the bus (extensibility §6)', 
   it('refuses a write-confirm external tool under a turn whose whole plan was approved, since an external call is confirmed per call (extensibility §4 rule 2)', async () => {
     const calls: string[] = [];
     const harness = makeHarness({ mcp: { client: await connectedClient(calls) } });
-    run(harness, 'tool.search', { query: 'write' }, { turnId: 'turn-plan' });
+    run(harness, 'tool.search', { query: 'write_note' }, { turnId: 'turn-plan' });
     // The plan card approved every step of the plan. The external write is not a step the writer read in the card, so
     // the bus reads only a one-step confirmation, and this call carries none.
     const outcome = await harness.callExternal(
@@ -344,7 +345,7 @@ describe('the agent loop and a loaded external tool, end to end (extensibility �
     expect(report.status).toBe('replied');
     // The planner's second request is the first one after the search. It carries the loaded tool as the model reads it:
     // the qualified name and risk, the description verbatim, and the input schema the server advertised.
-    const afterSearch = requests[1]?.messages.map((message) => message.content).join('\n') ?? '';
+    const afterSearch = requests[1]?.messages.map((message) => textOf(message.content)).join('\n') ?? '';
     expect(afterSearch).toContain('Tools loaded for this turn.');
     expect(afterSearch).toContain(`- ${SEARCH} [read] — Search the story bible for an entry.`);
     expect(afterSearch).toContain(
@@ -366,7 +367,7 @@ describe('the agent loop and a loaded external tool, end to end (extensibility �
     const intent = 'Note the sighting in the story bible.';
     const gateway = await mockGateway([
       transcript(intent, [
-        steps({ tool: 'tool.search', params: { query: 'write' }, expect: 'the write tool is loaded' }),
+        steps({ tool: 'tool.search', params: { query: 'write_note' }, expect: 'the write tool is loaded' }),
         steps({ tool: WRITE, params: { text: 'A sighting.' }, expect: 'the note is written' }),
       ]),
     ]);
@@ -389,8 +390,8 @@ describe('a load is named to the planner once, in the request that follows it (c
       answer('Found it.'),
     ]);
     expect(requests.length).toBeGreaterThanOrEqual(2);
-    const before = requests[0]?.messages.map((message) => message.content).join('\n') ?? '';
-    const after = requests[1]?.messages.map((message) => message.content).join('\n') ?? '';
+    const before = requests[0]?.messages.map((message) => textOf(message.content)).join('\n') ?? '';
+    const after = requests[1]?.messages.map((message) => textOf(message.content)).join('\n') ?? '';
     expect(before).not.toContain('Tools loaded this turn');
     // The descriptors the search sent name the tool, so the one-line addendum for the same set is not sent a second time.
     expect(after).toContain('Tools loaded for this turn.');
@@ -443,14 +444,15 @@ describe('an unloaded external tool is still refused, whatever a deferred native
     expect(report.status).toBe('replied');
     expect(calls).toEqual([]);
     expect(report.trace).toEqual([]);
-    const next = requests[1]?.messages.map((message) => message.content).join('\n') ?? '';
+    const next = requests[1]?.messages.map((message) => textOf(message.content)).join('\n') ?? '';
     expect(next).toContain(`"${SEARCH}" is not an external tool loaded this turn. Nothing was run. Call tool.search first, then call the tool by the qualified name it returns.`);
   });
 
   it('lists native rows before external tools in one search, and loads both for the turn', async () => {
     const calls: string[] = [];
     const harness = makeHarness({ mcp: { client: (await connectedScripted(calls)).client } });
-    const found = valueOf(run(harness, 'tool.search', { query: '', limit: 20 }, { turnId: 'turn-both' }));
+    // "story" matches a bounded set of native storyboard rows and both Story Bible tools, so the cap cannot hide the external half.
+    const found = valueOf(run(harness, 'tool.search', { query: 'story', limit: 20 }, { turnId: 'turn-both' }));
     const matches = found.data['matches'] as { source: string; name: string }[];
     const firstExternal = matches.findIndex((match) => match.source === 'external');
     expect(firstExternal).toBeGreaterThan(0);

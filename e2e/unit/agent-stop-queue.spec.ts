@@ -53,6 +53,11 @@ async function until(predicate: () => boolean, label: string, ms = 4000): Promis
   }
 }
 
+/** Waits until the running turn has reached its planner request: `busy` is true earlier, while the harness loads. */
+async function untilPlanning(controller: AgentController): Promise<void> {
+  await until(() => controller.snapshot().turns.at(-1)?.phase === 'planning', 'the turn to start planning');
+}
+
 /** A door a test holds shut, and opens when it wants the turn behind it to go on. */
 function door(): { readonly isOpen: () => boolean; readonly open: () => void } {
   let open = false;
@@ -143,6 +148,8 @@ test('Stop ends a turn that is planning, as the writer’s, and the controller i
   const running = controller.submit('Think about it.');
   await until(() => controller.snapshot().busy, 'the turn to start');
   expect(controller.snapshot().stoppable).toBe(true);
+  // A turn is busy while its harness still loads; the stop is "during planning" only once the planner has been asked.
+  await untilPlanning(controller);
   controller.stop();
   expect(controller.snapshot().stopping).toBe(true);
   expect(controller.snapshot().announcement).toBe('Stopping the turn.');
@@ -270,7 +277,8 @@ test('a note the running turn ended without reading becomes the first queued mes
   controller.subscribe(() => seen.push(controller.snapshot()));
 
   const running = controller.submit('Read it.');
-  await until(() => controller.snapshot().busy, 'the turn to start');
+  // The planner is already asked, so the note below is one the turn cannot read before it ends.
+  await untilPlanning(controller);
   controller.enqueue('Later one.');
   expect(controller.steer('Also check the ending.')).toBe('sent');
   expect(controller.snapshot().notes).toEqual([expect.objectContaining({ text: 'Also check the ending.', lands: 'next-model-call' })]);
@@ -321,6 +329,31 @@ test('a note reaches the running turn’s next request, and a note sent while a 
   expect(requests).toHaveLength(1);
   expect(requests[0]).toContain('Note from the writer, sent while you were working: Skip the draft, please.');
   expect(getBody(state, friend)).toBe('');
+  await session.close();
+});
+
+test('a note written while the turn’s harness is still loading is held, and the first request reads it', async () => {
+  const requests: string[] = [];
+  const noted: MockScript = {
+    match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Look at it.'),
+    respond: (req) => {
+      requests.push(userTextOf(req));
+      return { content: JSON.stringify({ reply: 'Looked.' }) };
+    },
+  };
+  const { session, controller } = await open([noted]);
+
+  const running = controller.submit('Look at it.');
+  expect(controller.snapshot().busy).toBe(true);
+  expect(controller.snapshot().turns).toHaveLength(0);
+  expect(controller.steer('Mind the ending.')).toBe('sent');
+  expect(controller.snapshot().notes).toEqual([expect.objectContaining({ text: 'Mind the ending.', lands: 'next-model-call' })]);
+  const report = await running;
+
+  expect(report?.steering).toEqual([expect.objectContaining({ text: 'Mind the ending.', deliveredAtCall: 1 })]);
+  expect(requests[0]).toContain('Note from the writer, sent while you were working: Mind the ending.');
+  expect(controller.snapshot().notes).toEqual([]);
+  expect(controller.snapshot().queue).toEqual([]);
   await session.close();
 });
 

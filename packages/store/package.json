@@ -12,8 +12,10 @@
   },
   "dependencies": {
     "@caotang/bus": "workspace:*",
+    "@caotang/comic": "workspace:*",
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/pictures": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/skills": "workspace:*",
     "fflate": "0.8.3"

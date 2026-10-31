@@ -83,15 +83,51 @@ export type {
 } from './command.js';
 // Storyboard: the shot image import's descriptor, by name, for the store's registration.
 export * as shotImageCommands from './descriptors-shot-image.js';
+export {
+  ASSET_IMPORT_BATCH_MAX,
+  ASSET_IMPORT_LINKS_MAX,
+  ASSET_RELINK_PAIRS_MAX,
+  ASSET_WORKING_COPIES_MAX,
+  LARGE_PHOTO_CHOICES,
+  describePictureUse,
+  pictureCommands,
+  picturesUsesSnapshot,
+} from './descriptors-pictures.js';
+export type {
+  AssetDeleteParams,
+  AssetImportBatchParams,
+  AssetImportItem,
+  AssetImportParams,
+  AssetLinkParams,
+  AssetMakeDocumentLevelParams,
+  AssetRelinkPair,
+  AssetRelinkParams,
+  AssetRepinParams,
+  AssetReorderLinksParams,
+  AssetSetLinkMetaParams,
+  AssetSetMetaParams,
+  AssetStoreWorkingCopiesParams,
+  AssetSweepParams,
+  AssetUnlinkParams,
+  LargePhotoChoice,
+} from './descriptors-pictures.js';
+export { ASSET_TRANSCRIBE_INTO, ASSET_TRANSCRIBE_PAGES_MAX, assetTranscribeDescriptor } from './descriptors-transcription.js';
+export type { AssetTranscribeInto, AssetTranscribePage, AssetTranscribeParams } from './descriptors-transcription.js';
 export * as commands from './descriptors.js';
 // Project export: the project, recipe, vocabulary and cover-import descriptors, by name. The store reads them here.
 export * as projectCommands from './descriptors-project.js';
 // The skill commands (extensibility.md §10), by name. The store reads them here.
 export * as skillCommands from './descriptors-skills.js';
+// The timeline calendar setting (timeline.md §3.8): the descriptor the store attaches its apply to, and the bound the loader shares.
+export * as calendarCommands from './descriptors-calendar.js';
+export { CALENDAR_JSON_MAX_CHARS, SET_CALENDAR_KEYS, type ProjectSetCalendarParams } from './descriptors-calendar.js';
 export {
   AUTHOR_MAX,
   CHAR_LIMIT_MAX,
+  EPUB_IMAGE_MAX_PX_MAX,
+  EPUB_IMAGE_MAX_PX_MIN,
   METADATA_PATCH_KEYS,
+  PICTURE_MODES,
   PROJECT_TITLE_MAX,
   RECIPE_NAME_MAX,
   SCENE_NUMBER_OPTIONS,
@@ -99,6 +135,7 @@ export {
   normalizeIsbn,
 } from './descriptors-project.js';
 export type {
+  PictureMode,
   ProjectImportAssetParams,
   SkillDeleteParams,
   SkillImportParams,
@@ -183,6 +220,7 @@ export {
 // The coherence rules the bus and the store share (coherence.ts). The coherence module re-exports them.
 export type {
   CoherenceStatusName,
+  DeclaredStoryPart,
   DismissalReasonName,
   ScenePatch,
   ScenePatchResult,
@@ -195,8 +233,10 @@ export type {
 export {
   COHERENCE_NOTE_LIMIT,
   COHERENCE_STATUSES,
+  DAY_OFFSET_LIMIT,
   DISMISSAL_REASON_IDS,
   SCENE_PATCH_KEYS,
+  STORY_PARTS,
   THREAD_ID_LIMIT,
   THREAD_NOTE_LIMIT,
   TIMELINE_MODES,
@@ -205,9 +245,61 @@ export {
   findingTransition,
   findingsDiscardedWith,
   inverseScenePatch,
+  isDayOffset,
   isEmptySceneMeta,
   trimCoherenceNote,
 } from './coherence.js';
+// The timeline batch (timeline.ts, descriptors-timeline.ts): the op shapes, the shape check, the one projection that validates, previews and
+// applies a batch, the fingerprint of a shift, and the canonical sibling-order algorithm the store's `siblingOrderAt` delegates to.
+export { timelineApply } from './descriptors-timeline.js';
+export {
+  RENORMALIZE_THRESHOLD,
+  TIMELINE_LABEL_MAX,
+  TIMELINE_META_EXPECT_KEYS,
+  TIMELINE_META_PATCH_KEYS,
+  TIMELINE_OPS_MAX,
+  TIMELINE_SHIFT_NODES_MAX,
+  parseTimelineOps,
+  projectTimelineBatch,
+  projectedSceneMeta,
+  renormalizeTreeSiblings,
+  shiftFingerprint,
+  siblingOrderInTree,
+  timelineBatchSummary,
+} from './timeline.js';
+export type {
+  OrderedTreeNode,
+  TimelineApplyParams,
+  TimelineBatchCounts,
+  TimelineMetaExpect,
+  TimelineMetaPatch,
+  TimelineNodePlace,
+  TimelineOp,
+  TimelinePictureWhen,
+  TimelineProjection,
+} from './timeline.js';
+// The comic track's params and the reads its applies and the app share (descriptors-comic.ts): the node tests, the script uniqueness lookup
+// and the order-free JSON comparison a stored value is guarded with.
+export type {
+  ComicCreateBookParams,
+  ComicDeriveParams,
+  ComicLetterParams,
+  ComicScriptFromPagesParams,
+  ComicSetBookParams,
+  ComicSetPageParams,
+  ComicSetScriptParams,
+} from './descriptors-comic.js';
+export {
+  COMIC_CREATE_PAGES_MAX,
+  COMIC_SCRIPT_KIND,
+  bookLinkingScript,
+  comicCommands,
+  comicPagesOf,
+  isComicFolder,
+  isComicPage,
+  isComicScript,
+  sameJson,
+} from './descriptors-comic.js';
 // The run discard's and the knowledge facts' descriptors (descriptors-coherence.ts). The store imports them for its registry rows.
 export {
   coherenceAddKnowledgeFact,

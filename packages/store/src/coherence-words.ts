@@ -15,6 +15,7 @@ const DECLARATION_WORDS: Readonly<Record<string, string>> = {
   after: 'dependencies',
   expectedPresent: 'expected presence',
   timelineMode: 'timeline mode',
+  storyPart: 'story part',
   threads: 'threads',
   dialogueContainer: 'dialogue container',
 };
@@ -74,6 +75,10 @@ const CHECK_LABELS: Readonly<Record<string, string>> = {
   'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
   'knowledge.leak': 'A character knows something before they learn it',
   'medium.speaker-parity': 'The screenplay and its dialogue name different speakers',
+  'comic.balloon-density': 'A balloon or panel carries more words than the lettering guidance',
+  'comic.em-dash': 'A balloon uses an em dash instead of a double dash',
+  'comic.caps-policy': 'A ß in a caps book will be lettered as SS',
+  'comic.balloon-coverage': 'A script line has no balloon, or a balloon no longer matches its script line',
 };
 
 /**

@@ -6,6 +6,7 @@
  * gives, and the cue checks the coherence module would raise. Nothing here is stored, and nothing writes the body.
  */
 
+import { t } from '@lingui/core/macro';
 import type { AutosaveStatus, FlushReport } from '@caotang/store';
 
 import {
@@ -131,8 +132,8 @@ export function sceneOffset(model: ScreenplayModel, index: number): number | nul
  * scene and a prose document say the same thing about whether their words are stored.
  */
 export function saveLineOf(status: AutosaveStatus): string {
-  if (status.lastError !== null) return 'Not saved yet. Your words are in this tab; they will be written again on the next change.';
-  return status.dirty ? 'Saving…' : 'Saved';
+  if (status.lastError !== null) return t`Not saved yet. Your words are in this tab; they will be written again on the next change.`;
+  return status.dirty ? t`Saving…` : 'Saved';
 }
 
 /**
@@ -141,5 +142,5 @@ export function saveLineOf(status: AutosaveStatus): string {
  */
 export function unwrittenFlushOf(reports: readonly FlushReport[]): string | null {
   const unwritten = reports.some((report) => report.outcome === 'failed' || report.outcome === 'conflict');
-  return unwritten ? 'The scene did not save when its view closed. Your words are in this tab; they will be written again on the next change.' : null;
+  return unwritten ? t`The scene did not save when its view closed. Your words are in this tab; they will be written again on the next change.` : null;
 }

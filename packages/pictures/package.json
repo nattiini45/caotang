@@ -1,0 +1,19 @@
+{
+  "name": "@caotang/pictures",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The picture registry, links, uses and safe-import rules — pure, with structural inputs and no DOM, store or codec dependency (pictures.md).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/ids": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

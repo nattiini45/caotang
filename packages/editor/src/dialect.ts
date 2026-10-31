@@ -201,7 +201,6 @@
 import { unified } from 'unified';
 import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
-import { fromProseMirror } from '@handlewithcare/remark-prosemirror';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import type { Nodes, Root, RootContent } from 'mdast';
 import type { Root as MdastRoot } from 'mdast';
@@ -210,8 +209,8 @@ import {
   DEGRADE_MDAST_TYPES,
   SAVE_STRINGIFY_OPTIONS,
   compiledBlockSpan,
-  createSerializeHandlers,
 } from './handlers.js';
+import { toSaveTree } from './save-tree.js';
 import type { LossWarning } from './handlers.js';
 
 /**
@@ -353,8 +352,6 @@ export { canonicalWhole as renderParseRecorded };
  * `remarkStringify` call in this file names the shared options object, so a third
  * chain cannot appear here either.
  */
-const SAVE_HANDLERS = createSerializeHandlers();
-
 const SAVE_CHAIN = unified()
   .use(remarkGfm)
   .use(remarkStringify, SAVE_STRINGIFY_OPTIONS)
@@ -493,11 +490,7 @@ const RECORDING_CHAIN = unified()
 
 /** The bytes a save writes for one ProseMirror node, and the mdast it came from. */
 const renderSave = (pm: PmNode): { text: string; tree: MdastRoot } => {
-  const tree = fromProseMirror(pm, {
-    schema: caotangSchema,
-    nodeHandlers: SAVE_HANDLERS as never,
-    markHandlers: SAVE_HANDLERS as never,
-  }) as MdastRoot;
+  const tree = toSaveTree(pm, { definitions: false }) as MdastRoot;
   return { text: String(SAVE_CHAIN.stringify(tree as never)), tree };
 };
 
@@ -513,11 +506,7 @@ const renderSave = (pm: PmNode): { text: string; tree: MdastRoot } => {
  * do with the fast path.
  */
 export const renderSaveRecorded = (pm: PmNode): { text: string; tree: MdastRoot } => {
-  const tree = fromProseMirror(pm, {
-    schema: caotangSchema,
-    nodeHandlers: SAVE_HANDLERS as never,
-    markHandlers: SAVE_HANDLERS as never,
-  }) as MdastRoot;
+  const tree = toSaveTree(pm, { definitions: false }) as MdastRoot;
   return { text: String(RECORDING_CHAIN.stringify(tree as never)), tree };
 };
 
@@ -989,7 +978,7 @@ export const saveSideOwnTexts = (
 ): OwnTexts => {
   const saveTree = (upTo: number): Rendered => {
     const { text, tree: savedTree } = renderSave(
-      caotangSchema.topNodeType.create(null, doc.content.cut(0, boundaries[upTo - 1]!)) as PmNode,
+      caotangSchema.topNodeType.create(doc.attrs, doc.content.cut(0, boundaries[upTo - 1]!)) as PmNode,
     );
     return { text, children: savedTree.children };
   };

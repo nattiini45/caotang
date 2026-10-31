@@ -800,6 +800,10 @@ describe('§10 — the permission matrix, over the registry that implements the 
         return { docId: LANDING, range: { from: 0, to: 3 }, text: 'That' };
       case 'project.deleteNode':
         return { nodeId: FRIEND };
+      case 'project.setCalendar':
+        return { lens: 'day' };
+      case 'asset.sweep':
+        return {};
       // The skill commands (extensibility.md §10) are `never` for an agent and the writer's own. `skill.import` has no apply in this
       // registry (it needs the host's staging), so commands-skills.test.ts runs it, for a user and refused for an agent.
       case 'skill.import':
@@ -819,10 +823,12 @@ describe('§10 — the permission matrix, over the registry that implements the 
     // Read out, not typed out: a name promoted to `never` later must arrive here
     // without this file being edited.
     expect(NEVER).toEqual([
+      'asset.sweep',
       'editor.insert',
       'editor.replaceRange',
       'mcp.readResource',
       'project.deleteNode',
+      'project.setCalendar',
       'skill.delete',
       'skill.import',
       'skill.setEnabled',
@@ -835,7 +841,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
     for (const name of NEVER) {
       // Not wired in this registry, so the bus refuses it before the gate; commands-skills.test.ts refuses it for an agent with the staging
       // injected, and the MCP client's tests refuse `mcp.readResource` for an agent with the client injected.
-      if (name === 'skill.import' || name === 'mcp.readResource') continue;
+      if (name === 'skill.import' || name === 'mcp.readResource' || name === 'asset.sweep') continue;
       const h = scriptedHarness();
       const result = h.dispatch(
         cmd({ name, params: userParams(name, h.state), issuedBy: 'agent', turnId: 'turn-x' }),
@@ -860,7 +866,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
   it('allows every never-class name for a user, and asks for a confirm where the effect is destructive', () => {
     expect(NEVER.length).toBeGreaterThan(0);
     for (const name of NEVER) {
-      if (name === 'skill.import' || name === 'mcp.readResource') continue;
+      if (name === 'skill.import' || name === 'mcp.readResource' || name === 'asset.sweep') continue;
       const h = scriptedHarness();
       const result = h.dispatch(cmd({ name, params: userParams(name, h.state) }));
 
@@ -1035,17 +1041,17 @@ describe('§10 — every refusal carries a code and a corrective path, not a bar
     expect(h.undo.group(String(result.error.details?.undoGroupId))).toBeTruthy();
   });
 
-  it('declares io-error and has no producer for it — the one code no v0.1 path can emit', () => {
+  it('declares io-error and produces it only for the picture storage I/O failures', () => {
     // **Measured, not asserted from the enum.** §7's list is a contract, and a
-    // code nothing can emit is either dead surface or a mis-coded failure — so
-    // this test reads the sources and says which it is. It passes with zero
-    // producers across both packages; if a future change adds one, this test
-    // fails and that change has to move the finding with it.
+    // mis-coded failure is invisible to the type checker, so this test reads the
+    // sources. The two producers are `asset.sweep` and `asset.relink`: both can
+    // fail to read an authoritative project-folder listing immediately before a
+    // write. A third producer fails here and has to justify the code it uses.
     const producers = sourceFiles()
       .flatMap((file) => readFileSync(file, 'utf8').split('\n'))
       .filter((line) => line.includes("code: 'io-error'"))
       .filter((line) => !line.includes('result.ts'));
-    expect(producers).toEqual([]);
+    expect(producers).toHaveLength(2);
 
     // And the code is genuinely part of the closed set, so the two halves of the
     // claim are checked rather than one being assumed from the other.

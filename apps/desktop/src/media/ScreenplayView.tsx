@@ -5,11 +5,17 @@
  * the editor uses (editor-engine §9), so an edit here is an ordinary `doc.write`.
  */
 
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { formatterLocale } from '../i18n/format-locale.js';
+import { accessibleText } from '../i18n/accessible-text.js';
+import { isolate, listFormat } from '@caotang/i18n';
+import { plural, select, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 
 import { getBody, getRevision, type TreeNode } from '@caotang/store';
 
-import { isImeEnter } from '../app/keymap.js';
+import { isImeEnter, keyboardLayoutStore, printedKeyLabel, shortcutNames } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
 import { radioStep } from '../components/radio-keys.js';
@@ -23,8 +29,10 @@ import { SourceField } from './SourceField.js';
 import { fountainSegments } from './source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyEdit } from './screenplay-keys.js';
 import { ScreenplayPreview } from './ScreenplayPreview.js';
-import { ELEMENT_MENU_LABEL, chordAria, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
+import { elementMenuLabel, chordAria, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
 
+
+/* lingui-set comment="The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range." */
 export interface ScreenplayViewProps {
   readonly session: ProjectSession;
   readonly node: TreeNode;
@@ -41,13 +49,29 @@ type Mode = 'script' | 'source' | 'pages';
 const MODES: readonly Mode[] = ['script', 'source', 'pages'];
 
 const MODE_LABEL: Readonly<Record<Mode, string>> = {
-  script: 'The formatted script, as it reads',
-  source: 'The Fountain source, edited as text',
-  pages: 'The pages, as they print. A line opens in the Source tab',
+  get script() {
+    return t`The formatted script, as it reads`;
+  },
+  get source() {
+    return t`The Fountain source, edited as text`;
+  },
+  get pages() {
+    return t`The pages, as they print. A line opens in the Source tab`;
+  },
 };
 
 /** The visible words are the names of the views (WCAG 2.5.3), so a writer who speaks what they see is understood. */
-const MODE_NAME: Readonly<Record<Mode, string>> = { script: 'Script', source: 'Source', pages: 'Pages' };
+const MODE_NAME: Readonly<Record<Mode, string>> = {
+  get script() {
+    return t`Script`;
+  },
+  get source() {
+    return t`Source`;
+  },
+  get pages() {
+    return t`Pages`;
+  },
+};
 
 const NOOP = (): void => undefined;
 
@@ -59,7 +83,9 @@ interface OpenElementMenu {
 }
 
 export function ScreenplayView({ session, node, reveal = null, onRevealHandled = NOOP, onAgentIntent }: ScreenplayViewProps): ReactNode {
+  useLingui();
   useSession(session);
+  const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const report = useReport();
   // The cleanup below runs after the view is gone, so it calls the report it last saw, and the effect does not restart for it.
   const reportRef = useRef(report);
@@ -217,7 +243,11 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     const entry = elementEntries(field.value, field.selectionStart).find((candidate) => candidate.type === type);
     if (entry === undefined || entry.checked) return;
     if (entry.edit === null) {
-      report({ text: `This line cannot be ${entry.label.toLowerCase()} here.`, tone: 'info' });
+      const element = entry.type;
+      report({
+        text: t`This line cannot be ${select(element, { scene_heading: 'scene heading', action: 'action', character: 'character', parenthetical: 'parenthetical', dialogue: 'dialogue', transition: 'transition', centered: 'centered', note: 'note', page_break: 'page break', other: 'that' })} here.`,
+        tone: 'info',
+      });
       return;
     }
     applyConversion(field, entry.edit);
@@ -273,17 +303,17 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   const save = session.autosave.status(docId);
 
   return (
-    <section className="media-view sp-view" aria-label={`Screenplay: ${node.title}`}>
+    <section className="media-view sp-view" aria-label={accessibleText(t`Screenplay: ${{ title: isolate(node.title) }}`)}>
       <header className="media-head">
         <div>
-          <p className="eyebrow">Screenplay scene</p>
+          <p className="eyebrow"><Trans>Screenplay scene</Trans></p>
           <h2 className="media-title">{node.title}</h2>
         </div>
         <div className="media-controls">
-          <p className="chip sp-readout-chip" title="One page is about one minute of screen time. An estimate, not a timing.">
-            {pagesLabel(readout.pages)} · about {readout.minutes} min
+          <p className="chip sp-readout-chip" title={t`One page is about one minute of screen time. An estimate, not a timing.`}>
+            {t`${{ pages: pagesLabel(readout.pages) }} · about ${{ minutes: readout.minutes }} min`}
           </p>
-          <div role="radiogroup" aria-label="View of the scene" className="segmented" onKeyDown={onModeKey}>
+          <div role="radiogroup" aria-label={t`View of the scene`} className="segmented" onKeyDown={onModeKey}>
             {MODES.map((item) => (
               <button
                 key={item}
@@ -306,10 +336,10 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
       <div className="sp-layout">
         <div className="sp-main">
           {mode === 'script' ? (
-            <article className="sp-page" aria-label="Formatted script" lang={session.state.manifest.project.language} dir="auto">
+            <article className="sp-page" aria-label={t`Formatted script`} lang={session.state.manifest.project.language} dir="auto">
               {model.titlePage === null ? null : <TitlePage entries={model.titlePage} />}
               {model.units.length === 0 ? (
-                <p className="muted">This scene is empty. Switch to Source and write its heading, which starts with INT. or EXT.</p>
+                <p className="muted"><Trans>This scene is empty. Switch to Source and write its heading, which starts with INT. or EXT.</Trans></p>
               ) : (
                 model.units.map((unit) => <UnitView key={keyOf(unit)} unit={unit} />)
               )}
@@ -331,14 +361,14 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                   aria-haspopup="menu"
                   aria-expanded={elementMenu !== null}
                   aria-keyshortcuts={`Control+E Meta+E ${LINE_ELEMENT_TYPES.map((type) => chordAria(type, platform)).join(' ')}`}
-                  title={`Change the element of the line the caret is on (Ctrl+E, or Cmd+E on a Mac). ${chordRange(platform)} chooses one directly.`}
+                  title={t`Change the element of the line the caret is on (${{ menuShortcut: `${platform === 'mac' ? 'Cmd' : shortcutNames().ctrl}+${printedKeyLabel('e', keyboardLayout)}` }}). ${{ chords: chordRange(platform, keyboardLayout) }} chooses one directly.`}
                   onClick={openElementMenu}
                 >
-                  Element
+                  <Trans>Element</Trans>
                 </button>
               </div>
               <SourceField
-                label="Fountain source"
+                label={t`Fountain source`}
                 inputRef={sourceRef}
                 inputClassName="sp-source"
                 value={draft}
@@ -348,7 +378,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
               />
               {elementMenu === null ? null : (
                 <Menu
-                  label={ELEMENT_MENU_LABEL}
+                  label={elementMenuLabel()}
                   anchor={elementMenu.anchor}
                   items={elementMenu.entries.map((entry) => ({
                     key: entry.type,
@@ -366,26 +396,26 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
           )}
         </div>
 
-        <aside className="sp-side" aria-label="Scene navigator and checks">
+        <aside className="sp-side" aria-label={t`Scene navigator and checks`}>
           <dl className="sp-readout">
             <div>
-              <dt>Pages</dt>
+              <dt><Trans>Pages</Trans></dt>
               <dd>{readout.pages}</dd>
             </div>
             <div>
-              <dt>Scene headings</dt>
+              <dt><Trans>Scene headings</Trans></dt>
               <dd>{readout.scenes}</dd>
             </div>
             <div>
-              <dt>Characters cued</dt>
+              <dt><Trans>Characters cued</Trans></dt>
               <dd>{readout.characters}</dd>
             </div>
           </dl>
 
           <section className="inspector-section">
-            <h3 className="field-label">Scenes in this document</h3>
+            <h3 className="field-label"><Trans>Scenes in this document</Trans></h3>
             {model.scenes.length === 0 ? (
-              <p className="muted">No scene heading yet. A heading starts with INT. or EXT.</p>
+              <p className="muted"><Trans>No scene heading yet. A heading starts with INT. or EXT.</Trans></p>
             ) : (
               <ol className="sp-scenes">
                 {model.scenes.map((scene) => (
@@ -401,11 +431,11 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
           </section>
 
           <section className="inspector-section">
-            <h3 className="field-label">Characters</h3>
+            <h3 className="field-label"><Trans>Characters</Trans></h3>
             {model.cues.length === 0 ? (
-              <p className="muted">No character is cued yet.</p>
+              <p className="muted"><Trans>No character is cued yet.</Trans></p>
             ) : (
-              <ul className="keyword-list" aria-label="Characters cued in this scene">
+              <ul className="keyword-list" aria-label={t`Characters cued in this scene`}>
                 {model.cues.map((name) => (
                   <li key={name} className="chip chip-label">
                     {name}
@@ -415,30 +445,30 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
             )}
             {model.spellingGroups.map((group) => (
               <p key={group.key} className="field-note">
-                {group.spellings.map((spelling) => `“${spelling}”`).join(' and ')} are cued as one character. Use one spelling.
+                {t`${{ names: listFormat(formatterLocale()).format(group.spellings.map((spelling) => `“${isolate(spelling)}”`)) }} are cued as one character. Use one spelling.`}
               </p>
             ))}
           </section>
 
           {/* The shots of this scene. Derive makes its storyboard folder, so it is offered only while the scene has none (storyboard.md §2.1). */}
           {shotsFolder !== undefined ? (
-            <section className="inspector-section" aria-label="Shots of this scene">
-              <h3 className="field-label">Shots</h3>
-              <p className="muted">Its shots are in “{shotsFolder.title}”.</p>
+            <section className="inspector-section" aria-label={t`Shots of this scene`}>
+              <h3 className="field-label"><Trans>Shots</Trans></h3>
+              <p className="muted">{t`Its shots are in “${{ title: isolate(shotsFolder.title) }}”.`}</p>
             </section>
           ) : onAgentIntent === undefined ? null : (
-            <section className="inspector-section" aria-label="Shots of this scene">
-              <h3 className="field-label">Shots</h3>
-              <p className="muted">The agent can draft this scene’s shots from its script. They land in a new storyboard named for the scene.</p>
+            <section className="inspector-section" aria-label={t`Shots of this scene`}>
+              <h3 className="field-label"><Trans>Shots</Trans></h3>
+              <p className="muted"><Trans>The agent can draft this scene’s shots from its script. They land in a new storyboard named for the scene.</Trans></p>
               <button type="button" className="button" onClick={() => onAgentIntent(deriveIntentOf(node))}>
-                Derive shots from this scene
+                <Trans>Derive shots from this scene</Trans>
               </button>
             </section>
           )}
 
           {model.notices.length === 0 ? null : (
             <section className="inspector-section">
-              <h3 className="field-label">The reader kept these as written</h3>
+              <h3 className="field-label"><Trans>The reader kept these as written</Trans></h3>
               <ul className="findings">
                 {model.notices.map((notice) => (
                   <li key={notice}>{notice}</li>
@@ -449,7 +479,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
         </aside>
       </div>
 
-      <footer className="editor-status" aria-label="Scene status">
+      <footer className="editor-status" aria-label={t`Scene status`}>
         <span className="editor-save" aria-live="polite">
           {saveLineOf(save)}
         </span>
@@ -483,7 +513,7 @@ function caretTop(field: HTMLTextAreaElement, at: number): number | null {
 }
 
 function pagesLabel(pages: number): string {
-  return pages === 1 ? '1 page' : `${pages} pages`;
+  return plural(pages, { one: '# page', other: '# pages' });
 }
 
 function keyOf(unit: ScreenplayUnit): string {
@@ -535,6 +565,7 @@ function LineView({ line }: { readonly line: LocatedElement }): ReactNode {
 
 /** One element that stands alone. Each type has its own class, so the styling is the classification (screenplay.md §3). */
 function ElementView({ element }: { readonly element: LocatedElement }): ReactNode {
+  useLingui();
   switch (element.type) {
     case 'scene_heading':
       return <h3 className="sp-scene">{printedOf(element)}</h3>;
@@ -543,7 +574,7 @@ function ElementView({ element }: { readonly element: LocatedElement }): ReactNo
     case 'centered':
       return <p className="sp-centered">{printedOf(element)}</p>;
     case 'page_break':
-      return <hr className="sp-break" aria-label="Page break" />;
+      return <hr className="sp-break" aria-label={t`Page break`} />;
     case 'section':
       return <p className="sp-section">{printedOf(element)}</p>;
     default:

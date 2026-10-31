@@ -15,6 +15,7 @@ import { dialogueFactsOf } from './coherence-facts.js';
 import { reviewContextOf } from './coherence-review-context.js';
 import { createHarness, type Harness, type HarnessOptions } from './runtime.js';
 import type { CoherenceSource } from './tools/coherence.js';
+import type { PictureTranscriptionHost } from './tools/transcription.js';
 
 export interface ProductHarnessOptions {
   readonly state: ProjectState;
@@ -25,10 +26,15 @@ export interface ProductHarnessOptions {
   readonly mcp?: HarnessOptions['mcp'];
   /** The writer's checks and the review model; the dialogue facts and review context are wired here, for 'agent' only. */
   readonly coherence?: Pick<CoherenceSource, 'checks' | 'model'>;
+  /** Host-backed async tools, notably the picture import/view ports (pictures.md §8.1). */
+  readonly asyncPorts?: HarnessOptions['asyncPorts'];
+  /** The vision check and review dialog of `pictures.transcribe` (pictures.md §8.4). */
+  readonly transcription?: PictureTranscriptionHost;
   readonly skills?: HarnessOptions['skills'];
   readonly presentAssets?: () => ReadonlySet<string>;
   readonly clock?: () => number;
   readonly notify?: HarnessOptions['notify'];
+  readonly history?: HarnessOptions['history'];
 }
 
 export function createProductHarness(options: ProductHarnessOptions): Harness {
@@ -42,7 +48,10 @@ export function createProductHarness(options: ProductHarnessOptions): Harness {
     ...(options.mcp === undefined ? {} : { mcp: options.mcp }),
     ...(options.skills === undefined ? {} : { skills: options.skills }),
     ...(options.presentAssets === undefined ? {} : { presentAssets: options.presentAssets }),
+    ...(options.asyncPorts === undefined ? {} : { asyncPorts: options.asyncPorts }),
+    ...(options.transcription === undefined ? {} : { transcription: options.transcription }),
     ...(options.notify === undefined ? {} : { notify: options.notify }),
+    ...(options.history === undefined ? {} : { history: options.history }),
     ...(agent
       ? { coherence: { dialogue: dialogueFactsOf, review: reviewContextOf, ...options.coherence } }
       : options.coherence === undefined

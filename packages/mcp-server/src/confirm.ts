@@ -145,6 +145,32 @@ export function codexEntryNameOf(state: ProjectState, id: string): string | unde
   return state.manifest.codex?.find((entry) => entry.id === id)?.name;
 }
 
+/** The scene fields a timeline edit can change, in the words the writer knows them by. */
+const TIMELINE_FIELD_WORDS: Readonly<Record<string, string>> = {
+  dayOffset: 'day',
+  durationDays: 'duration',
+  timelineMode: 'mode',
+  pov: 'point of view',
+  storyPart: 'story part',
+  after_add: '“after” links',
+  after_remove: '“after” links',
+};
+
+/** One timeline op, in words: the scene it changes and which fields, where it goes, or how many days a shift moves. */
+function timelineOpWords(op: Record<string, unknown>, named: (id: unknown) => string): string {
+  if (op['op'] === 'move') return `move ${named(op['nodeId'])} under ${named(op['newParentId'])}`;
+  if (op['op'] === 'shift') {
+    const scenes = Array.isArray(op['nodeIds']) ? op['nodeIds'].length : 0;
+    const delta = typeof op['delta'] === 'number' ? op['delta'] : 0;
+    return `move ${counted(scenes, 'scene', 'scenes')} by ${counted(Math.abs(delta), 'day', 'days')} ${delta < 0 ? 'earlier' : 'later'}`;
+  }
+  const patch = (op['patch'] ?? {}) as Record<string, unknown>;
+  const fields = Object.keys(patch).map((key) => TIMELINE_FIELD_WORDS[key] ?? key);
+  const cleared = Array.isArray(patch['clear']) ? (patch['clear'] as string[]).map((key) => TIMELINE_FIELD_WORDS[key] ?? key) : [];
+  const words = [...new Set([...fields, ...cleared.map((field) => `${field} (cleared)`)])];
+  return `change ${words.length === 0 ? 'a scene' : listedOf(words)} of ${named(op['nodeId'])}`;
+}
+
 /**
  * The change, in words, for the dialog. It names what the change touches: the titles of the nodes and the names and types of the
  * entries, the first few of each, and the export's selection and format. It never carries a body, a description or an alias. A tool
@@ -177,6 +203,12 @@ export function confirmationSummary(
       const entries = recordsOf(params, 'entries');
       const head = `write ${counted(entries.length, 'codex entry', 'codex entries')}`;
       const described = entries.map((entry) => codexEntryOf(entry, entryNameOf));
+      return described.length === 0 ? head : `${head}: ${listedOf(described)}`;
+    }
+    case 'timeline.edit': {
+      const ops = recordsOf(params, 'ops');
+      const head = `change the timeline in ${counted(ops.length, 'edit', 'edits')}`;
+      const described = ops.map((op) => timelineOpWords(op, named));
       return described.length === 0 ? head : `${head}: ${listedOf(described)}`;
     }
     case 'codex.import': {

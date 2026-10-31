@@ -12,6 +12,11 @@
  * its own, and it follows the text as the text is saved.
  */
 
+import { accessibleText } from '../i18n/accessible-text.js';
+import { defaultTitleOf, isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import type { CodexEntry, CodexIncludePolicy, ProjectState, TreeNode } from '@caotang/store';
 import { CODEX_INCLUDE_POLICIES, CODEX_TYPES } from '@caotang/store';
@@ -46,11 +51,14 @@ import { getBody, type ArtifactFs } from '@caotang/store';
 
 import { EMPTY_STATE_INTENTS } from '../app/empty-intents.js';
 import { useAssetRecords, useImageUrl } from '../media/hooks.js';
+import { pickerLabelOf } from '../media/picture-board-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { attachEntry, explain, saveEntry } from './actions.js';
 import { KEYWORDS_MAX, KEYWORD_CHARS_MAX } from './Inspector.js';
 import { EmptyState, formatCount, useDebouncedText, useReport, useSession } from './shared.js';
 
+
+/* lingui-set comment="The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale." */
 type Outcome = Result<ExecutionOutcome, CommandError>;
 
 export interface CodexPanelProps {
@@ -111,6 +119,7 @@ function CodexList({
   onOpen: (entryId: string) => void;
   onAgentIntent: (intent: string) => void;
 }): ReactNode {
+  useLingui();
   const report = useReport();
   const [filter, setFilter] = useState<CodexFilter>(NO_FILTER);
   const totals = totalsOf(session.state, session.mentions, entries);
@@ -119,7 +128,7 @@ function CodexList({
   const contentLang = session.state.manifest.project.language;
 
   const create = (): void => {
-    const name = uniqueName(entries, 'Untitled entry');
+    const name = uniqueName(entries, defaultTitleOf('entry', session.state.manifest.project.language));
     const outcome = saveEntry(session, { action: 'create', name, type: 'character' });
     if (!outcome.ok) {
       report({ text: refusal(outcome.error), tone: 'error' });
@@ -142,7 +151,7 @@ function CodexList({
       {entries.length > 0 ? (
         <div className="codex-toolbar">
           <button type="button" className="button is-primary" onClick={create}>
-            New entry
+            <Trans>New entry</Trans>
           </button>
         </div>
       ) : null}
@@ -150,13 +159,13 @@ function CodexList({
       <input
         type="search"
         className="codex-search"
-        aria-label="Search the codex"
-        placeholder="Search names, aliases and descriptions"
+        aria-label={t`Search the codex`}
+        placeholder={t`Search names, aliases and descriptions`}
         value={filter.query}
         onChange={(event) => setFilter({ ...filter, query: event.target.value })}
       />
 
-      <div className="codex-chips" role="group" aria-label="Filter by type">
+      <div className="codex-chips" role="group" aria-label={t`Filter by type`}>
         {CODEX_TYPES.map((type) => (
           <button
             key={type}
@@ -169,7 +178,7 @@ function CodexList({
           </button>
         ))}
       </div>
-      <div className="codex-chips" role="group" aria-label="Filter by include policy">
+      <div className="codex-chips" role="group" aria-label={t`Filter by include policy`}>
         {POLICY_ORDER.map((policy) => (
           <button
             key={policy}
@@ -185,7 +194,7 @@ function CodexList({
 
       {entries.length === 0 ? (
         <EmptyState
-          title="The codex is empty"
+          title={t`The codex is empty`}
           actions={
             <>
               <button type="button" className="button is-primary" onClick={create}>
@@ -197,11 +206,11 @@ function CodexList({
             </>
           }
         >
-          Characters, places and lore that recur in the prose are kept here. Their mentions are found as you write.
+          <Trans>Characters, places and lore that recur in the prose are kept here. Their mentions are found as you write.</Trans>
         </EmptyState>
       ) : groups.length === 0 ? (
         <EmptyState
-          title="No entries match"
+          title={t`No entries match`}
           actions={
             isFiltered(filter) ? (
               <button type="button" className="button" onClick={() => setFilter(NO_FILTER)}>
@@ -210,10 +219,10 @@ function CodexList({
             ) : null
           }
         >
-          Nothing in the codex matches the search or the chips.
+          <Trans>Nothing in the codex matches the search or the chips.</Trans>
         </EmptyState>
       ) : (
-        <section className="codex-groups" aria-label="Codex entries">
+        <section className="codex-groups" aria-label={t`Codex entries`}>
           {groups.map((group) => (
             <div key={group.type} className="codex-group">
               <h3 className="codex-group-title">
@@ -258,6 +267,7 @@ function CodexEntryEditor({
   onBack: () => void;
   onOpenDocument: (docId: string, offset?: number) => void;
 }): ReactNode {
+  useLingui();
   const report = useReport();
   const entries = session.mentions.entriesOf(session.state);
   const appearances = appearancesOf(session.state, entry.id, session.mentions, entries);
@@ -288,7 +298,7 @@ function CodexEntryEditor({
     <div className="codex codex-entry">
       <div className="codex-toolbar">
         <button type="button" className="button is-quiet" onClick={onBack}>
-          ← All entries
+          <Trans>← All entries</Trans>
         </button>
       </div>
 
@@ -301,9 +311,9 @@ function CodexEntryEditor({
 
       <NameField value={entry.name} onCommit={(name) => change({ name })} />
 
-      <section className="inspector-section" aria-label="Type and include policy">
+      <section className="inspector-section" aria-label={t`Type and include policy`}>
         <label className="field-label" htmlFor={`codex-type-${entry.id}`}>
-          Type
+          <Trans>Type</Trans>
         </label>
         <select
           id={`codex-type-${entry.id}`}
@@ -319,7 +329,7 @@ function CodexEntryEditor({
         </select>
 
         <fieldset className="policy">
-          <legend className="field-label">Include</legend>
+          <legend className="field-label"><Trans>Include</Trans></legend>
           <div className="policy-options">
             {CODEX_INCLUDE_POLICIES.map((policy: CodexIncludePolicy) => (
               <label key={policy} className={`policy-option${entry.includePolicy === policy ? ' is-chosen' : ''}`}>
@@ -343,39 +353,39 @@ function CodexEntryEditor({
             checked={entry.caseSensitive}
             onChange={(event) => change({ caseSensitive: event.target.checked })}
           />
-          Match case
+          <Trans>Match case</Trans>
         </label>
       </section>
 
       <ChipField
-        label="Aliases"
+        label={t`Aliases`}
         items={entry.aliases}
         limit={CODEX_ALIASES_MAX}
         itemLimit={CODEX_ALIAS_CHARS_MAX}
-        placeholder="Add an alias and press Enter"
-        help="Other names it is called. Matched the way the name is."
+        placeholder={t`Add an alias and press Enter`}
+        help={t`Other names it is called. Matched the way the name is.`}
         onChange={(aliases) => change({ aliases })}
       />
 
       <ChipField
-        label="Exclude phrases"
+        label={t`Exclude phrases`}
         items={entry.exclude}
         limit={CODEX_EXCLUDE_MAX}
         itemLimit={CODEX_EXCLUDE_CHARS_MAX}
-        placeholder="Add a phrase and press Enter"
-        help="A mention inside one of these phrases is not counted."
+        placeholder={t`Add a phrase and press Enter`}
+        help={t`A mention inside one of these phrases is not counted.`}
         onChange={(exclude) => change({ exclude })}
       />
 
       <DescriptionField entry={entry} onCommit={(description) => change({ description })} />
 
       <ChipField
-        label="Keywords"
+        label={t`Keywords`}
         items={entry.keywords}
         limit={KEYWORDS_MAX}
         itemLimit={KEYWORD_CHARS_MAX}
-        placeholder="Add a keyword and press Enter"
-        help="For you. Never sent to the model."
+        placeholder={t`Add a keyword and press Enter`}
+        help={t`For you. Never sent to the model.`}
         onChange={(keywords) => change({ keywords })}
       />
 
@@ -383,17 +393,16 @@ function CodexEntryEditor({
 
       <VisualRefsField session={session} entry={entry} onChange={(visualRefs) => change({ visualRefs })} />
 
-      <section className="codex-section" aria-label="Appears in">
-        <h3 className="field-label">Appears in</h3>
+      <section className="codex-section" aria-label={t`Appears in`}>
+        <h3 className="field-label"><Trans>Appears in</Trans></h3>
         {appearances.length === 0 ? (
           <p className="field-help">
-            No mentions yet. A mention is found when the name or an alias is written into a scene.
+            <Trans>No mentions yet. A mention is found when the name or an alias is written into a scene.</Trans>
           </p>
         ) : (
           <>
             <p className="field-help">
-              {mentionsLabel(mentionCount)} in {formatCount(appearances.length)}{' '}
-              {appearances.length === 1 ? 'document' : 'documents'}
+              {appearsText(mentionCount, appearances.length)}
             </p>
             <ul className="codex-rows">
               {appearances.map((appearance) => (
@@ -418,6 +427,7 @@ function CodexEntryEditor({
 
 /** The name, committed on Enter or on blur, and reverted when the bus refuses it (a duplicate, a blank). */
 function NameField({ value, onCommit }: { value: string; onCommit: (name: string) => boolean }): ReactNode {
+  useLingui();
   const [draft, setDraft] = useState<string | null>(null);
   const shown = draft ?? value;
   const commit = (): void => {
@@ -426,9 +436,9 @@ function NameField({ value, onCommit }: { value: string; onCommit: (name: string
     setDraft(null);
   };
   return (
-    <section className="inspector-section" aria-label="Name">
+    <section className="inspector-section" aria-label={t`Name`}>
       <label className="field-label" htmlFor="codex-name">
-        Name
+        <Trans>Name</Trans>
       </label>
       <input
         id="codex-name"
@@ -458,19 +468,20 @@ function DescriptionField({
   entry: CodexEntry;
   onCommit: (description: string) => boolean;
 }): ReactNode {
+  useLingui();
   const field = useDebouncedText(entry.description, onCommit);
   const count = [...field.value].length;
   return (
-    <section className="inspector-section" aria-label="Description">
+    <section className="inspector-section" aria-label={t`Description`}>
       <label className="field-label" htmlFor="codex-description">
-        Description
+        <Trans>Description</Trans>
       </label>
       <textarea
         id="codex-description"
         className="codex-description"
         rows={6}
         maxLength={CODEX_DESCRIPTION_MAX}
-        placeholder="What the writer and the model should know about it."
+        placeholder={t`What the writer and the model should know about it.`}
         value={field.value}
         onChange={(event) => field.change(event.target.value)}
         onBlur={field.flush}
@@ -511,15 +522,15 @@ function ChipField({
     const value = draft.trim();
     if (value.length === 0) return;
     if ([...value].length > itemLimit) {
-      setComplaint(`Keep each one to ${itemLimit} characters.`);
+      setComplaint(t`Keep each one to ${itemLimit} characters.`);
       return;
     }
     if (items.some((existing) => existing.toLowerCase() === value.toLowerCase())) {
-      setComplaint(`“${value}” is already here.`);
+      setComplaint(t`“${{ value: isolate(value) }}” is already here.`);
       return;
     }
     if (items.length >= limit) {
-      setComplaint(`Up to ${limit} here. Remove one to add another.`);
+      setComplaint(t`Up to ${limit} here. Remove one to add another.`);
       return;
     }
     setComplaint(null);
@@ -539,14 +550,14 @@ function ChipField({
       <h3 id={`${id}-label`} className="field-label">
         {label}
       </h3>
-      <ul className="keyword-list" aria-label={label}>
+      <ul className="keyword-list" aria-label={accessibleText(label)}>
         {items.map((item) => (
           <li key={item} className="chip chip-keyword">
             <span>{item}</span>
             <button
               type="button"
               className="chip-remove"
-              aria-label={`Remove ${item} from ${label.toLowerCase()}`}
+              aria-label={accessibleText(t`Remove ${{ item: isolate(item) }} from ${{ field: label }}`)}
               onClick={() => onChange(items.filter((existing) => existing !== item))}
             >
               ×
@@ -557,10 +568,10 @@ function ChipField({
       <input
         type="text"
         className="keyword-input"
-        aria-label={`Add to ${label.toLowerCase()}`}
+        aria-label={accessibleText(t`Add to ${{ field: label }}`)}
         maxLength={itemLimit}
         disabled={items.length >= limit}
-        placeholder={items.length >= limit ? `Up to ${limit} here` : placeholder}
+        placeholder={items.length >= limit ? t`Up to ${limit} here` : placeholder}
         value={draft}
         onChange={(event) => {
           setDraft(event.target.value);
@@ -593,24 +604,25 @@ function AttachmentsField({
   onAttach: (nodeId: string) => void;
   onDetach: (nodeId: string) => void;
 }): ReactNode {
+  useLingui();
   const attached = entry.attachments.map((id) => ({ id, node: nodeById(session.state, id) }));
   const choices = attachable(session.state).filter((node) => !entry.attachments.includes(node.id));
   return (
-    <section className="inspector-section" aria-label="Attached to">
-      <h3 className="field-label">Attached to</h3>
+    <section className="inspector-section" aria-label={t`Attached to`}>
+      <h3 className="field-label"><Trans>Attached to</Trans></h3>
       {attached.length === 0 ? (
         <p className="field-help">
-          Attached to no items yet. A Manual entry is sent only in the items it is attached to (codex.md §5).
+          <Trans>Attached to no items yet. A Manual entry is sent only in the items it is attached to (codex.md §5).</Trans>
         </p>
       ) : (
-        <ul className="keyword-list" aria-label="Attachments">
+        <ul className="keyword-list" aria-label={t`Attachments`}>
           {attached.map(({ id, node }) => (
             <li key={id} className="chip chip-keyword">
-              <span>{node?.title ?? 'A removed item'}</span>
+              <span>{node?.title ?? t`A removed item`}</span>
               <button
                 type="button"
                 className="chip-remove"
-                aria-label={`Detach from ${node?.title ?? 'a removed item'}`}
+                aria-label={accessibleText(node === undefined ? t`Detach from a removed item` : t`Detach from ${{ title: isolate(node.title) }}`)}
                 onClick={() => onDetach(id)}
               >
                 ×
@@ -622,21 +634,21 @@ function AttachmentsField({
       {choices.length > 0 ? (
         <>
           <label className="field-label" htmlFor={`attach-${entry.id}`}>
-            Attach to a document or folder
+            <Trans>Attach to a document or folder</Trans>
           </label>
           <select
             id={`attach-${entry.id}`}
             className="codex-select"
-            aria-label="Attach to"
+            aria-label={t`Attach to`}
             value=""
             onChange={(event) => {
               if (event.target.value !== '') onAttach(event.target.value);
             }}
           >
-            <option value="">Choose…</option>
+            <option value=""><Trans>Choose…</Trans></option>
             {choices.map((node) => (
               <option key={node.id} value={node.id}>
-                {node.type === 'folder' ? `${node.title} (folder)` : node.title}
+                {node.type === 'folder' ? t`${{ title: isolate(node.title) }} (folder)` : node.title}
               </option>
             ))}
           </select>
@@ -660,6 +672,7 @@ function VisualRefsField({
   entry: CodexEntry;
   onChange: (visualRefs: string[]) => boolean;
 }): ReactNode {
+  useLingui();
   useSession(session);
   const assets = session.assets.artifactFs();
   // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
@@ -667,17 +680,18 @@ function VisualRefsField({
   const chosen = entry.visualRefs ?? [];
   const choices = [...records.values()].filter((record) => !chosen.includes(record.id));
   return (
-    <section className="inspector-section" aria-label="Visual references">
-      <h3 className="field-label">Visual references</h3>
+    <section className="inspector-section" aria-label={t`Visual references`}>
+      <h3 className="field-label"><Trans>Visual references</Trans></h3>
       <p className="field-help">
-        The prompt pack names these pictures for the scenes this entry appears in, so you can attach them in your video tool. Caotang uploads none of them.
+        <Trans>The prompt pack names these pictures for the scenes this entry appears in, so you can attach them in your video tool. Caotang uploads none of them.</Trans>
       </p>
       {chosen.length === 0 ? (
-        <p className="field-help">None yet.</p>
+        <p className="field-help"><Trans>None yet.</Trans></p>
       ) : (
-        <ul className="keyword-list" aria-label="Chosen pictures">
+        <ul className="keyword-list" aria-label={t`Chosen pictures`}>
           {chosen.map((id) => {
-            const name = records.get(id)?.fileName ?? 'A picture that is no longer in the project';
+            const listed = records.get(id);
+            const name = listed === undefined ? t`A picture that is no longer in the project` : pickerLabelOf(session.state, id, listed.fileName);
             return (
               <li key={id} className="chip chip-keyword">
                 <RefThumb assets={assets} assetId={id} alt={name} />
@@ -685,7 +699,7 @@ function VisualRefsField({
                 <button
                   type="button"
                   className="chip-remove"
-                  aria-label={`Remove ${name}`}
+                  aria-label={accessibleText(t`Remove ${{ name: isolate(name) }}`)}
                   onClick={() => onChange(chosen.filter((other) => other !== id))}
                 >
                   ×
@@ -698,21 +712,21 @@ function VisualRefsField({
       {choices.length > 0 && chosen.length < CODEX_VISUAL_REFS_MAX ? (
         <>
           <label className="field-label" htmlFor={`visual-ref-${entry.id}`}>
-            Add a picture
+            <Trans>Add a picture</Trans>
           </label>
           <select
             id={`visual-ref-${entry.id}`}
             className="codex-select"
-            aria-label="Add a picture"
+            aria-label={t`Add a picture`}
             value=""
             onChange={(event) => {
               if (event.target.value !== '') onChange([...chosen, event.target.value]);
             }}
           >
-            <option value="">Choose…</option>
+            <option value=""><Trans>Choose…</Trans></option>
             {choices.map((record) => (
               <option key={record.id} value={record.id}>
-                {record.fileName}
+                {pickerLabelOf(session.state, record.id, record.fileName)}
               </option>
             ))}
           </select>
@@ -760,13 +774,20 @@ function attachable(state: ProjectState): TreeNode[] {
  * ------------------------------------------------------------------ */
 
 function mentionsLabel(count: number): string {
-  return `${formatCount(count)} ${count === 1 ? 'mention' : 'mentions'}`;
+  const shown = formatCount(count);
+  return t`${shown} ${plural(count, { one: 'mention', other: 'mentions' })}`;
+}
+
+function appearsText(mentionCount: number, documentCount: number): string {
+  const mentions = formatCount(mentionCount);
+  const documents = formatCount(documentCount);
+  return t`${mentions} ${plural(mentionCount, { one: 'mention', other: 'mentions' })} in ${documents} ${plural(documentCount, { one: 'document', other: 'documents' })}`;
 }
 
 function originLabel(entry: CodexEntry): string {
-  if (entry.origin === 'agent') return 'Drafted by the agent';
-  if (entry.origin === 'import') return 'Imported';
-  return 'Written by hand';
+  if (entry.origin === 'agent') return t`Drafted by the agent`;
+  if (entry.origin === 'import') return t`Imported`;
+  return t`Written by hand`;
 }
 
 /** The refusal's words for the status line: the first per-op failure when the batch names one. */

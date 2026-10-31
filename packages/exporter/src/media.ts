@@ -33,7 +33,8 @@ import {
   type EngineTarget,
   type TableRow,
 } from '@caotang/dialogue';
-import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
+import type { ProcessPicture } from '@caotang/pictures';
+import { countBody, getBody, identifierUrn, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 import {
   exportNumbers,
   guardFormula,
@@ -65,16 +66,24 @@ import {
   type VideoShotRef,
 } from '@caotang/video-prompt-pack';
 
-import { MediaRefusedError } from './errors.js';
+import { ComicRasterUnavailableError, MediaRefusedError, NoPersistentIdentifierError } from './errors.js';
+import { CBZ_MIME, rasterizeComicBook, type ComicRasterizer } from './comic-raster.js';
+import { EPUB_MIME } from './render-epub.js';
+import { timelineCsv, timelineTable, type TimelineTable, type TimelineTableInput } from './render-timeline-csv.js';
+import { timelineSheet } from './render-timeline-xlsx.js';
+import { renderTimelineSvg, SVG_MIME } from './render-timeline-svg.js';
 import {
   COHERENCE_JSON_MIME,
   COHERENCE_MARKDOWN_MIME,
   coherenceReportJson,
   coherenceReportMarkdown,
+  type CoherenceReportWords,
 } from './coherence-report.js';
 import type { RenderedContents } from './emit.js';
 import { flatten, type FlattenResult } from './flatten.js';
-import type { FontLoader } from '@caotang/pdf-fonts';
+import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
+import { selectComic } from './comic-book.js';
+import type { ComicPdfPageInput } from './render-comic-pdf.js';
 import { drawContactSheet, type PictureTranscoder } from './render-contact-sheet.js';
 import { XLSX_MIME, prepareSheet, renderXlsx, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
 import { fileStem, suffixName } from './template.js';
@@ -120,9 +129,30 @@ export interface MediaRequest {
    * picture on the sheet shows its caption, and the log says so.
    */
   readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
+  /** Whether the timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent is off. Only `timeline-pdf` reads it. */
+  readonly timelinePictures?: boolean;
+  /** The host's picture converter, which shrinks a picture to its thumbnail. Only `timeline-pdf` reads it, and only when it draws thumbnails. */
+  readonly processPicture?: ProcessPicture;
+  /** Whether the comic PDF carries its bleed (comics.md §5). Absent is on. Only `comic-pdf` reads it. */
+  readonly bleed?: boolean;
+  /** Whether the comic PDF draws crop marks outside the bleed (comics.md §5). Absent is off. Only `comic-pdf` reads it. */
+  readonly cropMarks?: boolean;
+  /** The comic's reading direction when the compile overrides the book's own setting (comics.md §5). `comic-pdf`, `cbz` and `comic-epub` read it. */
+  readonly readingDirection?: 'ltr' | 'rtl';
+  /**
+   * Draws a comic page to a JPEG on a canvas (comics.md §5, D12). Only the app has one. `cbz` and `comic-epub` read it, and a request without it is
+   * refused before anything is made: the command line, the SDK and the MCP server never gain a rasterizer.
+   */
+  readonly rasterizeComic?: ComicRasterizer;
+  /** The signal a run of the page raster is cancelled by, read when the file renders. Absent is never cancelled. */
+  readonly comicRasterSignal?: () => AbortSignal | undefined;
+  /** The project's persistent identifier, as stored (epub-metadata.md). `comic-epub` reads it, and a request without one is refused as an EPUB is. */
+  readonly identifier?: string;
+  /** Reads Comic Neue and Bangers (`@caotang/font-comic-lettering`). Only `comic-pdf` reads it, and only when a balloon has text. */
+  readonly loadComicFont?: ComicLetteringFontLoader;
   /** The contact sheet's paper, A4 or US Letter (storyboard.md §6). Absent is A4. Only `contact-sheet-pdf` reads it. */
   readonly pageSize?: PageSize;
-  /** The contact sheet prints blank numbered frames to draw on, not the shots' pictures (storyboard.md §6). Absent is off. Only `contact-sheet-pdf` reads it. */
+  /** The contact sheet, and the comic PDF, print blank numbered frames to draw on, not the pictures (storyboard.md §6, comics.md §5). Absent is off. Only `contact-sheet-pdf` and `comic-pdf` read it. */
   readonly paperFrames?: boolean;
   /** The moment the compile ran, in ms. The contact sheet's PDF dates are set from it. Absent is now. */
   readonly at?: number;
@@ -140,6 +170,8 @@ export interface MediaRequest {
   readonly transcodePicture?: PictureTranscoder;
   /** The project's language (a BCP 47 tag), when it has one. In a right-to-left language the screenplay PDF lays out a paragraph with no strong character right to left. */
   readonly language?: string;
+  /** The coherence report's words in the interface language. Absent is English. Only the Markdown coherence report reads it. */
+  readonly reportWords?: CoherenceReportWords;
 }
 
 /**
@@ -184,6 +216,12 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return shotListXlsxOutput(request);
     case 'contact-sheet-pdf':
       return contactSheetOutput(request);
+    case 'comic-pdf':
+      return comicPdfOutput(request);
+    case 'cbz':
+      return comicCbzOutput(request);
+    case 'comic-epub':
+      return comicEpubOutput(request);
     case 'promptpack':
       return promptPackOutput(request);
     case 'coherence-md':
@@ -191,6 +229,14 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return coherenceReportOutput(request);
     case 'pdf':
       return pdfOutput(request);
+    case 'timeline-csv':
+      return timelineCsvOutput(request);
+    case 'timeline-xlsx':
+      return timelineXlsxOutput(request);
+    case 'timeline-svg':
+      return timelineSvgOutput(request);
+    case 'timeline-pdf':
+      return timelinePdfOutput(request);
   }
 }
 
@@ -205,6 +251,7 @@ function coherenceReportOutput(request: MediaRequest): MediaOutput {
     date: request.date,
     file: request.state.coherence,
     docTitle: (docId: string) => titleOf(request.state, docId),
+    ...(request.reportWords === undefined ? {} : { words: request.reportWords }),
   };
   const json = request.format === 'coherence-json';
   const findings = request.state.coherence?.findings.length ?? 0;
@@ -833,6 +880,160 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
   };
 }
 
+/**
+ * The comic as a PDF (comics.md §5): one PDF page per comic page of the selection, at trim plus bleed. The pages are read here, so
+ * the gate (a selection with no comic page, or with pages of two comics) refuses before anything is reserved; the pictures are read
+ * and the PDF is drawn when the file renders.
+ */
+function comicPdfOutput(request: MediaRequest): MediaOutput {
+  const selected = selectComic(request.state, request.includeRootIds, request.title);
+  if (!selected.ok) throw new MediaRefusedError('comic-pdf', selected.reasons);
+  const { notes: bookNotes } = selected.comic;
+  const book =
+    request.readingDirection === undefined
+      ? selected.comic.book
+      : { ...selected.comic.book, settings: { ...selected.comic.book.settings, readingDirection: request.readingDirection } };
+  const paper = request.paperFrames === true;
+  const readAsset = request.readAsset;
+  const notes = [...bookNotes];
+  const hasPictures = book.pages.some((entry) => entry.page.panels.some((panel) => panel.assetId !== undefined));
+  if (!paper && readAsset === undefined && hasPictures) {
+    notes.push('comic PDF: this compile cannot read the pictures, so every panel is drawn as a grey frame');
+  }
+  const at = new Date(request.at ?? Date.now());
+  return {
+    files: [
+      {
+        name: `${request.base} (${paper ? 'comic paper frames' : 'comic'}).pdf`,
+        mimeType: PDF_MIME,
+        // Loaded on demand so the comic renderer and its lettering stay out of the app's first download.
+        bytes: async () => {
+          const { drawComicPdf } = await import('./render-comic-pdf.js');
+          return drawComicPdf({
+            book,
+            readPicture: async (assetId) => {
+              const record = request.assets.get(assetId);
+              if (readAsset === undefined || record === undefined) return null;
+              return readAsset(`assets/${record.fileName}`);
+            },
+            title: book.title,
+            ...(request.author.trim() === '' ? {} : { author: request.author }),
+            at,
+            mode: paper ? 'paper-frame' : 'full-art',
+            ...(request.bleed === undefined ? {} : { bleed: request.bleed }),
+            ...(request.cropMarks === undefined ? {} : { cropMarks: request.cropMarks }),
+            ...(request.loadComicFont === undefined ? {} : { loadComicFont: request.loadComicFont }),
+            ...(request.loadFallbackFont === undefined ? {} : { loadFallbackFont: request.loadFallbackFont }),
+            ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
+            ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
+            ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
+            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.transcodePicture === undefined ? {} : { transcodePicture: request.transcodePicture }),
+            ...(request.language === undefined ? {} : { language: request.language }),
+          });
+        },
+      },
+    ],
+    blockCount: book.pages.length,
+    chapterCount: 0,
+    sceneCount: 0,
+    wordCount: 0,
+    skippedDocs: [],
+    notes,
+  };
+}
+
+const comicCbzOutput = (request: MediaRequest): MediaOutput => comicRasterOutput(request, 'cbz');
+const comicEpubOutput = (request: MediaRequest): MediaOutput => comicRasterOutput(request, 'comic-epub');
+
+/**
+ * The comic's two raster formats (comics.md §5, D12): the CBZ, and the fixed-layout EPUB made from the same page pictures. A host with no
+ * canvas has no `rasterizeComic` and is refused first of all, before the selection is read or a name is reserved, so nothing is written; the
+ * gates that follow are the comic PDF's (a selection with no page, or with pages of two comics), and an EPUB's own (a persistent identifier).
+ * The pages are drawn when the file renders, in the queue, one at a time.
+ */
+function comicRasterOutput(request: MediaRequest, format: 'cbz' | 'comic-epub'): MediaOutput {
+  const rasterizer = request.rasterizeComic;
+  if (rasterizer === undefined) throw new ComicRasterUnavailableError();
+  const label = format === 'cbz' ? 'comic CBZ' : 'comic EPUB';
+  const selected = selectComic(request.state, request.includeRootIds, request.title, label);
+  if (!selected.ok) throw new MediaRefusedError(format, selected.reasons);
+  const identifier = request.identifier?.trim() ?? '';
+  if (format === 'comic-epub' && identifier === '') throw new NoPersistentIdentifierError();
+  const book =
+    request.readingDirection === undefined
+      ? selected.comic.book
+      : { ...selected.comic.book, settings: { ...selected.comic.book.settings, readingDirection: request.readingDirection } };
+  const notes = [...selected.comic.notes];
+  const readAsset = request.readAsset;
+  if (readAsset === undefined && book.pages.some((entry) => entry.page.panels.some((panel) => panel.assetId !== undefined))) {
+    notes.push(`${label}: this compile cannot read the pictures, so every panel is drawn as a grey frame`);
+  }
+  const language = request.language?.trim() ?? '';
+  if (format === 'comic-epub' && language === '') {
+    notes.push('comic EPUB: the project has no language on record, so dc:language is "en" (set one in the project panel)');
+  }
+  const at = new Date(request.at ?? Date.now());
+  const direction = book.settings.readingDirection;
+  return {
+    files: [
+      {
+        name: `${request.base} (comic).${format === 'cbz' ? 'cbz' : 'epub'}`,
+        mimeType: format === 'cbz' ? CBZ_MIME : EPUB_MIME,
+        bytes: async () => {
+          const signal = request.comicRasterSignal?.();
+          const raster = await rasterizeComicBook({
+            rasterizer,
+            settings: book.settings,
+            pages: book.pages,
+            language: language === '' ? 'en' : language,
+            readPicture: async (assetId) => {
+              const record = request.assets.get(assetId);
+              if (readAsset === undefined || record === undefined) return null;
+              return readAsset(`assets/${record.fileName}`);
+            },
+            ...(signal === undefined ? {} : { signal }),
+          });
+          const first = raster.pages[0];
+          const summary = `${label}: ${raster.pages.length} ${raster.pages.length === 1 ? 'page' : 'pages'} as JPEG, ${first?.height ?? 0} px tall${direction === 'rtl' ? ', right to left' : ''}`;
+          // Loaded on demand, so the writers stay out of the app's first download.
+          if (format === 'cbz') {
+            const { renderCbz } = await import('./render-cbz.js');
+            const contents = await renderCbz({
+              title: book.title,
+              ...(request.title.trim() === '' ? {} : { series: request.title }),
+              ...(request.author.trim() === '' ? {} : { author: request.author }),
+              ...(language === '' ? {} : { language }),
+              readingDirection: direction,
+              pages: raster.pages,
+              mtime: at,
+            });
+            return { contents, notes: [summary, ...raster.notes] };
+          }
+          const { renderComicEpub } = await import('./render-comic-epub.js');
+          const contents = await renderComicEpub({
+            title: book.title,
+            author: request.author,
+            language: language === '' ? 'en' : language,
+            identifier: identifierUrn(identifier),
+            modified: at.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+            mtime: at,
+            readingDirection: direction,
+            pages: raster.pages.map((page, index) => ({ raster: page, page: (book.pages[index] as ComicPdfPageInput).page })),
+          });
+          return { contents, notes: [summary, ...raster.notes] };
+        },
+      },
+    ],
+    blockCount: book.pages.length,
+    chapterCount: 0,
+    sceneCount: 0,
+    wordCount: 0,
+    skippedDocs: [],
+    notes,
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * The AI-video format: the prompt pack (video-prompt-pack.md §5)
  * ------------------------------------------------------------------ */
@@ -937,5 +1138,122 @@ function promptPackOutput(request: MediaRequest): MediaOutput {
     wordCount: 0,
     skippedDocs: [],
     notes: [...notes, ...json.issues.map((issue) => `${issue.severity}: ${issue.message}`)],
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * The timeline (timeline.md §8): CSV, XLSX, SVG and PDF
+ * ------------------------------------------------------------------ */
+
+/** The four renderers' shared input, from the request: the state, the selection and the project language. */
+function timelineInputOf(request: MediaRequest): TimelineTableInput & { readonly language?: string } {
+  return {
+    state: request.state,
+    includeRootIds: request.includeRootIds,
+    ...(request.language === undefined ? {} : { language: request.language }),
+  };
+}
+
+/** The gate every timeline format shares: a selection with no scene has no timeline to write. */
+function timelineGate(format: string, table: TimelineTable): void {
+  if (table.rows.length === 0) {
+    throw new MediaRefusedError(format, ['the selection holds no scene, so there is no timeline to write']);
+  }
+}
+
+/** `timeline-csv` (timeline.md §8): one row per scene in canonical logical order, guarded against formulas. */
+function timelineCsvOutput(request: MediaRequest): MediaOutput {
+  const table = timelineTable(timelineInputOf(request));
+  timelineGate('timeline-csv', table);
+  return {
+    files: [{ name: `${request.base} (timeline).csv`, mimeType: CSV_MIME, text: timelineCsv(table) }],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: table.rows.length,
+    wordCount: table.model.items.filter((item) => item.kind === 'scene').reduce((sum, item) => sum + item.measure, 0),
+    skippedDocs: [],
+    notes: [...table.notes],
+  };
+}
+
+/** `timeline-xlsx` (timeline.md §8): the CSV's rows through the one workbook writer, days as number cells. */
+function timelineXlsxOutput(request: MediaRequest): MediaOutput {
+  const { sheet, table, notes } = timelineSheet(timelineInputOf(request), request.title);
+  timelineGate('timeline-xlsx', table);
+  return {
+    files: [xlsxFile(`${request.base} (timeline).xlsx`, sheet)],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: table.rows.length,
+    wordCount: table.model.items.filter((item) => item.kind === 'scene').reduce((sum, item) => sum + item.measure, 0),
+    skippedDocs: [],
+    notes,
+  };
+}
+
+/** `timeline-svg` (timeline.md §8): the drawn axis as a text SVG, in the project language's direction. */
+function timelineSvgOutput(request: MediaRequest): MediaOutput {
+  const output = renderTimelineSvg(timelineInputOf(request));
+  if (output.chips === 0) {
+    throw new MediaRefusedError('timeline-svg', ['the selection holds no scene, so there is no timeline to draw']);
+  }
+  return {
+    files: [{ name: `${request.base} (timeline).svg`, mimeType: SVG_MIME, text: output.svg }],
+    blockCount: output.chips,
+    chapterCount: 0,
+    sceneCount: output.chips,
+    wordCount: 0,
+    skippedDocs: [],
+    notes: [...output.notes],
+  };
+}
+
+/**
+ * `timeline-pdf` (timeline.md §8): the paginated landscape PDF. The plan runs here, so a selection with no scene
+ * refuses before anything is reserved; the drawing — and the font it needs — waits for the file's render.
+ */
+function timelinePdfOutput(request: MediaRequest): MediaOutput {
+  const table = timelineTable(timelineInputOf(request));
+  timelineGate('timeline-pdf', table);
+  const input = timelineInputOf(request);
+  const pageSize = request.pageSize ?? 'A4';
+  const notes = [...table.notes];
+  // Pictures are read only when the recipe asks, and a compile with no way to read them says so instead of drawing frames.
+  const readAsset = request.readAsset;
+  const thumbnails =
+    request.timelinePictures === true && readAsset !== undefined ? { readAsset, process: request.processPicture } : undefined;
+  if (request.timelinePictures === true && readAsset === undefined) {
+    notes.push('timeline PDF: this compile cannot read the pictures, so no thumbnails are drawn');
+  }
+  return {
+    files: [
+      {
+        name: `${request.base} (timeline).pdf`,
+        mimeType: PDF_MIME,
+        bytes: async () => {
+          const { drawTimelinePdf } = await import('./render-timeline-pdf.js');
+          const drawn = await drawTimelinePdf({
+            ...input,
+            title: request.title,
+            ...(request.author === '' ? {} : { author: request.author }),
+            at: new Date(request.at ?? Date.now()),
+            pageSize,
+            ...(thumbnails === undefined ? {} : { thumbnails }),
+            ...(request.loadFallbackFont === undefined ? {} : { loadFallbackFont: request.loadFallbackFont }),
+            ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
+            ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
+            ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
+            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+          });
+          return { contents: drawn.contents, notes: drawn.notes };
+        },
+      },
+    ],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: table.rows.length,
+    wordCount: table.model.items.filter((item) => item.kind === 'scene').reduce((sum, item) => sum + item.measure, 0),
+    skippedDocs: [],
+    notes,
   };
 }

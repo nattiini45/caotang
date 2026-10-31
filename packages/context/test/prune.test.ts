@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import { assemble, type AgentTask, type AppSnapshot, type AssembledPrompt, type ContextConfig, type LayerId } from '../src/index.js';
 import { buildApp, CODEX, FOCUS_ID, heavyAlwaysApp } from './fixtures.js';
+import { textOf } from '@caotang/gateway';
 
 const CONTINUE: AgentTask = {
   tool: 'scene.draft',
@@ -79,7 +80,7 @@ describe('the total-budget pass (§2): what goes first when the whole prompt is 
     // The section stays, with no turn in it: the model is told the turns were not sent.
     expect(layer(assembled, 'L6').included).toBe(true);
     expect(layer(assembled, 'L6').kept).toEqual([]);
-    expect(assembled.messages[1]?.content ?? '').toContain('# Recent turns\n\n(older turns were not sent)');
+    expect(textOf(assembled.messages[1]?.content ?? '')).toContain('# Recent turns\n\n(older turns were not sent)');
     // Reports list drops in rank order: the newest turn is rank 1.
     expect(layer(assembled, 'L6').drops.map((drop) => [drop.label, drop.reason])).toEqual([
       ['turn t_3', { kind: 'total-budget', layer: 'L6', total: budget, rank: 1 }],

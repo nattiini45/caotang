@@ -10,6 +10,10 @@
  * is the one exception, and `cancelNote` then says so).
  */
 
+import { isolate, numberFormat } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   decodeAs,
@@ -21,9 +25,14 @@ import {
 } from '@caotang/store';
 
 import { ASK_EXCERPT_CHARS, encodingBackupPath, type EncodingAsker, type EncodingDecision } from '../app/encoding-review.js';
+import { accessibleText } from '../i18n/accessible-text.js';
+import { formatterLocale } from '../i18n/format-locale.js';
+import { UserText } from '../i18n/UserText.js';
 import type { PendingEncoding } from '../app/lifecycle.js';
 import './encoding-dialog.css';
 
+
+/* lingui-set comment="The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message." */
 export interface EncodingDialogProps {
   readonly pending: PendingEncoding;
   /** The background-role ask, or `null` when no real profile resolves — no "Ask the AI" is offered then. */
@@ -72,7 +81,9 @@ function isUncertain(detection: EncodingDetection): boolean {
 
 /** A file's bytes as readable size text, for the line under its name. */
 function sizeText(size: number): string {
-  return size < 1024 ? `${size} bytes` : `${(size / 1024).toFixed(1)} KB`;
+  if (size < 1024) return plural(size, { one: '# byte', other: '# bytes' });
+  const kilobytes = numberFormat(formatterLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(size / 1024);
+  return t`${kilobytes} KB`;
 }
 
 /** The picker's label for an encoding — `encodingName` covers every candidate; UTF-8 is the odd defensive case. */
@@ -98,8 +109,10 @@ function IssueCard({
   readonly onChoose: (encoding: DecodableEncoding) => void;
   readonly onAction: (action: 'leave' | 'convert') => void;
 }): ReactNode {
+  useLingui();
   const titleId = useId();
   const selectId = useId();
+  const backupPath = encodingBackupPath(issue.path);
   const group = useId();
   const preview = useMemo(() => {
     if (panel.status !== 'ready' || panel.bytes === undefined || panel.chosen === undefined) return null;
@@ -116,27 +129,26 @@ function IssueCard({
 
   const guessLine =
     issue.encoding === 'unknown'
-      ? 'Caotang cannot tell what encoding it is.'
-      : `Its bytes look like ${encodingName(issue.encoding)}.`;
+      ? t`Caotang cannot tell what encoding it is.`
+      : t`Its bytes look like ${{ encoding: encodingName(issue.encoding) }}.`;
 
   return (
     <section className="encoding-file" aria-labelledby={titleId}>
       <h3 id={titleId}>{issue.path}</h3>
       <p className="encoding-hint">
-        {sizeText(issue.size)} — {guessLine}
         {detection !== undefined && isUncertain(detection)
-          ? ' Caotang is not sure which of these it is — compare the previews.'
-          : ''}
+          ? t`${{ size: sizeText(issue.size) }} — ${{ guess: guessLine }} Caotang is not sure which of these it is — compare the previews.`
+          : t`${{ size: sizeText(issue.size) }} — ${{ guess: guessLine }}`}
       </p>
       {panel.status === 'unreadable' ? (
         <p className="encoding-hint" role="alert">
-          The file could not be read for a preview: {panel.error}
+          {t`The file could not be read for a preview: ${{ reason: panel.error ?? '' }}`}
         </p>
       ) : null}
       {panel.status === 'ready' && options.length > 0 ? (
         <>
           <div className="encoding-fields">
-            <label htmlFor={selectId}>Read it as</label>
+            <label htmlFor={selectId}><Trans>Read it as</Trans></label>
             <select
               id={selectId}
               value={panel.chosen ?? ''}
@@ -145,14 +157,15 @@ function IssueCard({
             >
               {options.map((encoding) => (
                 <option key={encoding} value={encoding}>
-                  {encodingLabel(encoding)}
-                  {detection !== undefined && encoding === detection.best ? ' — the best reading' : ''}
+                  {detection !== undefined && encoding === detection.best
+                    ? t`${{ encoding: encodingLabel(encoding) }} — the best reading`
+                    : encodingLabel(encoding)}
                 </option>
               ))}
             </select>
             {asker !== null ? (
               <button type="button" className="button is-quiet" disabled={busy || panel.asking} onClick={onAsk}>
-                {panel.asking ? 'Asking…' : 'Ask the AI'}
+                {panel.asking ? t`Asking…` : t`Ask the AI`}
               </button>
             ) : null}
           </div>
@@ -162,14 +175,14 @@ function IssueCard({
             </p>
           ) : null}
           {preview !== null ? (
-            <pre className="encoding-preview" aria-label={`Preview of ${issue.path} read as ${encodingLabel(panel.chosen ?? 'windows-1252')}`}>
-              {preview === '' ? 'The file is empty.' : preview}
+            <pre className="encoding-preview" aria-label={accessibleText(t`Preview of ${{ path: isolate(issue.path) }} read as ${{ encoding: encodingLabel(panel.chosen ?? 'windows-1252') }}`)}>
+              {preview === '' ? t`The file is empty.` : preview}
             </pre>
           ) : null}
         </>
       ) : null}
       <fieldset className="encoding-choice">
-        <legend>What should Caotang do with it?</legend>
+        <legend><Trans>What should Caotang do with it?</Trans></legend>
         <label>
           <input
             type="radio"
@@ -178,7 +191,7 @@ function IssueCard({
             disabled={busy}
             onChange={() => onAction('leave')}
           />
-          Leave it as it is — the file is not changed.
+          <Trans>Leave it as it is — the file is not changed.</Trans>
         </label>
         <label>
           <input
@@ -188,8 +201,7 @@ function IssueCard({
             disabled={busy || panel.status !== 'ready'}
             onChange={() => onAction('convert')}
           />
-          Convert it — the file is rewritten as text Caotang can read, and its original bytes are kept at{' '}
-          {encodingBackupPath(issue.path)}.
+          <Trans>Convert it — the file is rewritten as text Caotang can read, and its original bytes are kept at <UserText value={backupPath} />.</Trans>
         </label>
       </fieldset>
     </section>
@@ -197,6 +209,7 @@ function IssueCard({
 }
 
 export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: EncodingDialogProps): ReactNode {
+  useLingui();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   // One pending per mount — answering unmounts the dialog before the open continues — so the
@@ -264,15 +277,15 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
       .ask({ excerpt, candidates })
       .then((pick) => {
         if (pick === undefined) {
-          setPanel(index, { asking: false, aiNote: 'The AI’s answer did not name one of the encodings.' });
+          setPanel(index, { asking: false, aiNote: t`The AI’s answer did not name one of the encodings.` });
         } else {
-          setPanel(index, { asking: false, chosen: pick, aiNote: `The AI suggests ${encodingLabel(pick)}.` });
+          setPanel(index, { asking: false, chosen: pick, aiNote: t`The AI suggests ${{ encoding: encodingLabel(pick) }}.` });
         }
       })
       .catch((error: unknown) => {
         setPanel(index, {
           asking: false,
-          aiNote: `The AI could not be asked: ${error instanceof Error ? error.message : String(error)}`,
+          aiNote: t`The AI could not be asked: ${{ reason: error instanceof Error ? error.message : String(error) }}`,
         });
       });
   };
@@ -290,6 +303,7 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
   };
 
   const count = pending.issues.length;
+  const name = isolate(pending.name);
   return (
     <dialog
       ref={ref}
@@ -302,17 +316,17 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
       }}
     >
       <form method="dialog" className="confirm-body">
-        <h2 id={titleId}>{count === 1 ? 'One file is not UTF-8 text' : `${count} files are not UTF-8 text`}</h2>
+        <h2 id={titleId}>{plural(count, { one: 'One file is not UTF-8 text', other: '# files are not UTF-8 text' })}</h2>
         <div className="confirm-text">
           <p>
-            “{pending.name}” holds {count === 1 ? 'a file' : `${count} files`} Caotang cannot read as they are. For each one, preview
-            how its bytes read, then choose: convert it to text Caotang can read — the original bytes are kept in the project’s{' '}
-            .caotang-backup folder — or leave it exactly as it is.
+            {plural(count, {
+              one: `“${name}” holds a file Caotang cannot read as it is. Preview how its bytes read, then choose: convert it to text Caotang can read — the original bytes are kept in the project’s .caotang-backup folder — or leave it exactly as it is.`,
+              other: `“${name}” holds # files Caotang cannot read as they are. For each one, preview how its bytes read, then choose: convert it to text Caotang can read — the original bytes are kept in the project’s .caotang-backup folder — or leave it exactly as it is.`,
+            })}
           </p>
           {asker !== null ? (
             <p>
-              “Ask the AI” sends the previewed excerpt of that one file to {asker.profileName}. Nothing else is sent, and nothing is
-              written unless you choose Convert.
+              {t`“Ask the AI” sends the previewed excerpt of that one file to ${{ profile: isolate(asker.profileName) }}. Nothing else is sent, and nothing is written unless you choose Convert.`}
             </p>
           ) : null}
         </div>
@@ -332,10 +346,10 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
         </div>
         <div className="confirm-actions">
           <button type="button" className="button" autoFocus disabled={busy} onClick={onCancel}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button type="button" className="button is-primary" disabled={busy} onClick={finish}>
-            Open the project
+            <Trans>Open the project</Trans>
           </button>
         </div>
       </form>

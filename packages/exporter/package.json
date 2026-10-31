@@ -8,33 +8,40 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./picture-transcoder-node": "./src/picture-transcoder-node.ts",
-    "./coherence-report": "./src/coherence-report.ts"
+  ".": "./src/index.ts",
+  "./picture-transcoder-node": "./src/picture-transcoder-node.ts",
+  "./picture-process-node": "./src/picture-process-node.ts",
+  "./coherence-report": "./src/coherence-report.ts",
+  "./export-metadata": "./src/export-metadata.ts"
   },
   "dependencies": {
-    "@caotang/bus": "workspace:*",
-    "@caotang/dialogue": "workspace:*",
-    "@caotang/pdf-fonts": "workspace:*",
-    "@caotang/screenplay": "workspace:*",
-    "@caotang/store": "workspace:*",
-    "@caotang/storyboard": "workspace:*",
-    "@caotang/video-prompt-pack": "workspace:*",
-    "@jsquash/webp": "1.5.0",
-    "@pdf-lib/fontkit": "1.1.1",
-    "docx": "9.9.0",
-    "fflate": "0.8.3",
-    "pdf-lib": "1.17.1",
-    "remark-parse": "11.0.0",
-    "unified": "11.0.5"
+  "@caotang/bus": "workspace:*",
+  "@caotang/coherence": "workspace:*",
+  "@caotang/comic": "workspace:*",
+  "@caotang/dialogue": "workspace:*",
+  "@caotang/pdf-fonts": "workspace:*",
+  "@caotang/pictures": "workspace:*",
+  "@caotang/screenplay": "workspace:*",
+  "@caotang/store": "workspace:*",
+  "@caotang/storyboard": "workspace:*",
+  "@caotang/timeline": "workspace:*",
+  "@caotang/video-prompt-pack": "workspace:*",
+  "@jsquash/webp": "1.5.0",
+  "@pdf-lib/fontkit": "1.1.1",
+  "docx": "9.9.0",
+  "fflate": "0.8.3",
+  "jpeg-js": "0.4.4",
+  "pdf-lib": "1.17.1",
+  "remark-parse": "11.0.0",
+  "unified": "11.0.5"
   },
   "devDependencies": {
-    "@likecoin/epubcheck-ts": "0.7.0",
-    "@types/mdast": "4.0.4",
-    "pdfjs-dist": "6.4.299",
-    "sax": "1.6.1"
+  "@likecoin/epubcheck-ts": "0.7.0",
+  "@types/mdast": "4.0.4",
+  "pdfjs-dist": "6.4.299",
+  "sax": "1.6.1"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+  "typecheck": "tsc --noEmit -p tsconfig.json"
   }
 }

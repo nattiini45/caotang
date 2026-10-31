@@ -89,7 +89,8 @@ export function checkOrderDrift(input: CheckInput): CheckOutput {
 
 /**
  * Adjacent pairs in day order that are {@link GAP_THRESHOLD_DAYS} or more apart, start to start. The pair is skipped when
- * either side is exempt from the gap, which is how `time-skip`, `dream` and `mythic` legitimize one (§5.2.1).
+ * either side is exempt from the gap, which is how `time-skip`, `dream` and `mythic` legitimize one (§5.2.1), or when the two
+ * scenes' effective story parts differ (§5.2.2: prologue to main, main to epilogue).
  */
 function gapsIn(list: readonly ScannedScene[], strand: string | undefined): DraftFinding[] {
   const sorted = [...list].sort((a, b) => (dayOf(a) ?? 0) - (dayOf(b) ?? 0) || a.binderIndex - b.binderIndex);
@@ -104,6 +105,8 @@ function gapsIn(list: readonly ScannedScene[], strand: string | undefined): Draf
     const reversed = early.binderIndex > late.binderIndex;
     if (reversed && (strand !== undefined || [early, late].every((scene) => treatmentOf(modeOf(scene), 'timeline.order-drift') === 'checked'))) continue;
     if ([early, late].some((scene) => treatmentOf(modeOf(scene), 'timeline.gap') === 'exempt')) continue;
+    // §5.2.2: a pair in two different effective parts is a declared boundary, not a gap. Only this check reads the part.
+    if ((early.part ?? 'main') !== (late.part ?? 'main')) continue;
     drafts.push({
       checkId: 'timeline.gap',
       type: 'time-gap',

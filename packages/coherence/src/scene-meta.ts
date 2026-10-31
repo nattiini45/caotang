@@ -11,6 +11,10 @@
 import type { SceneMeta, TimelineMode } from './model.js';
 
 export {
+  DAY_OFFSET_LIMIT,
+  STORY_PARTS,
+  isDayOffset,
+  type DeclaredStoryPart,
   applySceneMetaPatch,
   type ScenePatch,
   type SceneMetaContext,

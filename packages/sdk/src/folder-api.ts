@@ -8,6 +8,13 @@ export { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } f
 export { LOCK_FILE, LOCK_TAKEOVER_FILE, ProjectLockedError, acquireProjectLock, type ProjectLock, type LockRefusal } from './lock.js';
 export { mergeServerDelta } from './coherence-file.js';
 export {
+  coherenceFileOf,
+  scopeNodeOf,
+  timelineCsvOf,
+  timelineModelOf,
+  type TimelineReadOptions,
+} from './timeline.js';
+export {
   FolderChangedError,
   NoProjectError,
   isCodexFileName,
@@ -18,4 +25,45 @@ export {
   type OpenFolder,
   type OpenFolderOptions,
 } from './folder.js';
+export {
+  FIELD_WORDS,
+  SCENE_FIELDS,
+  declarationChanges,
+  declarationClashes,
+  declarationsWritten,
+  entryNamesOf,
+  movedSince,
+  placesOf,
+  readbackOf,
+  titlesOf,
+  type MoveReadback,
+  type SceneClash,
+  type SceneField,
+  type SceneReadback,
+  type TimelineApplied,
+  type TimelineConflict,
+  type TimelineFile,
+  type TimelineReadback,
+  type TimelineWriteResult,
+  type TreePlace,
+} from './timeline-persistence.js';
+export {
+  PictureReadError,
+  linkSummaryOf,
+  pictureListOf,
+  pictureRegistryOf,
+  pictureSummaryOf,
+  readPictureFile,
+  tooLargeMessage,
+  type LinkPlacement,
+  type LinkSummary,
+  type ListedPicture,
+  type PictureFile,
+  type PictureListQuery,
+  type PictureReadCode,
+  type PictureRegistry,
+  type PictureSummary,
+  type PictureUseSummary,
+  type ReadPictureOptions,
+} from './pictures.js';
 export { MCP_VOICE, type FolderVoice } from './voice.js';

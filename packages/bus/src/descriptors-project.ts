@@ -42,6 +42,9 @@ export const VOCABULARY_NAME_MAX = 40;
 export const RECIPE_NAME_MAX = 80;
 /** An author's name on the title page. */
 export const AUTHOR_MAX = 200;
+
+/** The longest contents heading a recipe may carry. */
+export const CONTENTS_LABEL_MAX = 80;
 /**
  * The largest character limit a recipe may set for the dialogue table (dialogue-narrative.md §4). A subtitle line runs to tens of
  * characters, so the cap only refuses a value that is a typo for another one; the exporter accepts any whole number above zero.
@@ -70,12 +73,22 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
 /**
  * The keys a recipe's options carry (exporter.md §2; `charLimit` is dialogue-narrative.md §4's column, made a recipe option;
  * `sceneNumbers` and `continued` are the screenplay PDF's options, screenplay.md §5.3; `pageSize` is the contact sheet's
- * paper and `paperFrames` its blank frames, storyboard.md §6).
+ * paper and `paperFrames` its blank frames, storyboard.md §6; `bleed` and `cropMarks` are the comic PDF's, comics.md §5, and a
+ * comic's reading direction is its book's own setting, never a recipe's; `pictures`, `epubImageMaxPx`, `epubKeepWebp` and
+ * `keepPictureMetadata` are the prose exports' picture options, pictures.md §4; `timelinePictures` is the timeline PDF's
+ * thumbnails, timeline.md §9.1).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'paperFrames'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'paperFrames', 'bleed', 'cropMarks', 'contentsLabel', 'pictures', 'epubImageMaxPx', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures'] as const;
 
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
+
+/** The `pictures` recipe option's values (pictures.md §4): the Markdown modes, then the plain-text ones. */
+export const PICTURE_MODES = ['copy', 'link', 'drop', 'placeholder'] as const;
+
+/** The EPUB's image long edge (pictures.md §4): at least 64 and at most 16384 pixels; the default is 1600. */
+export const EPUB_IMAGE_MAX_PX_MIN = 64;
+export const EPUB_IMAGE_MAX_PX_MAX = 16384;
 
 /**
  * The same placements as one type, derived from the list so the two cannot drift
@@ -151,11 +164,33 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
     }
   }
   const typed: RecipeOptionsParams = {};
-  for (const flag of ['titlePage', 'toc', 'continued', 'paperFrames'] as const) {
+  for (const flag of ['titlePage', 'toc', 'continued', 'paperFrames', 'bleed', 'cropMarks', 'epubKeepWebp', 'keepPictureMetadata', 'timelinePictures'] as const) {
     const v = value[flag];
     if (v === undefined) continue;
     if (typeof v !== 'boolean') return invalid(`params.options.${flag} must be true or false, got ${showValue(v)}`, undefined, `options.${flag}`);
     typed[flag] = v;
+  }
+  const pictures = value['pictures'];
+  if (pictures !== undefined) {
+    if (typeof pictures !== 'string' || !(PICTURE_MODES as readonly string[]).includes(pictures)) {
+      return invalid(
+        `params.options.pictures must be one of ${PICTURE_MODES.join(', ')}, got ${showValue(pictures)}`,
+        `pass one of ${PICTURE_MODES.join(', ')}`,
+        'options.pictures',
+      );
+    }
+    typed.pictures = pictures as (typeof PICTURE_MODES)[number];
+  }
+  const epubImageMaxPx = value['epubImageMaxPx'];
+  if (epubImageMaxPx !== undefined) {
+    if (!Number.isSafeInteger(epubImageMaxPx) || (epubImageMaxPx as number) < EPUB_IMAGE_MAX_PX_MIN || (epubImageMaxPx as number) > EPUB_IMAGE_MAX_PX_MAX) {
+      return invalid(
+        `params.options.epubImageMaxPx must be a whole number of pixels from ${EPUB_IMAGE_MAX_PX_MIN} to ${EPUB_IMAGE_MAX_PX_MAX}, got ${showValue(epubImageMaxPx)}`,
+        `pass a limit such as 1600, or leave it out for 1600`,
+        'options.epubImageMaxPx',
+      );
+    }
+    typed.epubImageMaxPx = epubImageMaxPx as number;
   }
   const author = value['author'];
   if (author !== undefined) {
@@ -166,6 +201,16 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       return invalid(`params.options.author is longer than ${AUTHOR_MAX} characters`, 'shorten the author line', 'options.author');
     }
     typed.author = author.trim();
+  }
+  const contentsLabel = value['contentsLabel'];
+  if (contentsLabel !== undefined) {
+    if (typeof contentsLabel !== 'string') {
+      return invalid(`params.options.contentsLabel must be a string, got ${showValue(contentsLabel)}`, undefined, 'options.contentsLabel');
+    }
+    if (contentsLabel.length > CONTENTS_LABEL_MAX) {
+      return invalid(`params.options.contentsLabel is longer than ${CONTENTS_LABEL_MAX} characters`, 'shorten the heading', 'options.contentsLabel');
+    }
+    typed.contentsLabel = contentsLabel.trim();
   }
   const charLimit = value['charLimit'];
   if (charLimit !== undefined) {

@@ -8,6 +8,11 @@
  * prompt pack panel over the same shots.
  */
 
+import { accessibleText } from '../i18n/accessible-text.js';
+import { isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { TreeNode } from '@caotang/store';
@@ -35,11 +40,14 @@ import {
   type PictureListing,
 } from './shot-image-model.js';
 import { useAssetListing, useImageUrl } from './hooks.js';
+import { pickerLabelOf } from './picture-board-model.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 import type { PromptFieldKey } from './prompt-edit-model.js';
 import type { MediaPorts } from './ports.js';
 import { ACTION_MAX_CHARS, SHOT_ENUMS, enumLabelOf, type AssetRecord } from './engines.js';
 
+
+/* lingui-set comment="The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers." */
 // The prompt pack carries the video prompt packages, so its code loads when the tab is first opened, not with the board.
 const PromptPackPanel = lazyView(() => import('./PromptPackPanel.js').then((module) => ({ default: module.PromptPackPanel })));
 
@@ -61,8 +69,12 @@ type Tab = 'board' | 'pack';
 const TABS: readonly Tab[] = ['board', 'pack'];
 
 const TAB_LABEL: Readonly<Record<Tab, string>> = {
-  board: 'The shots as cards',
-  pack: 'The shots as a video prompt pack',
+  get board() {
+    return t`The shots as cards`;
+  },
+  get pack() {
+    return t`The shots as a video prompt pack`;
+  },
 };
 
 /**
@@ -71,9 +83,15 @@ const TAB_LABEL: Readonly<Record<Tab, string>> = {
  * writer sees the level. A label is a phrase without a colon (ZoomControl puts the letter before it).
  */
 const SHOT_ZOOM_LABEL: Readonly<Record<ZoomLevel, string>> = {
-  S: 'Small cards, number and picture only',
-  M: 'Medium cards, number, picture, title, spec row and coverage',
-  L: 'Large cards, the medium card with the action, status and label',
+  get S() {
+    return t`Small cards, number and picture only`;
+  },
+  get M() {
+    return t`Medium cards, number, picture, title, spec row and coverage`;
+  },
+  get L() {
+    return t`Large cards, the medium card with the action, status and label`;
+  },
 };
 
 /** A check's link from the Prompt pack tab: the shot and the field to bring into view on the board. */
@@ -86,7 +104,25 @@ export interface PromptFocus {
 /** The dataTransfer type a card drag carries, so a card move is told apart from a picture dropped from the desktop. */
 const SHOT_DRAG_TYPE = 'application/x-caotang-shot';
 
+function barText(shotCount: number, animatic: string, editable: boolean): string {
+  return editable
+    ? t`${plural(shotCount, { one: '# shot', other: '# shots' })}, ${animatic}. The numbers follow the order of the cards, so a move renumbers them. Drag a card, or use Earlier and Later, to move it.`
+    : t`${plural(shotCount, { one: '# shot', other: '# shots' })}, ${animatic}. The numbers follow the order of the cards, so a move renumbers them. The fields are read only in this build.`;
+}
+
+function droppedText(count: number): string {
+  return plural(count, {
+    one: 'An image was dropped when the project opened, because its file is not in the project.',
+    other: '# images were dropped when the project opened, because their files are not in the project.',
+  });
+}
+
+function coveredText(count: number): string {
+  return plural(count, { one: '# line covered', other: '# lines covered' });
+}
+
 export function StoryboardView({ session, node, ports, zoom, onZoom, onAgentIntent }: StoryboardViewProps): ReactNode {
+  useLingui();
   const [tab, setTab] = useState<Tab>('board');
   const [focus, setFocus] = useState<PromptFocus | null>(null);
   /** The arrow keys move the choice and the focus with it, as the centre switch does (the WAI-ARIA radio pattern). */
@@ -98,13 +134,13 @@ export function StoryboardView({ session, node, ports, zoom, onZoom, onAgentInte
     event.currentTarget.querySelector<HTMLElement>(`[data-tab="${next}"]`)?.focus();
   };
   return (
-    <section className="media-view sb-view" aria-label={`Storyboard: ${node.title}`}>
+    <section className="media-view sb-view" aria-label={accessibleText(t`Storyboard: ${{ title: isolate(node.title) }}`)}>
       <header className="media-head">
         <div>
-          <p className="eyebrow">Storyboard</p>
+          <p className="eyebrow"><Trans>Storyboard</Trans></p>
           <h2 className="media-title">{node.title}</h2>
         </div>
-        <div role="radiogroup" aria-label="Storyboard view" className="segmented" onKeyDown={onTabKey}>
+        <div role="radiogroup" aria-label={t`Storyboard view`} className="segmented" onKeyDown={onTabKey}>
           {TABS.map((item) => (
             <button
               key={item}
@@ -117,7 +153,7 @@ export function StoryboardView({ session, node, ports, zoom, onZoom, onAgentInte
               className="segmented-item"
               onClick={() => setTab(item)}
             >
-              {item === 'board' ? 'Board' : 'Prompt pack'}
+              {item === 'board' ? t`Board` : t`Prompt pack`}
             </button>
           ))}
         </div>
@@ -125,7 +161,7 @@ export function StoryboardView({ session, node, ports, zoom, onZoom, onAgentInte
       {tab === 'board' ? (
         <ShotBoard session={session} folder={node} ports={ports} focus={focus} zoom={zoom} onZoom={onZoom} onAgentIntent={onAgentIntent} />
       ) : (
-        <LazyBoundary label="the prompt pack">
+        <LazyBoundary label={t`the prompt pack`}>
           <PromptPackPanel
             session={session}
             folder={node}
@@ -153,6 +189,7 @@ interface ShotBoardProps {
 }
 
 export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp, onZoom, onAgentIntent }: ShotBoardProps): ReactNode {
+  useLingui();
   useSession(session);
   const report = useReport();
   const cards = shotCardsOf(session.state, folder.id);
@@ -235,7 +272,7 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
   /** A picture the writer chose, dropped or pasted onto a card: read, then imported as that shot's image (storyboard.md §3.1). */
   const picture = async (shotId: string, file: File): Promise<void> => {
     if (ports?.importImage === undefined) {
-      setMessage('Pictures cannot be added to a shot in this build.');
+      setMessage(t`Pictures cannot be added to a shot in this build.`);
       return;
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -254,7 +291,7 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
    */
   const dropPictures = async (files: readonly File[]): Promise<void> => {
     if (ports?.importImages === undefined || !editable) {
-      setMessage('Pictures cannot be added to a shot in this build.');
+      setMessage(t`Pictures cannot be added to a shot in this build.`);
       return;
     }
     const verdicts = planPictureDrop(
@@ -274,7 +311,7 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
 
   const newShotButton = editable ? (
     <button type="button" className="button is-primary" onClick={newShot}>
-      New shot
+      <Trans>New shot</Trans>
     </button>
   ) : null;
 
@@ -284,7 +321,7 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
     const derive =
       sceneToDerive === undefined || onAgentIntent === undefined ? null : (
         <button type="button" className="button" onClick={() => onAgentIntent(deriveIntentOf(sceneToDerive))}>
-          Derive shots from “{sceneToDerive.title}”
+          {t`Derive shots from “${{ title: isolate(sceneToDerive.title) }}”`}
         </button>
       );
     const copy = emptyBoardCopyOf({ editable, canDerive: onAgentIntent !== undefined, scene: sceneToDerive });
@@ -339,8 +376,7 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
     >
       <div className="sb-bar">
         <p className="muted">
-          {cards.length === 1 ? '1 shot' : `${cards.length} shots`}, {animatic.text}. The numbers follow the order of the cards, so a move renumbers them.
-          {editable ? ' Drag a card, or use Earlier and Later, to move it.' : ' The fields are read only in this build.'}
+          {barText(cards.length, animatic.text, editable)}
         </p>
         <div className="sb-bar-controls">
           <ZoomControl zoom={zoom} onZoom={setZoom} labels={SHOT_ZOOM_LABEL} ariaLabel="Shot card size" />
@@ -350,33 +386,33 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
       {notices.length === 0 || !noticesShown ? null : (
         <div className="sb-notices" role="status">
           <p className="field-note">
-            {notices.length === 1 ? 'An image was dropped when the project opened, because its file is not in the project.' : `${notices.length} images were dropped when the project opened, because their files are not in the project.`}
+            {droppedText(notices.length)}
           </p>
-          <ul className="findings" aria-label="Image notices">
+          <ul className="findings" aria-label={t`Image notices`}>
             {notices.map((notice) => (
               <li key={notice}>{notice}</li>
             ))}
           </ul>
           <button type="button" className="button is-quiet" onClick={() => setNoticesShown(false)}>
-            Dismiss
+            <Trans>Dismiss</Trans>
           </button>
         </div>
       )}
       {dropReport === null ? null : (
         <div className="sb-notices" role="status">
           <p className="field-note">{dropReport.summary}</p>
-          <ul className="findings" aria-label="Pictures dropped on the board">
+          <ul className="findings" aria-label={t`Pictures dropped on the board`}>
             {dropReport.lines.map((line, index) => (
               <li key={`${index}:${line}`}>{line}</li>
             ))}
           </ul>
           <button type="button" className="button is-quiet" onClick={() => setDropReport(null)}>
-            Dismiss
+            <Trans>Dismiss</Trans>
           </button>
         </div>
       )}
       <div className={`sb-workspace${editable ? ' has-editor' : ''}`}>
-        <ol className={`cards zoom-${zoom} sb-cards`} aria-label={`Shots in ${folder.title}`}>
+        <ol className={`cards zoom-${zoom} sb-cards`} aria-label={accessibleText(t`Shots in ${{ title: isolate(folder.title) }}`)}>
           {cards.map((card) => (
             <li key={card.id} className="card-slot">
               <ShotCardView
@@ -494,6 +530,7 @@ function ShotCardView({
   onShotDrop,
   onShotDragEnd,
 }: ShotCardViewProps): ReactNode {
+  useLingui();
   const url = useImageUrl(assets, card.image);
   // The load's notices already say what was kept or dropped, the unknown values included, so each is shown once.
   const notes = card.notices;
@@ -507,7 +544,7 @@ function ShotCardView({
     <article
       className={`card sb-card${selected ? ' is-selected' : ''}${dropping ? ' is-drop-target' : ''}`}
       data-shot-id={card.id}
-      aria-label={`Shot ${card.number}: ${card.title}`}
+      aria-label={accessibleText(t`Shot ${{ number: card.number }}: ${{ title: isolate(card.title) }}`)}
       tabIndex={0}
       draggable={editable}
       onClick={onSelect}
@@ -544,14 +581,14 @@ function ShotCardView({
       }}
     >
       <header className="card-head">
-        <span className="chip sb-number" aria-label={`Shot number ${card.number}`}>
+        <span className="chip sb-number" aria-label={accessibleText(t`Shot number ${{ number: card.number }}`)}>
           {card.number}
         </span>
         {detail ? <h3 className="card-title">{card.title}</h3> : null}
-        {card.unknown.length === 0 ? null : <span className="badge is-warn">Unknown value</span>}
+        {card.unknown.length === 0 ? null : <span className="badge is-warn"><Trans>Unknown value</Trans></span>}
         {zoom === 'L' ? (
           // Every node carries a status, so the chip is always named (the corkboard card does the same, ui-modules §3.1).
-          <span className="chip chip-status" title="Status">
+          <span className="chip chip-status" title={t`Status`}>
             <span className="chip-dot" style={{ background: card.status.color ?? 'var(--dot-empty)' }} aria-hidden="true" />
             {card.status.name}
           </span>
@@ -560,12 +597,12 @@ function ShotCardView({
       {/* A picture dropped here is taken by the card (its drop handler), so the figure needs none of its own. */}
       <figure className="sb-frame">
         {url === null ? (
-          <figcaption className="sb-frame-empty">{card.imageAlt === '' ? 'No image yet' : card.imageAlt}</figcaption>
+          <figcaption className="sb-frame-empty">{card.imageAlt === '' ? t`No image yet` : card.imageAlt}</figcaption>
         ) : (
           <button
             type="button"
             className="sb-frame-button"
-            aria-label={`Look at the image of shot ${card.number} larger`}
+            aria-label={accessibleText(t`Look at the image of shot ${{ number: card.number }} larger`)}
             onClick={(event) => {
               event.stopPropagation();
               onOpenImage(url, event.currentTarget);
@@ -583,7 +620,7 @@ function ShotCardView({
         </div>
       )}
       {notes.length === 0 ? null : (
-        <ul className="findings sb-notes" aria-label={`Notes on shot ${card.number}`}>
+        <ul className="findings sb-notes" aria-label={accessibleText(t`Notes on shot ${{ number: card.number }}`)}>
           {notes.map((note) => (
             <li key={note}>{note}</li>
           ))}
@@ -591,43 +628,43 @@ function ShotCardView({
       )}
       {/* At S the footer is hidden from sight but stays in the tab order, so Earlier, Later and Fields are reached from the keyboard. */}
       <footer className={`card-foot sb-foot${detail ? '' : ' is-visually-hidden'}`}>
-        {detail ? <span>{card.coverage === 1 ? '1 line covered' : `${card.coverage} lines covered`}</span> : null}
+        {detail ? <span>{coveredText(card.coverage)}</span> : null}
         <span className="sb-step">
           <button
             type="button"
             className="button is-quiet"
-            aria-label={`Move shot ${card.number} earlier`}
+            aria-label={accessibleText(t`Move shot ${{ number: card.number }} earlier`)}
             disabled={card.index === 0}
             onClick={(event) => {
               event.stopPropagation();
               onStep(-1);
             }}
           >
-            Earlier
+            <Trans>Earlier</Trans>
           </button>
           <button
             type="button"
             className="button is-quiet"
-            aria-label={`Move shot ${card.number} later`}
+            aria-label={accessibleText(t`Move shot ${{ number: card.number }} later`)}
             disabled={card.index >= card.count - 1}
             onClick={(event) => {
               event.stopPropagation();
               onStep(1);
             }}
           >
-            Later
+            <Trans>Later</Trans>
           </button>
           {editable ? (
             <button
               type="button"
               className="button is-quiet"
-              aria-label={`Edit the fields of shot ${card.number}`}
+              aria-label={accessibleText(t`Edit the fields of shot ${{ number: card.number }}`)}
               onClick={(event) => {
                 event.stopPropagation();
                 onSelect();
               }}
             >
-              Fields
+              <Trans>Fields</Trans>
             </button>
           ) : null}
         </span>
@@ -680,6 +717,7 @@ interface ShotFieldsProps {
  * coverage does not discard an action the writer has typed and not yet saved.
  */
 function ShotFields({ session, card, ports, message, onMessage }: ShotFieldsProps): ReactNode {
+  useLingui();
   const stored = draftOf(card);
   const [draft, setDraft] = useState<ShotDraft>(stored);
   // The form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving the shot.
@@ -702,7 +740,7 @@ function ShotFields({ session, card, ports, message, onMessage }: ShotFieldsProp
       return;
     }
     const result = commitShotCommand(session, planned.value, ports);
-    onMessage(result.ok ? 'Saved.' : result.message);
+    onMessage(result.ok ? t`Saved.` : result.message);
   };
 
   const enumSelect = (field: 'shotSize' | 'cameraAngle' | 'cameraMovement' | 'transition', label: string): ReactNode => {
@@ -712,8 +750,8 @@ function ShotFields({ session, card, ports, message, onMessage }: ShotFieldsProp
       <label>
         <span>{label}</span>
         <select value={value} onChange={(event) => set(field, event.target.value)}>
-          <option value="">Not set</option>
-          {value !== '' && !listed ? <option value={value}>{value} (not in the list)</option> : null}
+          <option value=""><Trans>Not set</Trans></option>
+          {value !== '' && !listed ? <option value={value}>{t`${{ value }} (not in the list)`}</option> : null}
           {ENUM_OPTIONS[field].map((option) => (
             <option key={option} value={option}>
               {enumLabelOf(field, option)}
@@ -728,7 +766,7 @@ function ShotFields({ session, card, ports, message, onMessage }: ShotFieldsProp
     <>
       <form
         className="sb-editor"
-        aria-label={`Fields of shot ${card.number}`}
+        aria-label={accessibleText(t`Fields of shot ${{ number: card.number }}`)}
         // The engine checks every field and says why, so the browser's own minimum check is off: one set of words.
         noValidate
         onKeyDown={ime.noteKey}
@@ -738,33 +776,33 @@ function ShotFields({ session, card, ports, message, onMessage }: ShotFieldsProp
           save();
         }}
       >
-        <p className="eyebrow">Shot {card.number}</p>
-        {enumSelect('shotSize', 'Shot size')}
-        {enumSelect('cameraAngle', 'Camera angle')}
-        {enumSelect('cameraMovement', 'Camera movement')}
-        {enumSelect('transition', 'Transition out')}
+        <p className="eyebrow">{t`Shot ${{ number: card.number }}`}</p>
+        {enumSelect('shotSize', t`Shot size`)}
+        {enumSelect('cameraAngle', t`Camera angle`)}
+        {enumSelect('cameraMovement', t`Camera movement`)}
+        {enumSelect('transition', t`Transition out`)}
         <label>
-          <span>Lens</span>
+          <span><Trans>Lens</Trans></span>
           <input type="text" value={draft.lens} onChange={(event) => set('lens', event.target.value)} />
         </label>
         <label>
-          <span>Duration, seconds</span>
+          <span><Trans>Duration, seconds</Trans></span>
           <input type="number" min={0} step="any" value={draft.durationSec} onChange={(event) => set('durationSec', event.target.value)} />
         </label>
         <label>
-          <span>Action</span>
+          <span><Trans>Action</Trans></span>
           <textarea className="notes" rows={4} value={draft.action} onChange={(event) => set('action', event.target.value)} />
         </label>
         <p className={`counter${[...draft.action].length > ACTION_MAX_CHARS ? ' is-near' : ''}`}>
-          {[...draft.action].length} of {ACTION_MAX_CHARS} characters
+          {t`${{ used: [...draft.action].length }} of ${{ limit: ACTION_MAX_CHARS }} characters`}
         </p>
         <label>
-          <span>Caption when there is no image</span>
+          <span><Trans>Caption when there is no image</Trans></span>
           <input type="text" value={draft.imageAlt} onChange={(event) => set('imageAlt', event.target.value)} />
         </label>
         <div className="empty-actions">
           <button type="submit" className="button is-primary">
-            Save shot
+            <Trans>Save shot</Trans>
           </button>
         </div>
         {message === null ? null : (
@@ -792,6 +830,7 @@ interface ShotImageProps {
  * which is pointed at. Removing the image keeps the file in the project; only the shot stops naming it.
  */
 function ShotImage({ session, card, ports, assets, pictures, onPicture }: ShotImageProps): ReactNode {
+  useLingui();
   const [message, setMessage] = useState<string | null>(null);
   const editable = ports?.commitShot !== undefined;
   const importable = ports?.importImage !== undefined;
@@ -803,23 +842,23 @@ function ShotImage({ session, card, ports, assets, pictures, onPicture }: ShotIm
       return;
     }
     const result = commitShotCommand(session, planned.value, ports);
-    setMessage(result.ok ? (assetId === null ? 'The image was removed from this shot.' : 'The shot now uses that image.') : result.message);
+    setMessage(result.ok ? (assetId === null ? t`The image was removed from this shot.` : t`The shot now uses that image.`) : result.message);
   };
 
   return (
-    <section className="sb-image" aria-label={`Image of shot ${card.number}`}>
-      <h3 className="field-label">Image</h3>
-      <p className="muted">{card.image === null ? 'No image yet.' : 'This shot has an image.'}</p>
+    <section className="sb-image" aria-label={accessibleText(t`Image of shot ${{ number: card.number }}`)}>
+      <h3 className="field-label"><Trans>Image</Trans></h3>
+      <p className="muted">{card.image === null ? t`No image yet.` : t`This shot has an image.`}</p>
       {editable ? (
         <>
           {/* Each control's name starts with its visible words, so a voice control that says them finds it (WCAG 2.5.3). */}
           {importable ? (
             <label className="sb-file">
-              <span>Choose an image file</span>
+              <span><Trans>Choose an image file</Trans></span>
               <input
                 type="file"
                 accept={IMAGE_ACCEPT}
-                aria-label={`Choose an image file for shot ${card.number}`}
+                aria-label={accessibleText(t`Choose an image file for shot ${{ number: card.number }}`)}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   event.target.value = '';
@@ -829,13 +868,13 @@ function ShotImage({ session, card, ports, assets, pictures, onPicture }: ShotIm
             </label>
           ) : null}
           <label>
-            <span>Or use an image already in the project</span>
-            <select aria-label={`Or use an image already in the project for shot ${card.number}`} value={card.image ?? ''} onChange={(event) => point(event.target.value === '' ? null : event.target.value)}>
-              <option value="">No image</option>
+            <span><Trans>Or use an image already in the project</Trans></span>
+            <select aria-label={accessibleText(t`Or use an image already in the project for shot ${{ number: card.number }}`)} value={card.image ?? ''} onChange={(event) => point(event.target.value === '' ? null : event.target.value)}>
+              <option value=""><Trans>No image</Trans></option>
               {card.image !== null && !assets.has(card.image) ? <option value={card.image}>{missingPictureLabelOf(pictures)}</option> : null}
               {[...assets.values()].map((asset) => (
                 <option key={asset.id} value={asset.id}>
-                  {asset.fileName}
+                  {pickerLabelOf(session.state, asset.id, asset.fileName)}
                 </option>
               ))}
             </select>

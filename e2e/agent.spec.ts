@@ -39,6 +39,50 @@ const NOTE_THEN_SYNOPSIS = {
   ],
 };
 
+test('an open agent plan switches language without losing edits or changing approval and restore', async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.setItem('caotang.pseudo', '1'));
+  await fakeEndpoint(page, planThenAnswer({ steps: [
+    { tool: 'notes.append', params: { doc: 'The Landing', text: 'Original note.' }, expect: 'A note is added' },
+    { tool: 'notes.append', params: { doc: 'The Friend', text: 'Second note.' }, expect: 'Another note is added' },
+  ] }, 'Both notes are in.'));
+  await useFakeEndpoint(page);
+  await openSample(page);
+  await sendIntent(page, 'Add two notes.');
+  const card = page.getByTestId('plan-card');
+  await expect(card.getByRole('heading', { name: 'Plan, 2 steps' })).toBeVisible();
+  await card.getByRole('textbox', { name: 'text of step 1' }).fill('Edited note.');
+  await card.getByRole('textbox', { name: 'text of step 1' }).blur();
+  await expect(card.getByRole('textbox', { name: 'text of step 1' })).toHaveValue('Edited note.');
+  await page.getByTestId('open-settings').click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Appearance' }).click();
+  await settings.locator('input[name="interface-language"][value="en-XA"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');
+  await settings.locator('.settings-head button').click();
+  const panel = page.getByTestId('agent-panel');
+  for (const selector of ['.agent-toggle', '.agent-mode legend', '.agent-mode-option span', '.agent-step', '.plan-head h3', '.plan-state', '.plan-step-status', '.plan-actions button']) {
+    const elements = selector === '.agent-step' ? panel.getByTestId('agent-step') : panel.locator(selector);
+    for (const element of await elements.all()) await expect(element).toContainText('⟦');
+  }
+  for (const hint of await panel.locator('.agent-mode-option').all()) await expect(hint).toHaveAttribute('title', /⟦/);
+  await expect(panel.locator('.agent-intent input')).toHaveAttribute('placeholder', /⟦/);
+  await expect(card.locator('.plan-params input').first()).toHaveAttribute('aria-label', /⟦/);
+  await expect(card.locator('.plan-params input').filter({ visible: true }).last()).toBeVisible();
+  await expect(panel.locator('.agent-intent-text').last()).toHaveText('Add two notes.');
+  await page.getByTestId('open-settings').click();
+  await settings.locator('[data-section="appearance"]').click();
+  await settings.locator('input[name="interface-language"][value="en"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await settings.locator('.settings-head button').click();
+  await expect(card.getByRole('textbox', { name: 'text of step 1' })).toHaveValue('Edited note.');
+  await card.getByRole('button', { name: 'Approve plan', exact: true }).click();
+  await expect(page.getByTestId('checkpoint')).toBeVisible();
+  expect((await projectTrace(page)).filter((name) => name === 'notes.append')).toHaveLength(2);
+  await page.getByTestId('checkpoint').getByRole('button', { name: 'Restore to before this turn' }).click();
+  await page.getByRole('dialog', { name: 'Restore to before this turn?' }).getByRole('button', { name: 'Restore', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Restored to before that turn.' })).toBeVisible();
+});
+
 test('a plan can be reordered and a drafted step edited, and approving it runs the steps in the edited order', async ({ page }) => {
   await fakeEndpoint(page, planThenAnswer(NOTE_THEN_SYNOPSIS, 'Both steps are in.', 'A storm takes the lamp.'));
   await useFakeEndpoint(page);

@@ -18,5 +18,6 @@ export {
   relativeTimeFormat,
   timeFormat,
 } from './format.js';
+export { defaultTitleOf, isDefaultTitle, type DefaultTitleKind } from './default-titles.js';
 export { isolate } from './isolation.js';
 export type { MessageRef } from './message-ref.js';

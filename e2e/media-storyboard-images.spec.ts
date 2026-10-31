@@ -11,7 +11,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, trace, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, trace, waitForSaved, loose } from './support.js';
 
 const PROJECT = 'Picture Book';
 /** A 1×1 PNG, the smallest picture the store will take. */
@@ -245,11 +245,11 @@ test('several pictures dropped on the board go on the shots their names number, 
   await expect(notice).toBeVisible();
   const lines = notice.getByRole('list', { name: 'Pictures dropped on the board' }).getByRole('listitem');
   await expect(lines).toHaveText([
-    '003.png: shot 3, New shot',
-    '1-wide.jpg: shot 1, New shot',
-    'notes.txt: not imported, it is not a PNG, JPEG or WebP picture',
-    '9.png: not imported, the board has 3 shots and none is numbered 9',
-    'ferry.png: not imported, its name does not start with a shot number (name a photograph like 007.jpg)',
+    loose('003.png: shot 3, New shot', true),
+    loose('1-wide.jpg: shot 1, New shot', true),
+    loose('notes.txt: not imported, it is not a PNG, JPEG or WebP picture', true),
+    loose('9.png: not imported, the board has 3 shots and none is numbered 9', true),
+    loose('ferry.png: not imported, its name does not start with a shot number (name a photograph like 007.jpg)', true),
   ]);
   await expect(notice).toContainText('a sheet printed from a longer board does not match it');
 
@@ -272,8 +272,8 @@ test('a drop on the board that matches no shot imports nothing, names every file
   const notice = page.getByRole('status').filter({ hasText: 'Nothing was imported.' });
   await expect(notice).toBeVisible();
   await expect(notice.getByRole('listitem')).toHaveCount(2);
-  await expect(notice).toContainText('sketch.png: not imported');
-  await expect(notice).toContainText('12.png: not imported, the board has 3 shots and none is numbered 12');
+  await expect(notice).toContainText(loose('sketch.png: not imported'));
+  await expect(notice).toContainText(loose('12.png: not imported, the board has 3 shots and none is numbered 12'));
   await expect(cards.locator('img')).toHaveCount(0);
   expect(await ran(page, 'shot.importImages')).toBe(0);
 

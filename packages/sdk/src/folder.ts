@@ -29,14 +29,16 @@ import { mkdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { ApplyRefusal } from '@caotang/bus';
-import { COHERENCE_FILE } from '@caotang/coherence';
+import { COHERENCE_FILE, loadCoherence, reconcileCoherence, saveCoherence, type CoherenceFile, type LoadResult, type SceneMeta } from '@caotang/coherence';
 import { assetRecordsOf, createExporter, exportMetadataOf, type ExporterService } from '@caotang/exporter';
 import { transcodePictureInNode } from '@caotang/exporter/picture-transcoder-node';
+import { processPictureInNode } from '@caotang/exporter/picture-process-node';
 import { loadInkCompiler } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
-import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadComicLetteringFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import {
   ArtifactNotFoundError,
+  asManifest,
   bodyStemOf,
   changesInWords,
   createProjectCommandRegistry,
@@ -63,11 +65,29 @@ import {
   type ProjectState,
   type WriteReport,
 } from '@caotang/store';
-import type { CommandRegistry } from '@caotang/bus';
+import type { CommandError, CommandRegistry } from '@caotang/bus';
+import type { TimelineModel } from '@caotang/timeline';
 
 import { holdCoherence, openCoherence } from './coherence-file.js';
 import { acquireProjectLock, type ProjectLock } from './lock.js';
 import { byteArtifactsOver, NodeArtifactFs } from './node-fs.js';
+import { timelineCsvOf, timelineModelOf, type TimelineReadOptions } from './timeline.js';
+import {
+  declarationChanges,
+  declarationClashes,
+  declarationsWritten,
+  entryNamesOf,
+  movedSince,
+  placesOf,
+  readbackOf,
+  titlesOf,
+  FIELD_WORDS,
+  type SceneClash,
+  type TimelineApplied,
+  type TimelineFile,
+  type TimelineReadback,
+  type TimelineWriteResult,
+} from './timeline-persistence.js';
 import type { FolderVoice } from './voice.js';
 
 /** The folder holds no project, and the host did not ask for one to be made. */
@@ -104,11 +124,16 @@ export class FolderChangedError extends Error {
     /** The change was written to the folder before another program changed caotang.json after it, so the folder may not hold it. */
     readonly saved: boolean = false,
     voice: FolderVoice,
+    /** Set when a timeline batch stopped part way: the folder holds half a batch, which is not another program's change. */
+    partway?: string,
   ) {
     super(
-      `the project “${project}” changed on disk since ${voice.program} last saved it, because another program ${cause}. ` +
-        `Writes are stopped, so that this copy cannot overwrite that work. ${outcomeWords(applied, saved)} ` +
-        voice.reload,
+      partway === undefined
+        ? `the project “${project}” changed on disk since ${voice.program} last saved it, because another program ${cause}. ` +
+            `Writes are stopped, so that this copy cannot overwrite that work. ${outcomeWords(applied, saved)} ` +
+            voice.reload
+        : `the project “${project}” was only partly saved by a timeline batch (${partway}). ` +
+            `Writes are stopped, so that this copy cannot paper over what the folder holds now. ${voice.reload}`,
     );
     this.name = 'FolderChangedError';
   }
@@ -118,6 +143,15 @@ export class FolderChangedError extends Error {
 function outcomeWords(applied: boolean, saved: boolean): string {
   if (saved) return 'The change was saved, and then another program changed caotang.json, so the folder may not hold it.';
   return applied ? 'The change is in memory and is not saved.' : 'Nothing was written.';
+}
+
+/** The class of a failure, for a save's own words: the operating system's code where it gave one, else the error's name. */
+function errorNameOf(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code: unknown }).code;
+    if (typeof code === 'string') return code;
+  }
+  return error instanceof Error ? error.name : 'an error';
 }
 
 /**
@@ -273,8 +307,26 @@ export interface OpenFolder {
   stoppedError(applied: boolean): FolderChangedError;
   /** Lists the stored images again, for the exporter, which reads them synchronously. */
   refreshAssets(): Promise<void>;
+  /**
+   * The story timeline of the project as it is now (timeline.md §3), built from the state and the `coherence.json` this
+   * session holds in memory — the same `buildTimeline` the app's view and the exporter call, so every host sees identical
+   * data. Read-only: builds nothing, writes nothing, logs no row.
+   */
+  timeline(options?: TimelineReadOptions): TimelineModel;
+  /**
+   * The timeline as CSV rows in the canonical logical order of timeline.md §8 (part, day, reading index; undated last per
+   * part). Read-only, like {@link timeline}.
+   */
+  timelineCsv(options?: TimelineReadOptions): string;
   /** Writes the project folder from the current state, after any write queued before it. */
   persist(): Promise<void>;
+  /**
+   * One approved timeline batch, written as the two files it changes (timeline.md §9.2): the manifest for a move, `coherence.json`
+   * for a scene's declaration, with a per-scene merge of the folder's own copy and a read-back of what the disk now holds. `applied`
+   * installs the batch in the session's copy and returns what the harness answered; it runs on the folder's queue, after the
+   * folder's checks and with the folder's own copies in hand, and nothing is written when the batch was refused or conflicts.
+   */
+  applyTimeline<T>(applied: () => TimelineApplied<T>): Promise<TimelineWriteResult<T>>;
   /** Writes `coherence.json` when it changed and writes are on, on the same queue. Never throws. */
   persistCoherence(): Promise<void>;
   /** Checks the folder against what this session holds, queued like a save. A change it finds stops the writes. */
@@ -359,8 +411,12 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
       loadDevanagariFont: loadDevanagariFontInNode,
+      // The comic PDF's lettering (Comic Neue and Bangers): from fonts/ beside the bundle, or from @caotang/font-comic-lettering.
+      loadComicFont: loadComicLetteringFontInNode,
       // A WebP picture on the contact sheet: decoded with @jsquash/webp, whose webp_dec.wasm is beside the bundle or in its package.
       transcodePicture: transcodePictureInNode,
+      // The prose figures' profiles (pictures.md §4): Node's codecs, so no browser canvas is needed for EPUB and DOCX figures.
+      processPicture: processPictureInNode,
     });
     await exporter.ready();
 
@@ -372,16 +428,29 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
     let changed = false;
     let stoppedBy: string | undefined;
     let stoppedSaved = false;
+    let stoppedPartway: string | undefined;
     let queue: Promise<void> = Promise.resolve();
 
     const errorOf = (applied: boolean, cause: string | undefined, wasSaved: boolean): FolderChangedError =>
-      new FolderChangedError(root, state.manifest.project.name, applied, cause, wasSaved, voice);
+      new FolderChangedError(root, state.manifest.project.name, applied, cause, wasSaved, voice, stoppedPartway);
 
     /** Stops the writes: every later one is refused, until the host reads the folder again. */
     const markChanged = (cause: string, wasSaved = false): void => {
       changed = true;
       stoppedBy = cause;
       stoppedSaved = wasSaved;
+    };
+
+    /**
+     * A timeline batch that stopped part way leaves the folder and this copy out of step, so no later write by any caller may paper
+     * over it. A stop already recorded (another program's change) keeps its own words.
+     */
+    const stopPartway = <T>(result: Extract<TimelineWriteResult<T>, { status: 'partial' }>): TimelineWriteResult<T> => {
+      if (!changed) {
+        markChanged('left a timeline batch half written');
+        stoppedPartway = 'caotang.json and coherence.json were not both written, or the folder does not hold what was written';
+      }
+      return result;
     };
 
     const stopWith = (cause: string, wasSaved = false): never => {
@@ -399,7 +468,9 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       return hasDrift(drift) ? changesInWords(drift, state, heldTitles, voice.holder) : undefined;
     };
 
-    const saveOnce = async (): Promise<void> => {
+    // `into` is the report of a caller that has more than one file to write: a save that stops part way leaves it holding what it
+    // did write, which is what a two-file write reports as `partial` (timeline-persistence.ts).
+    const saveProjectOnce = async (into?: WriteReport): Promise<WriteReport> => {
       if (changed) throw errorOf(true, stoppedBy, stoppedSaved);
       // A change is refused before anything is written.
       const cause = await driftCause();
@@ -410,7 +481,7 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       // there is kept, and so is every document the copy still names.
       const present = new Set(bodyNodeIdsOf(state));
       const deleted = heldBodies.filter((id) => !present.has(id));
-      const report: WriteReport = { written: [], rotated: [], dropped: [], pruned: [] };
+      const report: WriteReport = into ?? { written: [], rotated: [], dropped: [], pruned: [] };
       try {
         // Each file is checked against the digest held for it just before it is written or removed, so a change made after the check above
         // is not overwritten either.
@@ -432,13 +503,187 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       heldBodies = [...present];
       heldTitles = projectFileTitles(state);
       if ((await manifestOnDisk(fs)) !== text) stopWith(`changed caotang.json after ${voice.holder} saved it`, true);
+      return report;
     };
 
-    const enqueue = (task: () => Promise<void>): Promise<void> => {
+    const enqueue = <T>(task: () => Promise<T>): Promise<T> => {
       const next = queue.then(task);
-      queue = next.catch(() => undefined);
+      queue = next.then(
+        () => undefined,
+        () => undefined,
+      );
       return next;
     };
+
+    /** The files a report says the write reached, as a timeline result names them: the manifest, and never a document. */
+    const manifestReached = (report: WriteReport): TimelineFile[] => (report.written.includes(MANIFEST_FILE) ? ['caotang.json'] : []);
+
+    const conflictOf = <T>(error: CommandError, scenes: readonly SceneClash[] = []): TimelineWriteResult<T> => ({
+      status: 'conflict',
+      conflict: { error, scenes },
+    });
+
+    /** What the folder holds now for the batch's scenes and moves, or nothing when a file cannot be read (which the compare reads as a disagreement). */
+    const readBack = async (scenes: readonly string[], moved: readonly string[]): Promise<TimelineReadback> => {
+      try {
+        const text = await manifestOnDisk(fs);
+        if (text === undefined) return { scenes: [], moved: [] };
+        const manifest = asManifest(JSON.parse(text) as Record<string, unknown>);
+        const file = await loadCoherence(fs, { readOnly: true });
+        return readbackOf(manifest, file.file, scenes, moved);
+      } catch {
+        return { scenes: [], moved: [] };
+      }
+    };
+
+    /**
+     * One approved timeline batch, written as the two files it changes: `caotang.json` (a move) and `coherence.json` (a scene's
+     * declaration) — timeline.md §9.2, T12.
+     *
+     * The batch is installed in the session's copy by `applied`, between a snapshot of the declarations and tree places it may change
+     * and the comparison that follows, so nothing awaits while the before-image is live. Everything before that is a read: the save's
+     * own drift check (the manifest and every document and codex file), `coherence.json` as the folder holds it now, and the batch's
+     * own before-image against that file.
+     *
+     * **The merge is per scene, and a clash refuses.** `coherence.json` holds declarations the desktop app edits too, and it is outside
+     * the drift check, so its disk copy is what this write starts from (`holdCoherence.mergeInto` keeps this host's own unsaved
+     * findings on top). The batch's declarations then go over exactly the scenes it touched (`declarationsWritten`), and every other
+     * scene's declaration, every finding and dismissal, every world rule and the review state stay the app's. Two values for one field
+     * is the one thing a merge cannot settle, so it is a conflict: the batch is taken back out of the session's copy and nothing is
+     * written. A move cannot be merged at all — the manifest is one JSON document — and the save's digest check already stops on any
+     * change to it.
+     *
+     * **`persisted` is only said about what the folder holds now.** Both files are read again after the write and the batch's scenes
+     * and moves compared with what was meant; a save that stopped part way, or a file another program rewrote under it, is `partial`
+     * and says which files it reached.
+     */
+    const applyTimeline = <T>(applied: () => TimelineApplied<T>): Promise<TimelineWriteResult<T>> =>
+      enqueue(async (): Promise<TimelineWriteResult<T>> => {
+        if (changed) {
+          const stopped = errorOf(true, stoppedBy, stoppedSaved);
+          return conflictOf<T>({ code: 'io-error', message: `${stopped.message} Nothing was written.`, correctiveHint: voice.reload, target: 'ops' });
+        }
+        const cause = await driftCause();
+        if (cause !== undefined) {
+          markChanged(cause);
+          return conflictOf<T>({
+            code: 'io-error',
+            message: `the timeline batch was not written: the project folder changed since ${voice.holder} read it, because another program ${cause}. Nothing was written.`,
+            correctiveHint: voice.reload,
+            target: 'ops',
+          });
+        }
+        let reread: LoadResult;
+        try {
+          reread = await loadCoherence(fs, { readOnly: true });
+        } catch (error) {
+          return conflictOf<T>({
+            code: 'io-error',
+            message: `the timeline batch was not written: ${COHERENCE_FILE} could not be read (${errorNameOf(error)}). Nothing was written.`,
+            correctiveHint: voice.reload,
+            target: 'ops',
+          });
+        }
+        if (reread.status === 'read-only' || reread.status === 'recovered') {
+          const why = reread.status === 'read-only' ? 'was written by a newer Caotang' : 'cannot be read';
+          return conflictOf<T>({
+            code: 'revision-conflict',
+            message: `the timeline batch was not written: ${COHERENCE_FILE} ${why}, so this batch's declarations could not be merged with it. Nothing was written.`,
+            correctiveHint: `open the project in the Caotang app and read the timeline again`,
+            target: 'ops',
+          });
+        }
+        const disk = reconcileCoherence(reread.file, state).file;
+        // The file this write starts from: the folder's own coherence.json, with this host's unsaved findings delta on top of it.
+        const base = coherenceHold.mergeInto(disk);
+        const heldMeta = structuredClone(((state.coherence as CoherenceFile | undefined)?.sceneMeta ?? {}) as Record<string, SceneMeta>);
+        const heldPlaces = placesOf(state.manifest.tree);
+
+        const result = applied();
+        if (!result.installed) return { status: 'refused', outcome: result.outcome };
+
+        const mine = state.coherence as CoherenceFile;
+        const declarations = declarationChanges(heldMeta, (mine.sceneMeta ?? {}) as Record<string, SceneMeta>);
+        const moves = movedSince(heldPlaces, state.manifest.tree);
+        const clashes = declarationClashes(heldMeta, (mine.sceneMeta ?? {}) as Record<string, SceneMeta>, disk.sceneMeta ?? {}, titlesOf(state.manifest), entryNamesOf(state.manifest));
+        if (clashes.length > 0) {
+          // Nothing is written, so the session's copy must not hold the batch either: only what the batch changed is put back.
+          for (const nodeId of declarations) {
+            if (heldMeta[nodeId] === undefined) delete mine.sceneMeta[nodeId];
+            else mine.sceneMeta[nodeId] = structuredClone(heldMeta[nodeId]!);
+          }
+          for (const nodeId of moves) {
+            const node = state.manifest.tree.find((candidate) => candidate.id === nodeId);
+            const place = heldPlaces.get(nodeId);
+            if (node !== undefined && place !== undefined) {
+              node.parentId = place.parentId;
+              node.order = place.order;
+            }
+          }
+          const named = clashes.map((clash) => `‘${clash.title}’ (its ${FIELD_WORDS[clash.field]} was ${clash.expected}, and is now ${clash.current})`);
+          return conflictOf<T>(
+            {
+              code: 'revision-conflict',
+              message: `the timeline batch was not written: another program changed ${joinWords(named)} while the change was being confirmed, so this batch would have overwritten it. Nothing was written, and the change is not in ${voice.holder}'s copy either.`,
+              correctiveHint: 'read the timeline again and propose the change from the values it shows now',
+              target: 'ops',
+              details: { scenes: clashes },
+            },
+            clashes,
+          );
+        }
+
+        const files: TimelineFile[] = [];
+        // A batch whose ops change nothing the project holds writes no file: a re-applied plan neither adds a row nor captures an undo.
+        if (declarations.length === 0 && moves.length === 0) {
+          return { status: 'persisted', outcome: result.outcome, readback: { scenes: [], moved: [] }, files };
+        }
+
+        const writtenFile = declarationsWritten(base, mine, declarations);
+        const report: WriteReport = { written: [], rotated: [], dropped: [], pruned: [] };
+        try {
+          await saveProjectOnce(report);
+        } catch (error) {
+          const reached = manifestReached(report);
+          return stopPartway({
+            status: 'partial',
+            outcome: result.outcome,
+            written: reached,
+            unwritten: reached.length === 0 ? ['caotang.json', 'coherence.json'] : ['coherence.json'],
+            readback: await readBack(declarations, moves),
+            recovery: `The timeline batch was only partly saved, and ${errorNameOf(error)} stopped it. The scene declarations are not on disk, and ${voice.holder} writes nothing more until the project is opened again; read the timeline again before proposing the change.`,
+          });
+        }
+        if (moves.length > 0) files.push('caotang.json');
+        try {
+          await saveCoherence(fs, reread, writtenFile);
+        } catch (error) {
+          return stopPartway({
+            status: 'partial',
+            outcome: result.outcome,
+            written: files,
+            unwritten: ['coherence.json'],
+            readback: await readBack(declarations, moves),
+            recovery: `${files.length === 0 ? 'The scene declarations are not on disk' : 'The moves are on disk and the scene declarations are not'}: ${COHERENCE_FILE} could not be written (${errorNameOf(error)}). ${voice.holder} writes nothing more until the project is opened again; read the timeline again, then propose only what the folder does not hold.`,
+          });
+        }
+        state.coherence = writtenFile;
+        files.push('coherence.json');
+
+        const readback = await readBack(declarations, moves);
+        const meant = readbackOf(state.manifest, state.coherence as CoherenceFile, declarations, moves);
+        if (JSON.stringify(readback) !== JSON.stringify(meant)) {
+          return stopPartway({
+            status: 'partial',
+            outcome: result.outcome,
+            written: files,
+            unwritten: [],
+            readback,
+            recovery: `Both files were written, and the folder does not hold what was written: another program may have changed them. ${voice.holder} writes nothing more until the project is opened again; read the timeline again and propose the change from what it shows.`,
+          });
+        }
+        return { status: 'persisted', outcome: result.outcome, readback, files };
+      });
 
     return {
       root,
@@ -455,10 +700,16 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       async refreshAssets() {
         assetRecords = await heldAssetsOf(fs);
       },
-      persist: () => enqueue(saveOnce),
+      timeline: (options) => timelineModelOf(state, options),
+      timelineCsv: (options) => timelineCsvOf(state, options),
+      persist: () =>
+        enqueue(async () => {
+          await saveProjectOnce();
+        }),
       // coherence.json is derived state (findings and runs), so it is saved on the same queue as the project and never overlaps a project
       // save, but it is outside driftCause: a findings write by the app must not stop manuscript writes, and a manuscript change does not stop this one.
       persistCoherence: () => enqueue(coherenceHold.save),
+      applyTimeline,
       // The folder check a confirmed write runs before the host is asked. It is queued like a save, so it never reads a file a save in flight
       // is still writing, and a change it finds stops the writes exactly as a save's check would.
       verifyFolder: () =>

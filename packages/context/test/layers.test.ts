@@ -3,6 +3,7 @@
  * rendered messages, so they check the prompt the model gets, not an internal shape.
  */
 import { describe, expect, it } from 'vitest';
+import { textOf } from '@caotang/gateway';
 
 import { ANTECEDENT_CHARS, assemble, type AgentTask, type ContextConfig } from '../src/index.js';
 import { formatCount } from '../src/text.js';
@@ -12,7 +13,7 @@ const MARKER = '<<< current text ends here >>>';
 
 function user(task: AgentTask, config: ContextConfig = {}): string {
   const assembled = assemble(task, buildApp(), config);
-  return assembled.messages[1]?.content ?? '';
+  return textOf(assembled.messages[1]?.content ?? '');
 }
 
 /** The focus section of a user message, from its heading to the recent turns. */
@@ -21,7 +22,7 @@ function focusOf(text: string): string {
 }
 
 function system(task: AgentTask, config: ContextConfig = {}): string {
-  return assemble(task, buildApp(), config).messages[0]?.content ?? '';
+  return textOf(assemble(task, buildApp(), config).messages[0]?.content ?? '');
 }
 
 const CONTINUE: AgentTask = {
@@ -36,9 +37,9 @@ describe('the message layout (§2)', () => {
   it('puts L0 alone in the system message, and L1 to L7 in one user message in fixed order', () => {
     const messages = assemble(CONTINUE, buildApp()).messages;
     expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
-    expect(messages[0]?.content.startsWith('Caotang writing agent, system prompt v1.')).toBe(true);
+    expect(textOf(messages[0]?.content ?? '').startsWith('Caotang writing agent, system prompt v1.')).toBe(true);
 
-    const text = messages[1]?.content ?? '';
+    const text = textOf(messages[1]?.content ?? '');
     const headings = ['# Project', '# Codex', '# Structure', '# Story so far', '# Focus', '# Recent turns', '# Task'];
     const positions = headings.map((heading) => text.indexOf(heading));
     expect(positions.every((position) => position >= 0)).toBe(true);

@@ -29,6 +29,7 @@ import {
   longChapter,
   selectionOfFocus,
 } from './fixtures.js';
+import { textOf } from '@caotang/gateway';
 
 const CONTINUE: AgentTask = {
   tool: 'scene.draft',
@@ -135,7 +136,7 @@ describe('the report (§4)', () => {
 
   it('counts the prompt in the estimate the ledger uses: ceil of the characters over four', () => {
     const assembled = assemble(CONTINUE, buildApp());
-    const chars = assembled.messages.reduce((sum, message) => sum + message.content.length, 0);
+    const chars = assembled.messages.reduce((sum, message) => sum + textOf(message.content).length, 0);
     expect(assembled.estimate.promptTokens).toBe(Math.ceil(chars / 4));
   });
 

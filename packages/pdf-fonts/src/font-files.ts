@@ -38,3 +38,24 @@ export const DEVANAGARI_FONT_FILE = 'NotoSansDevanagari-Regular.ttf';
 
 /** The Devanagari font's name, as the compile log names it. */
 export const DEVANAGARI_FONT_NAME = 'Noto Sans Devanagari';
+
+/**
+ * The comic lettering faces in `@caotang/font-comic-lettering` (vendor/comic-lettering): Comic Neue for balloon and caption text with
+ * its oblique and bold for thoughts, radio and emphasis, and Bangers for sound effects. The lettering model and the PDF name a face by
+ * the key; the loaders map it to the file.
+ */
+export const COMIC_LETTERING_FACES = ['regular', 'italic', 'bold', 'bold-italic', 'sfx'] as const;
+
+export type ComicLetteringFace = (typeof COMIC_LETTERING_FACES)[number];
+
+export const COMIC_LETTERING_FONT_FILES: Readonly<Record<ComicLetteringFace, string>> = {
+  regular: 'ComicNeue-Regular.woff',
+  italic: 'ComicNeue-Italic.woff',
+  bold: 'ComicNeue-Bold.woff',
+  'bold-italic': 'ComicNeue-BoldItalic.woff',
+  sfx: 'Bangers-Regular.woff',
+};
+
+/** The faces' family names, as the compile log names them. */
+export const COMIC_NEUE_FONT_NAME = 'Comic Neue';
+export const BANGERS_FONT_NAME = 'Bangers';

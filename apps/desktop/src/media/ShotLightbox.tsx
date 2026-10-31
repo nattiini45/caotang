@@ -5,13 +5,24 @@
  * when it closes.
  */
 
+import { t } from '@lingui/core/macro';
+import { accessibleText } from '../i18n/accessible-text.js';
+import { isolate } from '@caotang/i18n';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
+
+/* lingui-set comment="The shot picture viewer. Interpolated values: title is the shot's title." */
 export interface ShotLightboxProps {
   /** The picture's object URL, as the card's image slot reads it. */
   readonly url: string;
   /** The shot's title, which the picture is labelled with. */
   readonly title: string;
+  /** The picture's alt text, when it has one of its own (a registry picture). Absent: the title. Empty marks a decorative picture. */
+  readonly alt?: string;
+  /** The line under the picture. Absent: the title. `null`: no line. */
+  readonly caption?: string | null;
   /** The element that opened the lightbox, which gets focus back when it closes. Absent: the element focused when it opened. */
   readonly returnFocusTo?: HTMLElement | null;
   readonly onClose: () => void;
@@ -20,7 +31,8 @@ export interface ShotLightboxProps {
 /** The elements a Tab can land on inside the dialog. */
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function ShotLightbox({ url, title, returnFocusTo, onClose }: ShotLightboxProps): ReactNode {
+export function ShotLightbox({ url, title, alt, caption, returnFocusTo, onClose }: ShotLightboxProps): ReactNode {
+  useLingui();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   // The latest onClose, read when a key is pressed. The listener below is set up once per opening, so a parent that passes a new
@@ -69,14 +81,14 @@ export function ShotLightbox({ url, title, returnFocusTo, onClose }: ShotLightbo
   };
 
   return (
-    <div ref={dialogRef} className="sb-lightbox" role="dialog" aria-modal="true" aria-label={`Image of ${title}`} onKeyDown={onDialogKey}>
+    <div ref={dialogRef} className="sb-lightbox" role="dialog" aria-modal="true" aria-label={accessibleText(t`Image of ${{ title: isolate(title) }}`)} onKeyDown={onDialogKey}>
       <div className="sb-lightbox-backdrop" onClick={onClose} aria-hidden="true" />
       <figure className="sb-lightbox-frame">
-        <img src={url} alt={title} />
-        <figcaption>{title}</figcaption>
+        <img src={url} alt={alt ?? title} />
+        {caption === null ? null : <figcaption dir="auto">{caption ?? title}</figcaption>}
       </figure>
       <button ref={closeRef} type="button" className="button is-quiet sb-lightbox-close" onClick={onClose}>
-        Close
+        <Trans>Close</Trans>
       </button>
     </div>
   );

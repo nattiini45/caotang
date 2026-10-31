@@ -77,6 +77,8 @@ import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
 import { LARGE_SCOPE_APPROVAL, LARGE_SCOPE_APPROVAL_KEY } from '../tools/coherence.js';
+import { pictureViewMessage, type PictureOutbox } from '../tools/pictures.js';
+import type { PictureTranscriptionGeneration, PictureTranscriptionPlan, TranscriptionSecondRead } from '../tools/transcription.js';
 import {
   addUse,
   budgetHit,
@@ -103,6 +105,7 @@ import {
   MODEL_BACKED_TOOLS as MODEL_BACKED,
   planCardOf,
   reviewCostAt,
+  transcriptionCostAt,
   stagedOf,
   type DelegationView,
   type EditableSteps,
@@ -169,7 +172,7 @@ import {
   type Reply,
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
-import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
+import { appendLanguageLine, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
   BACKGROUND_OFFER_MIN_CALLS,
@@ -182,8 +185,24 @@ import {
 } from './background.js';
 import { DERIVE_SCHEMA_HINT, deriveRole, deriveUserText, parseDeriveReply, promptModelOf, storyboardOf } from './storyboard-model.js';
 
+export interface TranscriptionRouteInfo {
+  readonly profileId: string;
+  readonly model: string;
+  readonly label: string;
+  readonly vision: boolean;
+}
+
+export interface TranscriptionGenerationInput {
+  readonly plan: PictureTranscriptionPlan;
+  readonly model: ModelCall;
+  /** Present exactly when the plan names a second read; separately pinned to its explicit route. */
+  readonly secondModel?: ModelCall;
+}
+
 export interface AgentSessionOptions {
   readonly harness: Harness;
+  /** The languages to pin at each turn's start (i18n §6.1). Absent: the model is sent no language line, as a headless host sends none. */
+  readonly languages?: () => LanguagePolicy | undefined;
   /** The gateway the turn's model calls go through. Its ledger carries the per-turn usage (provider-gateway §6). */
   readonly gateway: Gateway;
   /**
@@ -191,6 +210,12 @@ export interface AgentSessionOptions {
    * `@caotang/context`'s layers over the harness's own project state (context.ts `createContextPort`).
    */
   readonly context?: ContextPort;
+  /** Where `pictures.view` holds image parts until the loop sends them after the tool results (pictures.md §8.1). */
+  readonly pictureOutbox?: PictureOutbox;
+  /** Generates transcription reads after the plan's approval, through the loop's budgeted model calls. */
+  readonly transcribe?: (input: TranscriptionGenerationInput) => Promise<Result<PictureTranscriptionGeneration, CommandError>>;
+  /** Resolves a route's concrete model, display name and vision capability for the transcription card. */
+  readonly transcriptionRoute?: (profileId: string | undefined, model: string | undefined) => TranscriptionRouteInfo | undefined;
   /** Asked for a decision on every card. The loop does not act until it answers. */
   readonly decide: (pending: PendingCard) => Promise<Decision>;
   readonly emit?: (event: AgentEvent) => void;
@@ -306,6 +331,8 @@ export interface TurnOptions {
   readonly profileId?: string;
   readonly model?: string;
   readonly thinking?: ThinkingLevel;
+  /** Pinned languages for this turn, over the session's own. Absent: the session's `languages` is read once, at the turn's start. */
+  readonly languages?: LanguagePolicy;
 }
 
 /** What a UI action can tell a planner turn before it starts. */
@@ -451,6 +478,8 @@ interface Turn {
   metered: number;
   /** The profile, model and thinking level this turn's calls run on: its own pins over the session's. */
   readonly pins: Pins;
+  /** The interface and project languages as they stood when the turn started: a switch during the turn applies to the next one. */
+  readonly languages: LanguagePolicy | undefined;
   /** The phase the turn last reported: what a stop says it happened during. */
   phase: TurnPhase;
   /** The notes the writer sent, in order; one without `deliveredAtCall` has not reached the model. */
@@ -705,12 +734,25 @@ function noticeFor(card: PlanCardView): string {
   const stale = card.steps.find((step) => step.stale && step.status !== 'done');
   if (stale !== undefined) {
     const named = `step ${stale.index + 1} (${stale.tool})`;
+    if (stale.tool === 'timeline.edit') {
+      return `${named} was proposed against days, parts or places that have since changed, so it was not applied: retry it to read the timeline again, or cancel the card`;
+    }
     return MODEL_BACKED.has(stale.tool)
       ? `${named} was drafted against an earlier version of the document, so it was not applied: retry the draft, or cancel the card`
       : `${named} changed after it was last checked, so the card cannot be approved as it stands: drop the step, or cancel the card`;
   }
   if (card.cut) return 'this draft was cut off at the model’s output limit: retry the draft, or approve with acceptTruncated to keep the cut text';
   return 'this card cannot be approved while a step is refused: edit the step or cancel the card';
+}
+
+/**
+ * A refusal at the approval that is a staged value gone stale: a evision-conflict the preflight found for a step whose guards were read when it was
+ * proposed. It keeps its own code, so the card shows the step stale for a retry, as it does when a single call is refused the same way, and not as a plan
+ * that was malformed. Anything else keeps the plan's generic refusal.
+ */
+function staleRefusal(preflight: PlanPreflight): { readonly index: number; readonly askBack: AskBack } | undefined {
+  const found = preflight.steps.find((entry) => entry.tool === 'timeline.edit' && entry.status === 'refused' && entry.error?.code === 'revision-conflict');
+  return found?.error === undefined ? undefined : { index: found.index, askBack: askBackFor(found.error) };
 }
 
 /** The decision loop gave up: the card was decided too often without a change that could apply. */
@@ -1103,6 +1145,33 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return tools.length === 0 ? undefined : tools;
   };
 
+  function transcriptionRoute(turn: Turn, route?: TranscriptionSecondRead): TranscriptionRouteInfo {
+    const profileId = route?.profileId ?? turn.pins.profileId;
+    const model = route?.model ?? turn.pins.model;
+    const resolved = options.transcriptionRoute?.(profileId, model);
+    if (resolved !== undefined) return resolved;
+    return {
+      profileId: profileId ?? '',
+      model: model ?? '',
+      label: model ?? (profileId === undefined ? 'active model' : 'profile default model'),
+      vision: gateway.modelCaps?.(profileId, model)?.vision === true,
+    };
+  }
+
+  /** A second read is another, working vision route, chosen before its cost is approved. */
+  function secondRouteProblem(turn: Turn, plan: PictureTranscriptionPlan): string | undefined {
+    if (plan.secondRead === undefined) return undefined;
+    const primary = transcriptionRoute(turn);
+    const second = transcriptionRoute(turn, plan.secondRead);
+    if (primary.profileId === second.profileId && primary.model === second.model) {
+      return 'the second read names the same route as the first, so it would not be an independent read. Choose another vision profile or model in Settings › Providers.';
+    }
+    if (!second.vision) {
+      return `the second-read route ${second.label} does not accept pictures. Choose a model with vision in Settings › Providers, or remove secondRead.`;
+    }
+    return undefined;
+  }
+
   /**
    * The planner's own calls: the one budgeted call site, with the turn's declarations added on the
    * native wire. The list is rebuilt here, on the call itself, so a tool a mid-turn `tool.search`
@@ -1127,10 +1196,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     pending?.results.set(call.id, result);
   };
 
+  /** Sends the pictures a view held for this turn, once, after the tool results already pushed. */
+  const flushPictures = (turn: Turn): void => {
+    const images = options.pictureOutbox?.take(turn.id) ?? [];
+    if (images.length > 0) turn.messages.push(pictureViewMessage(images));
+  };
+
   /**
    * The tool messages the next request carries, one per call the model made and has not yet heard back
    * for — every call is answered, so the model is never left guessing whether one ran. A call with no
-   * recorded outcome is reported not run: its step was cancelled, declined or edited away.
+   * recorded outcome is reported not run: its step was cancelled, declined or edited away. Any viewed
+   * pictures follow all of those results in one user message: an image is valid on no tool message.
    */
   const flushWire = (turn: Turn): void => {
     for (const reply of turn.wireReplies) {
@@ -1145,6 +1221,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     turn.wireReplies.length = 0;
+    flushPictures(turn);
   };
 
   /** Gives a step the wire call of the one it replaced, when an edit or a retry made it a new object. */
@@ -1323,7 +1400,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function draftStep(turn: Turn, step: PlanStep): Promise<Drafted> {
     const { state } = harness;
     // The history every call of this turn may draw on: the turns before it (L6), and their activity rows for the outcomes.
-    const history = { turns: turn.priorTurns, activity: harness.log.entries() };
+    const history = { turns: turn.priorTurns, activity: harness.log.entries(), ...(turn.languages === undefined ? {} : { languages: turn.languages }) };
     if (step.tool === 'scene.draft') {
       const node = resolveNode(state, String(step.params['doc']), DOCUMENT, 'document', 'params.doc');
       if (!node.ok) return refusedDraft(node.error.message);
@@ -1371,7 +1448,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const reply = await complete(
         modelCall(turn),
         [
-          { role: 'system', content: deriveRole(granularity) },
+          { role: 'system', content: appendLanguageLine(deriveRole(granularity), turn.languages) },
           { role: 'user', content: deriveUserText(node.value.title, getBody(state, node.value.id), styleNote) },
         ],
         { jsonSchemaHint: DERIVE_SCHEMA_HINT },
@@ -1432,6 +1509,31 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const proposal: SynopsisProposal = { items: batch.items, cut: batch.cut, ...(merged === undefined ? {} : { context: merged }) };
       return { ok: true, proposal };
     }
+    if (step.tool === 'pictures.transcribe') {
+      // No image or model call leaves the host while the schedule, both explicitly selected routes and their costs are approved.
+      const planned = harness.transcriptionPlan(step.params);
+      if (!planned.ok) return refusedDraft(planned.error.message);
+      const routeProblem = secondRouteProblem(turn, planned.value);
+      if (routeProblem !== undefined) return refusedDraft(routeProblem);
+      const costs = transcriptionCostAt(planned.value, gateway, turn.pins.profileId, turn.pins.model, turn.pins.thinking);
+      const primary = transcriptionRoute(turn);
+      const second = planned.value.secondRead === undefined ? undefined : transcriptionRoute(turn, planned.value.secondRead);
+      return {
+        ok: true,
+        proposal: {
+          ...planned.value,
+          ...(costs.total === undefined ? {} : { cost: costs.total }),
+          routes: {
+            primary: { label: primary.label, model: primary.model },
+            ...(second === undefined ? {} : { second: { label: second.label, model: second.model } }),
+          },
+          routeCosts: {
+            ...(costs.primary === undefined ? {} : { primary: costs.primary }),
+            ...(costs.second === undefined ? {} : { second: costs.second }),
+          },
+        },
+      };
+    }
     if (step.tool === 'coherence.review') {
       // The review's plan, staged with no model call (coherence.md §7 tool 16): the card shows its documents, its cost estimate
       // and its first prompt, and the review runs only after the writer approves that card (`runAwaited`). The cost is the
@@ -1463,6 +1565,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const checked = dialogueDraftTool(step.params, { state, proposal: { ink: draft.text } });
       if (!checked.ok) return refusedDraft(checked.error.message);
       return { ok: true, proposal: { ink: draft.text, revision, cut: draft.cut, context: call.preview } };
+    }
+    if (step.tool === 'timeline.edit') {
+      // The values the batch is checked against are read here, with no model call, and held to at the approval: a scene that changes while
+      // the card waits refuses the whole batch as a revision conflict (timeline.md §5.1).
+      const staged = harness.timelineStage(step.params);
+      return staged.ok ? { ok: true, proposal: staged.value } : refusedDraft(refusalSentence(staged.error.message, staged.error.correctiveHint));
     }
     // continuity.scan
     const scopeRefs = Array.isArray(step.params['scope']) ? (step.params['scope'] as readonly string[]) : undefined;
@@ -1506,12 +1614,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   });
 
   /**
-   * Runs one read: a loaded external tool through the bus (`callExternal`, extensibility §6), anything else through the
-   * harness. Only a native read takes the writer's one-step confirmation.
+   * Runs one read: a loaded external tool through the bus (`callExternal`, extensibility §6), a native async port through
+   * `callAsync` (`pictures.view`), anything else through the synchronous harness. A read needs no approval card; only the
+   * document guard may ask for the writer's one-step confirmation.
    */
   async function invokeRead(turn: Turn, call: ToolCall, permission?: { readonly confirmed: true }): Promise<ToolOutcome> {
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn) });
-    return harness.call(call, permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission });
+    const granted = permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission };
+    if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
+    return harness.call(call, granted);
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
@@ -1579,6 +1690,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turnId: turn.id,
       agentPath,
       native: turn.native,
+      ...(turn.languages === undefined ? {} : { languages: turn.languages }),
       reserve: (calls) => {
         if (callsLeft(turn) < calls + 1) return false;
         turn.modelCalls += calls;
@@ -1685,6 +1797,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     } else {
       const sections = [resultsMessage(results), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow)] : [])];
       turn.messages.push({ role: 'user', content: sections.join('\n\n') });
+      flushPictures(turn);
     }
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
     // sent again in the next request: the same names would reach the model twice (context-assembly §2).
@@ -1983,13 +2096,69 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const write = grant !== 'read';
     cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
     moveCard(turn, id, 'running');
-    const call: ToolCall = { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) };
-    // A native async tool (coherence.review) runs under the approval its card gave: the plan's, or the one-step confirmation.
-    // An external tool is called through its own entry, under the confirmation its card gave (extensibility §4 rule 2).
+    let runProposal = proposal;
+    let generationFailure: ToolOutcome | undefined;
+    if (step.tool === 'pictures.transcribe' && loadedExternal(step.tool) === undefined) {
+      const plan = proposal as PictureTranscriptionPlan | undefined;
+      if (plan?.kind !== 'pictures.transcribe' || options.transcribe === undefined) {
+        generationFailure = err(
+          refusal('invalid-params', 'pictures.transcribe has no approved plan and generation port, so no page was sent and nothing was written', {
+            target: step.tool,
+            correctiveHint: 'run the transcription through the agent in a host that supplies its vision review',
+          }),
+        );
+      } else {
+        const routeProblem = secondRouteProblem(turn, plan);
+        if (routeProblem !== undefined) {
+          generationFailure = err(refusal('invalid-params', routeProblem, { target: 'secondRead', correctiveHint: 'choose another vision route, or remove secondRead' }));
+        } else {
+          try {
+            const primaryCall = modelCall(turn);
+            let secondModel: ModelCall | undefined;
+            if (plan.secondRead !== undefined) {
+              const second = plan.secondRead;
+              const { profileId: _profile, model: _model, thinking: _thinking, ...shared } = primaryCall;
+              secondModel = {
+                ...shared,
+                profileId: second.profileId,
+                ...(second.model === undefined ? {} : { model: second.model }),
+              };
+            }
+            const generated = await options.transcribe({
+              plan,
+              model: primaryCall,
+              ...(secondModel === undefined ? {} : { secondModel }),
+            });
+            if (!generated.ok) generationFailure = err(generated.error);
+            else runProposal = { plan, draft: generated.value };
+          } catch (error) {
+            generationFailure = err(
+              error instanceof BudgetExceeded
+                ? limitExceeded(error.message, 'select fewer pages, drop the second read, or raise the turn’s model-call budget', step.tool)
+                : refusal('internal', error instanceof Error ? error.message : String(error), {
+                    target: step.tool,
+                    correctiveHint: 'retry the transcription; no reviewed pages were published',
+                  }),
+            );
+          }
+        }
+      }
+    }
+    const call: ToolCall = { name: step.tool, callId: id, params: step.params, ...(runProposal === undefined ? {} : { proposal: runProposal }) };
+    // A native async tool runs under the approval its card gave. Transcription generates above through the same budgeted
+    // model-call site as every other draft, then its port reviews and publishes; an external tool uses its own entry.
     const outcome =
-      loadedExternal(step.tool) === undefined
-        ? await harness.callAsync(call, grant === 'plan' ? { turnId: turn.id, permission: { approvedPlan: true }, ...signalOf(turn) } : { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) })
-        : await harness.callExternal(call, grant === 'confirmed' ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) } : { turnId: turn.id, ...signalOf(turn) });
+      generationFailure ??
+      (loadedExternal(step.tool) === undefined
+        ? await harness.callAsync(
+            call,
+            grant === 'plan'
+              ? { turnId: turn.id, permission: { approvedPlan: true }, ...signalOf(turn) }
+              : grant === 'confirmed'
+                ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) }
+                : { turnId: turn.id, ...signalOf(turn) },
+          )
+        : await harness.callExternal(call, grant === 'confirmed' ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) } : { turnId: turn.id, ...signalOf(turn) }));
     if (!outcome.ok && turn.signal?.aborted === true) {
       // The wait ended because the writer stopped the turn: the step did not finish, and that is not a refusal to adjust.
       moveCard(turn, id, 'failed', { error: STOPPED_STEP });
@@ -2003,7 +2172,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, id, 'done', { summary: outcome.value.summary });
       wireResult(turn, step, { ok: true, body: outcome.value.data });
-      return { ok: true, effect: true, completed: [index] };
+      return { ok: true, effect: true, completed: [index], ...(outcome.value.undoGroupId === undefined ? {} : { undoGroupId: outcome.value.undoGroupId }) };
     }
     const reason = errorSummary(outcome.error);
     turn.trace.push({ tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params });
@@ -2060,6 +2229,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             cancelAfter(turn, editable, index, 'plan', prefix);
             return { ...native, completed, ...(undoGroupId === undefined ? {} : { undoGroupId }) };
           }
+          if (native.undoGroupId !== undefined) undoGroupId ??= native.undoGroupId;
           completed.push(index);
           index += 1;
           continue;
@@ -2105,6 +2275,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           cancelAfter(turn, editable, index, 'plan', prefix);
           return { ...write, completed, ...(undoGroupId === undefined ? {} : { undoGroupId }) };
         }
+        if (write.undoGroupId !== undefined) undoGroupId ??= write.undoGroupId;
         completed.push(index);
         index += 1;
         continue;
@@ -2125,12 +2296,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const outcome = result.value;
       if (outcome.status === 'refused') {
         cancelAfter(turn, editable, index - 1, 'plan', prefix);
+        const conflict = staleRefusal(outcome.preflight);
         return {
           ok: false,
-          failedAt: index,
+          failedAt: conflict?.index ?? index,
           effect: false,
           completed,
-          askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
+          askBack: conflict?.askBack ?? askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
         };
       }
       const finished = outcome.status === 'applied' ? outcome.steps : outcome.completed;
@@ -2239,12 +2411,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (!result.ok) return { ok: false, failedAt: from, effect: false, completed: [], askBack: askBackFor(result.error) };
     const outcome = result.value;
     if (outcome.status === 'refused') {
+      const conflict = staleRefusal(outcome.preflight);
       return {
         ok: false,
-        failedAt: from,
+        failedAt: conflict?.index ?? from,
         effect: false,
         completed: [],
-        askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
+        askBack: conflict?.askBack ?? askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
       };
     }
     const finished = outcome.status === 'applied' ? outcome.steps : outcome.completed;
@@ -2418,7 +2591,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         editable = { ...editable, stale };
         from = failedAt;
         attemptPrefix = `${prefix}.retry${attempt}`;
-        notice = `${askBack.reason} The draft was kept: retry it against the current text, or cancel the card.`;
+        notice =
+          failed.tool === 'timeline.edit'
+            ? `${askBack.reason} The edit was kept: retry it to read the timeline again, or cancel the card.`
+            : `${askBack.reason} The draft was kept: retry it against the current text, or cancel the card.`;
         continue;
       }
 
@@ -2668,6 +2844,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       role: turn.native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
       turns: turn.priorTurns,
       activity: harness.log.entries(),
+      ...(turn.languages === undefined ? {} : { languages: turn.languages }),
     });
     // The skills list (context-assembly §2): a second planner addendum beside the loaded-tools line, in a user message after the
     // system prompt and so never part of L0. A project with no skill on offer has none, and its requests are as they were.
@@ -2777,6 +2954,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (!(error instanceof TurnStopped)) throw error;
       stopped = true;
     } finally {
+      options.pictureOutbox?.take(turn.id);
       harness.endTurn(turn.id);
     }
     const totals = gateway.ledger.turnTotals(turn.id);
@@ -2803,6 +2981,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     };
     latestPins = pins;
     maxModelCalls = boundNow();
+    const languages = turnOptions.languages ?? options.languages?.();
     const meter = typeof options.meter === 'function' ? options.meter() : options.meter;
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
     return {
@@ -2819,6 +2998,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       meter,
       metered: 0,
       pins,
+      languages,
       phase: 'started',
       notes: [],
       deciding: false,
@@ -2866,6 +3046,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (limitStop !== undefined && settled.budgetStop === undefined && turnOptions.signal?.aborted !== true) settled = { ...settled, budgetStop: limitStop };
     syncSteps(turn);
 
+    // An unflushed view (a cancelled or failed turn) must not retain its bytes after the turn is over.
+    options.pictureOutbox?.take(turn.id);
     harness.endTurn(turn.id);
     const totals = gateway.ledger.turnTotals(turn.id);
     const report = reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests });

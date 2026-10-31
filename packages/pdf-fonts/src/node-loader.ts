@@ -5,7 +5,8 @@
  *
  * Five fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
  * (`@caotang/font-noto-emoji`), Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and
- * Noto Sans Devanagari (`@caotang/font-noto-devanagari`).
+ * Noto Sans Devanagari (`@caotang/font-noto-devanagari`); and the comic lettering faces of `@caotang/font-comic-lettering`
+ * (Comic Neue and Bangers), one file each, behind a loader that takes the face.
  * The CJK and emoji loaders are for the full font and carry the loader of the font's common file as `common` ({@link withCommon});
  * the PDF writers read that one when a document's characters are all in it (common.ts).
  * Where each loader looks, in order:
@@ -20,17 +21,20 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withCommon, type CommonFontLoader, type FontLoader } from './font-bytes.js';
+import { withCommon, type CommonFontLoader, type ComicLetteringFontLoader, type FontLoader } from './font-bytes.js';
 import {
   ARABIC_FONT_FILE,
   CJK_COMMON_FONT_FILE,
   CJK_FONT_FILE,
+  COMIC_LETTERING_FONT_FILES,
   DEVANAGARI_FONT_FILE,
   EMOJI_COMMON_FONT_FILE,
   EMOJI_FONT_FILE,
   HEBREW_FONT_FILE,
+  type ComicLetteringFace,
 } from './font-files.js';
 
+const COMIC_LETTERING_PACKAGE = '@caotang/font-comic-lettering';
 const CJK_PACKAGE = '@caotang/font-noto-cjk';
 const EMOJI_PACKAGE = '@caotang/font-noto-emoji';
 const ARABIC_PACKAGE = '@caotang/font-noto-arabic';
@@ -115,3 +119,12 @@ export function devanagariFontCandidates(moduleUrl: string = import.meta.url): s
 
 /** Reads Noto Sans Devanagari, the font for Hindi, Marathi, Nepali and Sanskrit text. */
 export const loadDevanagariFontInNode: FontLoader = async () => readFirst(DEVANAGARI_FONT_FILE, devanagariFontCandidates());
+
+/** The places {@link loadComicLetteringFontInNode} reads a face from, in the order it tries them. */
+export function comicLetteringFontCandidates(face: ComicLetteringFace, moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(COMIC_LETTERING_FONT_FILES[face], COMIC_LETTERING_PACKAGE, moduleUrl);
+}
+
+/** Reads one face of the comic lettering (Comic Neue, or Bangers for sound effects): a WOFF file of `@caotang/font-comic-lettering`. */
+export const loadComicLetteringFontInNode: ComicLetteringFontLoader = async (face) =>
+  readFirst(COMIC_LETTERING_FONT_FILES[face], comicLetteringFontCandidates(face));

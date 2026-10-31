@@ -7,23 +7,46 @@
  * way typing does, through the autosave. Nothing here touches the store, the session or the DOM.
  */
 
-import { layoutLetter } from '../app/keymap.js';
+import { t } from '@lingui/core/macro';
+import { layoutLetter, printedKeyLabel, shortcutNames, type KeyboardLayoutMap } from '../app/keymap.js';
 import { LINE_ELEMENT_TYPES, convertLine, lineElementAt, type LineConversion, type LineElementType } from './engines.js';
 
+
+/* lingui-set comment="Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element." */
 /** The menu's name, which its tests find it by. */
-export const ELEMENT_MENU_LABEL = 'Element of this line';
+export function elementMenuLabel(): string {
+  return t`Element of this line`;
+}
 
 /** The words each entry shows. */
 export const ELEMENT_LABEL: Readonly<Record<LineElementType, string>> = {
-  scene_heading: 'Scene heading',
-  action: 'Action',
-  character: 'Character',
-  parenthetical: 'Parenthetical',
-  dialogue: 'Dialogue',
-  transition: 'Transition',
-  centered: 'Centered',
-  note: 'Note',
-  page_break: 'Page break',
+  get scene_heading() {
+    return t`Scene heading`;
+  },
+  get action() {
+    return t`Action`;
+  },
+  get character() {
+    return t`Character`;
+  },
+  get parenthetical() {
+    return t`Parenthetical`;
+  },
+  get dialogue() {
+    return t`Dialogue`;
+  },
+  get transition() {
+    return t`Transition`;
+  },
+  get centered() {
+    return t`Centered`;
+  },
+  get note() {
+    return t`Note`;
+  },
+  get page_break() {
+    return t`Page break`;
+  },
 };
 
 /** One entry: an element, the key that chooses it in the open menu, whether the line is it, and the edit, or `null` when it cannot be. */
@@ -79,14 +102,22 @@ export function chordPlatform(source: { readonly userAgentData?: { readonly plat
   return named.toLowerCase().startsWith('mac') ? 'mac' : 'other';
 }
 
+function chordModifierLabel(platform: ChordPlatform): string {
+  const names = shortcutNames();
+  return platform === 'mac' ? `Cmd+${names.alt}` : `${names.ctrl}+${names.shift}`;
+}
+
 /** The chord of an element as the writer reads it: "Ctrl+Shift+3", or "Cmd+Alt+3" on a Mac. */
-export function chordLabel(type: LineElementType, platform: ChordPlatform): string {
-  return `${CHORD_FAMILY[platform].label}+${LINE_ELEMENT_TYPES.indexOf(type) + 1}`;
+export function chordLabel(type: LineElementType, platform: ChordPlatform, layout?: KeyboardLayoutMap | null): string {
+  const digit = String(LINE_ELEMENT_TYPES.indexOf(type) + 1);
+  return `${chordModifierLabel(platform)}+${printedKeyLabel(digit, layout)}`;
 }
 
 /** The whole family as the writer reads it: "Ctrl+Shift+1 to 9". */
-export function chordRange(platform: ChordPlatform): string {
-  return `${CHORD_FAMILY[platform].label}+1 to ${LINE_ELEMENT_TYPES.length}`;
+export function chordRange(platform: ChordPlatform, layout?: KeyboardLayoutMap | null): string {
+  const label = chordModifierLabel(platform);
+  const last = LINE_ELEMENT_TYPES.length;
+  return t`${label}+${{ first: printedKeyLabel('1', layout) }} to ${{ last: printedKeyLabel(String(last), layout) }}`;
 }
 
 /** The chord of an element as `aria-keyshortcuts` spells it. */

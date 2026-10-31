@@ -8,7 +8,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, projectIdOf, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, projectIdOf, waitForSaved, loose } from './support.js';
 
 const PROJECT = 'Provenance Reel';
 const PNG = Buffer.from(
@@ -101,7 +101,7 @@ test('a codex entry’s visual reference is sent with the shot that names the en
   await expect(page.getByRole('status').filter({ hasText: 'Saved the prompt for' })).toBeVisible();
 
   await page.getByRole('radio', { name: 'Prompt pack', exact: true }).click();
-  await expect(page.getByRole('list', { name: 'Consistency of shot 1' })).toContainText('Elena: mentioned in the action, sends 1 reference');
+  await expect(page.getByRole('list', { name: 'Consistency of shot 1' })).toContainText(loose('Elena: mentioned in the action, sends 1 reference'));
   // The file the pack names is the stored image, so the reference is the picture the shot was given.
   await expect(page.locator('li.pp-shot')).toContainText(/Attach a_[0-9A-HJKMNP-TV-Z]{10}\.png/);
 });

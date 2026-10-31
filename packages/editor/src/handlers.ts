@@ -75,6 +75,8 @@ import type {
   TableRow,
 } from 'mdast';
 import { fromPmMark, fromPmNode, toPmMark, toPmNode } from '@handlewithcare/remark-prosemirror';
+import { cleanImageRaw } from './source-provenance.js';
+import type { ProvenanceCapture, ReferenceForm, SourceProvenance } from './source-provenance.js';
 
 /**
  * §3.3's `LossWarning`, verbatim — all five fields, and 0.1.5 emits no warning
@@ -257,6 +259,73 @@ export const STRINGIFY_OPTIONS = CANONICAL_STRINGIFY_OPTIONS;
 export const TWO_SPACE_HARD_BREAK = '  \n';
 
 /**
+ * The mdast node a save uses for syntax it kept from the source (source-provenance.ts): its `value` is written verbatim. It is a
+ * node of its own and not `html`, because the serializer's escaping of the text next to a node reads that node's first character
+ * (`peek`), and an `html` node always answers `<`.
+ */
+export interface RawSourceNode {
+  type: 'caotangRaw';
+  value: string;
+}
+export const rawSourceNode = (value: string): RawSourceNode => ({ type: 'caotangRaw', value });
+const rawSource = Object.assign((node: RawSourceNode): string => node.value, { peek: (node: RawSourceNode): string => node.value.charAt(0) });
+
+/** The members of `mdast-util-to-markdown`'s state the image writer uses (the package is `remark-stringify`'s, not a dependency here). */
+interface WriterState {
+  unsafe: Array<{ character: string; inConstruct?: unknown }>;
+  enter(name: string): () => void;
+  safe(value: string, config: Record<string, unknown>): string;
+  createTracker(info: unknown): { move(text: string): string; current(): Record<string, unknown> };
+}
+
+/**
+ * An image written the way the library writes one, except for one escape: `remark-gfm`'s footnote rule backslash-escapes every `[`
+ * in the node's text, including inside a quoted title, where it is not syntax. A placement suffix (`[caotang-image v1;size=half]`,
+ * pictures.md §2.2.1) would then be saved as `\[caotang-image …]`, which reads back as the same title but is not the file the spec
+ * shows and is not what a hand-written one looks like. The rule is left off for the title alone; every other escape stays.
+ */
+const writeImage = (node: { url: string; title?: string | null; alt?: string | null }, _parent: unknown, state: WriterState, info: unknown): string => {
+  const tracker = state.createTracker(info);
+  let value = tracker.move('![');
+  const exit = state.enter('image');
+  let leave = state.enter('label');
+  value += tracker.move(state.safe(node.alt ?? '', { before: value, after: ']', ...tracker.current() }));
+  value += tracker.move('](');
+  leave();
+  const title = node.title ?? '';
+  if ((node.url === '' && title !== '') || /[\0- \u007F]/.test(node.url)) {
+    leave = state.enter('destinationLiteral');
+    value += tracker.move('<');
+    value += tracker.move(state.safe(node.url, { before: value, after: '>', ...tracker.current() }));
+    value += tracker.move('>');
+  } else {
+    leave = state.enter('destinationRaw');
+    value += tracker.move(state.safe(node.url, { before: value, after: title === '' ? ')' : ' ', ...tracker.current() }));
+  }
+  leave();
+  if (title !== '') {
+    leave = state.enter('titleQuote');
+    value += tracker.move(' "');
+    const kept = state.unsafe;
+    state.unsafe = kept.filter(
+      (pattern) => !(pattern.character === '[' && Array.isArray(pattern.inConstruct) && pattern.inConstruct.includes('reference')),
+    );
+    try {
+      value += tracker.move(state.safe(title, { before: value, after: '"', ...tracker.current() }));
+    } finally {
+      state.unsafe = kept;
+    }
+    value += tracker.move('"');
+    leave();
+  }
+  value += tracker.move(')');
+  exit();
+  return value;
+};
+
+const image = Object.assign(writeImage, { peek: (): string => '!' });
+
+/**
  * **The options a save actually runs**, and the single definition of them.
  *
  * `CANONICAL_STRINGIFY_OPTIONS` is §5's five values; this adds the one handler
@@ -289,7 +358,8 @@ export const TWO_SPACE_HARD_BREAK = '  \n';
  */
 export const SAVE_STRINGIFY_OPTIONS = {
   ...CANONICAL_STRINGIFY_OPTIONS,
-  handlers: { break: () => TWO_SPACE_HARD_BREAK },
+  // `Handle` is `mdast-util-to-markdown`'s type, and that package is `remark-stringify`'s, not a dependency here; the cast is only for it.
+  handlers: { break: () => TWO_SPACE_HARD_BREAK, caotangRaw: rawSource, image: image as never },
 } as const;
 
 /**
@@ -708,7 +778,7 @@ const CELL_JOIN = ' ';
  * at load that "save will normalize these constructs", and a warning that only
  * named the construct would leave the reader to guess which half survived.
  */
-const createDegradeHandlers = (schema: Schema, sink: LossWarning[]) => ({
+const createDegradeHandlers = (schema: Schema, sink: LossWarning[], capture: ProvenanceCapture | undefined) => ({
   // `html` — one row, two positions. The whole raw value is kept, including
   // both tags, which is what §3.3's "literal text" means and what the library's
   // default does not do (its handler parses the value as HTML and keeps only
@@ -769,7 +839,16 @@ const createDegradeHandlers = (schema: Schema, sink: LossWarning[]) => ({
   // default, so this warning is how a writer learns their reference style is
   // not kept. Returns nothing, which is what the library's `ignore` did and
   // what the resolved document needs.
-  definition: (node: Definition) => {
+  //
+  // With a capture the definition is kept (source-provenance.ts) and a save writes it back, so only one nested in a quote or a
+  // list is reported: it moves to the top level.
+  definition: (node: Definition, parent: MdastParent) => {
+    if (capture !== undefined) {
+      if (parent?.type !== 'root') {
+        warn(sink, node, 'lossy-attribute', 'A link definition inside a quote or a list is kept, and a save writes it at the top level.');
+      }
+      return undefined;
+    }
     warn(
       sink,
       node,
@@ -786,6 +865,19 @@ const createDegradeHandlers = (schema: Schema, sink: LossWarning[]) => ({
   // 0.1.5's own (`revert`, same place as `referenceText`).
   imageReference: (node: ImageReference, _parent: MdastParent, state: PmState) => {
     const definition = state.definitionById.get(String(node.identifier).toUpperCase());
+    const raw = definition === undefined ? null : capture?.rawOf(node) ?? null;
+    if (definition !== undefined && raw !== null && !raw.includes('\n')) {
+      const prov = capture!.add({
+        kind: 'image',
+        form: (node.referenceType ?? 'shortcut') as ReferenceForm,
+        raw,
+        identifier: node.identifier,
+        text: node.alt ?? '',
+        url: definition.url,
+        title: definition.title ?? null,
+      });
+      return schema.nodes.image!.create({ src: definition.url, alt: node.alt ?? null, title: definition.title ?? null, prov });
+    }
     warn(
       sink,
       node,
@@ -826,6 +918,24 @@ const createDegradeHandlers = (schema: Schema, sink: LossWarning[]) => ({
   // waiting for a permissive parser.
   linkReference: (node: LinkReference, _parent: MdastParent, state: PmState) => {
     const definition = state.definitionById.get(String(node.identifier).toUpperCase());
+    const raw = definition === undefined ? null : capture?.rawOf(node) ?? null;
+    if (definition !== undefined && raw !== null && !raw.includes('\n')) {
+      const children = state.all(node) as PmNode[];
+      // Only a run of plain text can be written back as the reference: marks inside it would be marks around it too, once saved.
+      if (children.length > 0 && children.every((child) => child.isText && child.marks.length === 0)) {
+        const prov = capture!.add({
+          kind: 'link',
+          form: (node.referenceType ?? 'shortcut') as ReferenceForm,
+          raw,
+          identifier: node.identifier,
+          text: children.map((child) => child.text).join(''),
+          url: definition.url,
+          title: definition.title ?? null,
+        });
+        const kept = schema.marks.link!.create({ href: definition.url, title: definition.title ?? null, prov });
+        return children.map((child) => child.mark([kept]));
+      }
+    }
     warn(
       sink,
       node,
@@ -864,7 +974,7 @@ const createDegradeHandlers = (schema: Schema, sink: LossWarning[]) => ({
  * that would break it — a shared array — is the version that still passes a
  * single-parse test.
  */
-export const createParseHandlers = (schema: Schema, sink: LossWarning[]): ParseHandlers => ({
+export const createParseHandlers = (schema: Schema, sink: LossWarning[], capture?: ProvenanceCapture): ParseHandlers => ({
 
   // --- container nodes: the exported factories do the work ----------------
   paragraph: toPmNode(schema.nodes.paragraph!),
@@ -917,7 +1027,7 @@ export const createParseHandlers = (schema: Schema, sink: LossWarning[]): ParseH
   },
 
   // --- the degrade class, spread last so every name above is still §3.3's ----
-  ...createDegradeHandlers(schema, sink),
+  ...createDegradeHandlers(schema, sink, capture),
 });
 
 /**
@@ -927,7 +1037,7 @@ export const createParseHandlers = (schema: Schema, sink: LossWarning[]): ParseH
  * constructs a node, it only reads one, so a `schema` parameter here would be
  * an unused argument pretending to be a dependency.
  */
-export const createSerializeHandlers = () => ({
+export const createSerializeHandlers = (provenance?: SourceProvenance) => ({
   paragraph: fromPmNode('paragraph'),
   heading: fromPmNode('heading', (node) => ({
     // mdast types `depth` as the literal union 1–6; §3.1's `level` attr is a
@@ -945,11 +1055,14 @@ export const createSerializeHandlers = () => ({
   list_item: fromPmNode('listItem'),
   horizontal_rule: fromPmNode('thematicBreak'),
   hard_break: fromPmNode('break'),
-  image: fromPmNode('image', (node) => ({
-    url: node.attrs.src as string,
-    alt: (node.attrs.alt as string | null) ?? undefined,
-    title: (node.attrs.title as string | null) ?? undefined,
-  })),
+  image: withRawImage(
+    fromPmNode('image', (node) => ({
+      url: node.attrs.src as string,
+      alt: (node.attrs.alt as string | null) ?? undefined,
+      title: (node.attrs.title as string | null) ?? undefined,
+    })),
+    provenance,
+  ),
 
   // The two `value`-carrying leaves again, on the way out. `fromPmMark` and
   // `fromPmNode` both emit `children`, which remark-stringify does not read for
@@ -968,11 +1081,38 @@ export const createSerializeHandlers = () => ({
   em: fromPmMark('emphasis'),
   strong: fromPmMark('strong'),
   strike: fromPmMark('delete'),
-  link: fromPmMark('link', (mark) => ({
-    url: mark.attrs.href as string,
-    title: (mark.attrs.title as string | null) ?? undefined,
-  })),
+  link: withRawLink(
+    fromPmMark('link', (mark) => ({
+      url: mark.attrs.href as string,
+      title: (mark.attrs.title as string | null) ?? undefined,
+    })),
+    provenance,
+  ),
 });
+
+type ImageHandler = ReturnType<typeof fromPmNode>;
+type LinkHandler = ReturnType<typeof fromPmMark>;
+
+/** An image that is still what the parse captured is written as the source spelled it (source-provenance.ts). */
+const withRawImage = (direct: ImageHandler, provenance: SourceProvenance | undefined): ImageHandler =>
+  provenance === undefined
+    ? direct
+    : (node, parent, state) => {
+        const raw = cleanImageRaw(provenance, node.attrs['prov'], node.attrs);
+        return raw === null ? direct(node, parent, state) : (rawSourceNode(raw) as never);
+      };
+
+/**
+ * A link run that `resolveReferenceRuns` kept carries its provenance id, and its one text child is the raw reference. Every other
+ * run had the id removed before this runs, so the id is what says "write the child as it is".
+ */
+const withRawLink = (direct: LinkHandler, provenance: SourceProvenance | undefined): LinkHandler =>
+  provenance === undefined
+    ? direct
+    : (mark, parent, children, state) =>
+        typeof mark.attrs['prov'] === 'string'
+          ? (rawSourceNode(children.map((child) => (child as { value?: string }).value ?? '').join('')) as never)
+          : direct(mark, parent, children, state);
 
 export type SerializeHandlers = ReturnType<typeof createSerializeHandlers>;
 export { fromPmMark, fromPmNode, toPmMark, toPmNode };

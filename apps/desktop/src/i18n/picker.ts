@@ -8,8 +8,9 @@
  * **The gates (D5).** A language at 95 % or more is listed plainly. One at 60–94 % is listed with a
  * "Preview, partly English" label, so a dip does not hide a usable language. Below 60 % it is hidden
  * unless the developer exposure is on. A language that is currently selected is always listed, even
- * below the gate: the writer must be able to switch away from what they chose. Hysteresis for a
- * language that was already listed is I11 and is deliberately not built here.
+ * below the gate: the writer must be able to switch away from what they chose. A language that was
+ * already listed keeps its row down to 55 % (hysteresis), so a release that adds messages does not drop
+ * a language a writer already relies on; it keeps the Preview label until it is back at 60 %.
  *
  * **Pseudo entries are dev/test only.** They are complete by construction (they cover every message),
  * so they carry no percentage; they appear only when the developer exposure is on, or when one is the
@@ -51,6 +52,8 @@ export interface LanguageChoiceOptions {
   readonly stats: InterfaceLanguageStats;
   /** `?pseudo=1` or the developer flag, in a development build only. */
   readonly exposeDeveloperLanguages: boolean;
+  /** Tags the picker already listed for this writer. Such a language stays listed down to 55 % (D5 hysteresis). */
+  readonly previouslyListed?: readonly string[];
   /** The table to model; the app uses the shipped one. A test can pass a synthetic future table (I14). */
   readonly catalogues?: readonly InterfaceCatalogue[];
 }
@@ -64,11 +67,15 @@ function nativeNameOf(tag: string): string {
   }
 }
 
-/** D5: listed plainly at ≥95 %, listed as Preview at 60–94 %, hidden below 60 % unless exposed. */
-function gateFor(completion: number, exposed: boolean): { readonly listed: boolean; readonly preview: boolean } {
+/** D5: plain at ≥95 %, Preview at 60–94 %, hidden below 60 % unless exposed; an already-listed language stays listed down to 55 %. */
+export function gateFor(
+  completion: number,
+  exposed: boolean,
+  wasListed = false,
+): { readonly listed: boolean; readonly preview: boolean } {
   if (completion >= 95) return { listed: true, preview: false };
   if (completion >= 60) return { listed: true, preview: true };
-  return { listed: exposed, preview: true };
+  return { listed: exposed || (wasListed && completion >= 55), preview: true };
 }
 
 /** The rows the Appearance picker shows, System first. */
@@ -104,7 +111,7 @@ export function languageChoices(options: LanguageChoiceOptions): readonly Langua
     // English is the source locale: it has no completion row because it is complete by definition.
     const source = entry.tag === options.stats.sourceLocale;
     const completion = source ? 100 : (options.stats.locales[entry.tag]?.completion ?? 0);
-    const gate = gateFor(completion, options.exposeDeveloperLanguages);
+    const gate = gateFor(completion, options.exposeDeveloperLanguages, options.previouslyListed?.includes(entry.tag) === true);
     if (!gate.listed && options.setting !== entry.tag) continue;
     choices.push({
       setting: entry.tag,

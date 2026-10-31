@@ -7,6 +7,7 @@
  * here edits the body: a node is selected, and the writer edits the Ink text.
  */
 
+import { t } from '@lingui/core/macro';
 import type { CodexEntry } from '@caotang/store';
 
 import {
@@ -24,6 +25,8 @@ import {
   type GraphNode,
 } from './engines.js';
 
+
+/* lingui-set comment="Ink diagnostics. Interpolated values: line is a line number; message is the engine's own message." */
 /** One speakable line, or a choice label, as the outline lists it. */
 export interface OutlineLine {
   readonly kind: 'line' | 'choice';
@@ -100,7 +103,8 @@ function nodeOfFinding(graph: DialogueGraph, finding: DialogueFinding): string {
 function errorTextOf(error: { readonly text: string; readonly line: number | null }): string {
   if (error.line === null) return error.text;
   const message = error.text.replace(/^(ERROR|WARNING|TODO):\s*/, '');
-  return new RegExp(`\\bline ${error.line}\\b`).test(message) ? message : `line ${error.line}: ${message}`;
+  const line = error.line;
+  return new RegExp(`\\bline ${line}\\b`).test(message) ? message : t`line ${line}: ${message}`;
 }
 
 function choiceOf(choice: ChoiceRecord): OutlineChoice {
@@ -129,7 +133,7 @@ export function dialogueModelOf(docId: string, body: string, entries: readonly C
   const outline: OutlineNode[] = graph.nodes.map((node) => ({
     id: node.id,
     kind: node.kind,
-    name: node.kind === 'root' ? 'Top of the body' : node.name,
+    name: node.kind === 'root' ? t`Top of the body` : node.name,
     line: node.line,
     from: node.from,
     depth: node.kind === 'stitch' ? 1 : 0,
@@ -171,7 +175,11 @@ export function dialogueModelOf(docId: string, body: string, entries: readonly C
     stats: report.stats,
     errors: report.errors.map(errorTextOf),
     notes: report.notes,
-    parseWarnings: graph.warnings.map((warning) => `line ${warning.line}: ${warning.message}`),
+    parseWarnings: graph.warnings.map((warning) => {
+      const line = warning.line;
+      const message = warning.message;
+      return t`line ${line}: ${message}`;
+    }),
     variables: graph.variables.map((variable) => (variable.default === '' ? `${variable.kind} ${variable.name}` : `${variable.kind} ${variable.name} = ${variable.default}`)),
     targets: graph.nodes.filter((node) => node.kind !== 'root').map((node) => node.id),
   };

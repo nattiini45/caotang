@@ -17,6 +17,7 @@ import { InkGate } from '../components/InkGate.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 
 import { commitShotCommand, importShotImage, importShotImages } from './commit.js';
+import { ComicPageView } from './ComicPageView.js';
 import { MediaBoundary } from './MediaBoundary.js';
 import { ScreenplayView } from './ScreenplayView.js';
 import type { MediaPorts } from './ports.js';
@@ -110,6 +111,8 @@ function viewOf(node: TreeNode, props: MediaViewProps): ReactNode | null {
           <DialogueView session={props.session} node={node} reveal={props.reveal} onRevealHandled={props.onRevealHandled} />
         </InkGate>
       );
+    case 'comic-page':
+      return <ComicPageView key={node.id} session={props.session} node={node} />;
     case null:
       return null;
   }

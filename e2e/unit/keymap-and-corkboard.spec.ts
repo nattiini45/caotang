@@ -72,6 +72,14 @@ test.describe('the keyboard map', () => {
     expect(resolveKey(keys('ArrowDown'), ELSEWHERE)).toBeNull();
   });
 
+  test('in a right-to-left interface the binder and card arrows read in reading order, and Up and Down are unchanged', () => {
+    const rtl = { ...BINDER, rtl: true };
+    expect(resolveKey(keys('ArrowRight'), rtl)).toBe('move-left');
+    expect(resolveKey(keys('ArrowLeft'), rtl)).toBe('move-right');
+    expect(resolveKey(keys('ArrowUp'), rtl)).toBe('move-up');
+    expect(resolveKey(keys('ArrowDown'), rtl)).toBe('move-down');
+  });
+
   test('a modifier that is not part of the map means nothing, rather than something close to it', () => {
     expect(resolveKey(keys('n', { ctrl: true, alt: true }), ELSEWHERE)).toBeNull();
     expect(resolveKey(keys('F2', { ctrl: true }), BINDER)).toBeNull();

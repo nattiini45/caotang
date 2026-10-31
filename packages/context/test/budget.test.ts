@@ -22,6 +22,7 @@ import {
   type LayerId,
 } from '../src/index.js';
 import { LONG_FOCUS, buildApp, FOCUS_ID, IDS, heavyAlwaysApp, longApp, scopeApp } from './fixtures.js';
+import { textOf } from '@caotang/gateway';
 
 const CONTINUE: AgentTask = {
   tool: 'scene.draft',
@@ -90,7 +91,7 @@ describe('the layers each tool assembles (§3)', () => {
     expect(included(assembled)).toEqual(['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L7']);
     expect(layer(assembled, 'L6').included).toBe(false);
     // The fixture's turns are in the app and reach no part of the prompt.
-    expect(assembled.messages.map((message) => message.content).join('\n')).not.toContain('Tighten the opening of chapter 3');
+    expect(assembled.messages.map((message) => textOf(message.content)).join('\n')).not.toContain('Tighten the opening of chapter 3');
   });
 
   it('synopsis.fill assembles the structure and the full document, without codex, story or turns', () => {
@@ -268,7 +269,7 @@ describe('the scope limit (agent-harness row 10)', () => {
     expect(story.kept.map((item) => item.label)).toEqual(['Part 21', 'Part 22', 'Part 23', 'Part 24', 'Part 25']);
     expect(story.kept.every((item) => item.reason === 'scope document past the tail window; synopsis only')).toBe(true);
     expect(story.tokens).toBeLessThanOrEqual(story.budget ?? 0);
-    const text = assembled.messages[1]?.content ?? '';
+    const text = textOf(assembled.messages[1]?.content ?? '');
     expect(text).toContain('## Part 21 (document)\nSynopsis 21.');
     expect(text).not.toContain('Text of part 21.');
   });

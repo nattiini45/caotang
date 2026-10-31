@@ -44,28 +44,59 @@ async function openedOf(outcome: Promise<OpenOutcome>): Promise<Opened> {
  */
 
 const globals = globalThis as unknown as Record<string, unknown>;
-let previous: { document: unknown; window: unknown } | null = null;
+let previous: { document: unknown; window: unknown; createImageBitmap: unknown; OffscreenCanvas: unknown } | null = null;
 
 test.beforeAll(() => {
-  previous = { document: globals['document'], window: globals['window'] };
+  previous = {
+    document: globals['document'],
+    window: globals['window'],
+    createImageBitmap: globals['createImageBitmap'],
+    OffscreenCanvas: globals['OffscreenCanvas'],
+  };
   globals['document'] = new EventTarget();
   globals['window'] = new EventTarget();
+  // The EPUB cover goes through the app's canvas port now. This below-browser suite tests the asset store, not pixels, so its
+  // stand-in decodes to 1×1, passes the canvas probe and writes the source PNG back unchanged.
+  let source: Blob | null = null;
+  globals['createImageBitmap'] = async (blob: Blob) => {
+    source = blob;
+    return { width: 1, height: 1, close: () => undefined };
+  };
+  globals['OffscreenCanvas'] = class {
+    getContext() {
+      return {
+        fillRect: () => undefined,
+        clearRect: () => undefined,
+        drawImage: () => undefined,
+        getImageData: () => ({ data: Uint8ClampedArray.from([254, 1, 127, 255]) }),
+      };
+    }
+    async convertToBlob(options: { type: string }): Promise<Blob> {
+      if (source === null) throw new Error('no picture was decoded');
+      return (source as Blob).slice(0, (source as Blob).size, options.type);
+    }
+  };
 });
 
 test.afterAll(() => {
   if (previous === null) return;
   globals['document'] = previous.document;
   globals['window'] = previous.window;
+  globals['createImageBitmap'] = previous.createImageBitmap;
+  globals['OffscreenCanvas'] = previous.OffscreenCanvas;
 });
 
 const NOW = new Date('2026-10-08T09:00:00Z');
 const COVER_ID = 'a_ABCDEFGHJK';
-/** A file that starts with the PNG signature, which is all the cover import checks, and bytes a text decoder would damage. */
-const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x80, 0xff, 0xc3, 0x28, 0x00, 0x42]);
+/** A 1×1 RGB PNG: no alpha to flatten, so the metadata-retaining export can pass its bytes through without a canvas. */
+const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC'), (char) => char.charCodeAt(0));
 
 /** A project with one chapter and one scene that has words in it, so the EPUB has a section to carry the cover beside. */
 function manuscript(title: string): ProjectState {
-  const state = createProjectState(createEmptyManifest(title, NOW));
+  const state = createProjectState(createEmptyManifest(title, NOW, { locale: 'en-US' }));
+  // These are asset-store tests, not browser-transcoder tests: retain the fixture's bytes so no canvas is needed below the browser.
+  const recipe = state.manifest.recipes?.[0];
+  if (recipe !== undefined) recipe.options = { ...recipe.options, keepPictureMetadata: true };
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', id: 'n_CH100000AA', now: NOW });
   addDocument(state, {
     parentId: 'n_CH100000AA',

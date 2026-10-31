@@ -3,8 +3,8 @@ import { expect, test } from '@playwright/test';
 import { addDocument, addFolder } from '../../packages/store/src/index.js';
 import { shadowOf } from '../../apps/desktop/src/app/persistence-plan.js';
 import {
-  KEPT_CHAPTER_TITLE,
   UNSENT_KEY_PREFIX,
+  keptChapterTitle,
   clearUnsentCopy,
   restoreParentOf,
   newStopId,
@@ -132,7 +132,7 @@ test.describe('where a kept document goes back (restoreParentOf, the chapterless
     expect(restoreParentOf(state, IDS.sceneA)).toBeNull();
     expect(restoreParentOf(state, 'n_GONE000001')).toBeNull();
     expect(restoreParentOf(state, undefined)).toBeNull();
-    expect(KEPT_CHAPTER_TITLE).toBe('Kept from a stopped tab');
+    expect(keptChapterTitle()).toBe('Kept from a stopped tab');
   });
 
   test('an entry an older build wrote, with no chapter on its documents, still reads', () => {

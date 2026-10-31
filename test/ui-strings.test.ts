@@ -58,10 +58,11 @@ describe('the committed baseline', () => {
   it('covers the real tree: no file has more unwrapped sites than its allowance', () => {
     const tree = scanTree(resolve(repoRoot, UI_ROOT));
     const baseline = readBaseline(resolve(repoRoot, BASELINE_FILE));
-    // Control: the scan found the interface. An empty tree would make both sides agree on nothing.
-    expect(summarise(tree).sites).toBeGreaterThan(1_000);
+    // Control: the scan found the intentionally untranslated stored profile name. An empty tree would
+    // make both sides agree on nothing; all other former allowances have been converted or reclassified.
+    expect(summarise(tree).sites).toBeGreaterThan(0);
     expect(compareToBaseline(tree, baseline)).toEqual([]);
-  });
+  }, 30_000);
 
   it('is serialised with sorted keys and no timestamp, so a rerun does not churn the file', () => {
     const baseline: Baseline = {

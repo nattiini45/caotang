@@ -41,7 +41,7 @@ export const IDS = {
 } as const;
 
 export function project(): ProjectState {
-  const state = createProjectState(createEmptyManifest('Fixture Book', new Date('2026-10-08T09:00:00Z')));
+  const state = createProjectState(createEmptyManifest('Fixture Book', new Date('2026-10-08T09:00:00Z'), { locale: 'en-US' }));
   const now = new Date('2026-10-08T09:00:00Z');
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', id: IDS.chapterOne, now });
   addDocument(state, { parentId: IDS.chapterOne, title: 'Scene A', id: IDS.sceneA, body: 'Four little words here', now });

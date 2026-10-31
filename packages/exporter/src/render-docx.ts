@@ -51,8 +51,10 @@
  */
 
 import type * as Docx from 'docx';
-import { chapterHeadings, contentsEntries, hasTitlePage, sectionTitle, type RenderInput } from './render-input.js';
+import { chapterHeadings, contentsEntries, contentsHeading, hasTitlePage, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, plainRuns, type ProseBlock, type Run } from './prose.js';
+import type { FigurePack, ResolvedFigure } from './figures.js';
+import { DOCX_TEXT_WIDTH_TWIPS } from './picture-profile.js';
 import { chapterLabel } from './template.js';
 import { stripXmlIllegal } from './xml-text.js';
 
@@ -67,6 +69,24 @@ const BODY_SIZE = 24;
 /** Twentieths of a point, the unit `docx` spacing and indent take. */
 const LIST_INDENT = 360;
 const QUOTE_INDENT = 720;
+
+/** EMUs per twip: 914400 per inch over 1440 twips. */
+const EMU_PER_TWIP = 635;
+/** The text width of the renderer's page — the `docx` library's default A4 with 1-inch margins — in EMUs (pictures.md §4, the DOCX row). */
+const TEXT_WIDTH_EMU = DOCX_TEXT_WIDTH_TWIPS * EMU_PER_TWIP;
+/** EMUs per pixel at the 300 ppi the DOCX extent is measured in: 914400 / 300. */
+const EMU_PER_PX_AT_300 = 3048;
+
+/**
+ * The extent a figure's `ImageRun` carries (pictures.md §4): the width is the smaller of the text
+ * width and the picture's natural width at 300 ppi, the height scaled to match. `docx` takes the
+ * transformation in pixels at 96 dpi, so the extent is divided by 9525 EMUs per pixel.
+ */
+function extentOf(width: number, height: number): { readonly width: number; readonly height: number } {
+  const widthEmu = Math.min(TEXT_WIDTH_EMU, Math.round(width * EMU_PER_PX_AT_300));
+  const heightEmu = Math.max(1, Math.round((widthEmu * height) / Math.max(1, width)));
+  return { width: Math.max(1, Math.round(widthEmu / 9525)), height: Math.max(1, Math.round(heightEmu / 9525)) };
+}
 
 type DocxModule = typeof Docx;
 type Block = Docx.Paragraph | Docx.TableOfContents;
@@ -87,11 +107,11 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
     children.push(
       new docx.Paragraph({
         pageBreakBefore: true,
-        children: [new docx.TextRun({ text: 'Contents', bold: true })],
+        children: [new docx.TextRun({ text: stripXmlIllegal(contentsHeading(input)), bold: true })],
       }),
     );
     children.push(
-      new docx.TableOfContents('Contents', {
+      new docx.TableOfContents(stripXmlIllegal(contentsHeading(input)), {
         hyperlink: true,
         // exporter.md §2's recipe: `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })`. Heading 1 is a
         // chapter and Heading 2 a `section` scene, so the cached entries list both, in document order, as the field would.
@@ -121,7 +141,7 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
             new docx.Paragraph({ heading: docx.HeadingLevel.HEADING_2, children: [new docx.TextRun(stripXmlIllegal(section))] }),
           );
         }
-        for (const prose of parseProse(block.body)) children.push(...proseParagraphs(docx, prose, 0));
+        for (const prose of parseProse(block.body)) children.push(...proseParagraphs(docx, prose, 0, input.figures));
         break;
       }
       case 'separator':
@@ -194,6 +214,15 @@ function styleDefinitions(docx: DocxModule): Docx.IStylesOptions {
         run: { font: BODY_FONT, size: BODY_SIZE },
         paragraph: { spacing: { after: 100 }, indent: { left: 240 } },
       },
+      {
+        // A figure's caption (pictures.md §4, the DOCX row): the built-in Caption style, smaller and italic.
+        id: 'Caption',
+        name: 'Caption',
+        basedOn: 'Normal',
+        next: 'Normal',
+        run: { font: BODY_FONT, size: 20, italics: true },
+        paragraph: { alignment: docx.AlignmentType.CENTER, spacing: { after: 240 } },
+      },
     ],
   };
 }
@@ -208,9 +237,11 @@ function centred(docx: DocxModule, text: string): Docx.Paragraph {
 /**
  * One prose block as DOCX paragraphs. A heading inside a body is set as bold body
  * text rather than as Heading 1, so an author's own `#` line cannot add an entry to
- * the contents.
+ * the contents. A figure becomes an `ImageRun` paragraph followed by its caption in
+ * the Caption style (pictures.md §4); a placement whose file is missing degrades to
+ * its caption as a plain paragraph.
  */
-function proseParagraphs(docx: DocxModule, block: ProseBlock, indent: number, lead?: string): Docx.Paragraph[] {
+function proseParagraphs(docx: DocxModule, block: ProseBlock, indent: number, figures: FigurePack | undefined, lead?: string): Docx.Paragraph[] {
   switch (block.kind) {
     case 'paragraph':
       return [paragraph(docx, lead === undefined ? block.runs : [{ text: lead }, ...block.runs], indent)];
@@ -218,13 +249,15 @@ function proseParagraphs(docx: DocxModule, block: ProseBlock, indent: number, le
       return [paragraph(docx, block.runs.map((run) => ({ ...run, strong: true })), indent)];
     case 'break':
       return [centred(docx, '* * *')];
+    case 'figure':
+      return figureParagraphs(docx, block, figures);
     case 'quote':
-      return block.blocks.flatMap((inner) => proseParagraphs(docx, inner, indent + QUOTE_INDENT));
+      return block.blocks.flatMap((inner) => proseParagraphs(docx, inner, indent + QUOTE_INDENT, figures));
     case 'list':
       return block.items.flatMap((item, index) => {
         const marker = block.ordered ? `${index + 1}. ` : '• ';
         return item.flatMap((inner, position) =>
-          proseParagraphs(docx, inner, indent + LIST_INDENT, position === 0 ? marker : undefined),
+          proseParagraphs(docx, inner, indent + LIST_INDENT, figures, position === 0 ? marker : undefined),
         );
       });
     case 'code':
@@ -232,6 +265,31 @@ function proseParagraphs(docx: DocxModule, block: ProseBlock, indent: number, le
         paragraph(docx, [{ text: line, code: true }], indent),
       );
   }
+}
+
+/** A figure as an `ImageRun` sized by extent, then its caption in the Caption style; the alt text is the `docPr descr`. */
+function figureParagraphs(docx: DocxModule, block: Extract<ProseBlock, { kind: 'figure' }>, figures: FigurePack | undefined): Docx.Paragraph[] {
+  const figure: ResolvedFigure | undefined = figures?.figures.get(block.image.url);
+  if (figure === undefined || figure.image === undefined) {
+    const text = figure !== undefined && figure.caption !== '' ? figure.caption : block.image.alt;
+    return text === '' ? [] : [paragraph(docx, [{ text }], 0)];
+  }
+  const { width, height } = extentOf(figure.image.width, figure.image.height);
+  const run = new docx.ImageRun({
+    type: figure.image.name.endsWith('.jpg') ? 'jpg' : 'png',
+    data: figure.image.bytes,
+    transformation: { width, height },
+    altText: {
+      name: `picture ${figure.image.name}`,
+      description: figure.decorative ? '' : figure.alt,
+      ...(figure.caption === '' ? {} : { title: figure.caption }),
+    },
+  });
+  const out = [new docx.Paragraph({ alignment: docx.AlignmentType.CENTER, children: [run] })];
+  if (figure.caption !== '') {
+    out.push(new docx.Paragraph({ style: 'Caption', children: [new docx.TextRun(stripXmlIllegal(figure.caption))] }));
+  }
+  return out;
 }
 
 function paragraph(docx: DocxModule, runs: readonly Run[], indent: number): Docx.Paragraph {

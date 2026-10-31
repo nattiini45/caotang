@@ -27,6 +27,10 @@
  * untrusted result and rejects with an {@link McpInvokeFailure} that carries the `CommandError`. The bus
  * maps that error to `err` at integration (command-bus §7); {@link applyMcpInvoke} keeps the value form for
  * callers that want the outcome directly.
+ *
+ * **Pictures are not text.** An `image` block in an answer is checked, staged and replaced by a stub before the answer is measured
+ * (`images.ts`), so its base64 is never counted as tokens and never reaches the model. A picture that cannot be staged refuses the whole answer
+ * with the cap or the mismatch named, in the same `CommandError` shape as the token cap; the call itself ran on the server and cannot be unrun.
  */
 
 import type { ApplyContext, CommandApply, CommandDescriptor, CommandError, Result } from '@caotang/bus';
@@ -34,6 +38,7 @@ import { ApplyRefusal, err, ok } from '@caotang/bus';
 
 import type { McpClient, McpToolResult, McpTransport } from './client.js';
 import { McpFailure, PIN_MISMATCH_TEXT, schemaText, serverErrorText, toCommandError, unreachableText, unsupportedSchemaText, type McpError } from './errors.js';
+import { IMAGE_STUB_ESTIMATE, isImageBlock, resolveStagedArguments, routeImages, type ImageStager, type StagedImage } from './images.js';
 import type { EffectiveRisk } from './risk.js';
 import { validateArguments } from './schema.js';
 import type { LoadedTools } from './search.js';
@@ -77,6 +82,11 @@ export interface InvokeDeps extends ValidateDeps {
   readonly transport: Pick<McpTransport, 'callTool' | 'relist'>;
   /** The most tokens an external answer may carry before it is refused. Defaults to {@link EXTERNAL_RESULT_TOKEN_CAP}. */
   readonly resultTokenCap?: number;
+  /**
+   * Where an answer's image blocks are staged, and where an outbound `staged:<id>` argument is read (pictures.md §8.3). Without it the
+   * blocks are still checked and replaced by a stub that says they were not staged: no host shows a model a picture as text.
+   */
+  readonly images?: ImageStager;
 }
 
 /**
@@ -85,9 +95,13 @@ export interface InvokeDeps extends ValidateDeps {
  */
 export const EXTERNAL_RESULT_TOKEN_CAP = 8_000;
 
-/** The tokens an answer's content counts as, on the same estimate the harness uses for its own caps. */
+/**
+ * The tokens an answer's content counts as, on the same estimate the harness uses for its own caps. An image block counts as its stub and
+ * never as its base64: the model is never shown the bytes, so they are not its tokens (pictures.md §8.3).
+ */
 export function resultTokens(content: readonly unknown[]): number {
-  return Math.ceil(JSON.stringify(content).length / 4);
+  const counted = content.map((block) => (isImageBlock(block) ? { type: 'text', text: IMAGE_STUB_ESTIMATE } : block));
+  return Math.ceil(JSON.stringify(counted).length / 4);
 }
 
 /** The content a successful call returns, marked as the untrusted data it is (§4 rule 4). */
@@ -95,8 +109,13 @@ export interface UntrustedCallResult {
   readonly untrusted: true;
   readonly source: { readonly serverKey: string; readonly serverName: string; readonly toolName: string; readonly qualifiedName: string };
   readonly isError: boolean;
-  /** The server's content blocks, verbatim. Caotang never summarises, rewrites or trims them. */
+  /**
+   * The server's content blocks, verbatim — except an `image` block, which is replaced by the text stub that names its staging id
+   * (`[image 1: image/png, 812 KB, staged as stg_…]`). Caotang never summarises, rewrites or trims anything else.
+   */
   readonly content: readonly unknown[];
+  /** The pictures staged from this answer's image blocks: ids and sizes, never bytes. Absent when the answer had no image. */
+  readonly staged?: readonly StagedImage[];
 }
 
 /** The apply's answer. A failed call is an error envelope (and still has its activity row); a call that ran is data. */
@@ -222,9 +241,24 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
     return { ok: false, error: toCommandError({ code: 'pin_mismatch', message: PIN_MISMATCH_TEXT }, serverName, toolName) };
   }
 
+  // A `staged:<id>` argument is filled only now, after the writer approved the call as written, and never from a path or a URL.
+  const outbound = resolveStagedArguments(params.args, deps.images);
+  if (!outbound.ok) {
+    context.report({ affected: [], summary: `refused ${serverName} › ${toolName} (external): a staged picture could not be sent` });
+    return {
+      ok: false,
+      error: {
+        code: outbound.refusal.code,
+        message: `${outbound.refusal.message} (server '${serverName}', tool '${toolName}'). The tool was not called.`,
+        target: toolName,
+        correctiveHint: outbound.refusal.correctiveHint,
+      },
+    };
+  }
+
   let result: McpToolResult;
   try {
-    result = await deps.transport.callTool(serverKey, toolName, params.args);
+    result = await deps.transport.callTool(serverKey, toolName, outbound.args);
   } catch (error) {
     const mcp: McpError =
       error instanceof McpFailure
@@ -249,11 +283,21 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
     };
   }
 
+  // Pictures are routed before the text is measured: an image block is bytes, so it is checked and staged, and what is left to count is its stub.
+  const images = routeImages(result.content, { server: serverName, tool: toolName }, deps.images);
+  if (!images.ok) {
+    context.report({ affected: [], summary: `called ${serverName} › ${toolName} (external) — a picture in the result was refused, so it was not returned` });
+    return { ok: false, error: { code: images.code, message: images.message, target: toolName, correctiveHint: images.correctiveHint } };
+  }
+  const content = images.content;
+
   // The answer is returned whole or not at all. An answer over the cap is refused, and the cap is named, so the model
   // can ask for less; it is never cut down, because a cut answer would be a different answer the server did not give.
   const cap = deps.resultTokenCap ?? EXTERNAL_RESULT_TOKEN_CAP;
-  const tokens = resultTokens(result.content);
+  const tokens = resultTokens(content);
   if (tokens > cap) {
+    // The pictures were staged for an answer nobody will read, so they go with it.
+    if (images.staged.length > 0) deps.images?.discard(images.staged.map((image) => image.stagingId));
     context.report({ affected: [], summary: `called ${serverName} › ${toolName} (external) — the result was over the ${cap}-token cap, so it was not returned` });
     return {
       ok: false,
@@ -276,7 +320,8 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
       untrusted: true,
       source: { serverKey, serverName, toolName, qualifiedName },
       isError: result.isError,
-      content: result.content,
+      content,
+      ...(images.staged.length === 0 ? {} : { staged: images.staged }),
     },
   };
 }

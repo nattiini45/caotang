@@ -8,6 +8,9 @@
  * command writes them into the project's assets and sets the reference in one undo group.
  */
 
+import { select, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { ExecutionOutcome, Result, CommandError } from '@caotang/bus';
@@ -20,15 +23,12 @@ import { useReport } from './shared.js';
 import type { ProjectSession } from '../app/session.js';
 import './project-dialogs.css';
 
+
+/* lingui-set comment="Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved." */
 type Field = 'title' | 'author' | 'language' | 'isbn' | 'cover';
 
 /** The fields a writer types into, with the names a refusal gives them in the status line. */
-const TEXT_FIELDS: readonly { readonly field: Field; readonly label: string }[] = [
-  { field: 'title', label: 'Title' },
-  { field: 'author', label: 'Author' },
-  { field: 'language', label: 'Language' },
-  { field: 'isbn', label: 'ISBN' },
-];
+const TEXT_FIELDS: readonly Field[] = ['title', 'author', 'language', 'isbn'];
 
 /**
  * What the cover line says: whether one is set, whether its image is held, and what keeps the image. An image held only in this
@@ -36,18 +36,18 @@ const TEXT_FIELDS: readonly { readonly field: Field; readonly label: string }[] 
  * browser, so the writer knows a project folder would keep it with the project.
  */
 function coverHelp(coverAssetId: string | null | undefined, held: boolean | null, inFolder: boolean): string {
-  if (!coverAssetId) return 'No cover image. An EPUB without one is still valid.';
-  if (held === false) return 'A cover is set, but its image is not in this browser any more, so EPUB files have no cover. Choose it again.';
+  if (!coverAssetId) return t`No cover image. An EPUB without one is still valid.`;
+  if (held === false) return t`A cover is set, but its image is not in this browser any more, so EPUB files have no cover. Choose it again.`;
   return inFolder
-    ? 'A cover image is set. It is kept in the project folder and goes into EPUB files.'
-    : 'A cover image is set and goes into EPUB files. It is kept in this browser, so save the project to a folder to keep it with the project.';
+    ? t`A cover image is set. It is kept in the project folder and goes into EPUB files.`
+    : t`A cover image is set and goes into EPUB files. It is kept in this browser, so save the project to a folder to keep it with the project.`;
 }
 
 /** The success line after a cover is chosen: the same two cases as {@link coverHelp}. */
 function coverSavedNotice(inFolder: boolean): string {
   return inFolder
-    ? 'The cover is set. It is kept in the project folder and goes into EPUB files.'
-    : 'The cover is set and goes into EPUB files. It is kept in this browser, so save the project to a folder to keep it with the project.';
+    ? t`The cover is set. It is kept in the project folder and goes into EPUB files.`
+    : t`The cover is set and goes into EPUB files. It is kept in this browser, so save the project to a folder to keep it with the project.`;
 }
 
 /** The project panel, rendered only while its request is open. It is a modal, so it is mounted on open and dropped on close. */
@@ -58,6 +58,7 @@ export function ProjectPanel({ session }: { session: ProjectSession }): ReactNod
 }
 
 function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode {
+  useLingui();
   const report = useReport();
   const dialog = useRef<HTMLDialogElement>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -153,7 +154,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
         report({ text: coverSavedNotice(session.assetsInFolder()), tone: 'info' });
       }
     } catch (error) {
-      note('cover', `The cover could not be read: ${error instanceof Error ? error.message : String(error)}`);
+      note('cover', t`The cover could not be read: ${{ reason: error instanceof Error ? error.message : String(error) }}`);
     } finally {
       setChoosing(false);
       if (picker.current !== null) picker.current.value = '';
@@ -179,10 +180,10 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
     // Leaving the focused field runs its own save here, so a value typed and not yet saved is judged before the panel closes.
     const active = document.activeElement;
     if (active instanceof HTMLElement && dialog.current?.contains(active)) active.blur();
-    for (const { field, label } of TEXT_FIELDS) {
+    for (const field of TEXT_FIELDS) {
       const message = refusedNow.current[field];
       if (message !== undefined) {
-        report({ text: `${label} was not saved. ${message}`, tone: 'error' });
+        report({ text: t`${select(field, { title: 'Title', author: 'Author', language: 'Language', other: 'ISBN' })} was not saved. ${{ message }}`, tone: 'error' });
         break;
       }
     }
@@ -201,10 +202,10 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
       }}
     >
       <div className="project-dialog-body">
-        <h2 id="project-dialog-title">Project</h2>
+        <h2 id="project-dialog-title"><Trans>Project</Trans></h2>
 
         <label className="project-dialog-field">
-          <span className="field-label">Title</span>
+          <span className="field-label"><Trans>Title</Trans></span>
           <input
             type="text"
             value={title}
@@ -220,7 +221,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
         </label>
 
         <label className="project-dialog-field">
-          <span className="field-label">Author</span>
+          <span className="field-label"><Trans>Author</Trans></span>
           <input
             type="text"
             value={author}
@@ -231,12 +232,12 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
               if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) saveAuthor();
             }}
           />
-          <span className="project-dialog-help">Shown on the title page and in the EPUB and Word files. Leave it empty for none.</span>
+          <span className="project-dialog-help"><Trans>Shown on the title page and in the EPUB and Word files. Leave it empty for none.</Trans></span>
           {refused.author !== undefined ? <span className="project-dialog-error" role="alert">{refused.author}</span> : null}
         </label>
 
         <label className="project-dialog-field">
-          <span className="field-label">Language</span>
+          <span className="field-label"><Trans>Language</Trans></span>
           <input
             type="text"
             value={language}
@@ -247,12 +248,12 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
               if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) saveLanguage();
             }}
           />
-          <span className="project-dialog-help">A language code such as en, de or en-GB. EPUB files declare it.</span>
+          <span className="project-dialog-help"><Trans>A language code such as en, de or en-GB. EPUB files declare it.</Trans></span>
           {refused.language !== undefined ? <span className="project-dialog-error" role="alert">{refused.language}</span> : null}
         </label>
 
         <label className="project-dialog-field">
-          <span className="field-label">ISBN</span>
+          <span className="field-label"><Trans>ISBN</Trans></span>
           <input
             type="text"
             value={isbn}
@@ -263,20 +264,20 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
               if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) saveIsbn();
             }}
           />
-          <span className="project-dialog-help">Optional. ISBN-10 or ISBN-13, with or without hyphens. It goes into EPUB files.</span>
+          <span className="project-dialog-help"><Trans>Optional. ISBN-10 or ISBN-13, with or without hyphens. It goes into EPUB files.</Trans></span>
           {refused.isbn !== undefined ? <span className="project-dialog-error" role="alert">{refused.isbn}</span> : null}
         </label>
 
         <div className="project-dialog-field">
-          <span className="field-label">Cover</span>
+          <span className="field-label"><Trans>Cover</Trans></span>
           <span className="project-dialog-help">{coverHelp(project.coverAssetId, coverHeld, session.assetsInFolder())}</span>
           <div className="project-dialog-row">
             <button type="button" className="button" disabled={choosing} onClick={() => picker.current?.click()}>
-              {choosing ? 'Importing…' : project.coverAssetId ? 'Replace cover…' : 'Choose cover…'}
+              {choosing ? t`Importing…` : project.coverAssetId ? t`Replace cover…` : t`Choose cover…`}
             </button>
             {project.coverAssetId ? (
               <button type="button" className="button is-quiet" disabled={choosing} onClick={removeCover}>
-                Remove cover
+                <Trans>Remove cover</Trans>
               </button>
             ) : null}
           </div>
@@ -285,7 +286,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
             type="file"
             accept="image/png,image/jpeg,image/webp"
             hidden
-            aria-label="Cover image file"
+            aria-label={t`Cover image file`}
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file !== undefined) void chooseCover(file);
@@ -298,7 +299,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
           {/* Focus stays where it is on the press, so the field's save runs in finish, after the click; a refusal's message would
               otherwise move this button under the pointer before the click lands. */}
           <button type="button" className="button is-primary" onMouseDown={(event) => event.preventDefault()} onClick={finish}>
-            Done
+            <Trans>Done</Trans>
           </button>
         </div>
       </div>

@@ -11,15 +11,35 @@
 
 import { estimateTokens, tokensForChars } from '@caotang/codex';
 
+import { imageTokens, partsOf, type ContentRoute } from './parts.js';
 import type { ChatMessage, Usage } from './types.js';
 
 export { estimateTokens };
+export { contentTokens, type ContentRoute } from './parts.js';
 
-/** Usage for a request whose prompt is `messages` and whose completion is `completion`. */
-export function usageFor(messages: readonly ChatMessage[], completion: string): Usage {
-  const promptChars = messages.reduce((sum, m) => sum + m.content.length, 0);
+/**
+ * Usage for a request whose prompt is `messages` and whose completion is `completion`.
+ * Text-only contents count exactly as before — all text characters gathered, then one
+ * `ceil(chars/4)` — and image parts add their per-route formula (`route` is the adapter the
+ * request goes out on, undefined for a route-agnostic estimate, i.e. the conservative
+ * fallback); the base64 form is never counted as text tokens.
+ */
+export function usageFor(messages: readonly ChatMessage[], completion: string, route?: ContentRoute): Usage {
+  let chars = 0;
+  let imageTokensTotal = 0;
+  for (const message of messages) {
+    for (const part of partsOf(message.content)) {
+      if (part.type === 'text') chars += part.text.length;
+      else imageTokensTotal += imageTokens(part, route);
+    }
+  }
   return {
-    promptTokens: tokensForChars(promptChars),
+    promptTokens: tokensForChars(chars) + imageTokensTotal,
     completionTokens: estimateTokens(completion),
   };
+}
+
+/** The prompt-token estimate of a message list alone, on the same rules as {@link usageFor}. */
+export function promptTokensOf(messages: readonly ChatMessage[], route?: ContentRoute): number {
+  return usageFor(messages, '', route).promptTokens;
 }

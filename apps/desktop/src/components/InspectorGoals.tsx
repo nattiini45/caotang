@@ -5,6 +5,10 @@
  * `project.deleteGoal`), through the furniture store.
  */
 
+import { isolate } from '@caotang/i18n';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { MONTHLY_RESET_MAX, goalProgress, localDayOf, localeFirstWeekday, type ProjectGoal } from '@caotang/furniture';
 import type { TreeNode } from '@caotang/store';
@@ -21,14 +25,26 @@ import {
 } from '../app/footer-model.js';
 import { furnitureFor, goalProbeOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 import { formatterLocale } from '../i18n/format-locale.js';
 import { formatCount, useComposingEnter, useReport, useSession } from './shared.js';
 
+
+/* lingui-set comment="Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day." */
 type Comparator = 'at-least' | 'at-most' | 'about';
 type Measure = 'words' | 'chars';
 type Kind = 'project' | 'weekly' | 'monthly';
 
+function paceSentence(goal: ProjectGoal, pace: string): string {
+  if (goal.kind === 'weekly') return t`≈ ${{ pace }}/day to finish this week`;
+  if (goal.kind === 'monthly') return t`≈ ${{ pace }}/day to finish this month`;
+  if (goal.deadline === undefined) return t`≈ ${{ pace }}/day to finish`;
+  const by = formatDay(goal.deadline);
+  return t`≈ ${{ pace }}/day to finish by ${{ by }}`;
+}
+
 export function InspectorGoals({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
+  useLingui();
   useSession(session);
   const store = furnitureFor(session);
   const furniture = useSyncExternalStore(store.subscribe, store.snapshot);
@@ -52,7 +68,6 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
   const goals = furniture.goals.filter((goal) => goal.nodeId === node.id);
   const probe = goalProbeOf(session, furniture.sessions);
   const today = localDayOf(new Date());
-  const title = node.id === 'manuscript' ? 'the manuscript' : node.title;
   // A weekly or monthly goal is the manuscript's, a minimum in words with no date (goals-progress §9.3), so only the manuscript offers them.
   const onManuscript = node.id === 'manuscript';
   const windowed = kind !== 'project';
@@ -121,7 +136,7 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
     if (ime.takesSubmit()) return;
     const amount = Number(target);
     if (!Number.isInteger(amount) || amount <= 0) {
-      report({ text: `A goal needs a whole number of ${measured} above zero.`, tone: 'error' });
+      report({ text: measured === 'characters' ? t`A goal needs a whole number of characters above zero.` : t`A goal needs a whole number of words above zero.`, tone: 'error' });
       return;
     }
     const outcome = store.saveGoal({
@@ -144,9 +159,9 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
   return (
     <section className="inspector-section inspector-goals" aria-labelledby="inspector-goals-label" data-testid="inspector-goals">
       <h3 id="inspector-goals-label" className="field-label">
-        Goals
+        <Trans>Goals</Trans>
       </h3>
-      {goals.length === 0 ? <p className="field-note">No goals on {title} yet.</p> : null}
+      {goals.length === 0 ? <p className="field-note">{onManuscript ? t`No goals on the manuscript yet.` : t`No goals on ${{ title: isolate(node.title) }} yet.`}</p> : null}
       <ul ref={list} className="goal-list">
         {goals.map((goal, index) => {
           const progress = goalProgress(goal, probe, today, { firstWeekday });
@@ -156,68 +171,67 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
             <li key={goal.id} className={`goal is-${progress.state}`} data-goal={goal.id} data-goal-state={progress.state}>
               <p className="goal-sentence">{sentence}</p>
               {resets === undefined ? null : <p className="field-note goal-reset">{resets}</p>}
-              <progress className="goal-progress" max={goal.target} value={Math.min(progress.current, goal.target)} aria-label={`Progress toward ${title}`} />
+              <progress className="goal-progress" max={goal.target} value={Math.min(progress.current, goal.target)} aria-label={accessibleText(onManuscript ? t`Progress toward the manuscript` : t`Progress toward ${{ title: isolate(node.title) }}`)} />
               <p className="goal-line">
-                {formatCount(progress.current)} of {formatCount(goal.target)} {unitOf(goal)} · {goalStateWords(progress.state)}
+                {t`${{ current: formatCount(progress.current) }} of ${{ target: formatCount(goal.target) }} ${{ unit: unitOf(goal) }} · ${{ state: goalStateWords(progress.state) }}`}
               </p>
               {progress.pace !== undefined ? (
                 <p className="goal-pace">
-                  ≈ {paceCountOf(goal, progress.pace.perDay)}/day to finish
-                  {goal.kind === 'weekly' ? ' this week' : goal.kind === 'monthly' ? ' this month' : goal.deadline === undefined ? '' : ` by ${formatDay(goal.deadline)}`}
+                  {paceSentence(goal, paceCountOf(goal, progress.pace.perDay))}
                 </p>
               ) : null}
               <div className="goal-actions">
                 <button
                   type="button"
                   className="button is-quiet"
-                  aria-label={`Edit the goal ${sentence}`}
+                  aria-label={accessibleText(t`Edit the goal ${{ sentence }}`)}
                   onClick={(event) => edit(goal, event.currentTarget)}
                 >
-                  Edit
+                  <Trans>Edit</Trans>
                 </button>
                 <button
                   type="button"
                   className="button is-quiet"
-                  aria-label={`Remove the goal ${sentence}`}
+                  aria-label={accessibleText(t`Remove the goal ${{ sentence }}`)}
                   onClick={() => remove(goal, index)}
                 >
-                  Remove
+                  <Trans>Remove</Trans>
                 </button>
               </div>
             </li>
           );
         })}
       </ul>
-      <form className="goal-add" aria-label={`${editing === null ? 'Add a goal on' : 'Change a goal on'} ${title}`} onKeyDown={ime.noteKey} onSubmit={submit}>
+      <form className="goal-add" aria-label={accessibleText(editing === null ? (onManuscript ? t`Add a goal on the manuscript` : t`Add a goal on ${{ title: isolate(node.title) }}`) : onManuscript ? t`Change a goal on the manuscript` : t`Change a goal on ${{ title: isolate(node.title) }}`)} onKeyDown={ime.noteKey} onSubmit={submit}>
         <label>
-          <span>Comparison</span>
+          <span><Trans>Comparison</Trans></span>
           <select
-            aria-label="Inspector goal comparison"
+            aria-label={t`Inspector goal comparison`}
             value={windowed ? 'at-least' : comparator}
             disabled={windowed}
             onChange={(event) => setComparator(event.target.value as Comparator)}
           >
-            <option value="at-least">At least</option>
-            <option value="at-most">At most</option>
-            <option value="about">About</option>
+            <option value="at-least"><Trans>At least</Trans></option>
+            <option value="at-most"><Trans>At most</Trans></option>
+            <option value="about"><Trans>About</Trans></option>
           </select>
         </label>
         <label>
-          <span>Measure</span>
+          <span><Trans>Measure</Trans></span>
           <select
-            aria-label="Inspector goal measure"
+            aria-label={t`Inspector goal measure`}
             value={windowed ? 'words' : metric}
             disabled={windowed}
             onChange={(event) => setMetric(event.target.value as Measure)}
           >
-            <option value="words">Words</option>
-            <option value="chars">Characters</option>
+            <option value="words"><Trans>Words</Trans></option>
+            <option value="chars"><Trans>Characters</Trans></option>
           </select>
         </label>
         <label>
-          <span>Kind</span>
+          <span><Trans>Kind</Trans></span>
           <select
-            aria-label="Inspector goal kind"
+            aria-label={t`Inspector goal kind`}
             value={kind}
             onChange={(event) => {
               // A weekly reset day is not a monthly one, so a change of kind starts again from the default.
@@ -225,19 +239,19 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
               setReset('');
             }}
           >
-            <option value="project">Project</option>
-            {onManuscript ? <option value="weekly">Weekly</option> : null}
-            {onManuscript ? <option value="monthly">Monthly</option> : null}
+            <option value="project"><Trans>Project</Trans></option>
+            {onManuscript ? <option value="weekly"><Trans>Weekly</Trans></option> : null}
+            {onManuscript ? <option value="monthly"><Trans>Monthly</Trans></option> : null}
           </select>
         </label>
         {windowed ? (
           <label>
             {/* No aria-label: the wrapping label's visible words name the select (WCAG 2.5.3). */}
-            <span>{kind === 'weekly' ? 'Week starts on' : 'Month starts on'}</span>
+            <span>{kind === 'weekly' ? t`Week starts on` : t`Month starts on`}</span>
             <select value={reset} onChange={(event) => setReset(event.target.value)}>
               {kind === 'weekly' ? (
                 <>
-                  <option value="">{weekdayName(firstWeekday)}, your locale&apos;s first day</option>
+                  <option value="">{t`${{ weekday: weekdayName(firstWeekday) }}, your locale’s first day`}</option>
                   {Array.from({ length: 7 }, (_, day) => weekdayName(day)).map((name, day) => (
                     <option key={name} value={String(day)}>
                       {name}
@@ -246,31 +260,31 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
                 </>
               ) : (
                 <>
-                  <option value="">The 1st (the default)</option>
+                  <option value=""><Trans>The 1st (the default)</Trans></option>
                   {Array.from({ length: MONTHLY_RESET_MAX - 1 }, (_, index) => index + 2).map((day) => (
                     <option key={day} value={String(day)}>
-                      The {ordinalDay(day)}
+                      {t`The ${{ day: ordinalDay(day) }}`}
                     </option>
                   ))}
-                  <option value="last">The last day of the month</option>
+                  <option value="last"><Trans>The last day of the month</Trans></option>
                 </>
               )}
             </select>
           </label>
         ) : null}
         <label>
-          <span>{windowed || metric === 'words' ? 'Words' : 'Characters'}</span>
+          <span>{windowed || metric === 'words' ? t`Words` : t`Characters`}</span>
           <input
             ref={figure}
             type="number"
             min={1}
-            aria-label={windowed || metric === 'words' ? 'Inspector goal words' : 'Inspector goal characters'}
+            aria-label={windowed || metric === 'words' ? t`Inspector goal words` : t`Inspector goal characters`}
             value={target}
             onChange={(event) => setTarget(event.target.value)}
           />
         </label>
         <label>
-          <span>By (optional)</span>
+          <span><Trans>By (optional)</Trans></span>
           {/* No aria-label: the wrapping label names the date, so its visible words are its accessible name (WCAG 2.5.3). */}
           <input
             type="date"
@@ -281,11 +295,11 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
         </label>
         <div className="goal-form-actions">
           <button type="submit" className="button">
-            {editing === null ? 'Add goal' : 'Save goal'}
+            {editing === null ? t`Add goal` : t`Save goal`}
           </button>
           {editing === null ? null : (
             <button type="button" className="button is-quiet" onClick={cancel}>
-              Cancel
+              <Trans>Cancel</Trans>
             </button>
           )}
         </div>

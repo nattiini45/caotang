@@ -46,11 +46,13 @@
 
 import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
-import { scanTool, type CoherenceFile, type CoherenceModel, type DeterministicCheckId, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
+import { scanTool, type CoherenceFile, type DeterministicCheckId, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
   ApplyRefusal,
+  createActivityLog,
   createIdempotencyCache,
+  createUndoStore,
   createViewState,
   execute,
   executeAsync,
@@ -74,8 +76,10 @@ import {
   RevisionConflictError,
   appendSession,
   createAutosave,
+  backfillAssetRecords,
   backfillProjectIdentity,
   readSessions,
+  collectRetention,
   createAssetStaging,
   createProjectCommandRegistry,
   createSkillStaging,
@@ -84,11 +88,18 @@ import {
   evictSnapshots,
   getRevision,
   isBodyType,
+  planRelinkPairs,
+  previewSweep,
   resolveRetentionConfig,
+  stateRetentionRoots,
   systemCommandClock,
   writeBodySnapshot,
   type Autosave,
-  type AssetStaging,
+  type RelinkPlan,
+  type RetentionRoot,
+  type RetryableAssetStaging,
+  type SweepPreview,
+  UndoRetentionLedger,
   type CodexEntry,
   type ExportCommandPort,
   type ProjectState,
@@ -100,15 +111,21 @@ import {
   type WriteDocumentResult,
 } from '@caotang/store';
 import { newId } from '@caotang/ids';
-import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
+import { assetRecordsOf } from '@caotang/exporter/export-metadata';
+import type { EmitFailure, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { createProductHarness, dialogueFactsOf, type Harness } from '@caotang/harness';
+import { dialogueFactsOf, type Harness, type PictureOutbox, type TranscriptionGenerationInput } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
-import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
-import { transcodePictureInBrowser } from './picture-transcoder.js';
+import { processPictureInBrowser, resizePictureInBrowser } from './picture-transcoder.js';
+import type { runPictureTranscription } from '../media/picture-transcription.js';
+import type * as LazyExporter from './lazy-exporter.js';
+import type { AssetRecords } from './lazy-exporter.js';
+import type { ReviewProviders } from './coherence-review.js';
+import type { HarnessRuntime } from './lazy-harness.js';
+import { TranscriptionReviewBroker } from './transcription-review.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
 import { inkCompilerStatus, requestInkCompiler, requestInkCompilerFor } from './ink-compiler.js';
@@ -118,7 +135,9 @@ import { skillsView, type SkillsView } from './skills-model.js';
 import type { DirectoryHandleLike } from './fs-access.js';
 import { Persistence } from './persistence.js';
 import type { Shadow } from './persistence-plan.js';
+import { activeAppDb } from './app-db.js';
 import { dropHistoryOf } from './history-store.js';
+import { hostRetentionRoots } from './picture-retention-host.js';
 import { PendingJournal, type PendingFailure } from './pending-journal.js';
 import { browserStorage, stopKeptInBrowser } from './unsent-copy.js';
 
@@ -237,11 +256,12 @@ export interface SessionOptions {
 
 /**
  * What the app tells a session's coherence tools, read at each call: the deterministic checks the writer has on (Settings ›
- * Coherence), and the model a review runs through, which is the active provider (undefined when none is active).
+ * Coherence), and the providers a review's model comes from (no model when none is active).
  */
 export interface SessionCoherence {
   readonly checks: () => readonly DeterministicCheckId[];
-  readonly model: () => CoherenceModel | undefined;
+  /** The providers the review's model follows, read at each call; `activeCoherenceModel` turns them into the model once the harness is loaded. */
+  readonly providers: ReviewProviders;
 }
 
 /** What the session says when an older change is asked to be undone while a later one stands (see `undoGroup`). */
@@ -279,8 +299,6 @@ export class ProjectSession {
   readonly log: ActivityLog;
   /** The undo store: the harness's, for the same reason. */
   readonly undo: UndoStore;
-  /** The agent's harness, sharing this session's registry, undo store and log (agent-harness §3). */
-  readonly harness: Harness;
   readonly persistence: Persistence;
   readonly autosave: Autosave;
   /** The words typed since the last save, kept where a page that goes away cannot take them (pending-journal.ts). */
@@ -295,7 +313,21 @@ export class ProjectSession {
   /** The project's images, the cover among them: written by the import, read by the exporter, carried by the bundle. */
   readonly assets: ProjectAssets;
   /** The images the writer has chosen and the next `project.importAsset` will take: held in memory, and single-use. */
-  private readonly assetStaging: AssetStaging = createAssetStaging();
+  private readonly assetStaging: RetryableAssetStaging = createAssetStaging();
+  /**
+   * The agent's harness and the pieces made beside it (lazy-harness.ts), or `null` until `harnessReady` has resolved. The harness
+   * is a separate download: the writer's own commands, undo and autosave never wait for it.
+   */
+  private harnessRuntime: HarnessRuntime | null = null;
+  private harnessLoading: Promise<HarnessRuntime> | null = null;
+  /** The agent controller pins the turn's model here; absent a turn, the conservative answer is text only. */
+  private pictureVision: () => boolean = () => false;
+  /** The transient, app-side gate between generated transcription pages and their single bus publication. */
+  readonly transcriptionReviews = new TranscriptionReviewBroker();
+  /** The picture ids the captured compensations of this session's open undo groups still name: a root of the sweep's inventory (pictures.md §6.6.1). */
+  private readonly undoRetention = new UndoRetentionLedger();
+  /** The retention roots other parts of the app register for what they hold: an agent card's drafts and held task drafts. */
+  private readonly retentionRoots = new Set<RetentionRoot>();
   /** The skill folders the writer has chosen and the next `skill.import` will take: held in memory, and single-use. */
   private readonly skillStaging: SkillStaging = createSkillStaging();
   /** The writer's reviews of this project's skills. A skill the writer has not read is not offered to the agent (extensibility.md §10). */
@@ -305,7 +337,11 @@ export class ProjectSession {
   /** The mention cache the codex panel's appearance view reads (codex-panels §1). */
   readonly mentions = new CodexMentions();
   private readonly registry: CommandRegistry;
-  private exporterService: ExporterService;
+  /** What the harness reads of the app, kept until it is made (`harnessReady`). */
+  private readonly harnessOptions: Pick<SessionOptions, 'mcp' | 'presentAssets' | 'coherence'>;
+  /** The exporter (lazy-exporter.ts), or `null` until the first compile or a folder's attach has loaded it. */
+  private exporterService: ExporterService | null = null;
+  private exporterModule: Promise<typeof LazyExporter> | null = null;
   /**
    * The project's stored images as the exporter names them, listed by {@link refreshAssetRecords}. The exporter reads them
    * synchronously, so a compile reads this, and `null` until the first listing has finished.
@@ -384,12 +420,20 @@ export class ProjectSession {
     // The browser's copy of the project's images, so a reopened project's images read back after a reload. Every read and
     // write of the assets waits for this binding (project-assets.ts), so nothing is written to a store that is not yet bound.
     void this.assets.persistFor(options.projectId);
-    this.exporterService = exporterFor(() => this.state, this.exports, this.assets, () => this.imagesForExport());
+    this.harnessOptions = { mcp: options.mcp, presentAssets: options.presentAssets, coherence: options.coherence };
     void this.refreshAssetRecords();
     // The registry's exporter port is this one function, which always asks the current exporter. Attaching a folder
-    // swaps the exporter behind it, so the registry the harness holds never goes stale.
+    // swaps the exporter behind it, so the registry the harness holds never goes stale. The exporter is a separate download
+    // (lazy-exporter.ts): a compile that reaches the port before `exportsReady` has loaded it is refused as not ready yet, and starts the load.
     const exporter: ExportCommandPort = {
-      compile: (state, request) => this.exporterService.commandPort().compile(state, request),
+      compile: (state, request) => {
+        const service = this.exporterService;
+        if (service === null) {
+          void this.loadExporter().catch(() => undefined);
+          throw this.exportNotReady();
+        }
+        return service.commandPort().compile(state, request);
+      },
     };
     this.registry = createProjectCommandRegistry({
       clock: systemCommandClock,
@@ -400,27 +444,37 @@ export class ProjectSession {
       shots: shotCommandPort(),
       // The cover image's bytes go to the project's asset store, which writes them through to the project folder when one
       // is open. The exporter reads the cover back from the same store (epub-metadata.md).
-      assets: { staging: this.assetStaging, writeBytes: (path, bytes) => this.assets.writeBytes(path, bytes) },
+      // `list` and `readBytes` let the picture import find a file that has no record yet (a hash match against a file this store
+      // already holds) instead of writing it twice.
+      undoRetention: this.undoRetention,
+      assets: {
+        staging: this.assetStaging,
+        writeBytes: (path, bytes) => this.assets.writeBytes(path, bytes),
+        list: async () => ({
+          authoritative: this.assets.listingAuthoritative(),
+          files: (await this.assets.listPaths()).map((path) => path.slice(path.lastIndexOf('/') + 1)),
+        }),
+        readBytes: (path) => this.assets.readBytes(path),
+        // The browser's canvas makes the 4096 px working copies a writer can choose for large photos (pictures.md §6.4 step 3).
+        process: processPictureInBrowser,
+        // The removal half (pictures.md §6.4.2): `asset.sweep` is registered only because this is here, and it reads every root of
+        // §6.6.1 before it removes a file. It is the writer's command; no agent tool names it.
+        deletion: {
+          listRetention: () => this.retentionSnapshot(),
+          remove: (paths) => this.assets.removeFiles(paths),
+        },
+      },
       // The skills the writer imports are staged here, and the command names them (extensibility.md §10).
       skillStaging: this.skillStaging,
     });
 
-    this.harness = createProductHarness({
-      state: this.state,
-      registry: this.registry,
-      clock: () => Date.now(),
-      ports: 'agent',
-      // The agent is told only of the skills the writer has read and approved, and the harness checks that on every call.
-      skills: { reviewedPin: (name) => this.skillReviews.pinOf(name) },
-      notify: () => this.afterCommand(),
-      ...(options.mcp === undefined ? {} : { mcp: options.mcp }),
-      ...(options.presentAssets === undefined ? {} : { presentAssets: options.presentAssets }),
-      // The agent's coherence scans read the writer's Coherence settings, and its review runs through the app's model
-      // (coherence.md §5.3). The settings and the model are read at each call. The factory adds the dialogue facts and the review context.
-      ...(options.coherence === undefined ? {} : { coherence: options.coherence }),
+    // The undo store and the log are the session's, made here so no command waits for the harness; the harness registers its calls in
+    // the same two once it has loaded (`harnessReady`), so a user gesture, an agent turn and an undo of either land in one history.
+    // An undo replays through a bus that notifies like the harness's did: a replayed command schedules a save.
+    this.log = createActivityLog();
+    this.undo = createUndoStore({
+      dispatch: (command) => execute(command, { ...this.bus, notify: () => this.afterCommand() }, this.harnessRuntime?.harness.registry ?? this.registry),
     });
-    this.undo = this.harness.undo;
-    this.log = this.harness.log;
 
     this.bus = {
       state: this.state,
@@ -485,6 +539,64 @@ export class ProjectSession {
     // Opening a project is the moment the retention ladder runs (command-bus §5.1). It is not awaited by the open:
     // a failed sweep is kept for the Data section to report, and the project opens regardless.
     this.maintenanceRun = this.sweepSnapshots();
+  }
+
+  /** Pins the capability check `pictures.view` uses to the model route of the turn about to run. */
+  setPictureVision(vision: () => boolean): void {
+    this.pictureVision = vision;
+  }
+
+  /**
+   * The agent's harness, sharing this session's registry, undo store and log (agent-harness §3). It is made once, in its own download,
+   * and the promise resolves with it; every caller that needs it waits here, and a session that never runs the agent never loads it.
+   */
+  harnessReady(): Promise<Harness> {
+    this.harnessLoading ??= import('./lazy-harness.js').then((module) => {
+      const runtime = module.createHarnessRuntime({
+        state: this.state,
+        registry: this.registry,
+        history: { undo: this.undo, log: this.log },
+        assets: this.assets,
+        assetStaging: this.assetStaging,
+        skillReviews: this.skillReviews,
+        transcriptionReviews: this.transcriptionReviews,
+        pictureVision: () => this.pictureVision(),
+        notify: () => this.afterCommand(),
+        ...(this.harnessOptions.mcp === undefined ? {} : { mcp: this.harnessOptions.mcp }),
+        ...(this.harnessOptions.presentAssets === undefined ? {} : { presentAssets: this.harnessOptions.presentAssets }),
+        ...(this.harnessOptions.coherence === undefined ? {} : { coherence: this.harnessOptions.coherence }),
+      });
+      this.harnessRuntime = runtime;
+      return runtime;
+    }).catch((error: unknown) => {
+      // A download that failed is not kept, so the next turn asks for it again.
+      this.harnessLoading = null;
+      throw error;
+    });
+    return this.harnessLoading.then((runtime) => runtime.harness);
+  }
+
+  /** The harness once `harnessReady` has resolved. Reading it earlier is a defect in the caller, which has to wait for the promise. */
+  get harness(): Harness {
+    if (this.harnessRuntime === null) throw new Error('The agent harness is not loaded yet: await session.harnessReady() first.');
+    return this.harnessRuntime.harness;
+  }
+
+  /** The transient hand-off between the picture view host and this project's agent session; available once `harnessReady` has resolved. */
+  get pictureOutbox(): PictureOutbox {
+    if (this.harnessRuntime === null) throw new Error('The agent harness is not loaded yet: await session.harnessReady() first.');
+    return this.harnessRuntime.pictureOutbox;
+  }
+
+  /** Runs the approved transcription reads against this project's stored bytes; the loop supplies its budgeted model calls. */
+  async transcribePictures(input: TranscriptionGenerationInput): ReturnType<typeof runPictureTranscription> {
+    const { runPictureTranscription: run } = await import('../media/picture-transcription.js');
+    return run({
+      ...input,
+      state: this.state,
+      assets: this.assets,
+      ...(typeof createImageBitmap === 'function' ? { resize: resizePictureInBrowser } : {}),
+    });
   }
 
   /* ------------------------------------------------------------------ *
@@ -789,6 +901,115 @@ export class ProjectSession {
     return result;
   }
 
+  /** Holds the bytes of a picture the writer chose until an `asset.importBatch` names them (pictures.md §6.4.2). Never a command param. */
+  stagePicture(bytes: Uint8Array): string {
+    return this.assetStaging.stage(bytes);
+  }
+
+  /** Lets go of staged pictures: the writer cancelled, or the import was refused for good. Safe for an id already imported. */
+  discardStagedPictures(ids: readonly string[]): void {
+    this.assetStaging.discard(ids);
+  }
+
+  /**
+   * Imports staged pictures as one `asset.importBatch`, one undo group (pictures.md §2.4). The large-photo question is the host's: a
+   * refusal that carries `details.largePhotoPrompt` is the question, not a failure, so it is not kept in the rejected list; the
+   * staged bytes stay held, and the caller asks once and sends the same ids again with `largePhotos`.
+   */
+  async importPictures(
+    items: CommandParams['asset.importBatch']['items'],
+    largePhotos?: CommandParams['asset.importBatch']['largePhotos'],
+  ): Promise<Result<ExecutionOutcome, CommandError>> {
+    const command: Command<CommandParams['asset.importBatch']> = {
+      id: newId('cmd'),
+      name: 'asset.importBatch',
+      params: { items: [...items], ...(largePhotos === undefined ? {} : { largePhotos }) },
+      issuedBy: 'user',
+      createdAt: Date.now(),
+    };
+    const result = await executeAsync(command, this.bus, this.registry);
+    const asking = !result.ok && (result.error.details as { largePhotoPrompt?: unknown } | undefined)?.largePhotoPrompt === true;
+    if (!result.ok && !asking) this.rejections.push({ command: command.name, issuedBy: command.issuedBy, code: result.error.code });
+    await this.refreshAssetRecords();
+    this.afterCommand();
+    return result;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Picture storage: the sweep, the re-link and the working copies (pictures.md §6.3, §6.4 step 3, §6.6.1)
+   * ------------------------------------------------------------------ */
+
+  /** Registers a root of the sweep's inventory that something outside the session holds (an agent card's drafts). Returns the way to let go of it. */
+  addRetentionRoot(root: RetentionRoot): () => void {
+    this.retentionRoots.add(root);
+    return () => {
+      this.retentionRoots.delete(root);
+    };
+  }
+
+  /** Every root of §6.6.1 as one snapshot: the state's, the app's own, and the registered ones. Not authoritative when any root cannot be read. */
+  private retentionSnapshot(): ReturnType<typeof collectRetention> {
+    const host = hostRetentionRoots(
+      {
+        projectId: this.projectId,
+        store: this.runtime,
+        undo: () => this.undo,
+        ledger: this.undoRetention,
+        storage: browserStorage(),
+        appDb: activeAppDb,
+      },
+      () => [...this.retentionRoots],
+    );
+    return collectRetention([...stateRetentionRoots(this.state), ...host]);
+  }
+
+  /** The files under `assets/` and whether the list is the whole of them: the port the sweep and the re-link read. */
+  private async pictureListing(): Promise<{ readonly authoritative: boolean; readonly files: readonly string[] }> {
+    return {
+      authoritative: this.assets.listingAuthoritative(),
+      files: (await this.assets.listPaths()).map((path) => path.slice(path.lastIndexOf('/') + 1)),
+    };
+  }
+
+  /**
+   * The exact files a sweep would remove now, for the writer to read before they confirm. Nothing is removed; `asset.sweep` reads the
+   * listing and the roots again before it removes anything, so a file that stops being a candidate in between is left alone.
+   */
+  async previewPictureSweep(): Promise<SweepPreview> {
+    await this.assets.ready();
+    return previewSweep({ listing: await this.pictureListing(), state: this.state, retention: await this.retentionSnapshot() });
+  }
+
+  /** The records whose file is missing and an unrecorded file with the same bytes (pictures.md §6.3), or why the listing could not say. */
+  async planPictureRelink(): Promise<RelinkPlan> {
+    await this.assets.ready();
+    return planRelinkPairs(this.state, { list: () => this.pictureListing(), readBytes: (path) => this.assets.readBytes(path) });
+  }
+
+  /** Runs `asset.sweep`: writer-confirmed, not undoable, and never the agent's. The result names what was removed and what remains. */
+  sweepPictures(): Promise<Result<ExecutionOutcome, CommandError>> {
+    return this.runAsync('asset.sweep', {});
+  }
+
+  /** Runs `asset.relink` over the pairs the writer was shown, in one batch and one undo group. */
+  relinkPictures(pairs: readonly CommandParams['asset.relink']['pairs'][number][]): Promise<Result<ExecutionOutcome, CommandError>> {
+    return this.runAsync('asset.relink', { pairs: pairs.map((pair) => ({ ...pair })) });
+  }
+
+  /** Runs `asset.storeWorkingCopies` over the chosen pictures: one batch, one undo group, the originals kept for the undo. */
+  storeWorkingCopies(assetIds: readonly string[]): Promise<Result<ExecutionOutcome, CommandError>> {
+    return this.runAsync('asset.storeWorkingCopies', { assetIds: [...assetIds] });
+  }
+
+  private async runAsync<N extends 'asset.sweep' | 'asset.relink' | 'asset.storeWorkingCopies'>(name: N, params: CommandParams[N]): Promise<Result<ExecutionOutcome, CommandError>> {
+    const command: Command<CommandParams[N]> = { id: newId('cmd'), name, params, issuedBy: 'user', createdAt: Date.now() };
+    const result = await executeAsync(command, this.bus, this.registry);
+    if (!result.ok) this.rejections.push({ command: name, issuedBy: 'user', code: result.error.code });
+    await this.refreshAssetRecords();
+    this.afterCommand();
+    return result;
+  }
+
   /**
    * Lists the project's stored images again, for the exporter. The exporter reads them synchronously, so this runs at each point the
    * images can have changed (the open, the import of a cover or a shot's picture, the attach of a folder, an export asked for), and a
@@ -882,14 +1103,7 @@ export class ProjectSession {
    * export (an `ApplyRefusal`, which the bus returns as a refusal, not as a defect in the apply), so no shot list is written without them.
    */
   private imagesForExport(): AssetRecords {
-    if (this.heldImages === null) {
-      throw new ApplyRefusal({
-        code: 'io-error',
-        message: t`the images of this project are still being listed, so no export was written`,
-        correctiveHint: t`compile again in a moment, when the listing has finished`,
-        target: 'export.compile',
-      });
-    }
+    if (this.heldImages === null) throw this.exportNotReady();
     if ('failure' in this.heldImages) {
       const reason = this.heldImages.failure instanceof Error ? this.heldImages.failure.message : String(this.heldImages.failure);
       throw new ApplyRefusal({
@@ -900,6 +1114,32 @@ export class ProjectSession {
       });
     }
     return this.heldImages.records;
+  }
+
+  /** The refusal of a compile that arrives before what it reads is ready: the images are not listed, or the exporter is still loading. */
+  private exportNotReady(): ApplyRefusal {
+    return new ApplyRefusal({
+      code: 'io-error',
+      message: t`the images of this project are still being listed, so no export was written`,
+      correctiveHint: t`compile again in a moment, when the listing has finished`,
+      target: 'export.compile',
+    });
+  }
+
+  /**
+   * The exporter, loaded on first use: its download holds the renderers, which nothing before the first compile needs. A folder attached
+   * before it is loaded is already in the export store, so the first exporter lists `exports/` with the folder's files in it.
+   */
+  private loadExporter(): Promise<ExporterService> {
+    // A download that failed is not kept, so the next compile asks for it again.
+    this.exporterModule ??= import('./lazy-exporter.js').catch((error: unknown) => {
+      this.exporterModule = null;
+      throw error;
+    });
+    return this.exporterModule.then((module) => {
+      this.exporterService ??= module.exporterFor(() => this.state, this.exports, this.assets, () => this.imagesForExport());
+      return this.exporterService;
+    });
   }
 
   /** The image references the open dropped because `assets/` does not hold their files, one line each (storyboard.md §2.2). */
@@ -915,17 +1155,17 @@ export class ProjectSession {
     // The Ink story and the dialogue tables compile the containers' Ink, which needs the compiler (ink-compiler.ts).
     await requestInkCompilerFor(this.state);
     await this.refreshAssetRecords();
-    await this.exporterService.ready();
+    await (await this.loadExporter()).ready();
   }
 
   /** Resolves when every queued export write has settled, so the bytes of a finished compile are in the store. */
   exportsIdle(): Promise<void> {
-    return this.exporterService.idle();
+    return this.exporterService?.idle() ?? Promise.resolve();
   }
 
   /** The export jobs that failed, oldest first. An export that wrote nothing has its reason here. */
   exportFailures(): readonly EmitFailure[] {
-    return this.exporterService.failures();
+    return this.exporterService?.failures() ?? [];
   }
 
   /** The bytes of an artifact this session wrote at `path`, for a download. */
@@ -952,7 +1192,8 @@ export class ProjectSession {
    * Mirror this project's exports into `root` from now on. Rejects, and changes nothing, when the folder's compile log
    * cannot be read as one, or when the folder already holds a different file under the name of an export this session
    * made before the folder was known (see `ExportStore.attach`). The exporter is made again afterwards, so its listing of
-   * `exports/` includes the folder's files and a new export cannot take a name one of them holds.
+   * `exports/` includes the folder's files and a new export cannot take a name one of them holds. A load of the exporter
+   * that failed is not a refusal: the folder stays attached, and the next compile asks for the exporter again.
    */
   async attachFolder(root: DirectoryHandleLike): Promise<void> {
     // The folder's pictures are listed before anything can refuse the attach, so a refused folder's pictures are still present.
@@ -961,9 +1202,13 @@ export class ProjectSession {
     await this.assets.checkAttach(root);
     await this.exports.attach(root);
     await this.assets.attach(root);
-    this.exporterService = exporterFor(() => this.state, this.exports, this.assets, () => this.imagesForExport());
+    // An exporter that was already made has listed `exports/` without the folder, so it is made again. One that was never loaded is
+    // made, later, over the store the folder is already in. One whose load failed is tolerated here: the attach is done, and
+    // `loadExporter` keeps no failed download, so the next compile loads it again.
+    const loaded = this.exporterModule === null ? null : await this.exporterModule.catch(() => null);
+    if (loaded !== null) this.exporterService = loaded.exporterFor(() => this.state, this.exports, this.assets, () => this.imagesForExport());
     await this.refreshAssetRecords();
-    await this.exporterService.ready();
+    await this.exporterService?.ready();
     this.bump();
     // A check that waited for a folder's list (the project had no browser copy) runs now that the list is in.
     await this.checkImageReferences();
@@ -1297,10 +1542,33 @@ export class ProjectSession {
     if (this.imagesChecked || !this.assets.listingAuthoritative()) return;
     this.imagesChecked = true;
     const notices = dropDanglingImages(this.state, this.assets.presentIds());
-    if (notices.length === 0) return;
-    this.imageDropNotes = notices;
+    // A project from before the picture registry gets a record for every image it uses, once, from the same authoritative listing.
+    // It runs after the drop, so a reference whose file is gone is not given a record, and it adds records only (pictures.md §6.3).
+    const backfilled = await this.backfillPictureRecords();
+    if (notices.length === 0 && !backfilled) return;
+    if (notices.length > 0) this.imageDropNotes = notices;
     this.persistence.schedule();
     this.bump();
+  }
+
+  /** Records for the used images that have none. A read that fails leaves its file for the next open, and never blocks the open. */
+  private async backfillPictureRecords(): Promise<boolean> {
+    try {
+      const result = await backfillAssetRecords(
+        this.state,
+        {
+          list: async () => ({
+            authoritative: this.assets.listingAuthoritative(),
+            files: (await this.assets.listPaths()).map((path) => path.slice(path.lastIndexOf('/') + 1)),
+          }),
+          readBytes: (path) => this.assets.readBytes(path),
+        },
+        new Date(),
+      );
+      return result.created.length > 0;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -1403,6 +1671,8 @@ export class ProjectSession {
         this.pendingTimer = null;
         // The tab's focus signals are let go too, so a closed session does not list the project's images any more.
         this.detachAssetRefresh();
+        this.transcriptionReviews.cancel();
+        this.harnessRuntime?.imageStager.releaseAll();
         await this.autosave.flush();
         await this.persistence.settle();
         await this.coherenceQueue;
@@ -1428,40 +1698,7 @@ function countInEntries(body: string, entries: readonly CodexEntry[], terms: rea
   return countMentions(body, compileCodex(entries), terms);
 }
 
-/** The project's stored images as the exporter names them (the shot list and the prompt pack): the listing of `assets/`. */
-type AssetRecords = Awaited<ReturnType<typeof assetRecordsOf>>;
 
 /** A listing of the project's images that has finished, or the error it gave. */
 type HeldImages = { readonly records: AssetRecords } | { readonly failure: unknown };
-
-/**
- * The exporter for one project. It reads the state through `read`, so it always sees the project as it is now. Its cover is
- * read from the project's asset store, where the cover import put it; its compile outputs go to the export store. Its images are
- * read through `images`, which the session holds from its last listing (`refreshAssetRecords`).
- */
-function exporterFor(
-  read: () => ProjectState,
-  artifacts: ExportStore,
-  assets: ProjectAssets,
-  images: () => AssetRecords,
-): ExporterService {
-  return createExporter({
-    readState: read,
-    artifacts: artifacts.artifacts,
-    bytes: artifacts.bytes,
-    metadata: (state) => exportMetadataOf(state.manifest.project),
-    readAsset: (path) => assets.readBytes(path),
-    assets: images,
-    // The contact sheet's font for text outside Latin script, fetched from this origin only when a sheet needs it.
-    loadFallbackFont: loadCjkFontOverHttp,
-    // Its emoji font (Noto Emoji, monochrome), fetched from this origin only when a sheet holds an emoji.
-    loadEmojiFont: loadEmojiFontOverHttp,
-    // Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, fetched from this origin only when a file holds their script.
-    loadArabicFont: loadArabicFontOverHttp,
-    loadHebrewFont: loadHebrewFontOverHttp,
-    loadDevanagariFont: loadDevanagariFontOverHttp,
-    // A WebP picture on the contact sheet, drawn on a canvas: the PDF embeds PNG and JPEG only, and the CSP refuses WebAssembly.
-    transcodePicture: transcodePictureInBrowser,
-  });
-}
 

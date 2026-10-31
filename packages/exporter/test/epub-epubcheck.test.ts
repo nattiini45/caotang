@@ -15,7 +15,9 @@ import { EpubCheck } from '@likecoin/epubcheck-ts';
 import { MemoryArtifactFs, type ProjectState } from '@caotang/store';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate/browser';
 import { createExporter } from '../src/exporter.js';
+import { renderComicEpub, type ComicEpubInput } from '../src/render-comic-epub.js';
 import { renderEpub, type EpubInput } from '../src/render-epub.js';
+import { JPEG, mangaPage, sixPanelPage } from './comic-pdf-fixture.js';
 import { IDS, makeProject, withSceneStyle } from './fixture.js';
 import { COVER_PNG, EPUB_IDENTIFIER, epubInput } from './epub-fixtures.js';
 
@@ -114,4 +116,43 @@ describe('the epubcheck gate — EPUB 3.3, zero errors on the corpus', () => {
     expect(result.messages.filter((m) => m.severity === 'error' || m.severity === 'fatal').map((m) => m.id)).toEqual([]);
     expect(result.errorCount + result.fatalCount).toBe(0);
   });
+});
+
+
+describe('the epubcheck gate — the fixed-layout comic EPUB', () => {
+  const raster = (number: number) => ({ number, width: 1288, height: 1988, bytes: JPEG, notes: [] });
+  const comicBook = (readingDirection: 'ltr' | 'rtl', language: string, pages: ComicEpubInput['pages']): Promise<Uint8Array> =>
+    renderComicEpub({
+      title: 'Night Ferry',
+      author: 'Ada Lovelace',
+      language,
+      identifier: EPUB_IDENTIFIER,
+      modified: '2026-10-02T15:00:00Z',
+      mtime: new Date('2026-10-02T15:00:00Z'),
+      readingDirection,
+      pages,
+    });
+  const CASES: readonly { readonly name: string; readonly build: () => Promise<Uint8Array> }[] = [
+    {
+      name: 'a left-to-right book of six-panel pages with every balloon kind',
+      build: () => comicBook('ltr', 'en', [{ raster: raster(1), page: sixPanelPage().page }, { raster: raster(2), page: sixPanelPage().page }]),
+    },
+    {
+      name: 'a right-to-left manga page with Han, Hebrew and Arabic lettering',
+      build: () => comicBook('rtl', 'ja', [{ raster: raster(1), page: mangaPage().page }]),
+    },
+    {
+      name: 'a single page with no balloon text',
+      build: () => comicBook('ltr', 'en', [{ raster: raster(1), page: { size: 'us-comic', panels: [{ id: 'pn_quiet0001', rect: [0, 0, 1, 1], balloons: [] }] } }]),
+    },
+  ];
+
+  for (const book of CASES) {
+    it(`reports no fatal error and no error for ${book.name}`, async () => {
+      const result = await EpubCheck.validate(await book.build(), { version: '3.3' });
+      const errors = result.messages.filter((m) => m.severity === 'error' || m.severity === 'fatal');
+      expect(errors.map((m) => `${m.id}: ${m.message}`)).toEqual([]);
+      expect(result.fatalCount + result.errorCount).toBe(0);
+    });
+  }
 });

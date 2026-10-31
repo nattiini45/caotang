@@ -22,6 +22,34 @@ import type {
   ScreenplayImportParams,
 } from './descriptors-script.js';
 import type { SceneNumbersOption } from './descriptors-project.js';
+import type { ProjectSetCalendarParams } from './descriptors-calendar.js';
+import type { TimelineApplyParams } from './timeline.js';
+import type {
+  ComicCreateBookParams,
+  ComicDeriveParams,
+  ComicLetterParams,
+  ComicScriptFromPagesParams,
+  ComicSetBookParams,
+  ComicSetPageParams,
+  ComicSetScriptParams,
+} from './descriptors-comic.js';
+import type {
+  AssetDeleteParams,
+  AssetImportBatchParams,
+  AssetImportParams,
+  AssetLinkParams,
+  AssetMakeDocumentLevelParams,
+  AssetRelinkParams,
+  AssetRepinParams,
+  AssetReorderLinksParams,
+  AssetSetLinkMetaParams,
+  AssetSetMetaParams,
+  AssetStoreWorkingCopiesParams,
+  AssetSweepParams,
+  AssetUnlinkParams,
+} from './descriptors-pictures.js';
+import type { AssetTranscribeParams } from './descriptors-transcription.js';
+import type { AssetLink, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
 
 /**
  * §9's closed v0.1 registry, in the order the spec tabulates it.
@@ -136,6 +164,41 @@ export const COMMAND_NAMES = [
   'skill.write',
   'skill.delete',
   'skill.setEnabled',
+  // One approval of a timeline proposal as one undo group (timeline.md §4.3): scene declarations, binder moves and day shifts, validated whole.
+  // The descriptor is `descriptors-timeline.ts`, the apply the store's (`commands-timeline.ts`).
+  'timeline.apply',
+  // The timeline's calendar and lens choice (timeline.md §3.8). User-only; its descriptor is descriptors-calendar.ts and its
+  // apply the store's (commands-calendar.ts).
+  'project.setCalendar',
+  // The picture registry's commands (pictures.md §2.4): import, a record's and a link's own text, placing a picture, and deleting it.
+  // Their descriptors are descriptors-pictures.ts, the applies the store's (commands-pictures.ts). A picture's bytes are staged by the host and named here, never sent as params.
+  'asset.import',
+  'asset.importBatch',
+  'asset.setMeta',
+  'asset.transcribe',
+  'asset.setLinkMeta',
+  'asset.link',
+  'asset.unlink',
+  'asset.makeDocumentLevel',
+  'asset.repin',
+  'asset.reorderLinks',
+  'asset.delete',
+  // The storage-management three (pictures.md §2.4, §6.3, §6.5, §6.6.1): the destructive sweep (confirm, not undoable, no tool),
+  // the rename-by-hash re-link, and the bulk working-copy batch. Descriptors in descriptors-pictures.ts, applies in the store's
+  // commands-pictures.ts, wired only when the host injects the asset port (the sweep also its deletion port).
+  'asset.sweep',
+  'asset.relink',
+  'asset.storeWorkingCopies',
+  // The comic track's seven commands (comics.md §3.2): a book, its settings, a page's whole value, the optional script link,
+  // the script written from the pages, and the script-to-pages derive and lettering writes. Their descriptors are
+  // descriptors-comic.ts, the applies the store's (commands-comic.ts).
+  'comic.createBook',
+  'comic.setBook',
+  'comic.setPage',
+  'comic.setScript',
+  'comic.scriptFromPages',
+  'comic.derive',
+  'comic.letter',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -198,12 +261,20 @@ export interface ValidationNode {
   readonly type: string;
   /** The media-track kind marker (screenplay, storyboard, branching). Absent on a plain node. */
   readonly kind?: string;
+  /** Gap-encoded sibling order (project-format §2). Absent in a snapshot that carries none, which reads each sibling set in tree order. */
+  readonly order?: number;
   readonly title: string;
   readonly status: string | null;
   readonly label: string | null;
   readonly keywords: readonly string[];
   readonly synopsis: string;
   readonly notes: string;
+  /** The shot's stored details, when it is a shot. Only image is read, by the picture commands' uses. */
+  readonly shot?: Readonly<Record<string, unknown>> | undefined;
+  /** A comic folder's book settings (comics.md §2). The comic commands read them; `@caotang/comic` owns the fields. */
+  readonly comic?: Readonly<Record<string, unknown>> | undefined;
+  /** A comic page's stored value: its size, layout and panels (comics.md §2). A panel's picture is a typed use of it. */
+  readonly comicPage?: Readonly<Record<string, unknown>> | undefined;
 }
 
 export interface ValidationCodexEntry {
@@ -216,6 +287,8 @@ export interface ValidationCodexEntry {
    * them. Only the count is read here, so only the document id is named.
    */
   readonly sources?: readonly { readonly docId: string }[];
+  /** The asset ids of the entry's visual references (video-prompt-pack.md §3). A use of each picture. */
+  readonly visualRefs?: readonly string[] | undefined;
 }
 
 export interface ValidationDocument {
@@ -274,7 +347,11 @@ export interface ValidationSnapshot {
      */
     readonly recipes?: readonly { readonly name: string; readonly includeRootIds?: readonly string[] }[];
     /** The project title and identity, read by `project.setMetadata`'s refusals. Optional, like the rest of the block. */
-    readonly project?: { readonly name?: string };
+    readonly project?: { readonly name?: string; readonly coverAssetId?: string | null | undefined };
+    /** The picture records (pictures.md §2.1). Additive, so absent means none. */
+    readonly assets?: readonly ReadAssetRecord[];
+    /** The picture links (pictures.md §2.1). Additive, so absent means none. */
+    readonly assetLinks?: readonly (AssetLink | ReadAssetLink)[];
     /** The skills the writer turned off (extensibility.md §10), by name. Additive, so absent means every skill is on. */
     readonly disabledSkills?: readonly string[];
   };
@@ -589,6 +666,29 @@ export interface CommandParams {
   'skill.write': SkillWriteParams;
   'skill.delete': SkillDeleteParams;
   'skill.setEnabled': SkillSetEnabledParams;
+  'timeline.apply': TimelineApplyParams;
+  'project.setCalendar': ProjectSetCalendarParams;
+  'asset.import': AssetImportParams;
+  'asset.importBatch': AssetImportBatchParams;
+  'asset.setMeta': AssetSetMetaParams;
+  'asset.transcribe': AssetTranscribeParams;
+  'asset.setLinkMeta': AssetSetLinkMetaParams;
+  'asset.link': AssetLinkParams;
+  'asset.unlink': AssetUnlinkParams;
+  'asset.makeDocumentLevel': AssetMakeDocumentLevelParams;
+  'asset.repin': AssetRepinParams;
+  'asset.reorderLinks': AssetReorderLinksParams;
+  'asset.delete': AssetDeleteParams;
+  'asset.sweep': AssetSweepParams;
+  'asset.relink': AssetRelinkParams;
+  'asset.storeWorkingCopies': AssetStoreWorkingCopiesParams;
+  'comic.createBook': ComicCreateBookParams;
+  'comic.setBook': ComicSetBookParams;
+  'comic.setPage': ComicSetPageParams;
+  'comic.setScript': ComicSetScriptParams;
+  'comic.scriptFromPages': ComicScriptFromPagesParams;
+  'comic.derive': ComicDeriveParams;
+  'comic.letter': ComicLetterParams;
 }
 
 /**
@@ -752,9 +852,9 @@ export type CodexUpsertOp = {
  */
 export type BinderCreateParams = {
   parentId: string;
-  type: 'folder' | 'document' | 'shot' | 'dialogue';
+  type: 'folder' | 'document' | 'shot' | 'dialogue' | 'comic-page';
   title: string;
-  kind?: 'screenplay' | 'storyboard' | 'branching';
+  kind?: 'screenplay' | 'storyboard' | 'branching' | 'comic-script';
 };
 
 export type BinderMoveParams = { nodeId: string; newParentId: string; index: number };
@@ -949,7 +1049,33 @@ export type RecipeOptionsParams = {
   pageSize?: RecipePageSize;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). */
   paperFrames?: boolean;
+  /** The comic PDF carries its bleed (comics.md §5). Absent is on. */
+  bleed?: boolean;
+  /** The comic PDF draws crop marks outside the bleed (comics.md §5). Absent is off. */
+  cropMarks?: boolean;
+  /** The contents heading this recipe writes, over the project language's word (i18n.md §7.1). */
+  contentsLabel?: string;
+  /**
+   * How the prose exports treat the pictures placed in the bodies (pictures.md §4): Markdown reads `copy`, `link`
+   * or `drop`, plain text `placeholder` or `drop`. Absent: the format's own default.
+   */
+  pictures?: PictureMode;
+  /** The EPUB's image long edge in pixels (pictures.md §4). Absent: 1600. */
+  epubImageMaxPx?: number;
+  /** Keep WebP pictures as WebP in the EPUB, Apple Books only (pictures.md §4 C1). Absent is off. Only `epub` reads it. */
+  epubKeepWebp?: boolean;
+  /** Keep the pictures' private metadata in the exports (pictures.md §4). Absent is stripped on export. */
+  keepPictureMetadata?: boolean;
+  /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent is off. Only `timeline-pdf` reads it. */
+  timelinePictures?: boolean;
 };
+
+/**
+ * The `pictures` recipe option's values (pictures.md §4): `copy`, `link` and `drop` are the Markdown modes,
+ * `placeholder` and `drop` the plain-text ones. Declared beside the runtime list in `descriptors-project.ts` and
+ * re-exported here, where the recipe options (and their consumers) already read the bus's types.
+ */
+export type PictureMode = 'copy' | 'link' | 'drop' | 'placeholder';
 
 /**
  * Where the screenplay PDF prints scene numbers (screenplay.md §5.3): off by default.

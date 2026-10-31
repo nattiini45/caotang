@@ -7,6 +7,7 @@
  */
 
 import type { SceneNumbersOption } from '@caotang/bus';
+import type { ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
 
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
@@ -57,6 +58,25 @@ export interface ExportRecipeOptions {
   pageSize?: 'A4' | 'Letter';
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). Absent = off. */
   paperFrames?: boolean;
+  /** The comic PDF carries its bleed (comics.md §5). Absent = on. A comic's reading direction is its book's, never a recipe's. */
+  bleed?: boolean;
+  /** The comic PDF draws crop marks outside the bleed (comics.md §5). Absent = off. */
+  cropMarks?: boolean;
+  /** The contents heading this recipe writes, over the project language's word (i18n.md §7.1). Absent = the language's own. */
+  contentsLabel?: string;
+  /**
+   * How the prose exports treat the pictures placed in the bodies (pictures.md §4): Markdown reads `copy` (default),
+   * `link` or `drop`; plain text reads `placeholder` (default) or `drop`.
+   */
+  pictures?: 'copy' | 'link' | 'drop' | 'placeholder';
+  /** The EPUB's image long edge in pixels (pictures.md §4). Absent = 1600, never upscaled. */
+  epubImageMaxPx?: number;
+  /** Keep WebP pictures as WebP in the EPUB (Apple Books only). Absent = off. Only `epub` reads it. */
+  epubKeepWebp?: boolean;
+  /** Keep the pictures' private metadata in the exports. Absent = stripped on export. */
+  keepPictureMetadata?: boolean;
+  /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent = off. Only `timeline-pdf` reads it. */
+  timelinePictures?: boolean;
 }
 
 /**
@@ -113,6 +133,13 @@ export interface TreeNode {
   shot?: Record<string, unknown>;
   /** A dialogue container's metadata (dialogue-narrative.md §2.1): speaker, locBaseline, engineTarget, autoLineIds. */
   dialogue?: Record<string, unknown>;
+  /**
+   * A comic folder's book settings (comics.md §2). The store carries it as an object and does not read its fields:
+   * `@caotang/comic` owns the vocabulary, loads it tolerantly and validates it on a write.
+   */
+  comic?: Record<string, unknown>;
+  /** A comic page's stored value: its size, layout and panels (comics.md §2), carried unread like {@link TreeNode.comic}. */
+  comicPage?: Record<string, unknown>;
 }
 
 export interface VocabularyTerm {
@@ -215,6 +242,18 @@ export interface ProjectGoal {
   updatedAt: string;
 }
 
+/**
+ * The timeline's lens setting (timeline.md §3.8): which lens names the story's days, and the project's own calendar when it has one.
+ * The calendar is kept as the JSON the writer's editor saved, because its schema belongs to `@caotang/timeline`, which sits above
+ * the store; a definition from a newer build is therefore kept as it is and used only by a build that can read it.
+ */
+export interface ProjectTimelineSettings {
+  /** `day` is the built-in lens; `calendar` is the project's calendar. Absent means the calendar when there is one, else the day lens. */
+  lens?: 'day' | 'calendar';
+  /** A version-1 calendar definition (`CalendarDefinition`), or the definition of a later version. */
+  calendar?: Record<string, unknown>;
+}
+
 export interface Manifest {
   app: typeof APP_ID;
   formatVersion: number;
@@ -238,4 +277,19 @@ export interface Manifest {
    * that is on is still not offered to the agent until the writer has reviewed it, and the review is not kept here.
    */
   disabledSkills?: string[];
+  /** additive in v1 (timeline.md §3.8): the lens and the custom calendar. Absent = the built-in day lens. */
+  timeline?: ProjectTimelineSettings;
+  /**
+   * additive in v1 (pictures.md §2.1): one record per picture file. Absent = no records yet; a used file with no record is given one by the
+   * backfill. A record from a newer build keeps the fields this build does not know.
+   */
+  assets?: ReadAssetRecord[];
+  /** additive in v1 (pictures.md §2.1): where a picture is placed, with one gap-ordered list per target. Absent = no links. */
+  assetLinks?: ReadAssetLink[];
+  /**
+   * Entries of assets[] or assetLinks[] that could not be read, exactly as they were stored. Never a manifest key: the serializer writes
+   * them back into their own array, so a record this build cannot read survives a save (pictures.md §2.1 load rules).
+   */
+  unreadableAssets?: unknown[];
+  unreadableAssetLinks?: unknown[];
 }

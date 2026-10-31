@@ -10,6 +10,7 @@ import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
 import { costLineRef, refusalSentence } from '@caotang/harness';
+import type { ComicPreview, StepCost, TimelineCard, TimelineCardRow, TimelineDeltaFinding } from '@caotang/harness';
 import type { MessageRef } from '@caotang/i18n';
 
 import { renderRef } from '../i18n/render-ref.js';
@@ -89,6 +90,9 @@ export type StepPreviewView =
   | { readonly kind: 'codex'; readonly entries: readonly CodexPreviewEntry[] }
   | { readonly kind: 'tree'; readonly lines: readonly string[]; readonly rows: readonly TreePreviewRow[] }
   | ReviewPreviewView
+  | TranscriptionPreviewView
+  | ComicPreview
+  | TimelineCard
   | InkPreviewView
   | ShotsPreviewView;
 
@@ -120,6 +124,36 @@ export interface ReviewPreviewView {
   readonly maxFindings: number;
   readonly overGuard: boolean;
   readonly prompt: string;
+}
+
+export interface TranscriptionPreviewPage {
+  readonly assetId: string;
+  readonly title: string;
+  readonly file: string;
+  readonly width?: number;
+  readonly height?: number;
+}
+
+export interface TranscriptionRouteView {
+  readonly label: string;
+  readonly model: string;
+}
+
+/** The approved request schedule, routes and page thumbnails of `pictures.transcribe`. */
+export interface TranscriptionPreviewView {
+  readonly kind: 'transcription';
+  readonly into: 'new-document' | 'searchable';
+  readonly language: string;
+  readonly secondRead?: { readonly profileId: string; readonly model?: string };
+  readonly pages: readonly TranscriptionPreviewPage[];
+  readonly batchSizes: readonly number[];
+  readonly warnings: readonly string[];
+  readonly requests: number;
+  readonly maxRequests: number;
+  readonly promptTokens: number;
+  readonly outputTokens: number;
+  readonly routes: { readonly primary: TranscriptionRouteView; readonly second?: TranscriptionRouteView };
+  readonly routeCosts: { readonly primary?: StepCost; readonly second?: StepCost };
 }
 
 /** The name a node takes when the project no longer holds it, so a preview never shows an id. */
@@ -189,6 +223,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function transcriptionRouteOf(value: unknown): TranscriptionRouteView | undefined {
+  if (!isRecord(value) || typeof value['label'] !== 'string' || typeof value['model'] !== 'string') return undefined;
+  return { label: value['label'], model: value['model'] };
+}
+
+function transcriptionCostOf(value: unknown): StepCost | undefined {
+  if (!isRecord(value)) return undefined;
+  const promptUsd = value['promptUsd'];
+  const completionUsd = value['completionUsd'];
+  const totalUsd = value['totalUsd'];
+  if (typeof promptUsd !== 'number' || typeof completionUsd !== 'number' || typeof totalUsd !== 'number') return undefined;
+  return { promptUsd, completionUsd, totalUsd, ...(value['includesThinking'] === true ? { includesThinking: true as const } : {}) };
+}
+
 function textsOf(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
@@ -214,8 +262,8 @@ function plainOf(field: string, value: unknown): string {
     const policy = POLICY_WORDS[value];
     return policy === undefined ? value : i18n._(policy);
   }
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.length === 0 ? '(none)' : value.map((item) => String(item)).join(', ');
+  if (typeof value === 'boolean') return value ? t`Yes` : t`No`;
+  if (Array.isArray(value)) return value.length === 0 ? t`(none)` : value.map((item) => String(item)).join(', ');
   if (value === null || value === undefined || value === '') return '(none)';
   return String(value);
 }
@@ -400,6 +448,49 @@ export function stepPreviewOf(
       warnings: textsOf(preview['warnings']),
     };
   }
+  if (tool === 'pictures.transcribe' && Array.isArray(preview['pages']) && isRecord(preview['estimate'])) {
+    const estimate = preview['estimate'];
+    const rawRoutes = isRecord(preview['routes']) ? preview['routes'] : {};
+    const primary = transcriptionRouteOf(rawRoutes['primary']);
+    if (primary === undefined) return undefined;
+    const second = transcriptionRouteOf(rawRoutes['second']);
+    const rawCosts = isRecord(preview['routeCosts']) ? preview['routeCosts'] : {};
+    const primaryCost = transcriptionCostOf(rawCosts['primary']);
+    const secondCost = transcriptionCostOf(rawCosts['second']);
+    const rawSecond = isRecord(preview['secondRead']) ? preview['secondRead'] : undefined;
+    const into = preview['into'];
+    if (into !== 'new-document' && into !== 'searchable') return undefined;
+    return {
+      kind: 'transcription',
+      into,
+      language: typeof preview['language'] === 'string' ? preview['language'] : 'en',
+      ...(rawSecond !== undefined && typeof rawSecond['profileId'] === 'string'
+        ? { secondRead: { profileId: rawSecond['profileId'], ...(typeof rawSecond['model'] === 'string' ? { model: rawSecond['model'] } : {}) } }
+        : {}),
+      pages: preview['pages'].filter(isRecord).map((page) => {
+        const assetId = typeof page['assetId'] === 'string' ? page['assetId'] : '';
+        const file = typeof page['file'] === 'string' ? page['file'] : (pictureNames.get(assetId) ?? assetId);
+        return {
+          assetId,
+          title: typeof page['caption'] === 'string' && page['caption'].trim() !== '' ? page['caption'] : file,
+          file,
+          ...(typeof page['width'] === 'number' ? { width: page['width'] } : {}),
+          ...(typeof page['height'] === 'number' ? { height: page['height'] } : {}),
+        };
+      }),
+      batchSizes: Array.isArray(preview['batchSizes']) ? preview['batchSizes'].filter((size): size is number => typeof size === 'number') : [],
+      warnings: textsOf(preview['warnings']),
+      requests: typeof estimate['requests'] === 'number' ? estimate['requests'] : 0,
+      maxRequests: typeof estimate['maxRequests'] === 'number' ? estimate['maxRequests'] : 0,
+      promptTokens: typeof estimate['promptTokens'] === 'number' ? estimate['promptTokens'] : 0,
+      outputTokens: typeof estimate['outputTokens'] === 'number' ? estimate['outputTokens'] : 0,
+      routes: { primary, ...(second === undefined ? {} : { second }) },
+      routeCosts: {
+        ...(primaryCost === undefined ? {} : { primary: primaryCost }),
+        ...(secondCost === undefined ? {} : { second: secondCost }),
+      },
+    };
+  }
   if (tool === 'coherence.review' && Array.isArray(preview['documents']) && isRecord(preview['estimate'])) {
     const estimate = preview['estimate'];
     const documents = preview['documents'].filter(isRecord).map(
@@ -430,6 +521,32 @@ export function stepPreviewOf(
       }),
     );
     return { kind: 'shots', folder: preview['folder'], shots, lines: textsOf(preview['lines']), notes: textsOf(preview['notes']) };
+  }
+  if (tool === 'timeline.edit' && preview['kind'] === 'timeline-edit' && Array.isArray(preview['rows']) && isRecord(preview['findingsDelta'])) {
+    const delta = preview['findingsDelta'];
+    const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+    const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0);
+    const findings = (value: unknown): TimelineDeltaFinding[] =>
+      Array.isArray(value) ? value.filter(isRecord).map((finding) => ({ checkId: text(finding['checkId']), severity: text(finding['severity']), message: text(finding['message']) })) : [];
+    const rows = preview['rows'].filter(isRecord).map((row): TimelineCardRow => ({ node: text(row['node']), part: text(row['part']), field: text(row['field']), before: text(row['before']), after: text(row['after']) }));
+    const resolved = findings(delta['resolved']);
+    const added = findings(delta['added']);
+    const omitted = count(preview['omittedRows']);
+    return {
+      kind: 'timeline-edit',
+      rows,
+      ...(omitted > 0 ? { omittedRows: omitted } : {}),
+      findingsDelta: {
+        resolved,
+        added,
+        resolvedCount: Math.max(count(delta['resolvedCount']), resolved.length),
+        addedCount: Math.max(count(delta['addedCount']), added.length),
+      },
+    };
+  }  const comicKind = tool === 'comic.derive' ? 'comic-derive' : tool === 'comic.letter' ? 'comic-letter' : tool === 'comic.scriptFromPages' ? 'comic-script-from-pages' : undefined;
+  if (comicKind !== undefined && preview['kind'] === comicKind) {
+    // The native tool builds this closed, JSON-safe shape from the current project; writer content is rendered as text below.
+    return preview as unknown as ComicPreview;
   }
   if (tool === 'binder.restructure' && Array.isArray(preview['tree'])) {
     const rows = preview['tree'].filter(isRecord).map((node): TreePreviewRow => {

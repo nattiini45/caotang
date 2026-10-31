@@ -8,6 +8,11 @@
  * the offsets. The picker is a read-only text area, so the writer selects but cannot change the script from here.
  */
 
+import { accessibleText } from '../i18n/accessible-text.js';
+import { isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useRef, useState, type ReactNode } from 'react';
 
 import { getBody } from '@caotang/store';
@@ -18,13 +23,21 @@ import { commitShotCommand } from './commit.js';
 import { captureSelection, coverCommand, coverageRowsOf, scriptChoicesOf, uncoverCommand, type SelectedText } from './coverage-model.js';
 import type { MediaPorts } from './ports.js';
 
+
+/* lingui-set comment="Dialogue coverage on a shot. Interpolated values: text is a passage of the writer's script; the count is a number." */
 export interface ShotCoverageProps {
   readonly session: ProjectSession;
   readonly shotId: string;
   readonly ports: MediaPorts | undefined;
 }
 
+function selectedText(text: string): string {
+  const characters = [...text].length;
+  return plural(characters, { one: '# character selected.', other: '# characters selected.' });
+}
+
 export function ShotCoverage({ session, shotId, ports }: ShotCoverageProps): ReactNode {
+  useLingui();
   useSession(session);
   const choices = scriptChoicesOf(session.state);
   const rows = coverageRowsOf(session.state, shotId);
@@ -48,7 +61,7 @@ export function ShotCoverage({ session, shotId, ports }: ShotCoverageProps): Rea
     const picked = current();
     setSelection(picked);
     if (picked === null) {
-      setMessage('Select the words the shot covers in the text, then cover them.');
+      setMessage(t`Select the words the shot covers in the text, then cover them.`);
       return;
     }
     const captured = captureSelection(session.state, docId, picked);
@@ -62,7 +75,7 @@ export function ShotCoverage({ session, shotId, ports }: ShotCoverageProps): Rea
       return;
     }
     const result = commitShotCommand(session, planned.value, ports);
-    setMessage(result.ok ? 'Covered.' : result.message);
+    setMessage(result.ok ? t`Covered.` : result.message);
     if (result.ok) setSelection(null);
   };
 
@@ -73,22 +86,22 @@ export function ShotCoverage({ session, shotId, ports }: ShotCoverageProps): Rea
       return;
     }
     const result = commitShotCommand(session, planned.value, ports);
-    setMessage(result.ok ? 'Coverage removed.' : result.message);
+    setMessage(result.ok ? t`Coverage removed.` : result.message);
   };
 
   return (
-    <section className="sb-coverage" aria-label="Script coverage">
-      <h3 className="field-label">Script coverage</h3>
+    <section className="sb-coverage" aria-label={t`Script coverage`}>
+      <h3 className="field-label"><Trans>Script coverage</Trans></h3>
       {rows.length === 0 ? (
-        <p className="muted">This shot covers no script text yet.</p>
+        <p className="muted"><Trans>This shot covers no script text yet.</Trans></p>
       ) : (
-        <ul className="sb-covers" aria-label="Covered script text">
+        <ul className="sb-covers" aria-label={t`Covered script text`}>
           {rows.map((row) => (
             <li key={`${row.index}:${row.docId}`}>
               <span className="sb-cover-title">{row.title}</span>: <q>{row.text}</q>{' '}
               {editable ? (
-                <button type="button" className="button is-quiet" aria-label={`Remove the coverage of “${row.text}”`} onClick={() => remove(row.index)}>
-                  Remove
+                <button type="button" className="button is-quiet" aria-label={accessibleText(t`Remove the coverage of “${{ text: isolate(row.text) }}”`)} onClick={() => remove(row.index)}>
+                  <Trans>Remove</Trans>
                 </button>
               ) : null}
             </li>
@@ -96,14 +109,14 @@ export function ShotCoverage({ session, shotId, ports }: ShotCoverageProps): Rea
         </ul>
       )}
       {choices.length === 0 ? (
-        <p className="muted">There is no screenplay scene or prose document to cover yet.</p>
+        <p className="muted"><Trans>There is no screenplay scene or prose document to cover yet.</Trans></p>
       ) : editable ? (
         <div className="sb-cover-picker">
-          <p className="muted">Choose a scene or a document, select the words this shot covers in its text, then cover them.</p>
+          <p className="muted"><Trans>Choose a scene or a document, select the words this shot covers in its text, then cover them.</Trans></p>
           <label>
-            <span>Script</span>
+            <span><Trans>Script</Trans></span>
             <select
-              aria-label="Script to cover from"
+              aria-label={t`Script to cover from`}
               value={docId}
               onChange={(event) => {
                 setChosen(event.target.value);
@@ -121,7 +134,7 @@ export function ShotCoverage({ session, shotId, ports }: ShotCoverageProps): Rea
           <textarea
             ref={textArea}
             className="sb-cover-text"
-            aria-label="Script text"
+            aria-label={t`Script text`}
             readOnly
             rows={8}
             value={body}
@@ -129,9 +142,9 @@ export function ShotCoverage({ session, shotId, ports }: ShotCoverageProps): Rea
             onKeyUp={sync}
             onMouseUp={sync}
           />
-          <p className="muted">{selection === null ? 'No words selected.' : `${[...selection.text].length} characters selected.`}</p>
+          <p className="muted">{selection === null ? t`No words selected.` : selectedText(selection.text)}</p>
           <button type="button" className="button" onClick={cover}>
-            Cover the selected text
+            <Trans>Cover the selected text</Trans>
           </button>
         </div>
       ) : null}

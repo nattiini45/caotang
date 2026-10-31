@@ -13,6 +13,7 @@
  */
 
 import { dateFormat } from '@caotang/i18n';
+import { t } from '@lingui/core/macro';
 import type { ProjectState } from '@caotang/store';
 
 import { formatterLocale } from '../i18n/format-locale.js';
@@ -41,10 +42,10 @@ export interface UnsentDocument {
 }
 
 /** The chapter a put-back makes, once per put-back, at the end of the manuscript, for the documents whose own chapter is gone. */
-export const KEPT_CHAPTER_TITLE = 'Kept from a stopped tab';
+export const keptChapterTitle = (): string => t`Kept from a stopped tab`;
 
 /** The same, for words kept through a reload (`UnsentEntry.origin`). */
-export const RELOAD_CHAPTER_TITLE = 'Kept from before a reload';
+export const reloadChapterTitle = (): string => t`Kept from before a reload`;
 
 /** The Research root's id (store create.ts): the documents under it are notes, not the manuscript. */
 const RESEARCH_ROOT = 'research';

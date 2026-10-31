@@ -53,7 +53,7 @@ interface ShotSpec {
 
 /** A project with the storyboard folder, its shots in the order given, and one shot in another folder that is never packed. */
 function project(shots: readonly ShotSpec[]): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Scene 1 — Shots', id: FOLDER, now: NOW });
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Scene 2 — Shots', id: OTHER, now: NOW });
   for (const shot of shots) addShotNode(state, { parentId: FOLDER, id: shot.id, title: shot.title, stored: shot.stored ?? {}, now: NOW });

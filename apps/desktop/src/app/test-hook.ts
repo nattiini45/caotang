@@ -77,6 +77,24 @@ export interface CaotangTestHook {
   undoGroups(): number;
   /** The project id of the open session, or `null` on the projects screen. */
   projectId(): string | null;
+  /** The picture registry as the manifest holds it: the records and the placements, in order. */
+  pictures(): PicturesRow;
+}
+
+export interface PicturesRow {
+  readonly records: readonly {
+    readonly id: string;
+    readonly file: string;
+    readonly bytes: number;
+    readonly width: number | null;
+    readonly height: number | null;
+    readonly caption: string | null;
+    readonly alt: string | null;
+    readonly tags: readonly string[];
+    readonly decorative: boolean;
+    readonly workingCopy: boolean;
+  }[];
+  readonly links: readonly { readonly id: string; readonly assetId: string; readonly role: string; readonly kind: string; readonly nodeId: string | null; readonly note: string | null }[];
 }
 
 declare global {
@@ -129,5 +147,30 @@ export function installTestHook(current: () => ProjectSession | null): void {
     saveState: () => current()?.saveState() ?? null,
     undoGroups: () => current()?.undo.groups().length ?? 0,
     projectId: () => current()?.projectId ?? null,
+    pictures: () => {
+      const manifest = current()?.state.manifest;
+      return {
+        records: (manifest?.assets ?? []).map((record) => ({
+          id: record.id,
+          file: record.file,
+          bytes: record.bytes,
+          width: record.width ?? null,
+          height: record.height ?? null,
+          caption: record.caption ?? null,
+          alt: record.alt ?? null,
+          tags: record.tags ?? [],
+          decorative: record.decorative === true,
+          workingCopy: record.workingCopy !== undefined,
+        })),
+        links: (manifest?.assetLinks ?? []).map((link) => ({
+          id: link.id,
+          assetId: link.assetId,
+          role: String(link.role),
+          kind: link.target.kind,
+          nodeId: typeof (link.target as { nodeId?: unknown }).nodeId === 'string' ? (link.target as { nodeId: string }).nodeId : null,
+          note: link.note ?? null,
+        })),
+      };
+    },
   };
 }

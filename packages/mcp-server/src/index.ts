@@ -66,6 +66,21 @@ export {
 export { guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
 export { advertisedSchema, registerCaotangTools, toCallResult, type ToolRuntime } from './tools.js';
 export {
+  MESSAGE_MAX_BYTES,
+  PICTURES_LIST,
+  PICTURES_LIST_DESCRIPTION,
+  PICTURES_LIST_SCHEMA,
+  PICTURES_LIST_TOKEN_CAP,
+  PICTURES_VIEW,
+  PICTURES_VIEW_DESCRIPTION,
+  PICTURES_VIEW_SCHEMA,
+  PICTURE_MAX_SENT_BYTES,
+  VIEW_MAX_EDGE,
+  VIEW_MAX_PICTURES,
+  registerPictureTools,
+} from './pictures.js';
+export { ASSETS_URI, RESOURCE_MAX_BYTES, TIMELINE_CSV_URI, TIMELINE_URI, assetUri, registerCaotangResources } from './resources.js';
+export {
   LEGACY_ROUND_TIMEOUT_MS,
   MAX_BODY_BYTES,
   buildMcpServer,

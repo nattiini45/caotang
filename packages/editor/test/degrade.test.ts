@@ -245,24 +245,25 @@ describe('§3.3 degrade class — a footnote', () => {
 });
 
 describe('§3.3 degrade class — an image reference', () => {
-  it('parses, warns `lossy-attribute` twice, and expands to a direct image', async () => {
+  it('parses without a warning, shows a direct image, and saves the reference as it was written', async () => {
     const { doc, warnings } = await parseWithDiagnostics(IMAGE_REF);
-    // The URL lives in the `definition` node, so both are in §3.3's row and
-    // both get `lossy-attribute`: the reference loses its *form* and the
-    // definition loses its *existence*, which are two different losses that
-    // happen to share a row.
-    expect(warnings.map((w) => [w.code, w.mdastType, w.position])).toEqual([
-      ['lossy-attribute', 'imageReference', { line: 1, column: 1 }],
-      ['lossy-attribute', 'definition', { line: 3, column: 1 }],
-    ]);
-    // §3.3: "expanded to direct link/image with resolved URL".
+    // The reference and its definition are kept in the document's source provenance (source-provenance.ts), so nothing is lost
+    // and nothing is warned.
+    expect(warnings).toEqual([]);
+    // §3.3: the image shows with the resolved URL, and carries the id of its written source.
     expect(shapeOf(doc)).toEqual([
       'doc',
-      {},
+      { provenance: expect.anything() },
       [],
-      [['paragraph', {}, [], [['image', { src: 'img.png', alt: 'alt', title: null }, [], []]]]],
+      [['paragraph', {}, [], [['image', { src: 'img.png', alt: 'alt', title: null, prov: 'r1' }, [], []]]]],
     ]);
-    expect(serialize(doc)).toBe('![alt](img.png)\n');
+    expect(serialize(doc)).toBe(IMAGE_REF.replace(/\n*$/, '\n'));
+  });
+
+  it('a reference whose spelling cannot be kept expands to a direct image and warns', async () => {
+    // A label with a line break cannot be sliced back out as one line.
+    const { warnings } = await parseWithDiagnostics('![al\nt][d]\n\n[d]: img.png\n');
+    expect(warnings.map((w) => [w.code, w.mdastType])).toEqual([['lossy-attribute', 'imageReference']]);
   });
 
   it('CONTROL: without the handler the same fixture throws the library message', async () => {
@@ -444,22 +445,14 @@ describe('§3.3 degrade class — a fence info string', () => {
 });
 
 describe('§3.3 degrade class — a link reference', () => {
-  it('warns `lossy-attribute` for the reference and the definition, and expands to a direct link', async () => {
+  it('parses without a warning, shows a direct link, and saves the reference and its definition as written', async () => {
     const { doc, warnings } = await parseWithDiagnostics(LINK_REF);
-    // §3.3's row groups `definition` / `linkReference` / `imageReference` and
-    // gives them the same code, so this is the third fixture that emits *two*
-    // `lossy-attribute` warnings for one document. They are two different losses
-    // in one row: the reference loses its *form*, the definition loses its
-    // *existence*. Before that change the reference half was silent — 0.1.5 resolved it
-    // correctly through its own default, so the expansion was right and the
-    // writer was never told.
-    expect(warnings.map((w) => [w.code, w.mdastType, w.position])).toEqual([
-      ['lossy-attribute', 'linkReference', { line: 1, column: 1 }],
-      ['lossy-attribute', 'definition', { line: 3, column: 1 }],
-    ]);
+    // The reference and the definition are kept in the document's source provenance (source-provenance.ts), so nothing is lost
+    // and nothing is warned. Before that, the reference loss was one warning and the definition loss another.
+    expect(warnings).toEqual([]);
     expect(shapeOf(doc)).toEqual([
       'doc',
-      {},
+      { provenance: expect.anything() },
       [],
       [
         [
@@ -467,14 +460,13 @@ describe('§3.3 degrade class — a link reference', () => {
           {},
           [],
           [
-            ['text', {}, [['link', { href: 'https://example.com', title: null }]], 'text', []],
+            ['text', {}, [['link', { href: 'https://example.com', title: null, prov: 'r1' }]], 'text', []],
           ],
         ],
       ],
     ]);
-    expect(serialize(doc)).toBe('[text](https://example.com)\n');
+    expect(serialize(doc)).toBe('[text][ref]\n\n[ref]: https://example.com\n');
   });
-
   it('CONTROL: without the handler the reference still resolves, and silently', async () => {
     // Not a throw. This is the control that matters for this row, because the
     // library's default is *correct* here: it expands the reference and applies
@@ -488,6 +480,7 @@ describe('§3.3 degrade class — a link reference', () => {
     expect(withoutHandler.warnings.map((w) => [w.code, w.mdastType])).toEqual([
       ['lossy-attribute', 'definition'],
     ]);
+    // The handler without a provenance capture (the primitive path, `insertionOf`) still expands and still warns twice.
     const withHandler = await diagnoseWith(null, LINK_REF);
     expect(serialize(withHandler.doc)).toBe(serialize(withoutHandler.doc));
     expect(withHandler.warnings).toHaveLength(2);
@@ -498,23 +491,26 @@ describe('§3.3 degrade class — a link reference', () => {
     // the one piece of the definition that survives into the direct link, and a
     // handler that read only `url` would drop it silently.
     const { doc } = await parseWithDiagnostics('[text][ref]\n\n[ref]: https://e.com "T"\n');
-    expect(serialize(doc)).toBe('[text](https://e.com "T")\n');
+    const marks: Array<Record<string, unknown>> = [];
+    doc.descendants((node) => {
+      for (const mark of node.marks) marks.push(mark.attrs);
+    });
+    expect(marks).toEqual([{ href: 'https://e.com', title: 'T', prov: 'r1' }]);
+    expect(serialize(doc)).toBe('[text][ref]\n\n[ref]: https://e.com "T"\n');
   });
 
-  it('two references to one definition warn three times — per node, not per definition', async () => {
-    // The count is per mdast node, which is §3.3's own shape. A writer who used
-    // one definition for five links gets six entries; collapsing them to "1
-    // definition dropped" is a presentation question for §4's banner and not a
-    // change to what happened, which is why the taxonomy field is not collapsed
-    // here (the same reasoning the inline-HTML case records).
-    const { warnings } = await parseWithDiagnostics(
-      'see [a][d] and [b][d]\n\n[d]: https://e.com\n',
-    );
-    expect(warnings.map((w) => [w.code, w.mdastType])).toEqual([
-      ['lossy-attribute', 'linkReference'],
-      ['lossy-attribute', 'linkReference'],
-      ['lossy-attribute', 'definition'],
-    ]);
+  it('two references to one definition share it: both are kept, and neither warns', async () => {
+    const body = 'see [a][d] and [b][d]\n\n[d]: https://e.com\n';
+    const { doc, warnings } = await parseWithDiagnostics(body);
+    expect(warnings).toEqual([]);
+    expect(serialize(doc)).toBe(body);
+  });
+
+  it('a reference whose label carries a mark expands and warns, and keeps its definition', async () => {
+    // The mark cannot be written back inside a reference's brackets without re-deriving the spelling, so the reference is the one
+    // thing that degrades (source-provenance.ts, "What is not kept"). The definition is kept.
+    const { warnings } = await parseWithDiagnostics('see [*em*][d]\n\n[d]: https://e.com\n');
+    expect(warnings.map((w) => [w.code, w.mdastType])).toEqual([['lossy-attribute', 'linkReference']]);
   });
 
   it('marks the label, not the paragraph — and puts the link mark last', async () => {
@@ -523,7 +519,7 @@ describe('§3.3 degrade class — a link reference', () => {
     // mark. A handler that prepended the link mark would produce the same text
     // with the marks swapped, and the swap is visible in the next round trip.
     const { doc } = await parseWithDiagnostics('see [*em*][d]\n\n[d]: https://e.com\n');
-    expect(serialize(doc)).toBe('see _[em](https://e.com)_\n');
+    expect(serialize(doc)).toBe('see _[em](https://e.com)_\n\n[d]: https://e.com\n');
     const marks: string[] = [];
     doc.descendants((node) => {
       marks.push(...node.marks.map((m) => m.type.name));
@@ -737,16 +733,12 @@ describe('§3.3 degrade class — the invariant is stability, not byte-identity'
     expect(second.dialect).toEqual(first.dialect);
     expect(shapeOf(second.doc)).toEqual(shapeOf(first.doc));
     // **Document order, with every position** — not handler-registration order,
-    // not type order. The table is line 1 and its `definition` is line 11, so
-    // anything sorted by type or by the order of `DEGRADE_MDAST_TYPES` would
-    // have to be arranged by hand to look like this. The last three are one
-    // block plus one inline span, which the inline case reports as two nodes.
+    // not type order. The image reference and its definition (lines 9 and 11) are kept in the provenance and warn nothing. The last
+    // three are one block plus one inline span, which the inline case reports as two nodes.
     expect(first.warnings.map((w) => [w.code, w.mdastType, w.position])).toEqual([
       ['lossy-structure', 'table', { line: 1, column: 1 }],
       ['unsupported-node', 'footnoteReference', { line: 5, column: 5 }],
       ['unsupported-node', 'footnoteDefinition', { line: 7, column: 1 }],
-      ['lossy-attribute', 'imageReference', { line: 9, column: 1 }],
-      ['lossy-attribute', 'definition', { line: 11, column: 1 }],
       ['unsupported-node', 'html', { line: 13, column: 1 }],
       ['unsupported-node', 'html', { line: 15, column: 11 }],
       ['unsupported-node', 'html', { line: 15, column: 21 }],

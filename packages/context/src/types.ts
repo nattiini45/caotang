@@ -9,7 +9,7 @@
 
 import type { ActivityEntry } from '@caotang/bus';
 import type { MentionIndex } from '@caotang/codex';
-import type { ChatMessage } from '@caotang/gateway';
+import type { ChatMessage, ImageSummary } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 
 /** §2's fixed layer order. Rendering and the prompt preview both follow it. */
@@ -240,9 +240,14 @@ export interface PreviewLayer {
 }
 
 export interface PromptPreview {
-  /** The execution payload. The same messages `toChatMessages` returns, byte for byte. */
+  /** The execution payload: the messages `toChatMessages` returns, byte for byte, except that an image part is its text placeholder, never its bytes. */
   readonly payload: ChatMessage[];
   readonly promptTokens: number;
+  /**
+   * Every image the payload carries, as its persistable record (hash/size/mime/caption) — the
+   * preview's placeholder source. The bytes themselves never reach a preview (provider-gateway §3).
+   */
+  readonly images: readonly ImageSummary[];
   /** The completion estimate: the model's `maxOutputTokens`, or the 4,096 default. */
   readonly completionTokens: number;
   readonly layers: readonly PreviewLayer[];

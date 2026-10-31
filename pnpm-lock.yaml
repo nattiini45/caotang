@@ -232,6 +232,9 @@ importers:
       '@caotang/coherence':
         specifier: workspace:*
         version: link:../../packages/coherence
+      '@caotang/comic':
+        specifier: workspace:*
+        version: link:../../packages/comic
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../../packages/dialogue
@@ -241,6 +244,9 @@ importers:
       '@caotang/exporter':
         specifier: workspace:*
         version: link:../../packages/exporter
+      '@caotang/font-comic-lettering':
+        specifier: workspace:*
+        version: link:../../vendor/comic-lettering
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
@@ -277,6 +283,9 @@ importers:
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../../packages/pdf-fonts
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../../packages/pictures
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay
@@ -289,6 +298,9 @@ importers:
       '@caotang/storyboard':
         specifier: workspace:*
         version: link:../../packages/storyboard
+      '@caotang/timeline':
+        specifier: workspace:*
+        version: link:../../packages/timeline
       '@caotang/video-prompt-pack':
         specifier: workspace:*
         version: link:../../packages/video-prompt-pack
@@ -320,15 +332,24 @@ importers:
 
   packages/bus:
     dependencies:
+      '@caotang/comic':
+        specifier: workspace:*
+        version: link:../comic
       '@caotang/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/skills':
         specifier: workspace:*
         version: link:../skills
 
   packages/cli:
     dependencies:
+      '@caotang/font-comic-lettering':
+        specifier: workspace:*
+        version: link:../../vendor/comic-lettering
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
@@ -381,6 +402,9 @@ importers:
       '@caotang/codex':
         specifier: workspace:*
         version: link:../codex
+      '@caotang/comic':
+        specifier: workspace:*
+        version: link:../comic
       '@caotang/i18n':
         specifier: workspace:*
         version: link:../i18n
@@ -396,6 +420,15 @@ importers:
       '@caotang/storyboard':
         specifier: workspace:*
         version: link:../storyboard
+
+  packages/comic:
+    dependencies:
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
 
   packages/context:
     dependencies:
@@ -443,6 +476,9 @@ importers:
 
   packages/editor:
     dependencies:
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
@@ -607,12 +643,21 @@ importers:
       '@caotang/bus':
         specifier: workspace:*
         version: link:../bus
+      '@caotang/coherence':
+        specifier: workspace:*
+        version: link:../coherence
+      '@caotang/comic':
+        specifier: workspace:*
+        version: link:../comic
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../dialogue
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
@@ -622,6 +667,9 @@ importers:
       '@caotang/storyboard':
         specifier: workspace:*
         version: link:../storyboard
+      '@caotang/timeline':
+        specifier: workspace:*
+        version: link:../timeline
       '@caotang/video-prompt-pack':
         specifier: workspace:*
         version: link:../video-prompt-pack
@@ -637,6 +685,9 @@ importers:
       fflate:
         specifier: 0.8.3
         version: 0.8.3
+      jpeg-js:
+        specifier: 0.4.4
+        version: 0.4.4
       pdf-lib:
         specifier: 1.17.1
         version: 1.17.1
@@ -696,6 +747,9 @@ importers:
       '@caotang/coherence':
         specifier: workspace:*
         version: link:../coherence
+      '@caotang/comic':
+        specifier: workspace:*
+        version: link:../comic
       '@caotang/context':
         specifier: workspace:*
         version: link:../context
@@ -717,6 +771,9 @@ importers:
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../mcp-client
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/skills':
         specifier: workspace:*
         version: link:../skills
@@ -726,6 +783,9 @@ importers:
       '@caotang/storyboard':
         specifier: workspace:*
         version: link:../storyboard
+      '@caotang/timeline':
+        specifier: workspace:*
+        version: link:../timeline
       '@caotang/video-prompt-pack':
         specifier: workspace:*
         version: link:../video-prompt-pack
@@ -745,10 +805,16 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@modelcontextprotocol/client':
         specifier: 2.3.1
         version: 2.3.1
     devDependencies:
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
       '@modelcontextprotocol/server':
         specifier: 2.3.1
         version: 2.3.1
@@ -767,6 +833,9 @@ importers:
       '@caotang/exporter':
         specifier: workspace:*
         version: link:../exporter
+      '@caotang/font-comic-lettering':
+        specifier: workspace:*
+        version: link:../../vendor/comic-lettering
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
@@ -797,6 +866,9 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+      '@caotang/timeline':
+        specifier: workspace:*
+        version: link:../timeline
       '@jsquash/webp':
         specifier: 1.5.0
         version: 1.5.0
@@ -816,6 +888,9 @@ importers:
 
   packages/pdf-fonts:
     dependencies:
+      '@caotang/font-comic-lettering':
+        specifier: workspace:*
+        version: link:../../vendor/comic-lettering
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
@@ -847,6 +922,12 @@ importers:
       harfbuzzjs:
         specifier: 1.6.3
         version: 1.6.3
+
+  packages/pictures:
+    dependencies:
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
 
   packages/remote-store:
     dependencies:
@@ -904,9 +985,15 @@ importers:
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+      '@caotang/timeline':
+        specifier: workspace:*
+        version: link:../timeline
 
   packages/skills:
     dependencies:
@@ -919,12 +1006,18 @@ importers:
       '@caotang/bus':
         specifier: workspace:*
         version: link:../bus
+      '@caotang/comic':
+        specifier: workspace:*
+        version: link:../comic
       '@caotang/i18n':
         specifier: workspace:*
         version: link:../i18n
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
@@ -950,6 +1043,27 @@ importers:
         specifier: workspace:*
         version: link:../store
 
+  packages/timeline:
+    dependencies:
+      '@caotang/bus':
+        specifier: workspace:*
+        version: link:../bus
+      '@caotang/coherence':
+        specifier: workspace:*
+        version: link:../coherence
+      '@caotang/dialogue':
+        specifier: workspace:*
+        version: link:../dialogue
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
+      '@caotang/screenplay':
+        specifier: workspace:*
+        version: link:../screenplay
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/video-prompt-pack:
     dependencies:
       '@caotang/codex':
@@ -958,6 +1072,8 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+
+  vendor/comic-lettering: {}
 
   vendor/noto-emoji: {}
 
@@ -2501,6 +2617,9 @@ packages:
 
   jose@6.2.12:
     resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
+
+  jpeg-js@0.4.4:
+    resolution: {integrity: sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg==}
 
   js-sha256@0.10.1:
     resolution: {integrity: sha512-5obBtsz9301ULlsgggLg542s/jqtddfOpV5KJc4hajc9JV8GeY2gZHSVpYBn4nWqAUTJ9v+xwtbJ1mIBgIH5Vw==}
@@ -5034,6 +5153,8 @@ snapshots:
   jiti@2.7.0: {}
 
   jose@6.2.12: {}
+
+  jpeg-js@0.4.4: {}
 
   js-sha256@0.10.1: {}
 

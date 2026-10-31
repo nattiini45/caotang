@@ -1,0 +1,15 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=utf-8\n"
+"Language: de\n"
+
+#, fuzzy
+msgid "Save"
+msgstr "Sichern"
+
+#, fuzzy
+msgid "Cancel"
+msgstr ""
+
+msgid "Close"
+msgstr "Schliessen"

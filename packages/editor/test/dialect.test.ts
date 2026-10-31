@@ -66,6 +66,7 @@ import {
 // module rather than the package entry point on purpose: they are internal, the
 // guards below are the only readers, and none of them belongs in the contract
 // `index.ts` documents.
+import { toSaveTree } from '../src/save-tree.js';
 import {
   RECORDED_STRINGIFY_OPTIONS,
   ownTextsByPrefix,
@@ -88,6 +89,7 @@ const corpusInput = (name: string): string => {
 const ENTITY = corpusInput('entity');
 const TABLE = corpusInput('table-gfm');
 const IMAGE_REF = corpusInput('image-reference');
+const LINK_REF = corpusInput('link-reference');
 const TASK_ITEM = corpusInput('list-task-item');
 
 /** `code:mdastType` per warning, the form a banner groups by. */
@@ -200,16 +202,11 @@ const bothDerivations = async (
     .use(remarkGfm)
     .use(remarkStringify, SAVE_STRINGIFY_OPTIONS)
     .freeze();
-  const handlers = createSerializeHandlers();
+  // The save tree a prefix is rendered with is the shared one, so a reference link's own spelling is what each side compares.
   const savePrefix = (n: number): Rendered => {
-    const t = fromProseMirror(
-      caotangSchema.topNodeType.create(null, doc.content.cut(0, ends[n - 1]!)) as never,
-      {
-        schema: caotangSchema,
-        nodeHandlers: handlers as never,
-        markHandlers: handlers as never,
-      },
-    ) as MdastRoot;
+    const t = toSaveTree(caotangSchema.topNodeType.create(doc.attrs, doc.content.cut(0, ends[n - 1]!)) as never, {
+      definitions: false,
+    }) as MdastRoot;
     return { text: String(chain.stringify(t as never)), children: t.children };
   };
   const parsePrefix = (n: number): Rendered => ({
@@ -290,14 +287,21 @@ describe('the dialect channel and the loss channel do not overlap', () => {
     // The control the entity fixture alone cannot supply: with only the entity in
     // the suite, "the channels are disjoint" and "the dialect channel is always
     // empty" are the same statement. This makes the second one false.
-    const { dialect, warnings } = await parseWithDiagnostics(IMAGE_REF);
-    expect(codes(warnings)).toEqual([
-      'lossy-attribute:imageReference',
-      'lossy-attribute:definition',
-    ]);
-    // Empty, and for a specific reason rather than by luck: the block's bytes
-    // change because a *definition* was dropped, and that is already reported.
+    // A reference whose label carries a mark cannot keep its spelling, so it expands and says so (source-provenance.ts). Its
+    // definition is kept, so only the reference is reported.
+    const { dialect, warnings } = await parseWithDiagnostics('see [*em*][d]\n\n[d]: https://e.com\n');
+    expect(codes(warnings)).toEqual(['lossy-attribute:linkReference']);
+    // Empty, and for a specific reason rather than by luck: the block's bytes change because the reference was expanded, and that
+    // is already reported.
     expect(dialect).toEqual([]);
+  });
+
+  it('a reference that keeps its spelling is neither a loss nor a re-spelling', async () => {
+    for (const body of [IMAGE_REF, LINK_REF]) {
+      const { dialect, warnings } = await parseWithDiagnostics(body);
+      expect(warnings, body).toEqual([]);
+      expect(dialect, body).toEqual([]);
+    }
   });
 
   it('a task item\'s dropped checkbox is a loss, not a re-spelling', async () => {
@@ -870,9 +874,12 @@ describe('§5 dialect contract — the rule is a comparison, not a list', () => 
     expect(source, 'pipeline.ts has no module-level save chain').toMatch(
       /^const SAVE_CHAIN = unified\(\)/m,
     );
-    expect(source, 'pipeline.ts has no module-level save handlers').toMatch(
+    // The handler table moved with the save tree, which `serialize` and the dialect sniffer both render through.
+    const saveTree = readFileSync(resolve(__dirname, '../src', 'save-tree.ts'), 'utf8');
+    expect(saveTree, 'save-tree.ts has no module-level save handlers').toMatch(
       /^const SAVE_HANDLERS = createSerializeHandlers\(\)/m,
     );
+    expect(body, 'serialize does not render through the shared save tree').toContain('toSaveTree(pm)');
   });
 
   it('derives the recorded chain\'s options from the shared object and adds nothing else', () => {
@@ -984,8 +991,8 @@ describe('§5 dialect contract — the rule is a comparison, not a list', () => 
         // The degrade class, which `LossWarning` already reports.
         'html-raw-block',
         'html-raw-inline',
-        'image-reference',
-        'link-reference',
+        // `image-reference` and `link-reference` left this list: a reference keeps its written spelling, so a save does not change
+        // their bytes (source-provenance.ts).
         'list-task-item',
         'table-gfm',
         'footnote-reference',

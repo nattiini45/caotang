@@ -25,6 +25,8 @@ export type { GhostCallbacks, GhostPreview } from './ghost.js';
 export { HISTORY_JOURNAL_VERSION, HISTORY_MAX_ENTRIES, schemaSignature } from './history-journal.js';
 export type { HistoryJournal, HistoryPort, JournalEntry } from './history-journal.js';
 export { isAppLocalSource, caotangExtensions } from './extensions.js';
+export { createPictureController, insertPicturesTransaction } from './pictures.js';
+export type { InsertedPicture, PictureController, PictureOrigin, PicturesPort } from './pictures.js';
 export { DEFAULT_EDITOR_LABELS } from './labels.js';
 export type { EditorLabels } from './labels.js';
 export type { CaotangExtensionOptions, CaotangRole } from './extensions.js';

@@ -8,6 +8,9 @@
  * side as the PDF draws them. The lines stay in the paginator's array order in the DOM, which is the reading order.
  */
 
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 
 import { LAYOUT, paginate, parseFountain, type LayoutLine, type LayoutPage, type TextRange } from '@caotang/screenplay';
@@ -32,12 +35,13 @@ export function previewPagesOf(source: string, title: string): readonly LayoutPa
 }
 
 export function ScreenplayPreview({ source, title, lang, onOpenSource }: ScreenplayPreviewProps): ReactNode {
+  useLingui();
   const pages = useMemo(() => previewPagesOf(source, title), [source, title]);
   const root = useRef<HTMLDivElement>(null);
   // The one line in the tab order (a roving tabindex), by its page and index; the first linked line while that one is gone.
   const [stop, setStop] = useState<string | null>(null);
   if (pages.length === 0) {
-    return <p className="muted">Nothing to page yet. Write the scene's heading in the Source tab, and it will appear here.</p>;
+    return <p className="muted"><Trans>Nothing to page yet. Write the scene's heading in the Source tab, and it will appear here.</Trans></p>;
   }
   const open = (line: LayoutLine): void => {
     if (line.source !== null) onOpenSource?.(line.source);
@@ -63,11 +67,11 @@ export function ScreenplayPreview({ source, title, lang, onOpenSource }: Screenp
     next.focus();
   };
   return (
-    <div ref={root} className="sp-preview" aria-label="Paginated preview" lang={lang} dir="auto">
+    <div ref={root} className="sp-preview" aria-label={t`Paginated preview`} lang={lang} dir="auto">
       <p className="field-note">
         {onOpenSource === undefined
-          ? 'The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.'
-          : 'Choose a line to open it in the Source tab. The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.'}
+          ? t`The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.`
+          : t`Choose a line to open it in the Source tab. The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.`}
       </p>
       {pages.map((page) => {
         const rows = page.kind === 'script' ? previewRowsOf(page.lines) : null;
@@ -91,7 +95,7 @@ export function ScreenplayPreview({ source, title, lang, onOpenSource }: Screenp
                   data-source=""
                   data-key={key}
                   tabIndex={tabbable === key ? 0 : -1}
-                  title="Open in the Source tab"
+                  title={t`Open in the Source tab`}
                   className={`${className} is-linked`}
                   style={style}
                   onClick={() => open(line)}

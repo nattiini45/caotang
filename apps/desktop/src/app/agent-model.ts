@@ -25,10 +25,12 @@ import {
   type TurnPhase,
   type TurnReport,
 } from '@caotang/harness';
-import { numberFormat } from '@caotang/i18n';
+import { isolate, numberFormat } from '@caotang/i18n';
+import { plural, select, t } from '@lingui/core/macro';
 import type { TreeNode } from '@caotang/store';
 
 import { formatterLocale } from '../i18n/format-locale.js';
+import { renderRef, WRITER_VALUE_KEYS } from '../i18n/render-ref.js';
 
 /** How much of the streamed model text the panel keeps to show that work is happening. */
 export const STREAM_TAIL_CHARS = 240;
@@ -192,23 +194,23 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
 export function phaseLabel(phase: TurnPhase | 'idle'): string {
   switch (phase) {
     case 'started':
-      return 'Reading the project';
+      return t`Reading the project`;
     case 'planning':
-      return 'Planning';
+      return t`Planning`;
     case 'awaiting-approval':
-      return 'Waiting for your decision';
+      return t`Waiting for your decision`;
     case 'running':
-      return 'Applying';
+      return t`Applying`;
     case 'retrying':
-      return 'Trying again';
+      return t`Trying again`;
     case 'done':
-      return 'Done';
+      return t`Done`;
     case 'failed':
-      return 'Stopped';
+      return t`Stopped`;
     case 'cancelled':
-      return 'Cancelled';
+      return t`Cancelled`;
     default:
-      return 'Idle';
+      return t`Idle`;
   }
 }
 
@@ -219,10 +221,10 @@ export function isSettled(turn: TurnView): boolean {
 
 /** What each permission mode does, in the words the mode control carries as its hint (agent-harness §4). */
 export const MODE_HINTS: Readonly<Record<PermissionMode, string>> = Object.freeze({
-  'plan-only': 'Reads run. Every write is refused and kept as a plan you can run later.',
-  ask: 'Every plan and confirm card waits for your decision.',
-  'accept-edits': 'Cards that change the project’s own text or fields (including dialogue drafts, prompt drafts and storyboard shots) are approved as shown. Everything else asks.',
-  auto: 'Every card of the agent’s own tools is approved as shown, inside the turn’s budgets.',
+  get 'plan-only'() { return t`Reads run. Every write is refused and kept as a plan you can run later.`; },
+  get ask() { return t`Every plan and confirm card waits for your decision.`; },
+  get 'accept-edits'() { return t`Cards that change the project’s own text or fields (including dialogue drafts, prompt drafts and storyboard shots) are approved as shown. Everything else asks.`; },
+  get auto() { return t`Every card of the agent’s own tools is approved as shown, inside the turn’s budgets.`; },
 });
 
 /** The checkpoint row's label, which says what one click does (agent-harness §5). */
@@ -248,14 +250,26 @@ export function spendLine(run: TurnView['run'], locale: string = formatterLocale
   if (run === null) return undefined;
   const { spend, limits } = run;
   const count = numberFormat(locale);
-  const of = (used: string, limit: string | undefined): string => (limit === undefined ? used : `${used} of ${limit}`);
-  const tokens = spend.promptTokens + spend.completionTokens;
-  const parts = [`${of(count.format(tokens), limits.maxTokens === undefined ? undefined : count.format(limits.maxTokens))} tokens`];
+  const tokens = count.format(spend.promptTokens + spend.completionTokens);
+  const tokenLimit = limits.maxTokens === undefined ? undefined : count.format(limits.maxTokens);
+  const parts = [tokenLimit === undefined
+    ? t({ message: `${tokens} tokens`, comment: 'Live token spend; tokens is a locale-formatted count.' })
+    : t({ message: `${tokens} of ${tokenLimit} tokens`, comment: 'Live token spend against its limit; both values are locale-formatted counts.' })];
   if (spend.costUsd !== undefined || limits.maxCostUsd !== undefined) {
-    parts.push(of(`$${(spend.costUsd ?? 0).toFixed(4)}`, limits.maxCostUsd === undefined ? undefined : `$${limits.maxCostUsd.toFixed(4)}`));
+    const cost = `$${(spend.costUsd ?? 0).toFixed(4)}`;
+    const costLimit = limits.maxCostUsd === undefined ? undefined : `$${limits.maxCostUsd.toFixed(4)}`;
+    parts.push(costLimit === undefined ? cost : t({ message: `${cost} of ${costLimit}`, comment: 'Live USD spend against its USD limit; values include the currency sign.' }));
   }
-  if (limits.maxSteps !== undefined) parts.push(`${spend.steps} of ${limits.maxSteps} steps`);
-  parts.push(`${of(formatClock(spend.activeMs), limits.maxActiveMs === undefined ? undefined : formatClock(limits.maxActiveMs))} worked`);
+  if (limits.maxSteps !== undefined) {
+    const steps = count.format(spend.steps);
+    const stepLimit = count.format(limits.maxSteps);
+    parts.push(t({ message: `${steps} of ${stepLimit} steps`, comment: 'Completed agent steps against the allowed total; values are formatted counts.' }));
+  }
+  const worked = formatClock(spend.activeMs);
+  const timeLimit = limits.maxActiveMs === undefined ? undefined : formatClock(limits.maxActiveMs);
+  parts.push(timeLimit === undefined
+    ? t({ message: `${worked} worked`, comment: 'Active work time; worked is minutes:seconds, not wall-clock time.' })
+    : t({ message: `${worked} of ${timeLimit} worked`, comment: 'Active work time against its limit; both values are minutes:seconds.' }));
   return parts.join(' · ');
 }
 
@@ -270,9 +284,15 @@ export function cardTitle(card: StatusCard): string {
  */
 export function formatElapsed(milliseconds: number): string {
   const safe = Math.max(0, milliseconds);
-  if (safe < 60_000) return `${(safe / 1000).toFixed(1)} s`;
-  const seconds = Math.floor(safe / 1000);
-  return `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
+  if (safe < 60_000) {
+    const seconds = numberFormat(formatterLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(safe / 1000);
+    return t({ message: `${seconds} s`, comment: 'Elapsed seconds, with one decimal place; s is the unit abbreviation.' });
+  }
+  const wholeSeconds = Math.floor(safe / 1000);
+  const count = numberFormat(formatterLocale());
+  const minutes = count.format(Math.floor(wholeSeconds / 60));
+  const seconds = count.format(wholeSeconds % 60);
+  return t({ message: `${minutes} min ${seconds} s`, comment: 'Elapsed minutes and remaining seconds, each a formatted count.' });
 }
 
 /**
@@ -301,41 +321,50 @@ export interface DelegationCardView {
   readonly trace: readonly { readonly key: string; readonly text: string }[];
 }
 
-const TRACE_OUTCOME: Readonly<Record<'ok' | 'refused' | 'not-run', string>> = { ok: 'done', refused: 'refused', 'not-run': 'proposed, not run' };
+const TRACE_OUTCOME: Readonly<Record<'ok' | 'refused' | 'not-run', string>> = {
+  get ok() { return t`done`; },
+  get refused() { return t`refused`; },
+  get 'not-run'() { return t`proposed, not run`; },
+};
 
 export function delegationViewOf(card: StatusCard): DelegationCardView | undefined {
   const { delegation } = card;
   if (delegation === undefined) return undefined;
   const calls = delegation.reserved;
-  const standing =
-    delegation.outcome === 'running'
-      ? 'Working'
-      : delegation.outcome === 'done'
-        ? 'Finished'
-        : delegation.outcome === 'partial'
-          ? 'Stopped before it finished'
-          : 'Failed';
+  const outcome = delegation.outcome;
+  const standing = t({ message: select(outcome, { running: 'Working', done: 'Finished', partial: 'Stopped before it finished', other: 'Failed' }), comment: 'Outcome of a delegated agent; partial means stopped before completion.' });
   const proposed = delegation.proposed ?? 0;
   const scope = card.args['scope'];
   return {
-    title: `${delegation.agent.charAt(0).toUpperCase()}${delegation.agent.slice(1)} agent`,
-    reserved: `${calls} model ${calls === 1 ? 'call' : 'calls'} reserved`,
+    title: delegation.agent === 'reader' ? t`Reader agent` : t`General agent`,
+    reserved: t({ message: plural(calls, { one: '# model call reserved', other: '# model calls reserved' }), comment: 'Number of model calls reserved for the delegated agent.' }),
     standing,
     brief: typeof card.args['brief'] === 'string' ? card.args['brief'] : '',
     scope: Array.isArray(scope) ? scope.filter((entry): entry is string => typeof entry === 'string') : [],
     result: delegation.result,
     proposed:
-      proposed === 0 ? undefined : `${proposed} ${proposed === 1 ? 'step' : 'steps'} proposed. None has run: a step only runs if it is in a plan you approve.`,
-    trace: delegation.trace.map((row, index) => ({
-      key: `${row.callId}:${index}`,
-      text: `${phraseFor(row.tool, row.params).content} — ${TRACE_OUTCOME[row.outcome]}`,
-    })),
+      proposed === 0 ? undefined : t({ message: plural(proposed, {
+        one: '# step proposed. None has run: a step only runs if it is in a plan you approve.',
+        other: '# steps proposed. None has run: a step only runs if it is in a plan you approve.',
+      }), comment: 'Delegated proposals are not executed; proposed is the number of suggested steps.' }),
+    trace: delegation.trace.map((row, index) => {
+      const phrase = phraseFor(row.tool, row.params);
+      const content = phrase.contentRef === undefined ? phrase.content : renderRef(phrase.contentRef, { userValues: WRITER_VALUE_KEYS });
+      return { key: `${row.callId}:${index}`, text: `${content} — ${TRACE_OUTCOME[row.outcome]}` };
+    }),
   };
 }
 
 /** The words a plan step carries when a delegated agent proposed it, or `undefined` for a step the agent did not propose (or the writer edited). */
 export function proposedByWords(step: PlanStepView): string | undefined {
-  return step.proposedBy === undefined ? undefined : `Proposed by the ${step.proposedBy} agent`;
+  if (step.proposedBy === undefined) return undefined;
+  const proposedBy = step.proposedBy;
+  const agent = isolate(proposedBy);
+  return t({ message: select(proposedBy, {
+    reader: 'Proposed by the reader agent',
+    general: 'Proposed by the general agent',
+    other: `Proposed by the ${agent} agent`,
+  }), comment: 'Names the agent that proposed this step. agent is an isolated identifier for an unknown agent.' });
 }
 
 /** Whether a status card is still moving: waiting for a decision, or running. Grouping opens while any card is. */
@@ -437,14 +466,19 @@ function blockedBy(steps: readonly DraftedStep[], card: PlanCardView): string | 
     const status = card.steps[step.index]?.status;
     if (status !== 'ready' && status !== 'deferred') continue;
     const number = step.index + 1;
-    if (step.draft === null) return `Step ${number} has no draft to show yet. Retry the draft, or cancel the card.`;
+    if (step.draft === null) return t({ message: `Step ${number} has no draft to show yet. Retry the draft, or cancel the card.`, comment: 'Approval barrier; number is the one-based plan step.' });
     if (step.docId === null) {
-      return `Step ${number} names “${step.ref}”, which is not a scene in this project. Edit the step to name a scene, or cancel the card.`;
+      const ref = isolate(step.ref);
+      return t({ message: `Step ${number} names “${ref}”, which is not a scene in this project. Edit the step to name a scene, or cancel the card.`, comment: 'number is a plan step; ref is an isolated scene reference supplied by the model.' });
     }
+    const title = isolate(step.title);
     const earlier = scenes.get(step.docId);
-    if (earlier !== undefined) return `Steps ${earlier.index + 1} and ${number} both draft “${step.title}”. Drop one of them.`;
+    if (earlier !== undefined) {
+      const earlierNumber = earlier.index + 1;
+      return t({ message: `Steps ${earlierNumber} and ${number} both draft “${title}”. Drop one of them.`, comment: 'Duplicate-draft barrier; values are two plan step numbers and the isolated scene title.' });
+    }
     scenes.set(step.docId, step);
-    if (!step.previewed) return `Open “${step.title}” to read the draft for step ${number} before you approve it.`;
+    if (!step.previewed) return t({ message: `Open “${title}” to read the draft for step ${number} before you approve it.`, comment: 'Unread-draft barrier; title is the isolated scene title and number is the plan step.' });
   }
   return null;
 }

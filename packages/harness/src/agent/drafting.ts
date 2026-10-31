@@ -23,6 +23,7 @@
  * the signal aborted throws `TurnStopped` instead, so a stop never reads as a provider failure (agent-harness §2).
  */
 
+import { contentTokens } from '@caotang/gateway';
 import type { ChatChunk, ChatMessage, ChatRequest, ProviderGateway, ReasoningBlock, ThinkingLevel, ToolCall, ToolDef } from '@caotang/gateway';
 import { countBody } from '@caotang/store';
 
@@ -118,7 +119,12 @@ export interface Spend {
  * The text of one completion, streamed through the gateway, with its finish reason. A gateway failure
  * propagates as the gateway threw it. A stream that finished on `error` throws `GenerationStopped`.
  */
-export async function complete(call: ModelCall, messages: readonly ChatMessage[], responseFormat?: ChatRequest['responseFormat']): Promise<Completion> {
+export async function complete(
+  call: ModelCall,
+  messages: readonly ChatMessage[],
+  responseFormat?: ChatRequest['responseFormat'],
+  options?: Pick<ChatRequest, 'temperature'>,
+): Promise<Completion> {
   let text = '';
   let finish: ChatChunk['finishReason'];
   let toolCalls: readonly ToolCall[] | undefined;
@@ -129,6 +135,7 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
     ...(call.agentPath === undefined ? {} : { agentPath: call.agentPath }),
     ...(call.profileId === undefined ? {} : { profileId: call.profileId }),
     ...(call.model === undefined ? {} : { model: call.model }),
+    ...(options?.temperature === undefined ? {} : { temperature: options.temperature }),
     ...(responseFormat === undefined ? {} : { responseFormat }),
     ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: call.toolChoice ?? 'auto' }),
     ...(call.thinking === undefined ? {} : { thinking: call.thinking }),
@@ -166,10 +173,10 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
   };
 }
 
-/** The estimated spend of one generation: its messages, and the text it produced. */
+/** The estimated spend of one generation: its messages, and the text it produced. Image parts count by their token formula, never as base64 text. */
 export function spendOf(messages: readonly ChatMessage[], completion: string): Spend {
   return {
-    promptTokens: messages.reduce((total, message) => total + estimateTokens(message.content), 0),
+    promptTokens: messages.reduce((total, message) => total + contentTokens(message.content), 0),
     completionTokens: estimateTokens(completion),
   };
 }

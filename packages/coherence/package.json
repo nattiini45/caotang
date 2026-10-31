@@ -13,6 +13,7 @@
   "dependencies": {
     "@caotang/bus": "workspace:*",
     "@caotang/codex": "workspace:*",
+    "@caotang/comic": "workspace:*",
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/screenplay": "workspace:*",

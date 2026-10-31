@@ -22,7 +22,7 @@ import { createBabelExtractor } from '@lingui/cli/api/extractors/babel';
 import { packageRefsExtractor } from './tools/package-refs-extractor.js';
 
 export default defineConfig({
-  locales: ['en', 'pseudo-LOCALE', 'pseudo-RTL'],
+  locales: ['en', 'de', 'pseudo-LOCALE', 'pseudo-RTL'],
   sourceLocale: 'en',
   catalogs: [
     {

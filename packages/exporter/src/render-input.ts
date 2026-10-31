@@ -8,6 +8,8 @@
 import type { ExportTemplate } from './template.js';
 import { chapterLabel } from './template.js';
 import type { FlatBlock } from './types.js';
+import type { FigurePack } from './figures.js';
+import type { PictureExportMode } from './types.js';
 
 export interface RenderInput {
   readonly blocks: readonly FlatBlock[];
@@ -19,6 +21,24 @@ export interface RenderInput {
   readonly template: ExportTemplate;
   /** Whether the contents list is wanted for this format and recipe. */
   readonly toc: boolean;
+  /** The contents heading in the project's language, or the recipe's own. Absent: "Contents". */
+  readonly contentsLabel?: string;
+  /**
+   * How this compile treats the pictures placed in the bodies (pictures.md §4): `copy` and `link`
+   * are the Markdown modes, `placeholder` and `drop` the plain-text ones. Absent: the format's
+   * default (Markdown `copy`, text `placeholder`), or no rewriting at all when there are no
+   * figures to resolve.
+   */
+  readonly pictures?: PictureExportMode;
+  /** The Markdown copy's assets folder beside the export: `<name>.assets`. Set for `copy` only. */
+  readonly assetsDir?: string;
+  /** The resolved figures of this compile, keyed by the destination as written. The renderers look placements up here. */
+  readonly figures?: FigurePack;
+}
+
+/** The heading the contents list carries. */
+export function contentsHeading(input: RenderInput): string {
+  return input.contentsLabel ?? 'Contents';
 }
 
 export interface ChapterHeading {

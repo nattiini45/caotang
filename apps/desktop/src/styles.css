@@ -5,6 +5,7 @@
  */
 
 :root {
+  --dir: 1;
   color-scheme: light dark;
   --paper: #faf9f6;
   --panel: #f2f0eb;
@@ -365,7 +366,7 @@ button.chip {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   background: var(--panel);
 }
 
@@ -418,7 +419,7 @@ button.chip {
   min-height: 0;
   overflow-y: auto;
   padding: 16px 16px 28px;
-  border-left: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
   background: var(--panel);
 }
 
@@ -429,7 +430,7 @@ button.chip {
 
 .status-line {
   position: fixed;
-  left: 50%;
+  inset-inline-start: 50%;
   bottom: 16px;
   transform: translateX(-50%);
   max-width: min(680px, calc(100vw - 32px));
@@ -517,7 +518,7 @@ button.chip {
 
 .row.is-section {
   margin-top: 12px;
-  padding-left: 8px;
+  padding-inline-start: 8px;
   cursor: default;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -591,8 +592,8 @@ button.chip {
 .row.is-drop-after::after {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
+  inset-inline-start: 8px;
+  inset-inline-end: 8px;
   height: 2px;
   background: var(--accent);
 }
@@ -632,14 +633,14 @@ button.chip {
   font-size: 12.5px;
   padding: 5px 12px;
   border: none;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   background: var(--raised);
   color: var(--ink-soft);
   cursor: pointer;
 }
 
 .segmented-item:last-child {
-  border-right: none;
+  border-inline-end: none;
 }
 
 .segmented-item[aria-checked='true'] {
@@ -730,6 +731,24 @@ button.chip {
 }
 
 /* The surface. These are the rules the editor's own stylesheet would have carried. */
+/* Scripts that need more room between lines than the Latin default carry it through the project's content language (i18n.md §5.4). */
+.ProseMirror:lang(ar),
+.ProseMirror:lang(fa),
+.ProseMirror:lang(ur) {
+  line-height: 1.95;
+}
+
+.ProseMirror:lang(he) {
+  line-height: 1.75;
+}
+
+.ProseMirror:lang(ja),
+.ProseMirror:lang(zh),
+.ProseMirror:lang(ko),
+.ProseMirror:lang(hi) {
+  line-height: 1.85;
+}
+
 .ProseMirror {
   position: relative;
   flex: 1;
@@ -764,8 +783,8 @@ button.chip {
 
 .ProseMirror blockquote {
   margin: 0 0 0.9em;
-  padding-left: 1em;
-  border-left: 2px solid var(--line-strong);
+  padding-inline-start: 1em;
+  border-inline-start: 2px solid var(--line-strong);
   color: var(--ink-soft);
 }
 
@@ -805,6 +824,162 @@ button.chip {
 .caotang-image-placeholder {
   color: var(--muted);
   font-style: italic;
+}
+
+/* Inline pictures (pictures.md §2.2). A picture alone in its paragraph is a figure with a caption; one inside a sentence stays on the line. */
+.editor-toolbar {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-family: var(--ui, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.caotang-picture {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  vertical-align: bottom;
+}
+
+figure.caotang-picture {
+  display: block;
+  margin: 0.4em 0 0.9em;
+  text-align: center;
+}
+
+figure.caotang-picture[data-size='half'] .caotang-picture-media img {
+  max-width: 50%;
+}
+
+.caotang-picture[data-size='inline'] .caotang-picture-media img {
+  max-height: 1.4em;
+  vertical-align: middle;
+}
+
+.caotang-picture-media {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.caotang-picture-media img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+
+.caotang-picture[data-decorative='true'] .caotang-picture-media img {
+  opacity: 0.85;
+}
+
+.caotang-picture figcaption {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.caotang-picture-edit {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.caotang-picture:hover .caotang-picture-edit,
+.caotang-picture:focus-within .caotang-picture-edit,
+.caotang-picture.ProseMirror-selectednode .caotang-picture-edit {
+  opacity: 1;
+}
+
+.caotang-image-placeholder[data-state] {
+  display: inline-block;
+  padding: 10px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 0.9em;
+}
+
+.caotang-image-placeholder[data-state='missing'] {
+  color: var(--ink-soft);
+}
+
+.caotang-picture-popover,
+.caotang-slash-menu {
+  z-index: 40;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  font-family: var(--ui, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.caotang-picture-popover {
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100vw - 16px));
+  padding: 12px;
+}
+
+.caotang-picture-field {
+  display: grid;
+  gap: 3px;
+}
+
+.caotang-picture-field:has(input[type='checkbox']) {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.caotang-picture-field:has(input[type='checkbox']) > span {
+  order: 2;
+}
+
+.caotang-picture-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.caotang-slash-menu {
+  min-width: 240px;
+  padding: 4px;
+}
+
+.caotang-slash-item {
+  display: grid;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.caotang-slash-item[aria-selected='true'] {
+  background: var(--panel);
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.caotang-slash-title {
+  font-weight: 600;
+}
+
+.caotang-slash-hint {
+  color: var(--muted);
+  font-size: 0.9em;
 }
 
 /* The cursors. A gap cursor is the caret between two blocks that cannot hold one. */
@@ -848,7 +1023,7 @@ button.chip {
 /* The empty-document hint (editor-engine §10's Placeholder), shown only while the document is empty. */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  float: left;
+  float: inline-start;
   height: 0;
   color: var(--muted);
   font-style: italic;
@@ -868,7 +1043,7 @@ button.chip {
 }
 
 .editor-status .editor-save {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* The load banner (editor-engine §3.3 and §5): said once per load, dismissible, and calm. */
@@ -880,7 +1055,7 @@ button.chip {
   margin: 0 0 16px;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--warn);
+  border-inline-start: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
   font-family: var(--ui);
@@ -895,7 +1070,7 @@ button.chip {
 
 .load-banner ul {
   margin: 0 0 4px;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 /* ------------------------------------------------------------------ *
@@ -971,7 +1146,7 @@ button.chip {
 }
 
 .codex-group-count {
-  margin-left: 4px;
+  margin-inline-start: 4px;
   font-weight: 400;
 }
 
@@ -996,7 +1171,7 @@ button.chip {
   color: var(--ink);
   font: inherit;
   font-size: 13.5px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1104,7 +1279,8 @@ button.chip {
  * The export dialog (exporter.md §2, §5)
  * ------------------------------------------------------------------ */
 
-dialog.export-dialog {
+dialog.export-dialog,
+dialog.transcription-review-dialog {
   width: min(520px, calc(100vw - 32px));
   /* The dialog is taller than a short window: it scrolls, so Compile and the refusal beside it stay reachable. */
   max-height: calc(100vh - 32px);
@@ -1117,7 +1293,8 @@ dialog.export-dialog {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 }
 
-dialog.export-dialog::backdrop {
+dialog.export-dialog::backdrop,
+dialog.transcription-review-dialog::backdrop {
   background: rgba(20, 19, 17, 0.35);
 }
 
@@ -1234,7 +1411,7 @@ dialog.export-dialog::backdrop {
 }
 
 .activity-row.is-agent {
-  border-left: 3px solid var(--accent);
+  border-inline-start: 3px solid var(--accent);
 }
 
 .activity-head {
@@ -1332,9 +1509,19 @@ dialog.export-dialog::backdrop {
   color: var(--muted);
 }
 
+:root[dir='rtl'] {
+  --dir: -1;
+}
+
+/* An icon that points along the reading direction opts in with this class; the default is no flip (i18n.md §5.2). */
+.icon-mirror {
+  display: inline-block;
+  transform: scaleX(var(--dir));
+}
+
 .crumbs li + li::before {
   content: '›';
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 .corkboard-controls {
@@ -1478,7 +1665,7 @@ dialog.export-dialog::backdrop {
   display: inline-flex;
   color: var(--accent, currentColor);
   vertical-align: middle;
-  margin-right: 4px;
+  margin-inline-end: 4px;
 }
 
 .session-ring.is-met {
@@ -1755,7 +1942,7 @@ dialog.export-dialog::backdrop {
   color: var(--ink);
   font: inherit;
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1789,7 +1976,7 @@ dialog.export-dialog::backdrop {
   color: var(--ink);
   font: inherit;
   font-size: 13px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1800,20 +1987,20 @@ dialog.export-dialog::backdrop {
 }
 
 .menu-item.is-checked {
-  padding-left: 26px;
+  padding-inline-start: 26px;
   position: relative;
 }
 
 .menu-item.is-checked::before {
   content: '✓';
   position: absolute;
-  left: 9px;
+  inset-inline-start: 9px;
 }
 
 /* An item's own key, at the end of its row. */
 .menu-key {
-  float: right;
-  margin-left: 18px;
+  float: inline-end;
+  margin-inline-start: 18px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -2030,7 +2217,7 @@ dialog.confirm::backdrop {
 .first-run {
   padding: 14px 16px;
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--accent);
+  border-inline-start: 3px solid var(--accent);
   border-radius: var(--radius);
   background: var(--raised);
 }
@@ -2098,13 +2285,13 @@ dialog.confirm::backdrop {
   flex-direction: column;
   gap: 2px;
   padding: 10px 8px;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   background: var(--panel);
 }
 
 .settings-nav-item {
   font: inherit;
-  text-align: left;
+  text-align: start;
   padding: 7px 10px;
   border: none;
   border-radius: 6px;
@@ -2275,7 +2462,7 @@ dialog.confirm::backdrop {
 
 .models ul {
   margin: 4px 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   columns: 2;
 }
 
@@ -2291,7 +2478,7 @@ dialog.confirm::backdrop {
 .usage-table td,
 .request-table th,
 .request-table td {
-  text-align: left;
+  text-align: start;
   padding: 5px 8px 5px 0;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
@@ -2391,7 +2578,7 @@ dialog.confirm::backdrop {
 
 /* Stop sits in the header while a turn runs, at the end of the line. */
 .agent-stop {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Notes sent to a running turn, and the queue of messages typed behind it (agent-harness §8, "Stop and steer"). */
@@ -2531,7 +2718,7 @@ dialog.confirm::backdrop {
 
 .agent-task-errors {
   margin: 2px 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .agent-task-actions {
@@ -2543,7 +2730,7 @@ dialog.confirm::backdrop {
 
 .plan-offer-steps {
   margin: 6px 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
   font-size: 12.5px;
 }
 
@@ -2646,7 +2833,7 @@ dialog.confirm::backdrop {
 }
 
 .task-state {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: 11.5px;
   color: var(--muted);
 }
@@ -2672,7 +2859,7 @@ dialog.confirm::backdrop {
 
 .task-reason {
   flex-basis: 100%;
-  padding-left: calc(1.2em + 8px);
+  padding-inline-start: calc(1.2em + 8px);
   color: var(--danger);
 }
 
@@ -2701,23 +2888,23 @@ dialog.confirm::backdrop {
 .status-card {
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-left: 3px solid var(--dot-empty);
+  border-inline-start: 3px solid var(--dot-empty);
   border-radius: 6px;
   font-size: 12.5px;
 }
 
 .status-card.is-running {
-  border-left-color: var(--accent);
+  border-inline-start-color: var(--accent);
 }
 
 .status-card.is-done {
-  border-left-color: var(--accent);
+  border-inline-start-color: var(--accent);
   opacity: 0.85;
 }
 
 .status-card.is-failed,
 .status-card.is-cancelled {
-  border-left-color: var(--danger);
+  border-inline-start-color: var(--danger);
   color: var(--ink-soft);
 }
 
@@ -2767,7 +2954,7 @@ dialog.confirm::backdrop {
 
 .delegation-trace ol {
   margin: 4px 0 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 
 .status-pill {
@@ -2856,7 +3043,7 @@ dialog.confirm::backdrop {
 }
 
 .plan-step-controls {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   gap: 2px;
 }
@@ -2938,6 +3125,24 @@ dialog.confirm::backdrop {
   white-space: pre-wrap;
 }
 
+.timeline-plan-rows {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.timeline-plan-rows th,
+.timeline-plan-rows td {
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+
+.timeline-plan-heading {
+  margin: 8px 0 2px;
+  font-size: 12.5px;
+}
+
 /* A notes rewrite, old to new: an added run is underlined and a removed one is struck, so the difference does not rest on colour. */
 .notes-diff ins {
   color: var(--accent);
@@ -2995,13 +3200,13 @@ dialog.confirm::backdrop {
 .context-reasons,
 .context-dropped {
   margin: 4px 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .askback {
   margin: 8px 0;
   padding: 8px 10px;
-  border-left: 3px solid var(--warn);
+  border-inline-start: 3px solid var(--warn);
   border-radius: 6px;
   background: var(--raised);
   font-size: 12.5px;
@@ -3018,7 +3223,7 @@ dialog.confirm::backdrop {
 
 .askback-options {
   margin: 4px 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .findings {
@@ -3033,7 +3238,7 @@ dialog.confirm::backdrop {
 
 .findings ul {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .checkpoint-row {
@@ -3096,7 +3301,7 @@ dialog.confirm::backdrop {
   margin: 12px 24px 0;
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--warn);
+  border-inline-start: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
   font-size: 13px;
@@ -3200,8 +3405,8 @@ dialog.confirm::backdrop {
 }
 
 .agent-mode legend {
-  float: left;
-  margin-right: 8px;
+  float: inline-start;
+  margin-inline-end: 8px;
   padding: 0;
   color: var(--muted);
 }
@@ -3234,7 +3439,7 @@ dialog.confirm::backdrop {
 }
 
 .badge.is-auto {
-  margin-left: 6px;
+  margin-inline-start: 6px;
 }
 
 .held-plan {
@@ -3251,6 +3456,6 @@ dialog.confirm::backdrop {
 
 .held-plan ol {
   margin: 0 0 8px;
-  padding-left: 20px;
+  padding-inline-start: 20px;
   font-size: 12.5px;
 }

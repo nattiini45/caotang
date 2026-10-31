@@ -11,6 +11,7 @@ import {
   type DialogueFacts,
   type DraftFinding,
   type FindingSeverity,
+  type SceneMeta,
 } from '@caotang/coherence';
 import { coherenceReportMarkdown } from '@caotang/exporter/coherence-report';
 import type { ArtifactFs } from '@caotang/store';
@@ -255,6 +256,26 @@ describe('runScan', () => {
     expect(result.report).toMatchObject({ title: 'The Lighthouse Keeper', date: '2026-10-20' });
     expect(result.report.docTitle(SHORE)).toBe('The Shore');
     expect(result.report.docTitle('n_ZZZZZZZZZZ')).toBe('(a document that is no longer in the project)');
+  });
+});
+
+describe('runScan with signed days and story parts', () => {
+  const gaps = async (declare: Record<string, SceneMeta>): Promise<string[]> => {
+    const { fs } = await seedProject({ declare });
+    const result = await runScan(fs, { now: NOW, checks: ['timeline.gap'] });
+    return result.findings.map((finding) => finding.message);
+  };
+
+  it('reads a negative day from the file and notes a gap of days that crosses day 0, with no part declared', async () => {
+    expect(await gaps({ [HARBOUR]: { dayOffset: -3650 }, [SHORE]: { dayOffset: 0 } })).toEqual(['"The Shore" happens 3650 days after "The Harbour"']);
+  });
+
+  it('skips the same pair once the earlier scene declares the prologue', async () => {
+    expect(await gaps({ [HARBOUR]: { dayOffset: -3650, storyPart: 'prologue' }, [SHORE]: { dayOffset: 0 } })).toEqual([]);
+  });
+
+  it('keeps noting a gap between two scenes of one declared part', async () => {
+    expect(await gaps({ [HARBOUR]: { dayOffset: 4000, storyPart: 'epilogue' }, [SHORE]: { dayOffset: 4030, storyPart: 'epilogue' } })).toEqual(['"The Shore" happens 30 days after "The Harbour"']);
   });
 });
 

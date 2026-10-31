@@ -24,6 +24,7 @@ import {
 
 import type { TreeNode } from './manifest.js';
 import { addDocument, addNode, nodeById, removeNode, type ProjectState } from './state.js';
+import { defaultTitleOf } from '@caotang/i18n';
 
 /** The clock seam the applies read for `createdAt` and `updatedAt`, as the rest of the store does. */
 export interface ScriptClock {
@@ -119,7 +120,7 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
 
     /** One scene: a screenplay document holding its Fountain text, with its synopsis fitted to the binder's limit. */
     const writeScene = (scene: ImportedScene, parent: string): void => {
-      const title = titleOrDefault(scene.title, 'Untitled scene');
+      const title = titleOrDefault(scene.title, defaultTitleOf('scene', state.manifest.project.language));
       const synopsis = fitSynopsis(scene.synopsis);
       if (synopsis.cut) notices.push(`"${title}": its synopsis is longer than ${SYNOPSIS_LIMIT} characters and was cut to fit.`);
       const doc = addDocument(state, {
@@ -140,7 +141,7 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
         const section: ImportedSection = node;
         while (open.length > 0 && (open[open.length - 1]?.depth ?? 0) >= section.depth) open.pop();
         const parent = innermost();
-        const title = titleOrDefault(section.title, 'Untitled section');
+        const title = titleOrDefault(section.title, defaultTitleOf('section', state.manifest.project.language));
         const folder = addNode(state, { parentId: parent, title, type: 'folder', now: at });
         const synopsis = fitSynopsis(section.synopsis);
         folder.synopsis = synopsis.value;

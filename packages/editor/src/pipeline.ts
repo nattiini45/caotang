@@ -40,18 +40,20 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
-import { fromProseMirror, remarkProseMirror } from '@handlewithcare/remark-prosemirror';
+import { remarkProseMirror } from '@handlewithcare/remark-prosemirror';
 import { Fragment, Slice } from '@tiptap/pm/model';
 import type { Node as PmNode, Schema } from '@tiptap/pm/model';
 import type { Root as MdastRoot } from 'mdast';
 import { caotangSchema } from './schema.js';
 import {
   SAVE_STRINGIFY_OPTIONS,
+  compiledBlockSpan,
   createParseHandlers,
-  createSerializeHandlers,
   warnMergedInlineRuns,
 } from './handlers.js';
 import type { LossWarning } from './handlers.js';
+import { ProvenanceCapture, withProvenance } from './source-provenance.js';
+import { toSaveTree } from './save-tree.js';
 import { sniffDialect } from './dialect.js';
 import type { DialectNotice } from './dialect.js';
 
@@ -81,9 +83,6 @@ const SAVE_CHAIN = unified()
   .use(remarkGfm)
   .use(remarkStringify, SAVE_STRINGIFY_OPTIONS)
   .freeze();
-
-/** §3.3's serialize handlers, built once — the same reasoning as the chain. */
-const SAVE_HANDLERS = createSerializeHandlers();
 
 /**
  * §5 **Save** (step 4): PM doc → mdast (`fromProseMirror`, synchronous) →
@@ -121,12 +120,7 @@ const SAVE_HANDLERS = createSerializeHandlers();
  * call it a defect.
  */
 export const serialize = (pm: PmNode): string => {
-  const tree = fromProseMirror(pm, {
-    schema: caotangSchema,
-    nodeHandlers: SAVE_HANDLERS as never,
-    markHandlers: SAVE_HANDLERS as never,
-  });
-  return String(SAVE_CHAIN.stringify(tree));
+  return String(SAVE_CHAIN.stringify(toSaveTree(pm)));
 };
 
 /**
@@ -182,37 +176,24 @@ export interface ParseResult {
  * A body whose every block is a link definition. The schema has no node for a definition, so
  * such a body compiles to an empty `doc`, which the library refuses (`Invalid content for node
  * doc: <>`). A manuscript that holds only a reference's target therefore could not be opened.
- * It is handled like an empty body, and each definition is reported (see
- * `definitionWarnings`), because §3.3's `definition` row is a degrade, not a silent drop.
+ * It is handled like an empty body, one empty paragraph, and the definitions are kept in the document's
+ * provenance (source-provenance.ts), so a save writes them back.
  */
 const definitionsOnly = (tree: MdastRoot): boolean =>
   tree.children.length > 0 && tree.children.every((child) => child.type === 'definition');
 
-/** One `lossy-attribute` per definition in a body that holds nothing else. */
-const definitionWarnings = (tree: MdastRoot): LossWarning[] =>
-  definitionsOnly(tree)
-    ? tree.children.map((child) => ({
-        code: 'lossy-attribute' as const,
-        mdastType: child.type,
-        ...(child.position
-          ? { position: { line: child.position.start.line, column: child.position.start.column } }
-          : {}),
-        detail: 'a link definition is not kept: the schema has no node for it, so a save drops it',
-      }))
-    : [];
-
 export const parseWithDiagnostics = async (body: string): Promise<ParseResult> => {
   const warnings: LossWarning[] = [];
+  const capture = new ProvenanceCapture(body);
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkProseMirror, {
       schema: caotangSchema,
-      handlers: createParseHandlers(caotangSchema, warnings) as never,
+      handlers: createParseHandlers(caotangSchema, warnings, capture) as never,
     });
   const tree = (await processor.run(processor.parse(body))) as MdastRoot;
   if (tree.children.length === 0 || definitionsOnly(tree)) {
-    warnings.push(...definitionWarnings(tree));
     // An empty body projection compiles to an empty `doc`, and §3.1's `doc` is
     // `block+` — so the library's own `check()` throws
     // `Invalid content for node doc: <>` (measured while building §4's `mount`). §5 states load is total — *"parse cannot
@@ -231,9 +212,11 @@ export const parseWithDiagnostics = async (body: string): Promise<ParseResult> =
     // precondition every caller has to remember, and no text is invented here —
     // an empty body has no blocks, so one empty paragraph is the only faithful
     // reading of it. docs/decisions.md records the alternative.
-    return { doc: caotangSchema.topNodeType.createAndFill() as PmNode, warnings, dialect: [] };
+    const empty = caotangSchema.topNodeType.createAndFill() as PmNode;
+    return { doc: withProvenance(empty, capture.finish(tree, empty, compiledBlockSpan)), warnings, dialect: [] };
   }
-  const doc = processor.stringify(tree) as unknown as PmNode;
+  const compiled = processor.stringify(tree) as unknown as PmNode;
+  const doc = withProvenance(compiled, capture.finish(tree, compiled, compiledBlockSpan));
   // **After** the compile, on purpose. The handlers own the order of the list this
   // is appended to, and this row is the one warning whose producer does not
   // participate in the compile that produced the others — interleaving it by

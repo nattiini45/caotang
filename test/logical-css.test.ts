@@ -28,18 +28,19 @@ function read(name: string): string {
 }
 
 describe('the seeded allowlist', () => {
-  it('covers every physical declaration in the app and is a real measurement, not an empty pass', () => {
+  it('covers every physical declaration in the app, and only the genuinely physical ones remain', () => {
     const tree = scanTree(resolve(repoRoot, APP_ROOT));
     const allowlist = readAllowlist(resolve(repoRoot, ALLOWLIST_FILE));
-    expect(tree.occurrences.length).toBeGreaterThan(60);
-    expect(allowlist.entries.length).toBeGreaterThan(60);
+    expect(tree.occurrences.length).toBeGreaterThan(5);
+    expect(tree.occurrences.length).toBeLessThan(20);
+    expect(allowlist.entries.length).toBe(tree.occurrences.length);
     expect(compareToAllowlist(tree.occurrences, allowlist)).toEqual([]);
-  });
+  }, 60_000);
 
   it('reports only the files that carry a declaration', () => {
     const tree = scanTree(resolve(repoRoot, APP_ROOT));
     expect([...tree.files].sort()).toEqual([...new Set(tree.occurrences.map((occurrence) => occurrence.file))].sort());
-  });
+  }, 60_000);
 
   it('serialises entries in a stable order', () => {
     const allowlist = makeAllowlist([

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { bodyOf, idOf, waitForSaved } from './support.js';
+import { bodyOf, idOf, waitForSaved, loose } from './support.js';
 
 /**
  * The first-run card (context-assembly §6): the three demo intents, each run end to end on the built-in demo provider with
@@ -24,7 +24,7 @@ test('the first-run card shows the three demo intents, and the agent names the d
 
   await demo(page, 'Check for continuity problems').click();
   // The demo profile's name already says it is a demo, so the label carries that once.
-  await expect(page.getByTestId('agent-provider')).toHaveText('Provider: Demo (no key)');
+  await expect(page.getByTestId('agent-provider')).toHaveText(loose('Provider: Demo (no key)', true));
 });
 
 test('drafting the opening scene of The Friend runs end to end with no key: one card, a draft in the editor, and the text written on approval', async ({
@@ -104,7 +104,7 @@ test('the demo intents run on the built-in demo profile, and an endpoint that is
   await expect(page.getByTestId('ghost-bar')).toBeVisible();
   expect(requests).toBe(0);
   // The header names the active provider, and the turn names the one it ran on.
-  await expect(page.getByTestId('agent-provider')).toHaveText('Provider: Fake endpoint');
+  await expect(page.getByTestId('agent-provider')).toHaveText(loose('Provider: Fake endpoint', true));
   await expect(page.locator('.agent-turn').first()).toContainText('Ran on Demo (no key)');
 });
 

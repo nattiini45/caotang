@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { withoutIsolates } from '../support.js';
 
 import { mediaCreateItems, type MediaCreateSpec } from '../../apps/desktop/src/media/create-menu.js';
 import {
@@ -71,14 +72,14 @@ test.describe('the Ink source rules', () => {
     const base = { containers: [], minted: 4, unplaceable: [], duplicatesInSource: [], kept: [] };
     expect(importLineIdsSentence(base)).toBe('Added 4 line ids to the imported containers, once. "Add line ids on save" was left as it was.');
     expect(importLineIdsSentence({ ...base, minted: 0 })).toBe('No line needed an id.');
-    expect(importLineIdsSentence({ ...base, unplaceable: [{ title: 'Gate', line: 3, text: 'Oh yes.' }] })).toBe(
+    expect(withoutIsolates(importLineIdsSentence({ ...base, unplaceable: [{ title: 'Gate', line: 3, text: 'Oh yes.' }] }))).toBe(
       'Added 4 line ids to the imported containers, once. "Add line ids on save" was left as it was. 1 line (Gate line 3) could not take one: move the choice or jump so the line has room for its id.',
     );
   });
 
   test('ids the source repeats are reported and kept, and a container left as written is named', () => {
     const base = { containers: [], minted: 0, unplaceable: [], duplicatesInSource: ['l_A', 'l_B', 'l_C', 'l_D'], kept: ['Gate'] };
-    expect(importLineIdsSentence(base)).toBe(
+    expect(withoutIsolates(importLineIdsSentence(base))).toBe(
       'No line needed an id. "Gate" kept the Ink as written, because the ids would have stopped it compiling. 4 ids (l_A, l_B, l_C and 1 more) already appear more than once in the source and were kept as written: the export refuses duplicates, so change them in the Ink.',
     );
   });
@@ -114,13 +115,14 @@ test.describe('the binder menu for media nodes', () => {
     const items = mediaCreateItems(node({ id: 'n_CHAPTER001', type: 'folder', title: 'Chapter 1' }), (parentId, spec) =>
       made.push({ parentId, spec }),
     );
-    expect(labels(items)).toEqual(['New screenplay scene here', 'New storyboard here', 'New dialogue here']);
+    expect(labels(items)).toEqual(['New screenplay scene here', 'New storyboard here', 'New dialogue here', 'New comic here']);
 
     for (const item of items) item.onSelect();
     expect(made).toEqual([
       { parentId: 'n_CHAPTER001', spec: { type: 'document', kind: 'screenplay', title: 'Untitled scene' } },
       { parentId: 'n_CHAPTER001', spec: { type: 'folder', kind: 'storyboard', title: 'Storyboard' } },
       { parentId: 'n_CHAPTER001', spec: { type: 'dialogue', kind: 'branching', title: 'Untitled dialogue' } },
+      { parentId: 'n_CHAPTER001', spec: { type: 'folder', kind: 'comic', title: 'Untitled comic' } },
     ]);
   });
 

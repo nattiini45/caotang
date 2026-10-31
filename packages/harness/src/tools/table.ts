@@ -47,6 +47,9 @@ import {
 } from './ports.js';
 import { delegateParams } from './delegate.js';
 import { skillLoadParams } from './skills.js';
+import { prepareTimelineRead, timelineReadParams } from './timeline-read.js';
+import { PICTURE_DEFINITIONS } from './pictures.js';
+import { COMIC_DEFINITIONS } from './comics.js';
 import type { CallParams } from '../types.js';
 import type { CommandError } from '@caotang/bus';
 
@@ -91,6 +94,12 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   'skill.load': { kind: 'port', port: 'skill.load', params: skillLoadParams },
   // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.
   'agent.delegate': { kind: 'port', port: 'agent.delegate', params: delegateParams },
+  // The story timeline's read (timeline.md §5.1). Its write, timeline.edit, is a primitive below.
+  'timeline.read': { kind: 'native', params: timelineReadParams, prepare: prepareTimelineRead },
+  // The picture registry's native tools (pictures.md §8.1).
+  ...PICTURE_DEFINITIONS,
+  // The comic script/page workflow's native tools (comics.md §3.2).
+  ...COMIC_DEFINITIONS,
   // The allowlisted bus primitives, each built from its command's descriptor (tools/primitive.ts).
   ...Object.fromEntries(PRIMITIVE_TOOL_NAMES.map((name) => [name, primitiveDefinition(name)])) as Record<PrimitiveToolName, Definition>,
 };

@@ -25,7 +25,7 @@ import {
   type TaskRole,
   type ThinkingLevel,
 } from '@caotang/gateway';
-import { snapshotBudget, type RuntimeStore, type SnapshotBudget } from '@caotang/store';
+import { pictureStorageReport, snapshotBudget, type RuntimeStore, type SnapshotBudget } from '@caotang/store';
 
 import type { AppServices } from '../app/services.js';
 import type { Durability, ProjectSession } from '../app/session.js';
@@ -43,6 +43,9 @@ import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
 import { sameLanguageSetting } from '../i18n/catalogues.js';
 import { useFormat } from '../i18n/use-format.js';
+import { readListedLanguages, recordListedLanguages } from '../i18n/listed-languages.js';
+import { activeTag } from '../i18n/runtime.js';
+import { guideHref } from '../i18n/guide-links.js';
 import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js';
 import languageStats from '../i18n/locales/stats.json';
 import { timeLabel } from '../app/activity-model.js';
@@ -52,6 +55,7 @@ import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
+import { PictureStorageMeter } from './PictureStorageMeter.js';
 import { formatCount, useComposingEnter } from './shared.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
@@ -1273,9 +1277,13 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
         navigatorLanguages: typeof navigator === 'undefined' ? [] : navigator.languages,
         stats: languageStats as InterfaceLanguageStats,
         exposeDeveloperLanguages: developerLanguageExposure(),
+        previouslyListed: readListedLanguages(),
       }),
     [settings.interfaceLanguage, revision],
   );
+  useEffect(() => {
+    recordListedLanguages(choices.filter((choice) => !choice.pseudo && choice.setting !== 'system').map((choice) => choice.tag));
+  }, [choices]);
   // A stored tag this build does not ship falls back to English at start-up; the System row then shows
   // the effective choice instead of leaving every row unticked.
   const selected = choices.some((choice) => sameLanguageSetting(choice.setting, settings.interfaceLanguage))
@@ -1340,11 +1348,17 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
               </span>
             )}
             {choice.preview ? <span className="muted">{` — ${t`Preview, partly English`}`}</span> : null}
+            {choice.tag === 'de' ? <span className="muted">{` — ${t`Machine-assisted translation; not reviewed by a native speaker`}`}</span> : null}
           </label>
         ))}
       </fieldset>
       <p className="muted">
         {t`The interface language changes straight away. The manuscript stays in its own language.`}
+      </p>
+      <p className="muted">
+        <a href={guideHref(activeTag(), 'settings')} target="_blank" rel="noopener noreferrer">
+          <Trans>Read the user guide</Trans>
+        </a>
       </p>
       {status.kind === 'loading' ? <p role="status">{t`Changing the interface language…`}</p> : null}
       {status.kind === 'notice' ? (
@@ -1474,6 +1488,8 @@ function DataSection({
           <Trans>Storage location: this browser (read-only in the browser app).</Trans>
         </p>
       </section>
+
+      {session === null ? null : <PictureStorageMeter report={pictureStorageReport(session.state)} durability={durability} />}
 
       <section aria-labelledby="settings-checkpoints">
         <h4 id="settings-checkpoints">

@@ -109,9 +109,11 @@ describe('the loader', () => {
     await expect(loadMessages('en')).resolves.toBeTypeOf('object');
   });
 
-  it('rejects an unknown tag, and names it', async () => {
-    await expect(loadMessages('de')).rejects.toBeInstanceOf(UnknownCatalogueError);
-    expect(() => catalogueForTag('de', false)).toThrow(/de/);
+  it('loads the real German catalogue in production, and rejects an unknown tag', async () => {
+    await expect(loadMessages('de', false)).resolves.toBeTypeOf('object');
+    expect(catalogueForTag('de', false).tag).toBe('de');
+    await expect(loadMessages('fr')).rejects.toBeInstanceOf(UnknownCatalogueError);
+    expect(() => catalogueForTag('fr', false)).toThrow(/fr/);
   });
 
   it('activates a tag only after its catalogue has loaded, and reports the tag it activated', async () => {
@@ -126,6 +128,7 @@ describe('pseudo catalogue ids never become language tags', () => {
     expect(tagForCatalogueId('pseudo-LOCALE')).toBe('en-XA');
     expect(tagForCatalogueId('pseudo-RTL')).toBe('ar-XB');
     expect(tagForCatalogueId('en')).toBe('en');
+    expect(tagForCatalogueId('de')).toBe('de');
 
     for (const { id, tag } of PSEUDO_CATALOGUES) {
       expect(id).not.toBe(tag);
@@ -193,10 +196,28 @@ describe('pseudo catalogues are dev/test only', () => {
   });
 });
 
+describe('the German catalogue retry', () => {
+  it('loads German by the ordinary import where no build has emitted a chunk, and again after it', async () => {
+    const first = await loadMessages('de');
+    const again = await loadMessages('de');
+    expect(first[WITNESS_ID]).toBeDefined();
+    expect(again[WITNESS_ID]).toEqual(first[WITNESS_ID]);
+  });
+
+  it('retries by importing the emitted chunk with a fresh query, never a templated .po import', () => {
+    const runtime = readFileSync(resolve(repoRoot, 'apps/desktop/src/i18n/runtime.ts'), 'utf8');
+    expect(runtime).toContain("import('./locales/de/messages.po')");
+    expect(runtime).not.toMatch(/import\(`[^`]*messages\.po/);
+    expect(runtime).toContain("searchParams.set('retry'");
+    const config = readFileSync(resolve(repoRoot, 'apps/desktop/vite.config.ts'), 'utf8');
+    expect(config).toContain("emitFile({ type: 'chunk'");
+  });
+});
+
 describe('the Lingui configuration', () => {
-  it('names English as the source and includes the two pseudo catalogues', () => {
+  it('names English as the source and includes German plus the two pseudo catalogues', () => {
     expect(linguiConfig.sourceLocale).toBe('en');
-    expect(linguiConfig.locales).toEqual(['en', 'pseudo-LOCALE', 'pseudo-RTL']);
+    expect(linguiConfig.locales).toEqual(['en', 'de', 'pseudo-LOCALE', 'pseudo-RTL']);
   });
 
   it('defines an accented padded LTR pseudo and an RTL one, with the spec\'s brackets', () => {

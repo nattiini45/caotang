@@ -7,9 +7,9 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { isolate } from '@caotang/i18n';
-import { joinWords } from '@caotang/store';
+import { isolate, listFormat } from '@caotang/i18n';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import type { FolderFileChange, PendingRecovery, RecoveryRefusal } from '../app/lifecycle.js';
 
 /* lingui-set comment="Interpolated values: confirm, file, files, generation, name, path" */
@@ -100,7 +100,7 @@ export function refusalText(refusal: RecoveryRefusal, files: readonly FolderFile
     return t`Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?`;
   }
   if (refusal === 'files') {
-    const list = joinWords(files.map(({ change, label }) => changedFileLine(change, label)));
+    const list = listFormat(formatterLocale()).format(files.map(({ change, label }) => changedFileLine(change, label)));
     return list === ''
       ? t`Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy.`
       : t`Another program changed this folder after Caotang read it, so nothing was written: ${{ files: list }}. Close this, then open the folder again to see its current copy.`;

@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { textOf } from '@caotang/gateway';
 import { userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { addDocument, getBody, type ProjectState } from '@caotang/store';
 
@@ -32,7 +33,7 @@ function screenplayDraft(brief: string, text: string, roles: string[]): MockScri
   return {
     match: (req) => req.responseFormat === 'text' && userTextOf(req).includes(brief),
     respond: (req) => {
-      roles.push(req.messages.find((message) => message.role === 'system')?.content ?? '');
+      roles.push(textOf(req.messages.find((message) => message.role === 'system')?.content ?? ''));
       return { content: text };
     },
   };

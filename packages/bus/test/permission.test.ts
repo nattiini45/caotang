@@ -402,7 +402,7 @@ describe('the gate\'s own lists are held against the spec, not against themselve
     // The four skill commands are `never` too, and nothing composes them: the harness's allowlist of primitives excludes them
     // (`NEVER_EXPOSED`), so an agent reaches a skill only through the user's own gesture. `mcp.readResource` is the same: the writer's
     // pick is the only way to it, and no tool is written over it.
-    expect([...inheritable].sort()).toEqual(['editor.insert', 'editor.replaceRange', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
+    expect([...inheritable].sort()).toEqual(['asset.sweep', 'editor.insert', 'editor.replaceRange', 'mcp.readResource', 'project.setCalendar', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
     for (const name of inheritable) {
       expect(granted(name, 'agent', { inheritedGrant: 'write-confirm' }).via, name).toBe('inherited');
     }
@@ -435,6 +435,8 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'skill.write',
       'skill.delete',
       'skill.setEnabled',
+      'project.setCalendar',
+      'asset.sweep',
     ]);
     expect(byRisk.get('write-confirm')).toContain('doc.write');
     expect(byRisk.get('write-auto')).toContain('binder.move');

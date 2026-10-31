@@ -96,7 +96,7 @@ test('Import Ink with the line-id box ticked adds ids once, and names a line tha
   await page.locator('input[type="file"][aria-label="Ink file"]').setInputFiles({ name: 'gate.ink', mimeType: 'text/plain', buffer: Buffer.from(stuck) });
 
   await expect(page.getByText(/Added 2 line ids to the imported containers, once\./)).toBeVisible();
-  await expect(page.getByText(/1 line \(start line 3\) could not take one: move the choice or jump so the line has room for its id\./)).toBeVisible();
+  await expect(page.getByText(/1 line \(⁨?start⁩? line 3\) could not take one: move the choice or jump so the line has room for its id\./)).toBeVisible();
   await expect(page.getByText(/"Add line ids on save" was left as it was\./)).toBeVisible();
   const body = (await bodyOf(page, await idOf(page, 'start'))) ?? '';
   expect(body.match(/# lineId: l_/g)).toHaveLength(2);

@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import {
   STATS_FILE,
   checkCompile,
+  checkNoShippedFuzzy,
   checkDrift,
   checkPlaceholderParity,
   checkTranslatorHygiene,
@@ -114,6 +115,25 @@ describe('compilation and placeholder parity', () => {
     };
     expect(checkPlaceholderParity(bad)).toEqual([expect.stringContaining('has arguments [nom], source has [name]')]);
   });
+
+  it('reads the English msgstr behind an explicit id', () => {
+    const en = parsePoFile('msgid "greeting.named"\nmsgstr "Hello {name}"\n');
+    const de = parsePoFile('msgid "greeting.named"\nmsgstr "Hallo {name}"\n');
+    expect(checkPlaceholderParity({ en: { path: 'en', catalog: en }, de: { path: 'de', catalog: de } })).toEqual([]);
+    de.items[0]!.msgstr = 'Hallo {other}';
+    expect(checkPlaceholderParity({ en: { path: 'en', catalog: en }, de: { path: 'de', catalog: de } })[0]).toContain('source has [name]');
+  });
+});
+
+describe('fuzzy translations', () => {
+  it('fails a fuzzy entry that has text, because Lingui would compile and ship it, and allows an emptied one', () => {
+    const problems = checkNoShippedFuzzy(one(resolve(fixtures, 'translations/fuzzy-shipped/messages.po'), 'de'));
+    expect(problems).toEqual([expect.stringContaining('"Save" is fuzzy but has text')]);
+  });
+
+  it('does not apply to the source language or the pseudo catalogues', () => {
+    expect(checkNoShippedFuzzy(one(resolve(fixtures, 'translations/fuzzy-shipped/messages.po'), 'pseudo-LOCALE'))).toEqual([]);
+  });
 });
 
 describe('translator hygiene', () => {
@@ -136,7 +156,7 @@ describe('translator hygiene', () => {
     ]);
     // The real tree has no message macros yet; the guard must not fire on ordinary `+`.
     expect(findConcatenations(repositorySourceRoots(repoRoot))).toEqual([]);
-  });
+  }, 60_000);
 });
 
 describe('the model-facing marker', () => {

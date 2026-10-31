@@ -7,12 +7,11 @@
  * the delete being confirmed, the export dialog, the theme, the status line). Project and view state live in the
  * session, and every change to them is a dispatch.
  */
-/* lingui-set comment="Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words" */
+/* lingui-set comment="Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words" */
 
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -22,14 +21,13 @@ import {
 import { plural, select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
-import type { ProjectState, RuntimeStore } from '@caotang/store';
+import { pictureStorageReport, type ProjectState, type RuntimeStore, type SweepCandidate } from '@caotang/store';
 
-import { activityMarkdown } from '../app/activity-model.js';
-import { AgentController } from '../app/agent.js';
+import type { AgentController } from '../app/agent.js';
 import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
-import { isImeEnter, resolveKey } from '../app/keymap.js';
+import { isImeEnter, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { exportBundle, noteLeaveSuggestion, saveFolder, type FolderFileChange, type FolderSaveAnswers } from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
@@ -39,27 +37,33 @@ import type { ProjectSession, SaveState } from '../app/session.js';
 import { crossedTarget, localDayOfIso, targetProgress, wordsWrittenToday } from '../app/session-progress.js';
 import { focusBinderFilter } from './BinderFilters.js';
 import { dismissBannerForVisit, durabilitySentence, isBannerDismissedForVisit } from '../app/storage.js';
+import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notices.js';
+import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
+import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
-import { AgentPanel } from './AgentPanel.js';
 import { Binder, type CenterMode } from './Binder.js';
 import { CodexPanel } from './CodexPanel.js';
-import { ActivityPanel } from './ActivityPanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
+import type { PictureFocusRequest } from '../media/picture-board-model.js';
 
 import { Corkboard } from './Corkboard.js';
+import { LazyBoundary, lazyView } from './lazy-view.js';
+import type { TimelineFocusRequest } from '../app/timeline-model.js';
+import { clearTray, pendingRows } from '../app/timeline-tray.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
-import { FindingsPanel } from './FindingsPanel.js';
 import { BinderFooter } from './BinderFooter.js';
+import { whenAgent } from '../app/agent-registry.js';
 import { openFindingCount } from '../app/findings-model.js';
-import { ExportDialog, type ExportSelection } from './ExportDialog.js';
+import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
 import { VocabularyEditor } from './VocabularyEditor.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
+import { inlineKey } from '../i18n/direction.js';
 import { StaleTabNotice } from './StaleTabNotice.js';
 import {
   clearSelection,
@@ -77,7 +81,16 @@ type RailTab = 'binder' | 'codex' | 'activity' | 'findings';
 /** The rail's tabs in the order the arrow keys walk them (WAI-ARIA tabs). */
 const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'findings'];
 /** The centre views, in the order the arrow keys walk the radio group. */
-const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard'];
+const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard', 'timeline', 'pictures'];
+
+/** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
+const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
+const TimelineView = lazyView(() => import('./timeline/TimelineView.js').then((module) => ({ default: module.TimelineView })));
+const AgentPanel = lazyView(() => import('./AgentPanel.js').then((module) => ({ default: module.AgentPanel })));
+const ExportDialog = lazyView(() => import('./ExportDialog.js').then((module) => ({ default: module.ExportDialog })));
+// The Findings and Activity tabs carry the coherence review and the agent's turn reports, which the first screen does not read.
+const FindingsPanel = lazyView(() => import('./FindingsPanel.js').then((module) => ({ default: module.FindingsPanel })));
+const ActivityPanel = lazyView(() => import('./ActivityPanel.js').then((module) => ({ default: module.ActivityPanel })));
 
 /** The id of a rail tab, which its tabpanel names itself by (`aria-labelledby`). */
 function railTabId(tab: RailTab): string {
@@ -88,9 +101,10 @@ function railTabId(tab: RailTab): string {
  * The item an arrow, Home or End key moves to from `current`, or `null` for any other key. Arrows wrap at both ends, as the
  * WAI-ARIA tab and radio patterns have them, and Home and End go to the first and last item.
  */
-function keyStep<T>(items: readonly T[], current: T, key: string): T | null {
+function keyStep<T>(items: readonly T[], current: T, pressed: string): T | null {
   const at = items.indexOf(current);
   if (at === -1) return null;
+  const key = inlineKey(pressed);
   if (key === 'ArrowRight' || key === 'ArrowDown') return items[(at + 1) % items.length] ?? null;
   if (key === 'ArrowLeft' || key === 'ArrowUp') return items[(at - 1 + items.length) % items.length] ?? null;
   if (key === 'Home') return items[0] ?? null;
@@ -135,8 +149,27 @@ export function Workspace({
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
+  // The printed-key layout behind the shortcut labels the toolbar shows (keymap.ts; the same subscription as EditorPane).
+  const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const [rail, setRail] = useState<RailTab>('binder');
-  const [center, setCenter] = useState<CenterMode>('editor');
+  const [center, setCenterNow] = useState<CenterMode>('editor');
+  /** Where the writer asked to go while proposed timeline changes were waiting, until they have answered the question that asks. */
+  const [leaving, setLeaving] = useState<CenterMode | 'home' | null>(null);
+  const centerNow = useRef(center);
+  useEffect(() => {
+    centerNow.current = center;
+  }, [center]);
+  const setCenter = useCallback(
+    (next: CenterMode): void => {
+      if (centerNow.current === 'timeline' && next !== 'timeline' && pendingRows(session.projectId) > 0) setLeaving(next);
+      else setCenterNow(next);
+    },
+    [session],
+  );
+  const [timelineFocus, setTimelineFocus] = useState<TimelineFocusRequest | null>(null);
+  const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);
+  const [findingsFocus, setFindingsFocus] = useState<{ readonly factGroup: string; readonly serial: number } | null>(null);
+  const focusSerial = useRef(0);
   const [focusMode, setFocusMode] = useState(false);
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
@@ -158,6 +191,8 @@ export function Workspace({
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissedForVisit());
   const [explainStorage, setExplainStorage] = useState(false);
+  /** The unused picture files a sweep would remove, offered before an export, until the writer has answered. */
+  const [sweepOffer, setSweepOffer] = useState<readonly SweepCandidate[] | null>(null);
   const [storedToday, setStoredToday] = useState(0);
   /** A save to the folder that the folder's state stopped, with the reason, until the writer has answered the question it asks. */
   const [folderOffer, setFolderOffer] = useState<FolderOffer | null>(null);
@@ -165,22 +200,37 @@ export function Workspace({
   const [notEmptyFolder, setNotEmptyFolder] = useState<string | null>(null);
   // One agent controller per open project: its turns, its pending decision and its ghost belong to this session.
   // The budgets are read at each turn, so a change in Settings › Context applies to the next one (context-assembly §3).
-  const agent = useMemo(
-    () =>
-      new AgentController(
+  // The controller is its own download (the agent loop, the tool table and the task queue): the editor and the rails are drawn without
+  // it, and it is made as soon as this project is open, so a queued background task resumes and a draft has somewhere to land.
+  const [agent, setAgent] = useState<AgentController | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let made: AgentController | null = null;
+    void import('../app/agent.js').then(({ AgentController: Controller }) => {
+      const controller = new Controller(
         session,
         services.providers,
         () => contextConfigOf(services.settings.current().context),
         () => services.settings.current().agent.loadEveryTool,
         {},
         () => services.settings.current().agent,
-      ),
-    [session, services.providers, services.settings],
-  );
-  useEffect(() => {
-    agent.attach();
-    return () => agent.detach();
-  }, [agent]);
+      );
+      if (alive) {
+        made = controller;
+        controller.attach();
+        setAgent(controller);
+      }
+    });
+    return () => {
+      alive = false;
+      made?.detach();
+      setAgent(null);
+    };
+  }, [session, services.providers, services.settings]);
+  /** Starts a turn for intent once the controller has loaded: the request waits for it, so a click before the download is not lost. */
+  const submitToAgent = useCallback((intent: string): void => {
+    void whenAgent(session).then((controller) => controller.submit(intent));
+  }, [session]);
   // Today's stored words, read now and every few seconds: a sitting that ends elsewhere still counts toward the target.
   useEffect(() => {
     let alive = true;
@@ -201,7 +251,15 @@ export function Workspace({
   // Focus mode hides the rails only when the writer's Writing setting says so (ui-modules §5.2). Off, focus mode leaves them shown.
   const hideRails = focusMode && settingsNow.editor.focusModeHideRails;
   const durability = session.durability();
-  const showStorageBanner = durability.persisted === false && !bannerDismissed;
+  const pictureStorage = pictureStorageReport(state);
+  const pictureFacts: EvictionFacts = {
+    persisted: durability.persisted,
+    folderAttached: session.assetsInFolder(),
+    pictureCount: pictureStorage.recordCount,
+    pictureBytes: pictureStorage.totalBytes,
+  };
+  // A project with pictures and no folder gets the picture-aware banner (PictureNotices) in place of the general one.
+  const showStorageBanner = durability.persisted === false && !bannerDismissed && !evictionVariantApplies(pictureFacts);
   // A whole sentence used as a value in the banner's message; a name keeps it out of a positional `{0}`.
   const storageSentence = durabilitySentence(durability);
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
@@ -281,7 +339,7 @@ export function Workspace({
         ? shotBoard
         : undefined;
   const mediaView =
-    mediaNode !== undefined && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard')
+    mediaNode !== undefined && center !== 'timeline' && center !== 'pictures' && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard')
       ? mediaViewFor(mediaNode, {
           session,
           ports: mediaPortsFor(session),
@@ -293,7 +351,7 @@ export function Workspace({
           // written inline because `runAgentIntent` is declared below this view, and the view is built here.
           onAgentIntent: (intent) => {
             setAgentOpen(true);
-            void agent.submit(intent);
+            submitToAgent(intent);
           },
         })
       : null;
@@ -358,16 +416,46 @@ export function Workspace({
       setCenter('editor');
       if (offset !== undefined) setReveal({ docId, from: offset, to: offset });
     },
-    [session],
+    [session, setCenter],
+  );
+
+  /** "Open in Findings" from the timeline: the Findings rail opens on the fact group, which the panel scrolls to and focuses. */
+  const openInFindings = useCallback((factGroup: string): void => {
+    setRail('findings');
+    focusSerial.current += 1;
+    setFindingsFocus({ factGroup, serial: focusSerial.current });
+  }, []);
+
+  /** "Show on timeline" from a finding: the timeline replaces the centre and moves to the scenes the finding cites. */
+  const showOnTimeline = useCallback((docIds: readonly string[], findingId: string): void => {
+    setCenter('timeline');
+    focusSerial.current += 1;
+    setTimelineFocus({ docIds, findingId, serial: focusSerial.current });
+  }, [setCenter]);
+
+  /** "Open on the board" from the Inspector's picture strip: the picture board replaces the centre with that picture's details open. */
+  const openPictureBoard = useCallback((assetId: string): void => {
+    setCenter('pictures');
+    focusSerial.current += 1;
+    setPictureFocus({ assetId, serial: focusSerial.current });
+  }, [setCenter]);
+
+  /** A placement's "Go to it" on the board: the binder item is selected, and a document opens in the editor. */
+  const openPictureNode = useCallback(
+    (nodeId: string): void => {
+      selectNode(session, nodeId);
+      setCenter(nodeById(session.state, nodeId)?.type === 'document' ? 'editor' : 'corkboard');
+    },
+    [session, setCenter],
   );
 
   /** An empty state's next step (ui-modules §0.3): the agent panel opens, and the controller runs the request through its usual path. */
   const runAgentIntent = useCallback(
     (intent: string): void => {
       setAgentOpen(true);
-      void agent.submit(intent);
+      submitToAgent(intent);
     },
-    [agent],
+    [submitToAgent],
   );
 
   /** A mention chip's click: the codex tab shows the entry (codex.md §8). */
@@ -472,7 +560,7 @@ export function Workspace({
   // still being drafted: it runs only while the project is open in this tab.
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent): void => {
-      if (session.saveState() === 'saved' && !agent.tasksWorking()) return;
+      if (session.saveState() === 'saved' && !(agent?.tasksWorking() ?? false)) return;
       event.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
@@ -511,24 +599,45 @@ export function Workspace({
     report({ text: t`Deleted “${{ title: isolate(title) }}”. Ctrl+Z restores it right after.`, tone: 'info' });
   };
 
-  const exportNow = (): void => {
+  const exportWith = (before: string | null): void => {
     void (async () => {
       try {
         const bundle = await exportBundle(store, session);
         downloadBytes(bundle.bytes, bundle.filename);
-        report({ text: [t`Exported ${{ file: bundle.filename }}.`, ...bundle.notices].join(' '), tone: 'info' });
+        report({ text: [...(before === null ? [] : [before]), t`Exported ${{ file: bundle.filename }}.`, ...bundle.notices].join(' '), tone: 'info' });
       } catch (error) {
         report({ text: t`The bundle could not be made: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
+  const exportNow = (): void => exportWith(null);
+
+  /**
+   * *Export bundle* from the toolbar and the picture notices: the unused picture files are offered for a sweep first (pictures.md §6.5),
+   * and the export goes straight ahead when there are none, or when the sweep cannot be checked. The save indicator's and the stale
+   * tab's exports are rescues and never ask anything.
+   */
+  const exportBundleOffering = (): void => {
+    void sweepOfferBeforeExport(session).then((candidates) => {
+      if (candidates === null) exportNow();
+      else setSweepOffer(candidates);
+    });
+  };
+  const exportAfterSweep = (): void => {
+    setSweepOffer(null);
+    void sweepBeforeExport(session).then((swept) => {
+      if (swept.proceed) exportWith(swept.text);
+      else report({ text: swept.text, tone: 'error' });
+    });
+  };
 
   /** The activity log and the agent's turns as one Markdown file (agent-harness §5, command-bus §8). */
-  const exportActivity = (): void => {
+  const exportActivity = async (): Promise<void> => {
+    const { activityMarkdown } = await import('../app/activity-model.js');
     const markdown = activityMarkdown({
       title: state.manifest.project.name,
       entries: session.log.entries(),
-      turns: agent.snapshot().turns,
+      turns: agent?.snapshot().turns ?? [],
     });
     const stem = state.manifest.project.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
     const name = `${stem === '' ? 'project' : stem}${'-activity' + '.md'}`;
@@ -635,7 +744,7 @@ export function Workspace({
     setTheme(next);
   };
 
-  const leave = (): void => {
+  const leaveNow = (): void => {
     void (async () => {
       await session.settle();
       if (session.saveState() === 'conflict') {
@@ -658,6 +767,19 @@ export function Workspace({
       }
       onHome();
     })();
+  };
+
+  /** Leaving the project with proposed timeline changes asks first (timeline.md §4.4). */
+  const leave = (): void => {
+    if (pendingRows(session.projectId) > 0) setLeaving('home');
+    else leaveNow();
+  };
+  const confirmLeaving = (): void => {
+    const next = leaving;
+    clearTray(session.projectId);
+    setLeaving(null);
+    if (next === 'home') leaveNow();
+    else if (next !== null) setCenterNow(next);
   };
 
   return (
@@ -694,7 +816,7 @@ export function Workspace({
               type="button"
               className="button"
               aria-pressed={focusMode}
-              title={t`Focus mode (Ctrl+Shift+F)`}
+              title={t`Focus mode (${{ shortcut: shortcutLabel('focus-mode', keyboardLayout) }})`}
               onClick={toggleFocus}
             >
               <Trans>Focus</Trans>
@@ -705,7 +827,7 @@ export function Workspace({
             <button type="button" className="button" onClick={() => setExporting(true)}>
               <Trans>Compile…</Trans>
             </button>
-            <button type="button" className="button" onClick={exportNow}>
+            <button type="button" className="button" onClick={exportBundleOffering}>
               <Trans>Export bundle</Trans>
             </button>
             {folderAccessSupported() ? (
@@ -760,19 +882,26 @@ export function Workspace({
               ) : rail === 'codex' ? (
                 <CodexPanel session={session} onOpenDocument={openDocument} focus={codexFocus} onAgentIntent={runAgentIntent} />
               ) : rail === 'findings' ? (
-                <FindingsPanel
-                  session={session}
-                  onReveal={revealPassage}
-                  settings={settingsNow.coherence}
-                  providers={services.providers}
-                  onOpenAgent={() => setAgentOpen(true)}
-                  onOpenDocument={openDocument}
-                />
+                <LazyBoundary label={t`Findings`}>
+                  <FindingsPanel
+                    session={session}
+                    onReveal={revealPassage}
+                    settings={settingsNow.coherence}
+                    providers={services.providers}
+                    onOpenAgent={() => setAgentOpen(true)}
+                    onOpenDocument={openDocument}
+                    focusGroup={findingsFocus}
+                    onGroupFocused={() => setFindingsFocus(null)}
+                    onShowOnTimeline={showOnTimeline}
+                  />
+                </LazyBoundary>
               ) : (
-                <ActivityPanel
-                  session={session}
-                  onExport={() => exportActivity()}
-                />
+                <LazyBoundary label={t`Activity`}>
+                  <ActivityPanel
+                    session={session}
+                    onExport={() => void exportActivity()}
+                  />
+                </LazyBoundary>
               )}
             </div>
           </nav>
@@ -802,6 +931,28 @@ export function Workspace({
             >
               <Trans>Corkboard</Trans>
             </button>
+            <button
+              type="button"
+              id="center-timeline"
+              role="radio"
+              aria-checked={center === 'timeline'}
+              tabIndex={center === 'timeline' ? 0 : -1}
+              className="segmented-item"
+              onClick={() => setCenter('timeline')}
+            >
+              <Trans>Timeline</Trans>
+            </button>
+            <button
+              type="button"
+              id="center-pictures"
+              role="radio"
+              aria-checked={center === 'pictures'}
+              tabIndex={center === 'pictures' ? 0 : -1}
+              className="segmented-item"
+              onClick={() => setCenter('pictures')}
+            >
+              <Trans>Pictures</Trans>
+            </button>
           </div>
           {/* A status region is a div: ARIA does not allow the role on an aside. */}
           {showStorageBanner ? (
@@ -823,7 +974,7 @@ export function Workspace({
                 ) : null}
               </div>
               <div className="storage-banner-actions">
-                <button type="button" className="button" onClick={exportNow}>
+                <button type="button" className="button" onClick={exportBundleOffering}>
                   <Trans>Export a backup</Trans>
                 </button>
                 <button type="button" className="button is-quiet" aria-expanded={explainStorage} onClick={() => setExplainStorage((on) => !on)}>
@@ -842,6 +993,14 @@ export function Workspace({
               </div>
             </div>
           ) : null}
+          {showStorageBanner ? null : (
+            <PictureNotices
+              projectId={session.projectId}
+              facts={pictureFacts}
+              onExport={exportBundleOffering}
+              {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
+            />
+          )}
           {mediaView}
           {/* Kept mounted while the corkboard is shown, so the editor keeps its undo history and its place. */}
           <EditorPane
@@ -870,20 +1029,51 @@ export function Workspace({
               onAskDelete={askDelete}
             />
           ) : null}
+          {center === 'pictures' ? (
+            <LazyBoundary label={t`the pictures`}>
+              <PictureBoard
+                session={session}
+                focus={pictureFocus}
+                onFocusHandled={() => setPictureFocus(null)}
+                onOpenNode={openPictureNode}
+              />
+            </LazyBoundary>
+          ) : null}
+          {center === 'timeline' ? (
+            <LazyBoundary label={t`the timeline`}>
+              <TimelineView
+                session={session}
+                onOpenDocument={openDocument}
+                onOpenFindings={openInFindings}
+                focusRequest={timelineFocus}
+                onFocusHandled={() => setTimelineFocus(null)}
+              />
+            </LazyBoundary>
+          ) : null}
           {hideRails ? null : (
-            <AgentPanel
-              session={session}
-              agent={agent}
-              startIntent={startIntent}
-              open={agentOpen}
-              onToggle={() => setAgentOpen((on) => !on)}
-              sample={sample}
-            />
+            <LazyBoundary label={t`the agent`}>
+              {agent === null ? null : (
+                <AgentPanel
+                  session={session}
+                  agent={agent}
+                  startIntent={startIntent}
+                  open={agentOpen}
+                  onToggle={() => setAgentOpen((on) => !on)}
+                  sample={sample}
+                />
+              )}
+            </LazyBoundary>
           )}
         </main>
 
         {hideRails ? null : (
-          <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} />
+          <Inspector
+            session={session}
+            nodeId={selected}
+            onOpenCodex={openCodexEntry}
+            onAgentIntent={runAgentIntent}
+            onOpenPicture={openPictureBoard}
+          />
         )}
 
         {message ? (
@@ -917,8 +1107,22 @@ export function Workspace({
           ) : null}
         </ConfirmDialog>
 
+        <ConfirmDialog
+          open={leaving !== null}
+          title={t`Leave with proposed timeline changes?`}
+          confirmLabel={t`Discard the changes and leave`}
+          onCancel={() => setLeaving(null)}
+          onConfirm={confirmLeaving}
+        >
+          <Trans>The timeline has proposed changes that are not applied. Nothing has been written to the project. Cancel keeps them in the tray; leaving discards them.</Trans>
+        </ConfirmDialog>
+
+        <ExportSweepOffer candidates={sweepOffer} onSweepThenExport={exportAfterSweep} onExport={() => { setSweepOffer(null); exportNow(); }} onCancel={() => setSweepOffer(null)} />
+
         {exporting ? (
-          <ExportDialog session={session} selection={exportSelection} onClose={() => setExporting(false)} />
+          <LazyBoundary label={t`the export dialog`}>
+            <ExportDialog session={session} selection={exportSelection} onClose={() => setExporting(false)} />
+          </LazyBoundary>
         ) : null}
         <ProjectPanel session={session} />
         <SkillsPanel session={session} />
@@ -966,7 +1170,7 @@ export function Workspace({
             store={store}
             initialSection={settingsSection}
             onClose={() => setSettingsSection(null)}
-            onProvidersChanged={() => agent.refresh()}
+            onProvidersChanged={() => agent?.refresh()}
           />
         ) : null}
       </div>

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { withoutIsolates } from '../support.js';
 
 import {
   MemoryIndexedDb,
@@ -67,8 +68,8 @@ async function demoProviders(): Promise<ProviderService> {
   return (await ProviderService.open({ db: null, vault: null })).service;
 }
 
-/** Resolves once `predicate` holds, polling briefly; fails the test if it never does. */
-async function until(predicate: () => boolean, label: string, ms = 4000): Promise<void> {
+/** Resolves once `predicate` holds, polling briefly; fails the test if it never does. The first turn of a session also waits for the harness chunk to load. */
+async function until(predicate: () => boolean, label: string, ms = 20_000): Promise<void> {
   const deadline = Date.now() + ms;
   while (!predicate()) {
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
@@ -168,7 +169,7 @@ test('an approval waits until the draft is on screen in its scene, and a scene w
   controller.answer({ action: 'approve' });
   expect(controller.snapshot().pending).not.toBeNull();
   expect(controller.snapshot().approvable).toBe(false);
-  expect(controller.snapshot().message).toContain('Open “The Friend”');
+  expect(withoutIsolates(controller.snapshot().message)).toContain('Open “The Friend”');
   expect(getBody(state, friend)).toBe('');
 
   // Mounted, but the corkboard is the view: the draft is not on screen, so the approval is still refused.
@@ -286,6 +287,7 @@ test('a turn starts with the dialogue tools loaded when a dialogue container is 
   const store = await openRuntimeStore(new MemoryIndexedDb());
   const session = await sessionOver(state, store);
   const preloaded: (readonly string[])[] = [];
+  await session.harnessReady();
   const preload = session.harness.preload;
   session.harness.preload = (turnId, names) => {
     preloaded.push(names);
@@ -468,7 +470,7 @@ test('approving a compile lists the project’s images again before it compiles,
   );
   // The order the listing and the compile happen in: the listing is recorded when it is taken, with whether the compile's activity
   // row was already written, and the compile once the turn has settled.
-  const compiled = (): boolean => session.harness.log.entries().some((entry) => entry.command.startsWith('export.'));
+  const compiled = (): boolean => session.log.entries().some((entry) => entry.command.startsWith('export.'));
   const order: string[] = [];
   const listing = session.exportsReady.bind(session);
   session.exportsReady = async () => {

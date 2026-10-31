@@ -9,9 +9,11 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { plural, t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
+import { Trans } from '@lingui/react/macro';
+import { isolate } from '@caotang/i18n';
 import {
-  CHECKPOINT_LABEL,
-  MODE_LABELS,
   groupCards,
   headerLineOf,
   headerRefOf,
@@ -28,20 +30,32 @@ import type { ProjectState } from '@caotang/store';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
-import { isImeEnter, resolveKey, shortcutLabel } from '../app/keymap.js';
+import { isImeEnter, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { StartIntent } from '../App.js';
 import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
+import { TranscriptionReviewDialog } from '../media/TranscriptionReviewDialog.js';
 import { ConfirmDialog, EmptyState, useComposingEnter, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
 import { openDialog } from './dialog-requests.js';
-import { PlanCard, planHeading } from './PlanCard.js';
+import { PlanCard, planHeading, type TranscriptionRouteChoice } from './PlanCard.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
 import { TaskChecklist } from './TaskChecklist.js';
-import { renderRef } from '../i18n/render-ref.js';
+import { renderRef, WRITER_VALUE_KEYS } from '../i18n/render-ref.js';
+import { accessibleText } from '../i18n/accessible-text.js';
+import { UserText } from '../i18n/UserText.js';
+
+/* lingui-set comment="Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content." */
+
+const MODE_LABELS: Readonly<Record<PermissionMode, string>> = {
+  get 'plan-only'() { return t`Plan only`; },
+  get ask() { return t`Ask`; },
+  get 'accept-edits'() { return t`Accept edits`; },
+  get auto() { return t`Auto`; },
+};
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
@@ -61,13 +75,16 @@ interface PendingRestore {
 }
 
 export function AgentPanel({ session, agent, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
+  useLingui();
   useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
+  const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const report = useReport();
   // The pictures' file names, by id: a codex step's visual references are shown by name on its card (plan-preview.ts).
   // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
   const pictures = useAssetRecords(session.assets.artifactFs(), session.assetsVersion());
   const pictureNames = useMemo(() => new Map([...pictures.values()].map((picture) => [picture.id, picture.fileName] as const)), [pictures]);
+  const transcriptionRoutes = agent.transcriptionRoutes();
   const waitingSkills = session.skills().waiting;
   const [intent, setIntent] = useState('');
   const [restoring, setRestoring] = useState<PendingRestore | null>(null);
@@ -168,26 +185,22 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
 
   const provider = snapshot.providerName;
   const running = snapshot.turns[snapshot.turns.length - 1];
-  const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks);
-  // The header ref's values are the active step's English phrase fragments, not bare writer titles
-  // (progress.ts `headerRefOf`), so there is no value to isolate here. Composing the line from
-  // translatable parts is I6/I9 work (agent-harness.md §8, Message references); until then the
-  // header renders this reference's English frame with those fragments.
+  const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
   return (
-    <section className={`agent${open ? ' is-open' : ''}`} aria-label="Agent" data-testid="agent-panel" onKeyDown={onPanelKey}>
+    <section className={`agent${open ? ' is-open' : ''}`} aria-label={t`Agent`} data-testid="agent-panel" onKeyDown={onPanelKey}>
       <header className="agent-head">
         {/* aria-controls names the body only while the body is rendered: a closed drawer has no element with that id. */}
         <button type="button" className="button is-quiet agent-toggle" aria-expanded={open} aria-controls={open ? 'agent-body' : undefined} onClick={onToggle}>
-          {open ? 'Hide the agent' : 'Agent'}
+          {open ? t`Hide the agent` : t`Agent`}
         </button>
         <span className="agent-provider" data-testid="agent-provider">
-          {provider === null ? 'No provider' : `Provider: ${providerLabel(provider, snapshot.providerIsDemo)}`}
+          {provider === null ? t`No provider` : t`Provider: ${{ provider: isolate(providerLabel(provider, snapshot.providerIsDemo)) }}`}
         </span>
         {/* The permission mode (agent-harness §4): a radio group named by its visible label, in the header so it shows with the drawer closed too. */}
         <fieldset className="agent-mode" data-testid="agent-mode">
-          <legend>Mode</legend>
+          <legend><Trans>Mode</Trans></legend>
           {snapshot.modes.map((mode) => (
             <label key={mode} className={`agent-mode-option${snapshot.mode === mode ? ' is-on' : ''}`} title={MODE_HINTS[mode]}>
               <input type="radio" name="agent-mode" value={mode} checked={snapshot.mode === mode} onChange={() => agent.setMode(mode)} />
@@ -200,7 +213,7 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
             of step, not each streamed word: the line is derived from the task list and only moves when the step does. */}
         {snapshot.pending !== null || snapshot.busy ? (
           <span className="agent-busy" role="status" aria-live="polite" data-testid="agent-step">
-            {stepLine ?? (snapshot.pending !== null ? 'Waiting for you' : 'Working…')}
+            {stepLine ?? (snapshot.pending !== null ? t`Waiting for you` : t`Working…`)}
           </span>
         ) : null}
         {/* What the run has used of the limits the writer set: tokens, cost, steps and time worked, after each model call. */}
@@ -215,10 +228,10 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
             className="button is-danger agent-stop"
             data-testid="agent-stop"
             disabled={snapshot.stopping}
-            title={`Stop the turn (${shortcutLabel('agent-stop')} with the Intent box empty)`}
+            title={t`Stop the turn (${{ shortcut: shortcutLabel('agent-stop', keyboardLayout) }} with the Intent box empty)`}
             onClick={() => agent.stop()}
           >
-            {snapshot.stopping ? 'Stopping…' : 'Stop'}
+            {snapshot.stopping ? t`Stopping…` : t`Stop`}
           </button>
         ) : null}
         {/* What Stop, a note or the queue just did, for a screen reader: a status the header's step line does not carry. */}
@@ -231,15 +244,15 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
         <div id="agent-body" className="agent-body">
           <form className="agent-intent" onKeyDown={intentIme.noteKey} onSubmit={submit}>
             <label>
-              <span className="visually-hidden">Intent</span>
+              <span className="visually-hidden"><Trans>Intent</Trans></span>
               <input
                 ref={intentRef}
                 type="text"
-                aria-label="Intent"
+                aria-label={t`Intent`}
                 placeholder={
                   snapshot.busy
-                    ? `${shortcutLabel('agent-send')} queues it for the next turn, ${shortcutLabel('agent-steer')} sends it to this one`
-                    : 'Ask the agent to draft, fill, or check something'
+                    ? t`${{ send: shortcutLabel('agent-send', keyboardLayout) }} queues it for the next turn, ${{ steer: shortcutLabel('agent-steer', keyboardLayout) }} sends it to this one`
+                    : t`Ask the agent to draft, fill, or check something`
                 }
                 value={intent}
                 disabled={snapshot.providerName === null}
@@ -247,11 +260,11 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
               />
             </label>
             <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null}>
-              {snapshot.busy ? 'Queue' : 'Send'}
+              {snapshot.busy ? t`Queue` : t`Send`}
             </button>
             {snapshot.busy ? (
               <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null} onClick={steer}>
-                Steer
+                <Trans>Steer</Trans>
               </button>
             ) : null}
           </form>
@@ -259,9 +272,9 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           {/* Skills the writer has not read and approved are not offered to the agent (extensibility.md §10). The panel says how many wait. */}
           {waitingSkills > 0 ? (
             <p className="agent-skills-note" data-testid="agent-skills-note">
-              {waitingSkills === 1 ? '1 skill is waiting for you to approve it, so the agent cannot use it yet. ' : `${waitingSkills} skills are waiting for you to approve them, so the agent cannot use them yet. `}
+              {plural(waitingSkills, { one: '# skill is waiting for you to approve it, so the agent cannot use it yet.', other: '# skills are waiting for you to approve them, so the agent cannot use them yet.' })}{' '}
               <button type="button" className="status-link" onClick={() => openDialog({ kind: 'skills' })}>
-                Review skills
+                <Trans>Review skills</Trans>
               </button>
             </p>
           ) : null}
@@ -273,7 +286,7 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
 
           {sample && snapshot.turns.length === 0 ? (
-            <div className="agent-demos" role="group" aria-label="Demo intents">
+            <div className="agent-demos" role="group" aria-label={t`Demo intents`}>
               {DEMO_CHOICES.map((choice) => (
                 <button key={choice.intent} type="button" className="button" disabled={snapshot.busy} onClick={() => void agent.submit(choice.intent, { demo: true })}>
                   {choice.label}
@@ -283,18 +296,20 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           ) : null}
 
           {snapshot.turns.length === 0 ? (
-            <EmptyState title="The agent has not run yet">
-              Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each
-              change first, and nothing is written until you approve it.
+            <EmptyState title={t`The agent has not run yet`}>
+              <Trans>Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each
+              change first, and nothing is written until you approve it.</Trans>
             </EmptyState>
           ) : (
-            <ol className="agent-turns" aria-label="Turns">
+            <ol className="agent-turns" aria-label={t`Turns`}>
               {snapshot.turns.map((turn) => (
                 <TurnBlock
                   key={turn.turnId}
                   turn={turn}
                   snapshot={snapshot}
                   project={session.state}
+                  session={session}
+                  transcriptionRoutes={transcriptionRoutes}
                   pictureNames={pictureNames}
                   stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
                   onDecide={(decision) => agent.answer(decision)}
@@ -307,21 +322,23 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
         </div>
       ) : null}
 
+      <TranscriptionReviewDialog session={session} broker={session.transcriptionReviews} />
       <ConfirmDialog
         open={restoring !== null}
-        title="Restore to before this turn?"
-        confirmLabel="Restore"
+        title={t`Restore to before this turn?`}
+        confirmLabel={t`Restore`}
         onCancel={() => setRestoring(null)}
         onConfirm={confirmRestore}
       >
         <p>
-          This restores the project to its state before this turn{restoring?.summary ? `: ${restoring.summary}` : ''}. Your edits since then
-          are included in the restore.
+          {restoring?.summary
+            ? <Trans>This restores the project to its state before this turn: <UserText value={restoring.summary} />. Your edits since then are included in the restore.</Trans>
+            : <Trans>This restores the project to its state before this turn. Your edits since then are included in the restore.</Trans>}
         </p>
         {restoring !== null && restoring.later.length > 0 ? (
           <>
-            <p>It also takes back these later changes, oldest first:</p>
-            <ul aria-label="Later changes">
+            <p><Trans>It also takes back these later changes, oldest first:</Trans></p>
+            <ul aria-label={t`Later changes`}>
               {restoring.later.map((line, index) => (
                 <li key={`${index}:${line}`}>{line}</li>
               ))}
@@ -335,14 +352,16 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
 
 /** What a finished restore says: how many later changes went back with the turn, if any. */
 function restoredLine(later: number): string {
-  if (later === 0) return 'Restored to before that turn.';
-  return `Restored to before that turn. ${later} later ${later === 1 ? 'change was' : 'changes were'} taken back with it.`;
+  if (later === 0) return t`Restored to before that turn.`;
+  return plural(later, { one: 'Restored to before that turn. # later change was taken back with it.', other: 'Restored to before that turn. # later changes were taken back with it.' });
 }
 
 function TurnBlock({
   turn,
   snapshot,
   project,
+  session,
+  transcriptionRoutes,
   pictureNames,
   stands,
   onDecide,
@@ -353,6 +372,8 @@ function TurnBlock({
   snapshot: AgentSnapshot;
   /** The open project, which a plan card reads its previews against. */
   project: ProjectState;
+  session: ProjectSession;
+  transcriptionRoutes: readonly TranscriptionRouteChoice[];
   /** The project's pictures by asset id, as their file names (a codex step names its visual references by these). */
   pictureNames: ReadonlyMap<string, string>;
   /** The turn's checkpoint is still on the undo stack, so it can be restored. */
@@ -362,8 +383,10 @@ function TurnBlock({
   /** Switches to Ask and runs the writes Plan only refused in the turn. */
   onRunHeld: (turnId: string) => void;
 }): ReactNode {
+  useLingui();
   const live = snapshot.pending !== null && snapshot.pending.turnId === turn.turnId;
   const settled = isSettled(turn);
+  const dropped = turn.context?.dropped.length ?? 0;
   return (
     <li className={`agent-turn is-${turn.phase}`} data-turn={turn.turnId}>
       <header className="agent-turn-head">
@@ -376,17 +399,17 @@ function TurnBlock({
         <span className="agent-phase" aria-live="polite">
           {settled
             ? turn.report?.stop !== undefined
-              ? 'Stopped by you'
+              ? t`Stopped by you`
               : turn.report?.status === 'applied'
-                ? 'Applied'
+                ? t`Applied`
                 : turn.report?.status === 'replied'
-                  ? 'Answered'
+                  ? t`Answered`
                   : phaseLabel(turn.phase)
             : phaseLabel(turn.phase)}
         </span>
       </header>
       <TaskChecklist list={turn.tasks} settled={settled} />
-      {turn.provider !== null ? <p className="agent-on muted">Ran on {turn.provider}</p> : null}
+      {turn.provider !== null ? <p className="agent-on muted"><Trans>Ran on <UserText value={turn.provider} /></Trans></p> : null}
 
       {!settled && turn.streamed !== '' ? <p className="agent-stream">{turn.streamed}</p> : null}
 
@@ -394,14 +417,14 @@ function TurnBlock({
           so it stays after the turn settles — never in the editor, never inline-expanded. */}
       {turn.reasoning !== '' ? (
         <details className="agent-reasoning" data-testid="agent-thinking">
-          <summary>Thinking</summary>
+          <summary><Trans>Thinking</Trans></summary>
           <p className="agent-reasoning-text">{turn.reasoning}</p>
         </details>
       ) : null}
 
       {turn.context !== null && turn.context.dropped.length > 0 ? (
         <details className="agent-context">
-          <summary>{turn.context.dropped.length} context {turn.context.dropped.length === 1 ? 'item' : 'items'} left out</summary>
+          <summary>{plural(dropped, { one: '# context item left out', other: '# context items left out' })}</summary>
           <ul>
             {turn.context.dropped.map((reason, index) => (
               <li key={`${index}:${reason}`}>{reason}</li>
@@ -413,10 +436,10 @@ function TurnBlock({
       {turn.cards.length > 0 ? <StatusCards cards={turn.cards} /> : null}
 
       {turn.steering.length > 0 ? (
-        <ul className="agent-notes" aria-label="Notes you sent during this turn">
+        <ul className="agent-notes" aria-label={t`Notes you sent during this turn`}>
           {turn.steering.map((note) => (
             <li key={note.noteId}>
-              <span className="muted">You added:</span> {note.text}
+              <span className="muted"><Trans>You added:</Trans></span> <UserText value={note.text} />
             </li>
           ))}
         </ul>
@@ -426,13 +449,13 @@ function TurnBlock({
         // A card the mode approved is collapsed, with its badge: the writer was not asked, and can open it to read what ran.
         <details className="plan-auto" data-testid="plan-auto">
           <summary>
-            {planHeading(turn.plan)} <span className="badge is-auto">Auto-approved</span>
+            {planHeading(turn.plan)} <span className="badge is-auto"><Trans>Auto-approved</Trans></span>
           </summary>
-          <PlanCard key={turn.planSeq} card={turn.plan} live={false} drafts={null} project={project} pictureNames={pictureNames} onDecide={onDecide} auto />
+          <PlanCard key={turn.planSeq} card={turn.plan} live={false} drafts={null} project={project} session={session} transcriptionRoutes={transcriptionRoutes} pictureNames={pictureNames} onDecide={onDecide} auto />
         </details>
       ) : turn.plan !== null ? (
         // Keyed on the showing, so every field of the card is read again from the card the loop holds (agent-harness §2).
-        <PlanCard key={turn.planSeq} card={turn.plan} live={live} drafts={live ? snapshot.drafts : null} project={project} pictureNames={pictureNames} onDecide={onDecide} />
+        <PlanCard key={turn.planSeq} card={turn.plan} live={live} drafts={live ? snapshot.drafts : null} project={project} session={session} transcriptionRoutes={transcriptionRoutes} pictureNames={pictureNames} onDecide={onDecide} />
       ) : null}
 
       {turn.report?.heldSteps !== undefined && !snapshot.heldRun.includes(turn.turnId) ? (
@@ -465,9 +488,10 @@ function TurnBlock({
 
 /** The status cards of one turn, consecutive calls grouped (agent-harness §8). */
 export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactNode {
+  useLingui();
   const items = groupCards(cards);
   return (
-    <ol className="status-cards" aria-label="Tool calls">
+    <ol className="status-cards" aria-label={t`Tool calls`}>
       {items.map((item) =>
         item.kind === 'card' ? (
           <li key={item.card.id}>
@@ -477,7 +501,9 @@ export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactN
           <li key={item.cards[0]?.id ?? item.turnId}>
             <details className="status-group" open={item.expanded}>
               <summary>
-                {item.cards.length} calls · {item.expanded ? 'running' : 'done'}
+                {item.expanded
+                  ? t`${{ count: item.cards.length }} calls · running`
+                  : t`${{ count: item.cards.length }} calls · done`}
               </summary>
               {item.cards.map((card) => (
                 <StatusCardRow key={card.id} card={card} />
@@ -491,11 +517,11 @@ export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactN
 }
 
 const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
-  'pending-approval': 'Waiting for approval',
-  running: 'Running',
-  done: 'Done',
-  cancelled: 'Cancelled',
-  failed: 'Failed',
+  get 'pending-approval'() { return t`Waiting for approval`; },
+  get running() { return t`Running`; },
+  get done() { return t`Done`; },
+  get cancelled() { return t`Cancelled`; },
+  get failed() { return t`Failed`; },
 };
 
 function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
@@ -512,12 +538,12 @@ function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
       {card.summary !== undefined || card.error !== undefined ? (
         // The result is collapsed once the call is done, and open when it failed, so the reason is in front of the writer.
         <details className="status-card-result" open={card.error !== undefined}>
-          <summary>{card.error === undefined ? 'Result' : 'Why it did not run'}</summary>
+          <summary>{card.error === undefined ? t`Result` : t`Why it did not run`}</summary>
           <p className={card.error === undefined ? 'status-card-text' : 'status-card-text is-error'}>{card.error ?? card.summary}</p>
         </details>
       ) : null}
       <details className="status-card-args">
-        <summary>Arguments</summary>
+        <summary><Trans>Arguments</Trans></summary>
         <pre>{JSON.stringify(card.args, null, 2)}</pre>
       </details>
     </article>
@@ -531,27 +557,27 @@ function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
  */
 function DelegationBlock({ view }: { view: DelegationCardView }): ReactNode {
   return (
-    <section className="delegation" aria-label={view.title}>
+    <section className="delegation" aria-label={accessibleText(view.title)}>
       <p className="delegation-line">
         <strong>{view.title}</strong>
         <span className="muted">{view.reserved}</span>
         <span className="delegation-standing">{view.standing}</span>
       </p>
       <details className="delegation-brief">
-        <summary>Brief</summary>
+        <summary><Trans>Brief</Trans></summary>
         <p className="status-card-text">{view.brief}</p>
-        {view.scope.length > 0 ? <p className="status-card-text muted">Starts from: {view.scope.join(', ')}</p> : null}
+        {view.scope.length > 0 ? <p className="status-card-text muted"><Trans>Starts from: <UserText value={view.scope.join(', ')} /></Trans></p> : null}
       </details>
       {view.result === undefined ? null : (
         <details className="delegation-result">
-          <summary>Notes</summary>
-          <p className="status-card-text">{view.result === '' ? 'The agent gave no notes.' : view.result}</p>
+          <summary><Trans>Notes</Trans></summary>
+          <p className="status-card-text">{view.result === '' ? t`The agent gave no notes.` : view.result}</p>
         </details>
       )}
       {view.proposed === undefined ? null : <p className="status-card-text delegation-proposed">{view.proposed}</p>}
       {view.trace.length === 0 ? null : (
         <details className="delegation-trace">
-          <summary>Transcript ({view.trace.length})</summary>
+          <summary>{t`Transcript (${{ count: view.trace.length }})`}</summary>
           <ol>
             {view.trace.map((row) => (
               <li key={row.key}>{row.text}</li>
@@ -578,15 +604,16 @@ function ElapsedTime({ card }: { card: StatusCard }): ReactNode {
 }
 
 const ASKBACK_TITLES: Readonly<Record<AskBack['code'], string>> = {
-  needs_input: 'Needs your input',
-  conflict: 'The text changed under this draft',
-  verify_failed: 'The change did not check out',
-  anchor_unresolvable: 'The selected text could not be found',
-  budget_exhausted: 'The run reached a limit',
+  get needs_input() { return t`Needs your input`; },
+  get conflict() { return t`The text changed under this draft`; },
+  get verify_failed() { return t`The change did not check out`; },
+  get anchor_unresolvable() { return t`The selected text could not be found`; },
+  get budget_exhausted() { return t`The run reached a limit`; },
 };
 
 /** The ask-back envelope (agent-harness §2): why the turn stopped and the next actions it offers, as a card. */
 export function AskBackCard({ askBack }: { askBack: AskBack }): ReactNode {
+  useLingui();
   const options = askBackOptions(askBack);
   return (
     <aside className={`askback is-${askBack.code}`} aria-label={ASKBACK_TITLES[askBack.code]}>
@@ -596,13 +623,13 @@ export function AskBackCard({ askBack }: { askBack: AskBack }): ReactNode {
         <ul className="askback-candidates">
           {askBack.candidates.map((candidate) => (
             <li key={`${candidate.from}:${candidate.to}`}>
-              characters {candidate.from}–{candidate.to}, {Math.round(candidate.similarity * 100)}% alike
+              {t`characters ${{ from: candidate.from }}–${{ to: candidate.to }}, ${{ similarity: Math.round(candidate.similarity * 100) }}% alike`}
             </li>
           ))}
         </ul>
       ) : null}
       {options.length > 0 ? (
-        <ul className="askback-options" aria-label="Next steps">
+        <ul className="askback-options" aria-label={t`Next steps`}>
           {options.map((option) => (
             <li key={option}>{option}</li>
           ))}
@@ -613,11 +640,10 @@ export function AskBackCard({ askBack }: { askBack: AskBack }): ReactNode {
 }
 
 function FindingsList({ findings }: { findings: readonly Finding[] }): ReactNode {
+  const count = findings.length;
   return (
-    <section className="findings" aria-label="Findings">
-      <h4>
-        {findings.length} {findings.length === 1 ? 'finding' : 'findings'}
-      </h4>
+    <section className="findings" aria-label={t`Findings`}>
+      <h4>{plural(count, { one: '# finding', other: '# findings' })}</h4>
       <ul>
         {findings.map((finding, index) => (
           <li key={index}>
@@ -648,16 +674,17 @@ export function CheckpointRow({
   onRestore: () => void;
   disabled: boolean;
 }): ReactNode {
+  useLingui();
   return (
     <div className="checkpoint-row" data-testid="checkpoint" data-undo-group={undoGroupId}>
       <span className="checkpoint-label">
-        Checkpoint · {CHECKPOINT_LABEL} · {MODE_LABELS[mode]}
+        <Trans>Checkpoint · restore to before this turn</Trans> · {MODE_LABELS[mode]}
       </span>
       {taken ? (
-        <span className="muted">Taken back</span>
+        <span className="muted"><Trans>Taken back</Trans></span>
       ) : (
         <button type="button" className="button is-quiet" disabled={disabled} onClick={onRestore}>
-          Restore to before this turn
+          <Trans>Restore to before this turn</Trans>
         </button>
       )}
       {note === undefined ? null : <span className="muted checkpoint-note">{note}</span>}
@@ -671,16 +698,18 @@ export function CheckpointRow({
  */
 function HeldPlan({ report, disabled, onRun }: { report: TurnReport; disabled: boolean; onRun: () => void }): ReactNode {
   const held = report.heldSteps ?? [];
+  const count = held.length;
   return (
-    <section className="held-plan" aria-label="Plan, not run" data-testid="held-plan">
-      <h3>Plan only: {held.length === 1 ? '1 step' : `${held.length} steps`} not run</h3>
+    <section className="held-plan" aria-label={t`Plan, not run`} data-testid="held-plan">
+      <h3>{plural(count, { one: 'Plan only: # step not run', other: 'Plan only: # steps not run' })}</h3>
       <ol>
-        {held.map((step, index) => (
-          <li key={`${index}:${step.tool}`}>{phraseFor(step.tool, step.params).content}</li>
-        ))}
+        {held.map((step, index) => {
+          const phrase = phraseFor(step.tool, step.params);
+          return <li key={`${index}:${step.tool}`}>{phrase.contentRef === undefined ? phrase.content : renderRef(phrase.contentRef, { userValues: WRITER_VALUE_KEYS })}</li>;
+        })}
       </ol>
       <button type="button" className="button" disabled={disabled} onClick={onRun}>
-        Switch to Ask and run this plan
+        <Trans>Switch to Ask and run this plan</Trans>
       </button>
     </section>
   );
@@ -688,19 +717,21 @@ function HeldPlan({ report, disabled, onRun }: { report: TurnReport; disabled: b
 
 function ReportLine({ report, price }: { report: TurnReport; price: TurnView['price'] }): ReactNode {
   const tokens = report.tokens;
+  const calls = report.modelCalls;
+  const prompt = tokens.promptTokens;
+  const completion = tokens.completionTokens;
   // The cost is shown only when the profile the turn ran on has a price (provider-gateway §6): an unpriced turn shows its tokens alone.
   const cost = turnCostOf(tokens, price);
   return (
-    <div className="agent-report" aria-label="Report">
+    <div className="agent-report" aria-label={t`Report`}>
       <p className="agent-report-text">{report.summary}</p>
       <p className="muted agent-report-meta">
-        {report.modelCalls === 1 ? '1 model call' : `${report.modelCalls} model calls`} · about {tokens.promptTokens} tokens in,{' '}
-        {tokens.completionTokens} out
+        {plural(calls, { one: `# model call · about ${prompt} tokens in, ${completion} out`, other: `# model calls · about ${prompt} tokens in, ${completion} out` })}
       </p>
-      {cost !== undefined ? <p className="muted agent-report-meta">About {formatUsd(cost)} for this turn, at this profile’s prices.</p> : null}
+      {cost !== undefined ? <p className="muted agent-report-meta">{t`About ${{ cost: formatUsd(cost) }} for this turn, at this profile’s prices.`}</p> : null}
       {report.dropped.length > 0 ? (
         <details className="agent-context">
-          <summary>What the prompt left out</summary>
+          <summary><Trans>What the prompt left out</Trans></summary>
           <ul>
             {report.dropped.map((reason, index) => (
               <li key={`${index}:${reason}`}>{reason}</li>

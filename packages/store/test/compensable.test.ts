@@ -824,7 +824,7 @@ describe('the registration refusal is never reached, because the captures are co
     expect(getBody(h.state, LANDING)).not.toBe('AFTER');
   });
 
-  it('the bus registry still refuses the five, and without an exporter the store registry implements eighteen of the twenty', () => {
+  it('the bus registry still refuses the five, and the store registry implements every apply that needs no host port', () => {
     // Both halves of the bus/store registry split, extended to these applies. A bus registry
     // that quietly started implementing a name, and a store registry that quietly
     // stopped, each fail here.
@@ -852,7 +852,11 @@ describe('the registration refusal is never reached, because the captures are co
     // The script imports add the two imports and the container settings, all compensable and needing no port: 31 + 3 = 34.
     // The skill commands add `skill.write`, `skill.delete` and `skill.setEnabled` (`skill.import` needs the host's staging): 34 + 3 = 37.
     // The three knowledge commands are compensable and need no port: 37 + 3 = 40.
-    expect(implemented).toHaveLength(40);
+    // The timeline batch (`timeline.apply`) is compensable and needs no port: 40 + 1 = 41.
+    // The six picture commands that touch only the manifest are compensable and need no port (the two imports need the asset port): 41 + 6 = 47.
+    // Re-pinning needs no port either: 48. The seven comic commands need no port: 55, and the calendar setting makes 56.
+    // The reviewed transcription batch is compensable and needs no port: 57. The document-level compound makes 58.
+    expect(implemented).toHaveLength(58);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

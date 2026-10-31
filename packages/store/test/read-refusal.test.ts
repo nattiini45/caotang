@@ -149,6 +149,8 @@ describe('the node fields the writer persists are the ones the load knows', () =
     kind: 'screenplay',
     shot: { duration: 3 },
     dialogue: { speaker: 'Elena' },
+    comic: { readingDirection: 'rtl' },
+    comicPage: { size: 'us-comic', panels: [] },
     style: 'section',
     createdAt: STAMP.toISOString(),
     updatedAt: STAMP.toISOString(),

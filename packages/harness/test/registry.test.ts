@@ -26,10 +26,10 @@ describe('the registry joins every tool to its metadata', () => {
   // the dialogue module's two (dialogue-narrative.md §7), which register because the module imports the bus and
   // not the harness. The spec's media-track count is twenty-three (14 + coherence 3 + storyboard 2 + prompt-pack 2 +
   // dialogue 2, agent-harness.md §10). The registry also carries doc.import, codex.import and tool.search, which that
-  // count leaves out, the five allowlisted bus primitives (issue #56), the skills row (`skill.load`, extensibility §10) and the delegation row (`agent.delegate`, agent-harness §2), so it holds thirty-three.
-  it('lists all thirty-three rows, in the metadata table’s order', () => {
+  // count leaves out, the five allowlisted bus primitives (issue #56), the skills row (`skill.load`, extensibility §10), the delegation row (`agent.delegate`, agent-harness §2), the two timeline rows (`timeline.read` and the sixth primitive, `timeline.edit`, timeline.md §5.1), the seven picture rows (pictures.md §8.1) and the three comic rows (comics.md §3.2), so it holds forty-five.
+  it('lists all forty-five rows, in the metadata table’s order', () => {
     expect(listing.map((item) => item.name)).toEqual([...TOOL_NAMES]);
-    expect(listing).toHaveLength(33);
+    expect(listing).toHaveLength(45);
   });
 
   // Two of the coherence tools are wired to the engine by default (coherence.scan and
@@ -50,6 +50,9 @@ describe('the registry joins every tool to its metadata', () => {
         'continuity.scan',
         'coherence.review',
         'dialogue.draft',
+        'pictures.import',
+        'pictures.transcribe',
+        'pictures.view',
         'prompt.draft',
         'prompt.variant',
         'scene.draft',
@@ -95,11 +98,23 @@ describe('the registry joins every tool to its metadata', () => {
       'dialogue.table',
       'skill.load',
       'agent.delegate',
+      'timeline.read',
+      'pictures.list',
+      'pictures.view',
+      'pictures.annotate',
+      'pictures.attach',
+      'pictures.import',
+      'pictures.place',
+      'pictures.transcribe',
+      'comic.derive',
+      'comic.letter',
+      'comic.scriptFromPages',
       'notes.replace',
       'synopsis.set',
       'vocabulary.upsert',
       'filter.save',
       'goal.save',
+      'timeline.edit',
     ]);
     // A deferred row is found by name, description or keyword, so each carries a module word to be found by.
     for (const meta of TOOL_METADATA.filter((row) => row.load === 'deferred')) expect(meta.keywords?.length, meta.name).toBeGreaterThan(0);

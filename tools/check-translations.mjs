@@ -9,6 +9,7 @@
  *    The header is the one line extraction rewrites on every run; without this normalisation the
  *    guard would fail daily. Missing non-source translations never fail: the English catalogue is
  *    compared for drift, and an empty translation is the per-message fallback working as designed.
+ *    A real target locale is compared by active source ids because its fresh extraction has empty msgstr fields.
  * 2. **Compile.** Every source message and every non-empty translation is compiled with the same
  *    Lingui compiler the build uses; an ICU syntax error is a failure.
  * 3. **Placeholder parity.** A translation's named ICU arguments must be the source's arguments.
@@ -75,6 +76,20 @@ export function compareCatalogues(committed, generated) {
     }
   }
   return [];
+}
+
+/**
+ * A real target locale's fresh extraction has empty msgstr fields, so byte comparison would reject
+ * every translation. Its drift check is the active source-id set: new and stale ids still fail.
+ */
+export function compareCatalogueIds(committed, generated) {
+  const idsOf = (content) => new Set(activeItems(parsePoFile(content)).map(itemLabel));
+  const committedIds = idsOf(committed);
+  const generatedIds = idsOf(generated);
+  const problems = [];
+  for (const id of generatedIds) if (!committedIds.has(id)) problems.push(`missing source message ${JSON.stringify(id)}`);
+  for (const id of committedIds) if (!generatedIds.has(id)) problems.push(`stale source message ${JSON.stringify(id)}`);
+  return problems;
 }
 
 /** Reads every committed `messages.po`, keyed by locale. */
@@ -278,10 +293,13 @@ export function checkCompile(catalogues) {
 /** Every non-empty translation uses the same named arguments as its source. */
 export function checkPlaceholderParity(catalogues) {
   const problems = [];
+  const sourceItems = new Map(activeItems(catalogues[SOURCE_LOCALE]?.catalog ?? { items: [] }).map((item) => [itemLabel(item), item]));
   for (const [locale, { catalog }] of Object.entries(catalogues).sort(([a], [b]) => a.localeCompare(b))) {
     if (locale === SOURCE_LOCALE || PSEUDO_LOCALES.has(locale)) continue;
     for (const item of activeItems(catalog)) {
-      const expected = [...new Set(sourceArgs(item))].sort();
+      const sourceItem = sourceItems.get(itemLabel(item));
+      // An explicit id is not the English sentence. Its source catalogue's non-empty msgstr is.
+      const expected = [...new Set(sourceItem !== undefined && !isMissing(sourceItem) ? formsOf(sourceItem).flatMap(icuArguments) : sourceArgs(item))].sort();
       const label = itemLabel(item);
       formsOf(item).forEach((form, index) => {
         if (form.trim() === '') return; // a missing translation falls back per message; it never fails
@@ -292,6 +310,23 @@ export function checkPlaceholderParity(catalogues) {
           );
         }
       });
+    }
+  }
+  return problems;
+}
+
+/**
+ * A fuzzy translation is a guess awaiting review, and Lingui compiles it like any other (it does not read the flag), so a committed
+ * fuzzy entry with text would ship. The catalogues may hold a fuzzy entry only with an empty msgstr, which falls back to English.
+ */
+export function checkNoShippedFuzzy(catalogues) {
+  const problems = [];
+  for (const [locale, { catalog }] of Object.entries(catalogues).sort(([a], [b]) => a.localeCompare(b))) {
+    if (locale === SOURCE_LOCALE || PSEUDO_LOCALES.has(locale)) continue;
+    for (const item of activeItems(catalog)) {
+      if (isFuzzy(item) && !isMissing(item)) {
+        problems.push(`${locale}: ${JSON.stringify(itemLabel(item))} is fuzzy but has text, so it would ship; review it and remove the flag, or empty it`);
+      }
     }
   }
   return problems;
@@ -419,8 +454,9 @@ export function repositorySourceRoots(repoRoot) {
 }
 
 /** Statistics for one parsed catalogue. */
-export function localeStats(catalog) {
+export function localeStats(catalog, sourceCatalog) {
   const items = activeItems(catalog);
+  const sourceItems = new Map(activeItems(sourceCatalog ?? { items: [] }).map((item) => [itemLabel(item), item]));
   let translated = 0;
   let untranslated = 0;
   let missing = 0;
@@ -437,7 +473,9 @@ export function localeStats(catalog) {
     }
     translated += 1;
     const form = formsOf(item)[0] ?? '';
-    if (!item.msgid_plural && form === item.msgid) sameAsEnglish += 1;
+    const sourceItem = sourceItems.get(itemLabel(item));
+    const english = sourceItem !== undefined && !isMissing(sourceItem) ? (formsOf(sourceItem)[0] ?? '') : item.msgid;
+    if (!item.msgid_plural && form === english) sameAsEnglish += 1;
   }
   const total = items.length;
   const completion = total === 0 ? 0 : Math.round((translated / total) * 1000) / 10;
@@ -450,7 +488,7 @@ export function computeStats(catalogues) {
   for (const locale of Object.keys(catalogues).sort()) {
     if (locale === SOURCE_LOCALE || PSEUDO_LOCALES.has(locale)) continue;
     const { catalog } = catalogues[locale];
-    locales[locale] = localeStats(catalog);
+    locales[locale] = localeStats(catalog, catalogues[SOURCE_LOCALE]?.catalog);
   }
   return { sourceLocale: SOURCE_LOCALE, locales };
 }
@@ -520,9 +558,10 @@ export function checkDrift(repoRoot, generated = extractToTemp(repoRoot)) {
       problems.push(`${locale}: committed catalogue has no extracted counterpart`);
       continue;
     }
-    for (const difference of compareCatalogues(readFileSync(committed[locale].path, 'utf8'), generated[locale])) {
-      problems.push(`${locale}: ${difference}`);
-    }
+    const committedPo = readFileSync(committed[locale].path, 'utf8');
+    const generatedPo = generated[locale];
+    const differences = locale === SOURCE_LOCALE || PSEUDO_LOCALES.has(locale) ? compareCatalogues(committedPo, generatedPo) : compareCatalogueIds(committedPo, generatedPo);
+    for (const difference of differences) problems.push(`${locale}: ${difference}`);
   }
   for (const locale of Object.keys(generated).sort()) {
     if (!(locale in committed)) problems.push(`${locale}: extraction produced a catalogue that is not committed`);
@@ -540,6 +579,7 @@ function main() {
     ...checkCompile(catalogues),
     ...checkPlaceholderParity(catalogues),
     ...checkTranslatorHygiene(catalogues),
+    ...checkNoShippedFuzzy(catalogues),
     ...findConcatenations(repositorySourceRoots(repoRoot)),
     ...findModelFacingImports(repositorySourceRoots(repoRoot)),
   ];

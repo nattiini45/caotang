@@ -15,9 +15,9 @@ import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 
 import {
-  KEPT_CHAPTER_TITLE,
-  RELOAD_CHAPTER_TITLE,
   browserStorage,
+  keptChapterTitle,
+  reloadChapterTitle,
   putBackDocuments,
   readUnsentEntries,
   removeUnsentEntry,
@@ -97,7 +97,7 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
       const made = session.dispatch('binder.create', {
         parentId: 'manuscript',
         type: 'folder',
-        title: entry.origin === 'reload' ? RELOAD_CHAPTER_TITLE : KEPT_CHAPTER_TITLE,
+        title: entry.origin === 'reload' ? reloadChapterTitle() : keptChapterTitle(),
       });
       const id = createdNodeId(made);
       if (id === undefined) {
@@ -143,7 +143,7 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
           ? t`The page reloaded before these words were saved, and the project has newer text now (from another tab, or a save that did land).`
           : t`A tab stopped because another tab saved newer text for this project.`;
         const titles = isolate(entry.documents.map((doc) => doc.title).join(', '));
-        const chapter = reload ? RELOAD_CHAPTER_TITLE : KEPT_CHAPTER_TITLE;
+        const chapter = reload ? reloadChapterTitle() : keptChapterTitle();
         const body =
           stamp === ''
             ? t`The words it held were kept in this browser, in ${plural(count, { one: 'one document', other: '# documents' })}: ${{ titles }}. Putting them back adds them as new documents in the chapters they came from, so nothing already saved is overwritten. A document whose chapter is gone goes into a new chapter, “${{ chapter }}”.`

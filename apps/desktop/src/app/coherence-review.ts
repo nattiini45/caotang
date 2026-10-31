@@ -27,17 +27,20 @@ import type { ProjectState } from '@caotang/store';
 // The review's context and its model port moved to the harness, which wires them for the agent; the Findings tab uses the same ones.
 export { gatewayCoherenceModel, reviewContextOf };
 
+/** The provider service as a review reads it: the active profile, the gateway, and the role resolution. */
+export interface ReviewProviders {
+  readonly active: () => ProfileView | undefined;
+  readonly gateway: ProviderGateway;
+  /** The provider service's role resolution. A test double without it falls back to the active profile. */
+  readonly resolveForRole?: (role: TaskRole) => { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel } | undefined;
+}
+
 /**
  * The model a review runs through: the profile the 'chat' role resolves to — the active one unless the writer pinned
  * chat to another — read at each call so a change of provider or of role applies to the next review (provider-gateway
  * §2, §6). Undefined when no provider resolves, and then the agent's review is refused with the sentence that names it.
  */
-export function activeCoherenceModel(providers: {
-  readonly active: () => ProfileView | undefined;
-  readonly gateway: ProviderGateway;
-  /** The provider service's role resolution. A test double without it falls back to the active profile. */
-  readonly resolveForRole?: (role: TaskRole) => { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel } | undefined;
-}): CoherenceModel | undefined {
+export function activeCoherenceModel(providers: ReviewProviders): CoherenceModel | undefined {
   const resolved = providers.resolveForRole?.('chat');
   const profile = resolved?.profile ?? providers.active();
   return profile === undefined ? undefined : gatewayCoherenceModel(providers.gateway, profile, resolved);

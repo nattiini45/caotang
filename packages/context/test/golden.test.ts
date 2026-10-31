@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { assemble, type AgentTask, type AssembledPrompt, type ContextConfig } from '../src/index.js';
 import { FOCUS_ID, IDS, buildApp, selectionOfFocus } from './fixtures.js';
+import { textOf } from '@caotang/gateway';
 
 const GOLDEN_DIR = resolve(__dirname, 'golden');
 const UPDATE = process.env['CAOTANG_UPDATE_GOLDEN'] === '1';
@@ -131,13 +132,13 @@ function renderGolden(c: GoldenCase, assembled: AssembledPrompt): string {
     '## System message',
     '',
     '```text',
-    assembled.messages[0]?.content ?? '',
+    textOf(assembled.messages[0]?.content ?? ''),
     '```',
     '',
     '## User message',
     '',
     '```text',
-    assembled.messages[1]?.content ?? '',
+    textOf(assembled.messages[1]?.content ?? ''),
     '```',
     '',
   ].join('\n');

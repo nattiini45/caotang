@@ -41,7 +41,7 @@ test.afterAll(() => {
 /** A project with one chapter and one scene that has words in it, so every renderer has something to write. */
 function manuscript(): ProjectState {
   const now = new Date('2026-10-08T09:00:00Z');
-  const state = createProjectState(createEmptyManifest('The Harbour', now));
+  const state = createProjectState(createEmptyManifest('The Harbour', now, { locale: 'en-US' }));
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', id: 'n_CH100000AA', now });
   addDocument(state, {
     parentId: 'n_CH100000AA',
@@ -60,6 +60,8 @@ async function sessionFor(state: ProjectState): Promise<ProjectSession> {
 
 /** Dispatch a compile and return the path it reserved, once the exporter has written it. */
 async function compile(session: ProjectSession, format: string): Promise<string> {
+  // The UI contract (ExportDialog.tsx): the project's exports are listed first, so the lazy exporter is loaded before the dispatch.
+  await session.exportsReady();
   const outcome = session.dispatch('export.compile', { format });
   if (!outcome.ok) throw new Error(outcome.error.message);
   const output = (outcome.value.result as { output: string }).output;
@@ -179,6 +181,34 @@ test('a compile made before the folder is saved does not overwrite the folder’
     const folderExports = tree.children.get(EXPORTS_DIR);
     if (folderExports?.kind === 'directory') folderExports.children.delete('The Harbour.md');
     await session.attachFolder(handle);
+    expect(textOf(filesIn(tree).get(output))).toContain('The boat came in with the tide.');
+  } finally {
+    session.close();
+  }
+});
+
+test('a first-time attach whose lazy exporter download failed still attaches the folder, and the next compile retries the load', async () => {
+  const session = await sessionFor(manuscript());
+  try {
+    const { handle, tree } = memoryFolder();
+    // The first compile's lazy download of the exporter failed, so the session holds the rejected load. `loadExporter`
+    // keeps no failed download (its catch resets the field), so the next compile asks again; the test sets the field
+    // as that catch leaves it after a failure.
+    const internals = session as unknown as { exporterModule: Promise<unknown> | null };
+    const failed = Promise.reject(new Error('the exporter chunk did not load'));
+    failed.catch(() => undefined); // handled here, so the worker never sees it as unhandled before attachFolder reads it
+    internals.exporterModule = failed;
+
+    // The failed load is not a refusal: the exports and the pictures are attached all the same.
+    await session.attachFolder(handle);
+    expect(session.exportsToFolder()).toBe(true);
+    expect(session.assetsInFolder()).toBe(true);
+
+    // The next compile loads the exporter again, over the folder that is already attached, and lands in it.
+    internals.exporterModule = null;
+    await session.exportsReady();
+    const output = await compile(session, 'md');
+    expect(session.exportFailures()).toEqual([]);
     expect(textOf(filesIn(tree).get(output))).toContain('The boat came in with the tide.');
   } finally {
     session.close();

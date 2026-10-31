@@ -57,7 +57,14 @@ async function listedNames(client: Client): Promise<string[]> {
   return tools.map((tool) => tool.name).sort();
 }
 
+/** The registry's write rows: every one of them is listed with --allow-writes, unless it needs a model (MODEL_BACKED). */
 const WRITE_TOOLS = TOOL_METADATA.filter((meta) => meta.risk === 'write-auto' || meta.risk === 'write-confirm').map((meta) => meta.name);
+
+/** Writes whose ports need the writer's own files or vision/review host: unwired here, so never listed. */
+const NO_PORT_HERE = ['pictures.import', 'pictures.transcribe'];
+
+/** The registry rows this server does not list through the mapping: the picture reads are registered beside it, with their own text (tools.ts). */
+const SERVED_BESIDE = ['pictures.list', 'pictures.view'];
 /**
  * The tools this server does not list, because no port answers them here and an unwired tool is never advertised
  * (tools.ts, the `wired` check). The first three draft with Caotang's own provider, which this server does not hold.
@@ -106,15 +113,42 @@ describe('the tool surface', () => {
       expect(roNames).toContain('project.overview');
       expect(roNames).toContain('binder.read_tree');
 
-      for (const name of WRITE_TOOLS.filter((n) => !MODEL_BACKED.includes(n))) expect(rwNames).toContain(name);
+      for (const name of WRITE_TOOLS.filter((n) => !MODEL_BACKED.includes(n) && !NO_PORT_HERE.includes(n))) expect(rwNames).toContain(name);
       expect(rwNames).toContain('doc.import');
       // The negative half: no model-backed tool is listed, with writes on either. coherence.review is wired as an async port, so
       // without the async check it was the one listed here, and a host asked the user to approve a call that then refused.
       for (const name of MODEL_BACKED) expect(rwNames).not.toContain(name);
+      // And a write that needs a host port this server does not have is not listed either: pictures.import takes bytes the host staged,
+      // and no host stages a file for this server.
+      for (const name of NO_PORT_HERE) expect(rwNames).not.toContain(name);
       expect(rwNames.length).toBeGreaterThan(roNames.length);
     } finally {
       await roClient.close();
       await rwClient.close();
+    }
+  });
+
+  it('lists timeline.edit with --allow-writes only, and refuses it before asking a host that cannot answer', async () => {
+    const roClient = await connectClient(readOnly.url, readOnly.token);
+    const rwClient = await connectClient(writable.url, writable.token);
+    const asking = await connectClient(writable.url, writable.token, acceptConfirm);
+    try {
+      expect(await listedNames(roClient)).not.toContain('timeline.edit');
+      expect(await listedNames(rwClient)).toContain('timeline.edit');
+      // A host that declared no elicitation is refused before the batch is looked at, and nothing is written: the typed outcome a
+      // timeline write answers with needs a person's yes, and this host cannot be asked for one (timeline.md §9.2).
+      const refused = await rwClient.callTool({ name: 'timeline.edit', arguments: { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 3 } }] } });
+      expect(refused.isError).toBe(true);
+      expect(JSON.stringify(resultJson(refused))).toContain('did not declare elicitation support');
+      // A host that can be asked gets the bus's own refusal for a batch with no ops, before any question: nothing is asked for a call
+      // that cannot run.
+      const empty = await asking.callTool({ name: 'timeline.edit', arguments: { ops: [] } });
+      expect(empty.isError).toBe(true);
+      expect(JSON.stringify(resultJson(empty))).toContain('invalid-params');
+    } finally {
+      await roClient.close();
+      await rwClient.close();
+      await asking.close();
     }
   });
 
@@ -176,6 +210,12 @@ describe('the tool surface', () => {
       const listings = writable.session.harness.tools();
       for (const listing of listings) {
         const exposure = mcpExposure(listing);
+        // The picture reads are registered beside the mapping, with the picture module's own descriptions and size checks, so the
+        // registry's row is not what a host reads. They are listed under the same name, wired or not: the module reads the folder itself.
+        if (SERVED_BESIDE.includes(listing.name)) {
+          expect(byName.has(listing.name), `${listing.name} is registered beside the mapping`).toBe(true);
+          continue;
+        }
         // tool.search is the one exposed tool this server leaves out: it has no tool server to search (tools.ts).
         if (!exposure.exposed || !listing.wired || listing.name === 'tool.search') {
           expect(byName.has(listing.name), `${listing.name} must not be listed`).toBe(false);
@@ -222,7 +262,11 @@ describe('the tool surface', () => {
       const paragraph = readme.split('\n').find((line) => line.startsWith('The server is read-only unless'));
       expect(paragraph).toBeDefined();
       const names = (text: string) => [...text.matchAll(/`([a-z]+\.[A-Za-z]+)`/g)].map((match) => match[1]).sort();
-      const [autoText, confirmText] = paragraph!.split(', and ');
+      // The paragraph's first sentence names the timeline read, which is a read in either mode. The write lists are what follow
+      // "With writes allowed", split on the sentence's own ", and" between the two clauses.
+      const writeText = paragraph!.split('With writes allowed, ')[1];
+      expect(writeText).toBeDefined();
+      const [autoText, confirmText] = writeText!.split(', and ');
       expect(names(autoText!)).toEqual([...auto].sort());
       expect(names(confirmText!.split('Add `--create')[0]!)).toEqual([...confirm].sort());
     } finally {
@@ -810,7 +854,18 @@ describe('the registry seam', () => {
         roClient = await connectClient(readOnly.url, readOnly.token);
         const rwClient = await connectClient(writable.url, writable.token);
         try {
-          expect(await listedNames(roClient)).toEqual(['binder.read_tree', 'codex.read', 'coherence.scan', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview']);
+          expect(await listedNames(roClient)).toEqual([
+            'binder.read_tree',
+            'codex.read',
+            'coherence.scan',
+            'dialogue.table',
+            'doc.read',
+            'notes.read',
+            'pictures.list',
+            'pictures.view',
+            'project.overview',
+            'timeline.read',
+          ]);
           expect(await listedNames(rwClient)).toEqual([
             'binder.read_tree',
             'binder.restructure',
@@ -819,6 +874,9 @@ describe('the registry seam', () => {
             'codex.write',
             'coherence.scan',
             'coherence.setFindingStatus',
+            'comic.derive',
+            'comic.letter',
+            'comic.scriptFromPages',
             'dialogue.table',
             'doc.import',
             'doc.read',
@@ -829,9 +887,16 @@ describe('the registry seam', () => {
             'notes.append',
             'notes.read',
             'notes.replace',
+            'pictures.annotate',
+            'pictures.attach',
+            'pictures.list',
+            'pictures.place',
+            'pictures.view',
             'project.overview',
             'shots.annotate',
             'synopsis.set',
+            'timeline.edit',
+            'timeline.read',
             'vocabulary.upsert',
           ]);
         } finally {

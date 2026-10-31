@@ -7,7 +7,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { binderTitle, createProject, firstChapter, trace, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, trace, waitForSaved, loose } from './support.js';
 
 const PROJECT = 'Board Walk';
 
@@ -71,7 +71,7 @@ test('an empty storyboard beside one scene offers to derive that scene, and the 
   const empty = page.getByRole('region', { name: "No shots — derive from the scene's script, or draw/import a frame." });
   await expect(empty).toBeVisible();
   // The derive does not fill this board, so the copy says where the shots go.
-  await expect(empty).toContainText('Derived shots go in a new folder, “Untitled scene — Shots”, not on this board.');
+  await expect(empty).toContainText(loose('Derived shots go in a new folder, “Untitled scene — Shots”, not on this board.'));
   await page.getByRole('button', { name: /^Derive shots from/ }).click();
 
   // The drawer opens, and the request it sends names the scene the board derives from.

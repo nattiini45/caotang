@@ -176,4 +176,3 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     </div>
   );
 }
-

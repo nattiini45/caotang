@@ -28,6 +28,7 @@ import {
 } from '../../src/index.js';
 import { LANDING, makeHarness, makeState, refusalOf, run, snapshotOf } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
+import { textOf } from '@caotang/gateway';
 
 const NOTES = 'Hale knows about the lamp; the ferry crew do not.';
 const reply = (text: string): string => JSON.stringify({ reply: text });
@@ -78,7 +79,7 @@ async function fixture(scripts: readonly MockScript[], options: { native?: boole
   const context: ContextPort = {
     assemble: (request) => {
       const call = port.assemble(request);
-      assembled.push({ request, payload: call.preview.payload.map((message) => message.content).join('\n'), l6: call.prompt.layers.find((layer) => layer.id === 'L6')?.included === true });
+      assembled.push({ request, payload: call.preview.payload.map((message) => textOf(message.content)).join('\n'), l6: call.prompt.layers.find((layer) => layer.id === 'L6')?.included === true });
       return call;
     },
   };
@@ -130,13 +131,13 @@ describe('the list each agent is given', () => {
   const tools = makeHarness({ ports: createAgentPorts() }, makeState()).tools();
 
   it('holds the reader’s read tools only, whatever the planner has loaded', () => {
-    expect(namesOf(childTools(READER, tools))).toEqual(['binder.read_tree', 'codex.read', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview']);
+    expect(namesOf(childTools(READER, tools))).toEqual(['binder.read_tree', 'codex.read', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview', 'timeline.read']);
     expect(childTools(READER, tools).every((tool) => tool.risk === 'read')).toBe(true);
   });
 
   it('adds the general agent’s write-confirm tools, which it may stage and never run', () => {
     const general = childTools(GENERAL, tools);
-    expect(namesOf(general)).toEqual([...namesOf(childTools(READER, tools)), 'binder.restructure', 'codex.write', 'scene.draft', 'synopsis.fill'].sort());
+    expect(namesOf(general)).toEqual([...namesOf(childTools(READER, tools)), 'binder.restructure', 'codex.write', 'scene.draft', 'synopsis.fill', 'timeline.edit'].sort());
     expect(general.filter((tool) => tool.risk !== 'read').every((tool) => tool.risk === 'write-confirm')).toBe(true);
   });
 
@@ -174,8 +175,8 @@ describe('the list each agent is given', () => {
     const json = await fixture([inOrder([reply(NOTES)], jsonSeen)]);
     await json.go(GENERAL);
     expect(jsonSeen[0]?.tools).toBeUndefined();
-    expect(toolLines(jsonSeen[0]?.messages[0]?.content ?? '')).toEqual(declared);
-    expect(jsonSeen[0]?.messages[0]?.content.startsWith(SUBAGENT_SYSTEM_PREFIX)).toBe(true);
+    expect(toolLines(textOf(jsonSeen[0]?.messages[0]?.content ?? ''))).toEqual(declared);
+    expect(textOf(jsonSeen[0]?.messages[0]?.content ?? '').startsWith(SUBAGENT_SYSTEM_PREFIX)).toBe(true);
   });
 });
 
@@ -194,7 +195,7 @@ describe('the context an agent starts from', () => {
     expect(call?.payload).toContain('Brief: Who knows about the lamp?');
     // The scope's document is the text it is sent, and the prompt the model received is exactly that preview.
     expect(call?.payload).toContain('The ferry was late, as always.');
-    expect(seen[0]?.messages.map((message) => message.content)).toEqual((call?.payload ?? '').split('\n').length > 0 ? seen[0]?.messages.map((message) => message.content) : []);
+    expect(seen[0]?.messages.map((message) => textOf(message.content))).toEqual((call?.payload ?? '').split('\n').length > 0 ? seen[0]?.messages.map((message) => textOf(message.content)) : []);
     expect(seen[0]?.messages.map((message) => message.role)).toEqual(['system', 'user']);
   });
 });

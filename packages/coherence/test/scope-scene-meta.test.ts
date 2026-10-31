@@ -124,8 +124,9 @@ describe('applySceneMetaPatch (§5.2 and §7.1)', () => {
     expect(cleared).toEqual({ ok: true, meta: { dayOffset: 2 } });
   });
 
-  it('keeps day offsets and durations as whole numbers of zero or more', () => {
-    expect(applySceneMetaPatch('sA', undefined, { dayOffset: -1 }, context).ok).toBe(false);
+  it('keeps day offsets as signed whole numbers and durations as whole numbers of zero or more', () => {
+    expect(applySceneMetaPatch('sA', undefined, { dayOffset: -1 }, context)).toEqual({ ok: true, meta: { dayOffset: -1 } });
+    expect(applySceneMetaPatch('sA', undefined, { durationDays: -1 }, context).ok).toBe(false);
     expect(applySceneMetaPatch('sA', undefined, { dayOffset: 2.5 }, context).ok).toBe(false);
     expect(applySceneMetaPatch('sA', undefined, { dayOffset: 0, durationDays: 3 }, context)).toEqual({
       ok: true,

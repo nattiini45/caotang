@@ -369,7 +369,7 @@ describe('the page size: A4 or Letter (storyboard.md §6)', () => {
     const render = output.files[0]?.bytes;
     if (render === undefined) throw new Error('the contact sheet has no render');
     const rendered = await render();
-    const bytes = typeof rendered === 'object' && !(rendered instanceof Uint8Array) ? rendered.contents : rendered;
+    const bytes = typeof rendered === 'object' && !(rendered instanceof Uint8Array) && !('skip' in rendered) ? rendered.contents : rendered;
     const pdf = await PDFDocument.load(bytes as Uint8Array);
     expect(pdf.getPageCount()).toBe(2);
     expect(pdf.getPage(1).getSize()).toEqual(LETTER);
@@ -486,7 +486,7 @@ describe('the paper sheet: blank numbered frames to draw in (storyboard.md §6, 
     const render = output.files[0]?.bytes;
     if (render === undefined) throw new Error('the contact sheet has no render');
     const rendered = await render();
-    const bytes = (typeof rendered === 'object' && !(rendered instanceof Uint8Array) ? rendered.contents : rendered) as Uint8Array;
+    const bytes = (typeof rendered === 'object' && !(rendered instanceof Uint8Array) && !('skip' in rendered) ? rendered.contents : rendered) as Uint8Array;
     return { output, bytes, pdf: await PDFDocument.load(bytes) };
   }
 

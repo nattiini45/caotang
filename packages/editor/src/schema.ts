@@ -61,7 +61,10 @@ import { Schema } from '@tiptap/pm/model';
 
 export const caotangSchema = new Schema({
   nodes: {
-    doc: { content: 'block+' },
+    // `provenance` is editor-only state, never rendered: the Markdown the source spelled that this schema cannot hold (link
+    // definitions, reference spellings), kept so a save writes it back (source-provenance.ts). Its default is `undefined`, not
+    // `null`, so a document with none has the same attrs, JSON and equality it had before the attr existed.
+    doc: { content: 'block+', attrs: { provenance: { default: undefined } } },
     paragraph: { group: 'block', content: 'inline*' },
     heading: {
       group: 'block',
@@ -104,6 +107,8 @@ export const caotangSchema = new Schema({
         src: {},
         alt: { default: null },
         title: { default: null },
+        // Editor-only: the id of the reference this image was parsed from (source-provenance.ts).
+        prov: { default: undefined },
       },
     },
     text: { group: 'inline' },
@@ -118,6 +123,9 @@ export const caotangSchema = new Schema({
         // §3.2: `href: string` (required), `title?: string`.
         href: {},
         title: { default: null },
+        // Editor-only: the id of the reference this run was parsed from (source-provenance.ts). Runs from different references are
+        // different marks, so two adjacent references are never merged into one link.
+        prov: { default: undefined },
       },
       inclusive: false,
     },

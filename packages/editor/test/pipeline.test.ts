@@ -386,20 +386,21 @@ describe('a body that is only link definitions loads, and reports them (§5: par
   // The schema has no node for a definition, so the body compiles to nothing, and the library
   // refuses an empty `doc`. The load now treats it as the empty document, which is also what an
   // empty body is, and says what it dropped.
-  it('loads as the empty document, with one lossy-attribute warning per definition, and does not throw', async () => {
-    const result = await parseWithDiagnostics('[a]: https://example.test/\n[b]: https://example.test/b "Title"\n');
+  it('loads as the empty document, keeps the definitions in its provenance, saves them byte for byte and does not throw', async () => {
+    const body = '[a]: https://example.test/\n[b]: https://example.test/b "Title"\n';
+    const result = await parseWithDiagnostics(body);
     expect(result.doc.childCount).toBe(1);
-    expect(serialize(result.doc)).toBe('');
-    expect(result.warnings.map((warning) => [warning.code, warning.mdastType])).toEqual([
-      ['lossy-attribute', 'definition'],
-      ['lossy-attribute', 'definition'],
-    ]);
-    expect(result.warnings[0]!.position).toEqual({ line: 1, column: 1 });
+    expect(result.doc.textContent).toBe('');
+    expect(serialize(result.doc)).toBe(body);
+    // Nothing is lost, so nothing is warned: the definitions are kept (source-provenance.ts).
+    expect(result.warnings).toEqual([]);
   });
 
-  it('a definition next to text does not stop the text from loading', async () => {
-    const result = await parseWithDiagnostics('[a]: https://example.test/\n\nHello.\n');
-    expect(serialize(result.doc)).toBe('Hello.\n');
+  it('a definition next to text does not stop the text from loading, and is kept where it stood', async () => {
+    const body = '[a]: https://example.test/\n\nHello.\n';
+    const result = await parseWithDiagnostics(body);
+    expect(result.doc.textContent).toBe('Hello.');
+    expect(serialize(result.doc)).toBe(body);
   });
 
   it('the primitive path reads a definition as nothing rather than throwing', async () => {

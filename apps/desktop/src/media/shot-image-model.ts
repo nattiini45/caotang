@@ -4,10 +4,14 @@
  * assignment or a removal is a `shot.setMeta` the storyboard engine checks before it is built.
  */
 
+import { isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
 import { nodeById, type ProjectState } from '@caotang/store';
 
 import { isShotNode, readShotMeta, shotFieldOf, storedValueOf, type ShotCommand, type StoryboardResult } from './engines.js';
 
+
+/* lingui-set comment="Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers." */
 /** The file types a card takes (storyboard.md §2.2: PNG, JPEG and WebP in v1). */
 export const IMAGE_ACCEPT = 'image/png,image/jpeg,image/webp';
 
@@ -62,6 +66,7 @@ export type DropVerdict =
  */
 export function planPictureDrop(files: readonly { readonly name: string; readonly type: string }[], shots: readonly BoardShot[]): readonly DropVerdict[] {
   const byNumber = new Map(shots.map((shot) => [shot.number, shot]));
+  const boardShots = shots.length;
   const claims = new Map<number, number>();
   for (const file of files) {
     const number = isPictureFile(file) ? shotNumberOfFileName(file.name) : undefined;
@@ -69,12 +74,12 @@ export function planPictureDrop(files: readonly { readonly name: string; readonl
   }
   return files.map((file, index): DropVerdict => {
     const out = (reason: string, beyond?: number): DropVerdict => ({ kind: 'left-out', file: index, name: file.name, reason, ...(beyond === undefined ? {} : { beyond }) });
-    if (!isPictureFile(file)) return out('it is not a PNG, JPEG or WebP picture');
+    if (!isPictureFile(file)) return out(t`it is not a PNG, JPEG or WebP picture`);
     const number = shotNumberOfFileName(file.name);
-    if (number === undefined || number < 1) return out('its name does not start with a shot number (name a photograph like 007.jpg)');
+    if (number === undefined || number < 1) return out(t`its name does not start with a shot number (name a photograph like 007.jpg)`);
     const shot = byNumber.get(number);
-    if (shot === undefined) return out(`the board has ${shots.length === 1 ? '1 shot' : `${shots.length} shots`} and none is numbered ${number}`, number);
-    if ((claims.get(number) ?? 0) > 1) return out(`another file in this drop is also named for shot ${number}, so neither was imported`);
+    if (shot === undefined) return out(t`the board has ${plural(boardShots, { one: '# shot', other: '# shots' })} and none is numbered ${number}`, number);
+    if ((claims.get(number) ?? 0) > 1) return out(t`another file in this drop is also named for shot ${number}, so neither was imported`);
     return { kind: 'import', file: index, name: file.name, shot };
   });
 }
@@ -89,21 +94,33 @@ export function dropReportOf(
   commit: DropCommit,
 ): { readonly summary: string; readonly lines: readonly string[] } {
   const imports = verdicts.filter((verdict) => verdict.kind === 'import');
-  const left = verdicts.length - imports.length;
   const lines = verdicts.map((verdict) => {
-    if (verdict.kind === 'left-out') return `${verdict.name}: not imported, ${verdict.reason}`;
-    const where = `shot ${verdict.shot.number}, ${verdict.shot.title}`;
-    return commit.ok ? `${verdict.name}: ${where}` : `${verdict.name}: not imported (it was for ${where})`;
+    const name = isolate(verdict.name);
+    if (verdict.kind === 'left-out') {
+      const reason = verdict.reason;
+      return t`${name}: not imported, ${reason}`;
+    }
+    const number = verdict.shot.number;
+    const title = isolate(verdict.shot.title);
+    const where = t`shot ${number}, ${title}`;
+    return commit.ok ? t`${name}: ${where}` : t`${name}: not imported (it was for ${where})`;
   });
   const beyond = verdicts.some((verdict) => verdict.kind === 'left-out' && verdict.beyond !== undefined);
   const hint = beyond
-    ? ` The board has ${shotCount === 1 ? '1 shot' : `${shotCount} shots`}; a sheet printed from a longer board does not match it, so check that this is the board the sheet was printed from.`
+    ? t`The board has ${plural(shotCount, { one: '# shot', other: '# shots' })}; a sheet printed from a longer board does not match it, so check that this is the board the sheet was printed from.`
     : '';
-  if (!commit.ok) return { summary: `Nothing was imported: ${commit.message}${hint}`, lines };
-  if (imports.length === 0) return { summary: `Nothing was imported.${hint}`, lines };
-  const put = imports.length === 1 ? 'Put 1 picture on its shot' : `Put ${imports.length} pictures on their shots`;
-  const rest = left === 0 ? '.' : `; ${left === 1 ? '1 file was' : `${left} files were`} not imported.`;
-  return { summary: `${put}${rest}${hint} One Undo takes ${imports.length === 1 ? 'it' : 'them all'} back.`, lines };
+  const withHint = (sentence: string): string => (hint === '' ? sentence : `${sentence} ${hint}`);
+  const reason = commit.ok ? '' : commit.message;
+  if (!commit.ok) return { summary: withHint(t`Nothing was imported: ${reason}`), lines };
+  if (imports.length === 0) return { summary: withHint(t`Nothing was imported.`), lines };
+  const putCount = imports.length;
+  const left = verdicts.length - putCount;
+  const put =
+    left === 0
+      ? plural(putCount, { one: 'Put # picture on its shot.', other: 'Put # pictures on their shots.' })
+      : t`${plural(putCount, { one: 'Put # picture on its shot', other: 'Put # pictures on their shots' })}; ${plural(left, { one: '# file was', other: '# files were' })} not imported.`;
+  const undo = plural(putCount, { one: 'One Undo takes it back.', other: 'One Undo takes them all back.' });
+  return { summary: `${withHint(put)} ${undo}`, lines };
 }
 
 /**
@@ -117,9 +134,9 @@ export type PictureListing = 'pending' | 'listed' | 'failed';
  * gone is shown only once the list has settled, because while the list loads the picture is not yet known to be missing.
  */
 export function missingPictureLabelOf(listing: PictureListing): string {
-  if (listing === 'listed') return 'This picture is no longer in the project';
-  if (listing === 'failed') return 'This picture could not be checked';
-  return 'Checking the project’s pictures';
+  if (listing === 'listed') return t`This picture is no longer in the project`;
+  if (listing === 'failed') return t`This picture could not be checked`;
+  return t`Checking the project’s pictures`;
 }
 
 /** A listing the asset hook holds: the folder it was taken from, the version it was taken at, its records and its state. */
@@ -158,7 +175,7 @@ export function assignImageCommand(state: ProjectState, shotId: string, assetId:
 function rewriteImage(state: ProjectState, shotId: string, assetId: string | undefined): StoryboardResult<ShotCommand> {
   const node = nodeById(state, shotId);
   if (node === undefined || !isShotNode(node)) {
-    return { ok: false, refusal: { code: 'not-a-shot', message: `no shot "${shotId}" to give a picture` } };
+    return { ok: false, refusal: { code: 'not-a-shot', message: t`no shot "${shotId}" to give a picture` } };
   }
   const raw = shotFieldOf(node);
   const base: Record<string, unknown> = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};

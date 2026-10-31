@@ -224,7 +224,7 @@ export function Menu({
       ref={ref}
       role="menu"
       tabIndex={-1}
-      aria-label={label}
+      aria-label={accessibleText(label)}
       className="menu"
       style={{ left: anchor.x, top: anchor.y }}
       onKeyDown={onKeyDown}
@@ -423,7 +423,7 @@ export function InlineText({
     <input
       ref={ref}
       type="text"
-      aria-label={label}
+      aria-label={accessibleText(label)}
       className={`inline-text ${className ?? ''}`.trim()}
       value={value}
       maxLength={120}
@@ -525,7 +525,7 @@ export function EmptyState({
   actions?: ReactNode;
 }): ReactNode {
   return (
-    <section className="empty-state" aria-label={title}>
+    <section className="empty-state" aria-label={accessibleText(title)}>
       <h2>{title}</h2>
       {children ? <div className="empty-text">{children}</div> : null}
       {actions ? <div className="empty-actions">{actions}</div> : null}

@@ -63,7 +63,7 @@ function codexEntry(id: string, name: string, extra: Partial<CodexEntry> = {}): 
 
 /** A project with one scene (Chapter 1 holds it) and a second chapter, and the given codex. */
 function projectWith(codex: CodexEntry[]): ProjectState {
-  const manifest = createEmptyManifest('Codex Book', NOW);
+  const manifest = createEmptyManifest('Codex Book', NOW, { locale: 'en-US' });
   manifest.codex = codex;
   const state = createProjectState(manifest, { now: NOW });
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', id: IDS.chapterOne, now: NOW });

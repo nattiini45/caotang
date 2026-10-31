@@ -8,6 +8,7 @@
  * names, and the record is never written with a value the next load would have to keep as unknown.
  */
 
+import { t } from '@lingui/core/macro';
 import { nodeById, type ProjectState } from '@caotang/store';
 
 import { isVideoShotRef } from './prompt-pack-model.js';
@@ -32,6 +33,8 @@ import {
   type VideoShotRef,
 } from './engines.js';
 
+
+/* lingui-set comment="Shot prompt record refusals. Interpolated values: shotId is a shot's id; number is a line number; first and last bound a whole number." */
 /** One reference row, as text: its type, and the codex entry or the project image it names. */
 export interface ReferenceDraft {
   readonly type: string;
@@ -223,7 +226,10 @@ function paramsOf(text: string): Parsed<Record<string, string | number>> {
     const line = raw.trim();
     if (line === '') continue;
     const match = /^([^:]+):\s*(.+)$/.exec(line);
-    if (match === null) return refuse('bestTake.seed', `line ${index + 1} of the take's settings is not "key: value"`);
+    if (match === null) {
+      const number = index + 1;
+      return refuse('bestTake.seed', t`line ${number} of the take's settings is not "key: value"`);
+    }
     const key = (match[1] ?? '').trim();
     const value = (match[2] ?? '').trim();
     params[key] = /^-?\d+(\.\d+)?$/.test(value) ? Number(value) : value;
@@ -236,35 +242,41 @@ function paramsOf(text: string): Parsed<Record<string, string | number>> {
  * record is never written under another name. A reference with no target is refused, not dropped.
  */
 export function recordOfDraft(vendor: string, draft: PromptDraft): Parsed<VideoShotRef> {
-  if (!(VIDEO_MODES as readonly string[]).includes(draft.mode)) return refuse('mode', 'the mode is t2v or i2v');
+  if (!(VIDEO_MODES as readonly string[]).includes(draft.mode)) return refuse('mode', t`the mode is t2v or i2v`);
   let durationSec: VideoDurationSec | undefined;
   if (draft.durationSec.trim() !== '') {
     const seconds = Number(draft.durationSec);
-    if (!Number.isFinite(seconds) || seconds < 0) return refuse('durationSec', 'the duration is a number of seconds, at least zero');
+    if (!Number.isFinite(seconds) || seconds < 0) return refuse('durationSec', t`the duration is a number of seconds, at least zero`);
     durationSec = seconds as VideoDurationSec;
   }
   if (draft.aspectRatio !== '' && !(VIDEO_ASPECT_RATIOS as readonly string[]).includes(draft.aspectRatio)) {
-    return refuse('aspectRatio', 'the aspect ratio is one of the ratios in the list');
+    return refuse('aspectRatio', t`the aspect ratio is one of the ratios in the list`);
   }
   if (draft.resolution !== '' && !(VIDEO_RESOLUTIONS as readonly string[]).includes(draft.resolution)) {
-    return refuse('resolution', 'the resolution is 720p or 1080p');
+    return refuse('resolution', t`the resolution is 720p or 1080p`);
   }
   let seed: number | undefined;
   if (draft.seed.trim() !== '') {
     seed = wholeNumber(draft.seed) ?? Number.NaN;
-    if (!Number.isInteger(seed) || seed < SEED_MIN || seed > SEED_MAX) return refuse('seed', `a seed is a whole number from ${SEED_MIN} to ${SEED_MAX}`);
+    if (!Number.isInteger(seed) || seed < SEED_MIN || seed > SEED_MAX) {
+      const first = SEED_MIN;
+      const last = SEED_MAX;
+      return refuse('seed', t`a seed is a whole number from ${first} to ${last}`);
+    }
   }
   const references: VideoReference[] = [];
   for (const reference of draft.references) {
     const parsed = referenceOf(reference);
-    if (parsed === undefined) return refuse('references', 'every reference names a codex entry or a project image, or is taken out');
+    if (parsed === undefined) return refuse('references', t`every reference names a codex entry or a project image, or is taken out`);
     references.push(parsed);
   }
   let bestTake: BestTake | undefined;
   if (draft.keepTake) {
     const takeSeed = wholeNumber(draft.takeSeed);
     if (takeSeed === undefined || takeSeed < SEED_MIN || takeSeed > SEED_MAX) {
-      return refuse('bestTake.seed', `the take's seed is a whole number from ${SEED_MIN} to ${SEED_MAX}`);
+      const first = SEED_MIN;
+      const last = SEED_MAX;
+      return refuse('bestTake.seed', t`the take's seed is a whole number from ${first} to ${last}`);
     }
     const params = paramsOf(draft.takeParams);
     if (!params.ok) return params;
@@ -319,7 +331,7 @@ function vendorOf(entry: unknown): unknown {
  */
 export function promptEditCommand(state: ProjectState, shotId: string, vendor: string, draft: PromptDraft): StoryboardResult<ShotCommand> {
   const node = nodeById(state, shotId);
-  if (node === undefined || !isShotNode(node)) return { ok: false, refusal: { code: 'not-a-shot', message: `no shot "${shotId}" to write a prompt on` } };
+  if (node === undefined || !isShotNode(node)) return { ok: false, refusal: { code: 'not-a-shot', message: t`no shot "${shotId}" to write a prompt on` } };
   const parsed = recordOfDraft(vendor, draft);
   if (!parsed.ok) return { ok: false, refusal: { code: 'prompt-invalid', message: parsed.refusal.message } };
   const record = parsed.value;
@@ -332,7 +344,7 @@ export function promptEditCommand(state: ProjectState, shotId: string, vendor: s
 /** The `shot.setMeta` that removes one vendor's record from a shot. The record is taken out and nothing else changes. */
 export function clearPromptCommand(state: ProjectState, shotId: string, vendor: string): StoryboardResult<ShotCommand> {
   const node = nodeById(state, shotId);
-  if (node === undefined || !isShotNode(node)) return { ok: false, refusal: { code: 'not-a-shot', message: `no shot "${shotId}"` } };
+  if (node === undefined || !isShotNode(node)) return { ok: false, refusal: { code: 'not-a-shot', message: t`no shot "${shotId}"` } };
   return writeVendorRefs(state, shotId, (current) => current.filter((entry) => vendorOf(entry) !== vendor));
 }
 
@@ -342,7 +354,7 @@ function writeVendorRefs(
   next: (current: readonly unknown[]) => readonly unknown[],
 ): StoryboardResult<ShotCommand> {
   const node = nodeById(state, shotId);
-  if (node === undefined) return { ok: false, refusal: { code: 'not-a-shot', message: `no shot "${shotId}"` } };
+  if (node === undefined) return { ok: false, refusal: { code: 'not-a-shot', message: t`no shot "${shotId}"` } };
   const raw = shotFieldOf(node);
   const base: Record<string, unknown> = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
   const current: readonly unknown[] = Array.isArray(base.vendorRefs) ? base.vendorRefs : [];

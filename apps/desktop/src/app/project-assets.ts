@@ -38,14 +38,18 @@
  * it refuses.
  */
 
+import { t } from '@lingui/core/macro';
 import { parseAssetFileName } from '@caotang/storyboard';
 import {
   ArtifactNotFoundError,
+  deleteAssetBytes,
   deleteProjectAssets,
   getAssetBytes,
+  getThumb,
   listAssetPaths,
   openAssetStore,
   putAssetBytes,
+  putThumb,
   type ArtifactFs,
   type AssetStore,
 } from '@caotang/store';
@@ -66,6 +70,11 @@ export interface DurableAssets {
   put(path: string, bytes: Uint8Array): Promise<void>;
   get(path: string): Promise<Uint8Array | undefined>;
   list(): Promise<string[]>;
+  /** Removes one file and its thumbnails; `true` when the store held it. Left out by a stand-in that cannot remove. */
+  delete?(path: string): Promise<boolean>;
+  /** The derived thumbnails: per browser, never in a folder, the manifest or a bundle (pictures.md §6.5). */
+  getThumb?(path: string, size: number): Promise<Uint8Array | undefined>;
+  putThumb?(path: string, size: number, bytes: Uint8Array): Promise<void>;
 }
 
 /** One database connection per IndexedDB factory: the page's own in the browser, and each test's in-memory one. */
@@ -82,6 +91,9 @@ export async function browserDurableAssets(projectId: string, factory: IDBFactor
     put: (path, bytes) => putAssetBytes(store, projectId, path, bytes),
     get: (path) => getAssetBytes(store, projectId, path),
     list: () => listAssetPaths(store, projectId),
+    delete: (path) => deleteAssetBytes(store, projectId, path),
+    getThumb: (path, size) => getThumb(store, projectId, path, size),
+    putThumb: (path, size, bytes) => putThumb(store, projectId, path, size, bytes),
   };
 }
 
@@ -243,6 +255,45 @@ export class ProjectAssets {
     return folderBytes(folder).readBytes(path);
   }
 
+  /**
+   * Removes the named asset files from every place that holds them for writing: the page's memory, the browser's copy (with the
+   * thumbnails of each) and an attached folder. The app only ever attaches a folder whose read-and-write permission it asked for
+   * (`folderWithPermission`), so a folder here is writable; a removal the browser refuses throws, and the files removed before it
+   * stay removed. Only the sweep calls it, after the retention inventory has been read (pictures.md §6.6.1), and only with the
+   * candidates that inventory offered.
+   */
+  async removeFiles(paths: readonly string[]): Promise<string[]> {
+    await this.binding;
+    const removed: string[] = [];
+    for (const path of paths) {
+      assertAssetPath(path);
+      let gone = this.held.delete(path);
+      if (this.folder !== null && (await folderArtifactFs(this.folder).exists(path))) {
+        await folderBytes(this.folder).removeBytes(path);
+        this.folderPaths.delete(path);
+        gone = true;
+      }
+      if (this.backend?.delete !== undefined && this.durablePaths.has(path)) {
+        if (await this.backend.delete(path)) gone = true;
+        this.durablePaths.delete(path);
+      }
+      if (gone) removed.push(path);
+    }
+    return removed;
+  }
+
+  /** One derived thumbnail from the browser's copy, or `undefined` when none is kept (or the browser keeps none). */
+  async readThumb(path: string, size: number): Promise<Uint8Array | undefined> {
+    await this.binding;
+    return this.backend?.getThumb?.(path, size);
+  }
+
+  /** Keeps one derived thumbnail in the browser's copy; nothing where the browser keeps none. Never written to a folder. */
+  async writeThumb(path: string, size: number, bytes: Uint8Array): Promise<void> {
+    await this.binding;
+    await this.backend?.putThumb?.(path, size, bytes);
+  }
+
   /** Whether one asset file is held, without reading it. */
   async has(path: string): Promise<boolean> {
     await this.binding;
@@ -362,8 +413,8 @@ function artifactFsOf(assets: ProjectAssets): ArtifactFs {
     throw new Error(`the project's images do not support ${what}`);
   };
   return {
-    read: async () => refuse('text reads'),
-    writeAtomic: async () => refuse('text writes'),
+    read: async () => refuse(t`text reads`),
+    writeAtomic: async () => refuse(t`text writes`),
     listFiles: async (dir) => {
       if (dir !== ASSETS_DIR) return [];
       const paths = await assets.listPaths();

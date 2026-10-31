@@ -4,6 +4,9 @@
  * command, so it has its undo and its row. The counts under them are read from the Ink text on screen.
  */
 
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 import { DIALOGUE_ENGINE_TARGETS, type DialogueMetaPatch } from '@caotang/bus';
@@ -19,12 +22,19 @@ import { useReport, useSession } from './shared.js';
 
 /** The engine each target names, in the words the writer sees. The targets are the bus's list (dialogue-narrative.md §2.1). */
 const TARGET_LABELS: Readonly<Record<(typeof DIALOGUE_ENGINE_TARGETS)[number], string>> = {
-  'ink-json': 'Ink, compiled to JSON',
-  'yarn-csv': 'Yarn string table (CSV)',
-  'generic-csv': 'Any engine: a CSV table',
+  get 'ink-json'() {
+    return t`Ink, compiled to JSON`;
+  },
+  get 'yarn-csv'() {
+    return t`Yarn string table (CSV)`;
+  },
+  get 'generic-csv'() {
+    return t`Any engine: a CSV table`;
+  },
 };
 
 export function DialogueMetaSection({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
+  useLingui();
   useSession(session);
   const report = useReport();
   const meta = readDialogueMeta(node.dialogue).meta;
@@ -41,20 +51,20 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
 
   return (
     <details className="inspector-section dlg-meta" data-testid="dialogue-meta" open>
-      <summary className="field-label">Container settings</summary>
+      <summary className="field-label"><Trans>Container settings</Trans></summary>
       <p className="field-note">
-        These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save
-        writes the missing line ids into the Ink text as it saves.
+        <Trans>These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save
+        writes the missing line ids into the Ink text as it saves.</Trans>
       </p>
 
       <label className="scene-field">
-        <span>Default speaker</span>
+        <span><Trans>Default speaker</Trans></span>
         <select
-          aria-label="Default speaker"
+          aria-label={t`Default speaker`}
           value={meta.speaker ?? ''}
           onChange={(event) => apply({ speaker: event.target.value === '' ? null : event.target.value })}
         >
-          <option value="">No default speaker</option>
+          <option value=""><Trans>No default speaker</Trans></option>
           {characters.map((entry) => (
             <option key={entry.id} value={entry.id}>
               {entry.name}
@@ -64,15 +74,15 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
       </label>
 
       <label className="scene-field">
-        <span>Engine target</span>
+        <span><Trans>Engine target</Trans></span>
         <select
-          aria-label="Engine target"
+          aria-label={t`Engine target`}
           value={meta.engineTarget ?? ''}
           onChange={(event) =>
             apply({ engineTarget: event.target.value === '' ? null : (event.target.value as (typeof DIALOGUE_ENGINE_TARGETS)[number]) })
           }
         >
-          <option value="">No engine hint</option>
+          <option value=""><Trans>No engine hint</Trans></option>
           {DIALOGUE_ENGINE_TARGETS.map((target) => (
             <option key={target} value={target}>
               {TARGET_LABELS[target]}
@@ -81,18 +91,18 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
         </select>
       </label>
       <p className="field-note">
-        The dialogue table follows it: a Yarn target writes a Yarn strings file, and any other target writes the dialogue table. The Ink
-        story is the same for every target.
+        <Trans>The dialogue table follows it: a Yarn target writes a Yarn strings file, and any other target writes the dialogue table. The Ink
+        story is the same for every target.</Trans>
       </p>
 
       <label className="scene-check">
         <input type="checkbox" checked={meta.autoLineIds === true} onChange={(event) => apply({ autoLineIds: event.target.checked })} />
-        <span>Add line ids on save</span>
+        <span><Trans>Add line ids on save</Trans></span>
       </label>
 
       <LocaleField key={`${node.id}:${meta.locBaseline ?? ''}`} value={meta.locBaseline ?? ''} onCommit={(locale) => apply({ locBaseline: locale === '' ? null : locale })} />
       <p className="field-note">
-        The dialogue table writes it on each line. The Ink story puts it in the file name. Empty uses the project’s language in the table.
+        <Trans>The dialogue table writes it on each line. The Ink story puts it in the file name. Empty uses the project’s language in the table.</Trans>
       </p>
 
       {/* The counts come from the Ink compiler, which loads on demand: the settings above work without it. */}
@@ -105,20 +115,21 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
 
 /** The structure of the container, read from its Ink with the compiler. */
 function DialogueCounts({ id, body, codex }: { id: string; body: string; codex: readonly CodexEntry[] }): ReactNode {
+  useLingui();
   // The check runs the Ink compiler, so it is read again only when the body or the codex changes, not on every render of the Inspector.
   const check = useMemo(() => validateContainer(id, body, { entries: codex }), [id, body, codex]);
   return (
-    <dl className="sp-readout dlg-counts" aria-label="Structure of the container">
+    <dl className="sp-readout dlg-counts" aria-label={t`Structure of the container`}>
       <div>
-        <dt>Knots</dt>
+        <dt><Trans>Knots</Trans></dt>
         <dd>{check.stats.knots}</dd>
       </div>
       <div>
-        <dt>Choices</dt>
+        <dt><Trans>Choices</Trans></dt>
         <dd>{check.stats.choices}</dd>
       </div>
       <div>
-        <dt>Findings</dt>
+        <dt><Trans>Findings</Trans></dt>
         <dd>{check.findings.length}</dd>
       </div>
     </dl>
@@ -127,14 +138,15 @@ function DialogueCounts({ id, body, codex }: { id: string; body: string; codex: 
 
 /** The locale the text is written in, committed when the field loses focus (or on Enter), as one settings change. */
 function LocaleField({ value, onCommit }: { value: string; onCommit: (locale: string) => void }): ReactNode {
+  useLingui();
   const [text, setText] = useState(value);
   return (
     <label className="scene-field">
-      <span>Locale</span>
+      <span><Trans>Locale</Trans></span>
       <input
-        aria-label="Locale"
+        aria-label={t`Locale`}
         value={text}
-        placeholder="For example en or en-GB"
+        placeholder={t`For example en or en-GB`}
         onChange={(event) => setText(event.target.value)}
         onBlur={() => {
           if (text.trim() !== value) onCommit(text.trim());

@@ -13,6 +13,8 @@
  * 1. Beside the running module. The MCPB bundle stages it there, beside `caotang-mcp.mjs`, so the installed server needs no
  *    `node_modules`.
  * 2. The `@jsquash/webp` package, resolved from the running module: a checkout, and the built bundle run in place.
+ *
+ * `decodeWebp` is also the WebP reader of the Node `ProcessPicture` (./picture-process-node.ts).
  */
 
 import { readFile } from 'node:fs/promises';
@@ -22,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 import { imageSizeOf, isAnimatedWebp } from './image-size.js';
 import { encodePng, scaleToFit } from './png-encode.js';
+import type { Pixels } from './png-encode.js';
 import type { PictureTranscoder } from './render-contact-sheet.js';
 
 /** The decoder's file name, and where its package keeps it. */
@@ -77,8 +80,8 @@ function decoderOf(): Promise<Decode> {
   return decoder;
 }
 
-/** Decodes a WebP to PNG, scaled down to `maxPixels` on its longer side. Throws, with the reason, for a file it cannot read. */
-export const transcodePictureInNode: PictureTranscoder = async (bytes, _format, maxPixels) => {
+/** A still WebP as straight RGBA. Throws, with the reason, for a file it cannot read, an animated one, or one over {@link MAX_DECODED_PIXELS}. */
+export async function decodeWebp(bytes: Uint8Array): Promise<Pixels> {
   if (isAnimatedWebp(bytes)) throw new Error('the WebP is animated, and this decoder reads a still image only');
   const size = imageSizeOf(bytes);
   if (size !== undefined && size.width * size.height > MAX_DECODED_PIXELS) {
@@ -91,6 +94,10 @@ export const transcodePictureInNode: PictureTranscoder = async (bytes, _format, 
   } catch {
     throw new Error('the WebP data could not be decoded');
   }
-  const data = new Uint8Array(image.data.buffer, image.data.byteOffset, image.data.byteLength);
-  return encodePng(scaleToFit({ width: image.width, height: image.height, data }, maxPixels));
+  return { width: image.width, height: image.height, data: new Uint8Array(image.data.buffer, image.data.byteOffset, image.data.byteLength) };
+}
+
+/** Decodes a WebP to PNG, scaled down to `maxPixels` on its longer side. Throws, with the reason, for a file it cannot read. */
+export const transcodePictureInNode: PictureTranscoder = async (bytes, _format, maxPixels) => {
+  return encodePng(scaleToFit(await decodeWebp(bytes), maxPixels));
 };

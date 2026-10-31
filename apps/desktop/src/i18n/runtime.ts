@@ -33,6 +33,7 @@ import {
   pseudoCatalogues,
   type InterfaceCatalogue,
 } from './catalogues.js';
+import { deCatalogueUrl } from './de-catalogue-url.js';
 import { messages as enMessages } from './locales/en/messages.po';
 
 /* lingui-set comment="Interpolated values: tag" */
@@ -88,6 +89,34 @@ export function tagForCatalogueId(id: string): string {
   return entry.tag;
 }
 
+/** Failed German downloads so far; the count only makes each retry's URL new. */
+let germanFailures = 0;
+
+/**
+ * The German messages. A browser caches a failed module URL for the life of the page, so importing the same
+ * URL again never requests it again. After a failure the build's chunk URL is imported with a fresh query
+ * instead; the first attempt is the ordinary dynamic import. Where there is no chunk file (development,
+ * tests) there is no network to fail and the ordinary import is used throughout.
+ */
+async function loadGerman(): Promise<Messages> {
+  if (germanFailures === 0 || deCatalogueUrl === undefined) {
+    try {
+      return (await import('./locales/de/messages.po')).messages;
+    } catch (error) {
+      germanFailures += 1;
+      throw error;
+    }
+  }
+  try {
+    const url = new URL(deCatalogueUrl, import.meta.url);
+    url.searchParams.set('retry', String(germanFailures));
+    return ((await import(/* @vite-ignore */ url.href)) as { messages: Messages }).messages;
+  } catch (error) {
+    germanFailures += 1;
+    throw error;
+  }
+}
+
 /**
  * A catalogue's compiled messages, in development and tests only for the pseudo rows.
  *
@@ -96,6 +125,7 @@ export function tagForCatalogueId(id: string): string {
  */
 async function loadCatalogue(id: string): Promise<Messages> {
   if (id === 'en') return enMessages;
+  if (id === 'de') return loadGerman();
   if (import.meta.env.DEV) {
     if (id === 'pseudo-LOCALE') return (await import('./locales/pseudo-LOCALE/messages.po')).messages;
     if (id === 'pseudo-RTL') return (await import('./locales/pseudo-RTL/messages.po')).messages;

@@ -98,6 +98,8 @@ import {
   schemaSignature,
 } from './history-journal.js';
 import type { HistoryJournal, HistoryPort } from './history-journal.js';
+import { createPictureController } from './pictures.js';
+import type { PicturesPort } from './pictures.js';
 import { insertedSpans, reachesScope, replacedSpans, shrinkSpan, unionSpan } from './undo-scope.js';
 import type { Span } from './undo-scope.js';
 
@@ -124,6 +126,11 @@ export interface TiptapMountOptions extends EditorMountOptions {
   ghost?: GhostCallbacks;
   /** The editor's own words; the app passes its translated set, and the package's English defaults fill any it leaves out. */
   labels?: Partial<EditorLabels>;
+  /**
+   * Shows the project's pictures and stores new ones (`pictures.ts`). With it the editor has the slash menu, takes picture files from
+   * a drop or a paste, and has {@link TiptapEditorInstance.choosePictures}. Without it a picture is an `<img>` and nothing inserts one.
+   */
+  pictures?: PicturesPort;
   /**
    * §7: Lane 1's history across a reload. The app hands in the journal it kept for the document and is told when the history changes. The
    * journal rebuilds the user's undo only if it replays to the body the editor opened with (`history-journal.ts`).
@@ -289,6 +296,13 @@ export interface TiptapEditorInstance extends EditorInstance {
    * caller asks once per write. It answers after teardown with what the editor held.
    */
   historyJournal(): HistoryJournal | null;
+  /**
+   * Opens the file chooser and inserts the pictures chosen at the caret, as one undoable edit. Resolves with how many went in, and
+   * with 0 when the writer cancelled or the mount has no picture port.
+   */
+  choosePictures(): Promise<number>;
+  /** Stores the files as pictures and inserts them at the caret, as one undoable edit. Resolves with how many went in. */
+  insertPictures(files: readonly File[]): Promise<number>;
   /** Lane 1: the user's own undo. Never reverts an agent apply. */
   undo(): boolean;
   /** Lane 1: the user's own redo. */
@@ -470,9 +484,15 @@ const createInstance = (
   // reach. `undo-scope.ts` explains why an agent apply is checked against it.
   let scope: Span | null = null;
 
+  const pictures = opts.pictures === undefined ? null : createPictureController(opts.pictures);
   const editor = new Editor({
     element: focusEl,
-    extensions: caotangExtensions({ role: 'focus', placeholder: opts.placeholder, ...(opts.labels === undefined ? {} : { labels: opts.labels }) }),
+    extensions: caotangExtensions({
+      role: 'focus',
+      placeholder: opts.placeholder,
+      ...(opts.labels === undefined ? {} : { labels: opts.labels }),
+      ...(pictures === null ? {} : { pictures }),
+    }),
     content: loaded.doc.toJSON(),
     editable: opts.readOnly !== true,
     injectCSS: opts.injectCSS ?? true,
@@ -802,8 +822,11 @@ const createInstance = (
         if (destroyed || seq !== loadSeq) return;
       }
       const replacement = editor.schema.nodeFromJSON(next.doc.toJSON());
+      // The replacement's source provenance replaces the old one in the same transaction (source-provenance.ts).
       const tr = markLane(
-        editor.state.tr.replaceWith(0, editor.state.doc.content.size, replacement.content),
+        editor.state.tr
+          .replaceWith(0, editor.state.doc.content.size, replacement.content)
+          .setDocAttribute('provenance', replacement.attrs['provenance']),
         setOpts,
       );
       // The replacement puts the store's body in the editor, so the user's unsaved edits, if
@@ -898,6 +921,12 @@ const createInstance = (
     },
 
     historyJournal: readJournal,
+
+    choosePictures: (): Promise<number> =>
+      destroyed || pictures === null ? Promise.resolve(0) : pictures.choose(editor.view),
+
+    insertPictures: (files: readonly File[]): Promise<number> =>
+      destroyed || pictures === null ? Promise.resolve(0) : pictures.insertFiles(editor.view, files, 'choose'),
 
     undo: (): boolean => (destroyed ? false : editor.commands.undo()),
 

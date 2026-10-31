@@ -125,7 +125,15 @@ test('a bundle made from the projects list after a reload carries the project’
   const path = await download.path();
   if (path === null) throw new Error('the bundle was not downloaded');
   const entries = zipEntries(new Uint8Array(await readFile(path)));
-  expect([...entries.keys()].filter((name) => name.startsWith('assets/'))).toHaveLength(2);
+  // Identical bytes are one asset record now: the cover and the shot share it, and both references survive the bundle.
+  expect([...entries.keys()].filter((name) => name.startsWith('assets/'))).toHaveLength(1);
+  const manifest = JSON.parse(new TextDecoder().decode(entries.get('caotang.json'))) as {
+    project: { coverAssetId?: string };
+    tree: { type: string; shot?: { image?: string } }[];
+  };
+  const shot = manifest.tree.find((node) => node.type === 'shot');
+  expect(manifest.project.coverAssetId).toBeDefined();
+  expect(shot?.shot?.image).toBe(manifest.project.coverAssetId);
 });
 
 test('a folder saved after a reload holds every picture of the project, not only the ones this page added', async ({ page, browserName }) => {

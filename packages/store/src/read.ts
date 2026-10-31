@@ -167,6 +167,9 @@ const KNOWN_TOP_LEVEL = new Set([
   'goals',
   'recipes',
   'disabledSkills',
+  'timeline',
+  'assets',
+  'assetLinks',
 ]);
 
 /**
@@ -202,6 +205,8 @@ export const KNOWN_NODE_KEYS = new Set([
   'kind',
   'shot',
   'dialogue',
+  'comic',
+  'comicPage',
   'style',
 ]);
 

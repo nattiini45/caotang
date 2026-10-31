@@ -154,7 +154,7 @@ export function reviewCardOf(skill: Skill): ReviewCard {
     const found = text === undefined ? { invisible: 0, comments: 0 } : findHidden(text);
     return {
       path: file.path,
-      label: file.path === SKILL_FILE ? 'Instructions' : file.path,
+      label: file.path === SKILL_FILE ? t`Instructions` : file.path,
       size: file.bytes.length,
       text: text === undefined ? undefined : revealHidden(text),
       invisible: found.invisible,

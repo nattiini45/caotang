@@ -16,12 +16,13 @@ import {
 } from '@caotang/bus';
 import { describe, expect, it } from 'vitest';
 
+import { emptyCoherenceState } from '@caotang/store';
 import { createAgentPorts, plannerToolDefs, TOOL_METADATA, type ToolMetadata } from '../src/index.js';
 import { NEVER_EXPOSED, primitiveTool, type ExposablePrimitive, type NeverExposed, type PrimitiveToolSpec } from '../src/tools/primitive.js';
 import { PRIMITIVE_TOOLS } from '../src/tools/primitive-tools.js';
 import { CHAPTER_ONE, LANDING, STORM, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
 
-const FIRST_WAVE = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save'];
+const ALLOWLIST = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save', 'timeline.edit'];
 
 const rowFor = (name: string): ToolMetadata => {
   const row = TOOL_METADATA.find((meta) => meta.name === name);
@@ -36,15 +37,15 @@ function nodeOf(state: ReturnType<typeof makeState>, id: string) {
 }
 
 describe('the allowlist', () => {
-  it('is exactly the five tools the owner approved, each a deferred extension row outside the always-loaded set', () => {
-    expect(PRIMITIVE_TOOLS.map((tool) => tool.meta.name)).toEqual(FIRST_WAVE);
-    for (const name of FIRST_WAVE) {
+  it('is exactly the six tools the owner approved (the first five, and timeline.edit), each a deferred extension row outside the always-loaded set', () => {
+    expect(PRIMITIVE_TOOLS.map((tool) => tool.meta.name)).toEqual(ALLOWLIST);
+    for (const name of ALLOWLIST) {
       expect(rowFor(name)).toMatchObject({ surface: 'extension', load: 'deferred' });
       expect(rowFor(name).keywords?.length).toBeGreaterThan(0);
     }
     const tools = makeHarness({ ports: createAgentPorts() }).tools();
     const core = plannerToolDefs(tools, [], []).map((def) => def.name);
-    for (const name of FIRST_WAVE) expect(core).not.toContain(name);
+    for (const name of ALLOWLIST) expect(core).not.toContain(name);
   });
 
   it('takes each tool’s risk and undo from its command’s descriptor, and its text carries the class sentence for that risk', () => {
@@ -60,6 +61,7 @@ describe('the allowlist', () => {
       ['vocabulary.upsert', 'write-confirm'],
       ['filter.save', 'write-auto'],
       ['goal.save', 'write-auto'],
+      ['timeline.edit', 'write-confirm'],
     ]);
   });
 
@@ -127,6 +129,16 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('shot.importImage')),
       // @ts-expect-error a staging command takes files the writer chose
       () => primitiveTool(specFor('shot.importImages')),
+      // @ts-expect-error a staging command takes a file the writer chose
+      () => primitiveTool(specFor('asset.import')),
+      // @ts-expect-error a staging command takes files the writer chose
+      () => primitiveTool(specFor('asset.importBatch')),
+      // @ts-expect-error a delete is never a tool
+      () => primitiveTool(specFor('asset.delete')),
+      // @ts-expect-error the sweep is the destructive class, and the writer runs it from the board
+      () => primitiveTool(specFor('asset.sweep')),
+      // @ts-expect-error the calendar and lens are the writer's own display choice
+      () => primitiveTool(specFor('project.setCalendar')),
       // @ts-expect-error an external call rides its own gateway
       () => primitiveTool(specFor('mcp.invoke')),
       // @ts-expect-error a resource is read when the writer picks it, never on a tool's behalf
@@ -181,12 +193,15 @@ describe('the params of each tool', () => {
     'vocabulary.upsert': { kind: 'status', name: 'In Review', color: '#3fa66a' },
     'filter.save': { name: 'Short', root: 'manuscript', criteria: { text: 'ferry' }, id: 'q_0123456789' },
     'goal.save': { node: 'Chapter 1', comparator: 'at-least', target: 1000, id: 'g_0123456789' },
+    'timeline.edit': { ops: [{ op: 'meta', nodeId: 'The Landing', patch: { dayOffset: 3 } }], label: 'Date the landing' },
   };
 
   it('map onto keys the command declares, never beyond DECLARED_PARAMS', () => {
     const harness = makeHarness();
     void harness;
     const state = makeState();
+    // A timeline batch changes scene declarations, which live in the coherence file the project holds.
+    state.coherence = emptyCoherenceState();
     for (const tool of PRIMITIVE_TOOLS) {
       const mapped = tool.prepare(SAMPLES[tool.meta.name] ?? {}, { state, registry: COMMAND_REGISTRY });
       expect(mapped.ok, tool.meta.name).toBe(true);

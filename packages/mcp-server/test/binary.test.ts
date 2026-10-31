@@ -245,7 +245,16 @@ describe('the built caotang-mcp binary', () => {
     await client.connect(transport);
     try {
       const { resources } = await client.listResources();
-      expect(resources.map((resource) => resource.uri)).toEqual(['caotang://project', 'caotang://binder', 'caotang://codex']);
+      expect(resources.map((resource) => resource.uri)).toEqual([
+        'caotang://project',
+        'caotang://binder',
+        'caotang://codex',
+        'caotang://timeline',
+        'caotang://timeline.csv',
+        'caotang://assets',
+      ]);
+      const registry = (await client.readResource({ uri: 'caotang://assets' })).contents[0];
+      expect(registry && 'text' in registry ? JSON.parse(registry.text) : undefined).toEqual({ pictures: [], links: [] });
       const { prompts } = await client.listPrompts();
       expect(prompts.map((prompt) => prompt.name)).toContain('continuity-check');
       expect(client.getServerCapabilities()?.resources?.subscribe).toBeFalsy();

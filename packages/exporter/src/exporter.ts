@@ -22,9 +22,14 @@ import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/b
 import { ArtifactNotFoundError, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
 import { PDF_MIME } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
-import type { FontLoader } from '@caotang/pdf-fonts';
+import type { ComicLetteringFontLoader, FontLoader } from '@caotang/pdf-fonts';
+import { extensionOfMime, isAssetId, planPicture, finishPassthrough, sniffPicture, PictureRefusal, type ProcessPicture, type PictureBytes } from '@caotang/pictures';
 import type { PictureTranscoder } from './render-contact-sheet.js';
-import { createEmitter, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
+import { CBZ_MIME, type ComicRasterizer } from './comic-raster.js';
+import type { ImageRef } from './prose.js';
+import { figureSourcesOf, formatBytes, resolveFigures, usedAssetFilesOf, type FigureHost, type FigurePack, type FigureRecord } from './figures.js';
+import { copySpec, docxSpec, epubCoverSpec, epubSpec, profileForSource, type FigureTargetSpec } from './picture-profile.js';
+import { createEmitter, isSkippedRendered, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
 import {
   ExportUnavailableError,
   NoPersistentIdentifierError,
@@ -35,9 +40,11 @@ import {
 import { flatten, type FlattenResult } from './flatten.js';
 import { SCENE_STYLE_ROWS, droppedStyleNotes, type SceneStyleRow } from './scene-style.js';
 import { imageSizeOf } from './image-size.js';
+import type { CoherenceReportWords } from './coherence-report.js';
 import { renderMedia, type MediaFile } from './media.js';
+import { boilerplateFor } from './boilerplate.js';
 import { renderDocx, DOCX_MIME } from './render-docx.js';
-import { renderEpub, EPUB_MIME, type EpubInput } from './render-epub.js';
+import { renderEpub, EPUB_MIME, type EpubCover, type EpubInput } from './render-epub.js';
 import { XLSX_MIME } from './render-xlsx.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
@@ -62,6 +69,7 @@ import {
   type ExporterClock,
   type FlatBlock,
   type MediaFormat,
+  type PictureExportMode,
 } from './types.js';
 
 export interface ExporterOptions {
@@ -113,16 +121,44 @@ export interface ExporterOptions {
   readonly loadHebrewFont?: FontLoader;
   readonly loadDevanagariFont?: FontLoader;
   /**
+   * Reads Comic Neue and Bangers (`@caotang/font-comic-lettering`) for the comic PDF's lettering, one face at a time. The app fetches
+   * them from its own origin; Node reads them from the package (`@caotang/pdf-fonts/node-loader`). Called only when a balloon has text.
+   * Without it, a comic with lettering is refused at render with a message that says so.
+   */
+  readonly loadComicFont?: ComicLetteringFontLoader;
+  /**
+   * Draws a comic page to a JPEG on a canvas, for the CBZ and the fixed-layout comic EPUB (comics.md §5, D12). Only the app passes one, through
+   * `apps/desktop/src/media/comic-raster.ts`. Node hosts (the CLI, the SDK and the MCP server) pass none, and a compile of either format is
+   * refused there, before anything is reserved, with the remedy of exporting from the app. No Node rasterizer is added.
+   */
+  readonly rasterizeComic?: ComicRasterizer;
+  /** The signal the page raster of a compile is cancelled by, read when its file renders, so a cancel reaches the compile in flight. Absent is never cancelled. */
+  readonly comicRasterSignal?: () => AbortSignal | undefined;
+  /**
    * Decodes a WebP picture to PNG for the contact sheet, whose PDF embeds only PNG and JPEG: the app draws it on a canvas, Node
    * decodes it with `@jsquash/webp` (`@caotang/exporter/picture-transcoder-node`). It is called once per picture, and only for a
    * WebP. Without it, a WebP picture's cards show the caption, and the compile log says so.
    */
   readonly transcodePicture?: PictureTranscoder;
   /**
+   * The host's `ProcessPicture` — the app's canvas implementation (`processPictureInBrowser`),
+   * Node's codecs (`processPictureInNode` from `@caotang/exporter/picture-process-node`). The prose
+   * formats convert their figures through it under the target's profile (pictures.md §4, §6.4.1):
+   * a profile that needs a transcode on a host without one is refused with its remedy, never
+   * embedded unscaled. A `preserve` profile with nothing to change runs without it (the metadata
+   * strip is pure), so a Markdown copy works on any host.
+   */
+  readonly processPicture?: ProcessPicture;
+  /**
    * The scene styles and the formats that express them (exporter.md §2, Per-scene styling). Absent is the build's own rows
    * (`section`, in all four prose formats); a test supplies a row a format lacks to reach the compile log's dropped-style note.
    */
   readonly sceneStyles?: readonly SceneStyleRow[];
+  /**
+   * The coherence report's writer-facing words in the interface language, read at each compile so a language switch reaches the next
+   * report (i18n.md §7.1). Absent is English, which every headless host keeps; the JSON report and the project's own text are never affected.
+   */
+  readonly reportWords?: () => CoherenceReportWords;
 }
 
 /** A bus export command as a caller dispatches it: its name, and the params the bus validated for it. */
@@ -196,6 +232,13 @@ const EXTENSION: Record<ExportFormat, string> = {
   'shot-list-xlsx': 'xlsx',
   pdf: 'pdf',
   'contact-sheet-pdf': 'pdf',
+  'comic-pdf': 'pdf',
+  'timeline-csv': 'csv',
+  'timeline-xlsx': 'xlsx',
+  'timeline-svg': 'svg',
+  'timeline-pdf': 'pdf',
+  cbz: 'cbz',
+  'comic-epub': 'epub',
 };
 
 /**
@@ -219,6 +262,13 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'shot-list-xlsx': XLSX_MIME,
   pdf: PDF_MIME,
   'contact-sheet-pdf': PDF_MIME,
+  'comic-pdf': PDF_MIME,
+  'timeline-csv': 'text/csv;charset=utf-8',
+  'timeline-xlsx': XLSX_MIME,
+  'timeline-svg': 'image/svg+xml',
+  'timeline-pdf': PDF_MIME,
+  cbz: CBZ_MIME,
+  'comic-epub': EPUB_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -228,7 +278,7 @@ const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
  * contact sheet's pictures.
  */
 function readsImages(format: MediaFormat): boolean {
-  return format === 'shot-list-csv' || format === 'shot-list-xlsx' || format === 'promptpack' || format === 'contact-sheet-pdf';
+  return format === 'shot-list-csv' || format === 'shot-list-xlsx' || format === 'promptpack' || format === 'contact-sheet-pdf' || format === 'comic-pdf' || format === 'cbz' || format === 'comic-epub';
 }
 
 const systemClock: ExporterClock = { now: () => Date.now() };
@@ -264,6 +314,62 @@ export function createExporter(options: ExporterOptions): ExporterService {
   });
 
   /**
+   * The picture half of a prose plan (pictures.md §4): the mode the recipe asks for, the assets folder a Markdown copy
+   * writes, and the resolution plan the render runs. A mode the format does not read is honoured as its nearest mode and
+   * named in the log, so a recipe saved for one format compiles under another without losing its meaning.
+   */
+  const picturesPlanOf = (
+    state: ProjectState,
+    request: PlanRequest,
+    blocks: readonly FlatBlock[],
+    base: string,
+  ): { readonly mode?: PictureExportMode; readonly assetsDir?: string; readonly notes: string[]; readonly plan?: ProsePictures } => {
+    const format = request.format;
+    if (format !== 'md' && format !== 'txt' && format !== 'docx' && format !== 'epub') return { notes: [] };
+    const asked = request.options.pictures;
+    let mode: PictureExportMode;
+    const notes: string[] = [];
+    if (format === 'md') {
+      if (asked === undefined || asked === 'copy' || asked === 'link' || asked === 'drop') mode = asked ?? 'copy';
+      else {
+        mode = 'drop';
+        notes.push(`md: the pictures option '${asked}' is a plain-text one, so the pictures are left out with their text in their place`);
+      }
+    } else if (format === 'txt') {
+      if (asked === undefined || asked === 'placeholder' || asked === 'drop') mode = asked ?? 'placeholder';
+      else {
+        mode = 'placeholder';
+        notes.push(`txt: the pictures option '${asked}' is a Markdown one, so a [Picture: …] line is written for each picture`);
+      }
+    } else {
+      mode = 'placeholder';
+    }
+    const keepMetadata = request.options.keepPictureMetadata ?? false;
+    let spec: FigureTargetSpec & { readonly embed: boolean };
+    if (format === 'epub') {
+      spec = { ...epubSpec({ maxPx: request.options.epubImageMaxPx, keepWebp: request.options.epubKeepWebp, keepMetadata }), embed: true };
+    } else if (format === 'docx') {
+      spec = { ...docxSpec({ keepMetadata }), embed: true };
+    } else if (format === 'md' && mode === 'copy') {
+      spec = { ...copySpec({ keepMetadata }), embed: true };
+    } else {
+      spec = { ...copySpec({ keepMetadata }), embed: false };
+    }
+    const records = new Map<string, FigureRecord>();
+    for (const record of state.manifest.assets ?? []) {
+      if (typeof record?.id === 'string' && isAssetId(record.id)) records.set(record.id, record as FigureRecord);
+    }
+    const plan: ProsePictures = {
+      mode,
+      ...(format === 'md' && mode === 'copy' ? { assetsDir: `${base}.assets` } : {}),
+      spec,
+      host: { readAsset, process: options.processPicture, records },
+      refs: figureSourcesOf(blocks),
+    };
+    return { mode, ...(plan.assetsDir === undefined ? {} : { assetsDir: plan.assetsDir }), notes, plan };
+  };
+
+  /**
    * Everything a compile needs that can be known without awaiting. A media compile renders here too, so its gates
    * refuse here, before anything is reserved or queued.
    */
@@ -276,7 +382,14 @@ export function createExporter(options: ExporterOptions): ExporterService {
 
     if (isMediaFormat(request.format)) {
       const language = metadata.language?.trim();
-      return planMedia(state, request, { format: request.format, title, author, date, ...(language === undefined || language === '' ? {} : { language }) });
+      return planMedia(state, request, {
+        format: request.format,
+        title,
+        author,
+        date,
+        ...(language === undefined || language === '' ? {} : { language }),
+        ...(metadata.identifier === undefined ? {} : { identifier: metadata.identifier }),
+      });
     }
 
     const { template, note: templateNote } = resolveTemplate(request.templateId);
@@ -314,6 +427,11 @@ export function createExporter(options: ExporterOptions): ExporterService {
       };
     }
 
+    // The pictures the bodies place (pictures.md §4): the mode, the assets folder a copy writes beside the file, and the
+    // resolution plan (the host, the target's profile and the placements) the render runs.
+    const pictures = picturesPlanOf(state, request, flat.blocks, request.base);
+    notes.push(...pictures.notes);
+
     const input: RenderInput = {
       blocks: flat.blocks,
       title,
@@ -321,6 +439,9 @@ export function createExporter(options: ExporterOptions): ExporterService {
       date,
       template,
       toc: tocIncluded && request.format !== 'epub',
+      contentsLabel: boilerplateFor(metadata.language, { contents: request.options.contentsLabel }).contents,
+      ...(pictures.mode === undefined ? {} : { pictures: pictures.mode }),
+      ...(pictures.assetsDir === undefined ? {} : { assetsDir: pictures.assetsDir }),
     };
 
     const entry: Omit<CompileLogEntry, 'output'> = {
@@ -336,14 +457,14 @@ export function createExporter(options: ExporterOptions): ExporterService {
       notes,
     };
 
-    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, at: request.at };
+    return { kind: 'prose', format: request.format, input, flat, entry, title, epub, at: request.at, base: request.base, pictures: pictures.plan };
   };
 
   /** A media format's plan: its renderer runs now, because every media renderer is synchronous. */
   const planMedia = (
     state: ProjectState,
     request: PlanRequest,
-    common: { readonly format: MediaFormat; readonly title: string; readonly author: string; readonly date: string; readonly language?: string },
+    common: { readonly format: MediaFormat; readonly title: string; readonly author: string; readonly date: string; readonly language?: string; readonly identifier?: string },
   ): MediaPlan => {
     // A prompt pack's templateId names a vendor, not a layout template, so only the other media formats resolve one.
     const resolved = resolveTemplate(request.format === 'promptpack' ? undefined : request.templateId);
@@ -370,6 +491,15 @@ export function createExporter(options: ExporterOptions): ExporterService {
       readAsset,
       ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
       ...(request.options.paperFrames === undefined ? {} : { paperFrames: request.options.paperFrames }),
+      ...(request.options.bleed === undefined ? {} : { bleed: request.options.bleed }),
+      ...(request.options.cropMarks === undefined ? {} : { cropMarks: request.options.cropMarks }),
+      ...(request.options.timelinePictures === undefined ? {} : { timelinePictures: request.options.timelinePictures }),
+      ...(options.processPicture === undefined ? {} : { processPicture: options.processPicture }),
+      ...(request.options.readingDirection === undefined ? {} : { readingDirection: request.options.readingDirection }),
+      ...(options.loadComicFont === undefined ? {} : { loadComicFont: options.loadComicFont }),
+      ...(options.rasterizeComic === undefined ? {} : { rasterizeComic: options.rasterizeComic }),
+      ...(options.comicRasterSignal === undefined ? {} : { comicRasterSignal: options.comicRasterSignal }),
+      ...(common.format !== 'comic-epub' || common.identifier === undefined ? {} : { identifier: common.identifier }),
       ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
       ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
@@ -377,6 +507,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
       ...(options.transcodePicture === undefined ? {} : { transcodePicture: options.transcodePicture }),
       ...(common.language === undefined ? {} : { language: common.language }),
+      ...(options.reportWords === undefined ? {} : { reportWords: options.reportWords() }),
       at: request.at,
     });
     const notes = [...output.notes];
@@ -421,10 +552,16 @@ export function createExporter(options: ExporterOptions): ExporterService {
         at: clock.now(),
       });
       const files: ExportFile[] = [];
-      // A render can add a note the plan could not know (the cover's size), and the log says so as the bus's compile does.
+      // A render can add a note the plan could not know (the cover's size, a missing picture), and the log says so as the bus's compile does.
       const notes: string[] = [];
       for (const file of filesOf(compiled, `${base}.${EXTENSION[format]}`)) {
-        const rendered = splitRendered(await file.render());
+        const raw = await file.render();
+        // A file whose render skipped it (a picture the project does not hold, in a Markdown copy) is not part of the download.
+        if (isSkippedRendered(raw)) {
+          notes.push(...raw.notes);
+          continue;
+        }
+        const rendered = splitRendered(raw);
         notes.push(...rendered.notes);
         files.push({
           fileName: file.name,
@@ -542,12 +679,31 @@ export function createExporter(options: ExporterOptions): ExporterService {
   }
 
   /**
-   * The files a plan writes, each with the name it asks for and a way to render it. A prose compile is one file,
-   * named by `proseName` and rendered by the format's renderer; a media compile's files are already rendered.
+   * The files a plan writes, each with the name it asks for and a way to render it. A prose compile is its artifact,
+   * named by `proseName` and rendered by the format's renderer — plus, for a Markdown copy, one file per used
+   * picture at `<base>.assets/<file>` (pictures.md §4), rendered from the same resolved pack; a media compile's
+   * files are already rendered.
    */
   function filesOf(compiled: CompilePlan, proseName: string): RenderedFile[] {
     if (compiled.kind === 'prose') {
-      return [{ name: proseName, mimeType: EXPORT_MIME[compiled.format], render: () => renderProse(compiled) }];
+      const files: RenderedFile[] = [{ name: proseName, mimeType: EXPORT_MIME[compiled.format], render: () => renderProse(compiled) }];
+      if (compiled.format === 'md' && compiled.pictures?.mode === 'copy') {
+        for (const file of usedAssetFilesOf(compiled.flat.blocks)) {
+          files.push({
+            name: `${compiled.base}.assets/${file}`,
+            mimeType: mimeOfFileName(file),
+            render: async () => {
+              const pack = await ensureFigurePack(compiled);
+              const image = pack.images.find((candidate) => candidate.name === file);
+              if (image === undefined) {
+                return { skip: true, notes: [`markdown: ${file} is placed in the manuscript but its file is not in assets/, so no copy is written for it`] };
+              }
+              return image.bytes;
+            },
+          });
+        }
+      }
+      return files;
     }
     // A text file is already rendered; a binary file (a spreadsheet, a PDF) renders in the queue, where its engine is loaded.
     return compiled.files.map((file) => ({
@@ -560,33 +716,56 @@ export function createExporter(options: ExporterOptions): ExporterService {
   return exporter;
 }
 
+/** The MIME type of an `assets/` file name, from its extension. */
+function mimeOfFileName(file: string): string {
+  const extension = file.slice(file.lastIndexOf('.') + 1);
+  return extension === 'png' ? 'image/png' : extension === 'jpg' ? 'image/jpeg' : extension === 'webp' ? 'image/webp' : 'application/octet-stream';
+}
+
+/** One prose compile's picture resolution, run once however many files the compile writes. */
+function ensureFigurePack(compiled: ProsePlan): Promise<FigurePack> {
+  const pictures = compiled.pictures;
+  if (pictures === undefined) return Promise.resolve({ figures: new Map(), images: [], notes: [] });
+  pictures.pack ??= resolveFigures(pictures.refs, pictures.host, pictures.spec);
+  return pictures.pack;
+}
+
 /**
  * Stage 3's rendering for a prose format. Async as a whole, because the DOCX and EPUB libraries are loaded lazily;
- * the two string renderers are called directly.
+ * the two string renderers are called directly. The figures are resolved here, once per compile, and handed to the
+ * renderer with the input; what resolution learns (a missing file, a missing alt, the export's image weight and its
+ * five heaviest pictures) goes into the notes, which land in the compile log.
  */
 async function renderProse(compiled: ProsePlan): Promise<RenderedContents> {
+  const notes: string[] = [];
+  const pack = await ensureFigurePack(compiled);
+  notes.push(...pack.notes);
+  const input: RenderInput = { ...compiled.input, figures: pack };
   switch (compiled.format) {
     case 'md':
-      return renderMarkdown(compiled.input);
+      return { contents: renderMarkdown(input, notes), notes };
     case 'txt':
-      return renderText(compiled.input);
+      return { contents: renderText(input), notes };
     case 'docx':
-      return renderDocx(compiled.input);
+      return { contents: await renderDocx(input), notes };
     case 'epub':
-      return renderEpubArtifactFor(compiled);
+      return renderEpubArtifactFor(compiled, input, notes);
     default:
       throw new Error(`"${compiled.format}" is not a prose format, so it has no prose renderer`);
   }
 }
 
-async function renderEpubArtifactFor(compiled: ProsePlan): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
+async function renderEpubArtifactFor(compiled: ProsePlan, input: RenderInput, notes: string[]): Promise<{ readonly contents: Uint8Array; readonly notes: readonly string[] }> {
   // plan() refuses an EPUB with no identifier, so reaching here without one is a defect.
   if (compiled.epub === undefined) throw new Error('an EPUB reached the renderer without its planned identifier');
   const at = new Date(compiled.at);
   const named = compiled.epub.cover !== undefined;
-  const cover = compiled.epub.cover === undefined ? undefined : await compiled.epub.cover.read();
-  const input: EpubInput = {
-    ...compiled.input,
+  const raw = compiled.epub.cover === undefined ? undefined : await compiled.epub.cover.read();
+  // The cover takes the same transcode as the figures (pictures.md §4): ≤ 1600 px, flattened, sRGB, stripped, WebP
+  // converted unless the writer opted in. A cover the host cannot prepare is left out with a note, as a missing one is.
+  const cover = raw === undefined ? undefined : await coverForEpub(raw, compiled, notes);
+  const epubInput: EpubInput = {
+    ...input,
     language: compiled.epub.language,
     identifier: compiled.epub.identifier,
     ...(compiled.epub.isbn === undefined ? {} : { isbn: compiled.epub.isbn }),
@@ -597,8 +776,46 @@ async function renderEpubArtifactFor(compiled: ProsePlan): Promise<{ readonly co
   // A cover the project names but the store does not hold is left out of the book (an EPUB is valid without one), and
   // the log says so: the writer set a cover, so a silent drop would look like the cover was never read. This is the
   // named-but-missing case; a project that names no cover (`named` false) is epub-metadata.md's "no cover, no warning".
-  const notes = cover === undefined ? (named ? ['epub: the project has a cover asset on record but its file is not in assets/, so the book has no cover'] : []) : coverNotesFor(cover.bytes);
-  return { contents: await renderEpub(input), notes };
+  if (cover === undefined) {
+    if (named) notes.push('epub: the project has a cover asset on record but its file is not in assets/, so the book has no cover');
+  } else {
+    notes.push(...coverNotesFor(cover.bytes));
+    notes.push(`epub: the cover weighs ${formatBytes(cover.bytes.length)}`);
+  }
+  return { contents: await renderEpub(epubInput), notes };
+}
+
+/** The cover as the EPUB carries it: transcoded under the EPUB profile, or the stored bytes when nothing is to change. */
+async function coverForEpub(
+  raw: { readonly bytes: Uint8Array; readonly extension: string; readonly mime: string },
+  compiled: ProsePlan,
+  notes: string[],
+): Promise<EpubCover | undefined> {
+  const spec = compiled.pictures?.spec;
+  const sniffed = sniffPicture(raw.bytes);
+  if (spec === undefined || !sniffed.ok) return { extension: raw.extension, mime: raw.mime, bytes: raw.bytes };
+  // The cover is capped at its own 2560 px edge, not the figures' 1600 (picture-profile.ts `epubCoverSpec`).
+  const profile = profileForSource(sniffed.mime, raw.bytes, epubCoverSpec({ keepWebp: spec.keepWebp, keepMetadata: !spec.stripMetadata }));
+  try {
+    const plan = planPicture(raw.bytes, profile);
+    let out: PictureBytes;
+    if (plan.kind === 'passthrough') {
+      out = finishPassthrough(raw.bytes, plan, profile);
+    } else {
+      const process = compiled.pictures?.host.process;
+      if (process === undefined) {
+        throw new PictureRefusal('unsupported-profile', 'This host cannot convert pictures, and the cover needs converting.', 'Open the project in Caotang and export there.');
+      }
+      out = await process({ bytes: raw.bytes, mime: sniffed.mime, width: plan.source.width, height: plan.source.height }, profile);
+    }
+    return { extension: extensionOfMime(out.mime), mime: out.mime, bytes: out.bytes };
+  } catch (error) {
+    if (error instanceof PictureRefusal) {
+      notes.push(`epub: the cover could not be prepared (${error.message}), so the book has no cover`);
+      return undefined;
+    }
+    throw error;
+  }
 }
 
 /** The short side a cover is asked to reach for the big retailers (epub-metadata.md, the retail-distribution gap). */
@@ -642,9 +859,31 @@ interface ProsePlan extends PlanCommon {
   readonly kind: 'prose';
   readonly input: RenderInput;
   readonly flat: FlattenResult;
+  /** The file stem the compile's files are named by. */
+  readonly base: string;
+  /** The pictures the bodies place: the host, the target's profile and the placements, resolved once at render. */
+  readonly pictures?: ProsePictures;
   /** Present for an EPUB only: the identifier and language its package document carries. */
   readonly epub?: EpubFacts;
 }
+
+/** One prose compile's picture resolution: built at plan time (synchronously), run once at render. */
+interface ProsePictures {
+  /** The `pictures` mode this compile runs (`copy`/`link`/`drop` for Markdown, `placeholder`/`drop` for text). */
+  readonly mode: PictureExportMode;
+  /** The Markdown copy's assets folder beside the export: `<base>.assets`. Copy mode only. */
+  readonly assetsDir?: string;
+  /** The target's profile (pictures.md §4) plus whether bytes are embedded at all (plain text embeds none). */
+  readonly spec: FigureTargetSpec & { readonly embed: boolean };
+  /** The project's asset bytes, the host's transcoder and the registry records. */
+  readonly host: FigureHost;
+  /** Every figure placement in the flat blocks, in document order. */
+  readonly refs: readonly ImageRef[];
+  /** Set on first render: one resolution serves every file of the compile. */
+  pack?: Promise<FigurePack>;
+}
+
+
 
 /** A media compile: the files its renderer produced in the plan, each with the name it is written under. */
 interface MediaPlan extends PlanCommon {

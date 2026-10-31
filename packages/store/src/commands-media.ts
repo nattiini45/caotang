@@ -11,13 +11,15 @@
  *  - a `storyboard` folder is a folder with the `storyboard` marker, and holds no body.
  */
 
+import { loadComicBook, pageFromTemplate, serializeComicPage } from '@caotang/comic';
+
 import type { TreeNode } from './manifest.js';
-import { addDocument, addNode, type ProjectState } from './state.js';
+import { addDocument, addNode, nodeById, type ProjectState } from './state.js';
 
 /** The params `binder.create` validates to. A structural copy: the bus type is not a dependency of this file. */
 export interface MediaCreateParams {
   readonly parentId: string;
-  readonly type: 'folder' | 'document' | 'shot' | 'dialogue';
+  readonly type: 'folder' | 'document' | 'shot' | 'dialogue' | 'comic-page';
   readonly title: string;
   readonly kind?: string;
 }
@@ -32,5 +34,11 @@ export function createBinderNode(state: ProjectState, params: MediaCreateParams,
   if (params.type === 'document' || params.type === 'dialogue') {
     return addDocument(state, { parentId: params.parentId, title: params.title, type: params.type, ...kindField, now });
   }
-  return addNode(state, { parentId: params.parentId, title: params.title, type: params.type, ...kindField, now });
+  const node = addNode(state, { parentId: params.parentId, title: params.title, type: params.type, ...kindField, now });
+  if (params.type === 'comic-page') {
+    // A page starts from the book's own size and direction, so a new page is ready to be drawn on.
+    const book = loadComicBook(nodeById(state, params.parentId)?.comic).value;
+    node.comicPage = serializeComicPage(pageFromTemplate({ size: book.pageSize, direction: book.readingDirection as 'ltr' | 'rtl' }));
+  }
+  return node;
 }

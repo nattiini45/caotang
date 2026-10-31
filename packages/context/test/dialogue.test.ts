@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { addDocument, createEmptyManifest, createProjectState, type CodexEntry, type ProjectState } from '@caotang/store';
 
 import { ContextError, assemble, type AgentTask, type AppSnapshot, type LayerReport } from '../src/index.js';
+import { textOf } from '@caotang/gateway';
 
 const NOW = new Date('2026-10-09T09:00:00.000Z');
 const TAVERN = 'n_TAVERN0001';
@@ -69,7 +70,7 @@ describe('dialogue.draft over a container as its focus (dialogue-narrative §7)'
   it('keeps the container’s beats in L4 in body order, each named by its knot', () => {
     const prompt = assemble(DIALOGUE, appWith(INK, []));
     expect(layer(prompt, 'L4').kept.map((item) => item.label)).toEqual(['opening', 'arrival']);
-    const body = prompt.messages.map((message) => message.content).join('\n');
+    const body = prompt.messages.map((message) => textOf(message.content)).join('\n');
     expect(body).toContain('## opening (beat)\nElena: The ferry is late again.');
     expect(body).toContain('## arrival (beat)\nA bird sings from the rafters.');
   });

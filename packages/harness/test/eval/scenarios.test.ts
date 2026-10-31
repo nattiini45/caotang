@@ -116,9 +116,10 @@ const scenarios: Scenario[] = [
         { content: `Fill the synopsis of ${quote(STORM)}`, state: 'done' },
       ],
       // Three model calls (a read's planner, a plan's planner, a synopsis), each carrying the core tool schemas; the deferred
-      // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was. Measured at 9852,
-      // so the ceiling is 9900 (it was 16300 when every wired tool was listed).
-      maxTokens: 9900,
+      // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was. Measured at 9904,
+      // so the ceiling is 9950 (it was 9900 before the comic and timeline formats joined export.compile's enum — 92 more
+      // characters in the system message, on each of the two planner calls — and 16300 when every wired tool was listed).
+      maxTokens: 9950,
       maxModelCalls: 3,
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === STORM);

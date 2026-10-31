@@ -13,6 +13,7 @@ import { getRevision, type ProjectState } from '@caotang/store';
 import { isToolName } from '../metadata.js';
 import type { PlanStep } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
+import { asTimelineProposal } from '../tools/timeline-edit.js';
 import { isRecord } from '../util.js';
 import { MODEL_BACKED_TOOLS } from './cards.js';
 import { asFindingsProposal, asSceneProposal, asSynopsisProposal } from './drafting.js';
@@ -56,6 +57,9 @@ export function backgroundEligibility(steps: readonly PlanStep[]): BackgroundEli
   if (external !== undefined) return { eligible: false, reason: `${external.tool} is an external tool, and external tools do not run unattended.` };
   if (steps.some((step) => step.tool === 'coherence.review')) {
     return { eligible: false, reason: 'A coherence review cannot be queued yet, so this plan runs now.' };
+  }
+  if (steps.some((step) => step.tool === 'timeline.edit')) {
+    return { eligible: false, reason: 'A timeline edit is checked against the days and parts as they are when the card is shown, so this plan runs now.' };
   }
   if (!steps.some((step) => MODEL_BACKED_TOOLS.has(step.tool))) return { eligible: false, reason: 'No step of this plan drafts with a model.' };
   return { eligible: true };
@@ -123,6 +127,8 @@ export function proposalShapeOk(tool: string, proposal: unknown): boolean {
       return isRecord(proposal) && typeof proposal['ink'] === 'string' && typeof proposal['revision'] === 'number';
     case 'prompt.draft':
       return isRecord(proposal) && typeof proposal['vendor'] === 'string' && Array.isArray(proposal['items']) && Array.isArray(proposal['refusals']);
+    case 'timeline.edit':
+      return asTimelineProposal(proposal) !== undefined;
     case 'prompt.variant':
       return isRecord(proposal) && typeof proposal['shotId'] === 'string' && typeof proposal['base'] === 'string' && Array.isArray(proposal['alternatives']);
     default:

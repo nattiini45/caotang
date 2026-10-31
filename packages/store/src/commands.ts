@@ -152,7 +152,6 @@ import {
 } from '@caotang/bus';
 import { createBinderNode } from './commands-media.js';
 import {
-  getBody,
   getRevision,
   moveNode,
   nodeById,
@@ -162,12 +161,20 @@ import {
   siblingOrderAt,
   type ProjectState,
 } from './state.js';
+import { loadComicBook } from '@caotang/comic';
 import type { CodexEntry, CodexIncludePolicy, TreeNode } from './manifest.js';
 import { projectCommandRegistrations, type ProjectAssetPort } from './commands-project.js';
+import { assetIdsInText, type UndoRetentionLedger } from './picture-retention.js';
 import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
 import { shotImageCommandRegistrations } from './commands-shot-image.js';
+import { pictureCommandRegistrations } from './commands-pictures.js';
 import { furnitureApplies } from './commands-furniture.js';
 import { scriptApplies } from './commands-script.js';
+import { timelineApplies } from './commands-timeline.js';
+import { comicCommandRegistrations } from './commands-comic.js';
+import { calendarCommandRegistrations } from './commands-calendar.js';
+import { anchorPortOf, mapLinksThroughWrite, paragraphLinksOfDoc, type AnchorPort } from './body-write.js';
+import { replaceList, undoList, type ListUndo } from './picture-registry.js';
 
 /** A project command's state, as the bus types it: the store's, narrowed here. */
 type ProjectApply<P> = CommandApply<P, ProjectState>;
@@ -228,6 +235,21 @@ export interface ProjectCommandOptions {
    * other ports are: the host owns where the bytes are written. Without it the name stays descriptor-only and is refused as not wired.
    */
   readonly assets?: ProjectAssetPort;
+  /**
+   * The undo-capture retention ledger (pictures.md §6.6.1 root 4): applies that capture a compensation which can name a picture
+   * note the ids here, keyed by the dispatch's command id, so the host's undo root can enumerate what an open undo group still
+   * retains. Without it the names stay as they are and the host's undo root scans only the inverse commands' params.
+   */
+  readonly undoRetention?: UndoRetentionLedger;
+  /**
+   * The paragraph-anchor resolver (pictures.md §2.3): the one operation that carries a body write's
+   * `{docId, oldBody, newBody, revision, priorLinks}` and returns the document's paragraph links
+   * mapped across the write, with explicit `orphaned`/`moved` outcomes. **Injected, not imported**,
+   * for the reason the other ports are: the store cannot import `@caotang/editor`, whose ladder the
+   * guarded fallback uses. Defaults to the pure `@caotang/pictures` mapper, so a caller with no port
+   * still gets true anchors; the desktop and Node composition roots inject it explicitly.
+   */
+  readonly anchors?: AnchorPort;
   /**
    * The staging `skill.import` takes a skill folder from (extensibility.md §10): the host stages the files the writer chose and names
    * the token. Without it `skill.import` stays descriptor-only and is refused as not wired; the other three skill commands need nothing.
@@ -615,6 +637,9 @@ export function createProjectCommandRegistry(
 ): CommandRegistry {
   const clock = options.clock ?? systemCommandClock;
   const sink = options.snapshots ?? synchronousSnapshotSink;
+  // The paragraph-anchor port of pictures.md §2.3, injected by the composition roots; the pure default
+  // keeps a host that injects nothing on true anchors too.
+  const anchors = anchorPortOf(options);
   // The stamps an inverse restores, shared by every inverse this registry mints (see `RestoreTable`).
   const restore = createRestoreTable();
 
@@ -927,6 +952,12 @@ export function createProjectCommandRegistry(
     const countsBefore = { ...state.manifest.derived.wordCounts };
     const removed = removeNode(state, params.nodeId);
     const doomed = new Set(removed.map((entry) => entry.node.id));
+    // A deleted node's captured body can spell an inline picture (§6.6.1 root 4: deleted-node bodies are a retention root).
+    options.undoRetention?.note(
+      context.commandId,
+      removed.flatMap((entry) => (entry.record === undefined ? [] : assetIdsInText(entry.record.body))),
+      'a deleted node capture',
+    );
 
     const attachments: { readonly entry: CodexEntry; readonly before: readonly string[] }[] = [];
     for (const entry of state.manifest.codex ?? []) {
@@ -940,9 +971,23 @@ export function createProjectCommandRegistry(
       entry.attachments = entry.attachments.filter((id) => !doomed.has(id));
     }
 
+    // A comic book whose script is deleted loses the link and keeps its pages (comics.md §3.1). The prior settings travel in the artifact,
+    // so the one Undo restores the document and the link together.
+    const unlinked: { readonly node: TreeNode; readonly before: Record<string, unknown> }[] = [];
+    for (const node of state.manifest.tree) {
+      const linked = node.type === 'folder' && node.kind === 'comic' ? loadComicBook(node.comic).value.scriptDocId : undefined;
+      if (node.comic === undefined || linked === undefined || !doomed.has(linked)) continue;
+      unlinked.push({ node, before: structuredClone(node.comic) });
+      const rest = { ...node.comic };
+      delete rest['scriptDocId'];
+      if (Object.keys(rest).length === 0) delete node.comic;
+      else node.comic = rest;
+    }
+
     context.undo.compensate(
       `restore "${title}"${removed.length > 1 ? ` and the ${removed.length - 1} nodes under it` : ''}`,
       () => {
+        for (const { node, before } of unlinked) node.comic = structuredClone(before);
         // Ascending original index, so the removed set's *relative* order comes
         // back. Appended rather than spliced at a captured index: nothing reads a
         // node's position in the serialized array (the binder's order is
@@ -1366,7 +1411,10 @@ export function createProjectCommandRegistry(
     docId: string,
     captured: BodyCapture,
     context: ApplyContext,
+    linkUndo?: ListUndo,
   ): void {
+    // The captured body can spell an inline picture (§6.6.1 root 4): an open undo group retains what it names.
+    options.undoRetention?.note(context.commandId, assetIdsInText(captured.before), 'a body capture');
     context.undo.compensate(`restore the body of "${nodeTitle(state, docId)}"`, () => {
       // The restore is a write like any other, so `setBody` bumps the revision
       // and it stays bumped. The captured revision is NOT re-asserted: an undo
@@ -1383,7 +1431,42 @@ export function createProjectCommandRegistry(
       // The node's stamp is the body write's own change to the node, so the undo puts back the one it replaced.
       const node = nodeById(state, docId);
       if (node !== undefined) node.updatedAt = captured.updatedAt;
+      // §2.3: the prior paragraph links were captured independently of the snapshot sink, so the same
+      // undo restores them directly — the mapped anchors of the write go back to the captured ones.
+      if (linkUndo !== undefined) undoList(state, linkUndo);
     });
+  }
+
+  /**
+   * The old/new body-write boundary of pictures.md §2.3 — one function every body mutation goes
+   * through, carrying `{docId, oldBody, newBody, revision, priorLinks}`. `captureBody` above is the
+   * snapshot sink and never sees the new body; this is the boundary that does, so the document's
+   * paragraph links are mapped across the write through the `AnchorPort` in the same command, and
+   * captured for undo alongside the body.
+   *
+   * Only documents that have paragraph links pay for the diff (one bounded diff per write); the
+   * capture of the prior links is a filter over the manifest's link list.
+   */
+  function writeBodyThroughBoundary(
+    state: ProjectState,
+    docId: string,
+    command: CommandName,
+    context: ApplyContext,
+    makeNext: (oldBody: string) => string,
+  ): BodyCapture {
+    const captured = captureBody(state, { docId }, command);
+    const priorLinks = paragraphLinksOfDoc(state, docId);
+    const oldBody = captured.before;
+    const next = makeNext(oldBody);
+    setBody(state, docId, next, { now: new Date(clock.now()) });
+    stampBodyOf(state, docId, clock);
+    let linkUndo: ListUndo | undefined;
+    if (priorLinks.length > 0 && next !== oldBody) {
+      const mapped = mapLinksThroughWrite(state, anchors, docId, oldBody, next, getRevision(state, docId));
+      if (mapped.changed.length > 0) linkUndo = replaceList(state, 'assetLinks', mapped.next, mapped.changed);
+    }
+    compensateBody(state, docId, captured, context, linkUndo);
+    return captured;
   }
 
   /** §8's `affected` rule — a human title, never a bare id. */
@@ -1472,10 +1555,7 @@ export function createProjectCommandRegistry(
     // "human titles": the row is about this document, and a document has one
     // title for the whole dispatch.
     const title = nodeTitle(state, params.docId);
-    const captured = captureBody(state, params, 'doc.write');
-    setBody(state, params.docId, params.body, { now: new Date(clock.now()) });
-    stampBodyOf(state, params.docId, clock);
-    compensateBody(state, params.docId, captured, context);
+    const captured = writeBodyThroughBoundary(state, params.docId, 'doc.write', context, () => params.body);
     context.report({
       affected: [{ nodeId: params.docId, title }],
       summary: agentWriteSummary(context, `the agent’s draft of “${title}”`, `wrote the body of "${title}" (revision ${getRevision(state, params.docId)})`),
@@ -1505,12 +1585,9 @@ export function createProjectCommandRegistry(
    */
   const editorInsert: ProjectApply<EditorInsertParams> = (state, params, context) => {
     const title = nodeTitle(state, params.docId);
-    const captured = captureBody(state, params, 'editor.insert');
-    const body = getBody(state, params.docId);
-    const next = body.slice(0, params.offset) + params.text + body.slice(params.offset);
-    setBody(state, params.docId, next, { now: new Date(clock.now()) });
-    stampBodyOf(state, params.docId, clock);
-    compensateBody(state, params.docId, captured, context);
+    writeBodyThroughBoundary(state, params.docId, 'editor.insert', context, (body) => {
+      return body.slice(0, params.offset) + params.text + body.slice(params.offset);
+    });
     // The character count, because an insert's size is the fact a reader of the
     // log wants and the offset alone does not carry it.
     context.report({
@@ -1527,12 +1604,9 @@ export function createProjectCommandRegistry(
 
   const editorReplaceRange: ProjectApply<EditorReplaceRangeParams> = (state, params, context) => {
     const title = nodeTitle(state, params.docId);
-    const captured = captureBody(state, params, 'editor.replaceRange');
-    const body = getBody(state, params.docId);
-    const next = body.slice(0, params.range.from) + params.text + body.slice(params.range.to);
-    setBody(state, params.docId, next, { now: new Date(clock.now()) });
-    stampBodyOf(state, params.docId, clock);
-    compensateBody(state, params.docId, captured, context);
+    writeBodyThroughBoundary(state, params.docId, 'editor.replaceRange', context, (body) => {
+      return body.slice(0, params.range.from) + params.text + body.slice(params.range.to);
+    });
     // The range is named, not the length: §4's `editor.replaceRange` is the
     // composition step an agent turn drives, and "where" is the part of it a
     // later turn needs to reason about.
@@ -1717,6 +1791,14 @@ export function createProjectCommandRegistry(
   registry['dialogue.importInk'] = { descriptor: registry['dialogue.importInk'].descriptor, apply: narrow(script['dialogue.importInk']) };
   registry['dialogue.setMeta'] = { descriptor: registry['dialogue.setMeta'].descriptor, apply: narrow(script['dialogue.setMeta']) };
 
+  // The timeline batch (timeline.md §4.3): the bus's descriptor, validated and applied through one projection.
+  const timeline = timelineApplies();
+  registry['timeline.apply'] = { descriptor: registry['timeline.apply'].descriptor, apply: narrow(timeline['timeline.apply']) };
+
+  // The comic track (comics.md §3.2): the book, its pages and its script link. No host port is needed, but the script
+  // derivation writes a whole body, so it maps that document's paragraph links through the anchor port like any other write.
+  Object.assign(registry, comicCommandRegistrations({ clock, anchors }));
+
   const exportPort = options.exporter;
   if (exportPort !== undefined) {
     // The whole manuscript. A recipe, if named, is resolved by the port, which owns
@@ -1825,6 +1907,8 @@ export function createProjectCommandRegistry(
   // Project export: the project block, the saved recipes, the vocabulary and the cover import. The applies are in
   // commands-project.ts; `project.importAsset` is added only when the host injects its asset port.
   Object.assign(registry, projectCommandRegistrations({ clock, ...(options.assets === undefined ? {} : { assets: options.assets }) }));
+  // The timeline calendar is a user-only manifest setting (timeline.md §3.8), with both members restored by one inverse.
+  Object.assign(registry, calendarCommandRegistrations({ clock }));
   // The project's skills (extensibility.md §10): the writer's own files in `.agents/skills/`. The three that need nothing from the host
   // are always registered; `skill.import` is added only when the host injects its staging.
   Object.assign(registry, skillCommandRegistrations({ clock, ...(options.skillStaging === undefined ? {} : { staging: options.skillStaging }) }));
@@ -1835,6 +1919,19 @@ export function createProjectCommandRegistry(
       clock,
       ...(options.assets === undefined ? {} : { assets: options.assets }),
       ...(shotPort === undefined ? {} : { shots: shotPort }),
+    }),
+  );
+
+  // The picture registry (pictures.md §2.4): the manifest-only commands always, the imports, re-link and working-copy batch when the
+  // host injects its asset port, and the sweep when it also injects the deletion half. The undo-retention ledger rides along so the
+  // host's undo root can enumerate what an open group's captures still name (§6.6.1 root 4).
+  Object.assign(
+    registry,
+    pictureCommandRegistrations({
+      clock,
+      ...(options.assets === undefined ? {} : { assets: options.assets }),
+      ...(options.undoRetention === undefined ? {} : { undoRetention: options.undoRetention }),
+      anchors,
     }),
   );
 

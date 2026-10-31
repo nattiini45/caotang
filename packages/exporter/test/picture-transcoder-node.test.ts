@@ -152,8 +152,9 @@ describe('the app does not carry the Node decoder', () => {
   it('depends on no decoder, draws a WebP on a canvas, and keeps a CSP that refuses WebAssembly', () => {
     expect(app('package.json')).not.toMatch(/jsquash/);
     expect(app('src/app/picture-transcoder.ts')).not.toMatch(/^import [^\n]*(?:jsquash|node:|picture-transcoder-node)/m);
-    expect(app('src/app/session.ts')).toMatch(/transcodePicture: transcodePictureInBrowser/);
+    expect(app('src/app/lazy-exporter.ts')).toMatch(/transcodePicture: transcodePictureInBrowser/);
     expect(app('src/app/session.ts')).not.toMatch(/picture-transcoder-node/);
+    expect(app('src/app/lazy-exporter.ts')).not.toMatch(/picture-transcoder-node/);
     expect(app('index.html')).toMatch(/script-src 'self'/);
     expect(app('index.html')).not.toMatch(/wasm-unsafe-eval/);
   });

@@ -18,6 +18,7 @@
  */
 
 import type { SseEvent } from '../sse.js';
+import { assertValidMessage, base64Of, textOf } from '../parts.js';
 import type {
   ChatMessage,
   FinishReason,
@@ -54,7 +55,7 @@ function splitSystem(messages: readonly ChatMessage[]): { system?: string; rest:
   const parts: string[] = [];
   const rest: ChatMessage[] = [];
   for (const m of messages) {
-    if (m.role === 'system') parts.push(m.content);
+    if (m.role === 'system') parts.push(textOf(m.content));
     else rest.push(m);
   }
   return { system: parts.length > 0 ? parts.join('\n\n') : undefined, rest };
@@ -69,7 +70,8 @@ function assistantContent(m: ChatMessage): unknown[] {
     if (block.raw !== undefined && typeof block.raw === 'object') blocks.push(block.raw);
     else if (block.text !== '') blocks.push({ type: 'thinking', thinking: block.text, signature: '' });
   }
-  if (m.content !== '') blocks.push({ type: 'text', text: m.content });
+  const text = textOf(m.content);
+  if (text !== '') blocks.push({ type: 'text', text });
   for (const call of m.toolCalls ?? []) {
     let input: unknown;
     try {
@@ -86,9 +88,15 @@ function messageContent(m: ChatMessage): unknown {
   if (m.role === 'assistant') return assistantContent(m);
   if (m.role === 'tool') {
     // A tool result rides inside a user message on this route.
-    return [{ type: 'tool_result', tool_use_id: m.toolCallId, content: m.content, ...(m.isError ? { is_error: true } : {}) }];
+    return [{ type: 'tool_result', tool_use_id: m.toolCallId, content: textOf(m.content), ...(m.isError ? { is_error: true } : {}) }];
   }
-  return m.content;
+  if (typeof m.content === 'string') return m.content;
+  // A user message's part array becomes the route's content blocks: text, then base64 image sources.
+  return m.content.map((part) =>
+    part.type === 'text'
+      ? { type: 'text', text: part.text }
+      : { type: 'image', source: { type: 'base64', media_type: part.mime, data: base64Of(part.bytes) } },
+  );
 }
 
 /** Merges consecutive same-role messages: the route requires alternating roles. */
@@ -116,6 +124,7 @@ function wireMessages(req: BodyInput['req']): { system?: string; messages: unkno
   const hint = format !== undefined && format !== 'text' ? `Respond with JSON matching: ${JSON.stringify(format.jsonSchemaHint)}` : undefined;
   if (hint !== undefined) messages.push({ role: 'user', content: hint });
   for (const m of rest) {
+    assertValidMessage(m, 'anthropic-messages');
     const content = messageContent(m);
     // A completely empty assistant turn has no wire form; drop it rather than send `content: []`.
     if (m.role === 'assistant' && Array.isArray(content) && content.length === 0) continue;

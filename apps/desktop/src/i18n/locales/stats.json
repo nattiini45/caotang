@@ -1,4 +1,14 @@
 {
   "sourceLocale": "en",
-  "locales": {}
+  "locales": {
+    "de": {
+      "total": 3097,
+      "translated": 3097,
+      "untranslated": 0,
+      "missing": 0,
+      "fuzzy": 0,
+      "sameAsEnglish": 82,
+      "completion": 100
+    }
+  }
 }

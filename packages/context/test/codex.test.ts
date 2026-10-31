@@ -3,6 +3,7 @@
  * entries a call sends, why, and why the others are not sent.
  */
 import { describe, expect, it } from 'vitest';
+import { textOf } from '@caotang/gateway';
 
 import { assemble, type AgentTask, type AssembledPrompt, type LayerId } from '../src/index.js';
 import { TAIL, buildApp, FOCUS_ID, IDS, heavyAlwaysApp } from './fixtures.js';
@@ -36,7 +37,7 @@ describe('the include policies, as the prompt shows them (codex.md §5)', () => 
   it('always: sent with no mention at all', () => {
     const assembled = assemble(DRAFT_EMPTY, buildApp());
     expect(layer(assembled, 'L2').kept.map((item) => [item.label, item.reason])).toEqual([['Harbor', 'always']]);
-    expect(codexSection(assembled.messages[1]?.content ?? '')).toContain('## Harbor (location)');
+    expect(codexSection(textOf(assembled.messages[1]?.content ?? ''))).toContain('## Harbor (location)');
   });
 
   it('detected: sent when a name or alias is mentioned, with the surfaces and the count', () => {
@@ -99,7 +100,7 @@ describe('the include policies, as the prompt shows them (codex.md §5)', () => 
 
   it('renders entries in codex order: always first, then type, then name', () => {
     const assembled = assemble(CONTINUE, buildApp());
-    const headings = codexSection(assembled.messages[1]?.content ?? '').match(/^## .+$/gm) ?? [];
+    const headings = codexSection(textOf(assembled.messages[1]?.content ?? '')).match(/^## .+$/gm) ?? [];
     expect(headings).toEqual([
       '## Harbor (location)',
       '## Captain Hale (character)',
@@ -164,7 +165,7 @@ describe('the always entries are reserved before the rest of the layer is fitted
     const codex = layer(assembled, 'L2');
     const always = codex.kept.filter((item) => item.reason === 'always').map((item) => item.label);
     expect(always.sort()).toEqual(['Harbor', 'Rule 1', 'Rule 2', 'Rule 3', 'Rule 4']);
-    const text = codexSection(assembled.messages[1]?.content ?? '');
+    const text = codexSection(textOf(assembled.messages[1]?.content ?? ''));
     for (const label of always) expect(text).toContain(`## ${label} (`);
     expect(text).toContain(`Rule 4: ${'w'.repeat(1_200)}`);
     expect(codex.tokens).toBeGreaterThan(OVER);

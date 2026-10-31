@@ -5,7 +5,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';
 
-import { binderTitle, bodyOf, card, createProject, idOf, trace, waitForSaved } from './support.js';
+import { binderTitle, bodyOf, card, createProject, idOf, trace, waitForSaved, loose } from './support.js';
 
 /**
  * The demo, scripted end to end: create a project, build a three-chapter
@@ -76,7 +76,7 @@ test('the demo: a three-chapter story, an agent draft approved in the agent pane
 
   // 2. The agent, on the built-in demo provider. The panel is closed until the writer opens it.
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await expect(page.getByTestId('agent-provider')).toHaveText('Provider: Demo (no key)');
+  await expect(page.getByTestId('agent-provider')).toHaveText(loose('Provider: Demo (no key)', true));
   await page.getByRole('textbox', { name: 'Intent' }).fill(DEMO_INTENTS.draftScene);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 

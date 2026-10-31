@@ -19,6 +19,7 @@ import { estimateTokens as codexEstimate } from '@caotang/codex';
 
 import { createContextPort, dropLinesOf, estimateTokens, mergePreviews } from '../../src/index.js';
 import { FRIEND, LANDING, STORM, makeState } from '../fixtures.js';
+import { textOf } from '@caotang/gateway';
 
 describe('one token estimator for the app (context-assembly §3)', () => {
   it('the harness’s estimate is the codex estimate itself, not a copy of it, and so is the context package’s', () => {
@@ -56,7 +57,7 @@ describe('the role text is the system message, and L0 is measured on it (context
 
   it('L0 is measured on the role text that is sent, and the prompt estimate is the estimate of the messages sent', () => {
     const call = createContextPort({ state: makeState() }).assemble({ task: meta('Request: hello'), role: ROLE });
-    const sent = call.messages.reduce((sum, message) => sum + message.content.length, 0);
+    const sent = call.messages.reduce((sum, message) => sum + textOf(message.content).length, 0);
 
     expect(call.prompt.layers.find((layer) => layer.id === 'L0')?.tokens).toBe(tokensForChars(ROLE.length));
     expect(call.prompt.estimate.byLayer.L0).toBe(tokensForChars(ROLE.length));
@@ -206,7 +207,7 @@ describe('a batch of calls is one card entry (mergePreviews)', () => {
 
     expect(merged?.promptTokens).toBe(first.promptTokens + second.promptTokens);
     expect(merged?.completionTokens).toBe(first.completionTokens + second.completionTokens);
-    expect(merged?.payload.map((message) => message.content)).toEqual([...first.payload, ...second.payload].map((message) => message.content));
+    expect(merged?.payload.map((message) => textOf(message.content))).toEqual([...first.payload, ...second.payload].map((message) => textOf(message.content)));
     expect(merged?.layers.find((layer) => layer.id === 'L5')?.tokens).toBe(
       (first.layers.find((layer) => layer.id === 'L5')?.tokens ?? 0) + (second.layers.find((layer) => layer.id === 'L5')?.tokens ?? 0),
     );

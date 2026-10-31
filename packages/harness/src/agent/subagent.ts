@@ -35,7 +35,7 @@ import type { ToolListing } from '../runtime.js';
 import { SUBAGENT_BLURBS, type DelegateParams, type SubagentName } from '../tools/delegate.js';
 import type { ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson } from '../util.js';
-import type { ContextPort } from './context.js';
+import type { ContextPort, LanguagePolicy } from './context.js';
 import { assistantOf, complete, spendOf, TurnStopped, type ModelCall } from './drafting.js';
 import type { TraceEntry } from './events.js';
 import { callArgs, errorSummary, parseReply, plannerToolDefs, plannerTools, REPLY_SCHEMA_HINT, resultsMessage, SUBAGENT_SYSTEM_PREFIX } from './protocol.js';
@@ -71,7 +71,7 @@ export interface SubagentSpec {
 }
 
 /** What the agents may read: project facts and text, no model-backed read, and nothing that writes held state outside the bus (`coherence.scan` appends findings). */
-const READS: readonly ToolName[] = ['project.overview', 'binder.read_tree', 'doc.read', 'notes.read', 'codex.read', 'dialogue.table'];
+const READS: readonly ToolName[] = ['project.overview', 'binder.read_tree', 'doc.read', 'notes.read', 'codex.read', 'dialogue.table', 'timeline.read'];
 
 export const READER: SubagentSpec = {
   name: 'reader',
@@ -89,7 +89,7 @@ export const GENERAL: SubagentSpec = {
   descriptionVersion: 1,
   system: `${SUBAGENT_SYSTEM_PREFIX} You are the general agent. You read like the reader, and you may also work out changes the main agent should make. You change nothing yourself: a change you want is a call to a write tool, which only records a proposed step for the main agent.`,
   reads: READS,
-  stages: ['scene.draft', 'synopsis.fill', 'codex.write', 'binder.restructure'],
+  stages: ['scene.draft', 'synopsis.fill', 'codex.write', 'binder.restructure', 'timeline.edit'],
   maxModelCalls: 4,
 };
 
@@ -172,6 +172,8 @@ export interface ParentTurnHandle {
   readonly agentPath: string;
   /** Whether the turn speaks native tool calls: the child speaks the wire the parent does. */
   readonly native: boolean;
+  /** The languages the parent turn pinned at its start; the child's call carries the same line. */
+  readonly languages?: LanguagePolicy;
   reserve(modelCalls: number): boolean;
   release(unused: number): void;
   /** The budgeted call site for this child: stamped with the agent path, and bound by the reservation. */
@@ -280,6 +282,7 @@ export function createSubagentRunner(host: SubagentHost): SubagentRunner {
         const assembled = host.context.assemble({
           task: { tool: 'delegate', instruction: `Brief: ${params.brief}`, params: { agent: spec.name }, ...scope },
           role: system,
+          ...(parent.languages === undefined ? {} : { languages: parent.languages }),
         });
         dropped = [...assembled.prompt.layers.flatMap((layer) => [...layer.dropped, ...layer.notes.map((note) => `${layer.name}: ${note}`)])];
         const messages: ChatMessage[] = [...assembled.messages];

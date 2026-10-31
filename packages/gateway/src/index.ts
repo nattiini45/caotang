@@ -17,6 +17,11 @@ export type {
   ProviderGateway,
   ChatRequest,
   ChatMessage,
+  MessageContent,
+  ContentPart,
+  TextPart,
+  ImagePart,
+  ImageMime,
   ChatChunk,
   ChatRole,
   FinishReason,
@@ -31,6 +36,31 @@ export type {
   ModelLimits,
   UsageAttribution,
 } from './types.js';
+
+export {
+  IMAGE_MIMES,
+  base64Of,
+  checkRequestImages,
+  contentSummaryOf,
+  contentTokens,
+  dataUrlOf,
+  imageBase64Of,
+  imageDimensions,
+  imageLimitsFor,
+  imagePartsOf,
+  imageTokens,
+  isContentParts,
+  partsOf,
+  placeholderOf,
+  sniffMime,
+  textOf,
+  validateMessageContent,
+  validatePart,
+  type ContentRoute,
+  type ContentSummary,
+  type ImageSummary,
+  type RouteImageLimits,
+} from './parts.js';
 
 export {
   ProviderError,
@@ -116,4 +146,4 @@ export {
 
 export { systemClock, createManualClock, type Clock, type ManualClock, type TimerId } from './clock.js';
 export { redact } from './redact.js';
-export { estimateTokens, usageFor } from './tokens.js';
+export { estimateTokens, usageFor, promptTokensOf } from './tokens.js';

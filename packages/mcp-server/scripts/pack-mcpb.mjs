@@ -205,6 +205,9 @@ async function main() {
       createRequire(import.meta.url).resolve('@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-hebrew/NotoSansHebrew-Regular.ttf'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf'),
+      ...['ComicNeue-Regular', 'ComicNeue-Italic', 'ComicNeue-Bold', 'ComicNeue-BoldItalic', 'Bangers-Regular'].map((face) =>
+        createRequire(import.meta.url).resolve(`@caotang/font-comic-lettering/${face}.woff`),
+      ),
     ],
   });
   process.stdout.write(`packed ${result.bundle}\n${result.info}`);

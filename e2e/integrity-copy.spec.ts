@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { binderTitle, createProject } from './support.js';
+import { binderTitle, createProject, loose } from './support.js';
 
 /**
  * Writer-facing words (ui-modules §0.1, the copy review): no internal term reaches the writer, a file that is not a bundle is said
@@ -43,10 +43,10 @@ test('removing a keyword clears the complaint that its duplicate was refused', a
   await input.press('Enter');
   await input.fill('Sea');
   await input.press('Enter');
-  await expect(inspector.getByText('“Sea” is already a keyword here.')).toBeVisible();
+  await expect(inspector.getByText(loose('“Sea” is already a keyword here.'))).toBeVisible();
 
   await inspector.getByRole('button', { name: 'Remove keyword sea' }).click();
-  await expect(inspector.getByText('“Sea” is already a keyword here.')).toHaveCount(0);
+  await expect(inspector.getByText(loose('“Sea” is already a keyword here.'))).toHaveCount(0);
 });
 
 test('the demo provider is listed by what it is, not by its internal model id', async ({ page }) => {

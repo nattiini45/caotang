@@ -16,6 +16,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { pageFromTemplate, serializeComicPage } from '@caotang/comic';
 
 import {
   COMMAND_NAMES,
@@ -46,10 +47,10 @@ const specPath = resolve(__dirname, '../../../docs/architecture/command-bus.md')
 const descriptorsPath = resolve(__dirname, '../src/descriptors.ts');
 
 /**
- * Every name the registry holds beyond §9's table. **Empty:** §9 tabulates all 51 names in `COMMAND_NAMES`.
+ * Every name the registry holds beyond §9's table. **Empty:** §9 tabulates all 74 names in `COMMAND_NAMES`.
  * The arithmetic, stated once: 36 table rows name 38 commands (the view row names three), and four more rows
  * (`shot.importImage`, and the script imports `screenplay.import`, `dialogue.importInk`, `dialogue.setMeta`)
- * make 40 rows, and the four skill rows (`skill.import`, `skill.write`, `skill.delete`, `skill.setEnabled`) make 44 rows, and the three knowledge rows (`coherence.addKnowledgeFact`, `coherence.editKnowledgeFact`, `coherence.removeKnowledgeFact`), and the writer's resource read (`mcp.readResource`) and the batch form of the shot image import (`shot.importImages`) make 49 rows and **51 names**. A name added to `COMMAND_NAMES` must get its §9 row in the same change. The stale check below
+ * make 40 rows, and the four skill rows (`skill.import`, `skill.write`, `skill.delete`, `skill.setEnabled`) make 44 rows, and the three knowledge rows (`coherence.addKnowledgeFact`, `coherence.editKnowledgeFact`, `coherence.removeKnowledgeFact`), and the writer's resource read (`mcp.readResource`) and the batch form of the shot image import (`shot.importImages`) make 49 rows, and the timeline batch (`timeline.apply`) and calendar setting (`project.setCalendar`) make 51 rows, and the eight picture rows (`asset.import`, `asset.importBatch`, `asset.setMeta`, `asset.setLinkMeta`, `asset.link`, `asset.unlink`, `asset.reorderLinks`, `asset.delete`) make 59 rows, and the four storage-management and anchor rows (`asset.repin`, `asset.relink`, `asset.sweep`, `asset.storeWorkingCopies`) make 63 rows, and the seven comic rows (`comic.createBook`, `comic.setBook`, `comic.setPage`, `comic.setScript`, `comic.scriptFromPages`, `comic.derive`, `comic.letter`) make 70 rows and 72 names, and the reviewed transcription batch (`asset.transcribe`) makes 71 rows and 73 names, and the document-level compound (`asset.makeDocumentLevel`) makes 72 rows and **74 names**. A name added to `COMMAND_NAMES` must get its §9 row in the same change. The stale check below
  * stays: a name listed here that §9 also tabulates fails it.
  */
 const UNTABULATED_NAMES: readonly string[] = [];
@@ -147,15 +148,18 @@ function specParamKeys(cell: string): string[] | undefined {
   }
   parts.push(current);
 
-  return parts.map((part) =>
-    part
-      .trim()
-      // `entries: CodexUpsert[]` → `entries`; the annotation after the colon is
-      // the type, which this guard does not compare.
-      .split(':')[0]!.trim()
-      .replace(/\?$/, '')
-      .replace(/\[\]$/, ''),
-  );
+  return parts
+    .map((part) =>
+      part
+        .trim()
+        // `entries: CodexUpsert[]` → `entries`; the annotation after the colon is
+        // the type, which this guard does not compare.
+        .split(':')[0]!.trim()
+        .replace(/\?$/, '')
+        .replace(/\[\]$/, ''),
+    )
+    // `{}` is a command that takes no params (`asset.sweep`): an empty cell, not a key named "".
+    .filter((key) => key !== '');
 }
 
 /**
@@ -221,6 +225,20 @@ const FILTER_ID = 'q_7K2QX9M4A1';
 const GOAL_ID = 'g_7K2QX9M4A1';
 /** A dialogue container, for `dialogue.setMeta`, whose validate refuses any other node. */
 const DIALOGUE_ID = 'n_7J4VQ9XK2D';
+/** Two pictures placed on the landing and a third nothing uses, for the `asset.*` rows (`PICTURE_STATE` below). */
+const PICTURE_ID = 'a_7K2QX9M4A1';
+const SECOND_PICTURE_ID = 'a_3W8RN2TQ6C';
+const UNUSED_PICTURE_ID = 'a_5T4RW9KZB2';
+const LINK_ONE = 'l_7K2QX9M4A1';
+const LINK_TWO = 'l_3W8RN2TQ6C';
+/** A placement anchored to a paragraph of THE_LANDING (`asset.repin`'s own shape, pictures.md §2.3). */
+const LINK_PARAGRAPH = 'l_5T4RW9KZB2';
+/** A comic book, one page of it and a comic script, for the `comic.*` rows (`COMIC_STATE` below). */
+const COMIC_BOOK_ID = 'n_5C9WQ2KX7B';
+const COMIC_PAGE_ID = 'n_8H3MZ4TR6P';
+const COMIC_SCRIPT_ID = 'n_2V6JD9QK4F';
+const COMIC_SCRIPT_TWO_ID = 'n_9X4TM7RB3G';
+const COMIC_PAGE_VALUE = serializeComicPage(pageFromTemplate({ size: 'us-comic' }));
 
 /**
  * A row's own values, merged over `PARAM_SAMPLE`. Every key here is one §9 declares for that row, and the inverse
@@ -289,6 +307,54 @@ const ROW_SAMPLE: Partial<Record<CommandName, Record<string, unknown>>> = {
   'skill.write': { name: 'close-third', path: 'references/voice.md', text: 'Stay close to the narrator.' },
   'skill.delete': { name: 'close-third' },
   'skill.setEnabled': { name: 'close-third', enabled: false },
+  // The timeline batch: one meta op against the coherence file COHERENCE_STATE holds (timeline.md §4.3).
+  'timeline.apply': {
+    ops: [{ op: 'meta', nodeId: THE_LANDING, patch: { dayOffset: -3 }, expect: { dayOffset: null } }],
+    label: 'Move the landing before the opening',
+  },
+  'project.setCalendar': { calendar: { version: 1, id: 'reckoning', name: 'Reckoning' }, lens: 'calendar' },
+  // The eight picture rows (pictures.md §2.4). The records, placements and node they name are in PICTURE_STATE.
+  'asset.import': {
+    stagingId: 'stg_ABCDEF0123',
+    links: [{ kind: 'node', nodeId: THE_LANDING }],
+    caption: 'The lighthouse at dusk',
+    alt: 'A white tower on a dark headland',
+    source: { kind: 'import' },
+    largePhotos: 'keep-originals',
+  },
+  'asset.importBatch': {
+    items: [{ stagingId: 'stg_ABCDEF0123', links: [{ kind: 'node', nodeId: THE_LANDING }], caption: 'The lighthouse at dusk' }],
+    largePhotos: 'working-copies',
+  },
+  'asset.setMeta': { assetId: PICTURE_ID, patch: { caption: 'The harbour' }, expect: { caption: null } },
+  'asset.transcribe': {
+    into: 'new-document',
+    title: 'Transcribed pages',
+    pages: [{ assetId: PICTURE_ID, text: 'The harbour at dawn', model: 'mock-vision', expect: null }],
+  },
+  'asset.setLinkMeta': { linkId: LINK_ONE, patch: { note: 'Use for the arrival scene' }, expect: { note: null } },
+  'asset.link': { assetId: PICTURE_ID, target: { kind: 'node', nodeId: CHAPTER_TWO }, role: 'reference', note: 'Mood board' },
+  'asset.unlink': { linkId: LINK_ONE },
+  'asset.makeDocumentLevel': { linkId: LINK_PARAGRAPH },
+  'asset.repin': { linkId: LINK_PARAGRAPH, selection: { from: 0, to: 4 } },
+  'asset.reorderLinks': { target: { kind: 'node', nodeId: THE_LANDING }, orderedIds: [LINK_TWO, LINK_ONE] },
+  'asset.delete': { assetId: UNUSED_PICTURE_ID },
+  // The storage-management three (pictures.md §6.3, §6.4 step 3, §6.6.1). The sweep takes no params at all.
+  'asset.relink': { pairs: [{ assetId: PICTURE_ID, file: 'a_ZZZZZZZZZZ.png' }] },
+  'asset.storeWorkingCopies': { assetIds: [UNUSED_PICTURE_ID] },
+  'asset.sweep': {},
+  // The five comic rows (comics.md §3.2). The book, its page and the script they name are in COMIC_STATE and COMIC_LINKED_STATE.
+  'comic.createBook': { parentId: CHAPTER_ONE, title: 'Issue One', settings: { readingDirection: 'rtl' }, pages: 2 },
+  'comic.setBook': {
+    nodeId: COMIC_BOOK_ID,
+    stored: { readingDirection: 'rtl', letteringFace: 'comic-neue', capsTransform: true, esszett: false, pageSize: 'us-comic' },
+    expect: { readingDirection: 'ltr' },
+  },
+  'comic.setPage': { nodeId: COMIC_PAGE_ID, stored: { size: 'a4', panels: [] }, expect: COMIC_PAGE_VALUE },
+  'comic.setScript': { nodeId: COMIC_BOOK_ID, scriptDocId: COMIC_SCRIPT_TWO_ID, expect: COMIC_SCRIPT_ID },
+  'comic.scriptFromPages': { nodeId: COMIC_BOOK_ID, expectedRevision: REVISION },
+  'comic.derive': { nodeId: COMIC_BOOK_ID, doc: COMIC_SCRIPT_ID, expectedRevision: REVISION, expect: [COMIC_PAGE_VALUE] },
+  'comic.letter': { nodeId: COMIC_PAGE_ID, doc: COMIC_SCRIPT_ID, expectedRevision: REVISION, expect: COMIC_PAGE_VALUE, panel: 1, line: 1 },
 };
 
 /**
@@ -315,7 +381,73 @@ const DIALOGUE_STATE = makeSnapshot({
   extraNodes: [{ id: DIALOGUE_ID, parentId: CHAPTER_ONE, type: 'dialogue', title: 'The Harbour' }],
 });
 const SKILL_STATE = makeSnapshot({ skills: { 'close-third': [{ path: 'SKILL.md', length: 120 }] } });
+const pictureRecord = (id: string): NonNullable<ValidationSnapshot['manifest']['assets']>[number] => ({
+  id,
+  file: `${id}.png`,
+  mime: 'image/png',
+  sha256: id.slice(2).toLowerCase().padEnd(64, '0'),
+  bytes: 1024,
+  createdAt: '2026-05-01T09:00:00.000Z',
+});
+const PICTURE_STATE = makeSnapshot({
+  assets: [pictureRecord(PICTURE_ID), pictureRecord(SECOND_PICTURE_ID), pictureRecord(UNUSED_PICTURE_ID)],
+  assetLinks: [
+    { id: LINK_ONE, assetId: PICTURE_ID, target: { kind: 'node', nodeId: THE_LANDING }, role: 'reference', order: 10 },
+    { id: LINK_TWO, assetId: SECOND_PICTURE_ID, target: { kind: 'node', nodeId: THE_LANDING }, role: 'reference', order: 20 },
+    {
+      id: LINK_PARAGRAPH,
+      assetId: PICTURE_ID,
+      target: {
+        kind: 'paragraph',
+        nodeId: THE_LANDING,
+        anchor: { from: 0, to: 4, exact: 'The ', prefix: '', suffix: 'ferry', capturedRevision: 1, blockHash: 'ab12cd34ef568890', ordinal: 0 },
+        orphaned: true,
+      },
+      role: 'reference',
+      order: 30,
+    },
+  ],
+});
+const comicScript = (id: string) => ({ id, parentId: COMIC_BOOK_ID, type: 'document', kind: 'comic-script', title: id }) as const;
+const comicPage = { id: COMIC_PAGE_ID, parentId: COMIC_BOOK_ID, type: 'comic-page', title: 'Page 1', comicPage: COMIC_PAGE_VALUE } as const;
+const COMIC_STATE = makeSnapshot({
+  extraNodes: [
+    { id: COMIC_BOOK_ID, parentId: CHAPTER_ONE, type: 'folder', kind: 'comic', title: 'Issue One', comic: { readingDirection: 'ltr' } },
+    comicPage,
+  ],
+});
+/** The same book with its script linked and a second script to relink to: the state `comic.setScript` and `comic.scriptFromPages` read. */
+const COMIC_LINKED_STATE = makeSnapshot({
+  extraNodes: [
+    { id: COMIC_BOOK_ID, parentId: CHAPTER_ONE, type: 'folder', kind: 'comic', title: 'Issue One', comic: { scriptDocId: COMIC_SCRIPT_ID } },
+    comicPage,
+    comicScript(COMIC_SCRIPT_ID),
+    comicScript(COMIC_SCRIPT_TWO_ID),
+  ],
+  bodies: {
+    [THE_LANDING]: 'x',
+    [COMIC_SCRIPT_ID]: 'PAGE 1 (6 panels)\n\nPANEL 1\n\n1. ELENA VOSS: The ferry is late.\n',
+    [COMIC_SCRIPT_TWO_ID]: 'PAGE 1\n',
+  },
+});
 const ROW_STATE: Partial<Record<CommandName, ValidationSnapshot>> = {
+  'comic.setBook': COMIC_STATE,
+  'comic.setPage': COMIC_STATE,
+  'comic.setScript': COMIC_LINKED_STATE,
+  'comic.scriptFromPages': COMIC_LINKED_STATE,
+  'comic.derive': COMIC_LINKED_STATE,
+  'comic.letter': COMIC_LINKED_STATE,
+  'asset.setMeta': PICTURE_STATE,
+  'asset.transcribe': PICTURE_STATE,
+  'asset.setLinkMeta': PICTURE_STATE,
+  'asset.link': PICTURE_STATE,
+  'asset.repin': PICTURE_STATE,
+  'asset.makeDocumentLevel': PICTURE_STATE,
+  'asset.relink': PICTURE_STATE,
+  'asset.storeWorkingCopies': PICTURE_STATE,
+  'asset.unlink': PICTURE_STATE,
+  'asset.reorderLinks': PICTURE_STATE,
+  'asset.delete': PICTURE_STATE,
   'skill.write': SKILL_STATE,
   'skill.delete': SKILL_STATE,
   'skill.setEnabled': SKILL_STATE,
@@ -325,6 +457,7 @@ const ROW_STATE: Partial<Record<CommandName, ValidationSnapshot>> = {
   'coherence.addKnowledgeFact': COHERENCE_STATE,
   'coherence.editKnowledgeFact': COHERENCE_STATE,
   'coherence.removeKnowledgeFact': COHERENCE_STATE,
+  'timeline.apply': COHERENCE_STATE,
   'shot.create': STORYBOARD_STATE,
   'shot.setMeta': STORYBOARD_STATE,
   'dialogue.setMeta': DIALOGUE_STATE,
@@ -347,12 +480,12 @@ function snapshotFor(name: CommandName): ValidationSnapshot {
 describe('§9 the closed v0.1 registry', () => {
   const specRows = readSpecRegistry();
 
-  it('parses all 51 command names out of §9 — so a broken parse fails, not passes', () => {
-    // 51: the 38 names of the first 36 rows, and the thirteen rows after them. The count is a
+  it('parses all 74 command names out of §9 — so a broken parse fails, not passes', () => {
+    // 74: the 38 names of the first 36 rows, and the thirty-six rows after them. The count is a
     // claim about the parse, not about the registry — if §9's table loses a row this fails, which is the whole point of asserting
     // it separately.
-    expect(specRows).toHaveLength(51);
-    expect(new Set(specRows.map((r) => r.name)).size).toBe(51);
+    expect(specRows).toHaveLength(74);
+    expect(new Set(specRows.map((r) => r.name)).size).toBe(74);
   });
 
   it('registers exactly the names §9 tabulates, in §9 order, plus the stated exceptions', () => {
@@ -362,8 +495,8 @@ describe('§9 the closed v0.1 registry', () => {
 
   it('holds the exceptions to exactly the names §9 does not tabulate, which is none', () => {
     const tabulated = new Set(specRows.map((r) => r.name));
-    // The arithmetic, stated once: 51 names in COMMAND_NAMES, all of them tabulated, so the exception list is empty.
-    expect(COMMAND_NAMES, '51 names: every one tabulated in §9').toHaveLength(51);
+    // The arithmetic, stated once: 74 names in COMMAND_NAMES, all of them tabulated, so the exception list is empty.
+    expect(COMMAND_NAMES, '74 names: every one tabulated in §9').toHaveLength(74);
     expect(specRows.length + UNTABULATED_NAMES.length).toBe(COMMAND_NAMES.length);
     for (const name of UNTABULATED_NAMES) {
       // A stale exception is a red test, not a silent allowance: once §9 lists the
@@ -387,12 +520,12 @@ describe('§9 the closed v0.1 registry', () => {
     }
   });
 
-  it('marks the five view commands as ephemeral, and the other forty-four as project state, the two external names apart', () => {
+  it('marks the five view commands as ephemeral, and the other sixty-seven as project state, the two external names apart', () => {
     // §9's view rows say these commands are never persisted and carry no undo, which is `mutates: 'view'` and
     // `undo: 'none'`. The five view commands are the three original ones and the two binder/corkboard names, ephemeral
     // UI state by the same definition. `mutates: 'none'` is the v0.2 `mcp.invoke` row's (extensibility §6: externals
     // are not project state), so it is held apart, and so is `mcp.readResource`, which reads a resource and changes nothing. The
-    // arithmetic is asserted, not implied: 51 names are 5 view + 2 external + 44 project mutations.
+    // arithmetic is asserted, not implied: 74 names are 5 view + 2 external + 67 project mutations.
     const view = [
       'view.setSelection',
       'view.setActiveDoc',
@@ -412,7 +545,7 @@ describe('§9 the closed v0.1 registry', () => {
     const project = COMMAND_NAMES.filter(
       (name) => !(view as readonly string[]).includes(name) && name !== 'mcp.invoke' && name !== 'mcp.readResource',
     );
-    expect(project, 'the project names: 51 less five view names and the two external names').toHaveLength(44);
+    expect(project, 'the project names: 74 less five view names and the two external names').toHaveLength(67);
     for (const name of project) {
       expect(COMMAND_REGISTRY[name].descriptor.mutates, `${name} mutates`).toBe('project');
     }
@@ -477,7 +610,7 @@ describe("§9's Params column against the code's accepted keys", () => {
   const withKeys = specRows.filter((r) => specParamKeys(r.params) !== undefined);
   const exempt = specRows.filter((r) => specParamKeys(r.params) === undefined);
 
-  it('parses forty-seven key lists and three "various" rows — the parse cannot be vacuous', () => {
+  it('parses seventy-one key lists and three "various" rows — the parse cannot be vacuous', () => {
     // **The control, and it earns its place by having already been needed.**
     // `specParamKeys` reads `undefined` for any cell that is not a `{…}` literal.
     // §9 writes every real Params cell as a backtick code span, so a parser that
@@ -485,9 +618,9 @@ describe("§9's Params column against the code's accepted keys", () => {
     // the parity loop below iterates over nothing, and the suite stays green
     // while guarding nothing at all. That is precisely what the first draft of
     // this guard did during this build; the numbers here are what made it loud.
-    // 51 names less the view row's three, which are exempt, leave 48 with a literal (51 - 3 = 48).
-    expect(specRows).toHaveLength(51);
-    expect(withKeys).toHaveLength(48);
+    // 74 names less the view row's three, which are exempt, leave 71 with a literal (74 - 3 = 71).
+    expect(specRows).toHaveLength(74);
+    expect(withKeys).toHaveLength(71);
     expect(exempt.map((r) => r.name)).toEqual(['view.setSelection', 'view.setActiveDoc', 'view.setScroll']);
     // …and the exemption is earned by the word "various", not by a hardcoded name.
     for (const row of exempt) expect(row.params).toBe('various');
@@ -529,7 +662,7 @@ describe("§9's Params column against the code's accepted keys", () => {
     }
   });
 
-  it('emits exactly the keys §9 declares, for every one of the forty-seven rows', () => {
+  it('emits exactly the keys §9 declares, for every one of the seventy-one rows', () => {
     for (const row of withKeys) {
       const name = row.name as CommandName;
       const keys = specParamKeys(row.params)!;
@@ -618,11 +751,11 @@ describe("§9's Params column against the code's accepted keys", () => {
  *
  * ## What each assertion is for, because three of them can pass vacuously
  *
- * - **The exempt count.** `DECLARED_PARAMS` covers all 51 names, but §9 gives only
- *   48 a literal; the three `view.*` rows are declared here alone. If §9 ever stops
+ * - **The exempt count.** `DECLARED_PARAMS` covers all 74 names, but §9 gives only
+ *   71 a literal; the three `view.*` rows are declared here alone. If §9 ever stops
  *   saying "various", or a fourth row does, the counts disagree and it fails rather
  *   than silently widening what the spec constrains.
- * - **The per-name comparison.** Thirty-five names, compared **as sets** — §9's
+ * - **The per-name comparison.** Every name, compared **as sets** — §9's
  *   column is unordered prose and a diff on order would report rot that is not
  *   there.
  * - **The refusal itself, per name.** The table agreeing with §9 is a static
@@ -634,18 +767,24 @@ describe("§9's closed key set, and the refusal that enforces it", () => {
   const withKeys = specRows.filter((r) => specParamKeys(r.params) !== undefined);
   const exempt = specRows.filter((r) => specParamKeys(r.params) === undefined);
 
-  it('declares a key set for all 51 names — the closed set cannot have a hole', () => {
-    // 51 = every name §9 tabulates (see UNTABULATED_NAMES above, which is empty).
+  it('declares a key set for all 74 names — the closed set cannot have a hole', () => {
+    // 74 = every name §9 tabulates (see UNTABULATED_NAMES above, which is empty).
     expect(Object.keys(DECLARED_PARAMS).sort()).toEqual([...COMMAND_NAMES].sort());
     for (const name of COMMAND_NAMES) {
+      // `asset.sweep` is the one command that takes no params at all: its declared set is empty, and an empty set still refuses
+      // every key (the refusal test below proves it). An empty set here is a statement, not a hole.
+      if (name === 'asset.sweep') {
+        expect(DECLARED_PARAMS[name]).toEqual([]);
+        continue;
+      }
       expect(DECLARED_PARAMS[name].length, `${name} declares no keys`).toBeGreaterThan(0);
       // No duplicates: a repeated key would make the set smaller than it reads.
       expect(new Set(DECLARED_PARAMS[name]).size, `${name} repeats a key`).toBe(DECLARED_PARAMS[name].length);
     }
   });
 
-  it('declares exactly the keys §9 declares, for the forty-eight rows §9 spells out', () => {
-    expect(withKeys).toHaveLength(48);
+  it('declares exactly the keys §9 declares, for the seventy-one rows §9 spells out', () => {
+    expect(withKeys).toHaveLength(71);
     for (const row of withKeys) {
       const name = row.name as CommandName;
       // §9 names `kind` on binder.create (command-bus §9 was widened with the media track), so no key is exempt here.
@@ -666,7 +805,7 @@ describe("§9's closed key set, and the refusal that enforces it", () => {
     for (const name of VARIOUS_PARAM_NAMES) expect(DECLARED_PARAMS[name].length).toBeGreaterThan(0);
   });
 
-  it('refuses an undeclared key for every one of the 51 §9 names, naming the key', () => {
+  it('refuses an undeclared key for every one of the 74 §9 names, naming the key', () => {
     // **The behavioural half.** For each name: a payload built from §9's own
     // keys that validates, and the same payload plus one unknown key that does
     // not. A table nothing reads fails the second half only.
@@ -698,8 +837,9 @@ describe("§9's closed key set, and the refusal that enforces it", () => {
       if (refused.ok) continue;
       expect(refused.error.code, `${name} refusal code`).toBe('invalid-params');
       expect(refused.error.message, `${name} refusal names the key`).toContain('"__undeclared__"');
-      // §7: the corrective surface, not a bare code — the model needs the set.
-      expect(refused.error.correctiveHint, `${name} hint lists the accepted keys`).toContain(declared[0]!);
+      // §7: the corrective surface, not a bare code — the model needs the set. A command with no params says so instead.
+      if (declared.length === 0) expect(refused.error.correctiveHint, `${name} hint says it takes no params`).toContain('takes no params at all');
+      else expect(refused.error.correctiveHint, `${name} hint lists the accepted keys`).toContain(declared[0]!);
     }
   });
 
@@ -940,13 +1080,13 @@ describe('one lookup, and the half-built state', () => {
     }
   });
 
-  it('the unimplemented set is exactly the forty-six names that are not the view family', () => {
+  it('the unimplemented set is exactly the sixty-nine names that are not the view family', () => {
     // The control for the test above: the five view names are the only ones the bus's own registry gives an apply, so the
-    // refused set is exactly the other 46 (51 less five).
+    // refused set is exactly the other 69 (74 less five).
     const withApply = COMMAND_NAMES.filter((name) => COMMAND_REGISTRY[name].apply !== undefined);
     expect(withApply).toHaveLength(5);
     expect(new Set(withApply)).toEqual(new Set(VIEW_COMMAND_NAMES));
-    expect(COMMAND_NAMES.length - withApply.length, '51 names less the five view applies').toBe(46);
+    expect(COMMAND_NAMES.length - withApply.length, '74 names less the five view applies').toBe(69);
     expect(COMMAND_REGISTRY['export.compile'].apply).toBeUndefined();
   });
 

@@ -65,7 +65,8 @@ export const ELECTED_LICENSES = Object.freeze({
  * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans Mono CJK SC (OFL-1.1), in vendor/noto-sans-cjk,
  * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji, `@caotang/font-noto-arabic` is Noto Sans Arabic (OFL-1.1), in
  * vendor/noto-sans-arabic, `@caotang/font-noto-hebrew` is Noto Sans Hebrew (OFL-1.1), in vendor/noto-sans-hebrew, and
- * `@caotang/font-noto-devanagari` is Noto Sans Devanagari (OFL-1.1), in vendor/noto-sans-devanagari.
+ * `@caotang/font-noto-devanagari` is Noto Sans Devanagari (OFL-1.1), in vendor/noto-sans-devanagari. `@caotang/font-comic-lettering`
+ * is Comic Neue and Bangers (OFL-1.1, one licence file for each), in vendor/comic-lettering.
  */
 export const VENDORED_WORKSPACE_PACKAGES = Object.freeze([
   '@caotang/font-noto-cjk',
@@ -73,6 +74,7 @@ export const VENDORED_WORKSPACE_PACKAGES = Object.freeze([
   '@caotang/font-noto-arabic',
   '@caotang/font-noto-hebrew',
   '@caotang/font-noto-devanagari',
+  '@caotang/font-comic-lettering',
 ]);
 
 /** The label a notice taken from a README carries in place of a license file name. */
@@ -302,7 +304,8 @@ function fenceFor(text) {
 function normalizeText(text) {
   // A leading byte-order mark is not part of the license text. The code point is spelt in ASCII, so the source holds no invisible character.
   const bom = String.fromCharCode(0xfeff);
-  return (text.startsWith(bom) ? text.slice(1) : text).replace(/\r\n?/g, '\n');
+  // Line endings are normalized already; trailing horizontal whitespace is not license content and must not dirty diff checks.
+  return (text.startsWith(bom) ? text.slice(1) : text).replace(/\r\n?/g, '\n').replace(/[^\S\n]+(?=\n)/g, '');
 }
 
 function isRecord(value) {
