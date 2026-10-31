@@ -11,7 +11,8 @@ import { formatCount } from '../i18n/locale.js';
 export const PREVIEW_SCENE_CAP = 300;
 
 export type PreviewRow =
-  | { readonly kind: 'chapter'; readonly key: string; readonly title: string; readonly level: number; readonly number: number }
+  // `part` is a part heading (a folder that holds chapters): its `number` counts parts, and the list shows it by its title alone.
+  | { readonly kind: 'chapter'; readonly key: string; readonly title: string; readonly level: number; readonly number: number; readonly part: boolean }
   | { readonly kind: 'scene'; readonly key: string; readonly title: string; readonly number: number; readonly words: number }
   | { readonly kind: 'break'; readonly key: string };
 
@@ -42,7 +43,7 @@ export function draftListing(blocks: readonly FlatBlock[], cap: number = PREVIEW
         if (block.fmKind === 'titlepage') titlePage = true;
         return;
       case 'chapter':
-        rows.push({ kind: 'chapter', key: `c${index}`, title: block.title, level: block.level, number: block.number });
+        rows.push({ kind: 'chapter', key: `c${index}`, title: block.title, level: block.level, number: block.number, part: block.part === true });
         return;
       case 'scene':
         if (scenes >= cap) {

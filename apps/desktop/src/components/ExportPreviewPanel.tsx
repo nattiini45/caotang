@@ -162,8 +162,12 @@ function PreviewResult({ preview }: { preview: ExportPreview }): ReactNode {
                   switch (row.kind) {
                     case 'chapter':
                       return (
-                        <li key={row.key} className="export-preview-chapter" style={{ paddingInlineStart: `${Math.max(0, row.level - 1) * 14}px` }}>
-                          {row.number}. {row.title}
+                        <li
+                          key={row.key}
+                          className={row.part ? 'export-preview-chapter is-part' : 'export-preview-chapter'}
+                          style={{ paddingInlineStart: `${Math.max(0, row.level - 1) * 14}px` }}
+                        >
+                          {row.part ? row.title : `${row.number}. ${row.title}`}
                         </li>
                       );
                     case 'scene':

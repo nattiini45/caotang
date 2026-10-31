@@ -51,6 +51,19 @@ test('a Draft lists the title page, each chapter with its scenes and words, and 
   expect([listing.shownScenes, listing.totalScenes]).toEqual([3, 3]);
 });
 
+test('a Draft marks a part heading as a part, numbered among the parts, with its chapters one level down (#269)', () => {
+  const blocks: FlatBlock[] = [
+    { kind: 'chapter', title: 'Part One', level: 1, number: 1, part: true },
+    { kind: 'chapter', title: 'The Harbour', level: 2, number: 1 },
+    scene(1, 'Arrival', 'They came ashore.'),
+  ];
+  const rows = draftListing(blocks).rows.filter((row) => row.kind === 'chapter');
+  expect(rows.map((row) => row.kind === 'chapter' && [row.title, row.level, row.number, row.part])).toEqual([
+    ['Part One', 1, 1, true],
+    ['The Harbour', 2, 1, false],
+  ]);
+});
+
 test('a Draft with no title page block says so, and an empty one lists nothing', () => {
   expect(draftListing([scene(1, 'A', 'word')]).titlePage).toBe(false);
   const empty = draftListing([]);

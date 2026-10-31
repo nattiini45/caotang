@@ -24,7 +24,7 @@ Both are **read-only derived state + tiny config**: no goal ever mutates manuscr
 ```ts
 interface ProjectGoal {
   id: string;                    // "g_" + 10 chars Crockford base32 (same generator family)
-  nodeId: string;                // manuscript root or any folder (three-tier: folders/root only — a per-scene goal is noise; Ulysses allows sheets, we restrict to folder+ for v0.1, assumption A2)
+  nodeId: string;                // manuscript root or any folder, a part included (folders/root only — a per-scene goal is noise; Ulysses allows sheets, we restrict to folder+ for v0.1, assumption A2)
   metric: 'words' | 'chars';     // words, or characters counted as non-whitespace code points (§9.2); pages and reading time stay out (exporter-domain, §7)
   kind?: 'project' | 'weekly' | 'monthly';   // absent = project; weekly and monthly are session windows on the manuscript (§9.3)
   resetDay?: number | 'last';    // weekly: 0 (Sunday)–6 (Saturday); monthly: 1–28 or 'last'; absent = locale's first weekday / the 1st (§9.3)
@@ -99,7 +99,7 @@ goalProgress(goal: ProjectGoal, wordsOf(nodeId: string): number): {
 ## 7. Rejected alternatives
 
 - **Six Ulysses metrics in v0.1** — characters/sentences/paragraphs/pages/reading-time are cheap *conversions* but each adds surface (per-goal metric pickers, unit tests, UI labels) for marginal validated value; words is the writing-loop currency (sessions.jsonl counts words; targets read words). v0.2 menu = chars-first widening (§9); pages/reading-time stay exporter-domain.
-- **Per-scene goals** — Ulysses allows sheet-level goals; for Caotang's three-tier model a per-scene goal duplicates the inspector's synopsis/word-count row and clutters the §4 inspector. Folder+ only.
+- **Per-scene goals** — Ulysses allows sheet-level goals; for Caotang's binder a per-scene goal duplicates the inspector's synopsis/word-count row and clutters the §4 inspector. Folder+ only.
 - **Streaks / gamified history** — NaNoWriMo-style streak mechanics contradict the "no meter on your writing" posture the coherence module adopted (never background-shame); completion notification only.
 - **Agent-managed goals beyond `goal.save`** — no delete tool; goals are writer intent, and an agent "helpfully" lowering a deadline is the exact automation class the 0-to-1 rule exists for, so `goal.save` is the one reach, undoable.
 

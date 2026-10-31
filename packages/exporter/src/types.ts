@@ -125,9 +125,18 @@ export interface ExportRecipe {
  */
 export type FlatBlock =
   | { readonly kind: 'frontmatter'; readonly fmKind: 'titlepage' | 'copyright' | 'custom'; readonly docId?: string }
-  // `synopsis` is the section's `=` line (screenplay.md §2.2): present only when the folder has one. The parity test in
-  // test/flat-block-parity.test.ts pins this declaration to the screenplay engine's.
-  | { readonly kind: 'chapter'; readonly title: string; readonly level: number; readonly number: number; readonly synopsis?: string }
+  // `synopsis` is the section's `=` line (screenplay.md §2.2): present only when the folder has one. `part` marks a part heading, a
+  // folder that holds chapters (project-format §2): present only on a part, whose `number` then counts parts, not chapters. `level`
+  // is the folder's depth under the section, 1 at the top. The parity test in test/flat-block-parity.test.ts pins this declaration
+  // to the screenplay engine's.
+  | {
+      readonly kind: 'chapter';
+      readonly title: string;
+      readonly level: number;
+      readonly number: number;
+      readonly synopsis?: string;
+      readonly part?: true;
+    }
   // `style` is the scene's export style (exporter.md §2, Per-scene styling): present only when it is not `normal`, so an unstyled
   // scene has the same block it always had.
   | { readonly kind: 'scene'; readonly docId: string; readonly body: string; readonly title: string; readonly number: number; readonly style?: string }

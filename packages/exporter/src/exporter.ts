@@ -363,9 +363,9 @@ export function createExporter(options: ExporterOptions): ExporterService {
     const styleRows = options.sceneStyles ?? SCENE_STYLE_ROWS;
     const flat = flatten(state, request.selection, { titlePage, sceneStyles: styleRows });
     // EPUB always carries a contents document (nav.xhtml, §3a), so its flag is on
-    // whenever it has a chapter to list; the other formats follow the recipe.
-    const tocIncluded =
-      request.format === 'epub' ? flat.chapterCount > 0 : request.format !== 'txt' && wantToc && flat.chapterCount > 0;
+    // whenever it has a chapter or a part to list; the other formats follow the recipe.
+    const headings = flat.chapterCount + flat.partCount;
+    const tocIncluded = request.format === 'epub' ? headings > 0 : request.format !== 'txt' && wantToc && headings > 0;
 
     const notes: string[] = [...flat.notes];
     if (templateNote !== undefined) notes.push(templateNote);
