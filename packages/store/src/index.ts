@@ -210,6 +210,7 @@ export { emptyCoherenceState, type CoherenceFindingState, type CoherenceRunState
 export { checkWordsOf, dismissalLabelOf } from './coherence-words.js';
 
 export { countBody, WORD_RULE_VERSION, wordRuleInUse, type BodyCount } from './word-count.js';
+export { folderRole, isPartFolder, isStructuralFolder, partFolderIds } from './structure.js';
 
 export {
   createProjectCommandRegistry,

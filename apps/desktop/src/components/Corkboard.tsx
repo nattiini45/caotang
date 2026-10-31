@@ -12,6 +12,7 @@ import {
   childrenOf,
   dropRefusalText,
   isMovable,
+  isPart,
   planKeyboardMove,
   wordCountOf,
   type DropRefusal,
@@ -85,9 +86,10 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   const rovingId = cards.some((card) => card.id === focusId) ? focusId : (cards[0]?.id ?? null);
 
   // The manuscript's children are chapters (ui-modules §2.4), so a card made on the manuscript board is a chapter. A scene
-  // made there would sit directly under the manuscript, with no chapter for it to belong to.
+  // made there would sit directly under the manuscript, with no chapter for it to belong to. A part's board shows its chapters
+  // (project-format §2), so a card made there is a chapter too.
   const create = (): void => {
-    const outcome = createNode(session, scope.id, scope.id === 'manuscript' ? 'folder' : 'document');
+    const outcome = createNode(session, scope.id, scope.id === 'manuscript' || isPart(state, scope.id) ? 'folder' : 'document');
     const id = createdNodeId(outcome);
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });

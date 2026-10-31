@@ -1,6 +1,8 @@
 /**
  * The binder — ui-modules §2. A flat tree (ARIA `tree` with `aria-level` on each row)
- * over the three tiers: the two fixed sections, their folders, and their documents.
+ * over the two fixed sections, their folders and their documents. Folders nest: a part
+ * is a folder that holds chapters (Part → Chapter → Scene, project-format §2), and its
+ * row says "Part" in words, so the structure is read out as well as indented.
  *
  * Every change it makes is one dispatch (see `actions.ts`). What it owns is only what
  * the spec says it owns: the expansion overrides and selection (both bus view state),
@@ -16,7 +18,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
-import type { ProjectState, TreeNode } from '@caotang/store';
+import { isStructuralFolder, type ProjectState, type TreeNode } from '@caotang/store';
 
 import {
   SECTION_IDS,
@@ -413,8 +415,9 @@ export function Binder(props: BinderProps): ReactNode {
       if (node.id !== 'manuscript') {
         items.push({ key: 'new-document', label: 'New document here', onSelect: () => create(node.id, 'document') });
       }
-      // A folder sits directly in a section and never in another folder (ARCHITECTURE §2.2), so only a section offers one.
-      if (isSection) {
+      // Folders nest (project-format §2): a section takes a chapter or a part, a part takes a chapter, and a folder made inside a
+      // chapter turns that chapter into a part. A storyboard holds shots only, so it offers no folder.
+      if (isSection || isStructuralFolder(node)) {
         items.push({ key: 'new-folder', label: 'New folder here', onSelect: () => create(node.id, 'folder') });
       }
     }
@@ -506,7 +509,7 @@ export function Binder(props: BinderProps): ReactNode {
     return access === 'full' ? null : access;
   };
   const parentForNew = newItemParent(state, selected);
-  const sectionForNewFolder = newFolderParent(state, selected);
+  const parentForNewFolder = newFolderParent(state, selected);
   // Roving focus (ui-modules §2.5): one row is in the tab order, the selected one when it is showing, and
   // otherwise the first. Without that, a load with nothing selected leaves no row for Tab to reach.
   const tabStopId = rows.some((row) => row.node.id === selected) ? selected : (rows[0]?.node.id ?? null);
@@ -522,7 +525,7 @@ export function Binder(props: BinderProps): ReactNode {
         <button type="button" className="button" onClick={() => create(parentForNew, 'document')} aria-keyshortcuts="Control+N">
           New document
         </button>
-        <button type="button" className="button" onClick={() => create(sectionForNewFolder, 'folder')}>
+        <button type="button" className="button" onClick={() => create(parentForNewFolder, 'folder')}>
           New folder
         </button>
       </div>
@@ -736,6 +739,7 @@ function BinderRowView(props: RowViewProps): ReactNode {
       className={`row${selected ? ' is-selected' : ''}${dropClass}`}
       data-node-id={node.id}
       data-type={node.type}
+      data-role={row.role}
       style={{ paddingInlineStart: `${indent}px` }}
       onClick={props.onSelect}
       onDoubleClick={(event) => {
@@ -810,6 +814,8 @@ function BinderRowView(props: RowViewProps): ReactNode {
             <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {ACCESS_MARKERS[props.agentAccess]}
           </span>
         )}
+        {/* A part's role is in words, inside the row's name, so a screen reader hears "Part One, Part" and not only its level. */}
+        {row.role === 'part' ? <span className="row-role">Part</span> : null}
         {node.type === 'document' ? <span className="row-count">{wordsLabel(wordCountOf(state, node.id))}</span> : null}
         {container ? <span className="row-count">{itemsLabel(count)}</span> : null}
       </span>
