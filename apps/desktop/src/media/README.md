@@ -32,7 +32,9 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   file, and any other container writes the dialogue table. The locale fills each row's locale (the project's language when
   the container has none), and a container's own locale names its Ink story file (*Dialogue table and container settings*).
 - **Import a script, an Ink story or a Twee story.** The binder's *Import script* reads a `.fountain` or `.fdx` file: its sections become
-  folders, and its scenes become screenplay documents, in one undo step (`screenplay.import`). *Import Ink* reads a `.ink`
+  folders, and its scenes become screenplay documents, in one undo step (`screenplay.import`). A `.fdx` file is read with
+  `importFdx` first and `FdxImportDialog` lists its scenes, sections, script notes, dual-dialogue pairs and notices; nothing is
+  dispatched until **Import**. *Import Ink* reads a `.ink`
   file, and makes one branching container for each knot cluster, in one undo step (`dialogue.importInk`). Text above the
   first knot is not imported, and the status line says how many lines it was. The box *Add line ids to the imported containers (one time)* beside it starts unticked; when it is ticked, `mintImportIds` writes the ids into every planned body before the one dispatch, so one undo takes the containers and their ids together, and `autoLineIds` stays unset. The status line says how many ids were added and names a line that could not take one with its container and line. *Import Twee* (`.twee`, `.tw`) plans one container
   with `planTweeImport` and shows its report in `TweeImportDialog` before it writes: passages, choices, stripped macros,

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import { FDX_SAMPLE } from '../../screenplay/test/fixtures/corpus.js';
@@ -248,5 +249,25 @@ describe('the FDX importer can run on the shared reader', () => {
     }
     const read = paragraphs.map((p) => ({ type: attr(p, 'Type') ?? '', text: childElements(p, 'Text').map(textOf).join('') }));
     expect(read).toEqual(parseFdxParagraphs(FDX_SAMPLE).map((p) => ({ type: p.type, text: p.text })));
+  });
+
+  it('finds the same script paragraphs in a real Final Draft file with nested notes and wrapped dual dialogue (#264)', () => {
+    const source = readFileSync(new URL('../../screenplay/test/fixtures/fdx/TestFDX-FD.fdx', import.meta.url), 'utf8');
+    const doc = ok(source);
+    const content = firstChild(doc.root, 'Content') as XmlElement;
+    const paragraphs: XmlElement[] = [];
+    // Script paragraphs sit directly in Content, or in a DualDialogue that Final Draft wraps in a paragraph of its own.
+    for (const child of childElements(content, 'Paragraph')) {
+      const dual = firstChild(child, 'DualDialogue');
+      if (dual === undefined) paragraphs.push(child);
+      else paragraphs.push(...childElements(dual, 'Paragraph'));
+    }
+    const printed = (p: XmlElement): string =>
+      childElements(p, 'Text')
+        .filter((t) => !(attr(t, 'Style') ?? '').includes('HiddenText'))
+        .map(textOf)
+        .join('');
+    const read = paragraphs.map((p) => ({ type: attr(p, 'Type') ?? '', text: printed(p) }));
+    expect(read).toEqual(parseFdxParagraphs(source).map((p) => ({ type: p.type, text: p.text })));
   });
 });

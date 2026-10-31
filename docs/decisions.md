@@ -321,6 +321,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 ## Media track
 
 - A screenplay is a document kind stored as Fountain; sections map to folders and scenes to documents; Fountain and Final Draft import and export. Why: Fountain is the screenplay's Markdown. [delegated]
+- Final Draft import keeps what Fountain can hold rather than dropping it: a scene summary becomes the synopsis, script notes and hidden text become Fountain notes, bold, italic and underline become Fountain emphasis, and a wrapped dual-dialogue pair keeps `^`; only paragraphs directly in `Content` or a `DualDialogue` are script text, and the reader is a one-pass tree builder with no `DOMParser`, so it runs in Workers and Node in linear time. Why: the rule is to keep the most and stay the most compatible, and the old next-closing-tag pairing lost or replaced nested text (#264); the keep-the-most rule is the owner's. [delegated]
 - The Fountain round trip is byte-identical for canonical input; other input is canonicalised. Why: a stable, testable form. [delegated]
 - Branching dialogue is authored in Ink (`inkjs` for validation); engines consume compiled JSON; Caotang never builds a scripting language or a play mode in the first landing. Why: Ink already is the scripting layer. [delegated]
 - Line ids are the early contract for dialogue. Why: localisation and voice work depend on them. [delegated]
