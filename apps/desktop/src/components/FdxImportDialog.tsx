@@ -8,6 +8,7 @@
  * merges into an entry. **Import** writes the script and the ticked rows in one undo step; **Cancel** changes nothing.
  */
 
+import { scanImport } from '@caotang/harness';
 import { useState, type ReactNode } from 'react';
 
 import { describeFdxImport, type FdxCodexSeed, type FdxImportedScript } from '@caotang/screenplay';
@@ -24,6 +25,18 @@ const SOURCE_WORDS: Readonly<Record<FdxCodexSeed['sources'][number], string>> = 
 
 function seedKey(seed: FdxCodexSeed): string {
   return `${seed.type}:${seed.name.toLowerCase()}`;
+}
+
+/**
+ * Whether the import scan flags a row's name or description as reading like instructions to an AI. Such a row is added
+ * with the include policy `manual`, as `codex.importBatch` adds a flagged row, so it reaches a generation only in the
+ * documents it is attached to until the writer has read it.
+ */
+export function seedFlagged(seed: Pick<FdxCodexSeed, 'name' | 'description'>): boolean {
+  return scanImport([
+    { where: 'name', text: seed.name },
+    { where: 'description', text: seed.description },
+  ]).total > 0;
 }
 
 export function FdxImportDialog({
@@ -108,6 +121,7 @@ export function FdxImportDialog({
                   const key = seedKey(seed);
                   const collides = taken.has(seed.name.toLowerCase());
                   const from = seed.sources.map((source) => SOURCE_WORDS[source]).join(', ');
+                  const flagged = seedFlagged(seed);
                   return (
                     <li key={key}>
                       <label className="fdx-seed">
@@ -121,6 +135,7 @@ export function FdxImportDialog({
                           <strong>{seed.name}</strong> ({seed.type === 'character' ? 'character' : 'place'}, from {from})
                           {seed.description !== '' ? `: ${seed.description}` : ''}
                           {collides ? ' — already in the codex, left as it is' : ''}
+                          {!collides && flagged ? ' — reads like instructions to an AI, so it is added as Manual: sent only in the documents it is attached to' : ''}
                         </span>
                       </label>
                     </li>

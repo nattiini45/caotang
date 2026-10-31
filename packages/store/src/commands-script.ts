@@ -215,7 +215,7 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
           aliases: [],
           type: seed.type,
           description: seed.description ?? '',
-          includePolicy: 'detected',
+          includePolicy: seed.includePolicy ?? 'detected',
           caseSensitive: false,
           exclude: [],
           attachments: docId === undefined ? [] : [docId],

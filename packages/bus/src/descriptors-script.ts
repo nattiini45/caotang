@@ -13,6 +13,7 @@
  * the file before it lands. The settings change is write-auto, as `binder.setMeta` is.
  */
 
+import { CODEX_POLICIES } from './codex-enums.js';
 import type { CommandDescriptor, ValidationNode, ValidationSnapshot } from './command.js';
 import {
   invalid,
@@ -36,11 +37,16 @@ export const SCREENPLAY_IMPORT_FORMATS = ['fountain', 'fdx'] as const;
 /** The codex types an import seed may take: the characters and places a script file lists (issue #265). */
 export const SCREENPLAY_IMPORT_SEED_TYPES = ['character', 'location'] as const;
 
-/** One codex entry the writer ticked in the import dialog: a name the file lists, its type and an optional description. */
+/**
+ * One codex entry the writer ticked in the import dialog: a name the file lists, its type, an optional description and
+ * an optional include policy (absent is `detected`; the dialog passes `manual` for a row the import scan flags, as
+ * `codex.importBatch` does).
+ */
 export type ScreenplayImportSeed = {
   readonly name: string;
   readonly type: (typeof SCREENPLAY_IMPORT_SEED_TYPES)[number];
   readonly description?: string;
+  readonly includePolicy?: 'always' | 'detected' | 'manual' | 'never';
 };
 
 /** `screenplay.import`'s params, as the validator returns them. `parentId` is always resolved to an id. */
@@ -97,7 +103,7 @@ const SEED_NAME_MAX = 120;
 const SEED_DESCRIPTION_MAX = 2000;
 
 /** The keys a seed may carry. */
-const SEED_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'description']);
+const SEED_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'description', 'includePolicy']);
 
 /** The Ink containers one `dialogue.importInk` call may create. A story of this size is split across calls. */
 export const DIALOGUE_IMPORT_CONTAINERS_MAX = 200;
@@ -181,7 +187,7 @@ function importSeedsOf(value: unknown): Result<readonly ScreenplayImportSeed[] |
     const where = `codex[${index}]`;
     if (!isRecord(item)) return invalid(`params.${where} must be an object`, 'pass each row as { name, type }', where);
     const extra = Object.keys(item).find((key) => !SEED_KEYS.has(key));
-    if (extra !== undefined) return invalid(`params.${where} has an unknown key "${extra}"`, 'a row carries only name, type and description', `${where}.${extra}`);
+    if (extra !== undefined) return invalid(`params.${where} has an unknown key "${extra}"`, 'a row carries only name, type, description and includePolicy', `${where}.${extra}`);
     const name = requireNonBlankString(item, 'name', { maxChars: SEED_NAME_MAX, blankHint: 'give each codex row a name' });
     if (!name.ok) return { ok: false, error: { ...name.error, message: `${where}: ${name.error.message}`, target: `${where}.name` } };
     const type = item['type'];
@@ -196,10 +202,15 @@ function importSeedsOf(value: unknown): Result<readonly ScreenplayImportSeed[] |
         `${where}.description`,
       );
     }
+    const policy = item['includePolicy'];
+    if (policy !== undefined && !(typeof policy === 'string' && CODEX_POLICIES.includes(policy))) {
+      return invalid(`params.${where}.includePolicy must be one of ${CODEX_POLICIES.join(', ')}`, 'leave it out for detected', `${where}.includePolicy`);
+    }
     seeds.push({
       name: name.value.trim(),
       type: type as ScreenplayImportSeed['type'],
       ...(typeof description === 'string' && description.trim() !== '' ? { description: description.trim() } : {}),
+      ...(policy === undefined ? {} : { includePolicy: policy as NonNullable<ScreenplayImportSeed['includePolicy']> }),
     });
   }
   return ok(seeds.length === 0 ? undefined : seeds);

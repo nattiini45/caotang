@@ -33,6 +33,8 @@ import {
   type ProjectState,
   type TreeNode,
 } from '../src/index.js';
+import { CODEX_DESCRIPTION_MAX, CODEX_NAME_MAX, SCREENPLAY_IMPORT_SEEDS_MAX } from '@caotang/bus';
+import { FDX_SEED_DESCRIPTION_MAX, FDX_SEED_NAME_MAX, FDX_SEEDS_MAX } from '@caotang/screenplay';
 import { IMPORTED_DIALOGUE_CHAPTER, IMPORTED_SCENES_CHAPTER } from '../src/commands-script.js';
 
 const OPENED = new Date('2026-10-02T15:00:00.000Z');
@@ -324,6 +326,29 @@ describe('screenplay.import', () => {
     expect(outcome.result).toMatchObject({ codexEntries: 3, labels: 2 });
     undoGroup(h, outcome);
     expect(fullSnapshot(h.state)).toBe(before);
+  });
+
+  it('adds a row with the include policy it carries (a flagged row is manual), detected without one', () => {
+    const h = harness();
+    succeed(h, 'screenplay.import', {
+      format: 'fdx',
+      text: OUTLINED,
+      parentId: CHAPTER,
+      codex: [
+        { name: 'ANNA', type: 'character', includePolicy: 'manual' },
+        { name: 'LIBRARY', type: 'location' },
+      ],
+    });
+    const codex = h.state.manifest.codex ?? [];
+    expect(codex.find((entry) => entry.name === 'ANNA')?.includePolicy).toBe('manual');
+    expect(codex.find((entry) => entry.name === 'LIBRARY')?.includePolicy).toBe('detected');
+  });
+
+  // The FDX reader offers only rows the command accepts: its limits are the bus's (pawcommit-review F1 on #321).
+  it('offers seeds within the limits screenplay.import checks', () => {
+    expect(FDX_SEEDS_MAX).toBe(SCREENPLAY_IMPORT_SEEDS_MAX);
+    expect(FDX_SEED_NAME_MAX).toBe(CODEX_NAME_MAX);
+    expect(FDX_SEED_DESCRIPTION_MAX).toBe(CODEX_DESCRIPTION_MAX);
   });
 
   it('leaves a project with no codex without one after the undo', () => {

@@ -21,7 +21,7 @@ import { readXmlFileText } from '../app/xml-file.js';
 import type { ProjectSession } from '../app/session.js';
 import { importLineIdsSentence } from '../media/ink-model.js';
 import { useReport, useSession } from './shared.js';
-import { FdxImportDialog } from './FdxImportDialog.js';
+import { FdxImportDialog, seedFlagged } from './FdxImportDialog.js';
 import { TweeImportDialog } from './TweeImportDialog.js';
 
 /** What `screenplay.import` hands back (screenplay.md §2.2): the counts it made, and the notices it raised. */
@@ -62,7 +62,13 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     seeds: readonly FdxCodexSeed[] = [],
   ): void => {
     // The ticked codex rows ride on the one dispatch, so one undo takes the script and its codex entries together.
-    const codex = seeds.map((seed) => ({ name: seed.name, type: seed.type, ...(seed.description === '' ? {} : { description: seed.description }) }));
+    // A row the import scan flags is added as `manual`, as codex.importBatch adds one (issue #54).
+    const codex = seeds.map((seed) => ({
+      name: seed.name,
+      type: seed.type,
+      ...(seed.description === '' ? {} : { description: seed.description }),
+      ...(seedFlagged(seed) ? { includePolicy: 'manual' as const } : {}),
+    }));
     const outcome = session.dispatch('screenplay.import', codex.length === 0 ? { format, text } : { format, text, codex });
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });

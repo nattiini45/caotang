@@ -24,11 +24,13 @@
 import { printedText, sceneNumberOf, stripSceneNumber } from './classify.js';
 import {
   arcBeatsWithText,
+  castListLineTooLong,
   collectSeeds,
   fdxColour,
   isBlankSceneColour,
   productionData,
   productionNotices,
+  FDX_SEED_DESCRIPTION_MAX,
   FDX_SEEDS_MAX,
   type FdxCodexSeed,
   type FdxProductionData,
@@ -107,6 +109,10 @@ export interface FdxImportReport {
   readonly lyrics: number;
   /** `Cast List` paragraphs taken out of the script and offered as codex seeds. */
   readonly castListLines: number;
+  /** Cast List lines whose description is longer than a codex description may be, kept whole in the script as notes. */
+  readonly castListNotes: number;
+  /** Codex seeds offered with their description cut to fit (the whole text stays in the script, see `castListNotes`). */
+  readonly cutSeedDescriptions: number;
   /** Seed names left out: longer than the codex allows, or past the most one import offers. */
   readonly skippedSeeds: number;
   /** The production data the file holds and the import does not keep, counted per kind. */
@@ -524,6 +530,8 @@ interface Counts {
   lyrics: number;
   /** The text of each `Cast List` paragraph, in order: offered as codex seeds, never written into a scene. */
   castList: string[];
+  /** Cast List paragraphs too long for a codex description, kept in the script as notes as well. */
+  castListNotes: number;
 }
 
 function newCounts(): Counts {
@@ -540,6 +548,7 @@ function newCounts(): Counts {
     actEnds: 0,
     lyrics: 0,
     castList: [],
+    castListNotes: 0,
   };
 }
 
@@ -706,7 +715,13 @@ function fdxElements(paragraphs: readonly FdxParagraph[], notices: string[], cou
       continue;
     }
     if (p.type === 'Cast List') {
-      counts.castList.push(oneLine(p.text));
+      const line = oneLine(p.text);
+      counts.castList.push(line);
+      // A description too long for the codex is offered cut, so the line stays in the script, whole, as a note.
+      if (castListLineTooLong(line)) {
+        counts.castListNotes += 1;
+        push({ type: 'note', text: noteMarkup(`Cast List: ${line}`).slice(2, -2) });
+      }
       notesAfter(markupOf(p.segments, false, false, counts).apart);
       continue;
     }
@@ -828,7 +843,7 @@ export function importFdx(xml: string): FdxImportedScript {
       ...(heading === undefined || heading.sceneColour === null ? {} : { colour: heading.sceneColour }),
     };
   });
-  const { seeds, skipped } = collectSeeds(root, counts.castList);
+  const { seeds, skipped, cut } = collectSeeds(root, counts.castList);
   const production = productionData(root, document.revisions, document.taggedRuns, document.arcBeats);
   const cues = new Map<number, number>();
   for (const p of paragraphs) {
@@ -852,6 +867,8 @@ export function importFdx(xml: string): FdxImportedScript {
     actEnds: counts.actEnds,
     lyrics: counts.lyrics,
     castListLines: counts.castList.length,
+    castListNotes: counts.castListNotes,
+    cutSeedDescriptions: cut,
     skippedSeeds: skipped,
     production,
   };
@@ -872,6 +889,12 @@ export function importFdx(xml: string): FdxImportedScript {
   }
   if (report.lyrics > 0) notices.push(`${plural(report.lyrics, 'Lyrics paragraph was', 'Lyrics paragraphs were')} kept as action: Caotang's Fountain has no lyrics element.`);
   if (report.skippedSeeds > 0) notices.push(`${plural(report.skippedSeeds, 'cast or location name was', 'cast or location names were')} not offered for the codex: longer than a codex name may be, or past the ${FDX_SEEDS_MAX} one import offers.`);
+  if (report.castListNotes > 0) {
+    const rows = report.cutSeedDescriptions > 0 ? `; ${plural(report.cutSeedDescriptions, 'codex row offers its', 'codex rows offer their')} description cut at a word boundary` : '';
+    notices.push(
+      `${plural(report.castListNotes, 'Cast List line has', 'Cast List lines have')} a description longer than a codex description may be (${FDX_SEED_DESCRIPTION_MAX} characters), so the whole line is kept in the script as a note ([[Cast List: …]])${rows}.`,
+    );
+  }
   notices.push(...productionNotices(production));
   return { titlePage: titlePageEntries(root) ?? script.titlePage, nodes, notices: [...notices, ...script.notices], report, seeds };
 }
@@ -898,7 +921,10 @@ export function describeFdxImport(script: FdxImportedScript): string[] {
   if (report.actEnds > 0) lines.push(`${plural(report.actEnds, 'End of Act line', 'End of Act lines')} kept as centred text.`);
   if (report.sceneTitles > 0) lines.push(`${plural(report.sceneTitles, 'scene title', 'scene titles')} used as binder ${report.sceneTitles === 1 ? 'title' : 'titles'}; the headings stay in the script.`);
   if (report.sceneColours > 0) lines.push(`${plural(report.sceneColours, 'scene colour', 'scene colours')} kept as binder labels (a label of the nearest colour, or a new one).`);
-  if (report.castListLines > 0) lines.push(`${plural(report.castListLines, 'Cast List line', 'Cast List lines')} taken out of the script and offered for the codex.`);
+  if (report.castListLines > 0) {
+    const kept = report.castListNotes > 0 ? ` (${report.castListNotes} too long for a codex description also kept in the script as ${report.castListNotes === 1 ? 'a note' : 'notes'})` : '';
+    lines.push(`${plural(report.castListLines, 'Cast List line', 'Cast List lines')} taken out of the script and offered for the codex${kept}.`);
+  }
   return lines;
 }
 

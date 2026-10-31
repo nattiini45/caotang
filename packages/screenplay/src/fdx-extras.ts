@@ -105,6 +105,9 @@ export interface FdxCodexSeed {
 /** The longest name a seed may have: the codex's own limit (`CODEX_NAME_MAX` in the bus). */
 export const FDX_SEED_NAME_MAX = 120;
 
+/** The longest description a seed may have: the codex's own limit (`CODEX_DESCRIPTION_MAX` in the bus). */
+export const FDX_SEED_DESCRIPTION_MAX = 2000;
+
 /** The most seeds one import offers. A cast past this is offered in part, with a notice. */
 export const FDX_SEEDS_MAX = 500;
 
@@ -139,14 +142,37 @@ export function castListLine(text: string): { readonly name: string; readonly de
 }
 
 /**
+ * A seed description within `FDX_SEED_DESCRIPTION_MAX`: whole when it fits; else cut at the last paragraph break that
+ * fits, else at the last space, else at the limit, and ended with `…` (counted within the limit) so the cut shows.
+ */
+export function fitSeedDescription(text: string): { readonly value: string; readonly cut: boolean } {
+  const chars = [...text];
+  if (chars.length <= FDX_SEED_DESCRIPTION_MAX) return { value: text, cut: false };
+  const head = chars.slice(0, FDX_SEED_DESCRIPTION_MAX - 1).join('');
+  const paragraph = head.lastIndexOf('\n\n');
+  const space = head.search(/\s\S*$/);
+  const at = paragraph > 0 ? paragraph : space > 0 ? space : head.length;
+  return { value: `${head.slice(0, at).trimEnd()}…`, cut: true };
+}
+
+/** A Cast List line whose description is longer than a codex description may be: the script keeps its whole text. */
+export function castListLineTooLong(text: string): boolean {
+  return [...castListLine(text).description].length > FDX_SEED_DESCRIPTION_MAX;
+}
+
+/**
  * The codex seeds of a document, in the order Final Draft lists them: SmartType characters, the cast, the character
  * highlighting, Cast List paragraphs, then SmartType locations. A name is offered once per type, whatever case it is
  * written in; the sources say where it was seen. `castList` is the text of the Cast List paragraphs, in order.
+ * A description longer than a codex description may be is cut to fit (`fitSeedDescription`) and counted in `cut`; the
+ * import keeps such a Cast List line whole in the script as a note (`castListLineTooLong`), so nothing is lost.
  */
-export function collectSeeds(root: XmlElement, castList: readonly string[]): { seeds: FdxCodexSeed[]; skipped: number } {
+export function collectSeeds(root: XmlElement, castList: readonly string[]): { seeds: FdxCodexSeed[]; skipped: number; cut: number } {
   const byKey = new Map<string, { name: string; type: 'character' | 'location'; description: string; sources: FdxSeedSource[] }>();
   let skipped = 0;
-  const add = (raw: string, type: 'character' | 'location', source: FdxSeedSource, description = ''): void => {
+  /** The seeds whose description was cut to fit. */
+  const cutKeys = new Set<string>();
+  const add = (raw: string, type: 'character' | 'location', source: FdxSeedSource, rawDescription = ''): void => {
     const name = raw.replace(/\s+/g, ' ').trim();
     if (name === '') return;
     if ([...name].length > FDX_SEED_NAME_MAX) {
@@ -154,13 +180,19 @@ export function collectSeeds(root: XmlElement, castList: readonly string[]): { s
       return;
     }
     const key = `${type}:${name.toLowerCase()}`;
+    const fitted = fitSeedDescription(rawDescription);
+    const description = fitted.value;
     const seen = byKey.get(key);
     if (seen !== undefined) {
       if (!seen.sources.includes(source)) seen.sources.push(source);
-      if (seen.description === '' && description !== '') seen.description = description;
+      if (seen.description === '' && description !== '') {
+        seen.description = description;
+        if (fitted.cut) cutKeys.add(key);
+      }
       return;
     }
     byKey.set(key, { name, type, description, sources: [source] });
+    if (fitted.cut) cutKeys.add(key);
   };
   for (const smart of topLevel(root, 'SmartType')) {
     for (const list of childElements(smart, 'Characters')) for (const c of childElements(list, 'Character')) add(ownText(c), 'character', 'smarttype');
@@ -176,9 +208,11 @@ export function collectSeeds(root: XmlElement, castList: readonly string[]): { s
   for (const smart of topLevel(root, 'SmartType')) {
     for (const list of childElements(smart, 'Locations')) for (const l of childElements(list, 'Location')) add(ownText(l), 'location', 'smarttype');
   }
-  const all = [...byKey.values()];
-  const seeds = all.slice(0, FDX_SEEDS_MAX).map((s): FdxCodexSeed => ({ ...s, sources: [...s.sources] }));
-  return { seeds, skipped: skipped + Math.max(0, all.length - FDX_SEEDS_MAX) };
+  const all = [...byKey.entries()];
+  const offered = all.slice(0, FDX_SEEDS_MAX);
+  const seeds = offered.map(([, s]): FdxCodexSeed => ({ ...s, sources: [...s.sources] }));
+  const cut = offered.filter(([key]) => cutKeys.has(key)).length;
+  return { seeds, skipped: skipped + Math.max(0, all.length - FDX_SEEDS_MAX), cut };
 }
 
 function isWordChar(ch: string | undefined): boolean {

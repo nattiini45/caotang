@@ -128,6 +128,13 @@ describe('screenplay.import', () => {
     }
   });
 
+  it('carries a row\'s include policy, and refuses one the codex does not have', () => {
+    const result = validateImport({ format: 'fdx', text: '<FinalDraft/>', codex: [{ name: 'ANNA', type: 'character', includePolicy: 'manual' }] });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.codex).toEqual([{ name: 'ANNA', type: 'character', includePolicy: 'manual' }]);
+    expect(codeOf(validateImport({ format: 'fdx', text: '<FinalDraft/>', codex: [{ name: 'ANNA', type: 'character', includePolicy: 'sometimes' }] }))).toBe('invalid-params');
+  });
+
   it('reads an empty codex list as none', () => {
     const result = validateImport({ format: 'fdx', text: '<FinalDraft/>', codex: [] });
     expect(result.ok).toBe(true);

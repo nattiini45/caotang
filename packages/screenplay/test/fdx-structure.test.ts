@@ -13,7 +13,9 @@ import {
   colourName,
   describeFdxImport,
   fdxColour,
+  fitSeedDescription,
   importFdx,
+  FDX_SEED_DESCRIPTION_MAX,
   namingScene,
   nearestLabel,
   type ImportedNode,
@@ -202,5 +204,56 @@ describe('the helpers', () => {
     expect(script.seeds).toHaveLength(500);
     expect(script.report.skippedSeeds).toBe(5);
     expect(script.notices.some((n) => n.includes('5 cast or location names were not offered'))).toBe(true);
+  });
+
+  it('fits a seed description within the codex limit at a paragraph break, else a word boundary, else the limit', () => {
+    expect(fitSeedDescription('a pilot')).toEqual({ value: 'a pilot', cut: false });
+    const exact = 'x'.repeat(FDX_SEED_DESCRIPTION_MAX);
+    expect(fitSeedDescription(exact)).toEqual({ value: exact, cut: false });
+    const words = fitSeedDescription('word '.repeat(500));
+    expect(words.cut).toBe(true);
+    expect([...words.value].length).toBeLessThanOrEqual(FDX_SEED_DESCRIPTION_MAX);
+    expect(words.value.endsWith('word…')).toBe(true);
+    const paragraphs = fitSeedDescription(`${'first '.repeat(100)}\n\n${'second '.repeat(400)}`);
+    expect(paragraphs.value).toBe(`${'first '.repeat(100).trimEnd()}…`);
+    const solid = fitSeedDescription('y'.repeat(FDX_SEED_DESCRIPTION_MAX + 50));
+    expect(solid.value).toBe(`${'y'.repeat(FDX_SEED_DESCRIPTION_MAX - 1)}…`);
+    // Counted in code points, as the bus counts, so an astral character is one.
+    const astral = fitSeedDescription('😀'.repeat(FDX_SEED_DESCRIPTION_MAX + 1));
+    expect([...astral.value].length).toBe(FDX_SEED_DESCRIPTION_MAX);
+  });
+});
+
+describe('a Cast List description longer than a codex description may be (pawcommit-review F1)', () => {
+  const long = Array.from({ length: 450 }, (_, i) => `trait${i}`).join(' ');
+  const xml = doc(
+    `<Paragraph Type="Cast List"><Text>ANNA - ${long}</Text></Paragraph>`,
+    '<Paragraph Type="Cast List"><Text>TOM - her nephew</Text></Paragraph>',
+    '<Paragraph Type="Scene Heading"><Text>INT. ROOM - DAY</Text></Paragraph>',
+    '<Paragraph Type="Action"><Text>ANNA waits for TOM.</Text></Paragraph>',
+  );
+  const script = importFdx(xml);
+
+  it('offers the row with the description cut at a word boundary, within the limit, so a tick cannot be refused', () => {
+    const anna = script.seeds.find((seed) => seed.name === 'ANNA');
+    expect(anna).toBeDefined();
+    expect([...(anna?.description ?? '')].length).toBeLessThanOrEqual(FDX_SEED_DESCRIPTION_MAX);
+    expect(anna?.description.endsWith('…')).toBe(true);
+    expect(long.startsWith((anna?.description ?? '').slice(0, -1))).toBe(true);
+    expect(long.charAt([...(anna?.description ?? '')].length - 1)).toBe(' ');
+    expect(script.seeds.find((seed) => seed.name === 'TOM')?.description).toBe('her nephew');
+  });
+
+  it('keeps the whole line in the script as a note, and only that line', () => {
+    const body = scenes(script.nodes).map((scene) => scene.body).join('\n');
+    expect(body).toContain(`[[Cast List: ANNA - ${long}]]`);
+    expect(body).not.toContain('her nephew');
+    expect(script.report).toMatchObject({ castListLines: 2, castListNotes: 1, cutSeedDescriptions: 1 });
+  });
+
+  it('says so in a notice and in what the dialog shows', () => {
+    expect(script.notices.filter((n) => n.includes('1 Cast List line has a description longer than a codex description may be'))).toHaveLength(1);
+    expect(script.notices.some((n) => n.includes('1 codex row offers its description cut at a word boundary'))).toBe(true);
+    expect(describeFdxImport(script).some((line) => line.includes('1 too long for a codex description also kept in the script as a note'))).toBe(true);
   });
 });
