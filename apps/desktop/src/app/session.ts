@@ -862,6 +862,15 @@ export class ProjectSession {
   }
 
   /**
+   * Imports codex entries, and the Research pages that hold their text, as one command and so one undo step (`codex.importBatch`,
+   * codex.md §7.1). The params are a plan's (`planCodexImportBatch`), built after the writer answered every collision in the preview;
+   * a refusal lists every failing entry by name and writes nothing.
+   */
+  importCodexEntries(params: CommandParams['codex.importBatch']): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('codex.importBatch', params);
+  }
+
+  /**
    * Imports an image as a shot's picture (`shot.importImage`, storyboard.md §3.1): the bytes are staged, the command names them
    * and the shot, and the file and the shot's `image` are one undo group. A refusal is kept for the status line, as every
    * dispatch's is.

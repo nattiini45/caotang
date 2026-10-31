@@ -79,6 +79,9 @@ export type {
   ShotCreateCommandParams,
   ShotImportImageParams,
   ShotImportImagesParams,
+  CodexImportBatchEntry,
+  CodexImportBatchParams,
+  CodexImportPage,
   ShotSetMetaCommandParams,
   AssetImportBatchParams,
   AssetImportParams,
@@ -125,6 +128,8 @@ export {
 } from './macro-rules.js';
 // The hook commands (hooks.md) and the shape and rules the store's loader shares with them.
 export * as hookCommands from './descriptors-hooks.js';
+// The writer's batch import of codex entries (codex.md §7.1), by name, for the store's registration and the harness's planner.
+export * as codexImportCommands from './descriptors-codex-import.js';
 export {
   HOOKS_MAX,
   HOOK_EVENTS,
