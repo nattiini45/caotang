@@ -10,11 +10,13 @@ import { expect, test } from '@playwright/test';
  */
 
 const STYLES = fileURLToPath(new URL('../../apps/desktop/src/styles.css', import.meta.url));
+/** Classic's token blocks (modern-interface.md §5.2): the :root blocks moved out of styles.css. */
+const TOKENS = fileURLToPath(new URL('../../apps/desktop/src/tokens/classic.css', import.meta.url));
 
 /** The body of the rule whose selector text is `marker`, from its opening brace to the matching close. */
 function bodyOf(css: string, marker: string): string {
   const start = css.indexOf(marker);
-  if (start < 0) throw new Error(`no rule "${marker}" in styles.css`);
+  if (start < 0) throw new Error(`no rule "${marker}" in the stylesheet`);
   const open = css.indexOf('{', start);
   let depth = 0;
   for (let at = open; at < css.length; at += 1) {
@@ -56,10 +58,11 @@ function contrastOf(a: string, b: string): number {
 }
 
 const css = readFileSync(STYLES, 'utf8');
+const tokenCss = readFileSync(TOKENS, 'utf8');
 const THEMES: readonly { readonly name: string; readonly tokens: Record<string, string> }[] = [
-  { name: 'light', tokens: tokensOf(bodyOf(css, '\n:root {')) },
-  { name: 'dark (system)', tokens: tokensOf(bodyOf(css, ":root:not([data-theme='light']) {")) },
-  { name: 'dark (chosen)', tokens: tokensOf(bodyOf(css, ":root[data-theme='dark'] {")) },
+  { name: 'light', tokens: tokensOf(bodyOf(tokenCss, '\n:root {')) },
+  { name: 'dark (system)', tokens: tokensOf(bodyOf(tokenCss, ":root:not([data-theme='light']) {")) },
+  { name: 'dark (chosen)', tokens: tokensOf(bodyOf(tokenCss, ":root[data-theme='dark'] {")) },
 ];
 /**
  * The four token surfaces this file reads: the page (`--paper`), the rail and footer (`--panel`), the raised fields (`--raised`), and a
