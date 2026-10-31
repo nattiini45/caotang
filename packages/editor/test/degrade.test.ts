@@ -1,6 +1,11 @@
 /**
- * §3.3's **degrade** class: the four load-fatal constructs and the
+ * §3.3's **degrade** class: the load-fatal constructs and the
  * `LossWarning[]` they emit.
+ *
+ * **Footnotes left this class with #270** (§3.4): `footnoteReference` was the
+ * fourth load-fatal construct, and it is now an exact-class handler. Its
+ * describe block below asserts that, and the control that removes the handler
+ * still throws the library's message, so the handler is still load-bearing.
  *
  * ## What this slice had to prove, and why it is four fixtures and not one
  *
@@ -128,6 +133,9 @@ const without = (drop: string): Record<string, unknown> => {
   return copy;
 };
 
+/** Exact-class types added after the audit's preflight, which the audit does not register (#270). */
+const AFTER_PREFLIGHT: ReadonlySet<string> = new Set(['footnoteReference', 'footnoteDefinition']);
+
 const TABLE = corpusInput('table-gfm');
 const FOOTNOTE = corpusInput('footnote-reference');
 const IMAGE_REF = corpusInput('image-reference');
@@ -202,45 +210,36 @@ describe('§3.3 degrade class — a GFM table', () => {
   });
 });
 
-describe('§3.3 degrade class — a footnote', () => {
-  it('parses, warns `unsupported-node` twice, and keeps the marker as text', async () => {
-    const { doc, warnings } = await parseWithDiagnostics(FOOTNOTE);
-    // Two warnings for one fixture, and both are `unsupported-node`: the inline
-    // reference and the definition. The definition is in §3.3's same row, and it
-    // is a *second* warning rather than a silent extra loss — the library drops
-    // it with `ignore`, and a definition that vanishes without a word is the
-    // failure mode this class exists to stop.
-    expect(warnings.map((w) => [w.code, w.mdastType, w.position])).toEqual([
-      ['unsupported-node', 'footnoteReference', { line: 1, column: 5 }],
-      ['unsupported-node', 'footnoteDefinition', { line: 3, column: 1 }],
-    ]);
-    // §3.3: "inline `[^n]` text kept, definition appended as paragraph". The
-    // `[^1]` is *text*, so the bracket is escaped on the way out and unescaped
-    // on the way back — §5's "parse is lenient, serialize is canonical".
+describe('§3.4 footnotes — no longer a degrade (#270)', () => {
+  it('parses without a warning, into a marker and a note, and saves byte for byte', async () => {
+    const { doc, warnings, dialect } = await parseWithDiagnostics(FOOTNOTE);
+    expect(warnings).toEqual([]);
+    expect(dialect).toEqual([]);
     expect(shapeOf(doc)).toEqual([
       'doc',
       {},
       [],
       [
-        ['paragraph', {}, [], [['text', {}, [], 'Text[^1]', []]]],
-        ['paragraph', {}, [], [['text', {}, [], 'The note.', []]]],
+        ['paragraph', {}, [], [['text', {}, [], 'Text', []], ['footnote_reference', { label: '1' }, [], []]]],
+        ['footnote_definition', { label: '1' }, [], [['paragraph', {}, [], [['text', {}, [], 'The note.', []]]]]],
       ],
     ]);
-    expect(serialize(doc)).toBe('Text\\[^1]\n\nThe note.\n');
+    expect(serialize(doc)).toBe(`${FOOTNOTE}\n`);
   });
 
-  it('CONTROL: without the handler the reference throws the library message', async () => {
+  it('CONTROL: without the handler the reference still throws the library message', async () => {
     await expect(loadWith(without('footnoteReference'), FOOTNOTE)).rejects.toThrow(
       'unknown markdown node: footnoteReference',
     );
   });
 
-  it('CONTROL: without the definition handler the note is dropped with no warning', async () => {
-    // The other direction, and the one the fixture alone would have missed: the
-    // library's `ignore` default does not throw, so a *missing* definition
-    // handler is invisible unless the note's text is looked for.
+  it('CONTROL: without the definition handler the note is dropped, and the marker cannot be written as a footnote', async () => {
+    // The library's `ignore` default drops a definition without a word, so a missing
+    // handler is invisible unless the note's text is looked for. A marker with no note
+    // is not a footnote in GFM: it saves, and re-parses as text.
     const doc = await loadWith(without('footnoteDefinition'), FOOTNOTE);
-    expect(serialize(doc)).toBe('Text\\[^1]\n');
+    expect(serialize(doc)).toBe('Text[^1]\n');
+    expect(serialize(await parse(serialize(doc)))).toBe('Text\\[^1]\n');
   });
 });
 
@@ -741,10 +740,9 @@ describe('§3.3 degrade class — the invariant is stability, not byte-identity'
     // anything sorted by type or by the order of `DEGRADE_MDAST_TYPES` would
     // have to be arranged by hand to look like this. The last three are one
     // block plus one inline span, which the inline case reports as two nodes.
+    // The footnote on lines 5 and 7 warns nothing: it is exact since #270 (§3.4).
     expect(first.warnings.map((w) => [w.code, w.mdastType, w.position])).toEqual([
       ['lossy-structure', 'table', { line: 1, column: 1 }],
-      ['unsupported-node', 'footnoteReference', { line: 5, column: 5 }],
-      ['unsupported-node', 'footnoteDefinition', { line: 7, column: 1 }],
       ['lossy-attribute', 'imageReference', { line: 9, column: 1 }],
       ['lossy-attribute', 'definition', { line: 11, column: 1 }],
       ['unsupported-node', 'html', { line: 13, column: 1 }],
@@ -757,10 +755,10 @@ describe('§3.3 degrade class — the invariant is stability, not byte-identity'
     // The control for the determinism test above. A module-level collector — the
     // obvious implementation, and the one §3.3's stability claim forbids — passes
     // every single-parse assertion in this file and fails here.
-    const before = await parseWithDiagnostics(FOOTNOTE);
+    const before = await parseWithDiagnostics(IMAGE_REF);
     await parseWithDiagnostics(TABLE);
     await parseWithDiagnostics(ALL);
-    const after = await parseWithDiagnostics(FOOTNOTE);
+    const after = await parseWithDiagnostics(IMAGE_REF);
     expect(after.warnings).toEqual(before.warnings);
     expect(after.warnings).toHaveLength(2);
   });
@@ -811,10 +809,13 @@ describe('the degrade table is §3.3\'s, and a subset of it', () => {
     expect(invented).toEqual([]);
   });
 
-  it('registers all four load-fatal constructs', () => {
-    for (const type of ['table', 'footnoteReference', 'imageReference', 'html']) {
+  it('registers the three load-fatal degrade constructs, and the fourth as exact (#270)', () => {
+    for (const type of ['table', 'imageReference', 'html']) {
       expect([...DEGRADE_MDAST_TYPES], `degrade handler for ${type}`).toContain(type);
     }
+    // `footnoteReference` is load-fatal without a handler too; since §3.4 its handler is exact.
+    expect([...DEGRADE_MDAST_TYPES]).not.toContain('footnoteReference');
+    expect([...EXACT_CLASS_MDAST_TYPES]).toContain('footnoteReference');
   });
 
   it('registers each of them as a function, and nothing else', () => {
@@ -863,6 +864,12 @@ describe('the product and the audit keep separate handler tables', () => {
     expect(registered.length).toBeGreaterThan(0);
     for (const type of EXACT_CLASS_MDAST_TYPES) {
       if (type === 'text') continue;
+      // The audit is the 2026-10-01 preflight's instrument, and footnotes joined the
+      // exact class after it (#270, §3.4): it still measures the library throwing on them.
+      if (AFTER_PREFLIGHT.has(type)) {
+        expect(audit[type], `audit handler for ${type}`).toBeUndefined();
+        continue;
+      }
       expect(audit[type], `audit exact-class handler for ${type}`).toBeTypeOf('function');
     }
     const shared = DEGRADE_MDAST_TYPES.filter((type) => audit[type] !== undefined);

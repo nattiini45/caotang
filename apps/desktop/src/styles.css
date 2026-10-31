@@ -847,6 +847,67 @@ button.chip {
   font-style: italic;
 }
 
+/* Footnotes (editor-engine §3.4): a marker is a raised number; the notes are the scene's tail, under a short rule, each led by
+   its number. */
+.caotang-footnote-ref {
+  padding: 0 0.1em;
+  color: var(--accent);
+  font-family: var(--ui);
+  font-size: 0.72em;
+  cursor: pointer;
+}
+
+.ProseMirror .caotang-footnote {
+  position: relative;
+  padding-left: 2.2em;
+  font-size: 0.9em;
+  color: var(--ink-soft);
+}
+
+.ProseMirror :not(.caotang-footnote) + .caotang-footnote {
+  margin-top: 1.6em;
+  padding-top: 0.8em;
+  border-top: 1px solid var(--line);
+}
+
+.ProseMirror .caotang-footnote::before {
+  content: attr(data-footnote) '.';
+  position: absolute;
+  left: 0;
+  font-family: var(--ui);
+  color: var(--muted);
+}
+
+.ProseMirror .caotang-footnote > p {
+  margin-bottom: 0.4em;
+}
+
+/* The question after a marker is deleted: whether its note goes too. */
+.footnote-question {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font-family: var(--ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.footnote-question p {
+  flex: 1 1 18em;
+  margin: 0;
+}
+
+.editor-status .editor-footnote {
+  padding: 0 6px;
+  font-size: 12.5px;
+}
+
 /* The cursors. A gap cursor is the caret between two blocks that cannot hold one. */
 .ProseMirror-gapcursor {
   display: none;

@@ -40,6 +40,9 @@
  * - **`list_item`** takes §3.1's content `block+` and its `listitem` group, where
  *   Tiptap requires a leading paragraph. Not defining, as §3.1 does not say so.
  * - **`ordered_list`** carries `start` only, not Tiptap's `type`.
+ * - **`footnote_reference` / `footnote_definition`** (#270) have no stock Tiptap
+ *   extension; `footnotes.ts` writes them to §3.1, and adds the behaviour (the
+ *   canonical numbering, the chord, the tooltip) to the focus editor only.
  * - **The one kept divergence: the list group.** §3.1 says `block`. The live lists
  *   are `block list`, because `isList` in `@tiptap/core` decides whether a node is a
  *   list by looking for the group name `list`, and the toggle-list commands depend
@@ -97,6 +100,8 @@ import Strike from '@tiptap/extension-strike';
 import Text from '@tiptap/extension-text';
 import { Dropcursor, Gapcursor, Placeholder, UndoRedo } from '@tiptap/extensions';
 import { plainPasteHtml } from './paste.js';
+import { FootnoteBehaviour, footnoteNodes } from './footnotes.js';
+import type { FootnoteOrphan, FootnoteWords } from './footnotes.js';
 
 /** The marks a container may carry on its children when the review layer is on (editor-engine §15, the library's README). */
 const REVIEW_BLOCK_MARKS = 'insertion modification deletion';
@@ -172,6 +177,13 @@ export interface CaotangExtensionOptions {
    * marked. Only the lazily loaded review layer (`suggestions.ts`) passes it, together with the marks it adds.
    */
   reviewMarks?: boolean;
+  /**
+   * #270: the writer deleted the last marker of these notes, which are kept. The app asks whether they go too
+   * (`deleteFootnoteNote`). Focus only.
+   */
+  onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
+  /** #270: the words a marker and a note carry for assistive technology. English when absent. */
+  footnoteWords?: FootnoteWords;
 }
 
 /**
@@ -185,7 +197,8 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
   // and `Strike` precedes `Code`, because the list is what the stable priority sort
   // keeps. Changing this order changes which way nested marks save.
   const shape: Extensions = [
-    Document.extend(blockMarks),
+    // §3.1 (#270): the notes are the document's tail.
+    Document.extend({ content: 'block+ footnote_definition*', ...blockMarks }),
     Paragraph,
     Text,
     Heading,
@@ -229,6 +242,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
         return ['span', { class: 'caotang-image-placeholder' }, alt.length > 0 ? alt : 'Image'];
       },
     }).configure({ inline: true }),
+    ...footnoteNodes(blockMarks, options.footnoteWords),
   ];
   if (role === 'ghost') return shape;
   return [
@@ -241,5 +255,6 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     Placeholder.configure({ placeholder: options.placeholder ?? 'Begin the scene…' }),
     UndoRedo,
     CaotangPaste,
+    FootnoteBehaviour.configure({ onOrphaned: options.onFootnoteOrphaned, words: options.footnoteWords }),
   ];
 };
