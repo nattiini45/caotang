@@ -2,6 +2,7 @@
 
 > Status: built.
 > Scope note: these are **view contracts**. All state lives in the project-store / app settings; all mutations route through the command bus (ARCHITECTURE §1.4, command-bus.md §1). UI modules own no persisted state — only view state (`view.*` commands, never persisted, command-bus §9).
+> Shells: this spec is the **Classic** shell. A second shell, **Modern**, re-arranges the same components (one tree, never forked) and is specified, not built, in [modern-interface.md](modern-interface.md); Settings › Appearance › Interface chooses between them (being built).
 > Cross-refs: command registry = [command-bus.md](command-bus.md) §9 · tree/order/front-matter field contracts = [project-format.md](project-format.md) §2/§3 · codex UI surfaces = [codex.md](codex.md) §8 · ghost/editor = [editor-engine.md](editor-engine.md) · onboarding = [context-assembly.md](context-assembly.md) §6.
 
 ## 0. Shared view rules (apply to all four modules)
@@ -163,7 +164,7 @@ interface AppSettings {
 | Macros | the project's macros (extensibility.md §10): each with its name, description (plain text), step count and what it does to the project, and **Run…**, **Edit** and **Delete** (undoable). **Run…** is a form of the macro's values with the steps it would take written out, and **Show the card** hands the plan to the agent panel. A macro that no longer fits the tools says why and cannot run. With no project open the section says to open one. `MacrosPanel.tsx`; the model is `app/macro-model.ts` | `checkMacro` (agent-harness and extensibility §10) before a save and at each run; the form reads whole numbers and required values in words. |
 | Coherence | the quick checks the Findings tab's scan runs (one checkbox per deterministic check, coherence.md §5.4), the scope the Findings tab starts with, and the most findings one model review may add (the field's range is 1 to the cap) | the check list and the scope are the app's own choices, saved with the settings; the model review's plan (its calls, token estimates and first prompt) is shown in the Findings tab before the writer presses (coherence.md §7). |
 | MCP & tools | master switch, server cards (health dot, per-tool toggles, trust flag, remove) — **built with the v0.2 MCP client** (extensibility.md §8 and §3.5 for the model-facing names) | URL validation at save; per-entry-tolerant import; health states surfaced per card |
-| Appearance | theme | — |
+| Appearance | theme; **Interface** (Classic / Modern) is being built, with Modern's **Reduce transparency** and **Reduce motion** after it ([modern-interface.md](modern-interface.md) §3.3, §9.4) | — |
 | Data | storage location (read-only in browser), export/import entry points | — |
 
 *(§5.3: the Data section additionally carries the browser-storage persistence row + eviction-risk banner per the posture below.)*
