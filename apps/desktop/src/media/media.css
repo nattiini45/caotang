@@ -1348,6 +1348,12 @@
   pointer-events: none;
 }
 
+.comic-balloon-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+}
+
 .comic-balloon-tail,
 .comic-balloon-circle {
   pointer-events: none;

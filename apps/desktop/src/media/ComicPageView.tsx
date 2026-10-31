@@ -965,6 +965,9 @@ export function ComicPageView({ session, node }: ComicPageViewProps): ReactNode 
                   onKeyDown={(event) => onBalloonKey(event, panel, balloon.id, balloon.rect)}
                 >
                   <BalloonShape balloon={drawnBalloon} rect={rect} />
+                  {/* The press target: the outline and lettering take no pointer events, and WebKit does not hit-test a
+                      foreignObject whose content opts out, so without this the balloon cannot be grabbed there. */}
+                  <rect className="comic-balloon-hit" x={rect.x} y={rect.y} width={rect.width} height={rect.height} aria-hidden="true" />
                   {drawnBalloon.tail !== undefined && isSelected ? (
                     <circle
                       className="comic-tail-handle"
