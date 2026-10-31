@@ -71,7 +71,7 @@
 
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
-import { ContextError, type AgentTask, type PromptPreview, type RecentTurn, type SelectionSpan } from '@caotang/context';
+import { ContextError, type AgentTask, type PromptPreview, type RecentTurn } from '@caotang/context';
 import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
@@ -220,6 +220,7 @@ import {
   type RunWriter,
   type PendingStep,
 } from './run-log.js';
+import { continuityTask, sceneTask, spanOf } from './scene-task.js';
 import { DERIVE_SCHEMA_HINT, deriveRole, deriveUserText, parseDeriveReply, promptModelOf, storyboardOf } from './storyboard-model.js';
 
 export interface TranscriptionRouteInfo {
@@ -805,55 +806,6 @@ function unsureNote(steps: readonly StepRecord[]): string {
 function expectOf(text: string): string {
   const trimmed = text.trim();
   return trimmed === '' ? 'the step the call asks for' : trimmed;
-}
-
-/**
- * A selection the editor captured, read from a step's params: its body offsets and the text found there.
- * `undefined` for anything that is not one, so a rewrite with no usable selection is assembled without one.
- */
-export function spanOf(value: unknown): SelectionSpan | undefined {
-  if (!isRecord(value)) return undefined;
-  const { from, to, exact } = value;
-  if (typeof from !== 'number' || typeof to !== 'number' || typeof exact !== 'string') return undefined;
-  return { from, to, exact };
-}
-
-/**
- * scene.draft's task (context-assembly §2): the brief and the document it is for. For a rewrite, the
- * selection is what the focus layer quotes, so the model reads the text it is asked to replace.
- */
-export function sceneTask(
-  title: string,
-  docId: string,
-  mode: 'draft' | 'continue' | 'rewrite_selection',
-  instruction: string,
-  selection: SelectionSpan | undefined,
-  targetWords: number | undefined,
-  forwardOutline: boolean,
-): AgentTask {
-  return {
-    tool: 'scene.draft',
-    instruction: `Document "${title}":\nMode: ${mode}\nBrief: ${instruction}`,
-    params: { mode, ...(targetWords === undefined ? {} : { target_words: targetWords }) },
-    focus: docId,
-    mode,
-    // The per-call opt-in (context-assembly §4): off unless the step asked for it, so a later scene's synopsis is withheld by default.
-    includeForwardOutline: forwardOutline,
-    ...(mode === 'rewrite_selection' && selection !== undefined ? { selection } : {}),
-  };
-}
-
-/** continuity.scan's task (context-assembly §2): the documents to check, and the aspects asked for, if any. */
-export function continuityTask(scope: readonly string[], aspects: readonly string[]): AgentTask {
-  return {
-    tool: 'continuity.scan',
-    instruction:
-      aspects.length === 0
-        ? 'Check these documents for continuity problems.'
-        : `Check these documents for continuity problems in these aspects: ${aspects.join(', ')}.`,
-    params: { aspects },
-    scope,
-  };
 }
 
 /**

@@ -10,7 +10,7 @@ import type { ProjectState } from '@caotang/store';
 
 import { createContextPort } from './context.js';
 import { sceneRole } from './drafting.js';
-import { sceneTask } from './loop.js';
+import { sceneTask } from './scene-task.js';
 
 /** The brief a preview is drafted with, and the budgets it is assembled under. */
 export interface ScenePreviewOptions {

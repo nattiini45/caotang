@@ -107,10 +107,9 @@ export {
   type MacroRisk,
   type MacroTool,
 } from './macro.js';
+export { continuityTask, sceneTask } from './agent/scene-task.js';
 export {
-  continuityTask,
   createAgentSession,
-  sceneTask,
   synopsisInstruction,
   type AgentSession,
   type AgentSessionOptions,

@@ -24,7 +24,7 @@ import { getBody, getRevision, nodeById, type ProjectState } from '@caotang/stor
 import { dialogueDraftPort, placement, sceneDraftPort, sceneDraftPreflight } from '../agent/ports.js';
 import { dialogueRole, sceneRole, wordsOf } from '../agent/drafting.js';
 import { createContextPort } from '../agent/context.js';
-import { sceneTask, spanOf } from '../agent/loop.js';
+import { sceneTask, spanOf } from '../agent/scene-task.js';
 import { failure, refusal } from '../errors.js';
 import { DOCUMENT, resolveNode, withoutWithheld } from '../resolve.js';
 import type { CallParams, PortContext, PortToolName, ToolPort, ToolValue } from '../types.js';
