@@ -1,12 +1,13 @@
 /**
  * The project's pictures over MCP, read-only — [pictures.md §8.2](../../../docs/architecture/pictures.md), with the host rules of §6.4.1.
  *
- * `pictures.list` and `pictures.view` are registered on the server itself, beside the harness's tools, as `timeline.read` is: the
- * harness registry has no picture rows yet (C2), and this server must serve the pictures it holds now. Both read through the
+ * `pictures.list` and `pictures.view` are registered on the server itself, beside the harness's mapping: the registry has rows for
+ * them, but their descriptions and size checks are this module's (this server cannot resize). Each advertises the outputSchema of its
+ * row, the envelope every mapped tool advertises, and answers in that envelope (`affected` is empty: a read). Both read through the
  * SDK's picture port over the session's state and folder, so the tools, `caotang://assets`, `caotang://asset/{id}` and the app
  * see the same registry. Both are reads in every mode: listed with and without `--allow-writes`, never reaching the bus, never saving
- * the folder, logging no row. There is no picture write over MCP yet (`pictures.annotate`, `pictures.attach`): a call for one is the
- * SDK's "not found", and the guard's read-only refusal covers the harness's write tools as before. `asset.sweep` has no tool anywhere.
+ * the folder, logging no row. The picture metadata writes (`pictures.annotate`, `pictures.attach`, `pictures.place`) are registry rows,
+ * mapped in tools.ts and listed only with `--allow-writes`. `asset.sweep` has no tool anywhere.
  *
  * **This server cannot resize.** Its only decoder is the contact-sheet WebP path (pictures.md §6.4.1), so it sends the stored bytes
  * as they are or sends nothing. A picture whose stored bytes, or whose long edge, are over what one message and a host's image
@@ -20,7 +21,7 @@ import { err, type CommandError, type CommandErrorCode, type JsonSchema } from '
 import { PictureReadError, pictureListOf, pictureSummaryOf, readPictureFile, type PictureFile } from '@caotang/sdk/folder';
 import type { CallToolResult, ImageContent, McpServer, TextContent } from '@modelcontextprotocol/server';
 
-import { advertisedInput, toCallResult, type Structured, type ToolRuntime } from './tools.js';
+import { advertisedInput, advertisedOutput, toCallResult, type Structured, type ToolRuntime } from './tools.js';
 
 export const PICTURES_LIST = 'pictures.list';
 export const PICTURES_VIEW = 'pictures.view';
@@ -171,7 +172,7 @@ function listBody(runtime: ToolRuntime, params: Structured): CallToolResult {
   const summary =
     `The pictures of “${name}”: ${listed.length} ${narrowed ? `of ${total} ` : ''}listed.` +
     (omitted > 0 ? ` ${omitted} were left out over the ${PICTURES_LIST_TOKEN_CAP.toLocaleString('en')}-token cap; narrow it with target or tag.` : '');
-  const body = { summary, data: { pictures, total: listed.length, omitted: omitted === 0 ? null : omitted } };
+  const body = { summary, data: { pictures, total: listed.length, omitted: omitted === 0 ? null : omitted }, affected: [] };
   return { content: [{ type: 'text', text: JSON.stringify(body) }], structuredContent: body };
 }
 
@@ -269,6 +270,7 @@ async function viewBody(runtime: ToolRuntime, params: Structured): Promise<CallT
   const body = {
     summary: `${reads.length === 1 ? 'One picture' : `${reads.length} pictures`} of “${session.state.manifest.project.name}”, sent as stored: ${kib(total)}.`,
     data: { pictures },
+    affected: [],
     ...(notes === undefined ? {} : { notes }),
   };
   return { content: [textBlock(JSON.stringify(body)), ...reads.map(imageBlock)], structuredContent: body };
@@ -280,12 +282,19 @@ async function viewBody(runtime: ToolRuntime, params: Structured): Promise<CallT
  * the names registered.
  */
 export function registerPictureTools(server: McpServer, runtime: ToolRuntime): readonly string[] {
+  // The advertised outputSchema is the envelope around the registry row's result schema, as for every mapped tool (tools.ts).
+  const listings = runtime.session.harness.tools();
+  const outputOf = (name: string) => {
+    const result = listings.find((listing) => listing.name === name)?.resultSchema;
+    return result === undefined ? {} : { outputSchema: advertisedOutput(result) };
+  };
   server.registerTool(
     PICTURES_LIST,
     {
       description: PICTURES_LIST_DESCRIPTION,
       annotations: { readOnlyHint: true, openWorldHint: false },
       inputSchema: advertisedInput(PICTURES_LIST_SCHEMA),
+      ...outputOf(PICTURES_LIST),
     },
     (args: Structured): CallToolResult => listBody(runtime, args ?? {}),
   );
@@ -295,6 +304,7 @@ export function registerPictureTools(server: McpServer, runtime: ToolRuntime): r
       description: PICTURES_VIEW_DESCRIPTION,
       annotations: { readOnlyHint: true, openWorldHint: false },
       inputSchema: advertisedInput(PICTURES_VIEW_SCHEMA),
+      ...outputOf(PICTURES_VIEW),
     },
     (args: Structured): Promise<CallToolResult> => viewBody(runtime, args ?? {}),
   );

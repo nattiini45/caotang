@@ -97,6 +97,10 @@ describe('a listed tool', () => {
     expect(read.isError).not.toBe(true);
     const notes = await client.callTool({ name: 'notes.read', arguments: { doc: LANDING } });
     expect(notes.isError).not.toBe(true);
+    // The picture reads are registered beside the mapping (pictures.ts) and still answer in the advertised envelope.
+    const pictures = await client.callTool({ name: 'pictures.list', arguments: {} });
+    expect(pictures.isError).not.toBe(true);
+    expect(pictures.structuredContent).toHaveProperty('affected', []);
     const meta = await client.callTool({ name: 'meta.set', arguments: { targets: [LANDING], status: 'draft' } });
     expect(meta.isError).not.toBe(true);
     const refused = await client.callTool({ name: 'project.overview', arguments: { nonsense: true } });
