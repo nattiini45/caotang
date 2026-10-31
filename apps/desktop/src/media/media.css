@@ -46,8 +46,8 @@
   font-size: 13px;
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--raised);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
   color: var(--ink);
   min-width: 0;
   max-width: 100%;
@@ -78,9 +78,9 @@
   margin: 0 auto;
   padding: 28px 32px 40px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--raised);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  box-shadow: var(--elevation-1);
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
   font-size: 13.5px;
   line-height: 1.5;
@@ -195,8 +195,8 @@
   resize: vertical;
   padding: 16px 18px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--raised);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
   color: var(--ink);
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
   font-size: 13.5px;
@@ -227,8 +227,8 @@
 .sp-readout div {
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--raised);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 
 .sp-readout dt {
@@ -262,7 +262,7 @@
   font-size: 12.5px;
   padding: 5px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-soft);
   text-align: left;
@@ -270,7 +270,7 @@
 }
 
 .sp-scene-link:hover {
-  background: var(--panel);
+  background: var(--surface-1);
 }
 
 .sp-scene-number {
@@ -329,8 +329,8 @@
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
 }
 
 .sb-frame img {
@@ -413,9 +413,9 @@
   gap: 10px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--raised);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  box-shadow: var(--elevation-1);
 }
 
 .sb-editor .eyebrow {
@@ -429,8 +429,8 @@
   font-size: 13px;
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--raised);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
   color: var(--ink);
 }
 
@@ -488,9 +488,9 @@
   gap: 8px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--raised);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  box-shadow: var(--elevation-1);
   min-width: 0;
 }
 
@@ -535,8 +535,8 @@
 .pp-mapped pre {
   margin: 6px 0 0;
   padding: 8px;
-  border-radius: 6px;
-  background: var(--panel);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
   font-size: 11.5px;
   overflow: auto;
   max-height: 220px;
@@ -565,7 +565,7 @@
   padding: 10px 12px;
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--danger);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--danger-soft);
   font-size: 13px;
 }
@@ -587,8 +587,8 @@
   overflow: auto;
   padding: 8px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
 }
 
 .dlg-canvas {
@@ -618,7 +618,7 @@
   font-size: 11.5px;
   fill: var(--ink);
   paint-order: stroke;
-  stroke: var(--panel);
+  stroke: var(--surface-1);
   stroke-width: 4px;
   stroke-linejoin: round;
 }
@@ -635,14 +635,14 @@
   gap: 4px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--raised);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
   color: var(--ink);
   font: inherit;
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: var(--shadow);
+  box-shadow: var(--elevation-1);
 }
 
 .dlg-node.is-selected {
@@ -699,7 +699,7 @@
   width: 100%;
   padding: 6px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink);
   font: inherit;
@@ -709,7 +709,7 @@
 }
 
 .dlg-finding:hover {
-  background: var(--panel);
+  background: var(--surface-1);
 }
 
 .dlg-detail .inspector-meta {
@@ -765,8 +765,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px;
-  border-radius: 6px;
-  background: var(--panel);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
 }
 
 .dlg-confirm .field-note {
@@ -825,8 +825,8 @@
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--raised);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
 }
 
 .sb-notices .field-note,
@@ -869,7 +869,7 @@
   max-width: 100%;
   max-height: 78vh;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .sb-lightbox-close {
@@ -891,8 +891,8 @@
   gap: 8px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--raised);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
 }
 
 .sb-image .field-label,
@@ -923,8 +923,8 @@
   font-size: 13px;
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
   color: var(--ink);
 }
 
@@ -965,7 +965,7 @@
   margin: 0;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .sb-reference {
@@ -1004,8 +1004,8 @@
   position: relative;
   min-width: 0;
   /* The paper behind both layers: the input is transparent so the decorations show through it. */
-  background: var(--raised);
-  border-radius: var(--radius);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
 }
 
 .src-field > .src-layer,
@@ -1095,9 +1095,9 @@
   padding: 24px 16px;
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--raised);
-  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  box-shadow: var(--elevation-1);
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
   font-size: 12px;
   line-height: 14px;
