@@ -63,7 +63,7 @@ async function openBook(page: Page, testInfo: TestInfo, name: string): Promise<v
 async function sendIntent(page: Page, intent: string): Promise<void> {
   const toggle = page.locator('.agent-toggle');
   if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   await expect(field).toBeEnabled();
   await field.fill(intent);
   await page.getByRole('button', { name: 'Send', exact: true }).click();

@@ -97,7 +97,7 @@ test('the Intent box sends on the ordinary Enter and never on the composing one,
   const turns = page.locator('.agent-turn');
   await expect(turns).toHaveCount(1);
 
-  const intent = page.getByRole('textbox', { name: 'Intent' });
+  const intent = page.getByRole('combobox', { name: 'Intent' });
   await intent.fill('A candidate-committed question.');
 
   // The keydown and the implicit submit it causes: one composing Enter, then the older Windows one.
@@ -124,7 +124,7 @@ test('a browser-level Chromium composition keeps its text in the Intent box and 
   const turns = page.locator('.agent-turn');
   await expect(turns).toHaveCount(1);
 
-  const intent = page.getByRole('textbox', { name: 'Intent' });
+  const intent = page.getByRole('combobox', { name: 'Intent' });
   await intent.click();
   const cdp = await page.context().newCDPSession(page);
   // The browser itself starts a composition and marks the keydown that follows it as composing.

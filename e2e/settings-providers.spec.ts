@@ -309,7 +309,7 @@ test('prompt caching is a per-profile switch, on by default, with a lifetime cho
   await form.getByLabel('Model', { exact: true }).fill('test-model');
   await caching.getByRole('checkbox').uncheck();
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “No cache”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('No cache'))).toBeVisible();
 
   await settings.locator('[data-profile="No cache"]').getByRole('button', { name: 'Edit' }).click();
   await expect(settings.getByRole('form', { name: 'Edit provider' }).getByRole('group', { name: 'Prompt caching' }).getByRole('checkbox')).not.toBeChecked();

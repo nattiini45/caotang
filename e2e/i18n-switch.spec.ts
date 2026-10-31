@@ -111,7 +111,7 @@ test.describe('switching while the writer is working', () => {
     await useFakeEndpoint(page);
     await openSample(page);
 
-    const field = page.getByRole('textbox', { name: 'Intent' });
+    const field = page.getByRole('combobox', { name: 'Intent' });
     await expect(field).toBeEnabled();
     await field.fill('Add a note to The Landing and a synopsis for The Storm.');
     await page.getByRole('button', { name: 'Send', exact: true }).click();

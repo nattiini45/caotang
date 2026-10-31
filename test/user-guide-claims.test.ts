@@ -125,12 +125,12 @@ describe('the user guide’s reviewed claims match the code', () => {
     const workspace = read('apps/desktop/src/components/Workspace.tsx');
     for (const label of ['Binder', 'Inspector', 'More']) {
       expect(section).toContain(`**${label}**`);
-      expect(workspace.split('\n').some((row) => row.trim() === label)).toBe(true);
+      expect(workspace.split('\n').some((row) => row.trim() === `<Trans>${label}</Trans>`)).toBe(true);
     }
     // The More menu's entries, each a label in the overflow list.
     for (const label of ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', 'Save to folder', 'Settings']) {
       expect(section).toContain(`**${label}**`);
-      expect(workspace).toContain(`'${label}'`);
+      expect(workspace).toContain(`t\`${label}\``);
     }
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
     expect(section).toContain('**Actions for …**');
@@ -301,7 +301,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const fonts = read('apps/desktop/src/app/fallback-fonts.ts');
     expect(fonts).toContain("await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold.woff?url')");
     expect(fonts).toContain("await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold-common.woff?url')");
-    expect(read('apps/desktop/src/app/session.ts')).toContain('loadBoldFallbackFont: loadCjkBoldFontOverHttp,');
+    expect(read('apps/desktop/src/app/lazy-exporter.ts')).toContain('loadBoldFallbackFont: loadCjkBoldFontOverHttp,');
     // The docs no longer say the Bold is not built.
     expect(read('docs/architecture/storyboard.md')).not.toMatch(/real Bold weight of Noto Sans Mono CJK SC is not built/);
     expect(read('packages/pdf-fonts/src/embolden.ts')).not.toMatch(/it is not built/);
@@ -455,8 +455,8 @@ describe('the user guide’s reviewed claims match the code', () => {
     // key first; only one character outside ASCII falls back to the physical KeyX or DigitN.
     expect(keymap).toMatch(/if \(key\.charCodeAt\(0\) < 0x80\) return key\.toLowerCase\(\);/);
     expect(keymap).toMatch(/\/\^\(\?:Key\(\[A-Z\]\)\|Digit\(\[0-9\]\)\)\$\/\.exec\(code\)/);
-    // A Ctrl+Alt chord is never AltGr.
-    expect(keymap).toMatch(/if \(facts\.altGraph && cmd && facts\.alt\) return null;/);
+    // AltGr never makes a chord: any key pressed with AltGraph is the character it types.
+    expect(keymap).toMatch(/if \(facts\.altGraph\) return null;/);
     const keyboard = guide.slice(guide.indexOf('## Keyboard'));
     expect(keyboard).toContain('The letter in a shortcut is the letter printed on the key, so on a German or French keyboard Ctrl+Z is the key labelled Z.');
     expect(keyboard).toContain('a shortcut uses the key where that letter sits on an English keyboard');
@@ -510,9 +510,9 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('names the Interface setting and its default in the words Settings shows', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
-    expect(section).toContain('<legend>Interface</legend>');
-    expect(section).toContain("onChange={() => chooseShell('classic')} /> Classic");
-    expect(section).toContain("{MODERN_DEFAULT_FOR_NEW_USERS ? 'Modern' : 'Modern (Preview)'}");
+    expect(section).toContain('<legend>{t`Interface`}</legend>');
+    expect(section).toContain("onChange={() => chooseShell('classic')} /> <Trans>Classic</Trans>");
+    expect(section).toContain('{MODERN_DEFAULT_FOR_NEW_USERS ? t`Modern` : t`Modern (Preview)`}');
     // While the parity gate is closed every writer starts in Classic, which is what the guide and the changelog say.
     const resolver = read('apps/desktop/src/app/interface.ts');
     expect(resolver).toContain('export const MODERN_DEFAULT_FOR_NEW_USERS = false;');
@@ -573,7 +573,7 @@ describe('the user guide’s reviewed claims match the code', () => {
       expect(changelog.slice(changelog.indexOf('**Slash commands in the agent panel.**'), changelog.indexOf('**Agent instructions and memory.**'))).toContain(`\`/${name}\``);
     }
     // The words the guide names are the words the panel shows.
-    expect(read('apps/desktop/src/components/CommandComposer.tsx')).toContain('aria-label="Commands"');
+    expect(read('apps/desktop/src/components/CommandComposer.tsx')).toContain('aria-label={t`Commands`}');
     expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Dismiss');
     expect(read('docs/decisions.md')).toContain('Slash commands in the agent panel are a closed set of built-ins');
   });
@@ -583,7 +583,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const panel = read('apps/desktop/src/components/MacrosPanel.tsx');
     for (const label of ['Run…', 'Show the card', 'Edit', 'Delete', 'This project has no macros yet.']) expect(panel).toContain(label);
     expect(read('apps/desktop/src/components/SaveAsMacro.tsx')).toContain('Save as macro…');
-    expect(read('apps/desktop/src/components/Settings.tsx')).toContain("{ id: 'macros', label: 'Macros' }");
+    expect(read('apps/desktop/src/components/Settings.tsx')).toContain('{ id: \'macros\', label: msg`Macros` }');
     const section = guide.slice(guide.indexOf('## Macros'), guide.indexOf('## Export'));
     for (const label of ['**Save as macro…**', '**Run…**', '**Show the card**', '**Edit**', '**Delete**']) expect(section).toContain(label);
     expect(section).toContain(`A macro can hold at most ${MACRO_STEPS_MAX} steps, a project at most ${MACROS_MAX} macros, and a description at most ${MACRO_DESCRIPTION_MAX} characters`);

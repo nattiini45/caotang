@@ -308,7 +308,7 @@ test('the agent harness and the exporter are fetched when first used, not with t
   expect(chunks()).not.toContain('lazy-harness');
 
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   await expect(field).toBeEnabled();
   await field.fill('Check for continuity problems');
   await page.getByRole('button', { name: 'Send', exact: true }).click();

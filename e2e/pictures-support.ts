@@ -96,7 +96,10 @@ export async function send(target: Locator, gesture: 'drop' | 'paste', files: re
       for (const file of input.files) data.items.add(new File([Uint8Array.from(file.bytes)], file.name, { type: file.type }));
       if (data.files.length !== input.files.length) throw new Error('the DataTransfer lost a file');
       if (input.gesture === 'paste') {
-        return { cancelled: !element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data })) };
+        const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+        // Firefox ignores ClipboardEventInit.clipboardData; put the prepared payload on the dispatched event explicitly.
+        Object.defineProperty(event, 'clipboardData', { configurable: true, value: data });
+        return { cancelled: !element.dispatchEvent(event) };
       }
       element.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }));
       return { cancelled: !element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data })) };

@@ -91,7 +91,7 @@ test('a Final Draft file saved as UTF-16 imports as its author wrote it (#268)',
   });
 
   await page.getByRole('dialog', { name: 'Import this Final Draft script?' }).getByRole('button', { name: 'Import', exact: true }).click();
-  await expect(page.getByText(/Imported 1 scene and .* from cafe\.fdx/)).toBeVisible();
+  await expect(page.getByText(new RegExp(`Imported 1 scene and .* from ${writerText('cafe.fdx')}`))).toBeVisible();
   await waitForSaved(page);
   expect((await treeOf(page)).some((node) => node.title === 'INT. CAFÉ GRÖNLAND - NIGHT')).toBe(true);
 });
@@ -106,7 +106,7 @@ test('a Final Draft file whose bytes are not valid in its encoding is refused on
     buffer: Buffer.concat([Buffer.from('<FinalDraft><Content><Paragraph Type="Action"><Text>'), Buffer.from([0xff]), Buffer.from('</Text></Paragraph></Content></FinalDraft>')]),
   });
 
-  await expect(page.getByText(/broken\.fdx could not be read: .*not valid utf-8/)).toBeVisible();
+  await expect(page.getByText(new RegExp(`${writerText('broken.fdx')} could not be read: .*not valid utf-8`))).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Import this Final Draft script?' })).toBeHidden();
   expect(await traceNames(page)).not.toContain('screenplay.import');
   expect(await treeOf(page)).toHaveLength(before);
@@ -151,7 +151,7 @@ test('a Final Draft file shows its notes and dual dialogue before it imports, th
 
   await choose();
   await dialog.getByRole('button', { name: 'Import', exact: true }).click();
-  await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
+  await expect(page.getByText(new RegExp(`Imported 1 scene and .* from ${writerText('night.fdx')}`))).toBeVisible();
   await expect(page.getByText(/The title page was read but not stored/)).toBeVisible();
   await waitForSaved(page);
 
