@@ -67,7 +67,7 @@ test.describe('the keyboard move plan (ui-modules §2.5): the drop index convent
     expect(planKeyboardMove(state, first.id, 'down')).toEqual({ ok: true, newParentId: IDS.chapterOne, index: 1 });
   });
 
-  test('a scene cannot leave its chapter for the manuscript, and a folder cannot move into the folder before it', () => {
+  test('a scene cannot leave its chapter for the manuscript, and a folder moves into the folder before it', () => {
     const state = project();
     const siblings = childrenOf(state, IDS.chapterOne);
     const scene = siblings[0];
@@ -80,8 +80,16 @@ test.describe('the keyboard move plan (ui-modules §2.5): the drop index convent
     // The scene before the second one is the first scene, and a document holds nothing, so 'in' is refused there.
     expect(planKeyboardMove(state, second.id, 'in')).toEqual({ ok: false, reason: 'not-a-container' });
     expect(planKeyboardMove(state, scene.id, 'in')).toEqual({ ok: false, reason: 'no-target' });
-    // Chapter 2 follows Chapter 1, a folder, so 'in' would put a folder inside a folder, which the UI never makes (project-format §2).
-    expect(planKeyboardMove(state, IDS.chapterTwo, 'in')).toEqual({ ok: false, reason: 'folder-in-folder' });
+    // Chapter 2 follows Chapter 1, a folder, so 'in' puts it at the end of Chapter 1, which then holds a chapter: a part (#269).
+    expect(planKeyboardMove(state, IDS.chapterTwo, 'in')).toEqual({ ok: true, newParentId: IDS.chapterOne, index: 4 });
+  });
+
+  test('a folder comes out of a part, and a scene comes out of a chapter into the part it sits in', () => {
+    const state = project();
+    // Deep is a chapter inside Chapter 1 (a part). Out puts it beside Chapter 1, in the manuscript.
+    expect(planKeyboardMove(state, IDS.deep, 'out')).toEqual({ ok: true, newParentId: 'manuscript', index: 1 });
+    // Its scene comes out into Chapter 1, after Deep: a part may hold a scene, as an interlude.
+    expect(planKeyboardMove(state, IDS.deepScene, 'out')).toEqual({ ok: true, newParentId: IDS.chapterOne, index: 4 });
   });
 
   test('a section is a fixed root and cannot be moved at all', () => {

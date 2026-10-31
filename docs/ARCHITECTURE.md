@@ -33,7 +33,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Spec:** [architecture/project-format.md](architecture/project-format.md).
 
 ### 2.2 `binder` (UI) 📐
-- **Responsibility:** tree view — manuscript → folders → text documents (three tiers, mirroring Scrivener; folder-in-folder tolerated by the format, never created by the UI); drag-drop reorder/reparent; status/label chips; inline rename.
+- **Responsibility:** tree view — manuscript → folders → text documents, where a folder may hold folders (a part holds chapters: Part → Chapter → Scene, as in Scrivener's Novel template; the UI creates and moves them, #269); drag-drop reorder/reparent; status/label chips; inline rename.
 - **Owns:** binder UI state only (tree data lives in project-store); view-mutation commands (`view.*` class) are ephemeral.
 - **Surfaces:** emits the same `binder.*` commands the agent uses (command-bus §9). Spec: [architecture/ui-modules.md](architecture/ui-modules.md) §2.
 
