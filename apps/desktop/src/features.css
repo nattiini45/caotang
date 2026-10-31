@@ -1,32 +1,9 @@
 /*
  * The rules for the surfaces this file adds: MCP & tools, the findings tab, the scene declarations and the codex section
- * of the inspector, the binder's filter bar and footer. They use the shell's tokens (styles.css), so a theme change reaches them
- * with the rest of the app. Two state colours are added here, because the shell has none: a healthy or verified green, and
- * the warm amber the review uses. Both are redefined for dark mode.
+ * of the inspector, the binder's filter bar and footer. They use the shell's tokens (tokens/classic.css), so a theme change reaches them
+ * with the rest of the app. Its two state colours, a healthy or verified green
+ * and the warm amber the review uses, are tokens in tokens/classic.css, redefined for dark mode there.
  */
-
-:root {
-  --ok: #3d7a4f;
-  --ok-soft: #e3efe6;
-  --review: #8a6512;
-  --review-soft: #f5edd6;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --ok: #8fcaa0;
-    --ok-soft: #1f2e24;
-    --review: #e0b862;
-    --review-soft: #332b17;
-  }
-}
-
-:root[data-theme='dark'] {
-  --ok: #8fcaa0;
-  --ok-soft: #1f2e24;
-  --review: #e0b862;
-  --review-soft: #332b17;
-}
 
 /* ------------------------------------------------------------------ *
  * Shared pieces

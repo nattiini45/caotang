@@ -1,140 +1,9 @@
 /*
  * Caotang's shell. A restrained, neutral palette: one accent for focus and selection, the
- * vocabulary's own colours for status and label dots, and nothing decorative. Every colour
- * is a token on :root, and dark mode redefines the same tokens.
+ * vocabulary's own colours for status and label dots, and nothing decorative. The colours, and the
+ * radii, spaces, type sizes, shadows and durations that fit a step, are tokens on :root in
+ * tokens/classic.css, and dark mode redefines the colour tokens there.
  */
-
-:root {
-  color-scheme: light dark;
-  --paper: #faf9f6;
-  --panel: #f2f0eb;
-  --raised: #ffffff;
-  --ink: #1f1e1b;
-  --ink-soft: #4d4a44;
-  --muted: #6b665f;
-  --line: #e2ded5;
-  --line-strong: #cfc9bd;
-  --accent: #2c5d8f;
-  --accent-ink: #ffffff;
-  --accent-soft: #e4edf6;
-  --danger: #9a3b2e;
-  --danger-soft: #f6e6e3;
-  --warn: #7d5f16;
-  --focus: #2c5d8f;
-  --suggest-add-bg: #dcefdd;
-  --suggest-add-ink: #14301a;
-  --suggest-del-bg: #f7e0dc;
-  --suggest-del-ink: #5a1d14;
-  --dot-empty: #bdb8ae;
-  --shadow: 0 1px 2px rgba(31, 30, 27, 0.06), 0 4px 12px rgba(31, 30, 27, 0.05);
-  --radius: 8px;
-  --ui: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --manuscript: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --rail-w: 288px;
-  --inspector-w: 296px;
-
-  /* ---------------------------------------------------------------------------------------------------------------- *
-   * Semantic tokens (docs/architecture/modern-interface.md §2, §5.1). The names above (--paper … --inspector-w) are
-   * Classic's semantic colour, type and layout tokens and keep their names and values (D6). The tokens below are the
-   * groundwork for what has no token yet; each Classic value is today's literal or an alias of a token above, and no
-   * Classic rule reads them yet, so Classic renders exactly as before. Later milestones move literals onto them, one area
-   * per pull request, against the Classic screenshots (e2e/visual/).
-   *
-   * Three axes choose values, each an attribute on <html>, composed by attribute selectors alone:
-   *   shell   data-shell="classic|modern" (app/interface.ts); Modern overrides under :root[data-shell='modern'] in its
-   *           lazily loaded stylesheet (modern/modern.css).
-   *   skin    data-skin, absent for the default; a Classic skin redefines tokens under
-   *           :root[data-shell='classic'][data-skin='<name>'] (designed, not built).
-   *   scheme  data-theme="light|dark", or the system (app/theme.ts).
-   *
-   *   --surface-app, --surface-page   the stage and the manuscript page (= --paper); --panel and --raised stay as they are
-   *   --radius-xs, -sm, -md, -lg, -pill   3, 6, 8 (= --radius), 12 px and a pill
-   *   --elev-0 … -3                   none, the base shadow (= --shadow), a popover, a floating panel
-   *   --focus-width, -offset, -halo   2 px, 2 px, none
-   *   --dur-2, --ease-standard        the shell's one transition today: 0.2 s, ease
-   *   --target-min, --control-pad-x   24 px pointer target (WCAG 2.5.8), a button's 12 px side padding
-   *   --mat-*, --scrim, --wallpaper   Modern's materials; solid in Classic, so a stray use renders sanely
-   * ---------------------------------------------------------------------------------------------------------------- */
-  --surface-app: var(--paper);
-  --surface-page: var(--paper);
-  --radius-xs: 3px;
-  --radius-sm: 6px;
-  --radius-md: var(--radius);
-  --radius-lg: 12px;
-  --radius-pill: 999px;
-  --elev-0: none;
-  --elev-1: var(--shadow);
-  --elev-2: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
-  --elev-3: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
-  --focus-width: 2px;
-  --focus-offset: 2px;
-  --focus-halo: none;
-  --dur-2: 0.2s;
-  --ease-standard: ease;
-  --target-min: 24px;
-  --control-pad-x: 12px;
-  --mat-glass-bg: var(--raised);
-  --mat-glass-blur: 0px;
-  --mat-glass-saturate: 100%;
-  --mat-glass-edge-hi: transparent;
-  --mat-glass-edge-lo: transparent;
-  --mat-thick-bg: var(--raised);
-  --mat-thick-blur: 0px;
-  --mat-frost-bg: var(--paper);
-  --scrim: transparent;
-  --wallpaper: none;
-  font-family: var(--ui);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --paper: #161513;
-    --panel: #1d1c19;
-    --raised: #23221e;
-    --ink: #ebe8e1;
-    --ink-soft: #c9c5bc;
-    --muted: #a8a398;
-    --line: #2f2d28;
-    --line-strong: #48443c;
-    --accent: #8fb6de;
-    --accent-ink: #10202f;
-    --accent-soft: #22324a;
-    --danger: #e08b7c;
-    --danger-soft: #3a2420;
-    --warn: #d6b25e;
-    --focus: #8fb6de;
-    --suggest-add-bg: #1f3b27;
-    --suggest-add-ink: #c6ebcd;
-    --suggest-del-bg: #472622;
-    --suggest-del-ink: #f4c2b8;
-    --dot-empty: #55514a;
-    --shadow: none;
-  }
-}
-
-:root[data-theme='dark'] {
-  --paper: #161513;
-  --panel: #1d1c19;
-  --raised: #23221e;
-  --ink: #ebe8e1;
-  --ink-soft: #c9c5bc;
-  --muted: #a8a398;
-  --line: #2f2d28;
-  --line-strong: #48443c;
-  --accent: #8fb6de;
-  --accent-ink: #10202f;
-  --accent-soft: #22324a;
-  --danger: #e08b7c;
-  --danger-soft: #3a2420;
-  --warn: #d6b25e;
-  --focus: #8fb6de;
-  --suggest-add-bg: #1f3b27;
-  --suggest-add-ink: #c6ebcd;
-  --suggest-del-bg: #472622;
-  --suggest-del-ink: #f4c2b8;
-  --dot-empty: #55514a;
-  --shadow: none;
-}
 
 * {
   box-sizing: border-box;
@@ -1491,14 +1360,6 @@ dialog.export-dialog::backdrop {
 
 [hidden] {
   display: none !important;
-}
-
-:root[data-theme='light'] {
-  color-scheme: light;
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
 }
 
 .corkboard {
@@ -3499,11 +3360,6 @@ dialog.confirm:has(.folder-file-preview) {
 /* A narrow window is not a supported layout, but it should scroll rather than overlap. The shell's minimum is 960 px (ui-modules §0).
    From 1100 px down the rails narrow, and the toolbar wraps onto a second line, so a window of 1024 px fits with no sideways scroll. */
 @media (max-width: 1100px) {
-  :root {
-    --rail-w: 232px;
-    --inspector-w: 260px;
-  }
-
   .toolbar {
     height: auto;
     min-height: 52px;
