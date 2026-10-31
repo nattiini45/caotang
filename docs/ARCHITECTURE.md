@@ -145,6 +145,11 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Owns:** the `caotang.interface` preference and `data-shell` on `<html>` (being built); the shell-actions list, `ClassicShell`, the lazily loaded `ModernShell` and its containers, and the Modern token and material files. Specified, not built.
 - **Spec:** [architecture/modern-interface.md](architecture/modern-interface.md).
 
+### 2.24 `import` 🧭
+- **Responsibility:** bringing a manuscript in from another tool: readers for DOCX, RTF and Scrivener, Markdown, plain text, EPUB, ODT and HTML that each emit one block list, one pure splitter that proposes Parts, chapters and scenes, and one preview dialog that commits the result as one undo step.
+- **Owns:** `packages/import-core` (the block model, the rule set and the splitter; built, #266). The readers, the preview dialog and the commit are specified, not built.
+- **Spec:** [architecture/import-core.md](architecture/import-core.md).
+
 ## 3. Data model (sketch)
 
 ```

@@ -726,6 +726,8 @@ importers:
 
   packages/ids: {}
 
+  packages/import-core: {}
+
   packages/mcp-client:
     dependencies:
       '@caotang/bus':
