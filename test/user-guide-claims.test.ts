@@ -485,6 +485,20 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(changelog).toContain('**Settings › Agent** has **Load every tool on every request**, off by default');
   });
 
+  it('names the Interface setting and its default in the words Settings shows', () => {
+    const section = read('apps/desktop/src/components/Settings.tsx');
+    expect(section).toContain('<legend>Interface</legend>');
+    expect(section).toContain("onChange={() => chooseShell('classic')} /> Classic");
+    expect(section).toContain("onChange={() => chooseShell('modern')} /> Modern");
+    const shell = read('apps/desktop/src/app/shell.ts');
+    // New writer Modern, returning writer Classic, the stored choice first (app/shell.ts shellFor).
+    expect(shell).toContain("if (stored !== null) return stored;");
+    expect(shell).toContain("return returning ? 'classic' : 'modern';");
+    expect(guide).toContain('**Interface**: **Classic** or **Modern**.');
+    expect(guide).toContain('If you have used Caotang in this browser before, it opens in Classic until you choose; a new browser opens in Modern.');
+    expect(changelog).toContain('**An Interface setting: Classic or Modern.** **Settings › Appearance › Interface**');
+  });
+
   it('names the permission modes and their controls in the words the panel and Settings show', () => {
     const panel = read('apps/desktop/src/components/AgentPanel.tsx');
     const settings = read('apps/desktop/src/components/AgentModeSettings.tsx');

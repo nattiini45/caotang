@@ -94,6 +94,30 @@ test('the built app opens on the projects screen with no console errors and no f
   expect(await violations(page)).toEqual([]);
 });
 
+test('the built app loads the Modern stylesheet as its own chunk, under the policy, only when Modern is on', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const sheets: string[] = [];
+  page.on('request', (request) => {
+    const name = new URL(request.url()).pathname.split('/').pop() ?? '';
+    if (name.endsWith('.css')) sheets.push(name.replace(/-[\w-]{8}\.css$/, ''));
+  });
+  // A first visit with nothing kept opens in Modern (app/shell.ts), so its stylesheet is fetched once the stores have settled it.
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('modern');
+  await expect.poll(() => sheets).toContain('modern');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+
+  // Classic on the next visit fetches the main stylesheet and not Modern's.
+  sheets.length = 0;
+  await page.evaluate(() => localStorage.setItem('caotang.shell', 'classic'));
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('classic');
+  expect(sheets).not.toContain('modern');
+});
+
 test('the built app carries its Content-Security-Policy, unchanged', async ({ page }) => {
   await page.goto('/');
   const policy = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');

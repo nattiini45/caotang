@@ -1,6 +1,6 @@
 /**
  * Settings (ui-modules §5): a dialog with four sections. Providers holds the profiles, the save-time probe, the usage totals
- * and the request log. Writing holds the session target and the autosave debounce. Appearance holds the theme. Data holds the
+ * and the request log. Writing holds the session target and the autosave debounce. Appearance holds the theme and the interface shell (Classic or Modern). Data holds the
  * browser's storage answer, the checkpoint figures and their limits.
  *
  * Every field is validated where it is typed, and the store answers the rest. A probe that fails is shown beside the profile
@@ -36,6 +36,7 @@ import {
   type RoleRef,
   type RoleSettings,
 } from '../app/settings.js';
+import { activeShell, applyShell, rememberShell, type Shell } from '../app/shell.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
 import { CoherenceSection } from './CoherenceSettings.js';
@@ -1201,6 +1202,13 @@ function AppearanceSection(): ReactNode {
     rememberTheme(next);
     setTheme(next);
   };
+  const [shell, setShell] = useState<Shell>(() => activeShell());
+  const chooseShell = (next: Shell): void => {
+    // Modern's stylesheet loads on first use; a failed load leaves its tokens out, and the radio still says what was chosen.
+    void applyShell(next).catch(() => undefined);
+    rememberShell(next);
+    setShell(next);
+  };
   return (
     <section className="settings-section" aria-labelledby="settings-appearance">
       <h3 id="settings-appearance">Appearance</h3>
@@ -1214,6 +1222,19 @@ function AppearanceSection(): ReactNode {
         </label>
       </fieldset>
       <p className="muted">The choice is kept in this browser. Until you choose, the page follows the system.</p>
+      <fieldset className="settings-radios">
+        <legend>Interface</legend>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'classic'} onChange={() => chooseShell('classic')} /> Classic
+        </label>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'modern'} onChange={() => chooseShell('modern')} /> Modern
+        </label>
+      </fieldset>
+      <p className="muted">
+        Classic is the layout Caotang has always had. Modern is a new layout that is still being built, so for now it looks almost the
+        same. The choice is kept in this browser and applies at once.
+      </p>
     </section>
   );
 }

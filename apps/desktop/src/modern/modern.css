@@ -1,0 +1,25 @@
+/*
+ * The Modern shell (docs/architecture/modern-interface.md). Loaded only when `data-shell="modern"` is on <html>
+ * (app/shell.ts imports it on demand), so it is a chunk of its own and Classic's first load never carries it.
+ *
+ * Every rule here is scoped to :root[data-shell='modern'], because the sheet stays in the page after a switch back to Classic.
+ * Modern overrides the semantic tokens styles.css declares (the "Semantic tokens" block); it never restyles a component by
+ * class while the spec is being written.
+ *
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │ PLACEHOLDER. Modern is Classic plus this minimal token override, which    │
+ * │ only proves the switch and the lazy load work: a softer radius scale, a  │
+ * │ floating elevation and a glass material token. The visionOS-style glass   │
+ * │ ornaments arrive with the spec; replace this block then.                 │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ */
+
+:root[data-shell='modern'] {
+  --shell: modern;
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --elevation-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --material-blur: 24px;
+}

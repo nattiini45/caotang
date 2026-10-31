@@ -53,8 +53,17 @@ export class SettingsStore {
   }
 }
 
+/**
+ * Whether the app database held a settings record the first time this page read it, `undefined` until then. Only the first read
+ * counts: start-up writes the record (the active profile mirror below), and a second open in the same page load (React's strict
+ * mode runs the effect twice in development) must not take that write for an earlier visit. The interface shell's default reads it.
+ */
+let settingsKeptAtStart: boolean | undefined;
+
 export interface AppServices {
   readonly db: AppDb | null;
+  /** Whether the settings record was there before this page load wrote anything: a returning writer (app/shell.ts). */
+  readonly settingsKept: boolean;
   readonly settings: SettingsStore;
   readonly providers: ProviderService;
   /** The MCP & tools client for the session (extensibility §3, §8). Nothing connects until a person asks it to. */
@@ -90,6 +99,7 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   if (db !== null) {
     try {
       stored = await db.get<unknown>(APP_KEYS.settings);
+      settingsKeptAtStart ??= stored !== undefined;
       initial = normalizeSettings(stored);
     } catch (error) {
       notices.push(`The settings could not be read, so the defaults are in use: ${errorText(error)}`);
@@ -118,7 +128,7 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
     keys: service.keys,
     ...(options.mcpWire === undefined ? {} : { wire: options.mcpWire }),
   });
-  return { db, settings, providers: service, mcp, notices };
+  return { db, settingsKept: settingsKeptAtStart === true, settings, providers: service, mcp, notices };
 }
 
 function errorText(error: unknown): string {
