@@ -51,6 +51,7 @@ import {
   type ReadAssetLink,
   type ReadAssetRecord,
 } from '@caotang/pictures';
+import { withheldState } from '@caotang/context';
 import { getBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { invalidParams, limitExceeded, notFound, refusal } from '../errors.js';
@@ -314,6 +315,41 @@ function unknownPicture(assetId: string, path: string): CommandError {
 }
 
 /* ------------------------------------------------------------------ *
+ * The read-deny (agent-harness §4)
+ * ------------------------------------------------------------------ */
+
+const NO_HIDDEN: ReadonlySet<string> = new Set<string>();
+
+/**
+ * The project as a tool may read it under the read rules: the withheld nodes, their documents and codex entries left out
+ * (`withheldState`), and the placements pinned to a withheld node with them, so no title, id or quote of one reaches the answer.
+ */
+function pictureView(state: ProjectState, hidden: ReadonlySet<string>): ProjectState {
+  if (hidden.size === 0) return state;
+  const view = withheldState(state, hidden);
+  const links = state.manifest.assetLinks;
+  if (links === undefined) return view;
+  const visible = (links as readonly ReadAssetLink[]).filter((link) => {
+    const nodeId = (link.target as { nodeId?: string }).nodeId;
+    return nodeId === undefined || !hidden.has(nodeId);
+  });
+  return { ...view, manifest: { ...view.manifest, assetLinks: visible as typeof links } };
+}
+
+/**
+ * The pictures a read rule withholds: those that are placed or used somewhere, and only in withheld parts of the project. Their
+ * caption, alt text and transcription describe what the writer keeps from the agent, so they are left out like the nodes.
+ */
+function withheldPictures(state: ProjectState, view: ProjectState): ReadonlySet<string> {
+  if (view === state) return NO_HIDDEN;
+  const all = collectUses(picturesUsesSnapshot(state));
+  const seen = collectUses(picturesUsesSnapshot(view));
+  const held = new Set<string>();
+  for (const [assetId, uses] of all) if (uses.length > 0 && (seen.get(assetId) ?? []).length === 0) held.add(assetId);
+  return held;
+}
+
+/* ------------------------------------------------------------------ *
  * pictures.list
  * ------------------------------------------------------------------ */
 
@@ -353,7 +389,10 @@ function summaryOfPicture(state: ProjectState, picture: ReadAssetRecord, uses: R
 }
 
 export const prepareList: PrepareFn = (params, context) => {
-  const { state } = context;
+  // Read through the read rules: a withheld node's placements and uses are not listed, and a picture only they hold is not either.
+  const view = pictureView(context.state, context.withheld ?? NO_HIDDEN);
+  const heldPictures = withheldPictures(context.state, view);
+  const state = view;
   const wantedTag = typeof params['tag'] === 'string' ? params['tag'].trim().toLowerCase() : undefined;
   const limit = typeof params['limit'] === 'number' ? params['limit'] : LIST_LIMIT_DEFAULT;
 
@@ -380,7 +419,7 @@ export const prepareList: PrepareFn = (params, context) => {
   };
 
   const matching = recordsOf(state).filter(
-    (picture) => placedAt(picture) && (wantedTag === undefined || (picture.tags ?? []).some((tag) => tag.toLowerCase() === wantedTag)),
+    (picture) => !heldPictures.has(picture.id) && placedAt(picture) && (wantedTag === undefined || (picture.tags ?? []).some((tag) => tag.toLowerCase() === wantedTag)),
   );
 
   // The cap is on the whole answer, so pictures are added whole until the budget is spent and the rest is counted, never cut mid-picture.
@@ -396,12 +435,13 @@ export const prepareList: PrepareFn = (params, context) => {
   }
   const omitted = matching.length - shown.length;
   const notes = omitted > 0 ? [`${omitted} of ${matching.length} matching pictures are not shown; narrow the list with target or tag, or ask again with a smaller limit`] : [];
+  if (heldPictures.size > 0) notes.push(`${heldPictures.size} ${heldPictures.size === 1 ? 'picture is' : 'pictures are'} withheld from the agent by a rule and left out of this answer.`);
 
   return ok({
     commands: [],
     finish: () =>
       ok({
-        data: { pictures: shown, total: matching.length, shown: shown.length, omitted, library: recordsOf(state).length },
+        data: { pictures: shown, total: matching.length, shown: shown.length, omitted, library: recordsOf(state).length - heldPictures.size, ...(heldPictures.size === 0 ? {} : { withheld: heldPictures.size }) },
         summary:
           matching.length === 0
             ? 'no pictures match'
@@ -902,9 +942,11 @@ export function viewPort(host: PictureViewHost): AsyncToolPort {
   return async (params: CallParams, context: PortContext) => {
     const ids = list(params['assetIds']).filter((id): id is string => typeof id === 'string');
     const maxPx = typeof params['maxPx'] === 'number' ? Math.min(params['maxPx'], VIEW_MAX_EDGE) : VIEW_MAX_EDGE;
+    // A picture a read rule withholds (only placed in withheld parts) is answered as one that does not exist, as a withheld node is.
+    const held = withheldPictures(context.state, pictureView(context.state, context.withheld ?? NO_HIDDEN));
     const pictures: ReadAssetRecord[] = [];
     for (const [index, id] of ids.entries()) {
-      const found = isAssetId(id) ? pictureRecordOf(context.state, id) : undefined;
+      const found = isAssetId(id) && !held.has(id) ? pictureRecordOf(context.state, id) : undefined;
       if (found === undefined) return err(unknownPicture(id, `assetIds[${index}]`));
       pictures.push(found);
     }

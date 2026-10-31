@@ -185,7 +185,7 @@ const timelineEdit: TargetsFn = (params, state) => {
   return ids.ok ? ok({ reads: [], writes: [...new Set(ids.value)] }) : ids;
 };
 
-/** A timeline read scoped to a folder or document reads it; unscoped, it reads the story (merge note: it does not withhold itself). */
+/** A timeline read scoped to a folder or document reads it; unscoped, it reads the story, and leaves the withheld nodes out itself (timeline-read.ts). */
 const timelineRead: TargetsFn = (params, state) => {
   const ids = refList(state, strings([params['scope']]), 'params.scope');
   return ids.ok ? ok({ reads: ids.value, writes: [] }) : ids;

@@ -9,6 +9,7 @@
  */
 
 import { ok, type CommandError, type Result } from '@caotang/bus';
+import { withheldState } from '@caotang/context';
 import { dayLens, type CalendarLens, type LaneKey, type TimelineAxis, type TimelineItem, type TimelineModel } from '@caotang/timeline';
 
 import { capOf } from '../metadata.js';
@@ -209,12 +210,19 @@ function omissionNote(data: TimelineReadData, cap: number): string | undefined {
   return `${data.omitted.scenes} scenes and ${data.omitted.shelfSteps} shelf steps were left out over the ${cap.toLocaleString('en')}-token cap; narrow scope to a folder or document to read them.`;
 }
 
+const NO_HIDDEN: ReadonlySet<string> = new Set<string>();
+
 export function prepareTimelineRead(params: CallParams, context: PrepareContext): Result<PreparedCall, CommandError> {
-  const { state } = context;
+  // Read through the read rules (agent-harness §4): a withheld scene or folder is not on the timeline this tool returns, and the
+  // answer counts what was left out without naming it, as the other reads do.
+  const hidden = context.withheld ?? NO_HIDDEN;
+  const withheld = context.state.manifest.tree.filter((node) => hidden.has(node.id)).length;
+  const state = withheldState(context.state, hidden);
   let scope: string | undefined;
   const reference = params['scope'];
   if (typeof reference === 'string') {
-    const node = resolveNode(state, reference, TARGET, 'folder or document', 'params.scope');
+    // Resolved in the whole project, so a scope in a withheld subtree reaches the gate and is refused as every read-deny is.
+    const node = resolveNode(context.state, reference, TARGET, 'folder or document', 'params.scope');
     if (!node.ok) return node;
     scope = node.value.id;
   }
@@ -228,8 +236,13 @@ export function prepareTimelineRead(params: CallParams, context: PrepareContext)
   const cap = capOf('timeline.read');
   const data = timelineReadDataOf(timelineModelFor(state, options), options, cap);
   const note = omissionNote(data, cap);
+  const notes = [
+    ...(note === undefined ? [] : [note]),
+    ...(withheld === 0 ? [] : [`${withheld} ${withheld === 1 ? 'item is' : 'items are'} withheld from the agent by a rule and left out of this answer.`]),
+  ];
+  const answer = withheld === 0 ? data : { ...data, withheld };
   return ok({
     commands: [],
-    finish: () => ok({ data, summary: summaryOf(state.manifest.project.name, data), affected: [], ...(note === undefined ? {} : { notes: [note] }) }),
+    finish: () => ok({ data: answer, summary: summaryOf(state.manifest.project.name, data), affected: [], ...(notes.length === 0 ? {} : { notes }) }),
   });
 }

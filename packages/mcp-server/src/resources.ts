@@ -26,7 +26,7 @@ import {
   type ReadResourceResult,
 } from '@modelcontextprotocol/server';
 import type { CommandError } from '@caotang/bus';
-import { PictureReadError, pictureRegistryOf, readPictureFile } from '@caotang/sdk/folder';
+import { PictureReadError, pictureRegistryOf, readPictureFile, timelineCsvOf, timelineModelOf } from '@caotang/sdk/folder';
 import { getBody, type CodexEntry, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { PICTURE_MAX_SENT_BYTES } from './pictures.js';
@@ -209,6 +209,8 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
   const codexNow = stateOf('codex.read');
   // Merge: the picture registry and files are the picture reads' resources.
   const stateNow = stateOf('pictures.list', 'pictures.view');
+  // The timeline resources are timeline.read's, with its pictures (the CSV names their ids and alt text).
+  const timelineNow = stateOf('timeline.read', 'pictures.list');
 
   server.registerResource(
     'project',
@@ -267,7 +269,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       cacheHint: NO_SHARED_CACHE,
     },
     (uri) => {
-      const model = runtime.session.timeline();
+      const model = timelineModelOf(timelineNow());
       return contentsOf(uri.href, 'The timeline', JSON.stringify(model, null, 2), JSON_TYPE);
     },
   );
@@ -282,7 +284,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       mimeType: CSV_TYPE,
       cacheHint: NO_SHARED_CACHE,
     },
-    (uri) => contentsOf(uri.href, 'The timeline as CSV', runtime.session.timelineCsv(), CSV_TYPE),
+    (uri) => contentsOf(uri.href, 'The timeline as CSV', timelineCsvOf(timelineNow()), CSV_TYPE),
   );
 
   server.registerResource(

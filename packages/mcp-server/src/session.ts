@@ -23,6 +23,7 @@ import {
   isDocumentFileName,
   manifestTextAt,
   openFolder,
+  pictureListOf,
   type FolderChangedError,
   type NodeArtifactFs,
   type TimelineApplied,
@@ -81,6 +82,25 @@ export class ProjectContentError extends Error {
  * The refusal a write gets when the folder's change stopped it before it began. It is the same whether the refusal is found before the
  * writer is asked (`check`) or after the accept (`callConfirmed`, through tools.ts), so the words a caller reads do not depend on the path.
  */
+
+/**
+ * The picture registry as a read under the read rules sees it (agent-harness §4): `withheldState` leaves out the withheld nodes and
+ * their documents; this leaves out the placements pinned to one, and the pictures placed or used only there.
+ */
+function readablePictures(state: ProjectState, view: ProjectState, hidden: ReadonlySet<string>): ProjectState {
+  if (hidden.size === 0 || (state.manifest.assets ?? []).length === 0) return view;
+  const links = (state.manifest.assetLinks ?? []).filter((link) => {
+    const nodeId = (link.target as { readonly nodeId?: string }).nodeId;
+    return nodeId === undefined || !hidden.has(nodeId);
+  });
+  const linked: ProjectState = { ...view, manifest: { ...view.manifest, assetLinks: links } };
+  const placed = (entry: { readonly links: readonly unknown[]; readonly uses: readonly unknown[] }): boolean => entry.links.length + entry.uses.length > 0;
+  const seen = new Map(pictureListOf(linked).map((entry) => [entry.picture.id, placed(entry)] as const));
+  const held = new Set(pictureListOf(state).filter((entry) => placed(entry) && seen.get(entry.picture.id) !== true).map((entry) => entry.picture.id));
+  if (held.size === 0) return linked;
+  return { ...linked, manifest: { ...linked.manifest, assets: (linked.manifest.assets ?? []).filter((record) => !held.has(record.id)) } };
+}
+
 export function notMadeError(name: string, error: FolderChangedError): CommandError {
   return {
     code: 'io-error',
@@ -125,9 +145,11 @@ export interface ProjectSession {
    * The project as a host may read it outside a tool call: a resource or a prompt (agent-harness §4, Rules). The nodes a read rule
    * withholds from the agent are not in it, so a resource does not list or serve them and a prompt does not assemble them. `mirrors`
    * names the read tools the resource or prompt stands for: a read-deny aimed at `doc.read` alone keeps its nodes from `caotang://doc`
-   * and from every prompt too.
+   * and from every prompt too. `tool` is a read tool registered beside the mapping (`pictures.list`, `pictures.view`): only the rules
+   * aimed at the tools in `mirrors` hold, as they would at the gate. A placement pinned to a withheld node is left out, and so is a
+   * picture placed or used only in withheld parts (its caption and transcription describe them).
    */
-  readable(use: 'resource' | 'prompt', mirrors?: readonly string[]): ProjectState;
+  readable(use: 'resource' | 'prompt' | 'tool', mirrors?: readonly string[]): ProjectState;
   readonly exporter: ExporterService;
   readonly allowWrites: boolean;
   /** Whether this open made the project, rather than finding one. */
@@ -345,8 +367,9 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       harness,
       readable: (use, mirrors = []) => {
         const hidden = new Set<string>();
-        for (const tool of [use === 'resource' ? 'mcp.resource' : 'mcp.prompt', ...mirrors]) for (const id of harness.withheld(tool)) hidden.add(id);
-        return withheldState(state, hidden);
+        const base = use === 'resource' ? ['mcp.resource'] : use === 'prompt' ? ['mcp.prompt'] : [];
+        for (const tool of [...base, ...mirrors]) for (const id of harness.withheld(tool)) hidden.add(id);
+        return readablePictures(state, withheldState(state, hidden), hidden);
       },
       exporter,
       allowWrites: options.allowWrites,

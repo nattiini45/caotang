@@ -146,7 +146,9 @@ function listBody(runtime: ToolRuntime, params: Structured): CallToolResult {
       return refused(PICTURES_LIST, 'invalid-params', `${key} must be a non-blank string, and "${String(value)}" is not.`, `pass a ${key}, or leave it out to list every picture`);
     }
   }
-  const { state } = runtime.session;
+  // Read under the read rules aimed at this tool, as a mapped read is at the gate (agent-harness §4).
+  const state = runtime.session.readable('tool', [PICTURES_LIST]);
+  const held = (runtime.session.state.manifest.assets ?? []).length - (state.manifest.assets ?? []).length;
   let listed: ReturnType<typeof pictureListOf>;
   try {
     listed = pictureListOf(state, {
@@ -172,7 +174,8 @@ function listBody(runtime: ToolRuntime, params: Structured): CallToolResult {
   const summary =
     `The pictures of “${name}”: ${listed.length} ${narrowed ? `of ${total} ` : ''}listed.` +
     (omitted > 0 ? ` ${omitted} were left out over the ${PICTURES_LIST_TOKEN_CAP.toLocaleString('en')}-token cap; narrow it with target or tag.` : '');
-  const body = { summary, data: { pictures, total: listed.length, omitted: omitted === 0 ? null : omitted }, affected: [] };
+  const notes = held === 0 ? [] : [`${held} ${held === 1 ? 'picture is' : 'pictures are'} withheld from the agent by a rule and left out of this answer.`];
+  const body = { summary, data: { pictures, total: listed.length, omitted: omitted === 0 ? null : omitted }, affected: [], ...(notes.length === 0 ? {} : { notes }) };
   return { content: [{ type: 'text', text: JSON.stringify(body) }], structuredContent: body };
 }
 
@@ -231,7 +234,8 @@ async function viewBody(runtime: ToolRuntime, params: Structured): Promise<CallT
   for (const id of ids) {
     let read: PictureFile;
     try {
-      read = await readPictureFile(session.fs, session.state, id, { maxBytes: PICTURE_MAX_SENT_BYTES });
+      // A picture a read rule withholds is not in the readable registry, so it is answered as one that does not exist.
+      read = await readPictureFile(session.fs, session.readable('tool', [PICTURES_VIEW]), id, { maxBytes: PICTURE_MAX_SENT_BYTES });
     } catch (error) {
       if (error instanceof PictureReadError) return readRefusal(PICTURES_VIEW, error);
       throw error;

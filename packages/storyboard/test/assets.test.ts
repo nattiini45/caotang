@@ -56,7 +56,7 @@ describe('asset file names', () => {
   });
 
   it('parses only a name that is exactly an asset id and a v1 extension', () => {
-    expect(parseAssetFileName('a_7K2QX9M4A1.jpg')).toEqual({ assetId: 'a_7K2QX9M4A1', format: 'jpeg' });
+    expect(parseAssetFileName('a_7K2QX9M4A1.jpg')).toEqual({ assetId: 'a_7K2QX9M4A1', format: 'jpeg', extension: 'jpg', mime: 'image/jpeg' });
     expect(parseAssetFileName('a_7K2QX9M4A1.jpeg')).toBeUndefined();
     expect(parseAssetFileName('a_7K2QX9M4A1.gif')).toBeUndefined();
     expect(parseAssetFileName('a_7K2QX9M4A1.png.tmp-3')).toBeUndefined();

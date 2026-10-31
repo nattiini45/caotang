@@ -177,14 +177,21 @@ const CONFIRMED: PermissionContext = { confirmed: true };
  * One native tool call as the runtime makes it: the closed-set check, the tool's own refusal rule, `prepare`, then each prepared
  * command through the bus under the grant it carries (`inherit`), then `finish`.
  */
-function runNative(w: World, name: PictureToolName, input: unknown, permission?: PermissionContext, turnId: string = next('turn')): Result<ToolValue, CommandError> {
+function runNative(
+  w: World,
+  name: PictureToolName,
+  input: unknown,
+  permission?: PermissionContext,
+  turnId: string = next('turn'),
+  withheld?: ReadonlySet<string>,
+): Result<ToolValue, CommandError> {
   const definition = PICTURE_DEFINITIONS[name];
   if (definition.kind !== 'native') throw new Error(`${name} is a port`);
   const checked = checkParams(name, definition.params, input);
   if (!checked.ok) return checked;
   const refused = definition.refine?.(checked.value);
   if (refused !== undefined) return { ok: false, error: refused };
-  const prepared = definition.prepare(checked.value, { state: w.state, registry: w.registry, clock: clock.now });
+  const prepared = definition.prepare(checked.value, { state: w.state, registry: w.registry, clock: clock.now, ...(withheld === undefined ? {} : { withheld }) });
   if (!prepared.ok) return prepared;
   const callId = next('call');
   const done: { name: CommandName; outcome: ExecutionOutcome }[] = [];
@@ -638,6 +645,52 @@ describe('pictures.place', () => {
     expect(refused(result).code).toBe('revision-conflict');
     expect(bodyOf(w, HARBOUR)).toBe(edited);
     expect(w.undo.groups().filter((group) => group.turnId === 'turn-stale')).toEqual([]);
+  });
+});
+
+describe('the read rules (agent-harness §4) on the picture reads', () => {
+  async function placed(w: World) {
+    const a = await importPicture(w, png(4, 4, 1), { caption: 'The jetty', links: [{ kind: 'node', doc: 'The Landing' }, { kind: 'project' }] });
+    const b = await importPicture(w, png(4, 4, 2), { caption: 'The lamp', links: [{ kind: 'paragraph', doc: 'The Harbour', anchor: 'gull cried' }] });
+    const loose = await importPicture(w, png(4, 4, 3), { caption: 'Unplaced' });
+    return { a, b, loose };
+  }
+
+  it('pictures.list leaves out a picture placed only in a withheld document, and the placements in one, naming neither', async () => {
+    const w = world();
+    const { a, b, loose } = await placed(w);
+    const listed = good(runNative(w, 'pictures.list', {}, undefined, undefined, new Set([HARBOUR])));
+    expect((listed.data['pictures'] as { id: string }[]).map((entry) => entry.id)).toEqual([a.assetId, loose.assetId]);
+    expect(listed.data['withheld']).toBe(1);
+    expect(listed.notes).toEqual(expect.arrayContaining([expect.stringContaining('withheld from the agent by a rule')]));
+    const shown = JSON.stringify(listed);
+    for (const word of ['The Harbour', HARBOUR, 'The lamp', 'gull', b.assetId]) expect(shown).not.toContain(word);
+
+    // A picture that is also placed somewhere readable stays, without the withheld placement.
+    const landing = good(runNative(w, 'pictures.list', {}, undefined, undefined, new Set([LANDING])));
+    const jetty = (landing.data['pictures'] as { id: string; links: unknown[] }[]).find((entry) => entry.id === a.assetId);
+    expect(jetty?.links).toEqual([expect.objectContaining({ target: { kind: 'project' } })]);
+    expect(JSON.stringify(landing)).not.toContain(LANDING);
+    expect(landing.data['withheld']).toBeUndefined();
+  });
+
+  it('pictures.list without a rule lists every picture, as before', async () => {
+    const w = world();
+    await placed(w);
+    const all = good(runNative(w, 'pictures.list', {}));
+    expect(all.data['total']).toBe(3);
+    expect(all.data['withheld']).toBeUndefined();
+  });
+
+  it('pictures.view answers a picture placed only in a withheld document as one that does not exist', async () => {
+    const w = world();
+    const { a, b } = await placed(w);
+    const picked: PictureViewHost = { vision: () => false, readBytes: async (path) => w.files.get(path), deliver: () => undefined };
+    const context = { ...portContext(w), withheld: new Set([HARBOUR]) };
+    const error = refused(await viewPort(picked)({ assetIds: [b.assetId] }, context));
+    expect(error.code).toBe('not-found');
+    expect(JSON.stringify(error)).not.toContain('The lamp');
+    expect(good(await viewPort(picked)({ assetIds: [a.assetId] }, context)).data['pictures']).toEqual([expect.objectContaining({ id: a.assetId })]);
   });
 });
 

@@ -231,6 +231,19 @@ describe('a read-deny', () => {
     expect(refusalOf(run(harness, 'doc.read', { doc: 'The' })).message).toContain('The Landing');
   });
 
+  it('leaves a withheld subtree off timeline.read and counts it without naming it', () => {
+    const open = valueOf(run(harnessWith([]).harness, 'timeline.read', {}));
+    expect(JSON.stringify(open.data)).toContain(LANDING);
+    const { harness } = harnessWith(hidden());
+    const read = valueOf(run(harness, 'timeline.read', {}));
+    const shown = JSON.stringify(read);
+    for (const word of ['The Landing', 'The Storm', LANDING, STORM, CHAPTER_ONE]) expect(shown).not.toContain(word);
+    expect(read.data['withheld']).toBeGreaterThan(0);
+    expect(read.notes).toEqual(expect.arrayContaining([expect.stringContaining('withheld from the agent by a rule')]));
+    // A scope inside the withheld subtree is refused by the gate, in the words every read-deny uses.
+    expect(refusalOf(run(harness, 'timeline.read', { scope: CHAPTER_ONE })).code).toBe('permission-denied');
+  });
+
   it('omits the subtree from binder.read_tree and says how many items it left out', () => {
     const { harness } = harnessWith(hidden());
     const whole = valueOf(run(harness, 'binder.read_tree', { root: 'manuscript', depth: 3 }));
