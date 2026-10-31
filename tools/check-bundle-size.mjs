@@ -49,7 +49,9 @@ export const BUDGET = {
     // 1,549.2 kB measured with prompt caching (#86): the gateway's cache parts, policy and per-provider markers, the assembler's per-layer
     // parts and cache boundary, the harness's cache watch and the Settings switch, on top of main's context limits (#254), which put the
     // entry 0.2 kB over the old cap; the cap is that plus about 1%.
-    index: 1_565_000,
+    // 1,565.0 kB measured with the FDX tree reader (#264) on top of the interface setting (#314), 22 bytes under the old cap; the FDX reader
+    // adds about 1 kB here (the rest of it is in the locale chunk); the cap is that plus about 1%.
+    index: 1_581_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
