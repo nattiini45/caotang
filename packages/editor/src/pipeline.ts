@@ -54,6 +54,7 @@ import {
 import type { LossWarning } from './handlers.js';
 import { sniffDialect } from './dialect.js';
 import type { DialectNotice } from './dialect.js';
+import { canonicalizeFootnoteTree, footnoteKey } from './footnotes.js';
 
 /**
  * The save chain, built **once**.
@@ -126,7 +127,13 @@ export const serialize = (pm: PmNode): string => {
     nodeHandlers: SAVE_HANDLERS as never,
     markHandlers: SAVE_HANDLERS as never,
   });
-  return String(SAVE_CHAIN.stringify(tree));
+  const text = String(SAVE_CHAIN.stringify(tree));
+  // A document that is only notes still has §3.1's one leading block, an empty
+  // paragraph, which writes nothing and leaves the separator before the first note.
+  // The body a writer saved had no such line, so it is not written (#270).
+  return text.startsWith('\n\n') && pm.firstChild?.type.name === 'paragraph' && pm.firstChild.childCount === 0
+    ? text.slice(2)
+    : text;
 };
 
 /**
@@ -201,6 +208,18 @@ const definitionWarnings = (tree: MdastRoot): LossWarning[] =>
       }))
     : [];
 
+/**
+ * §3.1's `doc` is `block+ footnote_definition*`, so a body that is only notes needs
+ * one block before them: an empty paragraph, with no position, which the dialect
+ * sniffer skips and `serialize` does not write.
+ */
+const leadNotesWithABlock = (tree: MdastRoot): void => {
+  const first = tree.children[0];
+  if (first !== undefined && first.type === 'footnoteDefinition') {
+    tree.children.unshift({ type: 'paragraph', children: [] });
+  }
+};
+
 export const parseWithDiagnostics = async (body: string): Promise<ParseResult> => {
   const warnings: LossWarning[] = [];
   const processor = unified()
@@ -211,6 +230,11 @@ export const parseWithDiagnostics = async (body: string): Promise<ParseResult> =
       handlers: createParseHandlers(caotangSchema, warnings) as never,
     });
   const tree = (await processor.run(processor.parse(body))) as MdastRoot;
+  // #270: the notes go to the end, in reference order, and numeric labels re-flow,
+  // before the compile, so the document and the parse tree the dialect sniffer
+  // reads agree on the order of their blocks.
+  const footnotes = canonicalizeFootnoteTree(tree);
+  leadNotesWithABlock(tree);
   if (tree.children.length === 0 || definitionsOnly(tree)) {
     warnings.push(...definitionWarnings(tree));
     // An empty body projection compiles to an empty `doc`, and §3.1's `doc` is
@@ -246,7 +270,7 @@ export const parseWithDiagnostics = async (body: string): Promise<ParseResult> =
   // See `warnMergedInlineRuns` for the measurements and the sibling-shaped
   // premise this replaced. `sniffDialect` below is the same move on §5's channel.
   warnMergedInlineRuns(tree, warnings);
-  return { doc, warnings, dialect: sniffDialect(body, tree, doc, warnings) };
+  return { doc, warnings, dialect: sniffDialect(body, tree, doc, warnings, footnotes) };
 };
 
 /**
@@ -263,6 +287,49 @@ export const parseWithDiagnostics = async (body: string): Promise<ParseResult> =
 export const parse = async (body: string): Promise<PmNode> =>
   (await parseWithDiagnostics(body)).doc;
 
+/** The text of a stub note `parseFragment` appends; a private-use sentinel no prose holds. */
+const FRAGMENT_STUB_TEXT = '\uE000caotang-fragment-stub\uE000';
+
+/** Every footnote definition in `tree`, at any depth, by its folded key. */
+const visitFootnoteDefinitions = (node: { type: string; children?: unknown[] }, onKey: (key: string) => void): void => {
+  if (node.type === 'footnoteDefinition') {
+    const def = node as unknown as { label?: string; identifier: string };
+    onKey(footnoteKey(def.label ?? def.identifier));
+  }
+  if (node.type === 'code' || node.type === 'inlineCode' || node.type === 'html') return;
+  for (const child of node.children ?? []) visitFootnoteDefinitions(child as { type: string; children?: unknown[] }, onKey);
+};
+
+/** Is `node` one of the stub notes `parseFragment` appended? */
+const isFragmentStub = (node: MdastRoot['children'][number]): node is Extract<MdastRoot['children'][number], { type: 'footnoteDefinition' }> => {
+  if (node.type !== 'footnoteDefinition' || node.children.length !== 1) return false;
+  const para = node.children[0]!;
+  if (para.type !== 'paragraph' || para.children.length !== 1) return false;
+  const text = para.children[0]!;
+  return text.type === 'text' && text.value === FRAGMENT_STUB_TEXT;
+};
+
+/**
+ * `tree` without the trailing stub notes, or `null` when the trailing stubs are not
+ * exactly the `stubs` that were appended, in order — the fragment swallowed some of
+ * them, and the caller falls back to the fragment read on its own.
+ */
+const stripFragmentStubs = (tree: MdastRoot, stubs: readonly string[]): MdastRoot | null => {
+  const { children } = tree;
+  let start = children.length;
+  while (start > 0 && isFragmentStub(children[start - 1]!)) start -= 1;
+  const trailing = children.slice(start);
+  if (trailing.length !== stubs.length) return null;
+  for (let i = 0; i < stubs.length; i += 1) {
+    const def = trailing[i] as { label?: string; identifier: string };
+    if (footnoteKey(def.label ?? def.identifier) !== footnoteKey(stubs[i]!)) return null;
+  }
+  // A stub anywhere else (inside a list, a quote, a fence's text) also means the
+  // appended source leaked into the fragment.
+  if (JSON.stringify(children.slice(0, start)).includes(FRAGMENT_STUB_TEXT)) return null;
+  return { ...tree, children: children.slice(0, start) };
+};
+
 /**
  * §5's load, **synchronously**, for the one caller that cannot await: the §4 primitives
  * (`replaceRange`, `insertAtSelection`) are synchronous by the seam's signature.
@@ -272,7 +339,7 @@ export const parse = async (body: string): Promise<PmNode> =>
  * without a banner entry; that is a known gap, recorded where the primitives are
  * documented in `tiptap/adapter.ts`, not something this function can report.
  */
-export const parseFragment = (text: string): PmNode => {
+export const parseFragment = (text: string, footnoteLabels: readonly string[] = []): PmNode => {
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -280,11 +347,68 @@ export const parseFragment = (text: string): PmNode => {
       schema: caotangSchema,
       handlers: createParseHandlers(caotangSchema, []) as never,
     });
-  const tree = processor.runSync(processor.parse(text)) as MdastRoot;
+  // #270: a fragment is read against the document it goes into. `[^1]` is a footnote
+  // only where `[^1]:` is defined, so the labels the document already defines are
+  // appended as stub definitions for the parse and taken out again afterwards; an
+  // agent's rewrite that keeps `[^1]` then keeps the marker rather than turning it
+  // into text. A label the fragment defines itself is not stubbed.
+  //
+  // The fragment is parsed on its own first: that tree says which labels it defines
+  // (a `[^1]:` line inside a code block is code, not a definition), and it is the
+  // fallback when the stubs do not come back out cleanly.
+  const plain = processor.runSync(processor.parse(text)) as MdastRoot;
+  const own = new Set<string>();
+  visitFootnoteDefinitions(plain, (key) => own.add(key));
+  const stubs: string[] = [];
+  for (const label of footnoteLabels) {
+    const key = footnoteKey(label);
+    if (own.has(key)) continue;
+    own.add(key);
+    stubs.push(label);
+  }
+  let tree = plain;
+  if (stubs.length > 0) {
+    const source = `${text}\n\n${stubs.map((label) => `[^${label}]: ${FRAGMENT_STUB_TEXT}`).join('\n\n')}`;
+    const stubbed = processor.runSync(processor.parse(source)) as MdastRoot;
+    // The stubs are taken out by what they are, not by how many were appended: a
+    // fragment that ends inside an open construct (an unclosed fence, a raw HTML
+    // block) swallows them, and slicing by count would then cut the fragment's own
+    // blocks. When the trailing stubs are not exactly the ones appended, the fragment
+    // is read without them: a marker degrades to text, and no block is dropped.
+    const kept = stripFragmentStubs(stubbed, stubs);
+    if (kept !== null) tree = kept;
+  }
+  leadNotesWithABlock(tree);
   if (tree.children.length === 0 || definitionsOnly(tree)) {
     return caotangSchema.topNodeType.createAndFill() as PmNode;
   }
   return processor.stringify(tree) as unknown as PmNode;
+};
+
+/**
+ * A fragment's notes as their content (#270). An inserted text lands inside the
+ * document, and a note can only be the document's tail, so a `[^n]: …` in an agent's
+ * text is read as the note's text: the case that writes one is a rewrite of a note
+ * whose range starts at its label, where the label already exists and the text is
+ * what changes. The doc's `block+` start is kept: a fragment that was only a note
+ * becomes its blocks.
+ */
+const unwrapNotes = (doc: PmNode): PmNode => {
+  let any = false;
+  const blocks: PmNode[] = [];
+  doc.forEach((child) => {
+    if (child.type.name === 'footnote_definition') {
+      any = true;
+      child.forEach((inner) => blocks.push(inner));
+      return;
+    }
+    blocks.push(child);
+  });
+  if (!any) return doc;
+  // A leading empty paragraph is §3.1's filler before a note, not the agent's text.
+  const first = blocks[0];
+  if (blocks.length > 1 && first !== undefined && first.type.name === 'paragraph' && first.childCount === 0) blocks.shift();
+  return doc.type.create(doc.attrs, Fragment.fromArray(blocks));
 };
 
 /**
@@ -310,7 +434,7 @@ export const parseFragment = (text: string): PmNode => {
  * document, which is a different schema instance from `caotangSchema` (the decision the
  * adapter file records as decision 1).
  */
-export const insertionOf = (text: string, schema: Schema): Slice => {
+export const insertionOf = (text: string, schema: Schema, footnoteLabels: readonly string[] = []): Slice => {
   // Only spaces and tabs are the text's own edge whitespace. A newline at either end is a paragraph
   // boundary, and the parse must see it: kept as a character it saves as `&#xA;`.
   const leading = /^[ \t]*/.exec(text)![0];
@@ -320,7 +444,7 @@ export const insertionOf = (text: string, schema: Schema): Slice => {
   const trailing = text.slice(trailingStart);
   const core = text.slice(leading.length, text.length - trailing.length);
   if (core.length === 0) return new Slice(Fragment.from(schema.text(text)), 0, 0);
-  const parsed = schema.nodeFromJSON(parseFragment(core).toJSON());
+  const parsed = unwrapNotes(schema.nodeFromJSON(parseFragment(core, footnoteLabels).toJSON()));
   /** A textblock with the edge whitespace added to its inline content, at the start or the end. */
   const withEdge = (block: PmNode, start: string, end: string): PmNode => {
     const inline: PmNode[] = [];

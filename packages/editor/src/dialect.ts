@@ -213,6 +213,7 @@ import {
   createSerializeHandlers,
 } from './handlers.js';
 import type { LossWarning } from './handlers.js';
+import type { TreeFootnoteResult } from './footnotes.js';
 
 /**
  * Which mechanism moved the bytes — **the third attribution** §5's banner needs
@@ -238,8 +239,13 @@ import type { LossWarning } from './handlers.js';
  *   change is *visible* rather than mislabelled as something it is not: a
  *   fallback that is never exercised is a claim, and one that is exercised is a
  *   finding. The corpus sweep asserts it never appears there.
+ * - **`footnote-layout`** — the load put the footnotes in Caotang's spelling
+ *   (`footnotes.ts`, #270): the notes at the end in reading order, numeric labels
+ *   re-flowed. It is **one** notice per document, whatever the number of blocks it
+ *   touches, and a block whose only change is a re-numbered marker is counted in it
+ *   rather than on its own.
  */
-export type DialectCause = 'parse-side' | 'list-spread' | 'list-item-spread' | 'save-side';
+export type DialectCause = 'parse-side' | 'list-spread' | 'list-item-spread' | 'save-side' | 'footnote-layout';
 
 /**
  * The mdast types whose ProseMirror round trip drops a field the parse tree
@@ -654,7 +660,25 @@ const detailFor = (type: string, cause: DialectCause): string => {
       return 'Caotang writes a blank line before a nested list, so this one saves with one.';
     case 'save-side':
       return `Saves will re-spell this ${type}, and the change is not attributed to a named mechanism.`;
+    case 'footnote-layout':
+      return 'Saves will number the footnotes in reading order and put every note at the end of the document.';
   }
+};
+
+/**
+ * `text` with every footnote label put back the way the writer spelled it, so a block
+ * whose only change is a re-numbered marker compares equal to its source. The
+ * replacement is simultaneous (one pass), so `1 → 2` and `2 → 1` do not undo each
+ * other, and it reads only unescaped `[^label]`, which is how a save writes a marker.
+ */
+const unrelabel = (text: string, relabelled: ReadonlyMap<string, string>): string => {
+  if (relabelled.size === 0) return text;
+  const back = new Map<string, string>();
+  for (const [before, after] of relabelled) back.set(after, before);
+  return text.replace(/(?<!\\)\[\^([^\]\s]+)\]/g, (whole, label: string) => {
+    const before = back.get(label);
+    return before === undefined ? whole : `[^${before}]`;
+  });
 };
 
 /**
@@ -805,6 +829,42 @@ export const ownTextsByPrefix = (
 };
 
 /**
+ * The one notice for a document whose footnotes the load re-spelled (#270): the notes
+ * as the writer had them, in source order, against the notes as a save writes them.
+ */
+const footnoteNotice = (
+  body: string,
+  blocks: readonly RootContent[],
+  spans: readonly number[],
+  own: readonly string[],
+): DialectNotice => {
+  const sources: Array<{ offset: number; text: string; line?: number; column?: number }> = [];
+  const canonical: string[] = [];
+  let compiled = 0;
+  blocks.forEach((node, index) => {
+    if (node.type === 'footnoteDefinition') {
+      canonical.push(own[compiled] ?? '');
+      const start = node.position?.start;
+      const end = node.position?.end;
+      if (start?.offset !== undefined && end?.offset !== undefined) {
+        sources.push({ offset: start.offset, text: body.slice(start.offset, end.offset), line: start.line, column: start.column });
+      }
+    }
+    compiled += spans[index] ?? 1;
+  });
+  sources.sort((a, b) => a.offset - b.offset);
+  const first = sources[0];
+  return {
+    mdastType: 'footnoteDefinition',
+    ...(first?.line !== undefined ? { position: { line: first.line, column: first.column ?? 1 } } : {}),
+    source: sources.map((entry) => entry.text).join('\n\n'),
+    canonical: canonical.join('\n\n'),
+    cause: 'footnote-layout',
+    detail: detailFor('footnoteDefinition', 'footnote-layout'),
+  };
+};
+
+/**
  * Count the blocks a save will re-spell, in §5's own terms.
  *
  * `body` is the Markdown that produced `tree`; the mdast `position` offsets index
@@ -833,6 +893,7 @@ export const sniffDialect = (
   tree: Root,
   doc: PmNode,
   warnings: readonly LossWarning[],
+  footnotes: TreeFootnoteResult = { changed: false, relabelled: new Map() },
 ): DialectNotice[] => {
   const notices: DialectNotice[] = [];
   const blocks = tree.children;
@@ -934,14 +995,19 @@ export const sniffDialect = (
     // than a path anything reaches today.
     const canonical =
       span === 1 ? own[compiled]! : own.slice(compiled, compiled + span).join('\n\n');
-    if (source === canonical) {
+    // A block whose only change is a footnote label the load re-numbered is the
+    // footnote notice's, which says so once for the document (#270).
+    if (source === canonical || (footnotes.changed && source === unrelabel(canonical, footnotes.relabelled))) {
       compiled += span;
       continue;
     }
     reported.push({ index, compiled, node, start, source });
     compiled += span;
   }
-  if (reported.length === 0) return notices;
+  if (reported.length === 0) {
+    if (footnotes.changed) notices.push(footnoteNotice(body, blocks, spans, own));
+    return notices;
+  }
 
   // Pass two: attribution, for the blocks pass one kept. Parse-side or not — if
   // re-stringifying the *parse* tree also disagrees with the source, remark-parse
@@ -966,6 +1032,7 @@ export const sniffDialect = (
       detail: detailFor(node.type, cause),
     });
   }
+  if (footnotes.changed) notices.push(footnoteNotice(body, blocks, spans, own));
   return notices;
 };
 

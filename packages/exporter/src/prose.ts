@@ -76,12 +76,29 @@ function blocksOf(nodes: readonly Content[]): ProseBlock[] {
       case 'html':
         out.push({ kind: 'paragraph', runs: [{ text: node.value }] });
         break;
+      case 'definition':
+        // A footnote's note (`[^1]: Marta.`) is a GFM footnote to the editor (editor-engine §3.4) and, when it is one
+        // word, a link definition to this CommonMark parse. Until footnotes are rendered (#271) it is exported as the
+        // text it is, so a one-word note is not dropped. Other definitions carry no prose.
+        if (isFootnoteLabel(node.label)) out.push({ kind: 'paragraph', runs: [{ text: footnoteDefinitionText(node) }] });
+        break;
       default:
-        // Definitions and anything else a manuscript does not use carry no prose.
+        // Anything else a manuscript does not use carries no prose.
         break;
     }
   }
   return out;
+}
+
+/** A label written `^…`: GFM's footnote spelling, which CommonMark reads as a link label. */
+function isFootnoteLabel(label: string | null | undefined): boolean {
+  return typeof label === 'string' && label.startsWith('^');
+}
+
+/** A footnote note CommonMark read as a link definition, back as the line it was written as. */
+function footnoteDefinitionText(node: { label?: string | null; url: string; title?: string | null }): string {
+  const title = node.title === null || node.title === undefined ? '' : ` "${node.title}"`;
+  return `[${node.label ?? ''}]: ${node.url}${title}`;
 }
 
 interface Marks {
@@ -117,6 +134,10 @@ function runsOf(nodes: readonly PhrasingContent[], marks: Marks): Run[] {
         break;
       case 'html':
         out.push({ text: node.value, ...marks });
+        break;
+      case 'linkReference':
+        // A footnote marker (`[^1]`) whose note CommonMark read as a link definition: kept as its text (see `definition`).
+        if (isFootnoteLabel(node.label)) out.push({ text: '[', ...marks }, ...runsOf(node.children, marks), { text: ']', ...marks });
         break;
       default:
         break;

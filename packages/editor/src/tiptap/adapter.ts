@@ -90,6 +90,9 @@ import type {
   TextAnchor,
 } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
+import { deleteOrphanNote, insertFootnote } from './footnotes.js';
+import type { FootnoteNoteDeletion, FootnoteOrphan, FootnoteWords } from './footnotes.js';
+import { footnoteTail } from '../footnotes.js';
 import { createGhostPreview } from './ghost.js';
 import type { GhostCallbacks, GhostPreview } from './ghost.js';
 import {
@@ -155,6 +158,13 @@ export interface TiptapMountOptions extends EditorMountOptions {
    * Without a store it reports the editor's own edits.
    */
   onSaveStatusChange?: (status: EditorSaveStatus) => void;
+  /**
+   * #270: the writer deleted the last marker of these notes. The notes are kept; the app asks whether
+   * they go too and answers with {@link TiptapEditorInstance.deleteFootnoteNote}.
+   */
+  onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
+  /** #270: the words a marker and a note carry for assistive technology. English when absent. */
+  footnoteWords?: FootnoteWords;
 }
 
 /**
@@ -299,6 +309,20 @@ export interface TiptapEditorInstance extends ReviewableEditorInstance {
    * caller asks once per write. It answers after teardown with what the editor held.
    */
   historyJournal(): HistoryJournal | null;
+  /**
+   * #270, Lane 1: a footnote at the caret, with an empty note at the end of the document, and the caret
+   * in the note — what Ctrl+Shift+6 does. `false` when the caret is where a footnote cannot go (inside a
+   * note, a code block).
+   */
+  insertFootnote(): boolean;
+  /**
+   * #270, Lane 1: deletes the orphan's note if no marker refers to it any more, the answer to
+   * `onFootnoteOrphaned`. The note is the one the question named, followed by the editor since
+   * (not whichever note holds its label now). `'referenced'` or `'gone'`, and nothing changes,
+   * when the note has a marker again, or is gone or no longer holds the text the question showed;
+   * the app tells the writer which.
+   */
+  deleteFootnoteNote(orphan: FootnoteOrphan): FootnoteNoteDeletion;
   /** Lane 1: the user's own undo. Never reverts an agent apply. */
   undo(): boolean;
   /** Lane 1: the user's own redo. */
@@ -509,12 +533,16 @@ const createInstance = (
   // reach. `undo-scope.ts` explains why an agent apply is checked against it.
   let scope: Span | null = null;
 
+  const footnoteOptions = {
+    ...(opts.onFootnoteOrphaned !== undefined ? { onFootnoteOrphaned: opts.onFootnoteOrphaned } : {}),
+    ...(opts.footnoteWords !== undefined ? { footnoteWords: opts.footnoteWords } : {}),
+  };
   const editor = new Editor({
     element: focusEl,
     extensions:
       layer === null
-        ? caotangExtensions({ role: 'focus', placeholder: opts.placeholder })
-        : layer.extensions({ role: 'focus', placeholder: opts.placeholder }),
+        ? caotangExtensions({ role: 'focus', placeholder: opts.placeholder, ...footnoteOptions })
+        : layer.extensions({ role: 'focus', placeholder: opts.placeholder, ...footnoteOptions }),
     content: loaded.doc.toJSON(),
     editable: opts.readOnly !== true,
     injectCSS: opts.injectCSS ?? true,
@@ -731,7 +759,9 @@ const createInstance = (
     }
     // ProseMirror's fitting joins the blocks around a range that crosses a block boundary,
     // which is what replacing a selection across two paragraphs does in any editor.
-    dispatch(tr.replace(at, until, insertionOf(text, editor.schema)), laneOpts);
+    // #270: the text is read against the notes this document defines, so a `[^1]` the agent kept stays a marker.
+    const labels = footnoteTail(live).defs.map((def) => def.attrs.label as string);
+    dispatch(tr.replace(at, until, insertionOf(text, editor.schema, labels)), laneOpts);
   };
 
   // --- §9: the dirty pipeline is the store's (decision 4) -----------------------
@@ -1007,6 +1037,16 @@ const createInstance = (
     },
 
     historyJournal: readJournal,
+
+    insertFootnote: (): boolean => {
+      if (destroyed || !editor.isEditable) return false;
+      const done = insertFootnote(editor.state, (tr) => dispatch(tr));
+      if (done) editor.view.focus();
+      return done;
+    },
+
+    deleteFootnoteNote: (orphan: FootnoteOrphan): FootnoteNoteDeletion =>
+      destroyed ? 'gone' : deleteOrphanNote(editor.state, (tr) => dispatch(tr), orphan),
 
     undo: (): boolean => (destroyed ? false : editor.commands.undo()),
 

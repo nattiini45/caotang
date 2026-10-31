@@ -13,8 +13,6 @@ import { formatCount } from '../i18n/locale.js';
 const CONSTRUCTS: Readonly<Record<string, readonly [string, string]>> = {
   table: ['table', 'tables'],
   html: ['raw HTML block', 'raw HTML blocks'],
-  footnoteReference: ['footnote', 'footnotes'],
-  footnoteDefinition: ['footnote', 'footnotes'],
   definition: ['reference definition', 'reference definitions'],
   linkReference: ['reference link', 'reference links'],
   imageReference: ['reference image', 'reference images'],

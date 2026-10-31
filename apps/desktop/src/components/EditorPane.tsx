@@ -28,6 +28,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import {
   createTiptapEditorApi,
+  type FootnoteOrphan,
   type GhostPreview,
   type LoadResult,
   type TiptapEditorInstance,
@@ -193,6 +194,8 @@ function DocumentEditor({
   const [load, setLoad] = useState<LoadResult | null>(null);
   const [bannerOpen, setBannerOpen] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
+  // The note whose last marker the writer just deleted (editor-engine §3.4): the editor keeps it, and this asks whether it goes too.
+  const [orphan, setOrphan] = useState<FootnoteOrphan | null>(null);
   // What the editor agrees with: the body and revision it was last made to hold. A store change that is not this one is the
   // only thing that makes the editor take a new body.
   const synced = useRef<{ body: string; revision: number } | null>(null);
@@ -228,6 +231,9 @@ function DocumentEditor({
           placeholder: PLACEHOLDER,
           history: { journal, onChange: saver.onChange },
           agentEditMode: modeAtOpen,
+          onFootnoteOrphaned: (orphans) => {
+            if (alive) setOrphan(orphans[orphans.length - 1] ?? null);
+          },
           ghost: {
             onApply: () => agent.answer({ action: 'approve' }),
             onRetry: () => agent.answer({ action: 'retry' }),
@@ -283,7 +289,11 @@ function DocumentEditor({
         ? editor.showAgentEdit(stored, { toolCallId: apply.toolCallId, revision }).then((outcome) => import('./ReviewSide.js').then((module) => module.reportLanding(outcome, report)))
         : editor.setContent(stored, { historyExcluded: true, discardUnsaved: true });
     landing
-      .then(() => editor.setRevision(revision))
+      .then(() => {
+        editor.setRevision(revision);
+        // The body was replaced from outside (an undo, a restore, an agent apply): a question about a note in the old body is stale.
+        setOrphan(null);
+      })
       .catch((error: unknown) => {
         report({
           text: `The text could not be brought up to date: ${error instanceof Error ? error.message : String(error)}`,
@@ -358,6 +368,23 @@ function DocumentEditor({
 
         <div ref={host} className="editor-host" />
 
+        {editor !== null && orphan !== null ? (
+          <FootnoteQuestion
+            orphan={orphan}
+            onDelete={() => {
+              // The note is the one the question named, followed by the editor since; a refusal changes nothing and is said.
+              const outcome = editor.deleteFootnoteNote(orphan);
+              setOrphan(null);
+              if (outcome !== 'deleted') report({ text: footnoteKeptNotice(outcome), tone: 'info' });
+              editor.focus();
+            }}
+            onKeep={() => {
+              setOrphan(null);
+              editor.focus();
+            }}
+          />
+        ) : null}
+
         {editor !== null && modeAtOpen === 'suggestions' ? (
           <Suspense fallback={null}>
             <ReviewSide projectId={session.projectId} docId={docId} agent={agent} editor={editor} report={report} />
@@ -377,6 +404,17 @@ function DocumentEditor({
 
         <footer className="editor-status" aria-label="Document status">
           <span className="editor-count">{wordsLabel(counts.words)}</span>
+          {editor !== null ? (
+            <button
+              type="button"
+              className="button is-quiet editor-footnote"
+              aria-keyshortcuts="Control+Shift+6 Meta+Shift+6"
+              title="Add a footnote at the caret (Ctrl+Shift+6). The same keys in a note go back to the text."
+              onClick={() => editor.insertFootnote()}
+            >
+              Add footnote
+            </button>
+          ) : null}
           <TargetQuickSet progress={target} onSetTarget={onSetTarget} />
           <span className="editor-save" aria-live="polite">
             {save.lastError !== null
@@ -429,6 +467,43 @@ function GhostBar({
           Discard
         </button>
       </div>
+    </aside>
+  );
+}
+
+/** What the writer is told when answering "Delete the note" changed nothing. */
+function footnoteKeptNotice(outcome: 'referenced' | 'gone'): string {
+  return outcome === 'referenced'
+    ? 'The note was kept: a marker refers to it again.'
+    : 'The note was kept: it was changed or is no longer there.';
+}
+
+/**
+ * The question after the writer deletes a footnote's marker (editor-engine §3.4). The note is kept until the writer says otherwise, so
+ * ignoring the question loses nothing; it is a status region, so a screen reader hears it without the focus moving.
+ */
+function FootnoteQuestion({
+  orphan,
+  onDelete,
+  onKeep,
+}: {
+  orphan: FootnoteOrphan;
+  onDelete: () => void;
+  onKeep: () => void;
+}): ReactNode {
+  const preview = orphan.text.length > 0 ? ` (“${orphan.text.length > 80 ? `${orphan.text.slice(0, 79)}…` : orphan.text}”)` : '';
+  return (
+    <aside className="footnote-question" role="status" aria-label="Footnote without a marker" data-testid="footnote-question">
+      <p>
+        You deleted the marker of footnote {orphan.label}
+        {preview}. Its note is still at the end of the scene. Delete the note too?
+      </p>
+      <button type="button" className="button" onClick={onDelete}>
+        Delete the note
+      </button>
+      <button type="button" className="button is-quiet" onClick={onKeep}>
+        Keep the note
+      </button>
     </aside>
   );
 }

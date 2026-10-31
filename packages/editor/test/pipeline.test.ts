@@ -116,6 +116,15 @@ const EXACT: ReadonlyArray<{ name: string; body: string }> = [
   { name: 'inline-code', body: '`inline code`\n' },
   { name: 'link-inline', body: '[link text](https://caotang.app)\n' },
   { name: 'link-title', body: '[link text](https://caotang.app "Title")\n' },
+  // §3.4 (#270): footnotes in the canonical spelling — notes at the end in reading order,
+  // numeric labels as positions, named labels kept.
+  { name: 'footnote-numeric', body: 'Text[^1] and more[^2].\n\n[^1]: One.\n\n[^2]: Two.\n' },
+  { name: 'footnote-named', body: 'A[^note] and B[^2].\n\n[^note]: Named.\n\n[^2]: Two.\n' },
+  { name: 'footnote-multi-paragraph', body: 'Text[^1].\n\n[^1]: First paragraph.\n\n    Second paragraph.\n' },
+  { name: 'footnote-empty-note', body: 'Text[^1].\n\n[^1]:\n' },
+  { name: 'footnote-unreferenced', body: 'Text.\n\n[^1]: Nothing points here.\n' },
+  { name: 'footnote-scene-separator', body: 'One[^1].\n\n***\n\nTwo[^2].\n\n[^1]: First.\n\n[^2]: Second.\n' },
+  { name: 'footnote-in-note', body: 'Main[^a].\n\n[^a]: Note with a note[^b].\n\n[^b]: Inner.\n' },
 ];
 
 /** Group 2 — exact content, §5 re-spells the syntax, output is canonical. */
@@ -127,6 +136,12 @@ const RESPELLED: ReadonlyArray<{ name: string; body: string; expected: string }>
   { name: 'tilde-fence → backtick-fence', body: '~~~\nplain\n~~~\n', expected: '```\nplain\n```\n' },
   { name: 'dashes-rule → stars-rule', body: '---\n', expected: '***\n' },
   { name: 'backslash-break → two-space-break', body: 'line one\\\nline two\n', expected: 'line one  \nline two\n' },
+  // §3.4 (#270): a foreign footnote layout is re-spelled once.
+  { name: 'footnote numbering → reading order', body: 'X[^2] and Y[^1]\n\n[^1]: one\n\n[^2]: two\n', expected: 'X[^1] and Y[^2]\n\n[^1]: two\n\n[^2]: one\n' },
+  { name: 'footnote definition mid-text → end', body: 'X[^1]\n\n[^1]: one\n\nMore text.\n', expected: 'X[^1]\n\nMore text.\n\n[^1]: one\n' },
+  { name: 'footnote in a block quote → end', body: '> X[^1]\n>\n> [^1]: in quote\n', expected: '> X[^1]\n\n[^1]: in quote\n' },
+  { name: 'footnote duplicate definition → its own note', body: 'X[^1]\n\n[^1]: one\n\n[^1]: dup\n', expected: 'X[^1]\n\n[^1]: one\n\n[^1-2]: dup\n' },
+  { name: 'footnote reference without a note → escaped text', body: 'Text[^1] no note\n', expected: 'Text\\[^1] no note\n' },
 ];
 
 describe('§5 · the exact class round-trips byte-identically', () => {

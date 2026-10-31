@@ -468,8 +468,9 @@ interface SpellingSegment {
  * Measured on the fix, `d` at body 19 resolves to PM 14 — the `d` — where the old
  * single run gave 15.
  *
- * **Measured over the §13 corpus**, five leaves carry an escape and all five were
- * mis-placed before this: `escape-bracket`, `footnote-reference`, `html-raw-block`,
+ * **Measured over the §13 corpus**, five leaves carried an escape and all five were
+ * mis-placed before this (`footnote-reference` has had no escaped leaf since #270, §3.4):
+ * `escape-bracket`, `footnote-reference`, `html-raw-block`,
  * `html-raw-inline` and `obsidian-heading-spacing`. `escape-bracket`'s run read
  * `not \[a link` against the PM text `not [a link]` — the backslash inside a run that
  * cut the closing bracket off. Every one of them now reads the same string on both

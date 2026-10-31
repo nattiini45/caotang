@@ -74,6 +74,9 @@ describe('preflight · the §3 handler table is what §3.1/§3.2/§3.3 say', () 
         'bullet_list',
         'code_block',
         'doc',
+        // §3.1's footnote nodes (#270, §3.4). The audit registers no handler for them.
+        'footnote_definition',
+        'footnote_reference',
         'hard_break',
         'heading',
         'horizontal_rule',
