@@ -17,7 +17,7 @@ export default defineConfig({
     // is green because it never ran. `apps/desktop/test` holds the app's own
     // component-level checks (the React bidi helper, I4), which need the app's
     // React dependency and therefore cannot live under the root package.
-    include: ['packages/*/test/**/*.test.ts', 'test/**/*.test.ts', 'apps/desktop/test/**/*.test.tsx'],
+    include: ['packages/*/test/**/*.test.ts', 'test/**/*.test.ts', 'apps/desktop/test/**/*.test.{ts,tsx}'],
     // The Ink compiler loads on demand, so every test file starts with it loaded, as a Node host's entry does.
     setupFiles: ['test/setup-ink-compiler.ts'],
     reporters: ['default'],
