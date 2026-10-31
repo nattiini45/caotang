@@ -301,7 +301,7 @@ export interface AgentApply {
   readonly toolCallId: string;
 }
 
-/* lingui-set comment="Interpolated values: calls, error, mode, waiting" */
+/* lingui-set comment="Interpolated values: calls, error, mode, readError, reason, waiting" */
 
 /** What the panel says when the queue waits after a turn that stopped on a question. */
 export function queuePausedText(): string {
@@ -527,7 +527,7 @@ export class AgentController {
     const resolved = resolveSlash(line, this.slashContext());
     const starts = resolved.kind === 'plan' || (resolved.kind === 'intent' && resolved.command !== undefined) || (resolved.kind === 'session' && resolved.action === 'restore');
     if (this.busy && starts) {
-      this.commandNote = { kind: 'info', title: 'A turn is running', lines: ['Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again.'] };
+      this.commandNote = { kind: 'info', title: t`A turn is running`, lines: [t`Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again.`] };
       this.bump();
       return { kind: 'kept' };
     }
@@ -632,8 +632,8 @@ export class AgentController {
    */
   runMacro(macroId: string, values: Record<string, unknown>): { readonly started: true } | { readonly started: false; readonly problem: string } {
     const macro = this.session.macros().find((candidate) => candidate.id === macroId);
-    if (macro === undefined) return { started: false, problem: 'That macro is not in the project any more.' };
-    if (this.busy) return { started: false, problem: 'A turn is running. Wait for it to end, or stop it, then run the macro.' };
+    if (macro === undefined) return { started: false, problem: t`That macro is not in the project any more.` };
+    if (this.busy) return { started: false, problem: t`A turn is running. Wait for it to end, or stop it, then run the macro.` };
     const plan = expandMacro(macro, values);
     if (!plan.ok) return { started: false, problem: plan.error.message };
     const checked = checkMacro(macro);
@@ -730,12 +730,12 @@ export class AgentController {
   private async beforeAutoApply(card: PlanCardView): Promise<string | void> {
     let held: string | undefined;
     if (!(await this.typingSaved())) {
-      held = 'Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved.';
+      held = t`Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved.`;
     } else if (card.steps.some((step) => step.tool.startsWith('export.compile'))) {
       try {
         await this.session.exportsReady();
       } catch {
-        held = 'The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.';
+        held = t`The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.`;
       }
     }
     if (held === undefined) {
@@ -940,7 +940,8 @@ export class AgentController {
       // Said once, and never over a message the writer has not read yet, such as a turn's own result, nor over a turn that has begun.
       if (!superseded() && !this.runLogUnreadableTold && this.message === null) {
         this.runLogUnreadableTold = true;
-        this.message = `Interrupted agent runs could not be checked: ${error instanceof Error ? error.message : String(error)}`;
+        const reason = error instanceof Error ? error.message : String(error);
+        this.message = t`Interrupted agent runs could not be checked: ${reason}`;
         this.bump();
       }
       return;
@@ -955,11 +956,11 @@ export class AgentController {
         summary = await this.summarizeLogged(run.runId);
       } catch {
         // A read that failed, or a document the project could not give: the run stays listed, and only the writer discards it.
-        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.' });
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.` });
         continue;
       }
       if (run.schema !== RUN_LOG_VERSION || summary === undefined) {
-        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.' });
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.` });
         continue;
       }
       views.push({
@@ -993,13 +994,13 @@ export class AgentController {
    */
   async resumeRun(runId: string): Promise<TurnReport | null> {
     if (this.busy) {
-      this.message = 'The agent is working on another turn. Resume the run when it has finished.';
+      this.message = t`The agent is working on another turn. Resume the run when it has finished.`;
       this.bump();
       return null;
     }
     const view = this.interrupted.find((entry) => entry.runId === runId);
     if (view === undefined || !view.resumable) {
-      this.message = 'That run can no longer be resumed.';
+      this.message = t`That run can no longer be resumed.`;
       this.bump();
       return null;
     }
@@ -1015,12 +1016,12 @@ export class AgentController {
       // A read that failed may work next time; a log that was read and cannot be summarized will not.
       this.message =
         readError !== undefined
-          ? `The run log could not be read: ${readError}. The run was not resumed. Try again, or discard the log.`
-          : 'This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.';
+          ? t`The run log could not be read: ${readError}. The run was not resumed. Try again, or discard the log.`
+          : t`This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.`;
       this.bump();
       return null;
     }
-    this.announcement = 'Resuming the run.';
+    this.announcement = t`Resuming the run.`;
     return this.turnWith(view.intent, { restoredSpend }, (agent, turn) => agent.resume(runId, turn));
   }
 
@@ -1029,11 +1030,12 @@ export class AgentController {
     try {
       await this.runLog.discard(runId);
     } catch (error) {
-      this.message = `The run log could not be discarded: ${error instanceof Error ? error.message : String(error)}`;
+      const reason = error instanceof Error ? error.message : String(error);
+      this.message = t`The run log could not be discarded: ${reason}`;
       this.bump();
       return;
     }
-    this.announcement = 'Run log discarded. What the agent wrote stays in the project.';
+    this.announcement = t`Run log discarded. What the agent wrote stays in the project.`;
     await this.loadInterrupted();
     this.bump();
   }
@@ -1223,7 +1225,7 @@ export class AgentController {
       void (async () => {
         if (!(await this.typingSaved())) {
           // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
-          this.message = 'Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.';
+          this.message = t`Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.`;
           if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
             this.pending = parked;
             this.resolveDecision = resolve;
@@ -1242,7 +1244,8 @@ export class AgentController {
           try {
             await this.session.exportsReady();
           } catch (error) {
-            this.message = `The project’s images could not be listed again (${error instanceof Error ? error.message : String(error)}), so the export was not applied. Approve it again to try once more.`;
+            const reason = error instanceof Error ? error.message : String(error);
+            this.message = t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
             if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
               this.pending = parked;
               this.resolveDecision = resolve;
@@ -1283,7 +1286,7 @@ export class AgentController {
   async restoreStep(turnId: string, stepId: string): Promise<RestoreResult> {
     const group = this.checkpointOf(turnId);
     const agent = this.sessionOf(turnId);
-    if (group === undefined || agent === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
+    if (group === undefined || agent === undefined) return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.`, undone: [] };
     const held = this.entriesIn(group);
     const outcome = await this.session.restoreBefore(group, () => agent.restoreStep(turnId, stepId));
     const number = (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
@@ -1313,7 +1316,7 @@ export class AgentController {
     const group = this.checkpointOf(turnId);
     const from = stepId === undefined ? undefined : this.sessionOf(turnId)?.stepStart(turnId, stepId);
     if (group === undefined || (stepId !== undefined && from === undefined)) {
-      return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [], kept: 0 };
+      return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.`, undone: [], kept: 0 };
     }
     const held = this.entriesIn(group);
     const outcome = await this.session.restoreExact(group, from);
@@ -1340,8 +1343,10 @@ export class AgentController {
     // The restore awaits the autosave flush, so a turn may have started since the menu opened; the rewind is refused while one runs.
     const rewound = this.rewindConversation(turnId);
     if (rewound === null) {
-      const why = this.busy ? 'a turn is running, so the conversation was not rewound' : 'that turn is no longer in this session’s conversation, so nothing was rewound';
-      return { ok: false, message: `The project was restored, but ${why}.`, projectRestored: true };
+      const message = this.busy
+        ? t`The project was restored, but a turn is running, so the conversation was not rewound.`
+        : t`The project was restored, but that turn is no longer in this session’s conversation, so nothing was rewound.`;
+      return { ok: false, message, projectRestored: true };
     }
     return { ok: true, later: outcome.later, intent: rewound.intent };
   }
@@ -1358,7 +1363,7 @@ export class AgentController {
     const result = agent.rewindConversation(turnId);
     if (result.rewound.length === 0) return null;
     this.turns = this.turns.map((turn) => (result.rewound.includes(turn.turnId) ? { ...turn, rewound: true } : turn));
-    this.announcement = 'Conversation rewound. The agent no longer sees that turn or the ones after it.';
+    this.announcement = t`Conversation rewound. The agent no longer sees that turn or the ones after it.`;
     this.bump();
     return result;
   }

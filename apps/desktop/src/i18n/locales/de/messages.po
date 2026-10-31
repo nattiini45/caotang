@@ -1,11 +1,12 @@
+#
 msgid ""
 msgstr ""
 "POT-Creation-Date: 2026-10-31 12:42+0100\n"
+"Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: @lingui/cli\n"
-"Language: de\n"
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
@@ -254,6 +255,11 @@ msgstr "„{speaker}“ passt zu keiner Figur im Kodex. Legen Sie einen Eintrag 
 msgid "“{summary}” could not be undone in full. The rest of its group is kept for another try."
 msgstr "„{summary}“ konnte nicht vollständig rückgängig gemacht werden. Der Rest seiner Gruppe bleibt für einen weiteren Versuch erhalten."
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "\"{title}\" is no longer in the binder."
+msgstr "„{title}“ ist nicht mehr im Binder."
+
 #. Interpolated values: folder
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
@@ -405,7 +411,7 @@ msgstr "{already, plural, one {# ist bereits eine Arbeitskopie.} other {# sind b
 msgid "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 msgstr "{already, plural, one {# Bild war bereits vorhanden.} other {# Bilder waren bereits vorhanden.}}"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{badge, plural, one {# open} other {# open}}"
 msgstr "{badge, plural, one {# offen} other {# offen}}"
@@ -440,8 +446,8 @@ msgstr "{change}: von {from} zu {to}"
 msgid "{changed, plural, one {Tagged # picture.} other {Tagged # pictures.}}"
 msgstr "{changed, plural, one {# Bild mit Tag versehen.} other {# Bilder mit Tag versehen.}}"
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{chapters} {chapterCount, plural, one {chapter} other {chapters}}, {scenes} {sceneCount, plural, one {scene} other {scenes}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{chapters} {chapterCount, plural, one {Kapitel} other {Kapitel}}, {scenes} {sceneCount, plural, one {Szene} other {Szenen}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
 
@@ -469,6 +475,11 @@ msgstr "{citations, plural, one {# Zitat} other {# Zitate}}"
 #: apps/desktop/src/app/footer-model.ts
 msgid "{clock} left"
 msgstr "{clock} übrig"
+
+#. Interpolated values: commandCount (how many commands match what is typed)
+#: apps/desktop/src/components/CommandComposer.tsx
+msgid "{commandCount, plural, one {# command} other {# commands}}"
+msgstr "{commandCount, plural, one {# Befehl} other {# Befehle}}"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -533,6 +544,11 @@ msgstr "{count, plural, one {# Feststellung} other {# Feststellungen}}"
 #: apps/desktop/src/components/Binder.tsx
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# Element} other {# Elemente}}"
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "{count, plural, one {# later change was already taken back.} other {# later changes were already taken back.}}"
+msgstr "{count, plural, one {# spätere Änderung wurde bereits zurückgenommen.} other {# spätere Änderungen wurden bereits zurückgenommen.}}"
 
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
@@ -990,6 +1006,11 @@ msgstr "{field}: {to}"
 
 #. Interpolated values: choices, count, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
+msgid "{file} could not be read: {problem}."
+msgstr "{file} konnte nicht gelesen werden: {problem}."
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} has no knot to import. An Ink story makes one container for each knot."
 msgstr "{file} hat keinen Knoten zu importieren. Eine Ink-Geschichte legt für jeden Knoten einen Container an."
 
@@ -1003,7 +1024,7 @@ msgstr "{file} hat keine Passage zu importieren. Eine Twee-Geschichte legt für 
 msgid "{file}: {change, select, changed {changed} removed {removed} added {added} other {changed}}"
 msgstr "{file}: {change, select, changed {geändert} removed {entfernt} added {hinzugefügt} other {geändert}}"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{file}: {kind, select, changed {changed} removed {removed} added {added} other {changed}}"
 msgstr "{file}: {kind, select, changed {geändert} removed {entfernt} added {hinzugefügt} other {geändert}}"
@@ -1022,6 +1043,11 @@ msgstr "{first} und {rest} weitere"
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{from} → {to}"
 msgstr "{from} → {to}"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "{hiddenLabels, plural, one {# more changed file label is not shown.} other {# more changed file labels are not shown.}}"
+msgstr "{hiddenLabels, plural, one {# weitere geänderte Datei wird nicht genannt.} other {# weitere geänderte Dateien werden nicht genannt.}}"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -1073,8 +1099,8 @@ msgstr "{later, plural, one {Auf den Stand vor diesem Zug zurückgesetzt. # spä
 msgid "{layerId, select, L2 {Codex entries} L4 {Story so far, from the synopses} L5 {Focus document text} other {The layer}} is a whole number of tokens from {min} to {max}, or empty for the default."
 msgstr "{layerId, select, L2 {Kodex-Einträge} L4 {Die Geschichte bisher, aus den Zusammenfassungen} L5 {Text des Fokusdokuments} other {Die Ebene}} ist eine ganze Zahl an Token von {min} bis {max} oder leer für den Standardwert."
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{lines} {lineCount, plural, one {line} other {lines}} in {scenes} {sceneCount, plural, one {container} other {containers}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{lines} {lineCount, plural, one {Zeile} other {Zeilen}} in {scenes} {sceneCount, plural, one {Container} other {Container}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
 
@@ -1239,6 +1265,11 @@ msgstr "{offscreen, plural, one {# Änderung liegt außerhalb der Ansicht} other
 msgid "{omitted, plural, one {# more change is not listed here. It is applied with the rest.} other {# more changes are not listed here. They are applied with the rest.}}"
 msgstr "{omitted, plural, one {# weitere Änderung ist hier nicht aufgeführt. Sie wird mit den übrigen angewendet.} other {# weitere Änderungen sind hier nicht aufgeführt. Sie werden mit den übrigen angewendet.}}"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "{omittedPreviews, plural, one {Detailed comparisons for # more file are not shown to keep the question manageable.} other {Detailed comparisons for # more files are not shown to keep the question manageable.}}"
+msgstr "{omittedPreviews, plural, one {Der genaue Vergleich für # weitere Datei wird nicht gezeigt, damit die Frage überschaubar bleibt.} other {Die genauen Vergleiche für # weitere Dateien werden nicht gezeigt, damit die Frage überschaubar bleibt.}}"
+
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #: apps/desktop/src/app/coherence-report-words.ts
 msgid "{open, plural, one {# open finding, {dismissed} dismissed, {fixed} marked fixed.} other {# open findings, {dismissed} dismissed, {fixed} marked fixed.}}"
@@ -1264,6 +1295,11 @@ msgstr "{openFindings, plural, one {# offene Feststellung} other {# offene Fests
 msgid "{otherFiles, plural, one {# other file.} other {# other files.}}"
 msgstr "{otherFiles, plural, one {# andere Datei.} other {# andere Dateien.}}"
 
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "{others, plural, one {The compile will write {fileName}, and # more file: {files}.} other {The compile will write {fileName}, and # more files: {files}.}}"
+msgstr "{others, plural, one {Das Kompilieren schreibt {fileName} und # weitere Datei: {files}.} other {Das Kompilieren schreibt {fileName} und # weitere Dateien: {files}.}}"
+
 #. Outcome of a delegated agent; partial means stopped before completion.
 #: apps/desktop/src/app/agent-model.ts
 msgid "{outcome, select, running {Working} done {Finished} partial {Stopped before it finished} other {Failed}}"
@@ -1284,13 +1320,13 @@ msgstr "{pages, plural, one {# Seite} other {# Seiten}}"
 msgid "{pages} · about {minutes} min"
 msgstr "{pages} · etwa {minutes} min"
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{pages} {pageCount, plural, one {page} other {pages}}"
 msgstr "{pages} {pageCount, plural, one {Seite} other {Seiten}}"
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{pages} {pageCount, plural, one {page} other {pages}}, {panels} {comicPanels, plural, one {panel} other {panels}}"
 msgstr "{pages} {pageCount, plural, one {Seite} other {Seiten}}, {panels} {comicPanels, plural, one {Panel} other {Panels}}"
 
@@ -1439,13 +1475,13 @@ msgstr "{rowCount} von {total, plural, one {# Einstellung} other {# Einstellunge
 msgid "{runs, plural, one {# run recorded; the latest is {at} ({status}).} other {# runs recorded; the latest is {at} ({status}).}}"
 msgstr "{runs, plural, one {# Lauf aufgezeichnet; der neueste ist {at} ({status}).} other {# Läufe aufgezeichnet; der neueste ist {at} ({status}).}}"
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{scenes} {sceneCount, plural, one {container} other {containers}}"
 msgstr "{scenes} {sceneCount, plural, one {Container} other {Container}}"
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{scenes} {sceneCount, plural, one {scene} other {scenes}} in {sections} {sectionCount, plural, one {section} other {sections}}, {words} {wordCount, plural, one {word} other {words}}"
 msgstr "{scenes} {sceneCount, plural, one {Szene} other {Szenen}} in {sections} {sectionCount, plural, one {Abschnitt} other {Abschnitten}}, {words} {wordCount, plural, one {Wort} other {Wörtern}}"
 
@@ -1496,8 +1532,8 @@ msgstr "{shotCount, plural, one {# Einstellung} other {# Einstellungen}}, {anima
 msgid "{shotCount, plural, one {# shot} other {# shots}}, {animatic}. The numbers follow the order of the cards, so a move renumbers them. The fields are read only in this build."
 msgstr "{shotCount, plural, one {# Einstellung} other {# Einstellungen}}, {animatic}. Die Nummern folgen der Reihenfolge der Karten, daher nummeriert eine Verschiebung sie neu. Die Felder sind in diesem Build schreibgeschützt."
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "{shots} {shotCount, plural, one {shot} other {shots}}"
 msgstr "{shots} {shotCount, plural, one {Einstellung} other {Einstellungen}}"
 
@@ -1505,6 +1541,11 @@ msgstr "{shots} {shotCount, plural, one {Einstellung} other {Einstellungen}}"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "{shown} {count, plural, one {mention} other {mentions}}"
 msgstr "{shown} {count, plural, one {Erwähnung} other {Erwähnungen}}"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "{shownNotes} of {allNotes} notes. The compile log keeps them all."
+msgstr "{shownNotes} von {allNotes} Hinweisen. Das Kompilierprotokoll enthält alle."
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
@@ -1553,6 +1594,11 @@ msgstr "{size} MB"
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "{skipped, plural, one {# file was left out.} other {# files were left out.}}"
 msgstr "{skipped, plural, one {# Datei wurde ausgelassen.} other {# Dateien wurden ausgelassen.}}"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "{skipped, plural, one {The compile will hold {holds}, and leave out # empty document.} other {The compile will hold {holds}, and leave out # empty documents.}}"
+msgstr "{skipped, plural, one {Das Kompilat enthält {holds} und lässt # leeres Dokument aus.} other {Das Kompilat enthält {holds} und lässt # leere Dokumente aus.}}"
 
 #. The review of returned photographs. Interpolated values: number and count are page and panel numbers; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPhotoReturn.tsx
@@ -1707,10 +1753,20 @@ msgstr "{total, plural, one {# Zeitachsen-Änderung, vor der Genehmigung angezei
 msgid "{totalAll, plural, one {Apply # change} other {Apply # changes}}"
 msgstr "{totalAll, plural, one {# Änderung anwenden} other {# Änderungen anwenden}}"
 
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "{totalChars, plural, one {Showing the first {shown} of # character. The compile writes them all.} other {Showing the first {shown} of # characters. The compile writes them all.}}"
+msgstr "{totalChars, plural, one {Gezeigt werden die ersten {shown} von # Zeichen. Das Kompilieren schreibt alle.} other {Gezeigt werden die ersten {shown} von # Zeichen. Das Kompilieren schreibt alle.}}"
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "{totalWords, plural, one {# word} other {# words}} in the project"
 msgstr "{totalWords, plural, one {# Wort} other {# Wörter}} im Projekt"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "{turnCount, plural, one {Rewound - not sent to the model (# turn)} other {Rewound - not sent to the model (# turns)}}"
+msgstr "{turnCount, plural, one {Zurückgespult – nicht an das Modell gesendet (# Durchlauf)} other {Zurückgespult – nicht an das Modell gesendet (# Durchläufe)}}"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -1781,6 +1837,11 @@ msgstr "{who}: {what}"
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "{width} × {height} px ({megapixels} MP)"
 msgstr "{width} × {height} px ({megapixels} MP)"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "{words, plural, one {# word} other {# words}}"
+msgstr "{words, plural, one {# Wort} other {# Wörter}}"
 
 #. Interpolated values: count, target, words
 #: apps/desktop/src/app/session-progress.ts
@@ -1861,6 +1922,11 @@ msgstr "<0/> wird in <1><2/></1> als wissend angezeigt"
 msgid "<0/> learns it in <1><2/></1>"
 msgstr "<0/> erfährt es in <1><2/></1>"
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "<0/>, word by word from the old to the new ({wordsBefore} words to {wordsAfter}), shown before approval: every later request carries it"
+msgstr "<0/>, Wort für Wort vom alten zum neuen Stand ({wordsBefore} Wörter zu {wordsAfter}), vor der Genehmigung gezeigt: Jede spätere Anfrage enthält es"
+
 #. Interpolated values: file, title
 #: apps/desktop/src/components/TweeImportDialog.tsx
 msgid "<0>{title}</0> ({file}) will be one dialogue container. Read what the import changes first."
@@ -1876,12 +1942,12 @@ msgstr "<0><1/></0> wird in <2/> eingelöst"
 msgid "<0><1/></0> is paid off in <2/>: <3/>"
 msgstr "<0><1/></0> wird in <2/> eingelöst: <3/>"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "<0>caotang.json</0> in this folder was changed by another program after Caotang last loaded or saved it, so nothing was written."
 msgstr "<0>caotang.json</0> wurde in diesem Ordner von einem anderen Programm geändert, nachdem Caotang ihn zuletzt geladen oder gespeichert hat, daher wurde nichts geschrieben."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "<0>caotang.json</0> in this folder was changed by another program while Caotang was saving it, so the folder now holds that program’s version."
 msgstr "<0>caotang.json</0> wurde in diesem Ordner von einem anderen Programm geändert, während Caotang ihn speicherte, daher enthält der Ordner jetzt die Version dieses Programms."
@@ -1905,6 +1971,11 @@ msgstr "<0>Auto-Modus ausschalten</0>"
 #: apps/desktop/src/app/activity-model.ts
 msgid "| # | Time | Command | Summary | Issued by | Source | Undo group |"
 msgstr "| # | Zeit | Befehl | Zusammenfassung | Ausgelöst von | Quelle | Rückgängig-Gruppe |"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "− In the folder · + In this tab"
+msgstr "− Im Ordner · + In dieser Registerkarte"
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
@@ -2113,11 +2184,6 @@ msgstr "ein Fakt, der nicht mehr da ist"
 msgid "A fixed-layout EPUB with one picture per comic page and the balloon text kept as readable text, for an ebook reader. Made in the app."
 msgstr "Ein EPUB mit festem Layout, ein Bild pro Comic-Seite und der Sprechblasentext als lesbarer Text, für einen E-Book-Reader. In der App erstellt."
 
-#. Interpolated values: refusal
-#: apps/desktop/src/app/binder-model.ts
-msgid "A folder cannot go inside another folder."
-msgstr "Ein Ordner kann nicht in einen anderen Ordner verschoben werden."
-
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "a folder that is gone"
@@ -2143,6 +2209,11 @@ msgstr "Ein Ziel braucht eine ganze Zahl an Wörtern über null."
 msgid "a goal: {reason}"
 msgstr "ein Ziel: {reason}"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "A hook stopped the step"
+msgstr "Ein Hook hat den Schritt angehalten"
+
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "A keyword is at most {limit} characters."
@@ -2159,12 +2230,12 @@ msgstr "Ein Sprachcode wie en, de oder en-GB. EPUB-Dateien deklarieren ihn."
 msgid "coherence.comic.coverageStaleDocument"
 msgstr "Eine Zeile auf Seite {page} wurde anhand eines Skripts lettert, nicht anhand des Skripts, das dieses Buch verwendet. Lettern Sie die Seite noch einmal anhand des Skripts dieses Buches."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again anyway?"
 msgstr "In diesem Ordner ist während des Speicherns durch Caotang eine Sperrdatei erschienen, daher hat möglicherweise ein anderes Programm, etwa der Caotang-MCP-Server, den Ordner mitten beim Speichern gelesen. Das Speichern wurde geschrieben. Wenn Sie jetzt erneut speichern, kann das überschreiben, was dieses Programm schreibt. Jetzt trotzdem erneut speichern?"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
 msgstr "Eine Sperrdatei in diesem Ordner besagt, dass ein anderes Programm, etwa der Caotang-MCP-Server, ihn möglicherweise verwendet. Wenn Sie jetzt speichern, kann das überschreiben, was dieses Programm geschrieben hat. Wenn kein solches Programm läuft, wurde die Sperre hinterlassen, als eines geschlossen wurde. Trotzdem speichern?"
@@ -2324,6 +2395,16 @@ msgstr "Eine Aufgabe wird nur entworfen, solange dieses Projekt in diesem Tab ge
 msgid "A thread’s declared payoff is not in the manuscript"
 msgstr "Die deklarierte Auflösung eines Handlungsstrangs ist nicht im Manuskript"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "A turn is running"
+msgstr "Ein Durchlauf läuft"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "A turn is running. Wait for it to end, or stop it, then run the macro."
+msgstr "Ein Durchlauf läuft. Warten Sie, bis er endet, oder stoppen Sie ihn, und führen Sie das Makro dann aus."
+
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "A visual reference of “{name}”"
@@ -2437,8 +2518,8 @@ msgstr "Aktiv"
 msgid "Active profile"
 msgstr "Aktives Profil"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: source, summary
 #: apps/desktop/src/components/ActivityPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
@@ -2866,12 +2947,12 @@ msgstr "Ein anderer Import läuft noch."
 msgid "Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
 msgstr "Ein anderes Programm hat nach dem Lesen des Ordners durch Caotang eine Datei darin geändert, daher wurde nichts geschrieben. Schließen Sie dies und öffnen Sie den Ordner erneut, um seine aktuelle Kopie zu sehen."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program changed these files in the folder while Caotang was saving, so the save stopped part way. The files before them were saved, and these were not:"
 msgstr "Ein anderes Programm hat diese Dateien im Ordner geändert, während Caotang speicherte, daher wurde das Speichern mitten drin abgebrochen. Die Dateien davor wurden gespeichert, diese nicht:"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds that program’s version of them:"
 msgstr "Ein anderes Programm hat diese Dateien im Ordner geändert, während Caotang speicherte. Das Speichern wurde geschrieben, und der Ordner enthält jetzt die Version dieses Programms:"
@@ -2881,7 +2962,7 @@ msgstr "Ein anderes Programm hat diese Dateien im Ordner geändert, während Cao
 msgid "Another program changed this folder after Caotang read it, so nothing was written: {files}. Close this, then open the folder again to see its current copy."
 msgstr "Ein anderes Programm hat diesen Ordner geändert, nachdem Caotang ihn gelesen hat, daher wurde nichts geschrieben: {files}. Schließen Sie dies und öffnen Sie den Ordner erneut, um seine aktuelle Kopie zu sehen."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program may be using this folder"
 msgstr "Ein anderes Programm verwendet diesen Ordner möglicherweise"
@@ -2891,7 +2972,7 @@ msgstr "Ein anderes Programm verwendet diesen Ordner möglicherweise"
 msgid "Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?"
 msgstr "Ein anderes Programm verwendet diesen Ordner möglicherweise: Eine Sperrdatei darin weist darauf hin, und der Caotang-MCP-Server schreibt möglicherweise ebenfalls in dieses Projekt. Wenn Sie fortfahren, wird caotang.json ersetzt, und alles, was dieses Programm geschrieben hat, könnte verloren gehen. Trotzdem fortfahren?"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program removed <0>caotang.json</0> from this folder after Caotang last loaded or saved it, so nothing was written."
 msgstr "Ein anderes Programm hat <0>caotang.json</0> aus diesem Ordner entfernt, nachdem Caotang ihn zuletzt geladen oder gespeichert hat, daher wurde nichts geschrieben."
@@ -3003,6 +3084,11 @@ msgstr "Genehmigen und den gestrichenen Text behalten"
 msgid "Approve plan"
 msgstr "Plan genehmigen"
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Approve the plan as it is"
+msgstr "Den Plan so genehmigen, wie er ist"
+
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "Approve the selected pages"
@@ -3112,8 +3198,8 @@ msgstr "Bitten Sie ihn, eine Szene zu entwerfen, die Zusammenfassungen eines Kap
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
-msgid "Ask the agent to draft, fill, or check something"
-msgstr "Bitten Sie den Agent, etwas zu entwerfen, auszufüllen oder zu prüfen"
+msgid "Ask the agent to draft, fill, or check something, or type / for commands"
+msgstr "Bitten Sie den Agenten, etwas zu entwerfen, zu füllen oder zu prüfen, oder tippen Sie / für Befehle"
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
@@ -3253,7 +3339,7 @@ msgstr "Autor auf der Titelseite"
 msgid "Auto"
 msgstr "Auto"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Auto is turned off in Settings › Agent."
 msgstr "Auto ist in Einstellungen › Agent ausgeschaltet."
@@ -3396,7 +3482,8 @@ msgstr "bestTake.vendorParams ist kein Objekt"
 msgid "bestTake.vendorParams.{key} is not text or a number"
 msgstr "bestTake.vendorParams.{key} ist weder Text noch eine Zahl"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 #: apps/desktop/src/components/Workspace.tsx
@@ -3453,12 +3540,56 @@ msgstr "Verzweigungsgraph"
 msgid "Brief"
 msgstr "Kurzinfo"
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneBrief.bare.content"
+msgstr "Einen Entwurf vorbereiten"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneBrief.content"
+msgstr "Einen Entwurf von „{doc}“ vorbereiten"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueBrief.bare.content"
+msgstr "Dialog vorbereiten"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueBrief.content"
+msgstr "Dialog in „{doc}“ vorbereiten"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneBrief.bare.active"
+msgstr "Ein Entwurf wird vorbereitet"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneBrief.active"
+msgstr "Ein Entwurf von „{doc}“ wird vorbereitet"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueBrief.bare.active"
+msgstr "Dialog wird vorbereitet"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueBrief.active"
+msgstr "Dialog in „{doc}“ wird vorbereitet"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Bring a project in"
 msgstr "Projekt importieren"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/PictureNotices.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Browser storage"
@@ -3479,7 +3610,7 @@ msgstr "Browser-Speicher: persistent ✓"
 msgid "Browser storage: the browser has not said whether it keeps this project."
 msgstr "Browser-Speicher: Der Browser hat nicht gesagt, ob er dieses Projekt behält."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser."
 msgstr "Browser können gespeicherte Daten entfernen, wenn ein Gerät wenig Speicher hat. Die Bitte an den Browser, sie zu behalten, senkt dieses Risiko, und der Browser hat sie hier nicht gewährt. {storageSentence} Ein Bundle ist die Kopie, die nicht vom Browser abhängt."
@@ -3621,7 +3752,7 @@ msgstr "Caotang konnte den Ordner, an den es sich erinnert, nicht erreichen. Wä
 msgid "Caotang could not tell which encoding to read it with"
 msgstr "Caotang konnte nicht erkennen, mit welcher Kodierung es das lesen soll"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in <0>.caotang-backup</0> in the folder, and an older <1>caotang.json</1> is kept as a backup of its own, so if you need anything from it, copy it from there."
 msgstr "Caotang hat keine Aufzeichnung darüber, was dieser Ordner enthielt, als dieses Projekt zuletzt dort gespeichert wurde, daher kann es nicht sagen, welche Dokumente sich seitdem geändert haben. Beim Speichern wird die Version dieser Registerkarte über die Dokumente des Ordners geschrieben. Die Version des Ordners von jedem, den sie ersetzt, wird in <0>.caotang-backup</0> im Ordner aufbewahrt, und eine ältere <1>caotang.json</1> wird als eigene Sicherung aufbewahrt; wenn Sie also etwas davon brauchen, kopieren Sie es von dort."
@@ -3663,6 +3794,11 @@ msgstr "caotang.json in „{name}“ kann nicht gelesen werden. Die einzelne Sic
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "caotang.json in this folder was changed by another program after Caotang read it, so nothing was written. Close this, then open the folder again to see its current copy."
 msgstr "caotang.json in diesem Ordner wurde, nachdem Caotang ihn gelesen hat, von einem anderen Programm geändert, daher wurde nichts geschrieben. Schließen Sie dies und öffnen Sie den Ordner erneut, um seine aktuelle Kopie zu sehen."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "CAOTANG.md, your standing instructions, and the notes the agent keeps"
+msgstr "CAOTANG.md, Ihre dauerhaften Anweisungen und die Notizen, die der Agent führt"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
@@ -3714,7 +3850,7 @@ msgstr "Karten, die den eigenen Text oder die eigenen Felder des Projekts änder
 msgid "Centered"
 msgstr "Zentriert"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Centre view"
 msgstr "Ansicht zentrieren"
@@ -3763,6 +3899,11 @@ msgstr "Ein Ziel für das Manuskript ändern"
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Change a scene…"
 msgstr "Eine Szene ändern…"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.instructionsPropose.content"
+msgstr "CAOTANG.md ändern"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -3820,6 +3961,16 @@ msgstr "Wissensfakt {fact} geändert"
 msgid "Changes"
 msgstr "Änderungen"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Changes for {file}"
+msgstr "Änderungen an {file}"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Changes for {file}, file {position} of {count}"
+msgstr "Änderungen an {file}, Datei {position} von {count}"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Changes that are not in a bundle yet"
@@ -3829,6 +3980,11 @@ msgstr "Änderungen, die noch in keinem Bundle sind"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Changes to <0/>"
 msgstr "Änderungen an <0/>"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.instructionsPropose.active"
+msgstr "CAOTANG.md wird geändert"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -4070,6 +4226,16 @@ msgstr "Eine Anbieter-Vorlage wählen"
 msgid "Choose a vendor template first: a prompt pack recipe is written for one."
 msgstr "Wählen Sie zuerst eine Anbieter-Vorlage: Ein Prompt-Pack-Exportprofil ist für eine geschrieben."
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Choose a vendor template to preview the prompt pack."
+msgstr "Wählen Sie eine Anbieter-Vorlage, um eine Vorschau des Prompt-Packs zu sehen."
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Choose a vendor template to see the Proof of the prompt pack."
+msgstr "Wählen Sie eine Anbieter-Vorlage, um den Abzug des Prompt-Packs zu sehen."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Choose an entry…"
@@ -4094,7 +4260,7 @@ msgstr "Eine Bilddatei für Einstellung {number} wählen"
 msgid "Choose another file, or export the picture again from the program that made it."
 msgstr "Eine andere Datei wählen oder das Bild erneut aus dem Programm exportieren, das es erstellt hat."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Choose another folder…"
 msgstr "Einen anderen Ordner wählen…"
@@ -4151,6 +4317,21 @@ msgstr "kreisförmig"
 msgid "Circular"
 msgstr "Kreisförmig"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Classic"
+msgstr "Klassisch"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built, so for now it looks almost the same as Classic. The choice is kept in this browser and applies at once."
+msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Modern ist eine Vorschau und noch im Aufbau, daher sieht es vorerst fast so aus wie Klassisch. Die Wahl wird in diesem Browser gespeichert und gilt sofort."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. The choice is kept in this browser and applies at once."
+msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Die Wahl wird in diesem Browser gespeichert und gilt sofort."
+
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "Clear"
@@ -4177,12 +4358,19 @@ msgstr "Filter zurücksetzen"
 msgid "Clear the link"
 msgstr "Verknüpfung aufheben"
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Click again to send this text"
+msgstr "Erneut klicken, um diesen Text zu senden"
+
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Clip length, seconds"
 msgstr "Cliplänge, Sekunden"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: confirm, file, files, generation, name, path
 #. Interpolated values: subject
 #. The review of returned photographs. Interpolated values: number and count are page and panel numbers; counts are numbers grouped for the formatter locale.
@@ -4191,6 +4379,7 @@ msgstr "Cliplänge, Sekunden"
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/RecoveryDialog.tsx
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/Workspace.tsx
 #: apps/desktop/src/media/ComicPhotoReturn.tsx
 #: apps/desktop/src/media/ShotLightbox.tsx
 msgid "Close"
@@ -4200,11 +4389,21 @@ msgstr "Schließen"
 msgid "Close details"
 msgstr "Details schließen"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Close inspector"
+msgstr "Inspektor schließen"
+
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "Close other tabs and try again, or choose a smaller picture."
 msgstr "Schließen Sie andere Registerkarten und versuchen Sie es erneut, oder wählen Sie ein kleineres Bild."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Close panels"
+msgstr "Bereiche schließen"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/Workspace.tsx
@@ -4224,6 +4423,11 @@ msgstr "Kodex-Anhang geändert"
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Codex entries"
 msgstr "Kodexeinträge"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Codex entries imported"
+msgstr "Codex-Einträge importiert"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -4387,6 +4591,16 @@ msgstr "Comic-Skript aus den Seiten geschrieben"
 msgid "Comic settings changed"
 msgstr "Comic-Einstellungen geändert"
 
+#. Interpolated values: commandCount (how many commands match what is typed)
+#: apps/desktop/src/components/CommandComposer.tsx
+msgid "Commands"
+msgstr "Befehle"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again."
+msgstr "Befehle, die einen Durchlauf starten oder wiederherstellen, laufen zwischen den Durchläufen. Warten Sie, bis dieser endet, oder stoppen Sie ihn, und senden Sie die Zeile dann erneut."
+
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "Comparison"
@@ -4417,7 +4631,8 @@ msgstr "Einen Export kompilieren"
 msgid "Compile errors"
 msgstr "Kompilierfehler"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Compile…"
 msgstr "Kompilieren…"
@@ -4513,6 +4728,11 @@ msgstr "Kontext"
 msgid "Context budgets"
 msgstr "Kontext-Budgets"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Conversation rewound. The agent no longer sees that turn or the ones after it."
+msgstr "Unterhaltung zurückgespult. Der Agent sieht diesen Durchlauf und die folgenden nicht mehr."
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Convert it — the file is rewritten as text Caotang can read, and its original bytes are kept at <0/>."
@@ -4523,7 +4743,7 @@ msgstr "Konvertieren – die Datei wird als Text neu geschrieben, den Caotang le
 msgid "Copy them into a folder beside the file"
 msgstr "Kopieren Sie sie in einen Ordner neben der Datei"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Corkboard"
 msgstr "Pinnwand"
@@ -4685,8 +4905,9 @@ msgstr "Tagesziel, in Wörtern (0 für keins)"
 msgid "Dark"
 msgstr "Dunkel"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Dark theme"
 msgstr "Dunkles Design"
@@ -4834,7 +5055,7 @@ msgstr "Deep Ash"
 msgid "Default speaker"
 msgstr "Standardsprecher"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -4848,7 +5069,7 @@ msgctxt "keyboard key"
 msgid "Delete"
 msgstr "Entf"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete “{title}”?"
 msgstr "„{title}“ löschen?"
@@ -4876,7 +5097,7 @@ msgstr "Bild löschen…"
 msgid "Delete this picture"
 msgstr "Dieses Bild löschen"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete?"
 msgstr "Löschen?"
@@ -4893,7 +5114,7 @@ msgstr "Löschen…"
 msgid "Deleted"
 msgstr "Gelöscht"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Deleted “{title}”. Ctrl+Z restores it right after."
 msgstr "„{title}“ gelöscht. Strg+Z macht das sofort rückgängig."
@@ -5073,7 +5294,7 @@ msgstr "Lauf verwerfen"
 msgid "Discard run from {at}"
 msgstr "Lauf von {at} verwerfen"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Discard the changes and leave"
 msgstr "Die Änderungen verwerfen und gehen"
@@ -5106,8 +5327,8 @@ msgid "Disconnect"
 msgstr "Trennen"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
@@ -5248,6 +5469,11 @@ msgstr "Runter"
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "Download CSV"
 msgstr "CSV herunterladen"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Draft"
+msgstr "Entwurf"
 
 #. Interpolated values: doc
 #. js-lingui-explicit-id
@@ -5600,7 +5826,7 @@ msgstr "Die Zeitachse wird bearbeitet"
 msgid "harness.progress.timelineEdit.active"
 msgstr "Die Zeitachse wird bearbeitet ({count, plural, one {# Änderung} other {# Änderungen}})"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Editor"
 msgstr "Editor"
@@ -5681,6 +5907,11 @@ msgstr "Eingabetaste oder Leertaste"
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "Epilogue"
 msgstr "Epilog"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Episode settings changed"
+msgstr "Episodeneinstellungen geändert"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -5801,8 +6032,8 @@ msgstr "Export"
 msgid "Export {name} as a bundle"
 msgstr "{name} als Bundle exportieren"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/StaleTabNotice.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Export a backup"
@@ -5836,7 +6067,8 @@ msgstr "Exportieren Sie eine kleinere Kopie aus dem Programm, das sie erstellt h
 msgid "Export as Markdown"
 msgstr "Als Markdown exportieren"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Export bundle"
 msgstr "Bundle exportieren"
@@ -5898,12 +6130,12 @@ msgstr "{file} exportiert ({files} Dateien): {holds}."
 msgid "Exported {file}: {holds}."
 msgstr "{file} exportiert: {holds}."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Exported {file}."
 msgstr "{file} exportiert."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Exported the activity log as {file}."
 msgstr "Das Aktivitätsprotokoll wurde als {file} exportiert."
@@ -5995,6 +6227,11 @@ msgstr "Felder"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Fields of shot {number}"
 msgstr "Felder der Einstellung {number}"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "File {position} of {count} · − In the folder · + In this tab"
+msgstr "Datei {position} von {count} · − Im Ordner · + In dieser Registerkarte"
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -6119,8 +6356,8 @@ msgstr "Feststellungsstatus geändert"
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -6193,7 +6430,7 @@ msgstr "Rückblende"
 msgid "Flashback"
 msgstr "Rückblende"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Focus"
 msgstr "Fokus"
@@ -6208,12 +6445,17 @@ msgstr "Fokussieren Sie eine Szene auf der Zeitachse, um sie zu ändern."
 msgid "Focus document text"
 msgstr "Dokumenttext fokussieren"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Focus mode"
+msgstr "Fokusmodus"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Focus mode ({shortcut})"
 msgstr "Fokusmodus ({shortcut})"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Focus mode is on. The binder and inspector stay open, as set in "
 msgstr "Der Fokusmodus ist aktiv. Der Binder und der Inspektor bleiben geöffnet, wie eingestellt in "
@@ -6552,6 +6794,16 @@ msgstr "Verlauf"
 msgid "Hollow Days"
 msgstr "Hohle Tage"
 
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Hook deleted"
+msgstr "Hook gelöscht"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Hook saved"
+msgstr "Hook gespeichert"
+
 #: apps/desktop/src/app/agent-model.ts
 msgid "Idle"
 msgstr "Inaktiv"
@@ -6817,6 +7069,11 @@ msgstr "In Arbeit"
 msgid "In the text of “{title}”"
 msgstr "Im Text von „{title}“"
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "In this order"
+msgstr "In dieser Reihenfolge"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "In-story deception between characters."
@@ -6922,9 +7179,12 @@ msgstr "In die Szene einfügen"
 msgid "Insert picture"
 msgstr "Bild einfügen"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
+#: apps/desktop/src/components/Workspace.tsx
 msgid "Inspector"
 msgstr "Inspektor"
 
@@ -6953,21 +7213,33 @@ msgstr "Inspektor-Ziel: Maß"
 msgid "Inspector goal words"
 msgstr "Inspektor-Ziel: Wörter"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/app/skills-model.ts
 #: apps/desktop/src/components/SkillsPanel.tsx
+#: apps/desktop/src/components/Workspace.tsx
 msgid "Instructions"
 msgstr "Anleitung"
+
+#. Interpolated values: count, layerId, max, min
+#: apps/desktop/src/components/ContextSection.tsx
+msgid "Instructions (CAOTANG.md and memory)"
+msgstr "Anweisungen (CAOTANG.md und Gedächtnis)"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Instructions changed"
+msgstr "Anweisungen geändert"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Instructions of “{name}”"
 msgstr "Anleitung von „{name}“"
 
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
+#. Interpolated values: commandCount (how many commands match what is typed)
+#: apps/desktop/src/components/CommandComposer.tsx
 msgid "Intent"
 msgstr "Absicht"
 
@@ -6978,8 +7250,18 @@ msgstr "Beabsichtigt"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
+msgid "Interface"
+msgstr "Oberfläche"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
 msgid "Interface language"
 msgstr "Oberflächensprache"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Interrupted agent runs could not be checked: {reason}"
+msgstr "Unterbrochene Agentenläufe konnten nicht geprüft werden: {reason}"
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -6990,6 +7272,11 @@ msgstr "ISBN"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "It also takes back these later changes, oldest first:"
 msgstr "Es macht auch diese späteren Änderungen rückgängig, die ältesten zuerst:"
+
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "It is a binary file that Caotang cannot draw here, and a look-alike drawn in its place could differ from the real file. The Draft shows what goes in; compile and open the file to see its pages. Markdown, plain text and the other text formats (Fountain, Final Draft, the Ink story, the CSV tables, the prompt pack and the coherence report) have a Proof."
+msgstr "Es ist eine Binärdatei, die Caotang hier nicht darstellen kann, und eine an ihrer Stelle gezeichnete Nachbildung könnte von der echten Datei abweichen. Der Entwurf zeigt, was hineinkommt; kompilieren und öffnen Sie die Datei, um ihre Seiten zu sehen. Markdown, reiner Text und die anderen Textformate (Fountain, Final Draft, die Ink-Geschichte, die CSV-Tabellen, das Prompt-Pack und der Kohärenzbericht) haben einen Abzug."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -7326,7 +7613,7 @@ msgstr "Ebenen"
 msgid "Layout"
 msgstr "Layout"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Learn why"
 msgstr "Grund erfahren"
@@ -7341,6 +7628,11 @@ msgstr "Lernt"
 msgid "Leave empty to title the document from the first non-empty line of the first approved page."
 msgstr "Lassen Sie das Feld leer, um das Dokument nach der ersten nicht leeren Zeile der ersten genehmigten Seite zu benennen."
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Leave focus mode"
+msgstr "Fokusmodus verlassen"
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Leave it as it is — the file is not changed."
@@ -7351,7 +7643,7 @@ msgstr "Lassen Sie es so, wie es ist — die Datei wird nicht geändert."
 msgid "Leave them out, and keep their text"
 msgstr "Lassen Sie sie aus und behalten Sie ihren Text"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Leave with proposed timeline changes?"
 msgstr "Mit vorgeschlagenen Änderungen an der Zeitachse verlassen?"
@@ -7411,8 +7703,9 @@ msgstr "Die Comic-Seite wird lettert"
 msgid "Light"
 msgstr "Hell"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Light theme"
 msgstr "Helles Design"
@@ -7601,6 +7894,21 @@ msgstr "Kleinbuchstaben, Ziffern und Bindestriche, etwa close-third-person."
 #: apps/desktop/src/components/Settings.tsx
 msgid "Machine-assisted translation; not reviewed by a native speaker"
 msgstr "Maschinell erstellte Übersetzung; nicht muttersprachlich geprüft"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Macro deleted"
+msgstr "Makro gelöscht"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Macro saved"
+msgstr "Makro gespeichert"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Macros"
+msgstr "Makros"
 
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
@@ -7796,6 +8104,16 @@ msgstr "Mittlere Karten, Titel und Zusammenfassung"
 msgid "Medium thumbnails with the caption"
 msgstr "Mittlere Miniaturansichten mit der Beschriftung"
 
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Memory note forgotten"
+msgstr "Gedächtnisnotiz vergessen"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Memory note saved"
+msgstr "Gedächtnisnotiz gespeichert"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Mentioned codex entries"
@@ -7865,7 +8183,7 @@ msgstr "der Modus ist keiner von {modes}"
 msgid "Mode or strand"
 msgstr "Modus oder Strang"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Mode: {modeKey, select, planOnly {Plan only} ask {Ask} acceptEdits {Accept edits} auto {Auto} other {Ask}}. It applies from the next card."
 msgstr "Modus: {modeKey, select, planOnly {Nur planen} ask {Fragen} acceptEdits {Änderungen akzeptieren} auto {Auto} other {Fragen}}. Er gilt ab der nächsten Karte."
@@ -7950,6 +8268,16 @@ msgstr "Für {profile} dokumentierte Modelle"
 msgid "Models listed by {profile}"
 msgstr "Von {profile} aufgelistete Modelle"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Modern"
+msgstr "Modern"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Modern (Preview)"
+msgstr "Modern (Vorschau)"
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -7975,6 +8303,12 @@ msgstr "Monat beginnt am"
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "Monthly"
 msgstr "Monatlich"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "More"
+msgstr "Mehr"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -8593,7 +8927,7 @@ msgstr "Kein Provider"
 msgid "No provider is active, so the agent cannot run."
 msgstr "Es ist kein Provider aktiv, daher kann der Agent nicht laufen."
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "No provider is active. Add one in Settings > Providers to use the agent."
 msgstr "Es ist kein Provider aktiv. Fügen Sie unter Einstellungen > Provider einen hinzu, um den Agenten zu nutzen."
@@ -8930,8 +9264,8 @@ msgstr "Notiz für diese Platzierung"
 msgid "Note not read in time"
 msgstr "Notiz nicht rechtzeitig gelesen"
 
-#. Interpolated values: calls, error, mode, waiting
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Note sent. The agent reads it at its next step."
 msgstr "Notiz gesendet. Der Agent liest sie bei seinem nächsten Schritt."
@@ -8960,9 +9294,11 @@ msgstr "Notiz: <0/>"
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Notes"
 msgstr "Notizen"
@@ -9046,11 +9382,16 @@ msgstr "Es wird nichts ins Projekt geschrieben, bis Sie anwenden. Das Anwenden i
 msgid "Nothing to choose."
 msgstr "Nichts zur Auswahl."
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Nothing to compile: every document in this selection is empty."
+msgstr "Nichts zu kompilieren: Jedes Dokument in dieser Auswahl ist leer."
+
 #: apps/desktop/src/media/ScreenplayPreview.tsx
 msgid "Nothing to page yet. Write the scene's heading in the Source tab, and it will appear here."
 msgstr "Noch nichts zu paginieren. Schreiben Sie die Überschrift der Szene in den Quell-Tab, dann erscheint sie hier."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Nothing to undo"
 msgstr "Nichts rückgängig zu machen"
@@ -9260,6 +9601,11 @@ msgstr "Auf dem Board öffnen"
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "Open scene"
 msgstr "Szene öffnen"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Open the binder"
+msgstr "Binder öffnen"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -9502,7 +9848,7 @@ msgstr "In diesem Panel ist die Panel-Art platziert."
 msgid "Panel border"
 msgstr "Panel-Rahmen"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Panels"
 msgstr "Panels"
@@ -9550,10 +9896,20 @@ msgstr "Parenthese"
 msgid "Part"
 msgstr "Teil"
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Part of that change was taken back too."
+msgstr "Ein Teil dieser Änderung wurde ebenfalls zurückgenommen."
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Part of the manuscript exported"
 msgstr "Teil des Manuskripts exportiert"
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Part of the step was taken back too."
+msgstr "Ein Teil des Schritts wurde ebenfalls zurückgenommen."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -9650,7 +10006,7 @@ msgstr "Bildeinstellungen"
 msgid "Picture taken off"
 msgstr "Bild abgenommen"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -9895,10 +10251,32 @@ msgstr "POV \"{pov}\" ist kein Kodex-Eintrag, daher kann seine Abdeckung nicht g
 msgid "POV {povName}"
 msgstr "POV {povName}"
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Preparing the preview…"
+msgstr "Vorschau wird vorbereitet…"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "Preparing the Proof…"
+msgstr "Abzug wird vorbereitet…"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Preview"
+msgstr "Vorschau"
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Preview of {path} read as {encoding}"
 msgstr "Vorschau von {path}, gelesen als {encoding}"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Preview shows"
+msgstr "Die Vorschau zeigt"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -9948,12 +10326,17 @@ msgstr "Fortschritt zum Manuskript"
 msgid "Project"
 msgstr "Projekt"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Project details"
+msgstr "Projektdetails"
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Project details changed"
 msgstr "Projektdetails geändert"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Project details: title, author, language, ISBN and cover"
 msgstr "Projektdetails: Titel, Autor, Sprache, ISBN und Titelbild"
@@ -9973,7 +10356,8 @@ msgstr "Projektbilder"
 msgid "Project name"
 msgstr "Projektname"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Project panels"
 msgstr "Projekt-Panels"
@@ -9983,7 +10367,13 @@ msgstr "Projekt-Panels"
 msgid "Project renamed"
 msgstr "Projekt umbenannt"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: count, layerId, max, min
+#: apps/desktop/src/components/ContextSection.tsx
+msgid "Project summary"
+msgstr "Projektzusammenfassung"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Projects"
 msgstr "Projekte"
@@ -10109,6 +10499,11 @@ msgstr "Seit der letzten Prüfung entfernte Prompts: {names}."
 msgid "prompts unavailable: {reason}"
 msgstr "Prompts nicht verfügbar: {reason}"
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Proof"
+msgstr "Abzug"
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Propose"
@@ -10211,7 +10606,7 @@ msgstr "Eingereiht"
 msgid "Queued messages"
 msgstr "Eingereihte Nachrichten"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Queued. {count} {waiting, plural, one {message} other {messages}} waiting."
 msgstr "Eingereiht. {count} {waiting, plural, one {Nachricht} other {Nachrichten}} wartend."
@@ -10336,6 +10731,17 @@ msgstr "Den Binder lesen"
 msgid "harness.progress.codexRead.bare.content"
 msgstr "Den Kodex lesen"
 
+#. Interpolated values: slug
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryRead.content"
+msgstr "Die Gedächtnisnotiz „{slug}“ lesen"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryRead.bare.content"
+msgstr "Die Gedächtnisnotizen lesen"
+
 #. Interpolated values: doc
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -10442,6 +10848,17 @@ msgstr "Der Kodex wird gelesen"
 msgid "Reading the history…"
 msgstr "Verlauf wird gelesen…"
 
+#. Interpolated values: slug
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryRead.active"
+msgstr "Die Gedächtnisnotiz „{slug}“ wird gelesen"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryRead.bare.active"
+msgstr "Die Gedächtnisnotizen werden gelesen"
+
 #. Interpolated values: doc
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -10537,6 +10954,11 @@ msgstr "Dieses Projekt aus seinen Dokumenten neu aufbauen?"
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Rebuilding loses:"
 msgstr "Der Neuaufbau verliert:"
+
+#. Interpolated values: count, layerId, max, min
+#: apps/desktop/src/components/ContextSection.tsx
+msgid "Recent turns of the conversation"
+msgstr "Letzte Durchläufe der Unterhaltung"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -10985,6 +11407,31 @@ msgstr "Wiederherstellen"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
+msgid "Restore both"
+msgstr "Beides wiederherstellen"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Restore only this step (keep your later edits)"
+msgstr "Nur diesen Schritt wiederherstellen (spätere Bearbeitungen behalten)"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Restore only this turn (keep your later edits)"
+msgstr "Nur diesen Durchlauf wiederherstellen (spätere Bearbeitungen behalten)"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Restore the project and rewind the conversation?"
+msgstr "Projekt wiederherstellen und die Unterhaltung zurückspulen?"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Restore to before this step?"
+msgstr "Stand vor diesem Schritt wiederherstellen?"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
 msgid "Restore to before this turn"
 msgstr "Stand vor diesem Durchlauf wiederherstellen"
 
@@ -10992,6 +11439,11 @@ msgstr "Stand vor diesem Durchlauf wiederherstellen"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Restore to before this turn?"
 msgstr "Stand vor diesem Durchlauf wiederherstellen?"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Restore would also take back these later changes, oldest first:"
+msgstr "Die Wiederherstellung würde auch diese späteren Änderungen zurücknehmen, die älteste zuerst:"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -11032,6 +11484,11 @@ msgstr "Ergebnis"
 msgid "Resume"
 msgstr "Fortsetzen"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Resuming the run."
+msgstr "Der Lauf wird fortgesetzt."
+
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Retry"
@@ -11052,7 +11509,7 @@ msgstr "Fotos zurückgeben…"
 msgid "Returned photographs"
 msgstr "Zurückgegebene Fotos"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
@@ -11115,6 +11572,11 @@ msgstr "Die Geschichte wird auf Kohärenz geprüft"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Reviewing with the model. This can take a while, and the findings appear here when it is done."
 msgstr "Prüfung mit dem Modell läuft. Das kann eine Weile dauern; die Feststellungen erscheinen hier, sobald sie vorliegen."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Rewound turns"
+msgstr "Zurückgespulte Durchläufe"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -11198,6 +11660,11 @@ msgstr "Im Hintergrund wird jeweils ein Aufruf entworfen, während Sie weitersch
 msgid "Run limits"
 msgstr "Limits pro Durchlauf"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Run log discarded. What the agent wrote stays in the project."
+msgstr "Laufprotokoll verworfen. Was der Agent geschrieben hat, bleibt im Projekt."
+
 #. Interpolated values: calls, cap
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Run now"
@@ -11233,8 +11700,8 @@ msgstr "Läuft"
 msgid "Saturday"
 msgstr "Samstag"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: name
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
@@ -11250,17 +11717,22 @@ msgstr "Speichern"
 msgid "harness.progress.filterSave.bare.content"
 msgstr "Filter speichern"
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryWrite.bare.content"
+msgstr "Eine Gedächtnisnotiz speichern"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Save after typing stops, in milliseconds ({DEBOUNCE_MIN_MS}–{DEBOUNCE_MAX_MS})"
 msgstr "Speichern, nachdem die Eingabe stoppt, in Millisekunden ({DEBOUNCE_MIN_MS}–{DEBOUNCE_MAX_MS})"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save anyway"
 msgstr "Trotzdem speichern"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save as a new folder…"
 msgstr "Als neuen Ordner speichern…"
@@ -11310,14 +11782,14 @@ msgstr "Bild speichern"
 msgid "Save limits"
 msgstr "Limits speichern"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save over it"
 msgstr "Darüber speichern"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save over them"
 msgstr "Darüber hinweg speichern"
@@ -11357,6 +11829,12 @@ msgstr "Filter „{name}“ speichern"
 msgid "Save the limits"
 msgstr "Limits speichern"
 
+#. Interpolated values: title
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryWrite.content"
+msgstr "Die Gedächtnisnotiz „{title}“ speichern"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Save the name"
@@ -11376,13 +11854,14 @@ msgstr "Thread speichern"
 msgid "Save to a folder"
 msgstr "In einem Ordner speichern"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save to folder"
 msgstr "In Ordner speichern"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save to the folder?"
 msgstr "In den Ordner speichern?"
@@ -11452,12 +11931,12 @@ msgstr "Gespeicherte Filter"
 msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr "„{name}“ als {kind, select, status {status} label {label} other {status}} gespeichert."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saved the project to the folder “{folder}”. Exports go there from now on."
 msgstr "Projekt im Ordner „{folder}“ gespeichert. Exporte landen von jetzt an dort."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saved the project to the folder “{folder}”. What it replaced is kept in {backup}. Exports go there from now on."
 msgstr "Projekt im Ordner „{folder}“ gespeichert. Was ersetzt wurde, liegt in {backup}. Exporte landen von jetzt an dort."
@@ -11514,20 +11993,25 @@ msgstr "Gespeichert. Die Limits gelten für die Projekte, die Sie von jetzt an �
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
-msgid "Saved. The save delay applies to the projects you open from now on."
-msgstr "Gespeichert. Die Speicherverzögerung gilt für die Projekte, die Sie von jetzt an öffnen."
+msgid "Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open."
+msgstr "Gespeichert. Die Speicherverzögerung gilt für die Projekte, die Sie ab jetzt öffnen, und die Wahl für Agentenbearbeitungen für das nächste Dokument, das Sie öffnen."
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.filterSave.bare.active"
 msgstr "Filter wird gespeichert"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryWrite.bare.active"
+msgstr "Eine Gedächtnisnotiz wird gespeichert"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving here replaces that project’s <0>caotang.json</0> and any of its documents that share an id with this one. Caotang keeps a backup of that <1>caotang.json</1>, and copies each document it replaces to <2>.caotang-backup</2> in the folder."
 msgstr "Beim Speichern hier wird die <0>caotang.json</0> jenes Projekts ersetzt sowie alle seine Dokumente mit derselben ID. Caotang legt eine Sicherung jener <1>caotang.json</1> an und kopiert jedes ersetzte Dokument nach <2>.caotang-backup</2> in den Ordner."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving here writes <0>caotang.json</0> back into the folder from this tab, with the project as this tab holds it."
 msgstr "Beim Speichern hier wird die <0>caotang.json</0> aus diesem Tab zurück in den Ordner geschrieben, mit dem Projekt, wie dieser Tab es hält."
@@ -11537,6 +12021,12 @@ msgstr "Beim Speichern hier wird die <0>caotang.json</0> aus diesem Tab zurück 
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.filterSave.active"
 msgstr "Filter „{name}“ wird gespeichert"
+
+#. Interpolated values: title
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.memoryWrite.active"
+msgstr "Die Gedächtnisnotiz „{title}“ wird gespeichert"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
 #: apps/desktop/src/components/EditorPane.tsx
@@ -11548,7 +12038,7 @@ msgstr "Beim Speichern werden diese Konstrukte nicht exakt übernommen:"
 msgid "Saving will re-style {count} {blocks, plural, one {block} other {blocks}} to Caotang’s Markdown spelling. The words stay the same."
 msgstr "Beim Speichern werden {count} {blocks, plural, one {Block} other {Blöcke}} in Caotangs Markdown-Schreibweise neu gestaltet. Die Wörter bleiben gleich."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
 msgstr "Beim Speichern überschreibt die Version dieses Tabs sie. Die Version des Ordners wird zuvor in <0>.caotang-backup</0> im Ordner gesichert; kopieren Sie Benötigtes nötigenfalls von dort."
@@ -12017,7 +12507,8 @@ msgstr "Synopsis von „{doc}“ wird gesetzt"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/LazySettings.tsx
 #: apps/desktop/src/components/Settings.tsx
@@ -12025,7 +12516,7 @@ msgstr "Synopsis von „{doc}“ wird gesetzt"
 msgid "Settings"
 msgstr "Einstellungen"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Settings › Writing"
 msgstr "Einstellungen › Schreiben"
@@ -12211,6 +12702,11 @@ msgstr "Ältere anzeigen ({count} weitere)"
 msgid "Show on timeline"
 msgstr "Auf der Zeitachse anzeigen"
 
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Show settings changed"
+msgstr "Serieneinstellungen geändert"
+
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "Show the history"
@@ -12240,6 +12736,11 @@ msgstr "{shown} von {total, plural, one {# Szene} other {# Szenen}} werden angez
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Showing {shown} of {total} pictures."
 msgstr "{shown} von {total} Bildern werden angezeigt."
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "Showing {shownScenes} of {totalScenes} scenes (the counts above are for all of them)."
+msgstr "Gezeigt werden {shownScenes} von {totalScenes} Szenen (die Zahlen oben gelten für alle)."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -12319,7 +12820,8 @@ msgstr "Skill ein- oder ausgeschaltet"
 msgid "Skill zip"
 msgstr "Skill-Zip"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -12374,12 +12876,12 @@ msgstr "Kleine Miniaturansichten, nur Bilder"
 msgid "Soft budget"
 msgstr "Weiches Budget"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 msgstr "Einige Änderungen sind noch nicht im Browser-Speicher angekommen, daher bleibt das Projekt geöffnet. Exportieren Sie ein Bundle, um eine Kopie zu sichern, und verlassen Sie dann die Seite."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some documents in this folder changed since Caotang last saved them"
 msgstr "Einige Dokumente in diesem Ordner haben sich geändert, seit Caotang sie zuletzt gespeichert hat"
@@ -12645,12 +13147,12 @@ msgstr "Gestoppt"
 msgid "Stopped by you"
 msgstr "Von Ihnen gestoppt"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Stopped by you."
 msgstr "Von Ihnen gestoppt."
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Stopped by you. The next queued message runs now."
 msgstr "Von Ihnen gestoppt. Die nächste wartende Nachricht läuft jetzt."
@@ -12666,7 +13168,7 @@ msgstr "Beim Schließen des Projekts gestoppt: {done} von {total} erledigt. Zum 
 msgid "Stopped."
 msgstr "Gestoppt."
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Stopping the turn."
 msgstr "Der Durchlauf wird gestoppt."
@@ -12763,6 +13265,11 @@ msgstr "Storyboard: {title}"
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Structure"
 msgstr "Struktur"
+
+#. Interpolated values: count, layerId, max, min
+#: apps/desktop/src/components/ContextSection.tsx
+msgid "Structure around the focus document"
+msgstr "Struktur um das Fokusdokument"
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "Structure of the container"
@@ -12978,6 +13485,11 @@ msgstr "Text ersetzt"
 msgid "Text saved"
 msgstr "Text gespeichert"
 
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Text this step writes"
+msgstr "Text, den dieser Schritt schreibt"
+
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Text to video"
@@ -12987,7 +13499,7 @@ msgstr "Text zu Video"
 msgid "text writes"
 msgstr "Text schreibt"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That card is no longer waiting for a decision, so nothing was sent."
 msgstr "Diese Karte wartet nicht mehr auf eine Entscheidung, daher wurde nichts gesendet."
@@ -13022,7 +13534,7 @@ msgstr "Diese Feststellung betrifft eine Szene, die nicht auf der Zeitachse ist,
 msgid "That finding is no longer in the findings file, so there is nothing to fix. Open the Findings tab again."
 msgstr "Diese Feststellung ist nicht mehr in der Feststellungsdatei, daher gibt es nichts zu beheben. Öffnen Sie den Tab „Feststellungen“ erneut."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "That folder is not empty"
 msgstr "Dieser Ordner ist nicht leer"
@@ -13036,6 +13548,11 @@ msgstr "Es ist bereits dort."
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "That is not a whole number of days the timeline can hold."
 msgstr "Das ist keine ganze Zahl von Tagen, die die Zeitachse aufnehmen kann."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That macro is not in the project any more."
+msgstr "Dieses Makro ist nicht mehr im Projekt."
 
 #. Lost paragraph placements. name is a picture's caption or file name, the writer's own text.
 #. Lost paragraph placements. name is a picture's caption or file name, the writer's own text.
@@ -13064,7 +13581,12 @@ msgstr "Dieses Projekt ist bereits in diesem Browser, daher wurde die Datei als 
 msgid "That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list."
 msgstr "Dieses Projekt ist bereits in diesem Browser, daher wurde der Ordner als separate Kopie geöffnet. Diese Kopie kann vom Ordner abweichen, und das Speichern in diesen Ordner wird verweigert. Das Original steht in der Projektliste."
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That run can no longer be resumed."
+msgstr "Dieser Lauf kann nicht mehr fortgesetzt werden."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That task is no longer ready to review."
 msgstr "Diese Aufgabe ist nicht mehr prüfbereit."
@@ -13074,7 +13596,9 @@ msgstr "Diese Aufgabe ist nicht mehr prüfbereit."
 msgid "that text appears more than once in the document ({places} places); select a longer passage"
 msgstr "dieser Text kommt im Dokument mehrfach vor ({places} Stellen); wählen Sie eine längere Passage"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That turn wrote nothing, so there is nothing to restore."
 msgstr "Dieser Durchlauf hat nichts geschrieben, daher gibt es nichts wiederherzustellen."
@@ -13140,7 +13664,7 @@ msgstr "Der 1. (die Standardeinstellung)"
 msgid "The action did not finish: {reason}"
 msgstr "Die Aktion wurde nicht abgeschlossen: {reason}"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the agent"
 msgstr "Der Agent"
@@ -13175,10 +13699,15 @@ msgstr "Der Agent ist mit einem anderen Durchlauf beschäftigt. Lassen Sie ihn f
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "Der Agent ist für dieses Projekt noch nicht bereit. Öffnen Sie das Agenten-Panel und versuchen Sie es erneut."
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The agent is working on another turn. Open this task when it has finished."
 msgstr "Der Agent arbeitet an einem anderen Durchlauf. Öffnen Sie diese Aufgabe, wenn er fertig ist."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Resume the run when it has finished."
+msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie den Lauf fort, wenn er fertig ist."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -13190,7 +13719,12 @@ msgstr "das Agenten-Panel"
 msgid "The agent starts each request with a short list of tools and finds the others with a search when a task needs them. Some models search poorly. Turn this on to give such a model every tool on every request, at the cost of a longer prompt each time."
 msgstr "Der Agent startet jede Anfrage mit einer kurzen Werkzeugliste und findet die übrigen per Suche, wenn eine Aufgabe sie braucht. Manche Modelle suchen schlecht. Schalten Sie dies ein, um einem solchen Modell bei jeder Anfrage jedes Werkzeug zu geben – zum Preis eines jedes Mal längeren Prompts."
 
-#. Interpolated values: calls, error, mode, waiting
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The agent then forgets this turn and the ones after it."
+msgstr "Der Agent vergisst dann diesen Durchlauf und die folgenden."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "the agent’s drafts"
 msgstr "die Entwürfe des Agents"
@@ -13225,6 +13759,11 @@ msgstr "das Seitenverhältnis ist eines der Verhältnisse in der Liste"
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "The binder does not allow the scene there."
 msgstr "Der Binder lässt die Szene dort nicht zu."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "The binder filter hides \"{title}\". Clear the filter to see it."
+msgstr "Der Binder-Filter blendet „{title}“ aus. Löschen Sie den Filter, um es zu sehen."
 
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
@@ -13274,7 +13813,7 @@ msgstr "Der Browser hat eine Leinwand erstellt, die kein Bild dieser Größe fas
 msgid "The browser would not let the canvas be read."
 msgstr "Der Browser ließ das Lesen der Leinwand nicht zu."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The bundle could not be made: {error}"
 msgstr "Das Bundle konnte nicht erstellt werden: {error}"
@@ -13340,10 +13879,20 @@ msgstr "Der Kodex-Eintrag „{name}“ war im Ordner des Projekts, aber nicht im
 msgid "The codex is empty"
 msgstr "Der Kodex ist leer"
 
-#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/ExportDialog.tsx
+#. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
+#: apps/desktop/src/components/export-preview-model.ts
 msgid "the coherence report"
 msgstr "der Kohärenzbericht"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "The compile will hold {holds}."
+msgstr "Das Kompilat enthält {holds}."
+
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "The compile will write {fileName}."
+msgstr "Das Kompilieren schreibt {fileName}."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -13468,7 +14017,7 @@ msgstr "Der Endpunkt hat keine Modelle aufgelistet."
 msgid "The export could not be made: {reason}"
 msgstr "Der Export konnte nicht erstellt werden: {reason}"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the export dialog"
 msgstr "Der Exportdialog"
@@ -13508,9 +14057,19 @@ msgstr "Die Datei enthält ein Feld, das Caotang aufbewahrt, aber nicht verwende
 msgid "The file is empty."
 msgstr "Die Datei ist leer."
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "the file it makes"
+msgstr "die Datei, die entsteht"
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "The file of this picture is missing from the project. Its caption and placements are kept."
 msgstr "Die Datei dieses Bildes fehlt im Projekt. Seine Beschriftung und Platzierungen bleiben erhalten."
+
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "The file the compile will write"
+msgstr "Die Datei, die das Kompilieren schreibt"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -13568,14 +14127,14 @@ msgstr "Der Ablauf in {where} endet in Zeile {line}: Ergänzen Sie ein divert, e
 msgid "The focused scene"
 msgstr "Die fokussierte Szene"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr "Der Ordner „{folderName}“ enthält bereits Dateien, daher wurde nichts darin gespeichert. Ein neuer Ordner für dieses Projekt muss leer sein. Wählen Sie einen anderen Ordner oder erstellen Sie im Ordner-Dialog einen leeren."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The folder could not be saved: {error}"
 msgstr "Der Ordner konnte nicht gespeichert werden: {error}"
@@ -13666,7 +14225,7 @@ msgstr "Die Sprache der Oberfläche ändert sich sofort. Das Manuskript bleibt i
 msgid "The interface language could not be loaded, so nothing changed. Check your connection and choose the language again."
 msgstr "Die Sprache der Oberfläche konnte nicht geladen werden, daher hat sich nichts geändert. Prüfen Sie Ihre Verbindung und wählen Sie die Sprache erneut."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the item"
 msgstr "der Eintrag"
@@ -13701,7 +14260,7 @@ msgstr "Die {entryCount, plural, one {letzte Anfrage (#)} other {letzten # Anfra
 msgid "The last day of the month"
 msgstr "Der letzte Tag des Monats"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The last turn stopped on a question. Answer it or choose Run the queue."
 msgstr "Der letzte Zug endete an einer Frage. Beantworten Sie sie oder wählen Sie „Warteschlange ausführen“."
@@ -13783,6 +14342,11 @@ msgstr "Der Plan der Modellprüfung"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The model review stopped early, so it is partial: {added, plural, one {# finding} other {# findings}} kept. {note}"
 msgstr "Die Modellprüfung wurde vorzeitig beendet und ist daher unvollständig: {added, plural, one {# Feststellung wurde} other {# Feststellungen wurden}} behalten. {note}"
+
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "The model’s reply was cut off, so this plan may be missing steps."
+msgstr "Die Antwort des Modells wurde abgeschnitten, daher fehlen diesem Plan womöglich Schritte."
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -13906,7 +14470,7 @@ msgstr "Das Bild der Einstellung „{title}“"
 msgid "The picture's file could not be read"
 msgstr "Die Datei des Bildes konnte nicht gelesen werden"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the pictures"
 msgstr "die Bilder"
@@ -13915,6 +14479,11 @@ msgstr "die Bilder"
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "The pictures could not be imported."
 msgstr "Die Bilder konnten nicht importiert werden."
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "The preview could not be made: {message}"
+msgstr "Die Vorschau konnte nicht erstellt werden: {message}"
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -13948,6 +14517,26 @@ msgstr "Das Projekt ist hier nicht geöffnet, daher kann der Plan nur jetzt ausg
 msgid "The project no longer has this term, so this filter matches nothing."
 msgstr "Das Projekt hat diesen Begriff nicht mehr, daher liefert dieser Filter keine Treffer."
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The project was restored, but a turn is running, so the conversation was not rewound."
+msgstr "Das Projekt wurde wiederhergestellt, aber ein Durchlauf läuft, daher wurde die Unterhaltung nicht zurückgespult."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The project was restored, but that turn is no longer in this session’s conversation, so nothing was rewound."
+msgstr "Das Projekt wurde wiederhergestellt, aber dieser Durchlauf ist nicht mehr in der Unterhaltung dieser Sitzung, daher wurde nichts zurückgespult."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The project’s images could not be listed again ({reason}), so the export was not applied. Approve it again to try once more."
+msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden ({reason}), daher wurde der Export nicht angewendet. Genehmigen Sie ihn erneut, um es noch einmal zu versuchen."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again."
+msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden, daher wurde dieser Export nicht automatisch angewendet. Genehmigen Sie ihn, um es erneut zu versuchen."
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "The project’s picture files could not be listed, so a missing file cannot be told from one that is only slow to load."
@@ -13972,6 +14561,23 @@ msgstr "Das Prompt-Paket nennt diese Bilder für die Szenen, in denen dieser Ein
 #: apps/desktop/src/components/Settings.tsx
 msgid "the prompt pack’s generations"
 msgstr "die Generierungen des Prompt-Pakets"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "the Proof"
+msgstr "den Abzug"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "The Proof could not be made: {message}"
+msgstr "Der Abzug konnte nicht erstellt werden: {message}"
+
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "The Proof shows the first file."
+msgstr "Der Abzug zeigt die erste Datei."
 
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx
@@ -14015,13 +14621,28 @@ msgstr "die Auflösung ist 720p oder 1080p"
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
-msgid "The restore stopped part way, because a later change could not be taken back: {reason}. Changes made before that one were not touched."
-msgstr "Die Wiederherstellung wurde abgebrochen, weil eine spätere Änderung nicht rückgängig gemacht werden konnte: {reason}. Änderungen davor wurden nicht angetastet."
+msgid "The restore stopped part way, because a later change could not be taken back: {reason}.{later}{some} Changes made before that one were not touched."
+msgstr "Die Wiederherstellung hat mittendrin angehalten, weil eine spätere Änderung nicht zurückgenommen werden konnte: {reason}.{later}{some} Änderungen davor wurden nicht angetastet."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The restore stopped part way, because the step could not be taken back: {reason}.{later}{some} Nothing before the step was touched."
+msgstr "Die Wiederherstellung hat mittendrin angehalten, weil der Schritt nicht zurückgenommen werden konnte: {reason}.{later}{some} Nichts vor dem Schritt wurde angetastet."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The retention is a whole number of days from 1 to {max}."
 msgstr "Die Aufbewahrungsfrist ist eine ganze Zahl von Tagen von 1 bis {max}."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The run log could not be discarded: {reason}"
+msgstr "Das Laufprotokoll konnte nicht verworfen werden: {reason}"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The run log could not be read: {readError}. The run was not resumed. Try again, or discard the log."
+msgstr "Das Laufprotokoll konnte nicht gelesen werden: {readError}. Der Lauf wurde nicht fortgesetzt. Versuchen Sie es erneut, oder verwerfen Sie das Protokoll."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -14086,6 +14707,11 @@ msgstr "die Szene ist nicht mehr im Binder"
 msgid "the scene it was placed after is not there any more"
 msgstr "die Szene, nach der sie platziert war, ist nicht mehr vorhanden"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "The scene’s synopsis is not showing, so the chord could not open it."
+msgstr "Die Synopsis der Szene wird nicht angezeigt, daher konnte die Tastenfolge sie nicht öffnen."
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "The screenplay and its dialogue name different speakers"
@@ -14103,8 +14729,8 @@ msgstr "Das Drehbuch im XML von Final Draft."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
-msgid "The screenplay on US Letter pages in Courier Prime, ready to print."
-msgstr "Das Drehbuch auf US-Letter-Seiten in Courier Prime, druckfertig."
+msgid "The screenplay on US Letter or A4 pages in Courier Prime, Courier or Cousine, ready to print."
+msgstr "Das Drehbuch auf US-Letter- oder A4-Seiten in Courier Prime, Courier oder Cousine, druckfertig."
 
 #. Interpolated values: sceneTitle, screenplayName
 #. js-lingui-explicit-id
@@ -14278,7 +14904,7 @@ msgstr "Der Text von {file} ist leer, daher kann er nicht genehmigt werden. Füg
 msgid "The text of {kind, select, document {the document “{name}”} codex {the codex entry “{name}”} other {the file “{name}”}} was converted from {from} and opens with the project. Its original bytes are kept at “{backup}”."
 msgstr "Der Text von {kind, select, document {dem Dokument „{name}“} codex {dem Kodexeintrag „{name}“} other {der Datei „{name}“}} wurde aus {from} konvertiert und öffnet sich mit dem Projekt. Seine ursprünglichen Bytes bleiben unter „{backup}“ erhalten."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "the timeline"
 msgstr "die Zeitachse"
@@ -14288,7 +14914,7 @@ msgstr "die Zeitachse"
 msgid "The timeline as a vector drawing, in the direction of the language you write in; above 2,000 scenes it shows chapters."
 msgstr "Die Zeitachse als Vektorzeichnung, in der Schreibrichtung Ihrer Sprache; ab 2.000 Szenen zeigt sie Kapitel."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The timeline has proposed changes that are not applied. Nothing has been written to the project. Cancel keeps them in the tray; leaving discards them."
 msgstr "Die Zeitachse hat vorgeschlagene Änderungen, die nicht angewendet sind. Es wurde nichts ins Projekt geschrieben. „Abbrechen“ bewahrt sie in der Ablage auf; beim Verlassen werden sie verworfen."
@@ -14328,7 +14954,7 @@ msgstr "Die Gesamtsumme ({total} Tokens) liegt unter den gemeinsamen Layer-Oberg
 msgid "The trim did not finish: {error}"
 msgstr "Das Kürzen wurde nicht abgeschlossen: {error}"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The turn stopped unexpectedly: {error}"
 msgstr "Der Zug wurde unerwartet beendet: {error}"
@@ -14338,7 +14964,7 @@ msgstr "Der Zug wurde unerwartet beendet: {error}"
 msgid "The unreadable caotang.json is kept in the folder, under a name with the date, so nothing is lost."
 msgstr "Die unlesbare caotang.json bleibt im Ordner unter einem Namen mit dem Datum erhalten, sodass nichts verloren geht."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it."
 msgstr "Der ungespeicherte Text ist zu groß, um eine Ersatzkopie in diesem Browser zu behalten, daher könnte ein erneutes Laden im nächsten Moment ihn verlieren."
@@ -14450,6 +15076,11 @@ msgstr "Es gibt keine Spur, zu der gewechselt werden könnte. Gruppieren Sie die
 msgid "There is no paragraph to attach the picture to here."
 msgstr "Hier gibt es keinen Absatz, an den das Bild angehängt werden könnte."
 
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "There is no Proof of {formatLabel} in Caotang."
+msgstr "Für {formatLabel} gibt es in Caotang keinen Abzug."
+
 #. The timeline's Save image.
 #: apps/desktop/src/app/timeline-image.ts
 msgid "There is no scene in this part of the timeline, so there is no image to save. Choose a different scope and try again."
@@ -14465,7 +15096,7 @@ msgstr "Es gibt noch keine Drehbuchszene und kein Prosadokument zum Abdecken."
 msgid "There is nothing to apply: every change is out of date or left unchecked."
 msgstr "Es gibt nichts anzuwenden: Jede Änderung ist veraltet oder nicht ausgewählt."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "There is nothing to undo."
 msgstr "Es gibt nichts rückgängig zu machen."
@@ -14563,7 +15194,7 @@ msgstr "Dieser Browser hat nicht zugesagt, diese Bilder aufzubewahren. Hängen S
 msgid "This browser keeps “{project}”, and the folder “{folder}” holds a version of it that is not the same. Another program may have changed the folder, or the project changed here after it was last saved there."
 msgstr "Dieser Browser bewahrt „{project}“ auf, und der Ordner „{folder}“ enthält eine Version davon, die nicht dieselbe ist. Ein anderes Programm könnte den Ordner geändert haben, oder das Projekt hat sich hier geändert, nachdem es zuletzt dort gespeichert wurde."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it."
 msgstr "Dieser Browser würde keine Ersatzkopie des ungespeicherten Textes aufbewahren, daher könnte ein erneutes Laden im nächsten Moment ihn verlieren."
@@ -14601,6 +15232,13 @@ msgstr "Das kann nach einem Update passieren oder wenn die Verbindung abbricht. 
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "This changed since it was proposed, so it is not applied. Read it again, or remove it."
 msgstr "Dies hat sich geändert, seit es vorgeschlagen wurde, daher wird es nicht angewendet. Lesen Sie es erneut oder entfernen Sie es."
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+#: apps/desktop/src/components/ExportProofView.tsx
+msgid "This compile would be refused. {reason}"
+msgstr "Dieses Kompilieren würde abgelehnt. {reason}"
 
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts
@@ -14652,25 +15290,30 @@ msgstr "Diese Datei ist kein Text. Sie wird beim Skill aufbewahrt und ist Teil d
 msgid "This finding quotes no passage, so there is no text to fix. Fix it in the codex or the scene notes."
 msgstr "Diese Feststellung zitiert keine Passage, daher gibt es keinen Text zu korrigieren. Korrigieren Sie sie im Kodex oder in den Szenennotizen."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder already holds another project"
 msgstr "Dieser Ordner enthält bereits ein anderes Projekt"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder changed since Caotang last saved it"
 msgstr "Dieser Ordner hat sich geändert, seit Caotang ihn zuletzt gespeichert hat"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder holds an earlier save of this project"
 msgstr "Dieser Ordner enthält eine frühere Speicherung dieses Projekts"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder’s caotang.json was removed"
 msgstr "Die caotang.json dieses Ordners wurde entfernt"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "This format is not built from a block list, so there is none to show. Its counts are the compile’s own."
+msgstr "Dieses Format wird nicht aus einer Blockliste gebaut, daher gibt es keine zu zeigen. Seine Zahlen sind die des Kompilierens selbst."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -14728,7 +15371,7 @@ msgstr "Dieses Bild wird noch verwendet und kann daher nicht gelöscht werden:"
 msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}"
 msgstr "Dieser Plan braucht {calls} {calls, plural, one {Modell-Aufruf} other {Modell-Aufrufe}}"
 
-#. Interpolated values: calls, error, mode, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}. Choose how it runs."
 msgstr "Dieser Plan braucht {calls} {calls, plural, one {Modell-Aufruf} other {Modell-Aufrufe}}. Wählen Sie, wie er ausgeführt wird."
@@ -14766,20 +15409,30 @@ msgstr "Dieser Anbieter dokumentiert keine Modellliste — seine Tabelle unten i
 msgid "This provider documents no model list — these are the models its table knows."
 msgstr "Dieser Anbieter dokumentiert keine Modellliste — das sind die Modelle, die seine Tabelle kennt."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item and its {words, plural, one {# word} other {# words}} from the project. You can undo it right after with Ctrl+Z."
 msgstr "Dies entfernt den Eintrag und seine {words, plural, one {# Wort} other {# Wörter}} aus dem Projekt. Sie können es direkt danach mit Strg+Z rückgängig machen."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it, and {words, plural, one {# word} other {# words}} across {documents, plural, one {# document} other {# documents}}. You can undo it right after with Ctrl+Z."
 msgstr "Dies entfernt den Eintrag, {descendants, plural, one {das # Element} other {die # Elemente}} darin und {words, plural, one {# Wort} other {# Wörter}} über {documents, plural, one {# Dokument} other {# Dokumente}} hinweg. Sie können es direkt danach mit Strg+Z rückgängig machen."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr "Dies entfernt den Eintrag und {descendants, plural, one {das # Element} other {die # Elemente}} darin. Sie können es direkt danach mit Strg+Z rückgängig machen."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "This restores the project to its state before this step of the turn: <0/>. The steps after it, and your edits since then, are included in the restore. The steps before it stay."
+msgstr "Dies stellt den Stand des Projekts vor diesem Schritt des Durchlaufs wieder her: <0/>. Die Schritte danach und Ihre Bearbeitungen seitdem werden mit zurückgenommen. Die Schritte davor bleiben."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "This restores the project to its state before this step of the turn. The steps after it, and your edits since then, are included in the restore. The steps before it stay."
+msgstr "Dies stellt den Stand des Projekts vor diesem Schritt des Durchlaufs wieder her. Die Schritte danach und Ihre Bearbeitungen seitdem werden mit zurückgenommen. Die Schritte davor bleiben."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -14791,6 +15444,21 @@ msgstr "Dies stellt das Projekt auf den Stand vor diesem Zug wieder her: <0/>. I
 msgid "This restores the project to its state before this turn. Your edits since then are included in the restore."
 msgstr "Dies stellt das Projekt auf den Stand vor diesem Zug wieder her. Ihre Änderungen seitdem sind in der Wiederherstellung enthalten."
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it."
+msgstr "Das Protokoll dieses Laufs konnte gerade nicht gelesen werden. Es wurde nicht verändert; öffnen Sie das Projekt erneut, um es noch einmal zu versuchen, oder verwerfen Sie es."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed."
+msgstr "Das Protokoll dieses Laufs ist beschädigt oder wurde von einer anderen Caotang-Version geschrieben, daher kann er nicht fortgesetzt werden."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log."
+msgstr "Das Protokoll dieses Laufs ist beschädigt oder wurde von einer anderen Caotang-Version geschrieben, daher wurde der Lauf nicht fortgesetzt. Sie können das Protokoll verwerfen."
+
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "This scene has no day yet. Use Set day to give it one."
@@ -14800,6 +15468,11 @@ msgstr "Diese Szene hat noch keinen Tag. Verwenden Sie „Tag setzen“, um ihr 
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "This scene is empty. Switch to Source and write its heading, which starts with INT. or EXT."
 msgstr "Diese Szene ist leer. Wechseln Sie zu „Source“ und schreiben Sie ihre Überschrift, die mit INT. oder EXT. beginnt."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it."
+msgstr "Diese Szene liegt in keinem Ordner und hat daher keinen Abschnitt. Legen Sie im Binder einen Ordner an und verschieben Sie die Szene hinein."
 
 #. The media of one scene on the timeline. Interpolated values: title is writer text, ref is a node id the writer did not choose, list is a comma-separated list of media names.
 #: apps/desktop/src/components/timeline/TimelineMedia.tsx
@@ -14878,7 +15551,7 @@ msgstr "Dieser Schritt erstellt das Skriptdokument und verknüpft es mit dem Buc
 msgid "This step needs {calls} model {calls, plural, one {call} other {calls}}, which would go past the task's limit of {cap}."
 msgstr "Dieser Schritt braucht {calls} Modell-{calls, plural, one {Aufruf} other {Aufrufe}}, womit das Limit der Aufgabe von {cap} überschritten würde."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
 msgstr "Dieser Tab kann nicht speichern: Ein anderer Tab hat neueren Text für dieses Projekt. Exportieren Sie ein Backup, um die Wörter in diesem Tab zu behalten."
@@ -14965,7 +15638,7 @@ msgid "Time skip (declared)"
 msgstr "Zeitsprung (deklariert)"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
@@ -15047,8 +15720,10 @@ msgstr "Titel"
 msgid "Title of the new document (optional)"
 msgstr "Titel des neuen Dokuments (optional)"
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "Title page"
 msgstr "Titelseite"
 
@@ -15056,7 +15731,7 @@ msgstr "Titelseite"
 msgid "To attach a picture to one paragraph, select the paragraph’s text in its document, then use Attach to this paragraph in the Pictures section of the Inspector."
 msgstr "Um ein Bild an einen Absatz anzuhängen, markieren Sie den Text des Absatzes in seinem Dokument und wählen dann im Inspektor im Abschnitt Bilder die Aktion An diesen Absatz anhängen."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "To see the folder’s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here writes <0>caotang.json</0> from this tab, and an older one that is there is kept as a backup."
 msgstr "Um die neuere Kopie des Ordners zu sehen, gehen Sie zu „Projekte“ und öffnen Sie den Ordner erneut: Er öffnet sich als separates Projekt. Das Speichern hier schreibt <0>caotang.json</0> aus diesem Tab, und eine ältere, die dort liegt, wird als Backup aufbewahrt."
@@ -15066,7 +15741,7 @@ msgstr "Um die neuere Kopie des Ordners zu sehen, gehen Sie zu „Projekte“ un
 msgid "Today"
 msgstr "Heute"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Today’s target is met."
 msgstr "Das heutige Ziel ist erreicht."
@@ -15122,6 +15797,12 @@ msgstr "Tools von {name}"
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Top of the body"
 msgstr "Beginn des Textkörpers"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Trace"
+msgstr "Ablauf"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -15300,7 +15981,8 @@ msgstr "undatiert"
 msgid "under $0.0001"
 msgstr "unter 0,0001 $"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: source, summary
 #: apps/desktop/src/components/ActivityPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
@@ -15332,7 +16014,7 @@ msgstr "Machen Sie zuerst die späteren Änderungen rückgängig"
 msgid "Undo the later changes first. Taking back this one now could also take back text written after it."
 msgstr "Machen Sie zuerst die späteren Änderungen rückgängig. Das Zurücknehmen dieses Eintrags jetzt könnte auch Text zurücknehmen, der danach geschrieben wurde."
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Undo: {label}"
 msgstr "Rückgängig: {label}"
@@ -15552,7 +16234,7 @@ msgstr "Als Kartenbild verwenden"
 msgid "Use external tool servers"
 msgstr "Externe Tool-Server verwenden"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Use the dark theme"
 msgstr "Das dunkle Design verwenden"
@@ -15562,7 +16244,7 @@ msgstr "Das dunkle Design verwenden"
 msgid "Use the folder’s version"
 msgstr "Die Version des Ordners verwenden"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Use the light theme"
 msgstr "Das helle Design verwenden"
@@ -15750,6 +16432,11 @@ msgstr "Wöchentlich"
 msgid "what else the session holds"
 msgstr "was die Sitzung sonst noch enthält"
 
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "what goes in"
+msgstr "was hineinkommt"
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "What should Caotang do with it?"
@@ -15805,6 +16492,11 @@ msgstr "Was dieser Schritt in den Kodex schreibt"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "What to export"
 msgstr "Was exportiert werden soll"
+
+#. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
+#: apps/desktop/src/components/ExportPreviewPanel.tsx
+msgid "What will be compiled"
+msgstr "Was kompiliert wird"
 
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
@@ -15866,6 +16558,11 @@ msgstr "Warum das Entwerfen fehlgeschlagen ist"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Why is this not a problem?"
 msgstr "Warum ist das kein Problem?"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Why it did not finish"
+msgstr "Warum er nicht fertig wurde"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -15948,6 +16645,11 @@ msgstr "Schreiben Sie an ihrer Stelle eine Zeile [Picture: caption]"
 msgid "harness.progress.comicScriptFromPages.content"
 msgstr "Ein Comicskript aus den Seiten schreiben"
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneApply.bare.content"
+msgstr "Einen entworfenen Text schreiben"
+
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "Write a scene in the manuscript, and the timeline shows it. Scenes with a day sit on the story axis, and the rest wait on a shelf."
@@ -15963,10 +16665,27 @@ msgstr "Ein Skript aus den Seiten schreiben?"
 msgid "harness.progress.codexWrite.none.content"
 msgstr "Kodexeinträge schreiben"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueApply.bare.content"
+msgstr "Entworfenen Dialog schreiben"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Write it back"
 msgstr "Zurückschreiben"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueApply.content"
+msgstr "Den entworfenen Dialog in „{doc}“ schreiben"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneApply.content"
+msgstr "Den entworfenen Text in „{doc}“ schreiben"
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
@@ -16007,13 +16726,35 @@ msgstr "Ein Comicskript wird aus den Seiten geschrieben"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneApply.bare.active"
+msgstr "Ein entworfener Text wird geschrieben"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
 msgid "harness.progress.codexWrite.none.active"
 msgstr "Kodexeinträge werden geschrieben"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueApply.bare.active"
+msgstr "Entworfener Dialog wird geschrieben"
 
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "Writing history"
 msgstr "Schreibverlauf"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.dialogueApply.active"
+msgstr "Der entworfene Dialog wird in „{doc}“ geschrieben"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.sceneApply.active"
+msgstr "Der entworfene Text wird in „{doc}“ geschrieben"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -16060,6 +16801,11 @@ msgstr "Ihre Feststellungen konnten in diesem Browser nicht gespeichert werden: 
 msgid "Your findings could not be saved to the folder: {error}"
 msgstr "Ihre Feststellungen konnten nicht in den Ordner gespeichert werden: {error}"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back too."
+msgstr "Ihre späteren Änderungen liegen in anderen Teilen des Projekts, daher kann dies allein zurückgenommen werden, und sie bleiben. „Wiederherstellen“ nimmt sie mit zurück."
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -16091,12 +16837,27 @@ msgstr "Ihr Text bleibt auf diesem Computer."
 msgid "your typing"
 msgstr "Ihre Eingabe"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Your typing could not be saved, so the card was not applied. Approve it again once your words are saved."
+msgstr "Ihre Eingabe konnte nicht gespeichert werden, daher wurde die Karte nicht angewendet. Genehmigen Sie sie erneut, sobald Ihre Worte gespeichert sind."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved."
+msgstr "Ihre Eingabe konnte nicht gespeichert werden, daher wurde diese Karte nicht automatisch angewendet. Genehmigen Sie sie, sobald Ihre Worte gespeichert sind."
+
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "your typing in “{title}”"
 msgstr "Ihre Eingabe in „{title}“"
 
-#. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, shortcut, storageSentence, title, words
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home. Export a backup often and keep it somewhere else."
+msgstr "Ihre Texte werden in diesem Browser gespeichert, und der Browser hat nicht zugesagt, sie zu behalten. Ein Telefon oder Tablet leert den Browserspeicher bei knappem Platz früher als ein Computer, und noch wird nichts synchronisiert, daher sollte diese Kopie nicht der einzige Ort Ihres Buchs sein. Exportieren Sie oft ein Backup und bewahren Sie es woanders auf."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you can open anywhere."
 msgstr "Ihre Wörter werden in diesem Browser aufbewahrt, und der Browser hat nicht zugesagt, sie zu behalten. Exportieren Sie ein Backup, um eine Kopie zu erhalten, die Sie überall öffnen können."

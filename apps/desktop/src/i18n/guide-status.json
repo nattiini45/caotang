@@ -42,6 +42,34 @@
         "the-codex": {
           "hash": "0af900f6",
           "anchor": "der-kodex"
+        },
+        "knowledge": {
+          "hash": "6e10c440",
+          "anchor": "wissen"
+        },
+        "speakers-in-a-screenplay-and-its-dialogue": {
+          "hash": "5865ab47",
+          "anchor": "sprecher-in-einem-drehbuch-und-seinem-dialog"
+        },
+        "skills": {
+          "hash": "23df5c09",
+          "anchor": "skills"
+        },
+        "settings": {
+          "hash": "8a37cb44",
+          "anchor": "einstellungen"
+        },
+        "installing-the-mcp-bundle": {
+          "hash": "4651f5c6",
+          "anchor": "das-mcp-bundle-installieren"
+        },
+        "scripting-caotang": {
+          "hash": "288c79cd",
+          "anchor": "caotang-per-skript-steuern"
+        },
+        "when-something-seems-wrong": {
+          "hash": "0028e42a",
+          "anchor": "wenn-etwas-nicht-stimmt"
         }
       }
     }

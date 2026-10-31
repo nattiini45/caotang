@@ -5,6 +5,7 @@ Dieses Handbuch ist für Autorinnen und Autoren. Es beschreibt, was Sie in Caota
 
 ## Ihre Arbeit und wo sie lebt
 <!-- source: ee2e3fa7 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Caotang verwahrt jedes Projekt in Ihrem Browser, und dort schreiben Sie. Ein Browser kann seinen Speicher leeren, legen Sie deshalb auch Kopien an:
 
@@ -23,6 +24,7 @@ Das Undo Ihrer Eingabe in einer Szene übersteht ein erneutes Laden (das Redo vi
 
 ## Projekte
 <!-- source: 1b9e44ab -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 - **Anlegen.** Geben Sie auf dem Projektbildschirm unter **Neues Projekt** einen Namen ein und wählen Sie dann **Projekt erstellen**.
 - **Öffnen.** Wählen Sie **Offen** neben einem Projekt unter **Projekte in diesem Browser**.
@@ -36,6 +38,7 @@ Das Undo Ihrer Eingabe in einer Szene übersteht ein erneutes Laden (das Redo vi
 
 ## Der Binder
 <!-- source: ae206aa7 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Der Binder ist die Liste auf der linken Seite, unter der Registerkarte **Binder**. Er hat zwei Abschnitte:
 
@@ -80,6 +83,7 @@ Die Filterleiste über der Liste engt sie ein. Tippen Sie, um nach Titel, Synops
 
 ## Die Pinnwand
 <!-- source: 3918cd1e -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Pinnwand** über der Mitte des Fensters, um die Karten des ausgewählten Kapitels zu sehen, oder die der Kapitel des Manuskripts, wenn **Manuscript** ausgewählt ist. **Editor** führt zurück zum Text.
 
@@ -165,6 +169,7 @@ Das Panel rechts zeigt das ausgewählte Element:
 
 ## Der Editor
 <!-- source: d90fc40d -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie eine Szene im Binder, um in ihr zu schreiben.
 
@@ -179,6 +184,7 @@ Wählen Sie eine Szene im Binder, um in ihr zu schreiben.
 
 ## Ein Drehbuch schreiben
 <!-- source: dfc6cfce -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Neue Drehbuchszene hier** aus dem Menü eines Ordners. Eine Drehbuchszene wird in Fountain geschrieben, einem Drehbuchformat in einfachem Text. Ihre Ansicht hat drei Registerkarten:
 
@@ -201,6 +207,7 @@ Kompilieren Sie ein Drehbuch über **Kompilieren…** in der Gruppe „Medien“
 
 ### Das Drehbuch-PDF
 <!-- source: 8e8deb82 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 **Drehbuch-PDF (`.pdf`)** setzt das Drehbuch auf Seiten im Format US Letter im Standard-Drehbuchlayout:
 
@@ -255,6 +262,7 @@ Die Container-Einstellungen ändern diese Dateien:
 
 ## Ein Storyboard planen
 <!-- source: b08263c9 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Neues Storyboard hier** aus dem Menü eines Ordners. Ein Storyboard enthält Einstellungen, und jede Einstellung ist eine Karte. Wählen Sie **Neue Einstellung hier**, um eine hinzuzufügen.
 
@@ -314,6 +322,7 @@ Die Liste **Erscheint in** zeigt jedes Dokument, in dem der Name oder ein Alias 
 
 ## Feststellungen
 <!-- source: cbd41b57 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Die Registerkarte **Feststellungen** prüft das Manuskript. Sie hat zwei Arten von Prüfungen:
 
@@ -331,6 +340,10 @@ Feststellungen sind in **Fehler**, **Warnungen** und **Hinweise** gruppiert. **A
 - **Mit Agent beheben** startet einen Zug im Agenten, um eine Passage neu zu schreiben. Die Passage ist das erste Zitat im Binder: das in dem Dokument, das im Binder höher steht, und in diesem Dokument das frühere. Eine Feststellung, deren erstes Zitat in einem Dialog-Container liegt, hat keine Behebung, also bearbeiten Sie diese Passage im Ink-Text. Der Agent entwirft Prosatexte und Drehbuch-Szenen, keine Dialoge. Beim Demo-Provider schreibt Mit Agent beheben nur die eigenen Beispielpassagen der Demo neu und verweigert jede andere.
 - **Als behoben markieren** schließt die Feststellung.
 - **Zurückweisen…** fragt Sie warum, und seine Auswahl erhält den Fokus. Abbrechen gibt den Fokus an die Schaltfläche **Zurückweisen…** zurück. Ob Sie zurückweisen, ist Ihre Entscheidung.
+
+### Prologe und Epiloge
+
+Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ### Wissen
 <!-- source: 6e10c440 -->
@@ -360,6 +373,7 @@ Der **Ausführungsverlauf** listet jeden Lauf auf. **Erneut ausführen** wiederh
 
 ## Der Agent
 <!-- source: bdb8cecf -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie unten im Fenster **Agent**, um das Panel zu öffnen. Die Zeile oben im Panel nennt den Provider, auf dem der Agent läuft, oder sagt **Kein Provider**. **Den Agenten ausblenden** schließt es.
 
@@ -390,6 +404,14 @@ Die Arbeit des Agenten lesen:
 - **Stand vor diesem Zug wiederherstellen.** Das bringt das Projekt dahin zurück, wo es vor diesem Zug war. Es nimmt auch die Änderungen zurück, die Sie seitdem vorgenommen haben, und die späteren Änderungen, die der Dialog auflistet. Der Dialog sagt das, bevor er es tut.
 - **Aktivität.** Die Registerkarte **Aktivität** listet jede Änderung auf, markiert mit **Sie** oder **Agent**, und ein Aufruf eines externen Werkzeugs trägt ein **MCP**-Badge. **Rückgängig** macht eines davon rückgängig.
 
+## Anweisungen und Gedächtnis des Agenten
+
+Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
+
+## Wiederkehrende Aufgaben
+
+Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
+
 ## Skills
 <!-- source: 23df5c09 -->
 
@@ -405,8 +427,17 @@ Ist ein Skill genehmigt und eingeschaltet, erfährt der Agent seinen Namen und s
 
 Skills werden im Projekt im Ordner `.agents/skills/` aufbewahrt, daher tragen ein Projektordner, ein `.caotang`-Bundle und die Kopie dieses Browsers sie alle, und andere Programme, die diesen Ordner lesen, verwenden sie ebenfalls. Der Agent kann in seiner Antwort einen Skill vorschlagen, und er kann keinen Skill erstellen, ändern, importieren oder einschalten; das können nur Sie.
 
+## Makros
+
+Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
+
+## Hooks
+
+Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
+
 ## Export
 <!-- source: 6b7949ce -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie in der Symbolleiste **Kompilieren…**. Wählen Sie danach ein Exportprofil, ein Format und was exportiert werden soll.
 
@@ -450,24 +481,32 @@ Bei **Prompt-Paket (Video)** wählen Sie die **Anbieter-Vorlage**, für die das 
 
 **Export-Bundle** ist keine Kompilierung. Es ist eine vollständige Kopie des Projekts, für Sicherungen. Lassen sich ungenutzte Bilddateien sicher entfernen, bietet es zuerst die unter [Die Bildtafel](#die-bildtafel) beschriebene Bereinigung an; Sie können immer exportieren, ohne etwas zu entfernen. **Als Markdown exportieren** im Tab **Aktivität** schreibt das Aktivitätsprotokoll als Datei.
 
+## Caotang auf einem Telefon oder Tablet verwenden
+
+Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
+
 ## Einstellungen
-<!-- source: 7fcdaac8 -->
+<!-- source: 8a37cb44 -->
 
-Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat acht Abschnitte: Anbieter, Kontext, Agent, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
+Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat neun Abschnitte: Anbieter, Kontext, Agent, Makros, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
 
-- **Anbieter.** Wählen Sie **Anbieter hinzufügen** und dann den Anbieter aus der Liste — dessen Adresse und Authentifizierung sind bereits eingestellt, und einige Anbieter verlangen ein zusätzliches Feld, etwa eine Region oder eine Workspace-ID. Geben Sie einen Namen, ein Modell (das Feld bietet die eigene Modellliste des Anbieters an) und den Schlüssel ein. Ein Anbieter, dessen API keine Browserseite beantwortet, ist als **Nur Desktop-App oder gehostet** markiert. Ein Modellserver, der auf diesem Computer läuft — **Ollama**, **LM Studio** oder **llama.cpp (llama-server)** —, wird unter **Auf diesem Computer** aufgeführt; siehe unten. Für einen eigenen Endpunkt wählen Sie den allgemeinen Eintrag über dieser Gruppe: Sie geben die Basis-URL (sie endet auf `/v1`) selbst ein und können zusätzliche Anfrage-Header hinzufügen, die mit dem Schlüssel versiegelt werden. **Profil speichern** prüft den Endpunkt und listet seine Modelle auf. **Dieses Profil verwenden** macht es zu dem Profil, das der Agent aufruft. Schlüssel bleiben in diesem Browser und werden niemals in ein Projekt geschrieben. Ein Server auf diesem Computer braucht keinen Schlüssel, es sei denn, Sie richten einen auf dem Server ein. Sie können einen Preis pro 1.000 Token hinterlegen, damit Caotang anzeigt, was ein Schritt kostet. Um einen gespeicherten Preis zu entfernen, leeren Sie beide Preisfelder und speichern. Die Nutzungssummen zählen Anfragen nach Tag, Profil, Modell und Aufgabenrolle. Das Anfrageprotokoll listet zu jeder Anfrage Uhrzeit, Profil, Versuch, Ergebnis, Status, das Ausgabelimit, mit dem sie gesendet wurde (Denkraum eingeschlossen), und Adresse auf. Es speichert weder Ihr Manuskript noch Ihre Prompts. Bei einer fehlgeschlagenen Anfrage kann es einen kurzen Auszug von bis zu 300 Zeichen des Fehlers aufbewahren, den der Anbieter oder das Netzwerk zurückgegeben hat, mit Ihrem Schlüssel entfernt. Ein Anbieterfehler kann einen Teil des Gesendeten wiederholen, prüfen Sie daher das Anfrageprotokoll, bevor Sie es weitergeben.
+Zahlen, Daten und Uhrzeiten folgen der Sprache der Oberfläche (siehe **Erscheinungsbild**), mit der Region Ihres Systems, wo sie passt: In einer englischen Oberfläche lautet das Datum eines Ziels auf einem britischen System „31 Oct 2026“, auf einem amerikanischen „Oct 31, 2026“, und eine englische Oberfläche auf einem System in einer anderen Sprache verwendet US-Englisch. Kodex-Namen, Figuren und Stichwörter werden in der Reihenfolge der Projektsprache (Projektdetails) aufgeführt, ohne Rücksicht auf Groß- und Kleinschreibung oder Akzente und mit Zahlen nach ihrem Wert, sodass „Kapitel 9“ vor „Kapitel 10“ kommt und ein schwedisches Projekt Å nach Z einordnet.
+
+- **Anbieter.** Wählen Sie **Anbieter hinzufügen** und dann den Anbieter aus der Liste — dessen Adresse und Authentifizierung sind bereits eingestellt, und einige Anbieter verlangen ein zusätzliches Feld, etwa eine Region oder eine Workspace-ID. Geben Sie einen Namen, ein Modell (das Feld bietet die eigene Modellliste des Anbieters an) und den Schlüssel ein. Ein Anbieter, dessen API keine Browserseite beantwortet, ist als **Nur Desktop-App oder gehostet** markiert. Ein Modellserver, der auf diesem Computer läuft — **Ollama**, **LM Studio** oder **llama.cpp (llama-server)** —, wird unter **Auf diesem Computer** aufgeführt; siehe unten. Für einen eigenen Endpunkt wählen Sie den allgemeinen Eintrag über dieser Gruppe: Sie geben die Basis-URL (sie endet auf `/v1`) selbst ein und können zusätzliche Anfrage-Header hinzufügen, die mit dem Schlüssel versiegelt werden. **Profil speichern** prüft den Endpunkt und listet seine Modelle auf. **Dieses Profil verwenden** macht es zu dem Profil, das der Agent aufruft. Schlüssel bleiben in diesem Browser und werden niemals in ein Projekt geschrieben. Ein Server auf diesem Computer braucht keinen Schlüssel, es sei denn, Sie richten einen auf dem Server ein. Sie können einen Preis pro 1.000 Token hinterlegen, damit Caotang anzeigt, was ein Schritt kostet. Um einen gespeicherten Preis zu entfernen, leeren Sie beide Preisfelder und speichern. **Prompt caching**, standardmäßig an, lässt einen Anbieter, der es unterstützt (die Claude-Modelle von Anthropic und die von OpenAI), den Anfang eines Prompts wiederverwenden, den er gerade gesehen hat: Die Anweisungen des Agenten, Ihre CAOTANG.md und die Projektzusammenfassung gehen mit jeder Anfrage eines Durchlaufs mit, und ein wiederverwendeter Anfang kostet ein Zehntel des normalen Preises oder weniger und wird schneller beantwortet. Der Anbieter behält diesen Anfang einige Minuten (bei Anthropic fünf Minuten oder eine Stunde, wenn Sie **1 hour** wählen, was beim ersten Mal mehr kostet); Caotang speichert dafür nichts. Schalten Sie den Schalter in einem Profil aus, um jeden Prompt vollständig zu senden. Nach einem Durchlauf sagt sein Bericht, wie viele der Eingabe-Token aus dem Cache des Anbieters gelesen wurden, und wenn ein Aufruf den Cache hätte nutzen sollen und es nicht tat, sagt er, warum er ihn wahrscheinlich verfehlt hat. Die Nutzungssummen zählen Anfragen nach Tag, Profil, Modell und Aufgabenrolle. Das Anfrageprotokoll listet zu jeder Anfrage Uhrzeit, Profil, Versuch, Ergebnis, Status, das Ausgabelimit, mit dem sie gesendet wurde (Denkraum eingeschlossen), und Adresse auf. Es speichert weder Ihr Manuskript noch Ihre Prompts. Der Tab **Ablauf** des Agenten enthält sie, anders als das Anfrageprotokoll, wohl – nur für den geöffneten Tab (siehe den Abschnitt zum Agenten). Bei einer fehlgeschlagenen Anfrage kann es einen kurzen Auszug von bis zu 300 Zeichen des Fehlers aufbewahren, den der Anbieter oder das Netzwerk zurückgegeben hat, mit Ihrem Schlüssel entfernt. Ein Anbieterfehler kann einen Teil des Gesendeten wiederholen, prüfen Sie daher das Anfrageprotokoll, bevor Sie es weitergeben.
 - **Modelle auf diesem Computer.** Unter **Auf diesem Computer** enthält die Anbieterliste **Ollama**, **LM Studio** und **llama.cpp (llama-server)**. Wählen Sie einen davon, prüfen Sie die Serveradresse (sie startet als die übliche, zum Beispiel `http://127.0.0.1:11434/v1`, und der Port lässt sich ändern), und geben Sie den Namen eines Modells ein, das Sie heruntergeladen oder geladen haben. Caotang spricht diese Server nur über eine Adresse auf diesem Computer an, über einfaches http, und verweigert jede andere Adresse unter Nennung des Grundes; die Zeile **Ihr Text bleibt auf diesem Computer** erscheint, solange die Adresse eine solche ist. Der Server muss der Seite erlauben, ihn aufzurufen. Bei Ollama muss `OLLAMA_ORIGINS` auf die Adresse gesetzt werden, von der aus Caotang ausgeliefert wird (für caotang.app `OLLAMA_ORIGINS=https://caotang.app`), plus ein Neustart. LM Studio braucht **Enable CORS** in seinen Servereinstellungen. llama-server beantwortet Seiten von Haus aus, aber ein Server, der mit `--tools` oder `--agent` gestartet wurde, braucht `--cors-origins`. Ist der Browser blockiert, nennt die Fehlermeldung die betroffene Einstellung. Beim ersten Mal fragen Chrome und Edge, ob die Seite sich mit Apps auf Ihrem Gerät verbinden darf; wählen Sie „Zulassen“. Bis der Server etwas anderes meldet, geht Caotang von einem kleinen Kontextfenster (4.096 Token) und keinen nativen Werkzeugen oder Bildeingaben aus; erhöhen Sie das Fenster also auf dem Server: `OLLAMA_CONTEXT_LENGTH` bei Ollama, die Kontextlänge beim Laden des Modells in LM Studio, `-c` beim llama-server. Ein Modell, das zum Laden Zeit braucht, bekommt bis zu drei Minuten bis zu seinen ersten Worten.
 - **Rollen.** Unter den Profilen nennen **Chat**, **Verfassen** und **Hintergrund** jeweils das Profil, das Modell und die Denkstufe, mit denen ihre Aufrufe laufen. Chat ist das Agenten-Panel samt der Entwürfe, die ein Plan dort schreibt; Verfassen sind die Generierungen des Prompt-Pakets; Hintergrund sind Prüfungen, Kodierungsarbeiten und die Pläne, die Sie im Hintergrund laufen lassen. Verfassen und Hintergrund folgen Chat, bis Sie sie an ein eigenes Profil heften. Eine Denkstufe wird nur angeboten, wenn das gewählte Modell Denken unterstützt, und nur die Stufen, die es annimmt. „Aus“ wird dort nicht angeboten, wo das Modell immer denkt. Bei einem Modell mit Denk-Budget erhöht eine höhere Stufe das Ausgabelimit dieses Aufrufs, damit die Antwort noch Raum hat, und die Kostenschätzung eines Schritts rechnet das Denken hinzu und vermerkt „Denken eingeschlossen“.
-- **Kontext.** Wie viel der Agent dem Modell in einer Anfrage senden darf: der ganze Prompt sowie die Kodex-Einträge, die bisherige Geschichte und das Fokusdokument. Lassen Sie ein Feld leer, gilt der Standardwert. Eine Änderung gilt ab der nächsten Anfrage des Agenten.
-- **Agent.** **Jedes Werkzeug bei jeder Anfrage laden**, standardmäßig aus. Schalten Sie es ein, wenn ein Modell Werkzeuge nicht über die Suche des Agenten findet. Eine Änderung gilt ab der nächsten Anfrage des Agenten. **Berechtigungsmodus** wählt den Modus, in dem ein Panel startet („Fragen“, sofern Sie nichts anderes wählen), **Automodus abschalten** entfernt „Automatisch“ aus dem Panel, und die Limits darunter halten einen Zug an. **Lauf-Limits** (Modellaufrufe, Minuten Arbeit, Token, Schritte und Kosten in Dollar, jeweils pro Zug) gelten in jedem Modus, und ein Zug überschreitet keines von ihnen: Vor jeder Anfrage rechnet der Agent aus, wie viel er höchstens verbrauchen könnte, und eine Anfrage, die ein Limit überschreiten könnte, wird nicht gesendet. Modellaufrufe beginnen bei 8 und Minuten Arbeit bei 10; die übrigen sind aus, bis Sie sie setzen. Die Zeit, die eine Karte auf Sie wartet, zählt nicht als Arbeit. Geänderte Wörter und berührte Dokumente binden einen Zug nur, solange „Änderungen akzeptieren“ oder „Automatisch“ über dessen Karten entscheidet. Lassen Sie ein Limit leer, gilt sein Standardwert. Ein Kostenlimit braucht Preise beim aktiven Anbieter (Einstellungen › Anbieter); ohne Preise startet der Zug nicht. Das sind Limits auf Ihrem eigenen Schlüssel: Caotang hat kein eigenes Kontingent.
-- **Schreiben.** Das Tagesziel in Wörtern (0 für keins) und die Pause, die nach dem Tippen vergeht, bevor Caotang speichert (100 bis 5.000 ms). Eine neue Pause gilt für die Projekte, die Sie nach dem Speichern öffnen.
+- **Kontext.** Wie viel der Agent dem Modell in einer Anfrage senden darf: der ganze Prompt und jeder seiner Teile: Ihre Anweisungen mit dem Gedächtnisindex, die Projektzusammenfassung, die Kodex-Einträge, die Struktur um das Fokusdokument, die bisherige Geschichte, das Fokusdokument und die letzten Durchläufe des Gesprächs. Jedes Feld zeigt seinen Standardwert. Darunter zeigt der Abschnitt, wie viel Raum für die Antwort bleibt: das Antwortlimit des Profils, auf dem die Rolle Chat läuft (Caotangs Standard von 4.096 Token, wenn das Profil keines setzt), plus das Denken, das seine Denkstufe hinzufügt. Ist ein Projekt geöffnet, sagt er auch, wie viel Ihrer Anweisungen der Agent erhält und was das Limit abgeschnitten hat, und **Prompt für eine Szene ansehen** zeigt, was ein Szenenentwurf senden würde, mit seinen Kosten, wenn das Profil einen Preis hat. Lassen Sie ein Feld leer, gilt der Standardwert. Eine Änderung gilt ab der nächsten Anfrage des Agenten.
+- **Agent.** **Jedes Werkzeug bei jeder Anfrage laden**, standardmäßig aus. Schalten Sie es ein, wenn ein Modell Werkzeuge nicht über die Suche des Agenten findet. Eine Änderung gilt ab der nächsten Anfrage des Agenten. **Keep agent traces for this tab** ist standardmäßig an; ausgeschaltet zeichnet der Tab **Ablauf** nichts mehr auf und leert, was er enthält. **Berechtigungsmodus** wählt den Modus, in dem ein Panel startet („Fragen“, sofern Sie nichts anderes wählen), **Automodus abschalten** entfernt „Automatisch“ aus dem Panel, und die Limits darunter halten einen Zug an. **Lauf-Limits** (Modellaufrufe, Minuten Arbeit, Token, Schritte und Kosten in Dollar, jeweils pro Zug) gelten in jedem Modus, und ein Zug überschreitet keines von ihnen: Vor jeder Anfrage rechnet der Agent aus, wie viel er höchstens verbrauchen könnte, und eine Anfrage, die ein Limit überschreiten könnte, wird nicht gesendet. Modellaufrufe beginnen bei 8 und Minuten Arbeit bei 10; die übrigen sind aus, bis Sie sie setzen. Die Zeit, die eine Karte auf Sie wartet, zählt nicht als Arbeit. Geänderte Wörter und berührte Dokumente binden einen Zug nur, solange „Änderungen akzeptieren“ oder „Automatisch“ über dessen Karten entscheidet. Lassen Sie ein Limit leer, gilt sein Standardwert. Ein Kostenlimit braucht Preise beim aktiven Anbieter (Einstellungen › Anbieter); ohne Preise startet der Zug nicht. Das sind Limits auf Ihrem eigenen Schlüssel: Caotang hat kein eigenes Kontingent. **Rules** listet die Regeln dieses Projekts und Ihre eigenen, jede mit **Remove**, und fügt eine Regel für ein Werkzeug hinzu: Der Agent darf es nie verwenden oder muss Sie zuerst fragen.
+- **Makros.** Die Makros des Projekts: **Run…**, **Edit** und **Delete** für jedes (siehe Makros oben). Öffnen Sie ein Projekt, um sie zu sehen.
+- **Schreiben.** Das Tagesziel in Wörtern (0 für keins) und die Pause, die nach dem Tippen vergeht, bevor Caotang speichert (100 bis 5.000 ms). Eine neue Pause gilt für die Projekte, die Sie nach dem Speichern öffnen. **When you apply an agent edit** wählt zwischen **Replace the text** (dem Standard) und **Mark the changes for review** (siehe „Reviewing a draft in place“ unter Der Agent); es gilt für das nächste Dokument, das Sie öffnen.
 - **Kohärenz.** Die Schnellprüfungen, die der Feststellungs-Scan ausführt, der Umfang, mit dem der Tab **Feststellungen** startet, und die meisten Feststellungen, die eine Modellprüfung hinzufügen darf. **Kohärenz-Einstellungen speichern** speichert sie.
 - **MCP & Werkzeuge.** Externe Werkzeugserver sind aus, bis Sie **Externe Werkzeugserver verwenden** einschalten. Solange es aus ist, wird kein Server kontaktiert. Wählen Sie dann **Server hinzufügen** und geben Sie einen Namen und eine Adresse an: https oder http für einen Server auf Ihrem eigenen Computer. Fügen Sie das Bearer-Token des Servers hinzu, falls es eines braucht. Das Token bleibt in diesem Browser, wie Ihre Anbieterschlüssel. **Verbinden** listet die Werkzeuge des Servers auf. Lesen Sie die Prüfung, bevor Sie sie genehmigen: Die Beschreibung jedes Werkzeugs wird vollständig angezeigt, und eine Liste, die sich seit Ihrer letzten Genehmigung geändert hat, wartet erneut auf Ihre Genehmigung. Das Kontrollkästchen **Ein** in der Zeile eines Werkzeugs schaltet dieses ein oder aus. **Aktivieren** oder **Deaktivieren** auf einer Serverkarte schaltet den ganzen Server ein oder aus. **Für Lesezugriffe vertraut** lässt die schreibgeschützten Werkzeuge ohne Nachfrage laufen und wird erst nach einer Prüfung angeboten. **Erneut prüfen** listet die Werkzeuge noch einmal auf, und **Entfernen** vergisst den Server. **Liste anzeigen** und **Liste importieren** verschieben die Serverliste als Text, ohne Token, Werkzeuggenehmigungen oder Vertrauensstatus. Ein Werkzeug, dessen Name ein Zeichen enthält, das in Werkzeugnamen eines Modells nicht vorkommen darf, etwa ein Punkt, wird dem Agenten unter einem kürzeren Alias angezeigt. Der Server erhält weiter seinen eigenen Namen. Ein Server kann auch Prompts und Ressourcenvorlagen auflisten. Sie werden in derselben Prüfung vollständig angezeigt, samt der Information, ob Sie sie genehmigt haben, und das Genehmigen der Liste genehmigt sie mit; eine, die sich danach ändert, wird erneut angezeigt und wartet auf Sie, während die Werkzeuge des Servers genehmigt bleiben. Lässt sich die Liste der Ressourcen oder Prompts des Servers nicht lesen, steht das auf seiner Karte, und die Werkzeuge sind nicht betroffen. Dieser Build listet sie nur auf: Er hängt noch keine Ressource an eine Anfrage und führt noch keinen Prompt aus, und der Agent kann beides ebenfalls nicht.
-- **Erscheinungsbild.** Hell oder dunkel; bis Sie sich entscheiden, folgt Caotang Ihrer Systemeinstellung. **Sprache der Oberfläche** ändert die Sprache der Menüs, Panels und Meldungen von Caotang selbst, sobald Sie sie wählen, ohne die Seite neu zu laden und ohne das Manuskript anzurühren: Eine ungespeicherte Szene bleibt im Editor, und ein Agentenzug, der auf Sie wartet, bleibt, wo er ist. Dazu gehören der Schreibbildschirm mit seiner Fußzeile, der Projektbildschirm und jeder Teil der Einstellungen sowie der Posteingang der Feststellungen, die Aktivitätsliste, Ladehinweise und die eigenen Fortschrittszeilen des Agenten, sofern dafür eine Übersetzung existiert. Zahlen, Daten und Preise folgen den Konventionen derselben Sprache. Die Namen Ihrer Projekte, Ordner und gespeicherten Filter bleiben in diesen Sätzen lesbar, in ihrer eigenen Schreibrichtung. Eine Feststellung, die das Modell geschrieben hat, und jeder Satz, der gespeichert wurde, bevor es eine Übersetzung gab, bleibt in der Sprache, in der er verfasst wurde. **Systemeinstellung folgen** verwendet die erste Ihrer Browsersprachen, die Caotang anbietet. Eine Sprache mit dem Vermerk **Vorschau, teilweise Englisch** ist nicht fertig, daher lauten einige Meldungen noch auf Englisch, und ihr Name nennt den erreichten Prozentsatz. Ihre Wahl bleibt in diesem Browser gespeichert, nicht im Projekt; öffnet man dasselbe Projekt in einem anderen Browser, behält es die Sprache dieses Browsers. Das Manuskript, seine Synopsis und der Kodex behalten ihre eigene Sprache und Schreibrichtung, was auch immer die Oberfläche tut. Englisch und Deutsch werden angeboten. Bei Deutsch weist der Sprachwähler darauf hin, dass die Übersetzung maschinell erstellt und nicht muttersprachlich geprüft ist. Dieser Leitfaden ist ebenfalls auf Deutsch verfügbar; für eine Sprache ohne übersetzten Leitfaden öffnet die Hilfe weiterhin die englische Fassung. **Benutzerhandbuch lesen** neben der Auswahl öffnet den deutschen Abschnitt „Einstellungen“, solange sein Quellhash aktuell ist; fehlt die Übersetzung oder ist sie veraltet, wird stattdessen der englische Abschnitt geöffnet.
+- **Erscheinungsbild.** **Design**: hell oder dunkel. Bis Sie sich entscheiden, folgt Caotang Ihrer Systemeinstellung. **Oberfläche**: **Klassisch** oder **Modern (Vorschau)**. Klassisch ist die Oberfläche, die Caotang bisher hatte, und in ihr öffnet Caotang, bis Sie etwas anderes wählen. Modern ist eine Vorschau einer neuen Oberfläche, die noch im Aufbau ist, daher sieht sie vorerst fast so aus wie Klassisch. Beide Einstellungen werden in diesem Browser gespeichert und gelten sofort, ohne Neuladen. **Sprache der Oberfläche** ändert die Sprache der Menüs, Panels und Meldungen von Caotang selbst, sobald Sie sie wählen, ohne die Seite neu zu laden und ohne das Manuskript anzurühren: Eine ungespeicherte Szene bleibt im Editor, und ein Agentenzug, der auf Sie wartet, bleibt, wo er ist. Dazu gehören der Schreibbildschirm mit seiner Fußzeile, der Projektbildschirm und jeder Teil der Einstellungen sowie der Posteingang der Feststellungen, die Aktivitätsliste, Ladehinweise und die eigenen Fortschrittszeilen des Agenten, sofern dafür eine Übersetzung existiert. Zahlen, Daten und Preise folgen den Konventionen derselben Sprache. Die Namen Ihrer Projekte, Ordner und gespeicherten Filter bleiben in diesen Sätzen lesbar, in ihrer eigenen Schreibrichtung. Eine Feststellung, die das Modell geschrieben hat, und jeder Satz, der gespeichert wurde, bevor es eine Übersetzung gab, bleibt in der Sprache, in der er verfasst wurde. **Systemeinstellung folgen** verwendet die erste Ihrer Browsersprachen, die Caotang anbietet. Eine Sprache mit dem Vermerk **Vorschau, teilweise Englisch** ist nicht fertig, daher lauten einige Meldungen noch auf Englisch, und ihr Name nennt den erreichten Prozentsatz. Ihre Wahl bleibt in diesem Browser gespeichert, nicht im Projekt; öffnet man dasselbe Projekt in einem anderen Browser, behält es die Sprache dieses Browsers. Das Manuskript, seine Synopsis und der Kodex behalten ihre eigene Sprache und Schreibrichtung, was auch immer die Oberfläche tut. Englisch und Deutsch werden angeboten. Bei Deutsch weist der Sprachwähler darauf hin, dass die Übersetzung maschinell erstellt und nicht muttersprachlich geprüft ist. Dieser Leitfaden ist ebenfalls auf Deutsch verfügbar; für eine Sprache ohne übersetzten Leitfaden öffnet die Hilfe weiterhin die englische Fassung. **Benutzerhandbuch lesen** neben der Auswahl öffnet den deutschen Abschnitt „Einstellungen“, solange sein Quellhash aktuell ist; fehlt die Übersetzung oder ist sie veraltet, wird stattdessen der englische Abschnitt geöffnet.
 - **Daten.** Der Speicherort — das ist dieser Browser —, was der Browser über seinen Speicher sagt, und die Sicherungspunkt-Limits: **Pro Projekt behaltene Sicherungspunkte** (standardmäßig 100) und **Tage, die ein Sicherungspunkt behalten wird** (standardmäßig 30). Wählen Sie **Limits speichern**, um Ihre Änderung zu übernehmen. Ist ein Projekt geöffnet, wendet **Jetzt auf die Limits kürzen** sie sofort an.
 
 ## Tastatur
 <!-- source: c75ae84d -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Auf einem Mac tritt an die Stelle von Strg die Cmd-Taste. Die Element-Akkorde sind die eine Ausnahme: Sie verwenden Cmd+Alt, weil Cmd+Shift+3 und Cmd+Shift+4 Bildschirmfotos aufnehmen.
 
@@ -495,6 +534,7 @@ Die Tabs links (**Binder**, **Kodex**, **Aktivität** und **Feststellungen**) un
 
 ## Eigene Texte in einem KI-Werkzeug anhängen
 <!-- source: 81b20de8 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Ein KI-Werkzeug, das mit dem MCP-Server verbunden ist, kann Ihre Dokumente, die Notizen eines Dokuments und Ihre Kodex-Einträge als Ressourcen an eine Konversation anhängen. In Claude Code tippen Sie `@` und wählen `caotang`; in Cursor verwenden Sie die Ressourcenauswahl. Was Sie anhängen, ist der ganze Text, keine gekürzte Kopie. Ein Dokument über 2 MiB wird abgelehnt und sagt das, und es wird niemals gekürzt.
 
@@ -504,6 +544,7 @@ Auf einem Server, der mit `--allow-writes` gestartet wurde, erfährt ein Werkzeu
 
 ## Vorhandene Texte über den MCP-Server hereinholen
 <!-- source: 1864d33a -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wenn Ihre Texte woanders liegen, etwa in Notizen, einem Wiki oder einem alten Entwurf, kann der MCP-Server sie in ein Caotang-Projekt hereinholen. Zwei Werkzeuge erledigen das:
 
@@ -578,6 +619,7 @@ Ein Entwickler kann den Agenten mit dem Paket `@caotang/sdk` von einem Node-Skri
 
 ## Was in diesem Build noch fehlt
 <!-- source: 935c8030 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 - **Zu sehen, was sich in einem Ordner geändert hat.** Wenn ein anderes Programm ein Dokument in Ihrem Projektordner geändert hat, nennt die Frage das Dokument und zeigt den Unterschied nicht, und es gibt kein Zusammenführen. Speichern Sie darüber und vergleichen Sie die Version des Ordners in `.caotang-backup` von Hand.
 - **Exporte.** Das Drehbuch-PDF ist nur US Letter; es gibt keine A4-Seite und keine Wahl der Schriftart.

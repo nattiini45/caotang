@@ -386,7 +386,7 @@ export function Workspace({
   const showSceneSection = (sceneId: string): void => {
     const [section, ...above] = enclosingFolders(state, sceneId);
     if (section === undefined) {
-      report({ text: 'This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it.', tone: 'info' });
+      report({ text: t`This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it.`, tone: 'info' });
       return;
     }
     if (hideRails) setFocusMode(false);
@@ -399,8 +399,11 @@ export function Workspace({
       const row = document.querySelector<HTMLElement>(`.binder-tree [data-node-id="${CSS.escape(section.id)}"]`);
       if (row !== null) row.focus();
       // A missing row is a filter that hides it, unless the folder went in the frame since the key (an agent's delete).
-      else if (nodeById(session.state, section.id) === undefined) report({ text: `"${section.title}" is no longer in the binder.`, tone: 'info' });
-      else report({ text: `The binder filter hides "${section.title}". Clear the filter to see it.`, tone: 'info' });
+      else {
+        const title = section.title;
+        if (nodeById(session.state, section.id) === undefined) report({ text: t`"${title}" is no longer in the binder.`, tone: 'info' });
+        else report({ text: t`The binder filter hides "${title}". Clear the filter to see it.`, tone: 'info' });
+      }
     });
   };
 
@@ -416,7 +419,7 @@ export function Workspace({
     requestAnimationFrame(() => {
       const field = document.querySelector<HTMLElement>('#inspector-synopsis');
       if (field !== null) field.focus();
-      else report({ text: 'The scene’s synopsis is not showing, so the chord could not open it.', tone: 'info' });
+      else report({ text: t`The scene’s synopsis is not showing, so the chord could not open it.`, tone: 'info' });
     });
   };
 
@@ -1542,6 +1545,7 @@ interface FolderOffer {
 function changedFilesList(files: readonly FolderFileChange[], previews: readonly FolderFilePreview[], omittedPreviews: number): ReactNode {
   if (files.length === 0) return null;
   const MAX_VISIBLE_FOLDER_FILE_LABELS = 12;
+  const hiddenLabels = files.length - MAX_VISIBLE_FOLDER_FILE_LABELS;
   return (
     <ul>
       {files.slice(0, MAX_VISIBLE_FOLDER_FILE_LABELS).map((file, index) => {
@@ -1588,7 +1592,7 @@ function changedFilesList(files: readonly FolderFileChange[], previews: readonly
       })}
       {files.length > MAX_VISIBLE_FOLDER_FILE_LABELS ? (
         <li className="field-note">
-          {plural(files.length - MAX_VISIBLE_FOLDER_FILE_LABELS, { one: '# more changed file label is not shown.', other: '# more changed file labels are not shown.' })}
+          {plural(hiddenLabels, { one: '# more changed file label is not shown.', other: '# more changed file labels are not shown.' })}
         </li>
       ) : null}
       {omittedPreviews > 0 ? (

@@ -441,12 +441,13 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
                     }}
                   />
                 ));
+                const turnCount = run.turns.length;
                 return run.rewound ? (
                   // Rewound turns are kept, not deleted: the writer can read them and take their project changes back.
                   <li key={run.turns[0]!.turnId} className="agent-rewound">
                     <details data-testid="agent-rewound">
                       <summary>
-                        {plural(run.turns.length, { one: 'Rewound - not sent to the model (# turn)', other: 'Rewound - not sent to the model (# turns)' })}
+                        {plural(turnCount, { one: 'Rewound - not sent to the model (# turn)', other: 'Rewound - not sent to the model (# turns)' })}
                       </summary>
                       <ol className="agent-turns" aria-label={t`Rewound turns`}>
                         {blocks}
