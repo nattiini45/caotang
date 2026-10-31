@@ -45,6 +45,17 @@ export default tseslint.config(
     },
   },
   {
+    // `@caotang/import-core` runs in a `'self'` Worker and in Node as well as on the main thread, so a page global (or `DOMParser`,
+    // which Workers lack) would work in one host and fail in the others (import-core.md §1).
+    files: ['packages/import-core/src/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...[...SDK_BROWSER_GLOBALS, 'DOMParser'].map((name) => ({ name, message: `@caotang/import-core runs in Workers and Node; ${name} is not there. Take what you need from the reader.` })),
+      ],
+    },
+  },
+  {
     // `@caotang/sdk` runs in Node: a script, a CLI or CI, with no window. The block above gives every TypeScript file the browser's
     // globals, so a browser API there would lint clean and fail at runtime. The names below are the ones that tie code to a page or to
     // the browser's storage; `globalThis.<name>` is the same reach by another route, so it is closed too.
