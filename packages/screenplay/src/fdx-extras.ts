@@ -121,9 +121,21 @@ export function topLevel(root: XmlElement, name: string): XmlElement[] {
 /** A Cast List line split into the name and what follows it: `ANNA - a pilot`, `ANNA, 30s`, `ANNA: a pilot`, `ANNA ..... a pilot`. */
 export function castListLine(text: string): { readonly name: string; readonly description: string } {
   const line = text.replace(/\s+/g, ' ').trim();
-  const split = /^(.*?)\s*(?:\s[-–—]\s|[,:]\s|\.{3,}|\t)\s*(.*)$/.exec(line);
-  if (split === null) return { name: line, description: '' };
-  return { name: (split[1] ?? '').trim(), description: (split[2] ?? '').trim() };
+  // The earliest separator wins. Plain index searches, so a long line of spaces or dots costs linear time.
+  let at = -1;
+  let length = 0;
+  for (const separator of [' - ', ' – ', ' — ', ', ', ': ', '...']) {
+    const found = line.indexOf(separator);
+    if (found >= 0 && (at < 0 || found < at)) {
+      at = found;
+      length = separator.length;
+    }
+  }
+  if (at < 0) return { name: line, description: '' };
+  let rest = at + length;
+  // A dot leader runs on past three dots.
+  while (line[rest] === '.') rest += 1;
+  return { name: line.slice(0, at).trim(), description: line.slice(rest).trim() };
 }
 
 /**
