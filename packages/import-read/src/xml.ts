@@ -223,8 +223,8 @@ function isSpace(code: number): boolean {
 }
 
 /**
- * Whether a character may be part of a name. Generous on purpose (U+00B7 and any code point from U+00C0 up, minus × and
- * ÷, as XML 1.0 fifth edition nearly allows); the ASCII rule is exact: letters, digits, `_ : - .`.
+ * Whether a character may be part of a name. Generous on purpose (U+00B7 and any code point from U+00C0 up, minus ×, ÷ and
+ * U+FEFF, as XML 1.0 fifth edition nearly allows); the ASCII rule is exact: letters, digits, `_ : - .`.
  */
 function isNameChar(code: number): boolean {
   return (

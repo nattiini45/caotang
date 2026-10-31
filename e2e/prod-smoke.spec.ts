@@ -228,6 +228,8 @@ test('the shared XML reader is a chunk of its own, fetched when a Final Draft fi
     mimeType: 'application/xml',
     buffer: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(fdx, 'utf16le')]),
   });
+  // The decoded file is shown in the Final Draft report first (#264); nothing is written until Import is chosen.
+  await page.getByRole('dialog', { name: 'Import this Final Draft script?' }).getByRole('button', { name: 'Import', exact: true }).click();
   await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
   expect(chunks()).toContain('xml');
   expect(problems).toEqual([]);
