@@ -29,4 +29,4 @@ export { isAppLocalSource, caotangExtensions } from './extensions.js';
 export type { CaotangExtensionOptions, CaotangRole } from './extensions.js';
 export { isSafeLinkTarget, plainPasteHtml } from './paste.js';
 export { ENGLISH_FOOTNOTE_WORDS, deleteOrphanNote, footnoteChord, insertFootnote, jumpFootnote } from './footnotes.js';
-export type { FootnoteOrphan, FootnoteWords } from './footnotes.js';
+export type { FootnoteNoteDeletion, FootnoteOrphan, FootnoteWords } from './footnotes.js';

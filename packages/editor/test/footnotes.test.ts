@@ -261,6 +261,38 @@ describe('§3.4 · agent edits keep footnotes intact', () => {
     expect(read.childCount).toBe(1);
   });
 
+  it('a fragment that ends in an unclosed fence keeps its blocks; the stubs are not cut by count', () => {
+    const fenced = parseFragment('```\ncode that never closes', ['1', '2']);
+    expect(fenced.childCount).toBe(1);
+    expect(fenced.firstChild!.type.name).toBe('code_block');
+    expect(fenced.textContent).toBe('code that never closes');
+    const tail = parseFragment('Intro[^1].\n\n```\nopen', ['1']);
+    expect(tail.childCount).toBe(2);
+    expect(tail.child(1).type.name).toBe('code_block');
+    expect(tail.child(1).textContent).toBe('open');
+    // The stubs did not come back out cleanly, so the fragment is read on its own: the marker degrades to text.
+    expect(labelsOf(tail).refs).toEqual([]);
+    expect(tail.child(0).textContent).toBe('Intro[^1].');
+  });
+
+  it('a fragment that ends in an open raw HTML block keeps its blocks', () => {
+    const html = parseFragment('Lead[^1].\n\n<pre>\nraw', ['1']);
+    expect(html.textContent).toContain('raw');
+    expect(html.textContent).not.toContain('caotang-fragment-stub');
+  });
+
+  it('a `[^1]:` line inside a code block is not the fragment’s own note, so `[^1]` stays a marker', () => {
+    const read = parseFragment('Kept[^1] marker.\n\n```\n[^1]: not a note\n```', ['1']);
+    expect(labelsOf(read).refs).toEqual(['1']);
+    expect(read.childCount).toBe(2);
+    expect(read.child(1).type.name).toBe('code_block');
+  });
+
+  it('a label the fragment defines itself is not stubbed, and duplicate labels stub once', () => {
+    const own = parseFragment('Text[^1].\n\n[^1]: Its own note.', ['1', '1', '2']);
+    expect(labelsOf(own)).toEqual({ refs: ['1'], notes: ['1'] });
+  });
+
   it('`insertionOf` inserts the marker inline, and a rewritten note as its text', () => {
     const inline = insertionOf('Rewritten[^1] sentence. ', caotangSchema, ['1']);
     expect(inline.openStart).toBe(0);

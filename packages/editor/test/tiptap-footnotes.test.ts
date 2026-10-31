@@ -88,8 +88,8 @@ describe('§3.4 · keyboard only', () => {
     editor.view.dispatch(editor.state.tr.delete(marker, marker + 1));
     // B's footnote is now the first; the orphaned note is kept, after it, as the second.
     expect(instance.getContent()).toBe('A and B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n');
-    expect(orphans).toEqual([[{ label: '2', text: 'One.' }]]);
-    expect(instance.deleteFootnoteNote('2')).toBe(true);
+    expect(orphans).toEqual([[{ id: expect.any(Number), label: '2', text: 'One.' }]]);
+    expect(instance.deleteFootnoteNote(orphans[0]![0]!)).toBe('deleted');
     expect(instance.getContent()).toBe('A and B[^1].\n\n[^1]: Two.\n');
     // Undo brings the note back, then the marker; the renumbering undoes with each step.
     pressUndo(host);
@@ -99,14 +99,58 @@ describe('§3.4 · keyboard only', () => {
   });
 
   it('the answer is refused once the note has a marker again', async () => {
-    const { host, instance } = await mountInto('A[^1].\n\n[^1]: One.\n', { onFootnoteOrphaned: () => {} });
+    const orphans: FootnoteOrphan[] = [];
+    const { host, instance } = await mountInto('A[^1].\n\n[^1]: One.\n', { onFootnoteOrphaned: (found) => orphans.push(...found) });
     const editor = tiptapOf(focusDom(host));
     caretAfter(editor, 'A');
     const marker = editor.state.selection.from;
     editor.view.dispatch(editor.state.tr.delete(marker, marker + 1));
     pressUndo(host);
-    expect(instance.deleteFootnoteNote('1')).toBe(false);
+    expect(instance.deleteFootnoteNote(orphans[0]!)).toBe('referenced');
     expect(instance.getContent()).toBe('A[^1].\n\n[^1]: One.\n');
+  });
+
+  it('an agent re-flow while the question is open does not redirect the answer to another note', async () => {
+    const orphans: FootnoteOrphan[] = [];
+    const { host, instance } = await mountInto('A[^1] B[^2].\n\n[^1]: One.\n\n[^2]: Two.\n\n[^3]: Spare.\n', {
+      onFootnoteOrphaned: (found) => orphans.push(...found),
+    });
+    const editor = tiptapOf(focusDom(host));
+    // The writer deletes A's marker: "One." is the orphan, labelled 2.
+    caretAfter(editor, 'A');
+    const marker = editor.state.selection.from;
+    editor.view.dispatch(editor.state.tr.delete(marker, marker + 1));
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n\n[^3]: Spare.\n');
+    expect(orphans).toEqual([{ id: expect.any(Number), label: '2', text: 'One.' }]);
+    // While the question is open, an agent (Lane 2, which asks nothing) points B at the spare
+    // note: the tail re-flows, and label 2 now names "Two.", which is also unreferenced.
+    const body = instance.getContent();
+    const from = body.indexOf('B[^1]');
+    instance.replaceRange({ from, to: from + 'B[^1]'.length }, 'B[^3]', { historyExcluded: true });
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Spare.\n\n[^2]: Two.\n\n[^3]: One.\n');
+    expect(orphans).toHaveLength(1);
+    // The answer deletes "One." — the note the question named — and keeps "Two.".
+    expect(instance.deleteFootnoteNote(orphans[0]!)).toBe('deleted');
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Spare.\n\n[^2]: Two.\n');
+  });
+
+  it('the answer is refused when the note it named is gone or its text changed', async () => {
+    const orphans: FootnoteOrphan[] = [];
+    const { host, instance } = await mountInto('A[^1] B[^2].\n\n[^1]: One.\n\n[^2]: Two.\n', {
+      onFootnoteOrphaned: (found) => orphans.push(...found),
+    });
+    const editor = tiptapOf(focusDom(host));
+    caretAfter(editor, 'A');
+    const marker = editor.state.selection.from;
+    editor.view.dispatch(editor.state.tr.delete(marker, marker + 1));
+    expect(orphans).toEqual([{ id: expect.any(Number), label: '2', text: 'One.' }]);
+    // The note's text is changed before the answer: it is no longer the note the question showed.
+    caretAfter(editor, 'One');
+    editor.view.dispatch(editor.state.tr.insertText(' more'));
+    expect(instance.deleteFootnoteNote(orphans[0]!)).toBe('gone');
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One more.\n');
+    // An orphan the editor never reported is refused too.
+    expect(instance.deleteFootnoteNote({ id: -1, label: '2', text: 'One more.' })).toBe('gone');
   });
 
   it('a note whose text is deleted with a selection across it comes back empty, so the marker survives the save', async () => {

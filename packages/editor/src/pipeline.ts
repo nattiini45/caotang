@@ -287,6 +287,49 @@ export const parseWithDiagnostics = async (body: string): Promise<ParseResult> =
 export const parse = async (body: string): Promise<PmNode> =>
   (await parseWithDiagnostics(body)).doc;
 
+/** The text of a stub note `parseFragment` appends; a private-use sentinel no prose holds. */
+const FRAGMENT_STUB_TEXT = '\uE000caotang-fragment-stub\uE000';
+
+/** Every footnote definition in `tree`, at any depth, by its folded key. */
+const visitFootnoteDefinitions = (node: { type: string; children?: unknown[] }, onKey: (key: string) => void): void => {
+  if (node.type === 'footnoteDefinition') {
+    const def = node as unknown as { label?: string; identifier: string };
+    onKey(footnoteKey(def.label ?? def.identifier));
+  }
+  if (node.type === 'code' || node.type === 'inlineCode' || node.type === 'html') return;
+  for (const child of node.children ?? []) visitFootnoteDefinitions(child as { type: string; children?: unknown[] }, onKey);
+};
+
+/** Is `node` one of the stub notes `parseFragment` appended? */
+const isFragmentStub = (node: MdastRoot['children'][number]): node is Extract<MdastRoot['children'][number], { type: 'footnoteDefinition' }> => {
+  if (node.type !== 'footnoteDefinition' || node.children.length !== 1) return false;
+  const para = node.children[0]!;
+  if (para.type !== 'paragraph' || para.children.length !== 1) return false;
+  const text = para.children[0]!;
+  return text.type === 'text' && text.value === FRAGMENT_STUB_TEXT;
+};
+
+/**
+ * `tree` without the trailing stub notes, or `null` when the trailing stubs are not
+ * exactly the `stubs` that were appended, in order — the fragment swallowed some of
+ * them, and the caller falls back to the fragment read on its own.
+ */
+const stripFragmentStubs = (tree: MdastRoot, stubs: readonly string[]): MdastRoot | null => {
+  const { children } = tree;
+  let start = children.length;
+  while (start > 0 && isFragmentStub(children[start - 1]!)) start -= 1;
+  const trailing = children.slice(start);
+  if (trailing.length !== stubs.length) return null;
+  for (let i = 0; i < stubs.length; i += 1) {
+    const def = trailing[i] as { label?: string; identifier: string };
+    if (footnoteKey(def.label ?? def.identifier) !== footnoteKey(stubs[i]!)) return null;
+  }
+  // A stub anywhere else (inside a list, a quote, a fence's text) also means the
+  // appended source leaked into the fragment.
+  if (JSON.stringify(children.slice(0, start)).includes(FRAGMENT_STUB_TEXT)) return null;
+  return { ...tree, children: children.slice(0, start) };
+};
+
 /**
  * §5's load, **synchronously**, for the one caller that cannot await: the §4 primitives
  * (`replaceRange`, `insertAtSelection`) are synchronous by the seam's signature.
@@ -309,12 +352,32 @@ export const parseFragment = (text: string, footnoteLabels: readonly string[] = 
   // appended as stub definitions for the parse and taken out again afterwards; an
   // agent's rewrite that keeps `[^1]` then keeps the marker rather than turning it
   // into text. A label the fragment defines itself is not stubbed.
+  //
+  // The fragment is parsed on its own first: that tree says which labels it defines
+  // (a `[^1]:` line inside a code block is code, not a definition), and it is the
+  // fallback when the stubs do not come back out cleanly.
+  const plain = processor.runSync(processor.parse(text)) as MdastRoot;
   const own = new Set<string>();
-  for (const match of text.matchAll(/^ {0,3}\[\^([^\]\s]+)\]:/gm)) own.add(footnoteKey(match[1]!));
-  const stubs = footnoteLabels.filter((label) => !own.has(footnoteKey(label)));
-  const source = stubs.length === 0 ? text : `${text}\n\n${stubs.map((label) => `[^${label}]: x`).join('\n\n')}`;
-  const tree = processor.runSync(processor.parse(source)) as MdastRoot;
-  if (stubs.length > 0) tree.children = tree.children.slice(0, tree.children.length - stubs.length);
+  visitFootnoteDefinitions(plain, (key) => own.add(key));
+  const stubs: string[] = [];
+  for (const label of footnoteLabels) {
+    const key = footnoteKey(label);
+    if (own.has(key)) continue;
+    own.add(key);
+    stubs.push(label);
+  }
+  let tree = plain;
+  if (stubs.length > 0) {
+    const source = `${text}\n\n${stubs.map((label) => `[^${label}]: ${FRAGMENT_STUB_TEXT}`).join('\n\n')}`;
+    const stubbed = processor.runSync(processor.parse(source)) as MdastRoot;
+    // The stubs are taken out by what they are, not by how many were appended: a
+    // fragment that ends inside an open construct (an unclosed fence, a raw HTML
+    // block) swallows them, and slicing by count would then cut the fragment's own
+    // blocks. When the trailing stubs are not exactly the ones appended, the fragment
+    // is read without them: a marker degrades to text, and no block is dropped.
+    const kept = stripFragmentStubs(stubbed, stubs);
+    if (kept !== null) tree = kept;
+  }
   leadNotesWithABlock(tree);
   if (tree.children.length === 0 || definitionsOnly(tree)) {
     return caotangSchema.topNodeType.createAndFill() as PmNode;

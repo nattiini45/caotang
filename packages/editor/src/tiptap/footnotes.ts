@@ -53,7 +53,14 @@ import {
 
 /** A note whose last marker the writer deleted. */
 export interface FootnoteOrphan {
-  /** The note's label after renumbering, which is how the editor shows it now. */
+  /**
+   * Which note this is, for the answer. A label is not an identity: while the question is
+   * open an agent change can re-flow the numbering, and the label then names another note.
+   * The editor follows the note itself (its position, mapped through every change, and its
+   * text) under this id; `deleteFootnoteNote` takes the orphan, not the label.
+   */
+  readonly id: number;
+  /** The note's label after renumbering, which is how the editor shows it at the moment of the question. */
   readonly label: string;
   /** The note's text, for the question the app asks. */
   readonly text: string;
@@ -220,20 +227,69 @@ export const jumpFootnote = (state: EditorState, dispatch: Dispatch): boolean =>
 export const footnoteChord = (state: EditorState, dispatch: Dispatch): boolean =>
   jumpFootnote(state, dispatch) || insertFootnote(state, dispatch);
 
+/** What answering "delete the note too" did. */
+export type FootnoteNoteDeletion =
+  /** The note was deleted. */
+  | 'deleted'
+  /** Nothing changed: a marker refers to the note again (an undo, a paste, an agent's text). */
+  | 'referenced'
+  /** Nothing changed: the note is gone, or its text changed, so it is not the note the question named. */
+  | 'gone';
+
+/** An orphaned note the editor follows until the question about it is answered. */
+interface TrackedOrphan {
+  readonly id: number;
+  /** The note's start, in the current document (mapped through every transaction). */
+  readonly pos: number;
+  /** The note's whole text (not the preview), which the note must still have to be deleted. */
+  readonly text: string;
+}
+
+interface FootnotePluginState {
+  /** The orphans this transaction reported, or `null`. */
+  readonly emitted: readonly FootnoteOrphan[] | null;
+  /** The orphans of the latest report, followed through later changes. */
+  readonly tracked: readonly TrackedOrphan[];
+}
+
+let nextOrphanId = 1;
+
+/** A note's text in full, for identity rather than for display. */
+const fullNoteText = (note: PmNode): string => note.textBetween(0, note.content.size, '\n', '\n');
+
 /**
- * Deletes `label`'s note if no marker refers to it any more — the answer to the
- * question the app asks after a marker is deleted. `false` (and nothing changes) when
- * the note is gone or has a marker again, for example after an undo.
+ * The note `tracked` names in `doc`, or `null`. Its mapped position is tried first; if the
+ * note moved (a re-flow reorders the tail), the one note with the same text is taken, and
+ * when the text matches none or several, nothing is: a wrong note is never deleted.
  */
-export const deleteOrphanNote = (state: EditorState, dispatch: Dispatch, label: string): boolean => {
-  const note = findNote(state.doc, label);
-  if (note === null) return false;
-  if (referencedFootnoteKeys(state.doc).has(footnoteKey(label))) return false;
-  if (dispatch) dispatch(state.tr.delete(note.pos, note.pos + note.node.nodeSize));
-  return true;
+const resolveTracked = (doc: PmNode, tracked: TrackedOrphan): { node: PmNode; pos: number } | null => {
+  const notes: { node: PmNode; pos: number }[] = [];
+  doc.forEach((child, pos) => {
+    if (child.type.name === 'footnote_definition') notes.push({ node: child, pos });
+  });
+  const same = notes.filter((note) => fullNoteText(note.node) === tracked.text);
+  const atPos = same.find((note) => note.pos === tracked.pos);
+  if (atPos !== undefined) return atPos;
+  return same.length === 1 ? same[0]! : null;
 };
 
-const footnoteKeyPlugin = new PluginKey<readonly FootnoteOrphan[] | null>('caotangFootnotes');
+/**
+ * Deletes the orphaned note if no marker refers to it any more — the answer to the
+ * question the app asks after a marker is deleted. The note is found by what the editor
+ * followed since the question (see {@link FootnoteOrphan.id}), never by its label alone.
+ * Anything but `'deleted'` changes nothing.
+ */
+export const deleteOrphanNote = (state: EditorState, dispatch: Dispatch, orphan: FootnoteOrphan): FootnoteNoteDeletion => {
+  const tracked = footnoteKeyPlugin.getState(state)?.tracked.find((entry) => entry.id === orphan.id);
+  if (tracked === undefined) return 'gone';
+  const note = resolveTracked(state.doc, tracked);
+  if (note === null) return 'gone';
+  if (referencedFootnoteKeys(state.doc).has(footnoteKey(note.node.attrs.label as string))) return 'referenced';
+  if (dispatch) dispatch(state.tr.delete(note.pos, note.pos + note.node.nodeSize));
+  return 'deleted';
+};
+
+const footnoteKeyPlugin = new PluginKey<FootnotePluginState>('caotangFootnotes');
 
 export interface FootnoteBehaviourOptions {
   onOrphaned?: ((orphans: readonly FootnoteOrphan[]) => void) | undefined;
@@ -322,11 +378,18 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
   addProseMirrorPlugins() {
     const options = this.options;
     return [
-      new Plugin<readonly FootnoteOrphan[] | null>({
+      new Plugin<FootnotePluginState>({
         key: footnoteKeyPlugin,
         state: {
-          init: () => null,
-          apply: (tr) => tr.getMeta(footnoteKeyPlugin) ?? null,
+          init: () => ({ emitted: null, tracked: [] }),
+          apply: (tr, value) => {
+            const reported = tr.getMeta(footnoteKeyPlugin) as { orphans: readonly FootnoteOrphan[]; tracked: readonly TrackedOrphan[] } | undefined;
+            if (reported !== undefined) return { emitted: reported.orphans, tracked: reported.tracked };
+            const tracked = tr.docChanged
+              ? value.tracked.map((entry) => ({ ...entry, pos: tr.mapping.map(entry.pos, -1) }))
+              : value.tracked;
+            return value.emitted === null && tracked === value.tracked ? value : { emitted: null, tracked };
+          },
         },
         appendTransaction(trs, oldState, newState) {
           if (!trs.some((tr) => tr.docChanged)) return null;
@@ -339,14 +402,19 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
           const mapping = applyFootnoteFix(tr);
           if (lostKeys.length > 0) {
             const orphans: FootnoteOrphan[] = [];
+            const tracked: TrackedOrphan[] = [];
             const labelOf = new Map<string, string>();
             for (const def of footnoteTail(newState.doc).defs) labelOf.set(footnoteKey(def.attrs.label as string), def.attrs.label as string);
             for (const key of lostKeys) {
               const label = mapping.get(key) ?? labelOf.get(key);
               const note = label === undefined ? null : findNote(tr.doc, label);
-              if (label !== undefined && note !== null) orphans.push({ label, text: noteText(note.node) });
+              if (label !== undefined && note !== null) {
+                const id = nextOrphanId++;
+                orphans.push({ id, label, text: noteText(note.node) });
+                tracked.push({ id, pos: note.pos, text: fullNoteText(note.node) });
+              }
             }
-            if (orphans.length > 0) tr.setMeta(footnoteKeyPlugin, orphans);
+            if (orphans.length > 0) tr.setMeta(footnoteKeyPlugin, { orphans, tracked });
           }
           if (!tr.docChanged && tr.getMeta(footnoteKeyPlugin) === undefined) return null;
           if (trs.some((root) => root.getMeta('addToHistory') === false)) tr.setMeta('addToHistory', false);
@@ -354,8 +422,8 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
         },
         view: () => ({
           update: (view, prev) => {
-            const now = footnoteKeyPlugin.getState(view.state);
-            if (now !== null && now !== undefined && now !== footnoteKeyPlugin.getState(prev)) options.onOrphaned?.(now);
+            const now = footnoteKeyPlugin.getState(view.state)?.emitted;
+            if (now !== null && now !== undefined && now !== footnoteKeyPlugin.getState(prev)?.emitted) options.onOrphaned?.(now);
           },
         }),
         props: {

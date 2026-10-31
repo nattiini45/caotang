@@ -289,7 +289,11 @@ function DocumentEditor({
         ? editor.showAgentEdit(stored, { toolCallId: apply.toolCallId, revision }).then((outcome) => import('./ReviewSide.js').then((module) => module.reportLanding(outcome, report)))
         : editor.setContent(stored, { historyExcluded: true, discardUnsaved: true });
     landing
-      .then(() => editor.setRevision(revision))
+      .then(() => {
+        editor.setRevision(revision);
+        // The body was replaced from outside (an undo, a restore, an agent apply): a question about a note in the old body is stale.
+        setOrphan(null);
+      })
       .catch((error: unknown) => {
         report({
           text: `The text could not be brought up to date: ${error instanceof Error ? error.message : String(error)}`,
@@ -368,8 +372,10 @@ function DocumentEditor({
           <FootnoteQuestion
             orphan={orphan}
             onDelete={() => {
-              editor.deleteFootnoteNote(orphan.label);
+              // The note is the one the question named, followed by the editor since; a refusal changes nothing and is said.
+              const outcome = editor.deleteFootnoteNote(orphan);
               setOrphan(null);
+              if (outcome !== 'deleted') report({ text: footnoteKeptNotice(outcome), tone: 'info' });
               editor.focus();
             }}
             onKeep={() => {
@@ -463,6 +469,13 @@ function GhostBar({
       </div>
     </aside>
   );
+}
+
+/** What the writer is told when answering "Delete the note" changed nothing. */
+function footnoteKeptNotice(outcome: 'referenced' | 'gone'): string {
+  return outcome === 'referenced'
+    ? 'The note was kept: a marker refers to it again.'
+    : 'The note was kept: it was changed or is no longer there.';
 }
 
 /**
