@@ -10,12 +10,16 @@
  *
  * - paragraph styles `Title`, `Heading 1` (the chapter style) and `Normal`, and `Heading 2` for a `section` scene's title
  *   (exporter.md §2, Per-scene styling);
- * - a page break before each chapter (`pageBreakBefore` on the Heading 1);
+ * - parts (folders that hold chapters, project-format §2): a heading's level is its folder's depth, so in a book with parts a
+ *   part is `Heading 1`, its chapters `Heading 2` and their section scenes `Heading 3`, and a chapter directly under the
+ *   manuscript (a prologue) stays `Heading 1`. Levels stop at `Heading 6`. A book without parts is written exactly as before;
+ * - a page break before each chapter and each part (`pageBreakBefore` on the heading), so a part heading has its page;
  * - a TOC **field** anchored on Heading 1, with `updateFields` in the settings so
  *   Word offers to refresh it on open. The setting is written only when the field is: a file with no fields must not make
  *   Word ask about fields at all;
- * - `cachedEntries` built from the binder's chapter list, and the section headings at level 2, so the contents are
- *   visible in every viewer before anything is updated (the §2 TOC recipe) and agree with the field's `1-2` range.
+ * - `cachedEntries` built from the binder's chapter list, and the section headings one level below their chapter, so the
+ *   contents are visible in every viewer before anything is updated (the §2 TOC recipe) and agree with the field's range:
+ *   `1-2` for a book without parts, and down to the deepest heading level for one with parts.
  *
  * ## Why `cachedEntries` and why the field is left dirty
  *
@@ -51,9 +55,8 @@
  */
 
 import type * as Docx from 'docx';
-import { chapterHeadings, contentsEntries, hasTitlePage, sectionTitle, type RenderInput } from './render-input.js';
+import { chapterHeadings, contentsEntries, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, plainRuns, type ProseBlock, type Run } from './prose.js';
-import { chapterLabel } from './template.js';
 import { stripXmlIllegal } from './xml-text.js';
 
 /** The MIME type a `.docx` is served as. */
@@ -83,6 +86,9 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
   }
 
   const hasContents = input.toc && chapterHeadings(input).length > 0;
+  const entries = contentsEntries(input);
+  // The deepest outline level the file uses: 2 for a book without parts (chapters and section scenes), more with parts.
+  const deepest = Math.min(6, Math.max(2, ...entries.map((entry) => entry.level)));
   if (hasContents) {
     children.push(
       new docx.Paragraph({
@@ -94,23 +100,28 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
       new docx.TableOfContents('Contents', {
         hyperlink: true,
         // exporter.md §2's recipe: `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })`. Heading 1 is a
-        // chapter and Heading 2 a `section` scene, so the cached entries list both, in document order, as the field would.
-        headingStyleRange: '1-2',
-        cachedEntries: contentsEntries(input).map((entry) => ({ title: stripXmlIllegal(entry.label), level: entry.level })),
+        // chapter and Heading 2 a `section` scene, so the cached entries list both, in document order, as the field would. With
+        // parts the range reaches the deepest heading, since a chapter inside a part is Heading 2 and its sections Heading 3.
+        headingStyleRange: `1-${deepest}`,
+        cachedEntries: entries.map((entry) => ({ title: stripXmlIllegal(entry.label), level: Math.min(6, entry.level) })),
       }),
     );
   }
 
-  for (const block of input.blocks) {
+  const byBlock = headingsByBlock(input);
+  /** The level of the heading the text is under, so a `section` scene's heading sits one level below it. */
+  let depth = 1;
+  for (const [index, block] of input.blocks.entries()) {
     switch (block.kind) {
       case 'frontmatter':
         break;
       case 'chapter':
+        depth = block.level;
         children.push(
           new docx.Paragraph({
-            heading: docx.HeadingLevel.HEADING_1,
+            heading: headingLevel(docx, block.level),
             pageBreakBefore: true,
-            children: [new docx.TextRun(stripXmlIllegal(chapterLabel(input.template, block.number, block.title)))],
+            children: [new docx.TextRun(stripXmlIllegal(byBlock.get(index)?.label ?? block.title))],
           }),
         );
         break;
@@ -118,7 +129,7 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
         const section = sectionTitle(block);
         if (section !== undefined) {
           children.push(
-            new docx.Paragraph({ heading: docx.HeadingLevel.HEADING_2, children: [new docx.TextRun(stripXmlIllegal(section))] }),
+            new docx.Paragraph({ heading: headingLevel(docx, depth + 1), children: [new docx.TextRun(stripXmlIllegal(section))] }),
           );
         }
         for (const prose of parseProse(block.body)) children.push(...proseParagraphs(docx, prose, 0));
@@ -139,7 +150,7 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
     // §2: Word offers to update the TOC field once, on open, and then the cached
     // entries are replaced by the real ones. Without a field there is nothing to update, so no setting and no prompt.
     features: hasContents ? { updateFields: true } : undefined,
-    styles: styleDefinitions(docx),
+    styles: styleDefinitions(docx, deepest),
     sections: [{ properties: {}, children }],
   });
 
@@ -150,7 +161,17 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
  * The named styles the contract requires (`Heading 2` for a section scene included), and the one the field's entries
  * are formatted with. `docx` writes `TOC1` and `TOC2` only when they are defined, so they are.
  */
-function styleDefinitions(docx: DocxModule): Docx.IStylesOptions {
+function styleDefinitions(docx: DocxModule, deepest: number): Docx.IStylesOptions {
+  // Headings and contents styles below level 2 are defined only when the file reaches them (a book with parts), so a book
+  // without parts carries the same styles part it always did.
+  const deeper = [3, 4, 5, 6].filter((level) => level <= deepest);
+  const deeperHeadings: Partial<Record<`heading${3 | 4 | 5 | 6}`, Docx.IBaseParagraphStyleOptions>> = {};
+  for (const level of deeper) {
+    deeperHeadings[`heading${level as 3 | 4 | 5 | 6}`] = {
+      run: { font: BODY_FONT, size: Math.max(BODY_SIZE, 28 - (level - 2) * 2), bold: true },
+      paragraph: { spacing: { before: 240, after: 240 } },
+    };
+  }
   return {
     default: {
       document: {
@@ -169,6 +190,7 @@ function styleDefinitions(docx: DocxModule): Docx.IStylesOptions {
         run: { font: BODY_FONT, size: 28, bold: true },
         paragraph: { spacing: { before: 240, after: 240 } },
       },
+      ...deeperHeadings,
     },
     paragraphStyles: [
       {
@@ -194,8 +216,29 @@ function styleDefinitions(docx: DocxModule): Docx.IStylesOptions {
         run: { font: BODY_FONT, size: BODY_SIZE },
         paragraph: { spacing: { after: 100 }, indent: { left: 240 } },
       },
+      ...deeper.map((level) => ({
+        id: `TOC${level}`,
+        name: `toc ${level}`,
+        basedOn: 'Normal',
+        next: 'Normal',
+        run: { font: BODY_FONT, size: BODY_SIZE },
+        paragraph: { spacing: { after: 100 }, indent: { left: 240 * (level - 1) } },
+      })),
     ],
   };
+}
+
+/** The Word heading style for an outline level, from Heading 1 to Heading 6. */
+function headingLevel(docx: DocxModule, level: number): (typeof docx.HeadingLevel)[keyof typeof docx.HeadingLevel] {
+  const levels = [
+    docx.HeadingLevel.HEADING_1,
+    docx.HeadingLevel.HEADING_2,
+    docx.HeadingLevel.HEADING_3,
+    docx.HeadingLevel.HEADING_4,
+    docx.HeadingLevel.HEADING_5,
+    docx.HeadingLevel.HEADING_6,
+  ] as const;
+  return levels[Math.min(6, Math.max(1, level)) - 1] ?? docx.HeadingLevel.HEADING_1;
 }
 
 function centred(docx: DocxModule, text: string): Docx.Paragraph {

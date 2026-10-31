@@ -35,13 +35,13 @@ Undo of your typing in a scene survives a reload (redo may not). The toolbar's U
 
 The binder is the list on the left, under the **Binder** tab. It has two sections:
 
-- **Manuscript** holds your book. Chapters are folders, and scenes are documents inside them.
+- **Manuscript** holds your book. Chapters are folders, and scenes are documents inside them. A book in parts has a folder for each part, holding its chapters: Part → Chapter → Scene. A part's row says **Part**.
 - **Research** holds notes. Research is never included in an export.
 
 The buttons at the top of the binder:
 
 - **New document** adds a scene to the selected chapter, or next to the selected scene. Ctrl+N does the same. With nothing selected, or only the manuscript, it makes no document and says that a document goes inside a chapter. The empty editor then offers **New chapter**.
-- **New folder** adds a chapter to the manuscript.
+- **New folder** adds a chapter beside the selected chapter, or beside the chapter the selected scene is in. With a part selected, it adds a chapter inside that part. With nothing selected, it adds a chapter to the manuscript.
 - **Import script** reads a Fountain (`.fountain`) or Final Draft (`.fdx`) script. Its sections become folders and its scenes become screenplay scenes, in one undo step. A scene number in a Final Draft file (`2A`, say) is kept on its scene. For a Final Draft file a dialog first lists the scenes and sections it will make, how many script notes and dual-dialogue pairs it keeps, and every notice, and nothing is written until you choose **Import**. A scene's summary becomes its synopsis, script notes and hidden text become Fountain notes (`[[…]]`), which do not print, a dual-dialogue pair keeps Fountain's `^`, and bold, italic and underline in action and dialogue become Fountain emphasis. Strikeout, and bold or underline on a scene heading, cue or transition, are dropped (the text is kept), and the dialog counts them.
 - **Import Twee** reads a Twee 3 story (`.twee` or `.tw`) and makes one dialogue container, with a knot for each passage and a choice for each link. A dialog lists what the import will do first, and nothing is written until you choose **Import**. Caotang reads SugarCube 2 stories: their `<<…>>` macros are stripped, and the dialog says how many. A story in another format, or one that names none, imports its passages and text without its links, and the dialog says so. Scripts and style sheets are skipped, and the dialog names them. The file is read in your browser and goes nowhere.
 - **A note on every import.** Each of these imports, and the MCP server's import of a document or of codex entries, looks at the text for passages that read like instructions to an AI: hidden characters, a line that opens with `system:`, “ignore previous instructions”, or a link to an outside address. If it finds any, the status line or the result says how many and quotes the first; the text is imported exactly as it is, and nothing is blocked. A plain manuscript, such as the sample, gets no note. Caotang does not yet mark an imported document, so a document you imported is ordinary text to the agent afterwards.
@@ -49,15 +49,17 @@ The buttons at the top of the binder:
 
 Keep scenes inside chapters. A drag cannot place a scene directly under the manuscript, and a scene that sits there, such as one put back from a stopped tab, has no chapter heading when you export. Move it into a chapter.
 
+**Parts.** A folder that holds other folders is a part. To divide a book into parts, make a folder in the manuscript (**New folder**, or **New folder here** on the manuscript), name it, for example "Part One", and move it above its first chapter with Alt+Up. Then select each chapter below it and press Alt+Right, or drag the chapter onto the middle of the part's row. A part keeps its chapters after a reload, in a project folder and in a `.caotang` bundle. A prologue or an epilogue can stay at the top level, beside the parts. Moving the last chapter out of a part makes it a plain chapter again. Parts can hold parts, as deep as you need.
+
 On each row:
 
 - Click a title to select it. Double-click the title, or press F2, to rename it.
-- Drag a row to move it. Drop it on the top or bottom quarter of another row to put it before or after that row. Drop it on the middle of a chapter to put it at the end of that chapter.
+- Drag a row to move it. Drop it on the top or bottom quarter of another row to put it before or after that row. Drop it on the middle of a folder to put it at the end of that folder. A chapter dropped on another folder goes inside it, and that folder becomes a part.
 - Click the status chip to set **Draft**, **Revised**, **Final**, or none. Every new project has these three. Choose **+ Add status…** to add your own.
 - Click the label chip to set a label. A new project has no labels. Choose **+ Add label…** to add one. Both lists open in the same **Statuses and labels** dialog.
-- Right-click a row for **Open in editor**, **New document here**, **Edit synopsis**, **Rename**, the move entries and **Delete…**. A chapter also offers **New screenplay scene here**, **New storyboard here** and **New dialogue here**. The manuscript itself does not, because a document goes inside a chapter. A storyboard offers **New shot here**. A section offers **New folder here**.
+- Right-click a row for **Open in editor**, **New document here**, **Edit synopsis**, **Rename**, the move entries and **Delete…**. A chapter also offers **New screenplay scene here**, **New storyboard here** and **New dialogue here**. The manuscript itself does not, because a document goes inside a chapter. A storyboard offers **New shot here**. A section and a folder offer **New folder here**: on the manuscript it adds a chapter or a part, on a part it adds a chapter inside it, and on a chapter it adds a folder inside that chapter, which makes the chapter a part.
 - Right-click a folder or document and choose **Agent: may read only**, **Agent: may not read** or **Agent: may read and change** to say how far the agent may go there. Read only lets the agent read it and refuses any change. May not read keeps its text, title, synopsis and notes from the agent and from every prompt, and refuses any change too. The row then shows an icon and the words **Agent: read only** or **Agent: hidden**, and what is inside the folder is held to the same rule. A document inside a marked folder shows the folder's rule in its menu, to change on the folder. The rule is kept in the project's file, so it goes with the project. See **The agent**, below.
-- The arrow keys move the selection between rows. Alt+Up and Alt+Down move the selected item among its neighbours. Alt+Left takes it out of its folder, and Alt+Right moves it into the folder above. **Delete** asks first. After a delete, focus goes to the item that takes the deleted one's place. Ctrl+Z, or **Undo**, brings the deleted item back right after.
+- The arrow keys move the selection between rows. Alt+Up and Alt+Down move the selected item among its neighbours. Alt+Left takes it out of its folder, and Alt+Right moves it into the folder above. A chapter moves into a part this way, and back out of it. **Delete** asks first. After a delete, focus goes to the item that takes the deleted one's place. Ctrl+Z, or **Undo**, brings the deleted item back right after.
 
 ### Filter the binder
 
@@ -76,11 +78,11 @@ The filter bar above the list narrows it. Type to filter by title, synopsis or t
 
 ## The corkboard
 
-Choose **Corkboard** above the centre of the window to see the cards of the selected chapter, or of the manuscript's chapters when **Manuscript** is selected. **Editor** goes back to the text.
+Choose **Corkboard** above the centre of the window to see the cards of the selected chapter, the chapters of the selected part, or the manuscript's chapters and parts when **Manuscript** is selected. **Editor** goes back to the text.
 
 - Drag the grip (⋮⋮) on a card to reorder it. Drop on the left half of a card to go before it, or the right half to go after it. Drop on the empty space to go to the end. Alt+Left and Alt+Right move the selected card earlier or later.
 - Choose **S**, **M** or **L** for the card size. Small cards show the title. Medium cards add the synopsis and status. Large cards add labels and keywords. Changing the size changes only the view.
-- **New card** adds an item to the board you are looking at. On the Manuscript board the new card is a chapter, so add scenes inside a chapter instead.
+- **New card** adds an item to the board you are looking at. On the Manuscript board, and on a part's board, the new card is a chapter, so add scenes inside a chapter instead.
 - Double-click a card's title to rename it.
 - On a focused card, the arrow keys move the focus to the previous or next card. Enter or Space selects the card, F2 renames it, Delete asks to delete it, and Shift+F10 opens its menu. After a delete, focus goes to the card that takes its place.
 
@@ -310,7 +312,7 @@ The agent remembers your last two requests in this tab: what you asked and what 
 | `/synopses <docs…> [text\|notes\|both]` | Fills the synopses of the documents you name, from their text, their notes or both. |
 | `/scan [doc\|changed\|full]` | Runs the quick consistency scan on one document, the changed ones or the whole manuscript. It uses no model. |
 | `/review [doc\|changed\|full]` | Plans the model review of one document, the changed ones (the default) or the whole manuscript. Its card shows the cost, and nothing is read until you approve. |
-| `/compile <recipe\|format> [root]` | Compiles the manuscript, or one part, with a saved recipe or in a format. The card asks first. |
+| `/compile <recipe\|format> [root]` | Compiles the manuscript, or one folder of it (a part or a chapter), with a saved recipe or in a format. The card asks first. |
 | `/restore [last\|n]` | Asks to restore to before the last turn that changed something, or turn n of the panel. It asks for the same confirmation as the checkpoint row. |
 | `/context` | Shows what the next request would send, layer by layer, with the tokens each takes and what was left out. It sends nothing. |
 
@@ -432,6 +434,7 @@ Choose **Compile…** in the toolbar. Then choose a recipe, a format and what to
 - Empty documents are left out, and the status line says how many were skipped.
 - Research is never included.
 - A scene marked **Section** (its **Export style** in the inspector) prints its title as a heading above it, which a scene never does otherwise: `###` in Markdown, capitals in plain text, a second-level heading in Word and EPUB. In Word the contents field lists it under its chapter. The Markdown and EPUB contents lists stay the list of chapters. A file you exported before still has no scene titles, so an export made now differs from it for every scene you mark.
+- **A book in parts.** Each part prints as a heading of its own, above its chapters, and the chapters are one level below it: in Markdown a part is `##` and its chapters `###`, in Word a part is Heading 1 and its chapters Heading 2, in plain text a part is its title in capitals, and in EPUB a part has a page of its own and the contents list its chapters under it. A part's heading is its title as you wrote it, so name it the way it should print ("Part One", "Book II: The Sea"). Chapter numbers run on across parts: if Part One has three chapters, Part Two starts at chapter 4. A prologue or an epilogue at the top level is numbered as a chapter, like any chapter there. The Preview lists the parts in capitals above their chapters. A screenplay writes each part as a section, as it writes every folder. A book without parts exports exactly as before.
 
 The formats come in three groups:
 
@@ -619,6 +622,7 @@ A developer can run the agent against a project folder from a Node script, a com
 - **Contact sheet characters.** Characters that none of its fonts has, such as Tamil, print as `?`. The compile log names them. Emoji print in colour unless you clear **Colour emoji**, and then in black and white, with a skin tone as the plain figure. Arabic, Hebrew and Devanagari text is not bold in the sheet's title, page label and shot-number chip. Chinese, Japanese and Korean text there prints in a bold font, which Caotang fetches only for such a sheet (2.0 MB, or 10.8 MB when a rare character needs the whole font); if it cannot be fetched, that text and black-and-white emoji there are bold by thickening their strokes.
 - **Footnotes in exports.** An export prints a footnote's number as `[^1]` in the text and its note as `[^1]: …` at the end of the scene, as the Markdown has them; Word, EPUB and PDF footnotes are not in this build. Footnote words count toward the scene's word count, and there is no setting to count them apart. A footnote number you copy pastes as its digits, not as a footnote.
 - **Final Draft files.** Import has been checked against one file Final Draft wrote; export has not been checked against Final Draft, and the scene numbers and page headers that Caotang writes are not yet confirmed to show in it. A note from Final Draft's notes list is placed where its range starts, a reading not yet confirmed in Final Draft. Scene titles and colours, outline elements, cast lists, revisions, tags, the Beat Board and alternate dialogue are not imported yet.
+- **Parts.** Putting chapters into a part is one move per chapter: there is no single step that gathers several chapters into a new part. The export has no setting for how a part heading reads or whether parts are numbered: a part prints its own title. A prologue or an epilogue at the top level is numbered as a chapter. How Word and EPUB readers show the part headings has not been checked by hand.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested. A file without a contents list does not ask Word to update fields.
 - **The Pages view.** You cannot type on the Pages view of a screenplay yet; a line opens its element in the Source tab. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
 - **Imported text.** Caotang does not mark a document, a script or a codex entry you imported, so the agent reads it as it reads your own writing. The import note lists what looks like an instruction to an AI, once, at import. Outside text from a connected tool is marked, as the agent section says, and no model can be made immune to text written to mislead it.

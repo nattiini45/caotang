@@ -28,7 +28,7 @@ async function nameIt(page: Page, title: string): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
-/** A chapter, from the binder's own New folder button. Folders always go straight into the manuscript. */
+/** A chapter, from the binder's own New folder button. With no part selected, a new folder goes beside the selected chapter, into the manuscript. */
 async function newChapter(page: Page, title: string): Promise<void> {
   await page.getByRole('button', { name: 'New folder' }).click();
   await nameIt(page, title);

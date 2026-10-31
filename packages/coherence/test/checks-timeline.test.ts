@@ -193,6 +193,22 @@ describe('timeline.window (§5.1)', () => {
     const file = withMeta({ act2: { dayOffset: 0 }, loose: { dayOffset: 99 } });
     expect(drafts(state(), file, ['timeline.window']).drafts).toEqual([]);
   });
+
+  it('holds a scene in a chapter inside a part to the part\'s span as well as its chapter\'s (#269)', () => {
+    const parts = buildState({
+      folders: [
+        { id: 'part1', title: 'Part One' },
+        { id: 'ch1', title: 'The Harbour', parent: 'part1' },
+      ],
+      scenes: [
+        { id: 'early', title: 'Early', parent: 'ch1', body: 'Early.' },
+        { id: 'late', title: 'Late', parent: 'ch1', body: 'Late.' },
+      ],
+    });
+    const file = withMeta({ part1: { dayOffset: 0, durationDays: 10 }, early: { dayOffset: 3 }, late: { dayOffset: 12 } });
+    const out = drafts(parts, file, ['timeline.window']);
+    expect(out.drafts.map((finding) => finding.message)).toEqual(['"Late" falls outside "Part One", which spans days 0 to 9']);
+  });
 });
 
 describe('timeline.overlap (§5.1)', () => {

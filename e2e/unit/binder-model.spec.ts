@@ -4,6 +4,7 @@ import {
   defaultExpanded,
   dropRefusalText,
   enclosingFolders,
+  isPart,
   newDocumentRefusalText,
   newFolderParent,
   newItemParent,
@@ -93,18 +94,37 @@ test.describe('where a new item goes', () => {
 });
 
 test.describe('where a new folder goes', () => {
-  test('always a section: the one selected, or the section a selection sits in, never a folder', () => {
+  test('a section takes it, a part takes it inside, and a chapter or anything in one leaves it beside that chapter', () => {
     const state = project();
     expect(newFolderParent(state, null)).toBe('manuscript');
     expect(newFolderParent(state, 'manuscript')).toBe('manuscript');
     expect(newFolderParent(state, 'research')).toBe('research');
-    // A folder under a section, a scene inside it, and a folder inside a folder (the fixture's Deep) all resolve up.
-    expect(newFolderParent(state, IDS.chapterOne)).toBe('manuscript');
-    expect(newFolderParent(state, IDS.sceneA)).toBe('manuscript');
-    expect(newFolderParent(state, IDS.deep)).toBe('manuscript');
-    expect(newFolderParent(state, IDS.deepScene)).toBe('manuscript');
+    // Chapter 1 holds the Deep folder, so it is a part: a new folder goes inside it, beside Deep, from Chapter 1 or a scene filed in it.
+    expect(newFolderParent(state, IDS.chapterOne)).toBe(IDS.chapterOne);
+    expect(newFolderParent(state, IDS.sceneA)).toBe(IDS.chapterOne);
+    // Deep is a chapter of that part, so a new folder from it, or from its scene, is a sibling chapter in the part.
+    expect(newFolderParent(state, IDS.deep)).toBe(IDS.chapterOne);
+    expect(newFolderParent(state, IDS.deepScene)).toBe(IDS.chapterOne);
+    // Chapter 2 holds scenes only, so a new folder goes beside it, into the manuscript.
+    expect(newFolderParent(state, IDS.chapterTwo)).toBe('manuscript');
     expect(newFolderParent(state, IDS.note)).toBe('research');
     expect(newFolderParent(state, 'n_GONE000000')).toBe('manuscript');
+  });
+});
+
+test.describe('parts: a folder that holds folders', () => {
+  test('a row says part or chapter, and a document row says neither', () => {
+    const rows = visibleRows(project(), { [IDS.deep]: true });
+    const role = (id: string): string | undefined => {
+      const row = rows.find((candidate) => candidate.kind === 'node' && candidate.node.id === id);
+      return row?.kind === 'node' ? row.role : 'missing';
+    };
+    expect(role(IDS.chapterOne)).toBe('part');
+    expect(role(IDS.deep)).toBe('chapter');
+    expect(role(IDS.chapterTwo)).toBe('chapter');
+    expect(role(IDS.sceneA)).toBeUndefined();
+    expect(isPart(project(), IDS.chapterOne)).toBe(true);
+    expect(isPart(project(), IDS.chapterTwo)).toBe(false);
   });
 });
 
@@ -161,7 +181,7 @@ test.describe('the pre-dispatch drop check', () => {
     });
   });
 
-  test('a scene never lands directly under the manuscript, and a folder never lands inside a folder', () => {
+  test('a scene never lands directly under the manuscript, and a folder may land inside a folder', () => {
     // A scene beside Chapter 2, or into the manuscript, would have no chapter (ui-modules §2.4).
     expect(planDrop(project(), IDS.sceneA, { nodeId: IDS.chapterTwo, zone: 'before' })).toEqual({ ok: false, reason: 'chapterless' });
     expect(planDrop(project(), IDS.sceneA, { nodeId: 'manuscript', zone: 'into' })).toEqual({ ok: false, reason: 'chapterless' });
@@ -173,9 +193,11 @@ test.describe('the pre-dispatch drop check', () => {
     );
     expect(newDocumentRefusalText(IDS.chapterOne)).toBeUndefined();
     expect(newDocumentRefusalText('research')).toBeUndefined();
-    // The Deep folder beside a scene in Chapter 1, or into Chapter 2, would be a folder inside a folder.
-    expect(planDrop(project(), IDS.deep, { nodeId: IDS.sceneB, zone: 'before' })).toEqual({ ok: false, reason: 'folder-in-folder' });
-    expect(planDrop(project(), IDS.deep, { nodeId: IDS.chapterTwo, zone: 'into' })).toEqual({ ok: false, reason: 'folder-in-folder' });
+    // Folders nest (Part → Chapter → Scene): the Deep folder may go beside a scene in Chapter 1, or into Chapter 2, which then
+    // becomes a part, and a chapter may go into another chapter.
+    expect(planDrop(project(), IDS.deep, { nodeId: IDS.sceneB, zone: 'before' })).toEqual({ ok: true, newParentId: IDS.chapterOne, index: 1 });
+    expect(planDrop(project(), IDS.deep, { nodeId: IDS.chapterTwo, zone: 'into' })).toEqual({ ok: true, newParentId: IDS.chapterTwo, index: 1 });
+    expect(planDrop(project(), IDS.chapterTwo, { nodeId: IDS.chapterOne, zone: 'into' })).toEqual({ ok: true, newParentId: IDS.chapterOne, index: 4 });
     // A chapter beside another chapter is a chapter, and still allowed.
     expect(planDrop(project(), IDS.chapterTwo, { nodeId: IDS.chapterOne, zone: 'before' }).ok).toBe(true);
     // Research takes its documents directly, so a scene may sit beside its note.
