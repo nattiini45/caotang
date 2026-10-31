@@ -60,4 +60,15 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // `@caotang/import-rtf` runs in a `'self'` Worker and in Node as well as on the main thread, so a page global (or `DOMParser`,
+    // which Workers lack) would work in one host and fail in the others (issue #274).
+    files: ['packages/import-rtf/src/**/*.ts'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        ...[...SDK_BROWSER_GLOBALS, 'DOMParser'].map((name) => ({ name, message: `@caotang/import-rtf runs in Workers and Node; ${name} is not there.` })),
+      ],
+    },
+  },
 );

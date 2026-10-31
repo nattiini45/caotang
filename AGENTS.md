@@ -77,6 +77,7 @@ packages/harness/        the agent harness — its tools and its registry
 packages/ids/           id helpers
 packages/import-read/   the readers every import shares: a namespace-aware XML reader (no DOMParser) and a zip/folder reader over fflate's unzipSync with caps; main thread, Worker and Node
 packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
+packages/import-rtf/    the RTF reader every RTF-based import shares (standalone .rtf/.rtfd and Scrivener's content.rtf): bytes → the import block list and its losses; no DOM, no dependencies
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
