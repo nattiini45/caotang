@@ -132,7 +132,7 @@ describe('codex.importBatch — the descriptor', () => {
 
   it('lifts the agent tool’s cap of 20: 600 entries validate, and the ceiling is stated', () => {
     const pages = Array.from({ length: 600 }, (_, i) => ({ title: `Person ${i}`, body: `Person${i} lives here.` }));
-    const entries = pages.map((page, i) => ({ name: `Person${i}`, page: i, cite: { from: 0, to: `Person${i}`.length, quote: `Person${i}` } }));
+    const entries = pages.map((_, i) => ({ name: `Person${i}`, page: i, cite: { from: 0, to: `Person${i}`.length, quote: `Person${i}` } }));
     const result = codexImportBatch.validate({ entries, pages }, makeSnapshot());
     expect(result.ok).toBe(true);
     const over = codexImportBatch.validate({ entries: Array.from({ length: CODEX_IMPORT_BATCH_MAX + 1 }, () => MARA), pages: [PAGE] }, makeSnapshot());
