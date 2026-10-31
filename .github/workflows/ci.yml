@@ -154,6 +154,32 @@ jobs:
         env:
           CI: 'true'
 
+      # Classic lock-in (e2e/visual-classic.spec.ts): screenshots of the Classic workspace, light and dark, compared with the baselines
+      # committed beside the spec. While none are committed this step writes them (--update-snapshots=all passes) and warns; the
+      # classic-visual-baselines artifact holds them to review and commit, after which every run compares.
+      - name: Classic visual lock-in (screenshots)
+        env:
+          CI: 'true'
+          CAOTANG_E2E_VISUAL: '1'
+        run: |
+          if ls e2e/visual-classic.spec.ts-snapshots/*.png >/dev/null 2>&1; then
+            pnpm exec playwright test --project=visual
+          else
+            echo "::warning title=Classic baselines::No Classic screenshots are committed yet. This run wrote them; commit the classic-visual-baselines artifact into e2e/visual-classic.spec.ts-snapshots/."
+            pnpm exec playwright test --project=visual --update-snapshots=all
+          fi
+
+      - name: Upload the Classic screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: classic-visual-baselines
+          path: |
+            e2e/visual-classic.spec.ts-snapshots/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
