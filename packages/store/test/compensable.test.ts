@@ -856,7 +856,8 @@ describe('the registration refusal is never reached, because the captures are co
     // The macros add `macro.save` and `macro.delete`: 43 + 2 = 45.
     // The hooks add `hook.save` and `hook.delete`: 45 + 2 = 47.
     // The picture registry adds `asset.setMeta` (the two imports need the asset port): 47 + 1 + 2 (`script.setShowMeta`, `script.setEpisodeMeta`) = 50.
-    expect(implemented).toHaveLength(50);
+    // The writer's codex batch import adds `codex.importBatch`: 50 + 1 = 51.
+    expect(implemented).toHaveLength(51);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

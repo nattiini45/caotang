@@ -146,6 +146,12 @@ describe('the registry joins every tool to its metadata', () => {
       });
     }
   });
+
+  it('exposes no tool for the writer’s batch codex import: the agent imports through codex.import, capped at 20 (codex.md §7.1)', () => {
+    expect(listing.map((item) => item.name)).toContain('codex.import');
+    expect(listing.some((item) => /importbatch|import_batch/i.test(item.name))).toBe(false);
+    expect(TOOL_NAMES.some((name) => /importbatch|import_batch/i.test(name))).toBe(false);
+  });
 });
 
 describe('the refusals that come before any tool runs', () => {
