@@ -175,7 +175,7 @@ function utf16Span(body: string, from: number, count: number): number {
 }
 
 /** A citation's place in its document: the offsets the bus checks, and the verbatim text they hold. */
-interface Passage {
+export interface Passage {
   readonly from: number;
   readonly to: number;
   readonly quote: string;
@@ -192,7 +192,7 @@ interface Passage {
  * The surfaces are the body's own canonical form, so the offsets are valid only for a body already in
  * Unicode NFC, where canonical form changes no length. The caller refuses any other body (`nfcProblem`).
  */
-function locatePassage(body: string, probe: CodexEntry): Passage | undefined {
+export function locatePassage(body: string, probe: CodexEntry): Passage | undefined {
   const compiled = compileCodex([probe]);
   if ((countMentions(body, compiled).get(probe.id) ?? 0) === 0) return undefined;
   const canon = canonical(body);
@@ -209,7 +209,7 @@ function locatePassage(body: string, probe: CodexEntry): Passage | undefined {
 }
 
 /** The refusal for a body the citation cannot be located in, or `undefined` when it can. */
-function nfcProblem(body: string): string | undefined {
+export function nfcProblem(body: string): string | undefined {
   return body.normalize('NFC') === body
     ? undefined
     : 'is not stored in Unicode NFC, so its text cannot be matched to the entry at the offsets the citation needs; normalise the document to NFC and resend';

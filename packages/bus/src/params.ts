@@ -131,6 +131,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'macro.delete': ['macroId'],
   'hook.save': ['hook'],
   'hook.delete': ['hookId'],
+  'codex.importBatch': ['entries', 'pages', 'parentId'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */
