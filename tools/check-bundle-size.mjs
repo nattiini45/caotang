@@ -49,7 +49,9 @@ export const BUDGET = {
     // 1,549.2 kB measured with prompt caching (#86): the gateway's cache parts, policy and per-provider markers, the assembler's per-layer
     // parts and cache boundary, the harness's cache watch and the Settings switch, on top of main's context limits (#254), which put the
     // entry 0.2 kB over the old cap; the cap is that plus about 1%.
-    index: 1_565_000,
+    // 1,565.0 kB measured with the FDX tree reader (#264) on top of the interface setting (#314), 22 bytes under the old cap; the FDX reader
+    // adds about 1 kB here (the rest of it is in the locale chunk); the cap is that plus about 1%.
+    index: 1_581_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -63,10 +65,13 @@ export const BUDGET = {
   // The input-method guard in every Enter handler and the keymap (#188) adds about 0.05 kB on top; the 876.0 kB ceiling covers both.
   // 877.5 kB measured with the picture registry (#152): the asset records, the backfill on open and the use scan, with the import
   // pipeline and metadata strip loaded on first import; the ceiling is that plus about 1%.
-  // 889.1 kB measured with the codex batch import (#273), against 885.4 kB on main at #314: `codex.importBatch`'s descriptor (its
-  // pre-validation of up to 5,000 entries and their Research pages, with a refusal per failing entry) is in the registry the app builds at
-  // start and lands in the first-load locale chunk; the ceiling is that plus about 1%.
-  initialGzip: 898_000,
+  // 887.3 kB measured with the FDX tree reader, its report and the Import script dialog (#264), 2.4 kB over main's 884.9 kB, which put
+  // the first load 1.3 kB over the old 886.0 kB ceiling (the FDX importer already sat in the first load through the store's
+  // screenplay.import); the ceiling is that plus about 1%.
+  // 891.6 kB measured with the codex batch import (#273) on top of that: `codex.importBatch`'s descriptor (its pre-validation of up to
+  // 5,000 entries and their Research pages, with a refusal per failing entry) is in the registry the app builds at start and lands in
+  // the first-load locale chunk; the ceiling is that plus about 1%.
+  initialGzip: 900_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
