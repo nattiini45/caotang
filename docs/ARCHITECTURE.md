@@ -140,6 +140,11 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Owns:** no new package. `tree[].publish` in the manifest and three entries in the exporter's closed format enum, rendered over the mdast stage the EPUB emitter already uses. Specified, not built.
 - **Spec:** [architecture/web-publishing.md](architecture/web-publishing.md).
 
+### 2.23 `shells` (UI) 🧭
+- **Responsibility:** how the writing studio is arranged on screen. **Classic** is the shell ui-modules.md describes; **Modern** shows one floating page on a wallpaper with glass ornaments, a binder tab bar that grows into a sidebar, Scene info for the inspector and status line, and the agent in a companion window. Both render the same feature components; a shell never forks feature logic. A token layer with three axes (shell × skin × scheme) leaves room for later Classic skins.
+- **Owns:** the `caotang.interface` preference and `data-shell` on `<html>` (being built); the shell-actions list, `ClassicShell`, the lazily loaded `ModernShell` and its containers, and the Modern token and material files. Specified, not built.
+- **Spec:** [architecture/modern-interface.md](architecture/modern-interface.md).
+
 ## 3. Data model (sketch)
 
 ```
