@@ -29,6 +29,7 @@
     "@caotang/harness": "workspace:*",
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/import-read": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",

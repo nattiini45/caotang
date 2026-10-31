@@ -71,6 +71,10 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
     pattern:
       /(?:negative days?|days? before day 0|story parts?)[^.\n]*(?:not (?:yet )?(?:built|supported|allowed|available|in this build)|cannot be)|(?:\bno|cannot (?:set|declare|store)) (?:negative days?|days? before day 0|a story part|story parts|prologue (?:or|and) epilogue parts?)/i,
   },
+  {
+    name: 'Final Draft files saved as UTF-16',
+    pattern: /UTF-16[^.\n]*(?:not (?:yet )?(?:built|supported|read|imported|in this build)|cannot)|(?:cannot|does not|do not) (?:import|read)[^.\n]*UTF-16/i,
+  },
   // A claim that the binder cannot nest folders, or has no parts (#269). The limits that remain (no single step to gather chapters into a part,
   // no setting for how a part heading reads) name neither as missing.
   {
@@ -81,6 +85,15 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
+  it('the UTF-16 pattern flags a claim that a UTF-16 Final Draft file cannot be read, and not the shared readers\' limit', () => {
+    const utf16 = BUILT_FEATURES.find((feature) => feature.name === 'Final Draft files saved as UTF-16')?.pattern ?? /$^/;
+    expect('A Final Draft file saved as UTF-16 is not imported.').toMatch(utf16);
+    expect('Caotang cannot read a UTF-16 Final Draft file.').toMatch(utf16);
+    expect(
+      'The shared import readers are in place, but no import from Scrivener, Word, OpenDocument, EPUB or a Markdown folder is built on them yet.',
+    ).not.toMatch(utf16);
+  });
+
   it('the parts pattern flags a claim that folders cannot nest, and lets the limits that remain through', () => {
     const parts = BUILT_FEATURES.find((feature) => feature.name === 'parts: folders that hold chapters')?.pattern ?? /$^/;
     expect('The binder is three tiers.').toMatch(parts);

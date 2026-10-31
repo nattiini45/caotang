@@ -29,6 +29,7 @@ The app is live at [caotang.app/app](https://caotang.app/app/), with a landing p
 ## Next
 
 - **A Modern interface.** A second, calmer interface beside the current one: the manuscript as one page on a wallpaper, a few large glass controls on its edges, a binder that slides out when you want it, scene details and counts in a popover, and the agent in a window beside the page. Everything the current interface does stays reachable, and the current interface stays selectable as Classic in Settings › Appearance. New writers will start in Modern once it is complete; anyone already using Caotang stays on Classic until they switch. The first step, the setting itself, is being built. The design is in [modern-interface.md](architecture/modern-interface.md).
+- **Imports from other writing tools.** Bring a Scrivener project, a Word, OpenDocument or EPUB file, a folder of Markdown files or an Obsidian vault, and the project files of Plottr, yWriter and novelWriter into Caotang, each shown as a binder tree you correct before one undoable import. The first step is built: the XML and zip readers every import shares, which need no browser DOM, so they can run in a background worker.
 
 Smaller work between milestones closes the known limits in the [changelog](../CHANGELOG.md), such as checking Final Draft files against Final Draft itself.
 
