@@ -25,14 +25,15 @@ describe('the required pull-request CI gate', () => {
   it('keeps the stable verify status behind both Node versions and all browser jobs', () => {
     const verify = jobBlock(ci, 'verify');
     expect(ci).toContain("node: ['22.12.0', '24']");
-    expect(verify).toContain('needs: [verify_matrix, e2e, e2e_browsers]');
+    expect(verify).toContain('needs: [verify_matrix, e2e, e2e_browsers, visual]');
     expect(verify).toContain('if: always()');
-    for (const result of ['MATRIX_RESULT', 'CHROMIUM_RESULT', 'CROSS_BROWSER_RESULT']) {
+    for (const result of ['MATRIX_RESULT', 'CHROMIUM_RESULT', 'CROSS_BROWSER_RESULT', 'VISUAL_RESULT']) {
       expect(verify).toContain(`test "$${result}" = success`);
     }
     expect(verify).toContain('needs.verify_matrix.result');
     expect(verify).toContain('needs.e2e.result');
     expect(verify).toContain('needs.e2e_browsers.result');
+    expect(verify).toContain('needs.visual.result');
   });
 
   it('calls the Firefox/WebKit workflow from the required gate and keeps merged shard reports', () => {
@@ -43,6 +44,14 @@ describe('the required pull-request CI gate', () => {
     expect(browsers).toContain('workflow_dispatch:');
     expect(browsers).toContain('schedule:');
     expect(browsers).toContain('group: e2e-browsers-${{ github.event_name }}-${{ github.ref }}');
+  });
+
+  it('runs the Classic snapshots in the pinned Playwright image, and only with CAOTANG_VISUAL', () => {
+    const visual = jobBlock(ci, 'visual');
+    expect(visual).toContain('image: mcr.microsoft.com/playwright:v1.63.0-noble');
+    expect(visual).toContain("CAOTANG_VISUAL: '1'");
+    expect(visual).toContain('pnpm exec playwright test --project=visual');
+    expect(read('playwright.config.ts')).toContain("const visual = process.env['CAOTANG_VISUAL'] === '1';");
   });
 
   it('gives Firefox a HOME owned by root in the Playwright container', () => {

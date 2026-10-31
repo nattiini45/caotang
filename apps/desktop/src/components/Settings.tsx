@@ -1,6 +1,6 @@
 /**
  * Settings (ui-modules §5): a dialog with four sections. Providers holds the profiles, the save-time probe, the usage totals
- * and the request log. Writing holds the session target and the autosave debounce. Appearance holds the theme. Data holds the
+ * and the request log. Writing holds the session target and the autosave debounce. Appearance holds the theme and the interface (Classic or Modern). Data holds the
  * browser's storage answer, the checkpoint figures and their limits.
  *
  * Every field is validated where it is typed, and the store answers the rest. A probe that fails is shown beside the profile
@@ -36,6 +36,7 @@ import {
   type RoleRef,
   type RoleSettings,
 } from '../app/settings.js';
+import { MODERN_DEFAULT_FOR_NEW_USERS, applyInterface, rememberInterface, type Interface } from '../app/interface.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
 import { CoherenceSection } from './CoherenceSettings.js';
@@ -1201,6 +1202,14 @@ function AppearanceSection(): ReactNode {
     rememberTheme(next);
     setTheme(next);
   };
+  // The interface on the page now (app/interface.ts puts it there as data-shell).
+  const [shell, setShell] = useState<Interface>(() => (document.documentElement.dataset['shell'] === 'modern' ? 'modern' : 'classic'));
+  const chooseShell = (next: Interface): void => {
+    // Modern's stylesheet loads on first use; a failed load leaves its tokens out, and the radio still says what was chosen.
+    void applyInterface(next).catch(() => undefined);
+    rememberInterface(next);
+    setShell(next);
+  };
   return (
     <section className="settings-section" aria-labelledby="settings-appearance">
       <h3 id="settings-appearance">Appearance</h3>
@@ -1214,6 +1223,20 @@ function AppearanceSection(): ReactNode {
         </label>
       </fieldset>
       <p className="muted">The choice is kept in this browser. Until you choose, the page follows the system.</p>
+      <fieldset className="settings-radios">
+        <legend>Interface</legend>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'classic'} onChange={() => chooseShell('classic')} /> Classic
+        </label>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'modern'} onChange={() => chooseShell('modern')} /> {MODERN_DEFAULT_FOR_NEW_USERS ? 'Modern' : 'Modern (Preview)'}
+        </label>
+      </fieldset>
+      <p className="muted">
+        Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask
+        for it.{MODERN_DEFAULT_FOR_NEW_USERS ? '' : ' Modern is a preview and is still being built, so for now it looks almost the same as Classic.'} The
+        choice is kept in this browser and applies at once.
+      </p>
     </section>
   );
 }
