@@ -124,7 +124,7 @@ export { TIMELINE_COLUMNS, buildExportModel, timelineCsv, timelineRowCells, time
 export { timelineSheet } from './render-timeline-xlsx.js';
 export { renderTimelineSvg, SVG_AGGREGATE_ABOVE, SVG_MIME, svgEscape, type TimelineSvgInput, type TimelineSvgOutput } from './render-timeline-svg.js';
 export type { TimelinePdf, TimelinePdfInput } from './render-timeline-pdf.js';
-export { PNG_MAX_SIDE, PNG_MIME, rasterizeSvgToPng, svgIntrinsicSize, type RasterizeSvgOptions } from './render-timeline-png.js';
+export { inlineSvgImages, PNG_MAX_SIDE, PNG_MIME, rasterizeSvgToPng, svgIntrinsicSize, type RasterizeSvgOptions } from './render-timeline-png.js';
 // The coherence report's renderers (the one-source compile's Review row). The compile reaches them through `renderMedia`.
 export {
   COHERENCE_JSON_MIME,

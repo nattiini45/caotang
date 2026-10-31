@@ -6,7 +6,7 @@ import { DAY_OFFSET_LIMIT, SCENE_STYLES, STORY_PARTS, THREAD_ID_LIMIT, THREAD_NO
 import { isolate } from '@caotang/i18n';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 import { attachEntry, explain, setSceneStyle } from './actions.js';
-import { afterCandidates, dayLabel, dialogueContainerChoices, inheritedStoryPartOf, modeLabel, povCandidates, sceneMetaOf, storyPartLabel } from '../app/findings-model.js';
+import { afterCandidates, dayLabel, dialogueContainerChoices, inheritedStoryPart, inheritedStoryPartOf, modeLabel, povCandidates, sceneMetaOf, storyPartLabel } from '../app/findings-model.js';
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 import { UserText } from '../i18n/UserText.js';
@@ -137,7 +137,8 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
           {characters.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
         </select>
       </label>
-      <NumberField label={t`Day offset`} value={meta.dayOffset} signed {...(meta.dayOffset === undefined ? {} : { note: dayLabel(meta.dayOffset) })} onCommit={(value) => apply({ dayOffset: value })} />
+      <NumberField label={t`Day offset`} value={meta.dayOffset} signed onCommit={(value) => apply({ dayOffset: value })} />
+      <p className="field-note" data-testid="day-offset-note">{dayOffsetNote(meta.dayOffset)}</p>
       <NumberField label={t`Duration in days`} value={meta.durationDays} onCommit={(value) => apply({ durationDays: value })} />
       <StoryPartSelect session={session} node={node} />
       <label className="scene-field">
@@ -295,12 +296,20 @@ function ThreadsEditor({ threads, documents, apply }: {
  * A whole-number field. A day may be negative, within the one limit the patch and the file share (coherence.md §5.2.2); a
  * duration is zero or more. An entry the rule would refuse is put back, never sent.
  */
-function NumberField({ label, value, signed = false, onCommit, note }: {
+/** The line under the day field (coherence.md §8): what day 0 is while none is declared, else the day as the writer reads it. */
+function dayOffsetNote(day: number | undefined): string {
+  if (day === undefined) return t`Day 0 is the story’s reference day. Use a minus sign for days before it, such as a prologue.`;
+  const reading = dayLabel(day);
+  return day < 0
+    ? t({ message: `${reading}, before day 0.`, comment: 'The value is a day reading such as “Day −14”.' })
+    : t({ message: `${reading}.`, comment: 'The value is a day reading such as “Day 3”.' });
+}
+
+function NumberField({ label, value, signed = false, onCommit }: {
   label: string;
   value: number | undefined;
   signed?: boolean;
   onCommit: (value: number | null) => void;
-  note?: string;
 }): ReactNode {
   const draft = useStoreDraft(value === undefined ? '' : String(value));
   const commit = (): void => {
@@ -319,7 +328,6 @@ function NumberField({ label, value, signed = false, onCommit, note }: {
       <input type="number" {...(signed ? { min: -DAY_OFFSET_LIMIT, max: DAY_OFFSET_LIMIT } : { min: 0 })} step={1} aria-label={accessibleText(label)} value={draft.value} onChange={(event) => draft.change(event.target.value)} onBlur={commit} onKeyDown={(event) => {
         if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) commit();
       }} />
-      {note === undefined ? null : <span className="field-note" data-testid="day-reading">{note}</span>}
     </label>
   );
 }
@@ -347,25 +355,50 @@ export function StoryPartSelect({ session, node }: { session: ProjectSession; no
     const outcome = session.dispatch('coherence.setSceneMeta', { docId: node.id, patch });
     if (!outcome.ok) report({ text: explain(outcome.error), tone: 'error' });
   };
+  const coveredBy = declared === undefined ? inheritedStoryPart(session.state, file, node.id) : undefined;
   return (
-    <label className="scene-field">
-      <span><Trans>Story part</Trans></span>
-      <select aria-label={t`Story part`} data-testid="story-part" value={declared ?? ''} onChange={(event) => change(event.target.value)}>
-        <option value="">{node.type === 'folder' ? t`Inherit the part of the folder above (${{ part: inherited }})` : t`Inherit this folder’s part (${{ part: inherited }})`}</option>
-        <option value="main">{storyPartLabel('main')}</option>
-        {STORY_PARTS.map((part) => <option key={part} value={part}>{storyPartLabel(part)}</option>)}
-      </select>
-    </label>
+    <>
+      <label className="scene-field">
+        <span><Trans>Story part</Trans></span>
+        <select aria-label={t`Story part`} data-testid="story-part" value={declared ?? ''} onChange={(event) => change(event.target.value)}>
+          <option value="">{node.type === 'folder' ? t`Inherit the part of the folder above (${{ part: inherited }})` : t`Inherit this folder’s part (${{ part: inherited }})`}</option>
+          <option value="main">{storyPartLabel('main')}</option>
+          {STORY_PARTS.map((part) => <option key={part} value={part}>{storyPartLabel(part)}</option>)}
+        </select>
+      </label>
+      <p className="field-note" data-testid="story-part-note">{storyPartNote(node, coveredBy)}</p>
+    </>
   );
+}
+
+/**
+ * The line under the Story part select (coherence.md §5.2.2): which folder's part covers a node that declares none, else what a
+ * declaration does here.
+ */
+function storyPartNote(node: TreeNode, coveredBy: { readonly part: string; readonly folderTitle: string } | undefined): string {
+  if (coveredBy !== undefined) {
+    const folder = isolate(coveredBy.folderTitle);
+    const part = coveredBy.part;
+    return t({
+      message: select(part, {
+        prologue: `Covered by the folder “${folder}”, which is declared prologue.`,
+        epilogue: `Covered by the folder “${folder}”, which is declared epilogue.`,
+        other: `Covered by the folder “${folder}”, which is declared the main story.`,
+      }),
+      comment: 'The value is the title of the folder above the scene; the choice is the story part that folder declares.',
+    });
+  }
+  return node.type === 'folder'
+    ? t`A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap.`
+    : t`A long jump into the epilogue or out of the prologue is never reported as a gap.`;
 }
 
 /** A folder's own declarations: its part, which every scene under it inherits unless it declares one itself. */
 export function FolderPartSection({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
   useLingui();
   return (
-    <section className="inspector-section folder-part" aria-label={t`Story part`} data-testid="folder-part">
+    <section className="inspector-section folder-part" aria-label={t`Story part`} data-testid="folder-story-part">
       <StoryPartSelect session={session} node={node} />
-      <p className="field-note"><Trans>Scenes in this folder are in this part unless they declare their own.</Trans></p>
     </section>
   );
 }

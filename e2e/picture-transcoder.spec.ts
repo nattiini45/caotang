@@ -293,9 +293,10 @@ test.describe('processPictureInBrowser refusals', () => {
   ];
   for (const [kind, code] of cases) {
     test(`refuses ${kind} with the code ${code} and a remedy`, async ({ page, browserName }) => {
-      // Gecko decodes a truncated PNG as far as its data goes (the missing rows are transparent) instead of rejecting it, so
-      // the browser hands back a picture and there is nothing to refuse; Chromium and WebKit reject it.
-      test.skip(kind === 'corrupt' && browserName === 'firefox', 'Firefox decodes a truncated PNG partially rather than refusing it');
+      // Gecko and WebKit decode a truncated PNG as far as its data goes (the missing rows are transparent) instead of rejecting
+      // it, so the browser hands back a picture and there is nothing to refuse; Chromium rejects it. (WebKit hands back the full
+      // 40 × 40 bitmap for this file, every pixel transparent.)
+      test.skip(kind === 'corrupt' && browserName !== 'chromium', 'Firefox and WebKit decode a truncated PNG partially rather than refusing it');
       const error = await refusalFor(page, kind);
       expect(error).toMatchObject({ name: 'PictureRefusal', code });
       expect(error?.remedy).toBeTruthy();

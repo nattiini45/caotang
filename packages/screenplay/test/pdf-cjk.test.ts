@@ -25,6 +25,7 @@ import {
 } from '../src/index.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
 import { HAN_FORMS, HAN_LANGUAGES, HAN_PUNCTUATION } from '../../pdf-fonts/test/fixtures/han-forms.js';
+import { cp1252Char } from './fixtures/cp1252.js';
 import { LOADERS, sourceCjk } from './fixtures/fonts.js';
 
 const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
@@ -87,7 +88,7 @@ function extract(pdf: string): string[] {
             : body
                 .slice(1, -1)
                 .replace(/\\([()\\])/g, '$1')
-                .replace(/\\(\d{3})/g, (_m, oct: string) => new TextDecoder('windows-1252').decode(new Uint8Array([parseInt(oct, 8)])));
+                .replace(/\\(\d{3})/g, (_m, oct: string) => cp1252Char(parseInt(oct, 8)));
         const row = rows.get(y) ?? [];
         row.push({ x, text: textOf });
         rows.set(y, row);

@@ -28,6 +28,12 @@ export interface RasterizeSvgOptions {
    * references external images rasterizes with those images missing.
    */
   readonly resolveImage?: (href: string) => Promise<Blob | null>;
+  /**
+   * Receives one plain sentence for each thing the raster had to do without: an image whose resolver threw (its frame is
+   * left empty) or document fonts that did not finish loading (fallback fonts are drawn). Absent, the notes are dropped,
+   * but the raster is the same.
+   */
+  readonly onNote?: (note: string) => void;
 }
 
 /** Reads the `width`/`height` (or `viewBox`) of an SVG document's root, as the raster's intrinsic size. */
@@ -49,17 +55,35 @@ export function svgIntrinsicSize(svg: string): { readonly width: number; readonl
   return { width, height };
 }
 
-/** Inlines every external image reference as a data URL, through the resolver, so the raster needs no network. */
-async function inlineImages(svg: string, resolveImage: (href: string) => Promise<Blob | null>): Promise<string> {
+/**
+ * Inlines every external image reference as a data URL, through the resolver, so the raster needs no network. A resolver
+ * that answers `null` leaves its reference as it is (as {@link RasterizeSvgOptions.resolveImage} says); one that throws
+ * leaves it too, and the failure is told to `onNote` with the reason, so a missing picture in the PNG is never silent.
+ */
+export async function inlineSvgImages(
+  svg: string,
+  resolveImage: (href: string) => Promise<Blob | null>,
+  onNote: (note: string) => void = () => undefined,
+): Promise<string> {
   const hrefs = [...new Set([...svg.matchAll(/(?:xlink:)?href="([^"]+)"/g)].map((match) => match[1] ?? '').filter((href) => !href.startsWith('data:')))];
   let out = svg;
   for (const href of hrefs) {
-    const blob = await resolveImage(href).catch(() => null);
+    let blob: Blob | null;
+    try {
+      blob = await resolveImage(href);
+    } catch (error) {
+      onNote(`timeline PNG: the picture ${href} could not be read (${reasonOf(error)}), so its frame is empty`);
+      continue;
+    }
     if (blob === null) continue;
     const dataUrl = `data:${blob.type || 'application/octet-stream'};base64,${await blobToBase64(blob)}`;
     out = out.split(`href="${href}"`).join(`href="${dataUrl}"`);
   }
   return out;
+}
+
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {
@@ -84,9 +108,15 @@ export async function rasterizeSvgToPng(svg: string, options: RasterizeSvgOption
   const outW = Math.max(1, Math.round(width * scale));
   const outH = Math.max(1, Math.round(height * scale));
 
-  const source = options.resolveImage === undefined ? svg : await inlineImages(svg, options.resolveImage);
-  // The document's fonts are awaited so a webfont the SVG names is in the raster, not a fallback.
-  await document.fonts?.ready?.catch(() => undefined);
+  const note = options.onNote ?? (() => undefined);
+  const source = options.resolveImage === undefined ? svg : await inlineSvgImages(svg, options.resolveImage, note);
+  // The document's fonts are awaited so a webfont the SVG names is in the raster, not a fallback. A font that fails to
+  // load does not stop the export, but it is told: the PNG's lettering is then a fallback font's.
+  try {
+    await document.fonts?.ready;
+  } catch (error) {
+    note(`timeline PNG: the document fonts did not finish loading (${reasonOf(error)}), so fallback fonts are drawn`);
+  }
 
   const url = URL.createObjectURL(new Blob([source], { type: 'image/svg+xml;charset=utf-8' }));
   try {

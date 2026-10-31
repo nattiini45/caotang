@@ -828,7 +828,16 @@ export function TimelineView({ session, onOpenDocument, onOpenFindings, focusReq
     const drag = dragRef.current;
     if (drag === null) return;
     dragRef.current = null;
-    if (drag.frame !== null) window.cancelAnimationFrame(drag.frame);
+    if (drag.frame !== null) {
+      window.cancelAnimationFrame(drag.frame);
+      // A pan's last moves wait for that frame: the release lands them now, so a quick drag pans the whole way it was dragged.
+      const el = scrollRef.current;
+      if (drag.kind === 'pan' && apply && el !== null) {
+        const last = client ?? drag.last;
+        el.scrollLeft = drag.startScroll.x - (last.x - drag.startX);
+        el.scrollTop = drag.startScroll.y - (last.y - drag.startY);
+      }
+    }
     window.removeEventListener('pointermove', windowHandlers.move);
     window.removeEventListener('pointerup', windowHandlers.up);
     window.removeEventListener('pointercancel', windowHandlers.cancel);

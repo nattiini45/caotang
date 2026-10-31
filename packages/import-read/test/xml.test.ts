@@ -168,6 +168,16 @@ describe('readXml — bytes and encodings', () => {
     expect(textOf(ok(enc.encode(sample)).root)).toBe('Größe 草堂');
   });
 
+  it('reads Windows-1252 and its Latin-1 labels through the Windows-1252 table, 0x80 to 0x9F included, on every runtime', () => {
+    // Node 22.13.0 to 22.22.0 decode this block as ISO-8859-1 (nodejs/node#60888); the reader must not.
+    for (const label of ['windows-1252', 'ISO-8859-1', 'latin1']) {
+      const bytes = new Uint8Array([...enc.encode(`<?xml version="1.0" encoding="${label}"?><s>`), 0x93, 0x80, 0x9f, 0xe9, 0x94, ...enc.encode('</s>')]);
+      const doc = ok(bytes);
+      expect(textOf(doc.root), label).toBe('“€Ÿé”');
+      expect(doc.encoding).toBe('windows-1252');
+    }
+  });
+
   it('refuses bytes that are not valid in their encoding, and an encoding it does not know, by name', () => {
     expect(fails(new Uint8Array([...enc.encode('<s>'), 0xff, ...enc.encode('</s>')])).code).toBe('invalid-encoding');
     expect(fails(enc.encode('<?xml version="1.0" encoding="x-klingon"?><s/>')).code).toBe('unsupported-encoding');

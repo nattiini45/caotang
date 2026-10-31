@@ -1339,6 +1339,11 @@ msgstr "{panels, plural, one {# panel} other {# panels}}, {balloons, plural, one
 msgid "{panelsOnPage, plural, one {# panel} other {# panels}} on page {number}, each showing its crop of the source photograph."
 msgstr "{panelsOnPage, plural, one {# panel} other {# panels}} on page {number}, each showing its crop of the source photograph."
 
+#. The value is the title of the folder above the scene; the choice is the story part that folder declares.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "{part, select, prologue {Covered by the folder “{folder}”, which is declared prologue.} epilogue {Covered by the folder “{folder}”, which is declared epilogue.} other {Covered by the folder “{folder}”, which is declared the main story.}}"
+msgstr "{part, select, prologue {Covered by the folder “{folder}”, which is declared prologue.} epilogue {Covered by the folder “{folder}”, which is declared epilogue.} other {Covered by the folder “{folder}”, which is declared the main story.}}"
+
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "{part}: {title}"
@@ -1413,6 +1418,16 @@ msgstr "{putCount, plural, one {Put # picture on its shot.} other {Put # picture
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "{putCount, plural, one {Put # picture on its shot} other {Put # pictures on their shots}}; {left, plural, one {# file was} other {# files were}} not imported."
 msgstr "{putCount, plural, one {Put # picture on its shot} other {Put # pictures on their shots}}; {left, plural, one {# file was} other {# files were}} not imported."
+
+#. The value is a day reading such as “Day −14”.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "{reading}, before day 0."
+msgstr "{reading}, before day 0."
+
+#. The value is a day reading such as “Day 3”.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "{reading}."
+msgstr "{reading}."
 
 #. Interpolated values: refusal
 #: apps/desktop/src/app/binder-model.ts
@@ -2239,6 +2254,11 @@ msgstr "A lock file appeared in this folder while Caotang was saving, so another
 msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
 msgstr "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
 
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A long jump into the epilogue or out of the prologue is never reported as a gap."
+msgstr "A long jump into the epilogue or out of the prologue is never reported as a gap."
+
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "A mention inside one of these phrases is not counted."
@@ -2263,6 +2283,11 @@ msgstr "A note while a card waits"
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "A panel of “{title}”"
 msgstr "A panel of “{title}”"
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap."
+msgstr "A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap."
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
@@ -4952,6 +4977,11 @@ msgstr "Day {day} is {label}"
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "Day {n}"
 msgstr "Day {n}"
+
+#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#: apps/desktop/src/components/InspectorSections.tsx
+msgid "Day 0 is the story’s reference day. Use a minus sign for days before it, such as a prologue."
+msgstr "Day 0 is the story’s reference day. Use a minus sign for days before it, such as a prologue."
 
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #: apps/desktop/src/components/timeline/Agenda.tsx
@@ -12136,11 +12166,6 @@ msgstr "Scene status"
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Scenes in this document"
 msgstr "Scenes in this document"
-
-#. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
-#: apps/desktop/src/components/InspectorSections.tsx
-msgid "Scenes in this folder are in this part unless they declare their own."
-msgstr "Scenes in this folder are in this part unless they declare their own."
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx

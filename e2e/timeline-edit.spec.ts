@@ -513,7 +513,7 @@ test.describe('the Inspector controls the timeline reads', () => {
     const day = page.getByRole('spinbutton', { name: 'Day offset' });
     await day.fill('-14');
     await day.press('Enter');
-    await expect(page.getByTestId('day-reading')).toContainText(new RegExp(`Day .?${MINUS}14`));
+    await expect(page.getByTestId('day-offset-note')).toContainText(new RegExp(`Day .?${MINUS}14`));
     const sceneSelect = page.getByTestId('story-part');
     await expect(sceneSelect).toBeVisible();
     await sceneSelect.selectOption('prologue');
@@ -522,7 +522,7 @@ test.describe('the Inspector controls the timeline reads', () => {
     await expect(sceneSelect).toHaveValue('');
 
     await binderTitle(page, 'Chapter One').click();
-    const folder = page.getByTestId('folder-part').getByRole('combobox', { name: 'Story part' });
+    const folder = page.getByTestId('folder-story-part').getByRole('combobox', { name: 'Story part' });
     await expect(folder).toBeVisible();
     await folder.selectOption('epilogue');
     await expect(folder).toHaveValue('epilogue');

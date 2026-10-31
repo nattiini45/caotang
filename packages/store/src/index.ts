@@ -302,6 +302,7 @@ export {
   type EncodingIssueKind,
   type ScoredEncodingCandidate,
 } from './encoding.js';
+export { decodeWindows1252, WINDOWS_1252_HIGH } from './windows-1252.js';
 
 export {
   commitRecovery,

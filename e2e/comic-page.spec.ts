@@ -39,6 +39,15 @@ async function openFirstPage(page: Page): Promise<void> {
 /** The viewport is tall enough for the whole sheet, so a pointer gesture never lands behind the app's own header. */
 async function newComicPage(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1400, height: 1500 });
+  // Whether the browser-storage notice shows is the browser's answer to persistent storage: Chromium refuses it here, Firefox may
+  // grant it. The spec makes every browser refuse, so the notice is always there to dismiss.
+  await page.addInitScript(() => {
+    const storage = (globalThis as unknown as { navigator: { storage?: object } }).navigator.storage;
+    if (storage === undefined) return;
+    const proto = Object.getPrototypeOf(storage) as Record<string, unknown>;
+    proto['persisted'] = async () => false;
+    proto['persist'] = async () => false;
+  });
   await createProject(page, PROJECT);
   // The browser-storage notice sits over the top of the sheet in a tall pane and takes the press meant for a top-row balloon.
   await page.getByTestId('storage-banner').getByRole('button', { name: 'Dismiss' }).click();
@@ -97,7 +106,9 @@ async function selectPanel(page: Page, number: number): Promise<void> {
 /** Select a balloon with a real click on its lettering, with the same promise as selectPanel. */
 async function selectBalloon(page: Page, balloon: Locator, number: number): Promise<void> {
   const before = await countOf(page, 'comic.setPage');
-  const at = await centreOf(balloon.locator('.comic-balloon-text'));
+  // The lettering's box, as the SVG lays it out: WebKit reports the HTML inside a foreignObject at unscaled coordinates, so the
+  // foreignObject itself (which the lettering fills) is where the press goes.
+  const at = await centreOf(balloon.locator('foreignObject'));
   await page.mouse.click(at.x, at.y);
   await expect(balloon).toHaveClass(/is-selected/);
   await expect(page.getByRole('region', { name: `Balloon ${number}`, exact: true })).toBeVisible();
@@ -295,7 +306,7 @@ test.describe('the comic page editor', () => {
     // Move by dragging the balloon.
     const outline = balloon.locator('.comic-balloon-shape, .comic-balloon-tail').first();
     const beforeMove = await outline.boundingBox();
-    const grab = await centreOf(balloon.locator('.comic-balloon-text'));
+    const grab = await centreOf(balloon.locator('foreignObject'));
     const setPageBefore = await countOf(page, 'comic.setPage');
     await dragFrom(page, grab, 25, 35);
     await expect.poll(() => countOf(page, 'comic.setPage')).toBe(setPageBefore + 1);

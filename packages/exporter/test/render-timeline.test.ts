@@ -28,7 +28,7 @@ import {
 import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { addDocument, addFolder, createEmptyManifest, createProjectState, createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } from '@caotang/store';
 
-import { createExporter, renderTimelineSvg, svgEscape, rasterizeSvgToPng, svgIntrinsicSize, type ByteArtifacts, type ExporterService } from '../src/index.js';
+import { createExporter, inlineSvgImages, renderTimelineSvg, svgEscape, rasterizeSvgToPng, svgIntrinsicSize, type ByteArtifacts, type ExporterService } from '../src/index.js';
 import { planTimelinePages } from '../src/render-timeline-pdf.js';
 import { TIMELINE_COLUMNS, timelineCsv, timelineTable } from '../src/render-timeline-csv.js';
 import { readRows } from './xlsx-read.js';
@@ -398,6 +398,24 @@ describe('the PNG raster helper: browser-only, bounded, clear refusal headless',
     await expect(rasterizeSvgToPng('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200"/>')).rejects.toThrow(/browser canvas/);
     expect(svgIntrinsicSize('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200"></svg>')).toEqual({ width: 800, height: 200 });
     expect(svgIntrinsicSize('<svg viewBox="0 0 400 100"></svg>')).toEqual({ width: 400, height: 100 });
+  });
+
+  it('inlines the pictures it can read, leaves a null answer as it is, and tells a picture that failed rather than dropping it silently', async () => {
+    const svg = '<svg><image href="a.png"/><image xlink:href="b.png"/><image href="c.png"/><image href="data:image/png;base64,AA=="/></svg>';
+    const notes: string[] = [];
+    const out = await inlineSvgImages(
+      svg,
+      async (href) => {
+        if (href === 'a.png') return new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' });
+        if (href === 'b.png') return null;
+        throw new Error('the picture file is gone');
+      },
+      (note) => notes.push(note),
+    );
+    expect(out).toContain('href="data:image/png;base64,AQID"');
+    expect(out).toContain('xlink:href="b.png"');
+    expect(out).toContain('href="c.png"');
+    expect(notes).toEqual(['timeline PNG: the picture c.png could not be read (the picture file is gone), so its frame is empty']);
   });
 });
 

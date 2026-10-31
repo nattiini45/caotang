@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, createProject, traceNames, waitForSaved } from './support.js';
+import { binderRow, binderTitle, createProject, traceNames, waitForSaved, writerText } from './support.js';
 
 /**
  * Negative days and story parts in the Inspector (coherence.md §5.2.2, §8; timeline.md §2.2–§2.3): the day field takes a minus
@@ -26,7 +26,8 @@ test('a scene takes a day before day 0, and a folder’s epilogue covers its sce
   const day = page.getByRole('spinbutton', { name: 'Day offset' });
   await day.fill('-14');
   await day.press('Enter');
-  await expect(page.getByTestId('day-offset-note')).toHaveText('Day \u221214, before day 0.');
+  // The day reading is isolated (i18n.md §5.4), so the note may hold the isolates around "−14".
+  await expect(page.getByTestId('day-offset-note')).toHaveText(new RegExp(`^Day ${writerText('\u221214')}, before day 0\\.$`));
   await expect.poll(() => traceNames(page)).toContain('coherence.setSceneMeta');
 
   // A day past the range is put back, not committed.
@@ -41,7 +42,7 @@ test('a scene takes a day before day 0, and a folder’s epilogue covers its sce
 
   await binderTitle(page, 'Years later').click();
   await openDeclarations(page);
-  await expect(page.getByTestId('story-part-note')).toHaveText('Covered by the folder “Chapter 1”, which is declared epilogue.');
+  await expect(page.getByTestId('story-part-note')).toHaveText(new RegExp(`^Covered by the folder “${writerText('Chapter 1')}”, which is declared epilogue\\.$`));
   const scenePart = page.getByTestId('scene-meta').getByRole('combobox', { name: 'Story part' });
   await expect(scenePart).toHaveValue('');
   await scenePart.selectOption('prologue');

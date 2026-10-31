@@ -161,7 +161,7 @@ const banner = (page: Page) => page.getByTestId('storage-banner');
 const reminder = (page: Page) => page.getByTestId('bundle-reminder');
 
 test.describe('the picture-aware eviction banner', () => {
-  test('replaces the general banner once the project has pictures, and a dismissal lasts for the project across a reload', async ({ page }) => {
+  test('replaces the general banner once the project has pictures, and a dismissal lasts for the project across a reload', async ({ page, browserName }) => {
     await browserKeepsNothing(page);
     await createProject(page, 'Evict Book');
 
@@ -177,9 +177,14 @@ test.describe('the picture-aware eviction banner', () => {
     await expect(banner(page)).toHaveAttribute('data-variant', 'pictures');
     await expect(banner(page)).toContainText('Pictures are stored only in this browser');
     await expect(banner(page).getByRole('button', { name: 'Learn why' })).toHaveCount(0);
-    // Chromium is not Safari: the seven-day rule is Safari's and is not said here.
-    await expect(banner(page)).not.toContainText('Safari');
-    await expect(banner(page)).not.toContainText('7 days');
+    if (browserName === 'webkit') {
+      // Playwright's WebKit reports a Safari user agent (isSafariBrowser), so the banner says Safari's seven-day rule.
+      await expect(banner(page)).toContainText('Safari deletes site data after 7 days without a visit');
+    } else {
+      // Chromium and Firefox are not Safari: the seven-day rule is Safari's and is not said here.
+      await expect(banner(page)).not.toContainText('Safari');
+      await expect(banner(page)).not.toContainText('7 days');
+    }
     await waitForSaved(page);
 
     await banner(page).getByRole('button', { name: 'Dismiss', exact: true }).click();

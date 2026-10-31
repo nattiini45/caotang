@@ -222,6 +222,9 @@ test('a note typed while a card waits offers Send with Cancel and Queue as next 
   await typeAndPress(page, 'Add a note and a synopsis.', 'Enter');
   const card = page.getByTestId('plan-card');
   await expect(card.getByRole('heading', { name: 'Plan, 2 steps' })).toBeVisible();
+  // The card is shown before the turn has logged it and waits on the writer (agent-harness §5.1); its Cancel is live only once it
+  // waits. A note sent before that is a note to the running turn, so the spec waits as a writer reading the card would.
+  await expect(card.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled();
 
   await typeAndPress(page, 'Skip the synopsis', 'Control+Enter');
   const held = page.getByRole('group', { name: 'A note while a card waits' });

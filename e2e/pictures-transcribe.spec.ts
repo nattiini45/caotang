@@ -349,7 +349,10 @@ test('the P14 transcription flow: the plan card shows pages, schedule, both visi
   expect(await bodyOf(page, secondDocId)).toBe(FIRST_READ.join('\n\n'));
 
   // Restoring the re-transcription turn takes its publication back; the first document and the edit stand.
-  await page.getByRole('button', { name: 'Restore to before this turn' }).last().click();
+  // Both turns offer a restore once the second has settled; until then `.last()` would be the first turn's.
+  const restores = page.getByRole('button', { name: 'Restore to before this turn' });
+  await expect(restores).toHaveCount(2);
+  await restores.last().click();
   await page.getByRole('dialog', { name: 'Restore to before this turn?' }).getByRole('button', { name: 'Restore', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Restored to before that turn.' })).toBeVisible();
   expect(await hasTitle(page, SECOND_TITLE)).toBe(false);
@@ -357,9 +360,9 @@ test('the P14 transcription flow: the plan card shows pages, schedule, both visi
   expect(await bodyOf(page, docId)).toBe(`${FIRST_READ[0]}\n\n${EDITED_PAGE_TWO}`);
 
   // Restoring the first turn takes its publication back too: document, links and records in the one undo group.
-  await page.getByRole('button', { name: 'Restore to before this turn' }).click();
+  await restores.first().click();
   await page.getByRole('dialog', { name: 'Restore to before this turn?' }).getByRole('button', { name: 'Restore', exact: true }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Restored to before that turn.' })).toBeVisible();
-  expect(await hasTitle(page, TITLE)).toBe(false);
+  // The first restore's status may still be on screen, so the outcome itself is waited for.
+  await expect.poll(() => hasTitle(page, TITLE)).toBe(false);
   expect((await registry(page)).links.filter((link) => link.role === 'source')).toHaveLength(0);
 });

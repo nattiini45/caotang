@@ -156,6 +156,33 @@ function declaredEncodingOf(head: string): string | null {
   return (match[1] ?? match[2] ?? '').trim() || null;
 }
 
+/**
+ * WHATWG index-windows-1252 for 0x80 to 0x9F, in byte order; the five empty codes decode to the C1 control of the same number.
+ * Node 22.13.0 to 22.22.0 decode `windows-1252` (and its `latin1` / `iso-8859-1` labels) as ISO-8859-1, so this block came
+ * out as C1 controls (nodejs/node#60888, fixed in 22.22.1). The reader runs in workers and Node alike, so it reads the block
+ * through this table instead. Inline rather than a module: xml.ts imports nothing (csp-clean.test.ts).
+ */
+const WINDOWS_1252_HIGH: readonly number[] = [
+  0x20ac, 0x0081, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x008d, 0x017d, 0x008f,
+  0x0090, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x009d, 0x017e, 0x0178,
+];
+
+/** Decodes bytes as Windows-1252, 8,192 code units per `String.fromCharCode`. Every byte maps to one character, so it never throws. */
+function decodeWindows1252(bytes: Uint8Array): string {
+  const chunk = 8192;
+  const parts: string[] = [];
+  const units = new Uint16Array(Math.min(bytes.length, chunk));
+  for (let start = 0; start < bytes.length; start += chunk) {
+    const end = Math.min(bytes.length, start + chunk);
+    for (let i = start; i < end; i += 1) {
+      const byte = bytes[i]!;
+      units[i - start] = byte >= 0x80 && byte <= 0x9f ? WINDOWS_1252_HIGH[byte - 0x80]! : byte;
+    }
+    parts.push(String.fromCharCode(...units.subarray(0, end - start)));
+  }
+  return parts.join('');
+}
+
 function decodeWith(label: string, bytes: Uint8Array): string | XmlReadError {
   let decoder: TextDecoder;
   try {
@@ -163,6 +190,9 @@ function decodeWith(label: string, bytes: Uint8Array): string | XmlReadError {
   } catch {
     return new XmlReadError('unsupported-encoding', `The file says it is in ${label}, an encoding this reader does not know`);
   }
+  // Windows-1252 (also every `latin1` / `iso-8859-1` label) through its own table, so the 0x80–0x9F block reads the same on
+  // every runtime. It maps every byte, so it has nothing to refuse.
+  if (decoder.encoding === 'windows-1252') return decodeWindows1252(bytes);
   try {
     return decoder.decode(bytes);
   } catch {

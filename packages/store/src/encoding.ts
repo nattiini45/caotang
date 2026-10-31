@@ -23,6 +23,8 @@
  * in → same answer out.
  */
 
+import { decodeWindows1252 } from './windows-1252.js';
+
 /**
  * The encodings a guess can name. `'unknown'` is a first-class answer — it
  * means the bytes are not UTF-8 and do not match the shapes below (a binary
@@ -158,7 +160,16 @@ export function decodeForPreview(bytes: Uint8Array): DecodedPreview {
   if (guess === 'utf-16le' || guess === 'utf-16be') {
     return { encoding: guess, text: new TextDecoder(guess).decode(bytes) };
   }
-  return { encoding: guess, text: new TextDecoder('windows-1252').decode(bytes) };
+  return { encoding: guess, text: decodeWindows1252(bytes) };
+}
+
+/**
+ * Decodes as a named encoding, Windows-1252 through its own table ({@link decodeWindows1252}) so the 0x80 to 0x9F block reads
+ * the same on every runtime; every other encoding through `TextDecoder`.
+ */
+function decodeIn(bytes: Uint8Array, encoding: DecodableEncoding, fatal: boolean): string {
+  if (encoding === 'windows-1252') return decodeWindows1252(bytes);
+  return new TextDecoder(encoding, { fatal }).decode(bytes);
 }
 
 /**
@@ -275,7 +286,7 @@ function scoreText(text: string): number {
 /** Every candidate's score on the same sampled head of the bytes, best first. */
 function scoredCandidates(bytes: Uint8Array): ScoredEncodingCandidate[] {
   const head = bytes.subarray(0, GUESS_SAMPLE_BYTES * 4);
-  return ENCODING_CANDIDATES.map((encoding) => ({ encoding, score: scoreText(new TextDecoder(encoding).decode(head)) })).sort(
+  return ENCODING_CANDIDATES.map((encoding) => ({ encoding, score: scoreText(decodeIn(head, encoding, false)) })).sort(
     (a, b) => b.score - a.score,
   );
 }
@@ -338,7 +349,7 @@ export function detectEncoding(bytes: Uint8Array): EncodingDetection {
  * previews as the mojibake it would save. UTF-16 decoders still consume a matching BOM.
  */
 export function decodeAs(bytes: Uint8Array, encoding: DecodableEncoding): DecodedPreview {
-  return { encoding, text: new TextDecoder(encoding).decode(bytes) };
+  return { encoding, text: decodeIn(bytes, encoding, false) };
 }
 
 /**
@@ -347,7 +358,7 @@ export function decodeAs(bytes: Uint8Array, encoding: DecodableEncoding): Decode
  * chosen encoding is refused before anything is written.
  */
 export function decodeStrict(bytes: Uint8Array, encoding: DecodableEncoding): string {
-  return new TextDecoder(encoding, { fatal: true }).decode(bytes);
+  return decodeIn(bytes, encoding, true);
 }
 
 /** Whether the bytes are already valid UTF-8 — the check {@link decodeForPreview} runs before guessing. */
