@@ -73,6 +73,28 @@ test('a whole Fountain file imports as sections and scenes, and the import is on
   await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY\n\nAlice waves.');
 });
 
+test('a Final Draft file saved as UTF-16 imports as its author wrote it (#268)', async ({ page }) => {
+  await createProject(page, PROJECT);
+  const fdx = [
+    '<?xml version="1.0" encoding="UTF-16" standalone="no" ?>',
+    '<FinalDraft DocumentType="Script" Template="No" Version="3">',
+    '  <Content>',
+    '    <Paragraph Type="Scene Heading"><Text>INT. CAFÉ GRÖNLAND - NIGHT</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>草堂 waits.</Text></Paragraph>',
+    '  </Content>',
+    '</FinalDraft>',
+  ].join('\r\n');
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'cafe.fdx',
+    mimeType: 'application/xml',
+    buffer: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(fdx, 'utf16le')]),
+  });
+
+  await expect(page.getByText(/Imported 1 scene and .* from cafe\.fdx/)).toBeVisible();
+  await waitForSaved(page);
+  expect((await treeOf(page)).some((node) => node.title === 'INT. CAFÉ GRÖNLAND - NIGHT')).toBe(true);
+});
+
 test('a Final Draft file imports with its scene numbers, and the notice says the title page was read but not stored', async ({ page }) => {
   await createProject(page, PROJECT);
   // A byte order mark and Windows line ends, as a Windows editor saves the file.

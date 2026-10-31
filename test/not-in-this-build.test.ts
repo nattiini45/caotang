@@ -71,9 +71,22 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
     pattern:
       /(?:negative days?|days? before day 0|story parts?)[^.\n]*(?:not (?:yet )?(?:built|supported|allowed|available|in this build)|cannot be)|(?:\bno|cannot (?:set|declare|store)) (?:negative days?|days? before day 0|a story part|story parts|prologue (?:or|and) epilogue parts?)/i,
   },
+  {
+    name: 'Final Draft files saved as UTF-16',
+    pattern: /UTF-16[^.\n]*(?:not (?:yet )?(?:built|supported|read|imported|in this build)|cannot)|(?:cannot|does not|do not) (?:import|read)[^.\n]*UTF-16/i,
+  },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
+  it('the UTF-16 pattern flags a claim that a UTF-16 Final Draft file cannot be read, and not the shared readers\' limit', () => {
+    const utf16 = BUILT_FEATURES.find((feature) => feature.name === 'Final Draft files saved as UTF-16')?.pattern ?? /$^/;
+    expect('A Final Draft file saved as UTF-16 is not imported.').toMatch(utf16);
+    expect('Caotang cannot read a UTF-16 Final Draft file.').toMatch(utf16);
+    expect(
+      'The shared import readers are in place, but no import from Scrivener, Word, OpenDocument, EPUB or a Markdown folder is built on them yet.',
+    ).not.toMatch(utf16);
+  });
+
   it('the story-part pattern flags a claim that days before day 0 or parts are missing, and not the older-build limit', () => {
     const parts = BUILT_FEATURES.find((feature) => feature.name === 'days before day 0 and prologue and epilogue parts')?.pattern ?? /$^/;
     expect('Negative day offsets are not supported yet.').toMatch(parts);

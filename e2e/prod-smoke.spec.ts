@@ -188,6 +188,25 @@ test('connecting a server loads the MCP SDK from the build, under the policy', a
   expect(await violations(page)).toEqual([]);
 });
 
+test('the shared XML reader is a chunk of its own, fetched when a Final Draft file is imported, under the policy (#268)', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await createProject(page, 'Night Watch');
+  expect(chunks()).not.toContain('xml');
+
+  // UTF-16 with a byte-order mark, as some Windows tools save Final Draft files: the reader decodes it as XML says.
+  const fdx = '<?xml version="1.0" encoding="UTF-16"?><FinalDraft><Content><Paragraph Type="Scene Heading"><Text>INT. CAFÉ - NIGHT</Text></Paragraph><Paragraph Type="Action"><Text>Rain.</Text></Paragraph></Content></FinalDraft>';
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'night.fdx',
+    mimeType: 'application/xml',
+    buffer: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(fdx, 'utf16le')]),
+  });
+  await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
+  expect(chunks()).toContain('xml');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+});
+
 test('the Ink compiler is a chunk of its own: a project with no dialogue never fetches it, and one with a dialogue container loads it when it opens', async ({ page }) => {
   const problems = await watchForProblems(page);
   const chunks = watchChunks(page);
