@@ -1080,7 +1080,7 @@ dialog.export-dialog {
   overflow-y: auto;
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--raised);
   color: var(--ink);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
@@ -1105,14 +1105,14 @@ dialog.export-dialog::backdrop {
 .export-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   border: none;
 }
 
 .export-group legend {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
   padding: 0;
 }
 
@@ -1120,9 +1120,9 @@ dialog.export-dialog::backdrop {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1147,13 +1147,13 @@ dialog.export-dialog::backdrop {
 
 .export-option-help {
   display: block;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 .export-note {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -1166,19 +1166,19 @@ dialog.export-dialog::backdrop {
 .export-preview {
   max-height: 220px;
   overflow-y: auto;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-lg);
 }
 
 .export-preview:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-offset);
 }
 
 .export-preview-heading {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1198,7 +1198,7 @@ dialog.export-dialog::backdrop {
 }
 
 .export-preview-notes li {
-  padding: 2px 0;
+  padding: var(--space-1) 0;
 }
 
 .export-preview-front,
@@ -1207,7 +1207,7 @@ dialog.export-dialog::backdrop {
 }
 
 .export-preview-chapter {
-  margin-top: 6px;
+  margin-top: var(--space-3);
 }
 
 /* A part heading reads above its chapters: capitals, a little more room. */
@@ -1220,7 +1220,7 @@ dialog.export-dialog::backdrop {
 .export-preview-scene {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-5);
   padding: 1px 0 1px 14px;
 }
 
@@ -1238,19 +1238,19 @@ dialog.export-dialog::backdrop {
 .export-preview-views {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: var(--space-2) var(--space-6);
 }
 
 .export-preview-views .export-option-help {
   display: inline;
-  margin-left: 6px;
+  margin-left: var(--space-3);
 }
 
 /* The Proof is the file's own text: its line breaks and spaces are kept, and a long line wraps inside the region. */
 .export-proof-text {
   margin: 0;
   font-family: var(--mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: var(--text-sm);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1259,7 +1259,7 @@ dialog.export-dialog::backdrop {
 .export-footer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .export-footer .form-message {
@@ -1831,11 +1831,11 @@ dialog.export-dialog::backdrop {
   min-width: 200px;
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: var(--space-2);
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--raised);
-  box-shadow: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--elev-2);
 }
 
 .menu-item {
@@ -1847,7 +1847,7 @@ dialog.export-dialog::backdrop {
   background: none;
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   text-align: left;
   cursor: pointer;
 }
@@ -1888,14 +1888,14 @@ dialog.export-dialog::backdrop {
 
 .menu-rule {
   height: 1px;
-  margin: 4px 6px;
+  margin: var(--space-2) var(--space-3);
   background: var(--line);
 }
 
 .menu-empty {
   margin: 0;
-  padding: 8px 10px;
-  font-size: 12.5px;
+  padding: var(--space-4) 10px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -1903,7 +1903,7 @@ dialog.confirm {
   width: min(460px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--raised);
   color: var(--ink);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
@@ -1920,16 +1920,16 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .folder-file-preview {
-  margin-top: 8px;
+  margin-top: var(--space-4);
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
 .folder-file-preview .field-note {
-  margin: 0 0 6px;
-  font-size: 12px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
 }
 
 .folder-diff {
@@ -1987,8 +1987,8 @@ dialog.confirm:has(.folder-file-preview) {
   /* A question with three or four answers wraps them, rather than pushing the first out of the dialog. */
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }
 
 .confirm .button.is-danger {
@@ -2020,7 +2020,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .lede {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--muted);
 }
 
@@ -2029,8 +2029,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .home-section h2 {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-sm);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
@@ -2038,7 +2038,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 /* An empty state inside a section is a sentence, not a section label. */
 .home-section .empty-state h2 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   font-size: 15px;
   letter-spacing: normal;
   text-transform: none;
@@ -2068,8 +2068,8 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: var(--space-5);
+  padding: 14px var(--space-6);
   border-top: 1px solid var(--line);
 }
 
@@ -2080,7 +2080,7 @@ dialog.confirm:has(.folder-file-preview) {
 .project-meta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -2090,7 +2090,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .project-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-3);
   flex-shrink: 0;
 }
 
@@ -2104,7 +2104,7 @@ dialog.confirm:has(.folder-file-preview) {
 .home .status-line {
   position: static;
   transform: none;
-  margin-top: 16px;
+  margin-top: var(--space-6);
   max-width: none;
 }
 
