@@ -178,6 +178,27 @@ describe('planCodexImportBatch', () => {
     expect(plan.params?.entries[0]?.cite.quote.startsWith('Harbour')).toBe(true);
   });
 
+  it('pins a bus refusal of a page on the row that brought the page, and a refusal of the whole command on the plan, never on row 0', () => {
+    const state = makeState();
+    const rows: CodexImportRow[] = [
+      { name: 'Harbour', description: 'Where the ferry ties up.' },
+      { name: 'Ferry', page: { title: 'F'.repeat(201), body: 'The Ferry crosses at dawn.' } },
+    ];
+    const plan = planCodexImportBatch(state, rows, { source: 'CSV' });
+    expect(plan.params).toBeUndefined();
+    expect(plan.rows[0]?.outcome).toBe('create');
+    expect(plan.rows[0]?.reasons).toEqual([]);
+    expect(plan.refused.map((row) => row.name)).toEqual(['Ferry']);
+    expect(plan.refused[0]?.reasons.join(' ')).toMatch(/pages\[1\]: title is 201 characters/);
+    expect(plan.batch).toEqual([]);
+
+    const folder = planCodexImportBatch(state, [rows[0]!], { source: 'CSV', parentId: 'n_0000000000' });
+    expect(folder.params).toBeUndefined();
+    expect(folder.rows[0]?.outcome).toBe('create');
+    expect(folder.refused).toEqual([]);
+    expect(folder.batch.join(' ')).toMatch(/no node with id "n_0000000000"/);
+  });
+
   it('imports the 600-row bundle, once every collision is answered, as one undo group in under two seconds; one Undo removes it all', () => {
     const state = makeState();
     const before = bytesOf(state);

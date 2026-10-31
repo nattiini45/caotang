@@ -96,7 +96,12 @@ export interface CodexImportBatchPlan {
   readonly rows: readonly CodexImportRowPlan[];
   /** Every refused row, by name, with its reasons: what the preview lists before Import can be pressed. */
   readonly refused: readonly { readonly index: number; readonly name: string; readonly reasons: readonly string[] }[];
-  /** The command's params. Absent while any row is refused, or when there is nothing to create. */
+  /**
+   * Refusals of the whole command that belong to no row (the parent folder, the batch's size): what the preview shows above the rows.
+   * Never pinned on a row, so a row the writer already answered is not shown as broken. Empty when the bus would take the batch.
+   */
+  readonly batch: readonly string[];
+  /** The command's params. Absent while any row is refused or `batch` is not empty, or when there is nothing to create. */
   readonly params?: CodexImportBatchParams;
   readonly counts: { readonly create: number; readonly rename: number; readonly skip: number; readonly pageOnly: number; readonly refused: number; readonly pages: number };
   /** What the import scan found, across every name, description and page. Nothing is changed by it. */
@@ -131,6 +136,15 @@ function defaultPage(name: string, description: string): CodexImportPage {
   return { title: name, body: description.trim() === '' ? `# ${name}\n` : `# ${name}\n\n${description.trim()}\n` };
 }
 
+/** The row a bus failure's target points at: `entries[i]` through the entries' rows, `pages[k]` through the pages' rows; else none. */
+function failureRow(target: string, entryRow: readonly number[], pageRow: readonly number[]): number | undefined {
+  const entry = /^entries\[(\d+)\]/.exec(target)?.[1];
+  if (entry !== undefined) return entryRow[Number(entry)];
+  const page = /^pages\[(\d+)\]/.exec(target)?.[1];
+  if (page !== undefined) return pageRow[Number(page)];
+  return undefined;
+}
+
 export function planCodexImportBatch(state: ProjectState, rows: readonly CodexImportRow[], options: CodexImportBatchOptions): CodexImportBatchPlan {
   const held = heldTerms(state);
   /** Terms earlier rows of this import claimed, with the name that claimed them. */
@@ -141,6 +155,10 @@ export function planCodexImportBatch(state: ProjectState, rows: readonly CodexIm
   /** The row each entry came from, so a bus failure can name the row. */
   const entryRow: number[] = [];
   const pages: CodexImportPage[] = [];
+  /** The row each page came from, so a bus failure on `pages[k]` names the row too. */
+  const pageRow: number[] = [];
+  /** Command-level refusals, which belong to no row. */
+  const batch: string[] = [];
   const hits: ImportHit[] = [];
   let hitTotal = 0;
 
@@ -267,6 +285,7 @@ export function planCodexImportBatch(state: ProjectState, rows: readonly CodexIm
 
     if (outcome === 'page-only') {
       pages.push(page!);
+      pageRow.push(index);
       plans.push({ index, name: row.name, outcome, ...(collision === undefined ? {} : { collision }), reasons, notes, flags });
       continue;
     }
@@ -289,6 +308,7 @@ export function planCodexImportBatch(state: ProjectState, rows: readonly CodexIm
     if (page === undefined) target = { attachTo: row.attachTo! };
     else {
       pages.push(page);
+      pageRow.push(index);
       target = { page: pages.length - 1 };
     }
     entries.push({
@@ -320,17 +340,15 @@ export function planCodexImportBatch(state: ProjectState, rows: readonly CodexIm
     if (checked.ok) params = checked.value;
     else {
       const failures = (checked.error.details?.['failures'] as PerOpFailure[] | undefined) ?? [];
-      if (failures.length === 0) {
-        // A refusal of the whole command (the parent folder, say) belongs to no row; it is listed against the first.
-        const first = plans[0];
-        if (first !== undefined) plans[0] = { ...first, outcome: 'refused', reasons: [...first.reasons, checked.error.message] };
-      }
+      // A refusal of the whole command (the parent folder, say) belongs to no row: it is the plan's, not the first row's.
+      if (failures.length === 0) batch.push(checked.error.message);
       for (const failure of failures) {
-        const position = /^entries\[(\d+)\]/.exec(failure.target)?.[1];
-        const rowIndex = position === undefined ? 0 : (entryRow[Number(position)] ?? 0);
-        const at = plans.findIndex((plan) => plan.index === rowIndex);
+        const rowIndex = failureRow(failure.target, entryRow, pageRow);
+        const at = rowIndex === undefined ? -1 : plans.findIndex((plan) => plan.index === rowIndex);
         const plan = plans[at];
-        if (plan !== undefined) plans[at] = { ...plan, outcome: 'refused', reasons: [...plan.reasons, failure.message] };
+        // Only a row that put something into the command can be its cause, and so only that row is refused (a skipped row put nothing in).
+        if (plan === undefined || plan.outcome === 'skip') batch.push(failure.message);
+        else plans[at] = { ...plan, outcome: 'refused', reasons: [...plan.reasons, failure.message] };
       }
     }
   }
@@ -339,6 +357,7 @@ export function planCodexImportBatch(state: ProjectState, rows: readonly CodexIm
   return {
     rows: plans,
     refused: plans.filter((plan) => plan.outcome === 'refused').map((plan) => ({ index: plan.index, name: plan.name, reasons: plan.reasons })),
+    batch,
     ...(params === undefined ? {} : { params }),
     counts: { create: count('create'), rename: count('rename'), skip: count('skip'), pageOnly: count('page-only'), refused: count('refused'), pages: params?.pages?.length ?? 0 },
     scan: { total: hitTotal, hits },
