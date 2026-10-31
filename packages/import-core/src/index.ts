@@ -38,6 +38,7 @@ export type {
   SplitReason,
   SplitResult,
   SplitRuleInput,
+  SplitStats,
 } from './split.js';
 export { splitImport } from './split.js';
 export type { PatternMatch, SpecialKind } from './text.js';

@@ -118,6 +118,10 @@ export interface SplitLabels {
   chapter: (n: number) => string;
   /** An untitled scene. */
   scene: (chapterTitle: string, n: number) => string;
+  /** The heading of the notes tail that keeps footnotes and comments no block holds (written into the last scene's notes). */
+  unreferencedNotes: string;
+  /** A kept footnote in that tail, by its label. */
+  footnote: (label: string) => string;
 }
 
 export const DEFAULT_LABELS: Readonly<SplitLabels> = Object.freeze({
@@ -125,4 +129,6 @@ export const DEFAULT_LABELS: Readonly<SplitLabels> = Object.freeze({
   beforeChapterOne: 'Before chapter 1',
   chapter: (n: number) => `Chapter ${n}`,
   scene: (chapterTitle: string, n: number) => `${chapterTitle} · ${n}`,
+  unreferencedNotes: 'Unreferenced notes',
+  footnote: (label: string) => `Footnote ${label}`,
 });

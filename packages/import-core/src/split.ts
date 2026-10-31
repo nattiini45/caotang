@@ -115,7 +115,13 @@ export type SplitNotice =
   | { code: 'back-matter'; destination: ChunkDestination; words: number; title: string }
   | { code: 'empty-runs-offered'; count: number }
   | { code: 'no-chapters' }
-  | { code: 'parts-flattened'; parts: number };
+  | { code: 'parts-flattened'; parts: number }
+  /**
+   * Footnotes whose `[^label]` reference no block holds, and comments anchored to no block that made it into the tree. Kept, never
+   * dropped: written under "Unreferenced notes" in the notes of `nodeId` (the last scene, else the last back-matter or the front
+   * chunk). With no chunk at all `nodeId` is absent and the same items are in `losses`.
+   */
+  | { code: 'unreferenced-notes'; nodeId?: string; footnotes: { blockIndex: number; label: string }[]; comments: number[] };
 
 export interface Detected {
   words: number;
@@ -162,7 +168,23 @@ export interface SplitResult {
   notices: SplitNotice[];
   losses: LossWarning[];
   injection: LocatedInjectionHit[];
-  stats: { words: number; parts: number; chapters: number; scenes: number; images: number; footnotes: number; comments: number };
+  stats: SplitStats;
+}
+
+export interface SplitStats {
+  words: number;
+  parts: number;
+  chapters: number;
+  scenes: number;
+  images: number;
+  /** Footnote definitions written at the end of the scene holding their reference. */
+  footnotes: number;
+  /** Comments written into the notes of the chunk that owns their block. */
+  comments: number;
+  /** Footnote definitions with no matching reference: kept under "Unreferenced notes", counted apart (notice `unreferenced-notes`). */
+  unreferencedFootnotes: number;
+  /** Comments anchored to no block in the result: kept under "Unreferenced notes", counted apart. */
+  unreferencedComments: number;
 }
 
 export type SplitRuleInput = Parameters<typeof resolveRules>[0];
@@ -686,6 +708,15 @@ export function splitImport(doc: ImportDocument, ruleInput?: SplitRuleInput, opt
   if (emptyRunsOffered && !rules.scenes.emptyRuns) notices.push({ code: 'empty-runs-offered', count: emptyRuns });
   if (allChapters.length <= 1 && !roles.some((r) => r?.type === 'chapter')) notices.push({ code: 'no-chapters' });
   if (rules.parts === 'flatten' && built.partCount > 0) notices.push({ code: 'parts-flattened', parts: built.partCount });
+  const orphans = built.orphans;
+  if (orphans.footnotes.length > 0 || orphans.comments.length > 0) {
+    notices.push({
+      code: 'unreferenced-notes',
+      ...(orphans.nodeId ? { nodeId: orphans.nodeId } : {}),
+      footnotes: orphans.footnotes,
+      comments: orphans.comments,
+    });
+  }
 
   // --- Splits list. ---
   const splits: SplitMarker[] = [];
@@ -710,6 +741,11 @@ export function splitImport(doc: ImportDocument, ruleInput?: SplitRuleInput, opt
   for (let i = 0; i < n; i++) {
     const b = blocks[i] as ImportBlock;
     if (b.kind === 'other' && b.loss && !losses.some((l) => l.blockIndex === i && l.code === b.loss)) losses.push({ code: b.loss, blockIndex: i });
+  }
+  // Nowhere to keep them (no chunk at all): the only case an unreferenced note leaves the import, and it is reported, not silent.
+  if (!orphans.nodeId) {
+    if (orphans.footnotes.length) losses.push({ code: 'footnote', message: 'Footnotes with no reference and no scene to keep them in.', count: orphans.footnotes.length });
+    if (orphans.comments.length) losses.push({ code: 'comment', message: 'Comments anchored to no text and no scene to keep them in.', count: orphans.comments.length });
   }
 
   const detected: Detected = {
@@ -744,7 +780,7 @@ export function splitImport(doc: ImportDocument, ruleInput?: SplitRuleInput, opt
     notices,
     losses,
     injection: (doc.injection ?? []).map((h) => {
-      const nodeId = built.owner[h.blockIndex];
+      const nodeId = ownerAt(built.owner, h.blockIndex);
       return nodeId ? { ...h, nodeId } : { ...h };
     }),
     stats: {
@@ -753,8 +789,10 @@ export function splitImport(doc: ImportDocument, ruleInput?: SplitRuleInput, opt
       chapters: allChapters.length,
       scenes: sceneTotal,
       images,
-      footnotes: doc.footnotes?.length ?? 0,
-      comments: doc.comments?.length ?? 0,
+      footnotes: built.placed.footnotes,
+      comments: built.placed.comments,
+      unreferencedFootnotes: orphans.footnotes.length,
+      unreferencedComments: orphans.comments.length,
     },
   };
 }
@@ -933,7 +971,16 @@ function buildTree(
   facts: Fact[],
   roles: (Role | undefined)[],
   ctx: BuildContext,
-): { tree: ProposedNode[]; front?: ProposedChunk; back: ProposedChunk[]; owner: (string | undefined)[]; partCount: number; reached: Set<number> } {
+): {
+  tree: ProposedNode[];
+  front?: ProposedChunk;
+  back: ProposedChunk[];
+  owner: (string | undefined)[];
+  partCount: number;
+  reached: Set<number>;
+  placed: { footnotes: number; comments: number };
+  orphans: { nodeId?: string; footnotes: { blockIndex: number; label: string }[]; comments: number[] };
+} {
   const { rules, labels } = ctx;
   const n = blocks.length;
   const tree: ProposedNode[] = [];
@@ -1143,20 +1190,66 @@ function buildTree(
     for (const k of ctx.tocSet) owner[k] = frontId;
   }
 
-  // Footnotes and comments go to the chunk that owns their block.
+  // Footnotes go to the scene that holds their reference, comments to the chunk that owns their block (decision 3). What has no
+  // home is kept under "Unreferenced notes" on the last scene and counted apart: nothing an import removes is lost silently.
   const allChunks = new Map(chunkById);
   if (front) allChunks.set((front as Chunk).id, front);
-  const fallback = firstChunkId(tree) ?? (front ? (front as Chunk).id : undefined);
+  const placed = { footnotes: 0, comments: 0 };
+  const orphanFootnotes: { blockIndex: number; label: string; md: string }[] = [];
+  const orphanComments: { blockIndex: number; md: string; author?: string }[] = [];
+  const blockMd = (i: number): string => {
+    const b = blocks[i] as ImportBlock;
+    return b.kind === 'heading' || b.kind === 'para' || b.kind === 'other' ? b.md : '';
+  };
+  // Label → first block holding `[^label]`, built once and only when a definition is not on its reference's block (linear time).
+  let refIndex: Map<string, number> | undefined;
+  const referenceIndex = (): Map<string, number> => {
+    const map = new Map<string, number>();
+    for (let i = 0; i < n; i++) for (const m of blockMd(i).matchAll(/\[\^([^\]\s]+)\]/gu)) if (!map.has(m[1] as string)) map.set(m[1] as string, i);
+    return map;
+  };
   for (const fn of doc.footnotes ?? []) {
-    const id = owner[fn.blockIndex] ?? fallback;
+    const ref = `[^${fn.label}]`;
+    let holder = validIndex(fn.blockIndex, n) && blockMd(fn.blockIndex).includes(ref) ? fn.blockIndex : -1;
+    // A reader that keyed the definition to the wrong block: the block that really holds the reference wins.
+    if (holder < 0) holder = (refIndex ??= referenceIndex()).get(fn.label) ?? -1;
+    const id = holder >= 0 ? owner[holder] : undefined;
     const c = id ? allChunks.get(id) : undefined;
-    if (c) c.footnotes.push(footnoteDefinition(fn.label, fn.md));
+    if (c) {
+      c.footnotes.push(footnoteDefinition(fn.label, fn.md));
+      placed.footnotes++;
+    } else orphanFootnotes.push(fn);
   }
   for (const cm of doc.comments ?? []) {
-    const id = owner[cm.blockIndex] ?? fallback;
+    // A comment on a block that carries no text (an empty paragraph, a page break) goes with the nearest block before it, else after.
+    let id: string | undefined;
+    if (validIndex(cm.blockIndex, n)) {
+      for (let i = cm.blockIndex; i >= 0 && !id; i--) id = owner[i];
+      for (let i = cm.blockIndex + 1; i < n && !id; i++) id = owner[i];
+    }
     const c = id ? allChunks.get(id) : undefined;
-    if (c) c.notes.push(cm.author ? `${cm.author}: ${cm.md}` : cm.md);
+    if (c) {
+      c.notes.push(commentNote(cm));
+      placed.comments++;
+    } else orphanComments.push(cm);
   }
+  let orphanHome: string | undefined;
+  if (orphanFootnotes.length || orphanComments.length) {
+    orphanHome = lastChunkId(tree, []) ?? lastChunkId([], back) ?? (front ? (front as Chunk).id : undefined);
+    const c = orphanHome ? allChunks.get(orphanHome) : undefined;
+    if (c) {
+      const lines = [
+        ...orphanFootnotes.map((fn) => `${labels.footnote(fn.label)}: ${fn.md.trim()}`),
+        ...orphanComments.map(commentNote),
+      ];
+      c.notes.push(`**${labels.unreferencedNotes}**\n\n${lines.join('\n\n')}`);
+    } else orphanHome = undefined;
+  }
+  const orphans = {
+    ...(orphanHome ? { nodeId: orphanHome } : {}),
+    footnotes: orphanFootnotes.map((fn) => ({ blockIndex: fn.blockIndex, label: fn.label })),
+    comments: orphanComments.map((cm) => cm.blockIndex),
+  };
   // Re-render bodies and notes now the side tables are in.
   const patch = (node: ProposedNode): void => {
     if (node.kind === 'doc') {
@@ -1201,16 +1294,19 @@ function buildTree(
     if (!frontOut.body && !frontOut.notes) frontOut = undefined;
   }
 
-  return { tree, ...(frontOut ? { front: frontOut } : {}), back, owner, partCount, reached };
+  return { tree, ...(frontOut ? { front: frontOut } : {}), back, owner, partCount, reached, placed, orphans };
 }
 
-function firstChunkId(tree: ProposedNode[]): string | undefined {
-  for (const node of tree) {
-    if (node.kind === 'doc') return node.id;
-    const inner = firstChunkId(node.children);
-    if (inner) return inner;
-  }
-  return undefined;
+function validIndex(i: number, n: number): boolean {
+  return Number.isInteger(i) && i >= 0 && i < n;
+}
+
+function ownerAt(owner: (string | undefined)[], i: number): string | undefined {
+  return validIndex(i, owner.length) ? owner[i] : undefined;
+}
+
+function commentNote(cm: { md: string; author?: string }): string {
+  return cm.author ? `${cm.author}: ${cm.md}` : cm.md;
 }
 
 function lastChunkId(tree: ProposedNode[], back: ProposedChunk[]): string | undefined {
