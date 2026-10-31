@@ -75,6 +75,13 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
     name: 'Final Draft files saved as UTF-16',
     pattern: /UTF-16[^.\n]*(?:not (?:yet )?(?:built|supported|read|imported|in this build)|cannot)|(?:cannot|does not|do not) (?:import|read)[^.\n]*UTF-16/i,
   },
+  // A claim that the binder cannot nest folders, or has no parts (#269). The limits that remain (no single step to gather chapters into a part,
+  // no setting for how a part heading reads) name neither as missing.
+  {
+    name: 'parts: folders that hold chapters',
+    pattern:
+      /folder-in-folder|three tiers|three-tier|(?:no|cannot (?:make|create|hold)|never (?:makes?|creates?)) (?:a )?folders? (?:inside|in) (?:another |a )?folders?|parts? (?:are|is) not (?:yet )?(?:built|supported|in this build)|no parts\b/i,
+  },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
@@ -85,6 +92,15 @@ describe('the built-feature patterns flag a stale claim and nothing else', () =>
     expect(
       'The shared import readers are in place, but no import from Scrivener, Word, OpenDocument, EPUB or a Markdown folder is built on them yet.',
     ).not.toMatch(utf16);
+  });
+
+  it('the parts pattern flags a claim that folders cannot nest, and lets the limits that remain through', () => {
+    const parts = BUILT_FEATURES.find((feature) => feature.name === 'parts: folders that hold chapters')?.pattern ?? /$^/;
+    expect('The binder is three tiers.').toMatch(parts);
+    expect('The binder never makes a folder inside a folder.').toMatch(parts);
+    expect('Parts are not supported yet.').toMatch(parts);
+    expect('Putting chapters into a part is one move per chapter: there is no single step that gathers several chapters into a new part.').not.toMatch(parts);
+    expect('A part prints its own title, and the export has no setting to number parts.').not.toMatch(parts);
   });
 
   it('the story-part pattern flags a claim that days before day 0 or parts are missing, and not the older-build limit', () => {
