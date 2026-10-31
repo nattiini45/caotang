@@ -6,8 +6,8 @@ Thank you for helping. This page covers setting up, the checks a change must pas
 
 You need:
 
-- **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.12 or later in the 22 line, 24, or 26 and later. CI tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
-- **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically. With Node 22.12.0, first update Corepack to 0.34.3 (`npm install --global corepack@0.34.3`); the bundled Corepack 0.29.4 cannot verify pnpm's current signing key.
+- **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.19 or later in the 22 line, 24, or 26 and later. CI tests the 22.19.0 floor and Node 24; Node 26 is allowed but not covered.
+- **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically. On Node 22, first update Corepack to 0.34.3 (`npm install --global corepack@0.34.3`); Node 22.12's bundled Corepack 0.29.4 could not verify pnpm's current signing key.
 - **A Chromium-based browser** to run the end-to-end tests locally and to try folder saves. Firefox and WebKit are optional locally; CI gates pull requests in all three engines and also runs Firefox/WebKit nightly.
 
 Then:
@@ -30,7 +30,7 @@ pnpm exec playwright install firefox webkit # optional, for the nightly cross-br
 CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit
 ```
 
-These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.12.0 and 24; the Node 22.12 leg verifies the pinned pnpm tarball's SHA-512 before installing it directly, while Node 24 uses Corepack. Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
+These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.19.0 and 24; the Node 22.19 leg verifies the pinned pnpm tarball's SHA-512 before installing it directly, while Node 24 uses Corepack. Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
 
 CI on a pull request from a fork runs with a read-only token (`permissions: contents: read`), so a workflow run cannot change the repository. If this is your first contribution, a maintainer approves your pull request's first CI run before it starts; this is a repository setting, and it only means the checks wait a little.
 

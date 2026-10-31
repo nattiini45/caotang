@@ -30,7 +30,7 @@ Run these on each host. Tick a row only for the host and date you record in the 
 - [ ] Not yet run. Uninstalling removes the server and leaves the project folder clean, with no `.caotang-mcp.lock` left in it.
 - [ ] Not yet run. A folder whose `caotang.json` is damaged (cut a copy of a project's manifest in half, keeping its `caotang.json.bak.1`) starts the server without a project. `project.recover` shows the snapshot, and with **Allow changes** on, `project.recoverApply` shows the host's dialog: it must name `caotang.json.bak.1`, the kept copy `caotang.json.corrupt-<timestamp>` and the folder lock. Declining writes nothing; accepting writes the new manifest, keeps the original, and every tool then says to restart. Remove `bak.1` and repeat: the call without `rebuild` is refused naming the loss, and `rebuild: true` shows a dialog that names the loss of folder structure and vocabulary.
 - [ ] Not yet run. With **Allow changes** on, `scene.brief` on a document returns its messages and a `briefId`, and `scene.apply` with the brief's `applyWith` and a text shows the host's confirmation dialog. Record whether the host accepts the dotted tool names, whether the dialog names the document and the word change, whether the host shows the call's arguments (the text) with it, and that declining writes nothing.
-- [ ] Not yet run. The Node version the host runs is recorded and meets the root `package.json` `engines` range, `^22.12.0 || ^24.0.0 || >=26.0.0`. (`server.type: node` uses the host's own Node.)
+- [ ] Not yet run. The Node version the host runs is recorded and meets the root `package.json` `engines` range, `^22.19.0 || ^24.0.0 || >=26.0.0`. (`server.type: node` uses the host's own Node.)
 
 ## Results
 

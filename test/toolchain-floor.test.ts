@@ -253,12 +253,24 @@ describe("the toolchain floor, read out of the lockfile", () => {
     ).toBe(true);
   });
 
-  it('declares engines.node as vitest does, because vitest is what sets the floor', () => {
+  it('declares engines.node as vitest does, with the 22 line at the highest 22 floor the tree declares', () => {
     // The third declaration was vitest 5's own `engines`, copied verbatim. If
     // vitest moves, the user-facing support claim has to move with it — and this
     // is the assertion that says so, in the failure direction the repo wants:
     // loud, on the day the floor moves.
-    expect(manifest.engines.node).toBe(declaredEngines('vitest', resolvedVersions('vitest')[0]!));
+    //
+    // The install is engine-strict, so a package that needs a later Node 22 than
+    // vitest does raises the 22 line for everyone: Lingui 6 (the interface
+    // catalogues, #322) declares `>=22.19.0`, and Node 22.12 refuses to install it.
+    // The floor is read from every lockfile entry, never transcribed.
+    const vitest = declaredEngines('vitest', resolvedVersions('vitest')[0]!);
+    const floors = resolutions
+      .map((r) => /engines:\s*\{node:\s*([^}]+)\}/.exec(r.block)?.[1] ?? '')
+      .flatMap((range) => [...range.matchAll(/(?:\^|>=)\s*22\.(\d+)\.(\d+)/g)].map((m) => [Number(m[1]), Number(m[2])] as const));
+    expect(floors.length).toBeGreaterThan(0);
+    const [minor, patch] = floors.reduce((a, b) => (b[0] > a[0] || (b[0] === a[0] && b[1] > a[1]) ? b : a));
+    expect(vitest).toMatch(/\^22\.\d+\.\d+/);
+    expect(manifest.engines.node).toBe(vitest.replace(/\^22\.\d+\.\d+/, `^22.${minor}.${patch}`));
   });
 
   it('names no build-allowlist entry that is not installed', () => {
