@@ -9,12 +9,12 @@ import { expect, test } from '@playwright/test';
  * token below the bar fails here. The rendered page is scanned separately by axe-core (e2e/a11y-surfaces.spec.ts).
  */
 
-const STYLES = fileURLToPath(new URL('../../apps/desktop/src/tokens/classic.css', import.meta.url));
+const STYLES = fileURLToPath(new URL('../../apps/desktop/src/styles.css', import.meta.url));
 
 /** The body of the rule whose selector text is `marker`, from its opening brace to the matching close. */
 function bodyOf(css: string, marker: string): string {
   const start = css.indexOf(marker);
-  if (start < 0) throw new Error(`no rule "${marker}" in tokens/classic.css`);
+  if (start < 0) throw new Error(`no rule "${marker}" in styles.css`);
   const open = css.indexOf('{', start);
   let depth = 0;
   for (let at = open; at < css.length; at += 1) {
