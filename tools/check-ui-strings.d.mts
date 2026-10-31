@@ -4,6 +4,7 @@
 export const KINDS: readonly ('jsxText' | 'attribute' | 'literal' | 'template')[];
 export const UI_ROOT: string;
 export const BASELINE_FILE: string;
+export const NOTE_KEYS: readonly ('note' | 'reason')[];
 export const MODEL_FACING_MARKER: string;
 export const USER_FACING_ATTRIBUTES: ReadonlySet<string>;
 
@@ -33,6 +34,10 @@ export interface ScanTree {
 export interface Baseline {
   readonly version: 1;
   readonly root: string;
+  /** Why the allowance is what it is; free text, kept on every rewrite. */
+  readonly note?: string;
+  /** The reason a set of sites was admitted, usually naming the issue that tracks them; kept on every rewrite. */
+  readonly reason?: string;
   readonly files: Readonly<Record<string, FileCounts>>;
 }
 

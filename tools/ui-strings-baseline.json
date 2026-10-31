@@ -1,18 +1,217 @@
 {
   "version": 1,
   "root": "apps/desktop/src",
+  "reason": "main's UI predates the string ratchet; tracked in #328",
   "files": {
+    "app/agent-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 4
+    },
+    "app/agent-rules-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 7,
+      "template": 8
+    },
+    "app/folder-diff.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 12,
+      "template": 4
+    },
+    "app/interface.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 0
+    },
+    "app/lifecycle.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 0
+    },
+    "app/macro-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 5,
+      "template": 12
+    },
+    "app/narrow-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 12,
+      "template": 0
+    },
     "app/providers.ts": {
       "jsxText": 0,
       "attribute": 0,
       "literal": 1,
       "template": 0
     },
+    "app/recurring-tasks.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 13,
+      "template": 8
+    },
+    "app/review-text.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 3
+    },
+    "app/session.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 1
+    },
+    "app/slash-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 4,
+      "template": 9
+    },
+    "app/tasks-io.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 5
+    },
     "app/timeline-image.ts": {
       "jsxText": 0,
       "attribute": 0,
       "literal": 0,
       "template": 1
+    },
+    "app/trace-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 2
+    },
+    "app/xml-file.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 0
+    },
+    "components/AgentInstructionsPanel.tsx": {
+      "jsxText": 30,
+      "attribute": 6,
+      "literal": 6,
+      "template": 4
+    },
+    "components/AgentPanel.tsx": {
+      "jsxText": 7,
+      "attribute": 4,
+      "literal": 6,
+      "template": 4
+    },
+    "components/AgentRulesSettings.tsx": {
+      "jsxText": 10,
+      "attribute": 4,
+      "literal": 3,
+      "template": 0
+    },
+    "components/Binder.tsx": {
+      "jsxText": 1,
+      "attribute": 1,
+      "literal": 0,
+      "template": 1
+    },
+    "components/ContextSection.tsx": {
+      "jsxText": 6,
+      "attribute": 0,
+      "literal": 0,
+      "template": 4
+    },
+    "components/ExportDialog.tsx": {
+      "jsxText": 4,
+      "attribute": 0,
+      "literal": 3,
+      "template": 0
+    },
+    "components/FdxImportDialog.tsx": {
+      "jsxText": 2,
+      "attribute": 3,
+      "literal": 0,
+      "template": 0
+    },
+    "components/InterruptedRuns.tsx": {
+      "jsxText": 5,
+      "attribute": 0,
+      "literal": 3,
+      "template": 1
+    },
+    "components/MacrosPanel.tsx": {
+      "jsxText": 26,
+      "attribute": 3,
+      "literal": 6,
+      "template": 4
+    },
+    "components/PlanCard.tsx": {
+      "jsxText": 6,
+      "attribute": 0,
+      "literal": 1,
+      "template": 1
+    },
+    "components/RecurringTasks.tsx": {
+      "jsxText": 41,
+      "attribute": 13,
+      "literal": 9,
+      "template": 2
+    },
+    "components/ReviewBar.tsx": {
+      "jsxText": 6,
+      "attribute": 1,
+      "literal": 3,
+      "template": 5
+    },
+    "components/SaveAsMacro.tsx": {
+      "jsxText": 10,
+      "attribute": 2,
+      "literal": 0,
+      "template": 3
+    },
+    "components/Settings.tsx": {
+      "jsxText": 11,
+      "attribute": 0,
+      "literal": 0,
+      "template": 0
+    },
+    "components/TaskOffers.tsx": {
+      "jsxText": 3,
+      "attribute": 2,
+      "literal": 2,
+      "template": 1
+    },
+    "components/TracePanel.tsx": {
+      "jsxText": 25,
+      "attribute": 3,
+      "literal": 4,
+      "template": 7
+    },
+    "components/TurnReview.tsx": {
+      "jsxText": 2,
+      "attribute": 0,
+      "literal": 0,
+      "template": 0
+    },
+    "components/narrow.tsx": {
+      "jsxText": 3,
+      "attribute": 1,
+      "literal": 0,
+      "template": 0
+    },
+    "i18n/locale.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 0
     }
   }
 }

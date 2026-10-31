@@ -171,6 +171,34 @@ describe('the ratchet', () => {
     });
   });
 
+  it('keeps a top-level note and reason through read, render and --write, and never counts them', () => {
+    const tree = treeOf([{ file: 'a.tsx', counts: { ...empty(), jsxText: 1 } }]);
+    withTempDir((directory) => {
+      const path = join(directory, 'baseline.json');
+      writeFileSync(
+        path,
+        JSON.stringify({ version: 1, root: UI_ROOT, note: 'reviewed', reason: 'tracked in #1', files: { 'a.tsx': { ...empty(), jsxText: 2 } } }),
+      );
+      const baseline = readBaseline(path);
+      expect(baseline.reason).toBe('tracked in #1');
+      expect(compareToBaseline(tree, baseline)).toEqual([]);
+      const lowered = lowerBaseline(tree, baseline);
+      expect(lowered.baseline).toEqual({ version: 1, root: UI_ROOT, note: 'reviewed', reason: 'tracked in #1', files: { 'a.tsx': { ...empty(), jsxText: 1 } } });
+      const rendered = renderBaseline(lowered.baseline);
+      expect(Object.keys(JSON.parse(rendered) as object)).toEqual(['version', 'root', 'note', 'reason', 'files']);
+    });
+  });
+
+  it('refuses a note or reason that is not a non-empty string', () => {
+    withTempDir((directory) => {
+      const path = join(directory, 'baseline.json');
+      writeFileSync(path, JSON.stringify({ version: 1, root: UI_ROOT, reason: 42, files: {} }));
+      expect(() => readBaseline(path)).toThrow(/baseline reason must be a non-empty string/);
+      writeFileSync(path, JSON.stringify({ version: 1, root: UI_ROOT, note: '  ', files: {} }));
+      expect(() => readBaseline(path)).toThrow(/baseline note must be a non-empty string/);
+    });
+  });
+
   it('builds a baseline from the measured tree, omitting files with no sites', () => {
     const tree = {
       root: UI_ROOT,

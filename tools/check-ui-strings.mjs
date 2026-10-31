@@ -14,6 +14,9 @@
  * moved in an explicit, reviewable baseline edit. That is deliberate — per-path keys make a rename
  * visible instead of silently carrying an allowance to a new name.
  *
+ * The file may carry a top-level `note` or `reason` string saying why the allowance is what it is; it is kept on every
+ * rewrite and never counted.
+ *
  * Counts only go down. `--write` lowers existing entries and drops stale ones; it refuses to add a
  * positive allowance for a new path. `--init` seeds the file once and refuses when it already exists,
  * so it cannot raise the ratchet; convert the file instead.
@@ -369,14 +372,33 @@ export function readBaseline(path) {
   if (baseline.version !== 1) throw new Error(`${path}: unsupported baseline version ${String(baseline.version)}`);
   if (baseline.root !== UI_ROOT) throw new Error(`${path}: baseline root is ${String(baseline.root)}, expected ${UI_ROOT}`);
   if (baseline.files === null || typeof baseline.files !== 'object') throw new Error(`${path}: baseline has no files`);
+  for (const key of NOTE_KEYS) {
+    if (baseline[key] !== undefined && (typeof baseline[key] !== 'string' || baseline[key].trim() === '')) {
+      throw new Error(`${path}: baseline ${key} must be a non-empty string`);
+    }
+  }
   return baseline;
+}
+
+/**
+ * The optional top-level fields that say why the allowance is what it is (a reviewer's note, or the reason a whole
+ * branch's sites were admitted at once, with the issue that tracks them). They are free text, never counted, and
+ * every rewrite of the file (`--write`) keeps them, so the explanation stays beside the numbers it explains.
+ */
+export const NOTE_KEYS = ['note', 'reason'];
+
+/** The note fields a baseline carries, in {@link NOTE_KEYS} order. */
+function notesOf(baseline) {
+  const notes = {};
+  for (const key of NOTE_KEYS) if (typeof baseline[key] === 'string') notes[key] = baseline[key];
+  return notes;
 }
 
 /** The canonical serialisation: stable key order, two spaces, a trailing newline, no timestamp. */
 export function renderBaseline(baseline) {
   const files = {};
   for (const file of Object.keys(baseline.files).sort()) files[file] = baseline.files[file];
-  return `${JSON.stringify({ version: 1, root: UI_ROOT, files }, null, 2)}\n`;
+  return `${JSON.stringify({ version: 1, root: UI_ROOT, ...notesOf(baseline), files }, null, 2)}\n`;
 }
 
 /** The remedy every over-allowance message names. */
@@ -459,7 +481,7 @@ export function lowerBaseline(tree, baseline) {
       problems.push(`${entry.file}: new file with ${total} site(s); convert it instead of adding an allowance`);
     }
   }
-  return { baseline: { version: 1, root: UI_ROOT, files }, problems };
+  return { baseline: { version: 1, root: UI_ROOT, ...notesOf(baseline), files }, problems };
 }
 
 function renderSummary(tree) {
