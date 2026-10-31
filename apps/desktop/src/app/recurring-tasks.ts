@@ -430,7 +430,8 @@ export class RecurringTasks {
     const checks = asked.filter((id) => on.includes(id));
     if (checks.length === 0) return this.recordOf(task, trigger, 'failed', 'Every check this scan would run is turned off in Settings › Coherence, so nothing ran.');
     // A document a read rule keeps from the agent is left out of this scan, as it is of the agent's own.
-    const withheld = session.harness.withheld('coherence.scan');
+    // The harness is loaded on first use (lazy-harness.ts); a scan that starts as the project opens may come before any turn.
+    const withheld = (await session.harnessReady()).withheld('coherence.scan');
     const result = session.scanCoherence({
       approvedLargeScope: false,
       scope: body.scope === 'full' ? { mode: 'full' } : { mode: 'changed' },
