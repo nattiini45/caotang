@@ -500,4 +500,15 @@ export { CHARS_PER_TOKEN, estimateTokens, fitsCap } from './tokens.js';
 export { refusal, notWired } from './errors.js';
 export { coherenceAsyncPorts, coherencePorts, excludedBy, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 export { codexImportParams, prepareCodexImport } from './tools/codex-import.js';
+// The writer's codex import from the app (codex.md §7.1): the pure plan of rows into one `codex.importBatch`, never an agent tool.
+export {
+  fitDescription,
+  planCodexImportBatch,
+  type CodexImportBatchOptions,
+  type CodexImportBatchPlan,
+  type CodexImportCollisionChoice,
+  type CodexImportRow,
+  type CodexImportRowOutcome,
+  type CodexImportRowPlan,
+} from './codex-import-batch.js';
 export { parsedSkillsOf, skillBlock, skillLabel, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';

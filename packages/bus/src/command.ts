@@ -162,6 +162,10 @@ export const COMMAND_NAMES = [
   // `agentRisk: 'never'`, so only the writer saves or deletes one. The applies are the store's (`commands-hooks.ts`).
   'hook.save',
   'hook.delete',
+  // The writer's batch import of codex entries (codex.md §7.1): every entry, and the Research pages that hold their full text, as
+  // one undo group. `agentRisk: 'never'`: the agent's import is `codex.import`, which keeps its 20-entry cap. Its descriptor is
+  // `descriptors-codex-import.ts`, and its apply is the store's (`commands-codex-import.ts`).
+  'codex.importBatch',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -645,6 +649,7 @@ export interface CommandParams {
   'macro.delete': MacroDeleteParams;
   'hook.save': HookSaveParams;
   'hook.delete': HookDeleteParams;
+  'codex.importBatch': CodexImportBatchParams;
 }
 
 /**
@@ -689,6 +694,28 @@ export type ShotImportImageParams = { nodeId: string; stagingId: string };
  * own shot's `image`, as one command and so one undo group. The shots are named by node id, each at most once.
  */
 export type ShotImportImagesParams = { items: { nodeId: string; stagingId: string }[] };
+
+/**
+ * `codex.importBatch` (codex.md §7.1): the writer's import of codex entries as one command and so one undo group. Each entry is
+ * created with `origin: 'import'`, attached to the one document it cites: an existing document (`attachTo`) or a page this same
+ * command creates (`page`, an index into `pages`). `cite` is the passage that names it, in UTF-16 offsets into that body.
+ * `pages` are Research documents (the full text of a wiki article, say), created under `parentId`, which defaults to research.
+ */
+export type CodexImportBatchEntry = {
+  name: string;
+  aliases?: string[];
+  type?: string;
+  description?: string;
+  includePolicy?: string;
+  caseSensitive?: boolean;
+  exclude?: string[];
+  keywords?: string[];
+  attachTo?: string;
+  page?: number;
+  cite: { from: number; to: number; quote: string };
+};
+export type CodexImportPage = { title: string; body: string };
+export type CodexImportBatchParams = { entries: CodexImportBatchEntry[]; pages?: CodexImportPage[]; parentId?: string };
 
 /**
  * `mcp.invoke`'s params (extensibility.md §6). The bus holds the shape only: the validated call, and the
