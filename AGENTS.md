@@ -75,6 +75,7 @@ packages/furniture/      binder / corkboard furniture
 packages/gateway/        provider gateway (profiles, roles, endpoints)
 packages/harness/        the agent harness — its tools and its registry
 packages/ids/           id helpers
+packages/import-read/   the readers every import shares: a namespace-aware XML reader (no DOMParser) and a zip/folder reader over fflate's unzipSync with caps; main thread, Worker and Node
 packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
 packages/import-core/   the import block model and the pure chapter and scene splitter every document reader shares (no DOM, no dependencies)
 packages/mcp-client/     MCP client (Streamable HTTP)

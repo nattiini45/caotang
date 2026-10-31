@@ -260,6 +260,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../../packages/ids
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../../packages/import-read
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../../packages/mcp-client
@@ -727,6 +730,12 @@ importers:
   packages/ids: {}
 
   packages/import-core: {}
+
+  packages/import-read:
+    dependencies:
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
 
   packages/mcp-client:
     dependencies:

@@ -1,7 +1,8 @@
 /**
  * The import actions for a whole script, a whole Ink story and a Twee story (screenplay.md §2.2, dialogue-narrative.md §4). The file
  * is read in the browser and handed to the bus: `screenplay.import` takes a Fountain or FDX file, and `dialogue.importInk` takes the
- * containers an Ink or Twee plan makes. Each import is one undo group, and what it could not bring in is read back on the status
+ * containers an Ink or Twee plan makes. An FDX file is decoded as its byte-order mark and XML declaration say, UTF-16 included, by the
+ * shared import reader, loaded on first use (xml-file.ts). Each import is one undo group, and what it could not bring in is read back on the status
  * line. A Twee story strips logic and a Final Draft file carries notes and dual dialogue, so the report of each is shown first, and
  * nothing is written until the writer confirms it. Each file is scanned
  * for passages that read like instructions to an AI (hidden characters, role markers, "ignore previous instructions"), and the status line
@@ -16,6 +17,7 @@ import { importFdx, type FdxImportedScript } from '@caotang/screenplay';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
+import { readXmlFileText } from '../app/xml-file.js';
 import type { ProjectSession } from '../app/session.js';
 import { importLineIdsSentence } from '../media/ink-model.js';
 import { useReport, useSession } from './shared.js';
@@ -62,10 +64,17 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
   };
 
   const importScript = async (file: File): Promise<void> => {
-    const text = await file.text();
+    const isFdx = /\.fdx$/i.test(file.name);
+    // An FDX file is XML, so its byte-order mark and declaration say how it is encoded (UTF-16 included); a Fountain file is UTF-8.
+    const read = isFdx ? await readXmlFileText(new Uint8Array(await file.arrayBuffer())) : { text: await file.text() };
+    if ('problem' in read) {
+      report({ text: `${file.name} could not be read: ${read.problem}.`, tone: 'error' });
+      return;
+    }
+    const { text } = read;
     // The scan reads the whole file, so the text of script notes and hidden runs is scanned as well as the script.
     const scan = scanSentenceOf(file.name, text);
-    if (!/\.fdx$/i.test(file.name)) {
+    if (!isFdx) {
       writeScript(file.name, 'fountain', text, scan);
       return;
     }
