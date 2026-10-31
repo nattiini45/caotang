@@ -16,7 +16,7 @@ import { fixtureWireFactory } from './app/mcp.js';
 import { openAppServices, type AppServices } from './app/services.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
 import { listProjects, openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
-import { settleShell, shellUndecided } from './app/shell.js';
+import { interfacePending, settleInterface } from './app/interface.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
 import type { ProjectSession } from './app/session.js';
 import { installTestHook } from './app/test-hook.js';
@@ -44,8 +44,8 @@ export function App(): ReactNode {
   // The session in view, mirrored in a ref so the test hook and the switch logic read the current one without re-rendering for it.
   const current = useRef<ProjectSession | null>(null);
   const serial = useRef(0);
-  // False while the interface shell is still the provisional Classic of a first paint with nothing stored (app/shell.ts).
-  const [shellReady, setShellReady] = useState(() => !shellUndecided());
+  // False while the interface's default waits for the stores (app/interface.ts, modern-interface.md §3.2).
+  const [shellReady, setShellReady] = useState(() => !interfacePending());
 
   useEffect(() => {
     let alive = true;
@@ -93,14 +93,14 @@ export function App(): ReactNode {
     installTestHook(() => current.current);
   }, []);
 
-  // With no shell stored, the stores decide the default before the first screen shows: a settings record or a project kept from
-  // an earlier visit means Classic, nothing means Modern. A list that cannot be read counts as a returning writer's, so Classic stays.
+  // With nothing in local storage to go on, the stores decide the default before the first screen shows (resolveInterface): a project
+  // or a settings record from an earlier visit means Classic. A list that cannot be read counts as a project, so Classic stays.
   useEffect(() => {
     if (shellReady || store === null || services === null) return;
     let alive = true;
     void listProjects(store)
       .then((projects) => projects.length > 0, () => true)
-      .then((projects) => settleShell(services.settingsKept || projects))
+      .then((projects) => settleInterface(projects, services.settingsKept))
       .catch(() => undefined)
       .then(() => {
         if (alive) setShellReady(true);

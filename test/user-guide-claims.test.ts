@@ -489,14 +489,15 @@ describe('the user guide’s reviewed claims match the code', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain('<legend>Interface</legend>');
     expect(section).toContain("onChange={() => chooseShell('classic')} /> Classic");
-    expect(section).toContain("onChange={() => chooseShell('modern')} /> Modern");
-    const shell = read('apps/desktop/src/app/shell.ts');
-    // New writer Modern, returning writer Classic, the stored choice first (app/shell.ts shellFor).
-    expect(shell).toContain("if (stored !== null) return stored;");
-    expect(shell).toContain("return returning ? 'classic' : 'modern';");
-    expect(guide).toContain('**Interface**: **Classic** or **Modern**.');
-    expect(guide).toContain('If you have used Caotang in this browser before, it opens in Classic until you choose; a new browser opens in Modern.');
-    expect(changelog).toContain('**An Interface setting: Classic or Modern.** **Settings › Appearance › Interface**');
+    expect(section).toContain("{MODERN_DEFAULT_FOR_NEW_USERS ? 'Modern' : 'Modern (Preview)'}");
+    // While the parity gate is closed every writer starts in Classic, which is what the guide and the changelog say.
+    const resolver = read('apps/desktop/src/app/interface.ts');
+    expect(resolver).toContain('export const MODERN_DEFAULT_FOR_NEW_USERS = false;');
+    expect(resolver).toContain("return modernForNewUsers ? 'modern' : 'classic';");
+    expect(guide).toContain('**Interface**: **Classic** or **Modern (Preview)**.');
+    expect(guide).toContain('it is what Caotang opens in until you choose');
+    expect(changelog).toContain('**An Interface setting: Classic or Modern (Preview).** **Settings › Appearance › Interface**');
+    expect(changelog).toContain('Caotang opens in Classic until you choose, whether you have used it before or not.');
   });
 
   it('names the permission modes and their controls in the words the panel and Settings show', () => {

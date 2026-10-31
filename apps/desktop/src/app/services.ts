@@ -56,13 +56,13 @@ export class SettingsStore {
 /**
  * Whether the app database held a settings record the first time this page read it, `undefined` until then. Only the first read
  * counts: start-up writes the record (the active profile mirror below), and a second open in the same page load (React's strict
- * mode runs the effect twice in development) must not take that write for an earlier visit. The interface shell's default reads it.
+ * mode runs the effect twice in development) must not take that write for an earlier visit. The interface's default reads it (app/interface.ts).
  */
 let settingsKeptAtStart: boolean | undefined;
 
 export interface AppServices {
   readonly db: AppDb | null;
-  /** Whether the settings record was there before this page load wrote anything: a returning writer (app/shell.ts). */
+  /** Whether the settings record was there before this page load wrote anything: an existing writer (app/interface.ts). */
   readonly settingsKept: boolean;
   readonly settings: SettingsStore;
   readonly providers: ProviderService;

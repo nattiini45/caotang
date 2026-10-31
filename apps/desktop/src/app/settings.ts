@@ -5,8 +5,8 @@
  * What is not here, and why:
  * - **Theme** stays in the browser's local storage (app/theme.ts). The page must choose its colours before its first paint,
  *   which happens before any database is open, and the theme specs read that key directly.
- * - **Interface** (Classic or Modern, app/shell.ts) is kept beside the theme in local storage for the same reason: the shell is on the
- *   page before its first paint.
+ * - **Interface** (Classic or Modern, app/interface.ts) is kept beside the theme in local storage (`caotang.interface`) for the same
+ *   reason: it is on the page before its first paint.
  * - **Provider profiles** are not settings. They live in the app database with their own store (providers.ts), because the
  *   gateway owns their validation and their identity. The active profile is mirrored here only for the record §5.1 names.
  * - **Coherence** (the checks a scan runs, the default scope, the cap on a review) and **MCP** are slices here, each read by its

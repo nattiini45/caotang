@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { classicPin } from './e2e/classic-pin.js';
+
 // One port for the dev server and the suite. CAOTANG_E2E_PORT gives a parallel checkout its
 // own server; with it set, an existing server is never reused, because on a shared machine
 // the one already listening may be another checkout's build of the app.
@@ -18,12 +20,12 @@ const crossBrowser = process.env['CAOTANG_E2E_BROWSERS'] === 'all';
 // worker with no page (.github/workflows/provider-smoke.yml). Every other run keeps both servers.
 const noServer = process.env['CAOTANG_E2E_NO_SERVER'] === '1';
 
-// CAOTANG_E2E_VISUAL=1 adds the `visual` project: the Classic screenshots (e2e/visual-classic.spec.ts), comparable only with ones taken
-// by CI's Chromium on Linux, so they are left out of `pnpm test:e2e` and run in their own CI step ("Classic visual lock-in").
-const visual = process.env['CAOTANG_E2E_VISUAL'] === '1';
+// CAOTANG_VISUAL=1 adds the `visual` project: the Classic screenshots (e2e/visual/), comparable only with ones taken by CI's pinned
+// Linux Chromium image, so they are left out of `pnpm test:e2e` and run in CI's own `visual` job (modern-interface.md §15.4).
+const visual = process.env['CAOTANG_VISUAL'] === '1';
 
 /** What Firefox and WebKit leave to Chromium: pure model specs (the same in any browser), the build smoke, and the specs that call real provider endpoints. */
-const chromiumOnlySpecs = [/visual-classic\.spec\.ts/, /[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /providers-cors\.spec\.ts/, /provider-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/];
+const chromiumOnlySpecs = [/[\\/]e2e[\\/]visual[\\/]/, /[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /providers-cors\.spec\.ts/, /provider-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/];
 
 /**
  * E2E wiring. Browsers are installed on demand with
@@ -51,11 +53,13 @@ export default defineConfig({
     // are en-US on any machine (i18n.md §8.3).
     locale: 'en-US',
     trace: 'on-first-retry',
+    // Every context starts on Classic (e2e/classic-pin.ts, modern-interface.md §3.4); a spec that checks the default opts out.
+    storageState: classicPin([`http://127.0.0.1:${port}`, `http://127.0.0.1:${previewPort}`]),
   },
   projects: [
     {
       name: 'chromium',
-      testIgnore: [/prod-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/, /visual-classic\.spec\.ts/],
+      testIgnore: [/prod-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/, /[\\/]e2e[\\/]visual[\\/]/],
       use: { ...devices['Desktop Chrome'] },
     },
     { name: 'mobile', testMatch: /mobile-shell\.spec\.ts/, use: { ...devices['Pixel 7'] } },
@@ -65,7 +69,7 @@ export default defineConfig({
       // Chromium, not the iPhone device (which runs WebKit, not installed here and covered by #14): the viewport and touch of an iPhone 14.
       use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 },
     },
-    ...(visual ? [{ name: 'visual', testMatch: /visual-classic\.spec\.ts/, use: { ...devices['Desktop Chrome'] } }] : []),
+    ...(visual ? [{ name: 'visual', testMatch: /[\\/]e2e[\\/]visual[\\/].*\.spec\.ts/, snapshotPathTemplate: '{testDir}/visual/__snapshots__/{arg}{ext}', use: { ...devices['Desktop Chrome'] } }] : []),
     ...(crossBrowser
       ? [
           { name: 'firefox', testIgnore: chromiumOnlySpecs, use: { ...devices['Desktop Firefox'] } },

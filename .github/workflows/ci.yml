@@ -113,7 +113,7 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 1
-    needs: [verify_matrix, e2e, e2e_browsers]
+    needs: [verify_matrix, e2e, e2e_browsers, visual]
     if: always()
     steps:
       - name: Require Node matrix and all browser runs
@@ -121,10 +121,12 @@ jobs:
           MATRIX_RESULT: ${{ needs.verify_matrix.result }}
           CHROMIUM_RESULT: ${{ needs.e2e.result }}
           CROSS_BROWSER_RESULT: ${{ needs.e2e_browsers.result }}
+          VISUAL_RESULT: ${{ needs.visual.result }}
         run: |
           test "$MATRIX_RESULT" = success
           test "$CHROMIUM_RESULT" = success
           test "$CROSS_BROWSER_RESULT" = success
+          test "$VISUAL_RESULT" = success
 
   e2e:
     name: e2e (chromium)
@@ -154,32 +156,6 @@ jobs:
         env:
           CI: 'true'
 
-      # Classic lock-in (e2e/visual-classic.spec.ts): screenshots of the Classic workspace, light and dark, compared with the baselines
-      # committed beside the spec. While none are committed this step writes them (--update-snapshots=all passes) and warns; the
-      # classic-visual-baselines artifact holds them to review and commit, after which every run compares.
-      - name: Classic visual lock-in (screenshots)
-        env:
-          CI: 'true'
-          CAOTANG_E2E_VISUAL: '1'
-        run: |
-          if ls e2e/visual-classic.spec.ts-snapshots/*.png >/dev/null 2>&1; then
-            pnpm exec playwright test --project=visual
-          else
-            echo "::warning title=Classic baselines::No Classic screenshots are committed yet. This run wrote them; commit the classic-visual-baselines artifact into e2e/visual-classic.spec.ts-snapshots/."
-            pnpm exec playwright test --project=visual --update-snapshots=all
-          fi
-
-      - name: Upload the Classic screenshots
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: classic-visual-baselines
-          path: |
-            e2e/visual-classic.spec.ts-snapshots/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 14
-
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -187,6 +163,53 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  # Classic lock-in (modern-interface.md §15.4): screenshots of Classic's surfaces, light and dark, at a zero-pixel threshold
+  # (e2e/visual/classic.spec.ts), in the pinned Playwright image so fonts and anti-aliasing match the baselines in
+  # e2e/visual/__snapshots__/. While none are committed this job writes them (--update-snapshots=all passes), warns, and uploads
+  # them as the visual-baselines artifact to review and commit; the "Visual baselines" workflow rewrites them on demand.
+  visual:
+    name: visual (Classic snapshots)
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Classic snapshots
+        env:
+          HOME: /root
+          CI: 'true'
+          CAOTANG_VISUAL: '1'
+        run: |
+          if ls e2e/visual/__snapshots__/*.png >/dev/null 2>&1; then
+            pnpm exec playwright test --project=visual
+          else
+            echo "::warning title=Classic baselines::No Classic snapshots are committed yet. This run wrote them; review the visual-baselines artifact and commit it into e2e/visual/__snapshots__/."
+            pnpm exec playwright test --project=visual --update-snapshots=all
+          fi
+
+      - name: Upload the snapshots and any diffs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-baselines
+          path: |
+            e2e/visual/__snapshots__/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
   e2e_browsers:
     name: Firefox and WebKit E2E
