@@ -32,6 +32,57 @@
   --manuscript: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --rail-w: 288px;
   --inspector-w: 296px;
+
+  /* ---------------------------------------------------------------------------------------------------------------- *
+   * Semantic tokens (docs/architecture/modern-interface.md §2, §5.1). The names above (--paper … --inspector-w) are
+   * Classic's semantic colour, type and layout tokens and keep their names and values (D6). The tokens below are the
+   * groundwork for what has no token yet; each Classic value is today's literal or an alias of a token above, and no
+   * Classic rule reads them yet, so Classic renders exactly as before. Later milestones move literals onto them, one area
+   * per pull request, against the Classic screenshots (e2e/visual/).
+   *
+   * Three axes choose values, each an attribute on <html>, composed by attribute selectors alone:
+   *   shell   data-shell="classic|modern" (app/interface.ts); Modern overrides under :root[data-shell='modern'] in its
+   *           lazily loaded stylesheet (modern/modern.css).
+   *   skin    data-skin, absent for the default; a Classic skin redefines tokens under
+   *           :root[data-shell='classic'][data-skin='<name>'] (designed, not built).
+   *   scheme  data-theme="light|dark", or the system (app/theme.ts).
+   *
+   *   --surface-app, --surface-page   the stage and the manuscript page (= --paper); --panel and --raised stay as they are
+   *   --radius-xs, -sm, -md, -lg, -pill   3, 6, 8 (= --radius), 12 px and a pill
+   *   --elev-0 … -3                   none, the base shadow (= --shadow), a popover, a floating panel
+   *   --focus-width, -offset, -halo   2 px, 2 px, none
+   *   --dur-2, --ease-standard        the shell's one transition today: 0.2 s, ease
+   *   --target-min, --control-pad-x   24 px pointer target (WCAG 2.5.8), a button's 12 px side padding
+   *   --mat-*, --scrim, --wallpaper   Modern's materials; solid in Classic, so a stray use renders sanely
+   * ---------------------------------------------------------------------------------------------------------------- */
+  --surface-app: var(--paper);
+  --surface-page: var(--paper);
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: var(--radius);
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --elev-0: none;
+  --elev-1: var(--shadow);
+  --elev-2: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+  --elev-3: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --focus-halo: none;
+  --dur-2: 0.2s;
+  --ease-standard: ease;
+  --target-min: 24px;
+  --control-pad-x: 12px;
+  --mat-glass-bg: var(--raised);
+  --mat-glass-blur: 0px;
+  --mat-glass-saturate: 100%;
+  --mat-glass-edge-hi: transparent;
+  --mat-glass-edge-lo: transparent;
+  --mat-thick-bg: var(--raised);
+  --mat-thick-blur: 0px;
+  --mat-frost-bg: var(--paper);
+  --scrim: transparent;
+  --wallpaper: none;
   font-family: var(--ui);
 }
 

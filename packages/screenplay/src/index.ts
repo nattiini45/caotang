@@ -130,11 +130,16 @@ export {
 export {
   FDX_MIME,
   createFdxRenderer,
+  describeFdxImport,
   importFdx,
+  lengthInEighths,
   parseFdxParagraphs,
   parseFdxTitlePage,
   renderFdx,
+  type FdxImportReport,
+  type FdxImportedScript,
   type FdxParagraph,
+  type FdxSegment,
   type FdxRenderResult,
   type FdxRenderer,
 } from './fdx.js';
