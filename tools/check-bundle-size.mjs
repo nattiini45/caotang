@@ -80,8 +80,8 @@ export const BUDGET = {
   // 6,137.5 kB measured on main at #252, 2.5 kB under that ceiling, with eight feature PRs in flight (#175, #209, #86, #69, #106, #152, #192, #253)
   // that each add a few kB of app code; the ceiling is raised once to the measured size plus about 1% so each PR is not trimmed to fit.
   // 6,202.0 kB measured with this batch merged (#254, #255, #257, #258, #259, #261, #262) and the story parts (#175); the ceiling is that plus about 1%.
-  // The shared import readers (#268) are lazy chunks and leave the caps as they are: `xml` is 1.6 kB raw, 0.9 kB gzip, measured (the XML decoder
-  // the Final Draft import loads on use; the entry grew 0.3 kB for its loader). Measured standalone, minified, the whole XML reader is 14.1 kB
+  // The shared import readers (#268) are lazy chunks and leave the caps as they are: `xml` is 1.7 kB raw, 1.0 kB gzip, measured after #264 merged (the XML decoder
+  // the Final Draft import loads on use; the entry grew 0.5 kB raw for its loader and refusal handling). Measured standalone, minified, the whole XML reader is 14.1 kB
   // (4.5 kB gzip) and the archive reader 8.5 kB (3.4 kB gzip) without fflate, which is already its own chunk; each lands in this table as the
   // importers that use it are built (#263).
   totalJs: 6_265_000,

@@ -57,7 +57,7 @@ describe('openZip — the manifest first, the rest on demand', () => {
     expect(archive.ignored).toEqual(['__MACOSX/._a.txt', 'dir/._b.txt', 'dir/.DS_Store']);
   });
 
-  it('decodes names as UTF-8 when flagged or valid, and as code page 437 otherwise', async () => {
+  it('decodes names as UTF-8 when valid, flagged or not, and as code page 437 otherwise', async () => {
     // "Größe.txt" as DOS writes it in CP437: ö is 0x94, ß is 0xE1.
     const cp437 = new Uint8Array([0x47, 0x72, 0x94, 0xe1, 0x65, 0x2e, 0x74, 0x78, 0x74]);
     const archive = await opened(
@@ -70,7 +70,10 @@ describe('openZip — the manifest first, the rest on demand', () => {
     expect(archive.entries.map((e) => e.path)).toEqual(['Größe.txt', '草堂.txt', 'Café.txt']);
     expect(dec.decode(value(await archive.read('Größe.txt')))).toBe('dos');
     expect(dec.decode(value(await archive.read('Café.txt')))).toBe('unflagged utf-8');
-    expect(decodeEntryName(new Uint8Array([0x80, 0xff]), false)).toBe('Ç\u00a0');
+    expect(decodeEntryName(new Uint8Array([0x80, 0xff]))).toBe('Ç\u00a0');
+    // A name flagged UTF-8 whose bytes are not UTF-8 is read as code page 437, never with U+FFFD in it.
+    const flagged = await opened(rawZip([{ name: new Uint8Array([0x82, 0x61]), data: enc.encode('x'), flags: 0x800 }]));
+    expect(flagged.entries.map((e) => e.path)).toEqual(['éa']);
   });
 
   it('turns backslashes into separators and drops . segments', async () => {
@@ -83,6 +86,36 @@ describe('openZip — refusals, by name, before anything is inflated', () => {
   it('refuses something that is not a zip', async () => {
     expect((await refused(enc.encode('not a zip at all, just some text that is long enough'))).code).toBe('not-a-zip');
     expect((await refused(new Uint8Array(3))).code).toBe('not-a-zip');
+  });
+
+  it('reads a zip that writes the zip64 records, and refuses a damaged directory by its own name', async () => {
+    const text = enc.encode('草堂 zip64');
+    const packed = deflateSync(enc.encode('a'.repeat(5000)));
+    const entries = [
+      { name: 'Draft/one.txt', data: text },
+      { name: 'Draft/two.txt', data: packed, method: 8, size: 5000 },
+    ];
+    const archive = await opened(rawZip(entries, { zip64: true }));
+    expect(archive.entries).toEqual([
+      { path: 'Draft/one.txt', size: text.length, compressedSize: text.length },
+      { path: 'Draft/two.txt', size: 5000, compressedSize: packed.length },
+    ]);
+    expect(dec.decode(value(await archive.read('Draft/one.txt')))).toBe('草堂 zip64');
+    expect(value(await archive.read('Draft/two.txt'))).toHaveLength(5000);
+    // With the zip64 end record damaged, the plain end record's 0xFFFF entries are too many; with that cap raised, its
+    // 0xFFFFFFFF directory offset points past the file, and the directory is reported damaged, not "not a zip".
+    expect((await refused(rawZip(entries, { zip64: true, breakZip64Record: true }))).code).toBe('too-many-entries');
+    expect((await refused(rawZip(entries, { zip64: true, breakZip64Record: true }), { maxEntries: 70_000 })).code).toBe('corrupt-directory');
+  });
+
+  it('keeps every cap when an override is NaN, Infinity or negative, and the default caps cannot be changed', async () => {
+    const zip = rawZip([{ name: 'a.txt', data: enc.encode('abc') }]);
+    expect((await refused(zip, { maxArchiveBytes: 10, maxEntryBytes: Number.NaN })).code).toBe('archive-too-large');
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+      const bomb = rawZip([{ name: 'bomb.bin', data: deflateSync(new Uint8Array(2 * 1024 * 1024)), method: 8, size: 2 * 1024 * 1024 }]);
+      expect((await refused(bomb, { maxRatio: bad })).code).toBe('zip-bomb');
+    }
+    expect(Object.isFrozen(ARCHIVE_LIMITS)).toBe(true);
   });
 
   it('refuses path traversal anywhere in the archive', async () => {
@@ -161,7 +194,7 @@ describe('openFolder — the folder-upload equivalent', () => {
     const liar = value(openFolder([{ path: 'liar', size: 1, read: async () => enc.encode('longer') }]));
     expect(await liar.read('liar')).toMatchObject({ ok: false, error: { code: 'entry-too-large' } });
     const broken = value(openFolder([{ path: 'gone', size: 1, read: async () => Promise.reject(new Error('NotReadableError')) }]));
-    expect(await broken.read('gone')).toMatchObject({ ok: false, error: { code: 'corrupt-entry' } });
+    expect(await broken.read('gone')).toMatchObject({ ok: false, error: { code: 'unreadable' } });
   });
 });
 

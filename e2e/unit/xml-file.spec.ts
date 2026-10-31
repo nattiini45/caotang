@@ -32,3 +32,8 @@ test('reads a declared windows-1252 file, and refuses bytes that are not valid i
   const result = await readXmlFileText(new Uint8Array([...new TextEncoder().encode('<t>'), 0xff, 0xfe, 0x41]));
   expect(result).toEqual({ problem: 'The file holds bytes that are not valid utf-8' });
 });
+
+test('turns a reader chunk that cannot be loaded into a problem, never a rejection', async () => {
+  const result = await readXmlFileText(new TextEncoder().encode('<t/>'), () => Promise.reject(new TypeError('Failed to fetch dynamically imported module')));
+  expect(result).toEqual({ problem: 'the file reader could not be loaded; reload Caotang and try again' });
+});

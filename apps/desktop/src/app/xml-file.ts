@@ -8,11 +8,31 @@
  * U+FFFD in their place.
  */
 
+import type { decodeXmlBytes as DecodeXmlBytes } from '@caotang/import-read/xml';
+
 /** The text, or the reason in words the file could not be read. */
 export type XmlFileText = { readonly text: string } | { readonly problem: string };
 
-export async function readXmlFileText(bytes: Uint8Array): Promise<XmlFileText> {
+/** Loads the shared XML reader's chunk. A parameter only so a test can make the load fail. */
+export type XmlReaderLoader = () => Promise<{ readonly decodeXmlBytes: typeof DecodeXmlBytes }>;
+
+// Destructured at the import, so the bundler keeps only the decoder in the chunk and not the whole reader.
+const loadXmlReader: XmlReaderLoader = async () => {
   const { decodeXmlBytes } = await import('@caotang/import-read/xml');
+  return { decodeXmlBytes };
+};
+
+/**
+ * Never rejects: a reader chunk that cannot be loaded (it 404s once the app was redeployed under an open tab, or the network is
+ * gone) comes back as a problem too, so the status line says why and the import does nothing.
+ */
+export async function readXmlFileText(bytes: Uint8Array, load: XmlReaderLoader = loadXmlReader): Promise<XmlFileText> {
+  let decodeXmlBytes: typeof DecodeXmlBytes;
+  try {
+    ({ decodeXmlBytes } = await load());
+  } catch {
+    return { problem: 'the file reader could not be loaded; reload Caotang and try again' };
+  }
   const decoded = decodeXmlBytes(bytes);
   return decoded.ok ? { text: decoded.text } : { problem: decoded.error.message };
 }

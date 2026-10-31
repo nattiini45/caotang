@@ -96,6 +96,22 @@ test('a Final Draft file saved as UTF-16 imports as its author wrote it (#268)',
   expect((await treeOf(page)).some((node) => node.title === 'INT. CAFÉ GRÖNLAND - NIGHT')).toBe(true);
 });
 
+test('a Final Draft file whose bytes are not valid in its encoding is refused on the status line, and nothing is imported (#268)', async ({ page }) => {
+  await createProject(page, PROJECT);
+  const before = (await treeOf(page)).length;
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'broken.fdx',
+    mimeType: 'application/xml',
+    // 0xFF can never start a UTF-8 character, so the reader refuses the file rather than importing U+FFFD noise.
+    buffer: Buffer.concat([Buffer.from('<FinalDraft><Content><Paragraph Type="Action"><Text>'), Buffer.from([0xff]), Buffer.from('</Text></Paragraph></Content></FinalDraft>')]),
+  });
+
+  await expect(page.getByText(/broken\.fdx could not be read: .*not valid utf-8/)).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Import this Final Draft script?' })).toBeHidden();
+  expect(await traceNames(page)).not.toContain('screenplay.import');
+  expect(await treeOf(page)).toHaveLength(before);
+});
+
 test('a Final Draft file shows its notes and dual dialogue before it imports, then imports with its scene numbers', async ({ page }) => {
   await createProject(page, PROJECT);
   // A byte order mark and Windows line ends, as a Windows editor saves the file. The note and the wrapped dual-dialogue pair

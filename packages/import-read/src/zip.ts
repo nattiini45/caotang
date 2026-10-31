@@ -1,5 +1,5 @@
 /**
- * The archive reader every import shares (issue #268; research: scrivener.md §5, doc-formats.md §1).
+ * The archive reader every import shares (issue #268; research in the Imports epic, #263).
  *
  * A Scrivener project arrives as a zip (a Mac `.scriv` is a package that Chrome's folder picker cannot select) or as a folder
  * (Windows and Linux); DOCX, ODT, EPUB, XLSX and TextPack are zips. Both shapes come out as one {@link ImportArchive}: a list of
@@ -20,7 +20,7 @@
  * - a path that leaves the archive (`..`, a leading `/`, a drive letter), two entries with one path, and encryption.
  *
  * **What it leaves out without refusing:** directories, `__MACOSX/` and AppleDouble `._*` files, and `.DS_Store`; their paths are
- * listed in `ignored`. Entry names are decoded as UTF-8 when the zip says so (flag bit 11) or when the bytes are valid UTF-8, and
+ * listed in `ignored`. Entry names are decoded as UTF-8 when the bytes are valid UTF-8 (whatever flag bit 11 says), and
  * as code page 437 otherwise, which is what Windows' and older macOS archivers write.
  */
 
@@ -48,14 +48,14 @@ const MB = 1024 * 1024;
  * The defaults. A research-heavy Scrivener project can be hundreds of megabytes, so a reader that expects one raises
  * `maxArchiveBytes`, `maxTotalBytes` and `maxEntries` for that format; the defaults suit a document format.
  */
-export const ARCHIVE_LIMITS: ArchiveLimits = {
+export const ARCHIVE_LIMITS: ArchiveLimits = Object.freeze({
   maxArchiveBytes: 512 * MB,
   maxEntries: 2000,
   maxEntryBytes: 256 * MB,
   maxTotalBytes: 1024 * MB,
   maxRatio: 200,
   ratioFloorBytes: 1 * MB,
-};
+});
 
 export type ArchiveErrorCode =
   | 'not-a-zip'
@@ -68,7 +68,10 @@ export type ArchiveErrorCode =
   | 'duplicate-entry'
   | 'encrypted'
   | 'unsupported-compression'
+  | 'corrupt-directory'
   | 'corrupt-entry'
+  | 'unreadable'
+  | 'reader-unavailable'
   | 'not-found';
 
 /** A named reason an archive, or one entry of it, could not be read. `path` names the entry when it is about one. */
@@ -148,9 +151,11 @@ const CP437_HIGH =
 
 const utf8Strict = new TextDecoder('utf-8', { fatal: true });
 
-/** An entry name's bytes as text: UTF-8 when the flag says so or the bytes are valid UTF-8, code page 437 otherwise. */
-export function decodeEntryName(bytes: Uint8Array, utf8Flag: boolean): string {
-  if (utf8Flag) return new TextDecoder('utf-8').decode(bytes);
+/**
+ * An entry name's bytes as text: UTF-8 when the bytes are valid UTF-8 (flagged or not), code page 437 otherwise. A flagged name
+ * whose bytes are not UTF-8 is read as code page 437 rather than with U+FFFD in it, so two damaged names never collide.
+ */
+export function decodeEntryName(bytes: Uint8Array): string {
   try {
     return utf8Strict.decode(bytes);
   } catch {
@@ -213,7 +218,9 @@ function readCentralDirectory(d: Uint8Array, maxEntries: number): ArchiveResult<
   const records: CentralRecord[] = [];
   let at = offset;
   for (let i = 0; i < count; i += 1) {
-    if (at + 46 > d.length || u32(d, at) !== 0x02014b50) return bad('The zip directory is damaged');
+    if (at + 46 > d.length || u32(d, at) !== 0x02014b50) {
+      return { ok: false, error: new ImportArchiveError('corrupt-directory', 'The zip directory is damaged: the file may be cut short') };
+    }
     const flags = u16(d, at + 8);
     const method = u16(d, at + 10);
     let compressedSize = u32(d, at + 20);
@@ -239,7 +246,7 @@ function readCentralDirectory(d: Uint8Array, maxEntries: number): ArchiveResult<
     }
     records.push({
       fflateName: utf8 ? new TextDecoder('utf-8').decode(nameBytes) : latin1(nameBytes),
-      name: decodeEntryName(nameBytes, utf8),
+      name: decodeEntryName(nameBytes),
       flags,
       method,
       compressedSize,
@@ -295,8 +302,24 @@ function admit(candidates: readonly Candidate[], limits: ArchiveLimits, checkRat
   return { ok: true, value: { kept, ignored } };
 }
 
+/**
+ * The defaults with the overrides laid over them. An override that is not a finite number (NaN or Infinity would turn the cap
+ * off, since every check is a `>`), or is not positive (zero is allowed for `ratioFloorBytes`), keeps the default.
+ */
 function limitsOf(overrides: Partial<ArchiveLimits> | undefined): ArchiveLimits {
-  return { ...ARCHIVE_LIMITS, ...overrides };
+  const pick = (key: keyof ArchiveLimits): number => {
+    const value = overrides?.[key];
+    const floor = key === 'ratioFloorBytes' ? 0 : Number.MIN_VALUE;
+    return value !== undefined && Number.isFinite(value) && value >= floor ? value : ARCHIVE_LIMITS[key];
+  };
+  return {
+    maxArchiveBytes: pick('maxArchiveBytes'),
+    maxEntries: pick('maxEntries'),
+    maxEntryBytes: pick('maxEntryBytes'),
+    maxTotalBytes: pick('maxTotalBytes'),
+    maxRatio: pick('maxRatio'),
+    ratioFloorBytes: pick('ratioFloorBytes'),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -329,7 +352,13 @@ export async function openZip(bytes: Uint8Array, overrides?: Partial<ArchiveLimi
     true,
   );
   if (!admitted.ok) return admitted;
-  const unzipSync = await loadUnzipSync();
+  let unzipSync: typeof UnzipSync;
+  try {
+    unzipSync = await loadUnzipSync();
+  } catch (cause) {
+    // A chunk that 404s after a redeploy, or one a policy refuses, is about the app, not the file: say so by name.
+    return { ok: false, error: new ImportArchiveError('reader-unavailable', `The unzip reader could not be loaded: ${cause instanceof Error ? cause.message : String(cause)}`) };
+  }
   const byPath = new Map<string, Kept>(admitted.value.kept.map((k) => [k.entry.path, k]));
 
   const readMany = async (paths: readonly string[]): Promise<ArchiveResult<ReadonlyMap<string, Uint8Array>>> => {
@@ -428,7 +457,7 @@ export function openFolder(files: readonly FolderFile[], overrides?: Partial<Arc
     try {
       data = await file.read();
     } catch (cause) {
-      return { ok: false, error: new ImportArchiveError('corrupt-entry', `${path} could not be read: ${cause instanceof Error ? cause.message : String(cause)}`, path) };
+      return { ok: false, error: new ImportArchiveError('unreadable', `${path} could not be read: ${cause instanceof Error ? cause.message : String(cause)}`, path) };
     }
     if (data.length > limits.maxEntryBytes || data.length > kept.entry.size) {
       return { ok: false, error: new ImportArchiveError('entry-too-large', `${path} read back larger than it said it was`, path) };

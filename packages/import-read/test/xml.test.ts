@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { FDX_SAMPLE } from '../../screenplay/test/fixtures/corpus.js';
 import { parseFdxParagraphs } from '../../screenplay/src/index.js';
 import {
+  XML_LIMITS,
   XML_NAMESPACE,
   XmlReadError,
   attr,
@@ -214,6 +215,31 @@ describe('readXml — malformed input is a named error, never a throw', () => {
     expect(fails('<a/>', { maxInput: 3 }).code).toBe('too-large');
     expect(fails('<a>'.repeat(10) + '</a>'.repeat(10), { maxDepth: 5 }).code).toBe('too-deep');
     expect(fails(`<a>${'<b/>'.repeat(10)}</a>`, { maxNodes: 5 }).code).toBe('too-many-nodes');
+  });
+
+  it('keeps every cap when an option is NaN, Infinity, zero or negative, and the default caps cannot be changed', () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 0, -1]) {
+      expect(fails(`<a>${'<b>'.repeat(2000)}${'</b>'.repeat(2000)}</a>`, { maxDepth: bad }).code).toBe('too-deep');
+    }
+    expect(ok('<a/>', { maxInput: Number.NaN, maxNodes: Number.NaN }).root.name).toBe('a');
+    expect(Object.isFrozen(XML_LIMITS)).toBe(true);
+  });
+
+  it('checks a tag with many attributes for a duplicate in linear time', () => {
+    const timed = (count: number): number => {
+      const source = `<a ${Array.from({ length: count }, (_, i) => `x${i}="1"`).join(' ')} x0="2"/>`;
+      let best = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < 3; i += 1) {
+        const start = performance.now();
+        expect(fails(source).code).toBe('duplicate-attribute');
+        best = Math.min(best, performance.now() - start);
+      }
+      return best;
+    };
+    const small = timed(5_000);
+    const large = timed(20_000);
+    // Four times the attributes: a set lookup takes about four times as long, a scan of the earlier ones sixteen.
+    expect(large / Math.max(small, 0.5)).toBeLessThan(10);
   });
 
   it('reads a deep document without recursing, and a truncated one in linear time', () => {

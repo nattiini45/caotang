@@ -1,5 +1,5 @@
 /**
- * The XML reader every import shares (issue #268; research: doc-formats.md §1, scrivener.md §4.2).
+ * The XML reader every import shares (issue #268; research in the Imports epic, #263).
  *
  * DOCX, ODT, EPUB, XLSX, Scrivener's `.scrivx`, yWriter's `.yw7`, novelWriter's `.nwx`, Scapple's `.scap` and Final Draft's `.fdx`
  * are XML. `DOMParser` is not available in a Web Worker, and the CLI and the MCP server run in Node, so a reader that should run off
@@ -98,7 +98,9 @@ export type XmlErrorCode =
   | 'bad-name'
   | 'bad-attribute'
   | 'duplicate-attribute'
-  | 'unterminated';
+  | 'unterminated'
+  /** Something inside the reader failed that is not about the input (an engine limit, or a bug); `cause` keeps the original. */
+  | 'internal-error';
 
 /** A named reason the file could not be read, with where in the text it was found (1-based; 0 when it is about the bytes). */
 export class XmlReadError extends Error {
@@ -108,8 +110,9 @@ export class XmlReadError extends Error {
     message: string,
     readonly line = 0,
     readonly column = 0,
+    options?: { readonly cause?: unknown },
   ) {
-    super(line > 0 ? `${message} (line ${line}, column ${column})` : message);
+    super(line > 0 ? `${message} (line ${line}, column ${column})` : message, options);
   }
 }
 
@@ -128,7 +131,12 @@ export interface XmlReadOptions {
  * The default caps. A Word `document.xml` for a 200,000-word novel is about 30 MB and a few hundred thousand nodes, so these
  * leave room for a long book and stop a file built to exhaust memory.
  */
-export const XML_LIMITS = { maxInput: 256 * 1024 * 1024, maxDepth: 1024, maxNodes: 8_000_000 } as const;
+export const XML_LIMITS = Object.freeze({ maxInput: 256 * 1024 * 1024, maxDepth: 1024, maxNodes: 8_000_000 } as const);
+
+/** A cap as given, or the default when it is missing or not a positive whole number (NaN or Infinity would turn the cap off). */
+function capOf(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // Bytes to text
@@ -168,7 +176,7 @@ function decodeWith(label: string, bytes: Uint8Array): string | XmlReadError {
  * UTF-16 document starts with a mark), so the bytes win. Invalid bytes are an error rather than U+FFFD.
  */
 export function decodeXmlBytes(bytes: Uint8Array, options: Pick<XmlReadOptions, 'maxInput'> = {}): XmlDecodeResult {
-  const max = options.maxInput ?? XML_LIMITS.maxInput;
+  const max = capOf(options.maxInput, XML_LIMITS.maxInput);
   if (bytes.length > max) return { ok: false, error: new XmlReadError('too-large', `The file is larger than ${max} bytes`) };
   const [b0, b1, b2, b3] = [bytes[0], bytes[1], bytes[2], bytes[3]];
   let detected: string | null = null;
@@ -215,8 +223,8 @@ function isSpace(code: number): boolean {
 }
 
 /**
- * Whether a character may be part of a name. Generous on purpose (any non-ASCII character is allowed, as XML 1.0 fifth
- * edition nearly does); the ASCII rule is exact: letters, digits, `_ : - .`.
+ * Whether a character may be part of a name. Generous on purpose (U+00B7 and any code point from U+00C0 up, minus × and
+ * ÷, as XML 1.0 fifth edition nearly allows); the ASCII rule is exact: letters, digits, `_ : - .`.
  */
 function isNameChar(code: number): boolean {
   return (
@@ -470,6 +478,8 @@ class Scanner {
       const name = this.readName();
       if (name === null) return { ok: false, error: this.fail('bad-name', 'A tag has no name, or a "<" is not escaped') };
       const raw: RawAttribute[] = [];
+      // A set, so a tag with many attributes is checked for a duplicate in linear time, not quadratic.
+      const seen = new Set<string>();
       let selfClosing = false;
       for (;;) {
         const before = this.at;
@@ -498,8 +508,9 @@ class Scanner {
         if (end === -1) return { ok: false, error: this.fail('unterminated', `The value of ${attrName} is not closed`) };
         const value = src.slice(this.at + 1, end);
         if (value.indexOf('<') !== -1) return { ok: false, error: this.fail('bad-attribute', `The value of ${attrName} holds a "<"`) };
-        if (raw.some((a) => a.name === attrName)) return { ok: false, error: this.fail('duplicate-attribute', `The tag <${name}> has ${attrName} twice`) };
+        if (seen.has(attrName)) return { ok: false, error: this.fail('duplicate-attribute', `The tag <${name}> has ${attrName} twice`) };
         // §3.3.3: a literal tab, line feed or carriage return in a value is a space; a reference to one stays itself.
+        seen.add(attrName);
         raw.push({ name: attrName, value: this.decode(value.replace(/\r\n|[\t\n\r]/g, ' ')) });
         this.at = end + 1;
       }
@@ -555,7 +566,7 @@ class Scanner {
  * `{ ok: false, error }` with a named {@link XmlReadError}.
  */
 export function readXml(input: string | Uint8Array, options: XmlReadOptions = {}): XmlReadResult {
-  const maxInput = options.maxInput ?? XML_LIMITS.maxInput;
+  const maxInput = capOf(options.maxInput, XML_LIMITS.maxInput);
   let text: string;
   let encoding = 'string';
   let declaredEncoding: string | null;
@@ -569,12 +580,15 @@ export function readXml(input: string | Uint8Array, options: XmlReadOptions = {}
     ({ text, encoding, declaredEncoding } = decoded);
   }
   try {
-    const result = new Scanner(text, options.maxDepth ?? XML_LIMITS.maxDepth, options.maxNodes ?? XML_LIMITS.maxNodes).parse();
+    const result = new Scanner(text, capOf(options.maxDepth, XML_LIMITS.maxDepth), capOf(options.maxNodes, XML_LIMITS.maxNodes)).parse();
     if (!result.ok) return result;
     return { ok: true, document: { ...result.document, encoding, declaredEncoding } };
   } catch (cause) {
     // Nothing above throws by design; an engine limit (an allocation failure on a huge string) still must not reach the UI.
-    return { ok: false, error: new XmlReadError('too-large', `The file could not be read: ${cause instanceof Error ? cause.message : String(cause)}`) };
+    return {
+      ok: false,
+      error: new XmlReadError('internal-error', `The file could not be read: ${cause instanceof Error ? cause.message : String(cause)}`, 0, 0, { cause }),
+    };
   }
 }
 
