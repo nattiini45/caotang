@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { NO_PIN } from './classic-pin.js';
 import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
 
 /**
@@ -92,6 +93,32 @@ test('the built app opens on the projects screen with no console errors and no f
   await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
   expect(problems).toEqual([]);
   expect(await violations(page)).toEqual([]);
+});
+
+test.describe('the interface', () => {
+  test.use({ storageState: NO_PIN });
+
+  test('the built app loads the Modern stylesheet as its own chunk, under the policy, only while Modern is on', async ({ page }) => {
+    const problems = await watchForProblems(page);
+    const sheets: string[] = [];
+    page.on('request', (request) => {
+      const name = new URL(request.url()).pathname.split('/').pop() ?? '';
+      if (name.endsWith('.css')) sheets.push(name.replace(/-[\w-]{8}\.css$/, ''));
+    });
+    // A fresh profile resolves to Classic while the parity gate is closed (app/interface.ts), so Modern's sheet is not fetched.
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('classic');
+    expect(sheets).not.toContain('modern');
+
+    await page.evaluate(() => localStorage.setItem('caotang.interface', 'modern'));
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('modern');
+    expect(sheets).toContain('modern');
+    expect(problems).toEqual([]);
+    expect(await violations(page)).toEqual([]);
+  });
 });
 
 test('the built app carries its Content-Security-Policy, unchanged', async ({ page }) => {
