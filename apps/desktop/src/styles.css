@@ -13,8 +13,8 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: var(--text-xl);
+  line-height: var(--leading-ui);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -25,8 +25,8 @@ h3 {
 }
 
 :focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
 }
 
 .visually-hidden {
@@ -44,10 +44,10 @@ h3 {
 
 .button {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   line-height: 1.2;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: var(--space-3) var(--control-pad-x);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong);
   background: var(--raised);
   color: var(--ink);
@@ -96,10 +96,10 @@ h3 {
 input[type='text'],
 .keyword-input {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   padding: 7px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
   width: 100%;
@@ -109,7 +109,7 @@ input[type='text']:focus,
 .keyword-input:focus,
 .notes:focus,
 .synopsis:focus {
-  outline: 2px solid var(--focus);
+  outline: var(--focus-width) solid var(--focus);
   outline-offset: 0;
 }
 
@@ -119,14 +119,14 @@ label {
 
 label > span {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
 }
 
 .muted {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-lg);
   margin: 0;
 }
 
@@ -145,9 +145,9 @@ label > span {
   align-items: center;
   gap: 5px;
   font: inherit;
-  font-size: 11.5px;
-  padding: 2px 8px;
-  border-radius: 999px;
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--raised);
   color: var(--ink-soft);
@@ -178,8 +178,8 @@ button.chip {
    place in the row. A minimum, not a fixed size: a bare chip that carries words ("Unknown status", for a status the
    project no longer holds) grows to fit them instead of spilling into the title. */
 .chip.is-bare.chip-status {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
   justify-content: center;
   margin: -8px;
 }
@@ -202,13 +202,13 @@ button.chip {
   background: none;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-xl);
   line-height: 1;
-  padding: 0 0 0 2px;
+  padding: 0 0 0 var(--space-1);
 }
 
 .field-note {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--warn);
   margin: 0;
 }
@@ -216,7 +216,7 @@ button.chip {
 .drop-note {
   min-height: 1.2em;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--danger);
 }
 
@@ -254,9 +254,9 @@ button.chip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-5);
   height: 52px;
-  padding: 0 14px 0 12px;
+  padding: 0 14px 0 var(--space-5);
   border-bottom: 1px solid var(--line);
   background: var(--paper);
 }
@@ -265,22 +265,22 @@ button.chip {
 .toolbar-end {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   min-width: 0;
 }
 
 .project-name {
   font-size: 15px;
-  margin: 0 0 0 8px;
+  margin: 0 0 0 var(--space-4);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .save-state {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
-  padding: 4px 6px;
+  padding: var(--space-2) var(--space-3);
   white-space: nowrap;
 }
 
@@ -306,14 +306,14 @@ button.chip {
   /* Five tabs: a narrow rail wraps the last onto a second line rather than hiding it. */
   flex-wrap: wrap;
   gap: 0;
-  padding: 6px 8px 0;
+  padding: var(--space-3) var(--space-4) 0;
   border-bottom: 1px solid var(--line);
 }
 
 .rail-tab {
   font: inherit;
-  font-size: 13px;
-  padding: 8px 5px;
+  font-size: var(--text-lg);
+  padding: var(--space-4) 5px;
   border: none;
   border-bottom: 2px solid transparent;
   background: none;
@@ -335,7 +335,7 @@ button.chip {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px 8px 16px;
+  padding: var(--space-4) var(--space-4) var(--space-6);
 }
 
 .center {
@@ -351,7 +351,7 @@ button.chip {
   grid-column: 3;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 16px 28px;
+  padding: var(--space-6) var(--space-6) 28px;
   border-left: 1px solid var(--line);
   background: var(--panel);
 }
@@ -369,13 +369,13 @@ button.chip {
   max-width: min(680px, calc(100vw - 32px));
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 10px 10px 16px;
+  gap: var(--space-5);
+  padding: 10px 10px 10px var(--space-6);
   border-radius: 10px;
   border: 1px solid var(--line-strong);
   background: var(--raised);
   box-shadow: var(--shadow), 0 2px 8px rgba(0, 0, 0, 0.08);
-  font-size: 13px;
+  font-size: var(--text-lg);
   z-index: 40;
 }
 
@@ -397,8 +397,8 @@ button.chip {
 }
 
 .status-link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-offset);
 }
 
 /* ------------------------------------------------------------------ *
@@ -590,16 +590,16 @@ button.chip {
 .center-switch {
   display: inline-flex;
   align-self: flex-start;
-  margin: 12px 24px 0;
+  margin: var(--space-5) 24px 0;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
 .segmented-item {
   font: inherit;
-  font-size: 12.5px;
-  padding: 5px 12px;
+  font-size: var(--text-md);
+  padding: 5px var(--space-5);
   border: none;
   border-right: 1px solid var(--line);
   background: var(--raised);
@@ -640,7 +640,7 @@ button.chip {
 .editor-title {
   font-family: var(--manuscript);
   font-size: 24px;
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 /* ------------------------------------------------------------------ *
@@ -656,7 +656,7 @@ button.chip {
   padding-bottom: 40px;
   font-family: var(--manuscript);
   font-size: 17px;
-  line-height: 1.7;
+  line-height: var(--leading-prose);
   color: var(--ink);
 }
 
@@ -740,8 +740,8 @@ button.chip {
 
 .ProseMirror pre {
   margin: 0 0 0.9em;
-  padding: 10px 12px;
-  border-radius: 6px;
+  padding: 10px var(--space-5);
+  border-radius: var(--radius-sm);
   background: var(--panel);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 0.9em;
@@ -832,7 +832,7 @@ button.chip {
   padding-top: 10px;
   border-top: 1px solid var(--line);
   font-family: var(--ui);
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -845,25 +845,25 @@ button.chip {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 16px;
-  padding: 10px 12px;
+  gap: var(--space-5);
+  margin: 0 0 var(--space-6);
+  padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
   font-family: var(--ui);
-  font-size: 13px;
+  font-size: var(--text-lg);
   line-height: 1.5;
   color: var(--ink-soft);
 }
 
 .load-banner p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .load-banner ul {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
   padding-left: 18px;
 }
 
@@ -1368,7 +1368,7 @@ dialog.export-dialog::backdrop {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 12px 24px 24px;
+  padding: var(--space-5) 24px 24px;
   overflow: auto;
 }
 
@@ -1377,23 +1377,23 @@ dialog.export-dialog::backdrop {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .crumbs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--text-lg);
   color: var(--muted);
 }
 
 .crumbs li + li::before {
   content: '›';
-  margin-right: 6px;
+  margin-right: var(--space-3);
 }
 
 .corkboard-controls {
@@ -1405,12 +1405,12 @@ dialog.export-dialog::backdrop {
 .corkboard-controls .segmented {
   display: inline-flex;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .corkboard-controls .segmented-item {
-  padding: 4px 10px;
+  padding: var(--space-2) 10px;
 }
 
 .cards {
@@ -3364,9 +3364,9 @@ dialog.confirm:has(.folder-file-preview) {
     height: auto;
     min-height: 52px;
     flex-wrap: wrap;
-    row-gap: 6px;
-    padding-top: 6px;
-    padding-bottom: 6px;
+    row-gap: var(--space-3);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
   }
 
   .toolbar-end {
@@ -3392,8 +3392,8 @@ dialog.confirm:has(.folder-file-preview) {
     flex: none;
     height: auto;
     min-height: 52px;
-    gap: 6px;
-    padding: 4px 8px;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
   }
 
   .workspace .toolbar-start {
@@ -3402,7 +3402,7 @@ dialog.confirm:has(.folder-file-preview) {
 
   .workspace .toolbar-end {
     flex: none;
-    gap: 4px;
+    gap: var(--space-2);
   }
 
   .workspace .center {
@@ -3420,7 +3420,7 @@ dialog.confirm:has(.folder-file-preview) {
     background: var(--panel);
     box-shadow: var(--shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
     visibility: hidden;
-    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    transition: transform var(--dur-2) var(--ease-standard), visibility 0s linear var(--dur-2);
   }
 
   .workspace .rail.is-drawer {
@@ -3449,7 +3449,7 @@ dialog.confirm:has(.folder-file-preview) {
   .workspace .sheet.is-open {
     visibility: visible;
     transform: none;
-    transition: transform 0.2s ease, visibility 0s;
+    transition: transform var(--dur-2) var(--ease-standard), visibility 0s;
   }
 
   .workspace .sheet .inspector {
@@ -3463,14 +3463,14 @@ dialog.confirm:has(.folder-file-preview) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 4px 8px 4px 16px;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-6);
     border-bottom: 1px solid var(--line);
   }
 
   .workspace .panel-title {
     font-weight: 600;
-    font-size: 14px;
+    font-size: var(--text-xl);
   }
 
   .workspace .scrim {
@@ -3492,7 +3492,7 @@ dialog.confirm:has(.folder-file-preview) {
 
   .workspace .toolbar-title .save-state {
     padding: 0;
-    font-size: 11.5px;
+    font-size: var(--text-xs);
     white-space: normal;
   }
 
@@ -3504,8 +3504,8 @@ dialog.confirm:has(.folder-file-preview) {
 
   .workspace .agent-head {
     flex-wrap: wrap;
-    gap: 0 8px;
-    padding: 4px 8px;
+    gap: 0 var(--space-4);
+    padding: var(--space-2) var(--space-4);
   }
 
   .workspace .agent-provider {
@@ -3522,7 +3522,7 @@ dialog.confirm:has(.folder-file-preview) {
   }
 
   .workspace .agent-body {
-    padding: 4px 8px 12px;
+    padding: var(--space-2) var(--space-4) var(--space-5);
   }
 
   /* Touch targets: every control in the shell is at least 44 by 44 px (WCAG 2.5.5). A sentence's own inline link keeps its line. */
@@ -3541,7 +3541,7 @@ dialog.confirm:has(.folder-file-preview) {
     margin: 0 -4px 0 0;
     padding: 0;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: none;
     color: var(--muted);
     font: inherit;
@@ -3593,7 +3593,7 @@ dialog.confirm:has(.folder-file-preview) {
   }
 
   dialog.settings .settings-body {
-    padding: 12px 12px 24px;
+    padding: var(--space-5) var(--space-5) 24px;
   }
 
   @media (prefers-reduced-motion: reduce) {
