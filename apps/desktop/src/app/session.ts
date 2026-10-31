@@ -1023,17 +1023,17 @@ export class ProjectSession {
     this.assetStaging.discard(ids);
   }
 
-  /**
-   * Imports staged pictures as one `asset.importBatch`, one undo group (pictures.md §2.4). The large-photo question is the host's: a
-   * refusal that carries `details.largePhotoPrompt` is the question, not a failure, so it is not kept in the rejected list; the
-   * staged bytes stay held, and the caller asks once and sends the same ids again with `largePhotos`. The answer is remembered while
-   * the project is open (pictures.md §6.4 step 3), so a later batch without `largePhotos` reuses it and the question is not asked again.
-   */
   /** The large-photo answer the writer gave while this project is open, or `undefined` before they were asked (pictures.md §6.4). */
   largePhotoChoice(): CommandParams['asset.importBatch']['largePhotos'] {
     return this.largePhotoAnswer;
   }
 
+  /**
+   * Imports staged pictures as one `asset.importBatch`, one undo group (pictures.md §2.4). The large-photo question is the host's,
+   * asked before the command when the batch holds a large photo; without an answer the command keeps originals. The answer is
+   * remembered while the project is open (pictures.md §6.4 step 3), so a later batch without `largePhotos` reuses it and the question
+   * is not asked again.
+   */
   async importPictures(
     items: CommandParams['asset.importBatch']['items'],
     chosen?: CommandParams['asset.importBatch']['largePhotos'],
