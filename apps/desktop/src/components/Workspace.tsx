@@ -174,16 +174,13 @@ export function Workspace({
   const [center, setCenterNow] = useState<CenterMode>('editor');
   /** Where the writer asked to go while proposed timeline changes were waiting, until they have answered the question that asks. */
   const [leaving, setLeaving] = useState<CenterMode | 'home' | null>(null);
-  const centerNow = useRef(center);
-  useEffect(() => {
-    centerNow.current = center;
-  }, [center]);
+  // Reads `center` itself (not a ref), so the setter can be passed to a view built during render (react-hooks/refs).
   const setCenter = useCallback(
     (next: CenterMode): void => {
-      if (centerNow.current === 'timeline' && next !== 'timeline' && pendingRows(session.projectId) > 0) setLeaving(next);
+      if (center === 'timeline' && next !== 'timeline' && pendingRows(session.projectId) > 0) setLeaving(next);
       else setCenterNow(next);
     },
-    [session],
+    [session, center],
   );
   const [timelineFocus, setTimelineFocus] = useState<TimelineFocusRequest | null>(null);
   const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);

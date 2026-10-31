@@ -14,7 +14,7 @@
 
 import {
   ASSET_LINK_ROLES,
-  ASSET_SOURCE_KINDS,
+  type ASSET_SOURCE_KINDS,
   PICTURE_LIMITS,
   collectUses,
   deletionBlockers,
