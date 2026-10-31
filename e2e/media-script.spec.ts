@@ -73,6 +73,45 @@ test('a whole Fountain file imports as sections and scenes, and the import is on
   await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY\n\nAlice waves.');
 });
 
+test('a Final Draft file saved as UTF-16 imports as its author wrote it (#268)', async ({ page }) => {
+  await createProject(page, PROJECT);
+  const fdx = [
+    '<?xml version="1.0" encoding="UTF-16" standalone="no" ?>',
+    '<FinalDraft DocumentType="Script" Template="No" Version="3">',
+    '  <Content>',
+    '    <Paragraph Type="Scene Heading"><Text>INT. CAFÉ GRÖNLAND - NIGHT</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>草堂 waits.</Text></Paragraph>',
+    '  </Content>',
+    '</FinalDraft>',
+  ].join('\r\n');
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'cafe.fdx',
+    mimeType: 'application/xml',
+    buffer: Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(fdx, 'utf16le')]),
+  });
+
+  await page.getByRole('dialog', { name: 'Import this Final Draft script?' }).getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(page.getByText(/Imported 1 scene and .* from cafe\.fdx/)).toBeVisible();
+  await waitForSaved(page);
+  expect((await treeOf(page)).some((node) => node.title === 'INT. CAFÉ GRÖNLAND - NIGHT')).toBe(true);
+});
+
+test('a Final Draft file whose bytes are not valid in its encoding is refused on the status line, and nothing is imported (#268)', async ({ page }) => {
+  await createProject(page, PROJECT);
+  const before = (await treeOf(page)).length;
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'broken.fdx',
+    mimeType: 'application/xml',
+    // 0xFF can never start a UTF-8 character, so the reader refuses the file rather than importing U+FFFD noise.
+    buffer: Buffer.concat([Buffer.from('<FinalDraft><Content><Paragraph Type="Action"><Text>'), Buffer.from([0xff]), Buffer.from('</Text></Paragraph></Content></FinalDraft>')]),
+  });
+
+  await expect(page.getByText(/broken\.fdx could not be read: .*not valid utf-8/)).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Import this Final Draft script?' })).toBeHidden();
+  expect(await traceNames(page)).not.toContain('screenplay.import');
+  expect(await treeOf(page)).toHaveLength(before);
+});
+
 test('a Final Draft file shows its notes and dual dialogue before it imports, then imports with its scene numbers', async ({ page }) => {
   await createProject(page, PROJECT);
   // A byte order mark and Windows line ends, as a Windows editor saves the file. The note and the wrapped dual-dialogue pair

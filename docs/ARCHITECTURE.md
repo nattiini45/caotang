@@ -145,6 +145,11 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Owns:** the `caotang.interface` preference and `data-shell` on `<html>` (being built); the shell-actions list, `ClassicShell`, the lazily loaded `ModernShell` and its containers, and the Modern token and material files. Specified, not built.
 - **Spec:** [architecture/modern-interface.md](architecture/modern-interface.md).
 
+### 2.24 `imports` 🧭
+- **Responsibility:** bringing writing in from other tools (Scrivener, Word, OpenDocument, EPUB, Markdown folders, Plottr, yWriter, novelWriter, Scapple, spreadsheets) as one previewed, undoable import each. Every reader emits the same block list; one splitter proposes the binder tree, and one preview lets the writer correct it before anything is written.
+- **Owns:** `packages/import-read` (built, #268): the XML reader every reader shares (namespace-aware, mixed content, entities, CDATA, UTF-8 and UTF-16 by byte-order mark and declaration, named errors, caps on size, depth and nodes; no `DOMParser`, so it runs in a Worker and in Node) and the archive reader (fflate's `unzipSync` only, zip or picked folder through one interface, the manifest read first and entries on demand, caps on archive size, entry count, entry size, total size and ratio, path traversal refused, `__MACOSX/` and `._*` ignored, CP437 names). The XML reader is a lazy chunk today, loaded on first use; the archive reader becomes one with its first importer. The script import's Final Draft path decodes through the XML reader (built); nothing uses the archive reader yet. The block list, the splitter, the preview and the format readers are specified in the Imports epic (#263), not built.
+- **Spec:** the Imports epic, issue #263; decisions under *Imports* in [decisions.md](decisions.md).
+
 ## 3. Data model (sketch)
 
 ```
