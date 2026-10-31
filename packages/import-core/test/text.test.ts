@@ -121,6 +121,31 @@ describe('styles and headings', () => {
   });
 });
 
+describe('hostile input', () => {
+  it('long lines of separators and leaders are read in linear time (no polynomial backtracking)', () => {
+    const long = 50_000;
+    const lines = [
+      `序章${'\t'.repeat(long)}x`,
+      `Chapter${' '.repeat(long)}!`,
+      `Chapter 1${' :'.repeat(long)}x`,
+      `第一章${'·'.repeat(long)}`,
+      `Prologue${' '.repeat(long)}-`,
+      `${'I'.repeat(long)}.`,
+      `x${'. '.repeat(long)}1`,
+    ];
+    const t = performance.now();
+    for (const line of lines) {
+      matchFamily(line);
+      specialOf(line);
+      isShortLine(line);
+      tocKey(line);
+      firstWords(line);
+      countWords(line);
+    }
+    expect(performance.now() - t).toBeLessThan(500);
+  });
+});
+
 describe('the package stays pure', () => {
   const srcDir = resolve(__dirname, '../src');
   const sources = readdirSync(srcDir).map((f) => [f, readFileSync(resolve(srcDir, f), 'utf8')] as const);

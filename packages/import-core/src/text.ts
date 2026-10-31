@@ -61,14 +61,23 @@ export function countWords(text: string): number {
 // Short lines
 // ---------------------------------------------------------------------------------------------------------------------------
 
-const SENTENCE_END = /[.?!…"”»」』。！？]$/u;
-const NUMERAL_DOT = /(?:\d|\b[IVXLCDM]+)\.$/u;
+const SENTENCE_END = new Set([...'.?!…"”»」』。！？']);
+
+/** "3." or "IV." at the end: a numeral before the full stop (a Roman numeral as a whole word). */
+function endsWithNumeralDot(t: string): boolean {
+  if (!t.endsWith('.') || t.length < 2) return false;
+  const before = t[t.length - 2] as string;
+  if (before >= '0' && before <= '9') return true;
+  let i = t.length - 2;
+  while (i >= 0 && 'IVXLCDM'.includes(t[i] as string)) i--;
+  return i < t.length - 2 && (i < 0 || !/[\p{L}\p{N}]/u.test(t[i] as string));
+}
 
 /** §3 Step A: at most 60 characters and 8 words, and no sentence-final punctuation unless it follows a numeral ("Chapter 3."). */
 export function isShortLine(text: string): boolean {
   const t = text.trim();
   if (!t || t.length > 60 || countWords(t) > 8) return false;
-  if (SENTENCE_END.test(t) && !NUMERAL_DOT.test(t)) return false;
+  if (SENTENCE_END.has(t[t.length - 1] as string) && !endsWithNumeralDot(t)) return false;
   return true;
 }
 
@@ -119,23 +128,53 @@ const PART_WORDS = 'part|book|teil|buch|partie|livre|parte|libro|deel|boek|czę�
 const SPECIAL_WORDS =
   'prologue|prolog|prólogo|prologo|epilogue|epilog|épilogue|epílogo|epilogo|interlude|interludium|zwischenspiel|intermède|interludio';
 
-/** "Chapter 3: The Landing", "Chapter Three", "Chapter" alone, "Chapter — The Landing". Not "Part of the problem". */
+/**
+ * The patterns match only a line's *head* (the word and its number), anchored at the start; what follows is read by `tailOf` with a
+ * character loop. No pattern has two adjacent quantifiers that can match the same characters, so none can backtrack
+ * polynomially on a long or hostile line (CodeQL js/polynomial-redos).
+ */
 function wordFamily(words: string): RegExp {
-  return new RegExp(`^(?:${words})(?:\\s*$|(?:${SEP}+|(?<=\\.))(${NUM})(?=$|[\\s.:–—)\\-])[\\s.:–—)\\-]*(.*)$|\\s*[.:–—\\-]\\s*(.+)$)`, 'iu');
+  return new RegExp(`^(?:${words})(?:(?:${SEP}+|(?<=\\.))(${NUM})(?=$|[\\s.:–—)\\-]))?`, 'iu');
 }
 const CHAPTER_RE = wordFamily(CHAPTER_WORDS);
 const PART_RE = wordFamily(PART_WORDS);
 /** German order: "1. Kapitel", "2. Teil". */
-const DE_CHAPTER_RE = /^([0-9]{1,3})\.\s*kapitel(?=$|[\s.:–—-])[\s.:–—-]*(.*)$/iu;
-const DE_PART_RE = /^([0-9]{1,3})\.\s*teil(?=$|[\s.:–—-])[\s.:–—-]*(.*)$/iu;
+const DE_CHAPTER_RE = /^([0-9]{1,3})\.\s*kapitel(?=$|[\s.:–—-])/iu;
+const DE_PART_RE = /^([0-9]{1,3})\.\s*teil(?=$|[\s.:–—-])/iu;
 const CJK_NUM = '[0-9０-９一二三四五六七八九十百千零〇两兩]+';
-const CJK_CHAPTER_RE = new RegExp(`^第\\s*(${CJK_NUM})\\s*[章回节節](?:[\\s:：.、·—–-]*)(.*)$`, 'u');
-const CJK_PART_RE = new RegExp(`^第\\s*(${CJK_NUM})\\s*[部卷编編篇](?:[\\s:：.、·—–-]*)(.*)$`, 'u');
-const KO_CHAPTER_RE = /^제\s*([0-9]+)\s*장(?:[\s:.·—–-]*)(.*)$/u;
-const KO_PART_RE = /^제\s*([0-9]+)\s*부(?:[\s:.·—–-]*)(.*)$/u;
+const CJK_CHAPTER_RE = new RegExp(`^第\\s*(${CJK_NUM})\\s*[章回节節]`, 'u');
+const CJK_PART_RE = new RegExp(`^第\\s*(${CJK_NUM})\\s*[部卷编編篇]`, 'u');
+const KO_CHAPTER_RE = /^제\s*([0-9]+)\s*장/u;
+const KO_PART_RE = /^제\s*([0-9]+)\s*부/u;
 const NUMBER_ONLY_RE = /^[\s—–-]*([0-9]{1,3}|[IVXLCDM]{1,7})[.)]?[\s—–-]*$/u;
-const SPECIAL_RE = new RegExp(`^(${SPECIAL_WORDS})(?:\\s*$|\\s*[.:–—\\-]\\s*(.*)$)`, 'iu');
-const CJK_SPECIAL_RE = /^(序章|序幕|楔子|引子|尾声|尾聲|终章|終章|间章|間章)(?:[\s:：.、·—–-]*)(.*)$/u;
+const SPECIAL_RE = new RegExp(`^(${SPECIAL_WORDS})`, 'iu');
+const CJK_SPECIAL_RE = /^(序章|序幕|楔子|引子|尾声|尾聲|终章|終章|间章|間章)/u;
+
+/** Characters between a chapter number and its title. */
+const TAIL_SEPARATORS = new Set([...' \t\n\r\u00a0\u3000.:–—-)：、·']);
+/** Characters that may introduce a title directly after the word ("Chapter: The Landing"). */
+const TITLE_SEPARATORS = new Set([...'.:–—-']);
+const isWhite = (ch: string): boolean => ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === '\u00a0' || ch === '\u3000';
+
+/** What follows a number: separators skipped, the rest trimmed. */
+function restAfter(after: string): string {
+  let i = 0;
+  while (i < after.length && TAIL_SEPARATORS.has(after[i] as string)) i++;
+  return after.slice(i).trim();
+}
+
+/**
+ * What follows a bare word (no number): nothing at all (`''`), or a separator and a title (the title). Anything else (a letter
+ * straight after the word, or a word after a space: "Chapters", "Part of the problem") is not a chapter line (`null`).
+ */
+function tailOf(after: string): string | null {
+  let i = 0;
+  while (i < after.length && isWhite(after[i] as string)) i++;
+  if (i === after.length) return '';
+  if (!TITLE_SEPARATORS.has(after[i] as string)) return null;
+  const rest = restAfter(after.slice(i));
+  return rest ? rest : null;
+}
 
 export type SpecialKind = 'prologue' | 'epilogue' | 'interlude';
 
@@ -151,25 +190,29 @@ export interface PatternMatch {
 export function matchFamily(text: string): PatternMatch | null {
   const t = text.trim();
   if (!t) return null;
-  const tries: [PatternFamily, RegExp][] = [
+  const words: [PatternFamily, RegExp][] = [
     ['chapter-word', CHAPTER_RE],
-    ['chapter-word', DE_CHAPTER_RE],
     ['part-word', PART_RE],
+  ];
+  for (const [family, re] of words) {
+    const m = re.exec(t);
+    if (!m) continue;
+    const after = t.slice(m[0].length);
+    if (m[1]) return { family, num: m[1], rest: restAfter(after) };
+    const rest = tailOf(after);
+    if (rest !== null) return { family, rest };
+  }
+  const numbered: [PatternFamily, RegExp][] = [
+    ['chapter-word', DE_CHAPTER_RE],
     ['part-word', DE_PART_RE],
     ['cjk-chapter', CJK_CHAPTER_RE],
     ['cjk-part', CJK_PART_RE],
     ['korean-chapter', KO_CHAPTER_RE],
     ['korean-part', KO_PART_RE],
   ];
-  for (const [family, re] of tries) {
+  for (const [family, re] of numbered) {
     const m = re.exec(t);
-    if (!m) continue;
-    if (re === CHAPTER_RE || re === PART_RE) {
-      const num = m[1];
-      const rest = (m[2] ?? m[3] ?? '').trim();
-      return num ? { family, num, rest } : { family, rest };
-    }
-    return { family, num: m[1] ?? '', rest: (m[2] ?? '').trim() };
+    if (m) return { family, num: m[1] ?? '', rest: restAfter(t.slice(m[0].length)) };
   }
   const n = NUMBER_ONLY_RE.exec(t);
   if (n) return { family: 'number', num: n[1] ?? '', rest: '' };
@@ -183,7 +226,7 @@ export const CHAPTER_FAMILIES: ReadonlySet<PatternFamily> = new Set(['chapter-wo
 export function specialOf(text: string): SpecialKind | null {
   const t = text.trim();
   const m = SPECIAL_RE.exec(t);
-  if (m) {
+  if (m && tailOf(t.slice(m[0].length)) !== null) {
     const w = (m[1] ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/gu, '');
     if (w.startsWith('pro')) return 'prologue';
     if (w.startsWith('ep')) return 'epilogue';
@@ -288,23 +331,47 @@ const TOC_TITLE_RE =
   /^(?:table of contents|contents|inhalt|inhaltsverzeichnis|table des matières|sommaire|índice|indice|sommario|inhoud|spis treści|содержание|оглавление|目录|目錄|目次|차례|목차)$/iu;
 export const isTocTitle = (text: string): boolean => TOC_TITLE_RE.test(text.trim());
 
-/** A TOC line compared with the heading it lists: lower case, dot leaders, tabs and a trailing page number removed. */
+const LEADER = new Set([...' \t.·…_-–—']);
+const isTocNumber = (ch: string): boolean => (ch >= '0' && ch <= '9') || 'ivxlcdm'.includes(ch);
+
+/**
+ * A TOC line compared with the heading it lists: lower case, and a trailing page number removed when a tab, a dot leader (two or
+ * more leader characters) or a single space comes before it. A character loop, not a regex, so a long line cannot backtrack.
+ */
 export function tocKey(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[\t ]*(?:[.·…_\-–—\s]{2,}|\t)[\t ]*[0-9ivxlcdm]+$/iu, '')
-    .replace(/[\t ]+[0-9]+$/u, '')
-    .replace(/\s+/gu, ' ')
-    .trim();
+  const t = text.toLowerCase().trimEnd();
+  let end = t.length;
+  let j = end;
+  while (j > 0 && isTocNumber(t[j - 1] as string)) j--;
+  if (j < end && j > 0) {
+    let k = j;
+    let tab = false;
+    while (k > 0 && LEADER.has(t[k - 1] as string)) {
+      if (t[k - 1] === '\t') tab = true;
+      k--;
+    }
+    const leaders = j - k;
+    const digits = /^[0-9]+$/u.test(t.slice(j, end));
+    if (k > 0 && (tab || leaders >= 2 || (leaders === 1 && t[k] === ' ' && digits))) end = k;
+  }
+  return t.slice(0, end).split(/\s+/u).filter(Boolean).join(' ');
 }
 
 /** §3 Step E, "first words": the scene's first sentence, at most 40 characters, cut at a word. */
 export function firstWords(text: string, max = 40): string {
-  const t = text.replace(/\s+/gu, ' ').trim();
+  const t = text.split(/\s+/u).filter(Boolean).join(' ');
   if (!t) return '';
-  const sentence = /^(.+?[.?!…。！？])(?:\s|$)/u.exec(t)?.[1] ?? t;
+  let sentence = t;
+  for (let i = 1; i < t.length; i++) {
+    if ('.?!…。！？'.includes(t[i] as string) && (i + 1 === t.length || t[i + 1] === ' ')) {
+      sentence = t.slice(0, i + 1);
+      break;
+    }
+  }
   if (sentence.length <= max) return sentence;
   const cut = sentence.slice(0, max);
   const space = cut.lastIndexOf(' ');
-  return (space > 10 ? cut.slice(0, space) : cut).replace(/[\s,;:–—-]+$/u, '') + '…';
+  let out = space > 10 ? cut.slice(0, space) : cut;
+  while (out && ' ,;:–—-'.includes(out[out.length - 1] as string)) out = out.slice(0, -1);
+  return out + '…';
 }
