@@ -291,7 +291,7 @@ const ROW_SAMPLE: Partial<Record<CommandName, Record<string, unknown>>> = {
   'asset.import': { stagingId: 'stg_ABCDEF0123', caption: 'The ferry', alt: 'A ferry at dawn', source: { kind: 'import', label: 'ferry.jpg' }, largePhotos: 'keep' },
   'asset.importBatch': { items: [{ stagingId: 'stg_ABCDEF0123', caption: 'The ferry' }], largePhotos: 'working-copies' },
   'asset.setMeta': { assetId: 'a_7K2QX9M4A1', patch: { caption: 'Dawn', tags: ['sea'] }, expect: { caption: null, tags: null } },
-  'screenplay.import': { format: 'fountain' },
+  'screenplay.import': { format: 'fountain', codex: [{ name: 'ANNA', type: 'character' }] },
   'dialogue.importInk': { containers: [{ title: 'The Harbour', body: 'Mara: The boats are in.' }] },
   'dialogue.setMeta': { nodeId: DIALOGUE_ID, patch: { engineTarget: 'ink-json', autoLineIds: true, locBaseline: 'en-GB' } },
   'script.setShowMeta': { nodeId: SHOW_ID, patch: { ratePreset: 'broadcast', cueVocabulary: ['music', 'bed'], targetRuntimeSec: 1800 } },

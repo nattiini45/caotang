@@ -11,6 +11,7 @@ import {
   DIALOGUE_IMPORT_CONTAINERS_MAX,
   DIALOGUE_IMPORT_TEXT_MAX,
   SCREENPLAY_IMPORT_TEXT_MAX,
+  SCREENPLAY_IMPORT_SEEDS_MAX,
   type ValidationNode,
   type ValidationSnapshot,
 } from '../src/index.js';
@@ -106,6 +107,42 @@ describe('screenplay.import', () => {
     const result = validateImport({ format: 'fountain', text: FOUNTAIN, parentId: 'n_BOARDONE000' });
     expect(codeOf(result)).toBe('invalid-params');
     if (!result.ok) expect(result.error.message).toContain('storyboard');
+  });
+
+  // Issue #265: the cast and location rows the writer ticked in the Final Draft import dialog ride on the one command.
+  it('accepts codex rows, trimmed, and drops a blank description', () => {
+    const result = validateImport({
+      format: 'fdx',
+      text: '<FinalDraft/>',
+      codex: [
+        { name: ' ANNA ', type: 'character', description: 'a pilot' },
+        { name: 'STATION', type: 'location', description: '  ' },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.codex).toEqual([
+        { name: 'ANNA', type: 'character', description: 'a pilot' },
+        { name: 'STATION', type: 'location' },
+      ]);
+    }
+  });
+
+  it('reads an empty codex list as none', () => {
+    const result = validateImport({ format: 'fdx', text: '<FinalDraft/>', codex: [] });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect('codex' in result.value).toBe(false);
+  });
+
+  it('refuses a codex row of another type, a blank name, an unknown key, a long description or too many rows', () => {
+    const base = { format: 'fdx', text: '<FinalDraft/>' };
+    expect(codeOf(validateImport({ ...base, codex: 'ANNA' }))).toBe('invalid-params');
+    expect(codeOf(validateImport({ ...base, codex: [{ name: 'GUN', type: 'object' }] }))).toBe('invalid-params');
+    expect(codeOf(validateImport({ ...base, codex: [{ name: '  ', type: 'character' }] }))).toBe('invalid-params');
+    expect(codeOf(validateImport({ ...base, codex: [{ name: 'ANNA', type: 'character', aliases: ['A'] }] }))).toBe('invalid-params');
+    expect(codeOf(validateImport({ ...base, codex: [{ name: 'ANNA', type: 'character', description: 'x'.repeat(2001) }] }))).toBe('invalid-params');
+    const many = Array.from({ length: SCREENPLAY_IMPORT_SEEDS_MAX + 1 }, (_, i) => ({ name: `EXTRA ${i}`, type: 'character' }));
+    expect(codeOf(validateImport({ ...base, codex: many }))).toBe('limit-exceeded');
   });
 
   it('refuses a key the command does not declare', () => {

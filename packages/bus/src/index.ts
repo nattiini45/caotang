@@ -318,6 +318,7 @@ export type {
   DialogueSetMetaParams,
   InkContainerParams,
   ScreenplayImportParams,
+  ScreenplayImportSeed,
 } from './descriptors-script.js';
 export {
   DIALOGUE_ENGINE_TARGETS,
@@ -326,6 +327,8 @@ export {
   DIALOGUE_META_KEYS,
   SCREENPLAY_IMPORT_FORMATS,
   SCREENPLAY_IMPORT_TEXT_MAX,
+  SCREENPLAY_IMPORT_SEEDS_MAX,
+  SCREENPLAY_IMPORT_SEED_TYPES,
 } from './descriptors-script.js';
 // The AV script's show and episode settings (descriptors-av-script.ts), named by the store and by `@caotang/script`, which reads
 // the stored values with the same lists.

@@ -22,6 +22,17 @@
  */
 
 import { printedText, sceneNumberOf, stripSceneNumber } from './classify.js';
+import {
+  arcBeatsWithText,
+  collectSeeds,
+  fdxColour,
+  isBlankSceneColour,
+  productionData,
+  productionNotices,
+  FDX_SEEDS_MAX,
+  type FdxCodexSeed,
+  type FdxProductionData,
+} from './fdx-extras.js';
 import { childElements, ownText, readXml, type XmlElement } from './fdx-xml.js';
 import { importFountainScript, type ImportedScript } from './import.js';
 import { paginate, sceneLengths } from './paginate.js';
@@ -54,6 +65,10 @@ export interface FdxParagraph {
   readonly segments: readonly FdxSegment[];
   /** The text of `SceneProperties/Summary`, on one line. Null when there is none. */
   readonly summary: string | null;
+  /** `SceneProperties Title`, on one line. Null when absent or blank. */
+  readonly sceneTitle: string | null;
+  /** `SceneProperties Color` as `#rrggbb`. Null when absent, unreadable or white (Final Draft's "no colour"). */
+  readonly sceneColour: string | null;
 }
 
 /** What an FDX import kept in Fountain markup, and what it could not keep, counted for the import dialog. */
@@ -72,10 +87,40 @@ export interface FdxImportReport {
   readonly strikeouts: number;
   /** Runs on a scene heading, cue or transition whose bold, italic or underline was dropped (the text is kept). */
   readonly plainedRuns: number;
+  /** Scenes whose `SceneProperties Title` names their binder node (the heading stays in the text). */
+  readonly sceneTitles: number;
+  /** Scenes whose `SceneProperties Color` becomes a binder label. */
+  readonly sceneColours: number;
+  /** Outline elements (`Outline 1` to `Outline 4`) and act breaks (`New Act`, `Cold Opening`) made sections, which become folders. */
+  readonly outlineSections: number;
+  /** Of those, `Outline 4` elements, written at the third level, the deepest a Fountain section has here. */
+  readonly deepOutlines: number;
+  /** `Summary` paragraphs kept as the synopsis of the section or scene above them. */
+  readonly outlineSummaries: number;
+  /** `Summary` paragraphs with no section or scene heading right above them, kept as notes. */
+  readonly summaryNotes: number;
+  /** `Note` paragraphs kept as Fountain notes. */
+  readonly noteParagraphs: number;
+  /** `End of Act` paragraphs kept as centred text at the end of the act. */
+  readonly actEnds: number;
+  /** `Lyrics` paragraphs kept as action. */
+  readonly lyrics: number;
+  /** `Cast List` paragraphs taken out of the script and offered as codex seeds. */
+  readonly castListLines: number;
+  /** Seed names left out: longer than the codex allows, or past the most one import offers. */
+  readonly skippedSeeds: number;
+  /** The production data the file holds and the import does not keep, counted per kind. */
+  readonly production: FdxProductionData;
 }
 
 export interface FdxImportedScript extends ImportedScript {
   readonly report: FdxImportReport;
+  /**
+   * Codex entries Final Draft already lists (SmartType characters and locations, the cast, the character highlighting
+   * and Cast List lines), offered unticked. The import writes none of them unless the caller passes the ticked ones to
+   * `screenplay.import` as `codex`.
+   */
+  readonly seeds: readonly FdxCodexSeed[];
 }
 
 function escapeXml(text: string): string {
@@ -151,6 +196,14 @@ interface DraftParagraph {
   readonly segments: FdxSegment[];
   readonly summary: string | null;
   readonly length: string | null;
+  readonly sceneTitle: string | null;
+  readonly sceneColor: string | null;
+  /** The revision id of each run marked with one (`RevisionID` other than 0). */
+  readonly revisionIds: string[];
+  /** Runs carrying a Tagger tag number. */
+  readonly taggedRuns: number;
+  /** Character arc beats with text in the scene's properties. */
+  readonly arcBeats: number;
 }
 
 /** A listed note: its text and the offset `Range` gives, or null when it gives none. */
@@ -165,18 +218,32 @@ interface FdxDocument {
   readonly unanchored: string[];
   /** Notes placed from the `ScriptNotes` list. */
   readonly listed: number;
+  /** Runs per revision id. */
+  readonly revisions: Map<string, number>;
+  readonly taggedRuns: number;
+  readonly arcBeats: number;
 }
 
 function readParagraph(el: XmlElement, container: number | null, nested: XmlElement[]): DraftParagraph {
   const segments: FdxSegment[] = [];
   let summary: string | null = null;
   let length: string | null = null;
+  let sceneTitle: string | null = null;
+  let sceneColor: string | null = null;
+  const revisionIds: string[] = [];
+  let taggedRuns = 0;
+  let arcBeats = 0;
   for (const child of el.children) {
     if (typeof child === 'string') continue;
     switch (child.name) {
-      case 'Text':
-        segments.push({ kind: 'text', text: ownText(child), style: styleTokens(child.attrs.Style) });
+      case 'Text': {
+        const text = ownText(child);
+        segments.push({ kind: 'text', text, style: styleTokens(child.attrs.Style) });
+        const revision = (child.attrs.RevisionID ?? '').trim();
+        if (revision !== '' && revision !== '0' && text !== '') revisionIds.push(revision);
+        if ((child.attrs.TagNumber ?? '').trim() !== '' && text !== '') taggedRuns += 1;
         break;
+      }
       case 'ScriptNote': {
         const text = noteText(child);
         if (text !== '') segments.push({ kind: 'note', text });
@@ -184,6 +251,9 @@ function readParagraph(el: XmlElement, container: number | null, nested: XmlElem
       }
       case 'SceneProperties': {
         length = child.attrs.Length ?? null;
+        sceneTitle = child.attrs.Title ?? null;
+        sceneColor = child.attrs.Color ?? null;
+        arcBeats += arcBeatsWithText(child);
         const summaries = childElements(child, 'Summary')
           .map((s) => blockText(s))
           .filter((s) => s !== '');
@@ -206,6 +276,11 @@ function readParagraph(el: XmlElement, container: number | null, nested: XmlElem
     segments,
     summary,
     length,
+    sceneTitle,
+    sceneColor,
+    revisionIds,
+    taggedRuns,
+    arcBeats,
   };
 }
 
@@ -300,8 +375,18 @@ function readDocument(root: XmlElement): FdxDocument {
     placed += 1;
   }
 
+  const revisions = new Map<string, number>();
+  let taggedRuns = 0;
+  let arcBeats = 0;
+  for (const d of drafts) {
+    for (const id of d.revisionIds) revisions.set(id, (revisions.get(id) ?? 0) + 1);
+    taggedRuns += d.taggedRuns;
+    arcBeats += d.arcBeats;
+  }
   const paragraphs = drafts.map((d): FdxParagraph => {
     const length = d.length === null ? null : lengthInEighths(d.length, wholeIsPage);
+    const title = oneLine(d.sceneTitle ?? '');
+    const colour = fdxColour(d.sceneColor);
     return {
       type: d.type,
       text: d.segments
@@ -313,9 +398,11 @@ function readDocument(root: XmlElement): FdxDocument {
       number: d.number,
       segments: d.segments,
       summary: d.summary,
+      sceneTitle: title === '' ? null : title,
+      sceneColour: colour === null || isBlankSceneColour(colour) ? null : colour,
     };
   });
-  return { paragraphs, unanchored: [...unanchored, ...legacy], listed: placed };
+  return { paragraphs, unanchored: [...unanchored, ...legacy], listed: placed, revisions, taggedRuns, arcBeats };
 }
 
 /**
@@ -428,7 +515,49 @@ interface Counts {
   hiddenRuns: number;
   strikeouts: number;
   plainedRuns: number;
+  outlineSections: number;
+  deepOutlines: number;
+  outlineSummaries: number;
+  summaryNotes: number;
+  noteParagraphs: number;
+  actEnds: number;
+  lyrics: number;
+  /** The text of each `Cast List` paragraph, in order: offered as codex seeds, never written into a scene. */
+  castList: string[];
 }
+
+function newCounts(): Counts {
+  return {
+    notes: 0,
+    hiddenRuns: 0,
+    strikeouts: 0,
+    plainedRuns: 0,
+    outlineSections: 0,
+    deepOutlines: 0,
+    outlineSummaries: 0,
+    summaryNotes: 0,
+    noteParagraphs: 0,
+    actEnds: 0,
+    lyrics: 0,
+    castList: [],
+  };
+}
+
+/**
+ * The section depth of an outline element or an act break, or null for any other paragraph type. Final Draft's
+ * "Send Outline to Script" writes `Outline 1` to `Outline 3` (Method Storyteller writes `Outline 4` too), and its TV
+ * templates open an act with `New Act` and the cold open with `Cold Opening`. A Fountain section here is at most three
+ * deep, so `Outline 4` is written at the third level.
+ */
+function sectionDepthOf(type: string): 1 | 2 | 3 | null {
+  const outline = /^Outline\s*([1-9])$/i.exec(type.trim());
+  if (outline !== null) return Math.min(Number(outline[1]), 3) as 1 | 2 | 3;
+  if (type === 'New Act' || type === 'Cold Opening') return 1;
+  return null;
+}
+
+/** The paragraph types this import maps to something other than action, and so never notices as unknown. */
+const PLAIN_TYPES: ReadonlySet<string> = new Set(['Scene Heading', 'Character', 'Transition', 'End of Act', 'Cast List', 'Summary', 'Note']);
 
 /** Wraps `text` in Fountain emphasis, keeping its outer white space outside the marks and each line marked on its own. */
 function emphasise(text: string, bold: boolean, italic: boolean, underline: boolean): string {
@@ -508,15 +637,100 @@ function markupOf(segments: readonly FdxSegment[], styled: boolean, inlineNotes:
 function fdxElements(paragraphs: readonly FdxParagraph[], notices: string[], counts: Counts): ScreenplayElement[] {
   const elements: ScreenplayElement[] = [];
   const cuesSeen = new Map<number, number>();
+  // A `Summary` paragraph is the synopsis of the section or scene heading right above it (notes between do not count).
+  // `headingOpen` says one is; `synopsisAt` is the synopsis already written for it, which a further summary extends.
+  let headingOpen = false;
+  let synopsisAt: number | null = null;
+  // A note between a section and its first scene would open an untitled scene of its own, since a section holds no
+  // text. Such notes are held and written at the top of the next scene, after its heading and synopsis.
+  let inSection = false;
+  let held: ScreenplayElement[] = [];
+  const release = (): void => {
+    if (held.length === 0) return;
+    elements.push(...held);
+    held = [];
+  };
+  const push = (element: ScreenplayElement): void => {
+    if (element.type === 'note' && inSection) {
+      held.push(element);
+      return;
+    }
+    if (element.type === 'section') {
+      // Notes held under an empty section stay held, for the first scene that follows.
+      elements.push(element);
+      inSection = true;
+      headingOpen = true;
+      synopsisAt = null;
+      return;
+    }
+    if (element.type === 'scene_heading') {
+      // Held notes belong to the scene before this one when that scene held nothing else.
+      if (!inSection) release();
+      inSection = false;
+      elements.push(element);
+      headingOpen = true;
+      synopsisAt = null;
+      return;
+    }
+    if (element.type === 'synopsis' && headingOpen && synopsisAt === null) {
+      elements.push(element);
+      synopsisAt = elements.length - 1;
+      return;
+    }
+    // The first element after a heading and its synopsis: the held notes go in before it.
+    release();
+    inSection = false;
+    elements.push(element);
+    if (element.type !== 'note') {
+      headingOpen = false;
+      synopsisAt = null;
+    }
+  };
   const notesAfter = (notes: readonly string[]): void => {
-    for (const note of notes) elements.push({ type: 'note', text: note.slice(2, -2) });
+    for (const note of notes) push({ type: 'note', text: note.slice(2, -2) });
   };
   for (const p of paragraphs) {
-    const plainType = p.type === 'Scene Heading' || p.type === 'Character' || p.type === 'Transition';
+    const depth = sectionDepthOf(p.type);
+    const plainType = depth !== null || PLAIN_TYPES.has(p.type);
     const inlineType = !plainType && p.type !== 'Parenthetical' && !(p.type === 'General' && p.alignment === 'Center');
     if (p.text.trim() === '') {
       // No printed text: what the paragraph held in notes or hidden runs still comes in, each on a line of its own.
       notesAfter(markupOf(p.segments, false, false, counts).apart);
+      continue;
+    }
+    if (depth !== null) {
+      counts.outlineSections += 1;
+      if (/^Outline\s*([4-9])$/i.test(p.type.trim())) counts.deepOutlines += 1;
+      push({ type: 'section', depth, text: oneLine(p.text) });
+      notesAfter(markupOf(p.segments, false, false, counts).apart);
+      continue;
+    }
+    if (p.type === 'Cast List') {
+      counts.castList.push(oneLine(p.text));
+      notesAfter(markupOf(p.segments, false, false, counts).apart);
+      continue;
+    }
+    if (p.type === 'Summary') {
+      const summary = oneLine(p.text);
+      const at: number | null = synopsisAt;
+      const previous = at === null ? undefined : elements[at];
+      if (at !== null && previous !== undefined && previous.type === 'synopsis') {
+        counts.outlineSummaries += 1;
+        elements[at] = { type: 'synopsis', text: `${previous.text} ${summary}` };
+      } else if (headingOpen) {
+        counts.outlineSummaries += 1;
+        push({ type: 'synopsis', text: summary });
+      } else {
+        counts.summaryNotes += 1;
+        push({ type: 'note', text: noteMarkup(`Summary: ${summary}`).slice(2, -2) });
+      }
+      notesAfter(markupOf(p.segments, false, false, counts).apart);
+      continue;
+    }
+    if (p.type === 'Note') {
+      counts.noteParagraphs += 1;
+      const all = p.segments.map((segment) => segment.text).join(' ');
+      push({ type: 'note', text: noteMarkup(all).slice(2, -2) });
       continue;
     }
     const markup = markupOf(p.segments, !plainType, inlineType, counts);
@@ -529,16 +743,26 @@ function fdxElements(paragraphs: readonly FdxParagraph[], notices: string[], cou
           notices.push(`"${text}": its Final Draft number "${p.number.replace(/\n/g, ' ')}" cannot be carried into a Fountain heading; it was left out.`);
         }
         const numbered = carriable && sceneNumberOf(text) === null;
-        elements.push({ type: 'scene_heading', text: numbered ? `${text} #${p.number}#` : text, forced: false });
-        if (p.summary !== null) elements.push({ type: 'synopsis', text: p.summary });
+        push({ type: 'scene_heading', text: numbered ? `${text} #${p.number}#` : text, forced: false });
+        if (p.summary !== null) push({ type: 'synopsis', text: p.summary });
         break;
       }
       case 'Action':
       case 'Shot':
-        elements.push({ type: 'action', text });
+        push({ type: 'action', text });
+        break;
+      case 'Lyrics':
+        // Fountain's `~` lyric line is not part of Caotang's Fountain, so the lyric stays printed as action.
+        counts.lyrics += 1;
+        push({ type: 'action', text });
+        break;
+      case 'End of Act':
+        // The act's closing line prints centred at the end of its last scene, as Final Draft prints it.
+        counts.actEnds += 1;
+        push({ type: 'centered', text: oneLine(text) });
         break;
       case 'General':
-        elements.push(p.alignment === 'Center' ? { type: 'centered', text } : { type: 'action', text });
+        push(p.alignment === 'Center' ? { type: 'centered', text } : { type: 'action', text });
         break;
       case 'Character': {
         let dual = false;
@@ -547,24 +771,25 @@ function fdxElements(paragraphs: readonly FdxParagraph[], notices: string[], cou
           cuesSeen.set(p.container, seen);
           dual = seen > 1;
         }
-        elements.push(dual ? { type: 'character', text, dual: true } : { type: 'character', text });
+        push(dual ? { type: 'character', text, dual: true } : { type: 'character', text });
         break;
       }
       case 'Parenthetical':
-        elements.push({ type: 'parenthetical', text: text.startsWith('(') ? text : `(${text})` });
+        push({ type: 'parenthetical', text: text.startsWith('(') ? text : `(${text})` });
         break;
       case 'Dialogue':
-        elements.push({ type: 'dialogue', text });
+        push({ type: 'dialogue', text });
         break;
       case 'Transition':
-        elements.push({ type: 'transition', text, forced: false });
+        push({ type: 'transition', text, forced: false });
         break;
       default:
         notices.push(`Paragraph type "${p.type}" imported as action.`);
-        elements.push({ type: 'action', text });
+        push({ type: 'action', text });
     }
     notesAfter(markup.apart);
   }
+  release();
   return elements;
 }
 
@@ -583,7 +808,7 @@ export function importFdx(xml: string): FdxImportedScript {
   const root = readXml(xml);
   const document = readDocument(root);
   const { paragraphs } = document;
-  const counts: Counts = { notes: 0, hiddenRuns: 0, strikeouts: 0, plainedRuns: 0 };
+  const counts = newCounts();
   const elements = fdxElements(paragraphs, notices, counts);
   for (const note of document.unanchored) {
     counts.notes += 1;
@@ -591,14 +816,20 @@ export function importFdx(xml: string): FdxImportedScript {
   }
   const script = importFountainScript(serialiseFountain(elements));
   const headings = paragraphs.filter((p) => p.type === 'Scene Heading' && p.text.trim() !== '');
-  const lengths = headings.map((p) => p.lengthEighths);
   let next = 0;
   const nodes = script.nodes.map((node) => {
     if (node.kind !== 'scene' || node.heading === null) return node;
-    const lengthEighths = lengths[next] ?? null;
+    const heading = headings[next];
     next += 1;
-    return { ...node, lengthEighths };
+    return {
+      ...node,
+      lengthEighths: heading?.lengthEighths ?? null,
+      ...(heading === undefined || heading.sceneTitle === null ? {} : { nodeTitle: heading.sceneTitle }),
+      ...(heading === undefined || heading.sceneColour === null ? {} : { colour: heading.sceneColour }),
+    };
   });
+  const { seeds, skipped } = collectSeeds(root, counts.castList);
+  const production = productionData(root, document.revisions, document.taggedRuns, document.arcBeats);
   const cues = new Map<number, number>();
   for (const p of paragraphs) {
     if (p.container !== null && p.type === 'Character' && p.text.trim() !== '') cues.set(p.container, (cues.get(p.container) ?? 0) + 1);
@@ -611,6 +842,18 @@ export function importFdx(xml: string): FdxImportedScript {
     summaries: headings.filter((p) => p.summary !== null).length,
     strikeouts: counts.strikeouts,
     plainedRuns: counts.plainedRuns,
+    sceneTitles: headings.filter((p) => p.sceneTitle !== null).length,
+    sceneColours: headings.filter((p) => p.sceneColour !== null).length,
+    outlineSections: counts.outlineSections,
+    deepOutlines: counts.deepOutlines,
+    outlineSummaries: counts.outlineSummaries,
+    summaryNotes: counts.summaryNotes,
+    noteParagraphs: counts.noteParagraphs,
+    actEnds: counts.actEnds,
+    lyrics: counts.lyrics,
+    castListLines: counts.castList.length,
+    skippedSeeds: skipped,
+    production,
   };
   if (report.notes > 0) notices.push(`${plural(report.notes, 'script note was', 'script notes were')} kept as Fountain notes ([[…]]), which do not print.`);
   if (report.unanchoredNotes > 0) {
@@ -621,7 +864,16 @@ export function importFdx(xml: string): FdxImportedScript {
   if (report.plainedRuns > 0) {
     notices.push(`Bold, italic or underline on ${plural(report.plainedRuns, 'run', 'runs')} in scene headings, cues or transitions was not kept: Fountain writes those elements plain. The text was kept.`);
   }
-  return { titlePage: titlePageEntries(root) ?? script.titlePage, nodes, notices: [...notices, ...script.notices], report };
+  if (report.deepOutlines > 0) {
+    notices.push(`${plural(report.deepOutlines, 'Outline 4 element was', 'Outline 4 elements were')} made a section at the third level, the deepest a section goes here, so it sits beside an Outline 3 rather than inside it.`);
+  }
+  if (report.summaryNotes > 0) {
+    notices.push(`${plural(report.summaryNotes, 'Summary paragraph has', 'Summary paragraphs have')} no section or scene heading right above, so ${report.summaryNotes === 1 ? 'it was' : 'they were'} kept as ${report.summaryNotes === 1 ? 'a note' : 'notes'}.`);
+  }
+  if (report.lyrics > 0) notices.push(`${plural(report.lyrics, 'Lyrics paragraph was', 'Lyrics paragraphs were')} kept as action: Caotang's Fountain has no lyrics element.`);
+  if (report.skippedSeeds > 0) notices.push(`${plural(report.skippedSeeds, 'cast or location name was', 'cast or location names were')} not offered for the codex: longer than a codex name may be, or past the ${FDX_SEEDS_MAX} one import offers.`);
+  notices.push(...productionNotices(production));
+  return { titlePage: titlePageEntries(root) ?? script.titlePage, nodes, notices: [...notices, ...script.notices], report, seeds };
 }
 
 /**
@@ -640,6 +892,13 @@ export function describeFdxImport(script: FdxImportedScript): string[] {
   ];
   if (report.summaries > 0) lines.push(`${plural(report.summaries, 'scene summary', 'scene summaries')} kept as ${report.summaries === 1 ? 'a scene synopsis' : 'scene synopses'}.`);
   if (report.hiddenRuns > 0) lines.push(`${plural(report.hiddenRuns, 'run of hidden text', 'runs of hidden text')} kept as notes, not printed.`);
+  if (report.outlineSections > 0) lines.push(`${plural(report.outlineSections, 'outline element or act break', 'outline elements and act breaks')} made ${report.outlineSections === 1 ? 'a section' : 'sections'}, which become folders.`);
+  if (report.outlineSummaries > 0) lines.push(`${plural(report.outlineSummaries, 'Summary paragraph', 'Summary paragraphs')} kept as ${report.outlineSummaries === 1 ? 'a synopsis' : 'synopses'}.`);
+  if (report.noteParagraphs > 0) lines.push(`${plural(report.noteParagraphs, 'Note paragraph', 'Note paragraphs')} kept as ${report.noteParagraphs === 1 ? 'a Fountain note' : 'Fountain notes'}.`);
+  if (report.actEnds > 0) lines.push(`${plural(report.actEnds, 'End of Act line', 'End of Act lines')} kept as centred text.`);
+  if (report.sceneTitles > 0) lines.push(`${plural(report.sceneTitles, 'scene title', 'scene titles')} used as binder ${report.sceneTitles === 1 ? 'title' : 'titles'}; the headings stay in the script.`);
+  if (report.sceneColours > 0) lines.push(`${plural(report.sceneColours, 'scene colour', 'scene colours')} kept as binder labels (a label of the nearest colour, or a new one).`);
+  if (report.castListLines > 0) lines.push(`${plural(report.castListLines, 'Cast List line', 'Cast List lines')} taken out of the script and offered for the codex.`);
   return lines;
 }
 

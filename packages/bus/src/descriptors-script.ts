@@ -33,6 +33,16 @@ export const SCREENPLAY_IMPORT_FORMATS = ['fountain', 'fdx'] as const;
 // The param shapes are type aliases, not interfaces: the bus's params table and the store's tests need each one to be
 // assignable to `Record<string, unknown>`, which an interface is not (BinderSaveFilterParams takes the same form).
 
+/** The codex types an import seed may take: the characters and places a script file lists (issue #265). */
+export const SCREENPLAY_IMPORT_SEED_TYPES = ['character', 'location'] as const;
+
+/** One codex entry the writer ticked in the import dialog: a name the file lists, its type and an optional description. */
+export type ScreenplayImportSeed = {
+  readonly name: string;
+  readonly type: (typeof SCREENPLAY_IMPORT_SEED_TYPES)[number];
+  readonly description?: string;
+};
+
 /** `screenplay.import`'s params, as the validator returns them. `parentId` is always resolved to an id. */
 export type ScreenplayImportParams = {
   readonly format: (typeof SCREENPLAY_IMPORT_FORMATS)[number];
@@ -40,6 +50,11 @@ export type ScreenplayImportParams = {
   readonly text: string;
   /** The folder the import lands in. The manuscript when the caller names none. */
   readonly parentId?: string;
+  /**
+   * Codex entries to create in the same undo step (issue #265): the cast and location rows the writer ticked. Each
+   * attaches to the first imported scene that names it; a name the codex already holds is skipped, never merged.
+   */
+  readonly codex?: readonly ScreenplayImportSeed[];
 };
 
 /** One planned container of an Ink import: its title (the first knot's name) and its Ink body. */
@@ -73,6 +88,16 @@ export type DialogueSetMetaParams = {
 
 /** A whole script file, in characters. A 110-page script is well under this. */
 export const SCREENPLAY_IMPORT_TEXT_MAX = 1_000_000;
+
+/** The codex seeds one `screenplay.import` may create: a large ensemble cast and its places, well past `codex.import`'s 20. */
+export const SCREENPLAY_IMPORT_SEEDS_MAX = 500;
+
+/** A seed's name and description, in characters: the codex's own limits (`CODEX_NAME_MAX`, `CODEX_DESCRIPTION_MAX`). */
+const SEED_NAME_MAX = 120;
+const SEED_DESCRIPTION_MAX = 2000;
+
+/** The keys a seed may carry. */
+const SEED_KEYS: ReadonlySet<string> = new Set(['name', 'type', 'description']);
 
 /** The Ink containers one `dialogue.importInk` call may create. A story of this size is split across calls. */
 export const DIALOGUE_IMPORT_CONTAINERS_MAX = 200;
@@ -138,6 +163,48 @@ function importParentOf(snapshot: ValidationSnapshot, params: Record<string, unk
   return ok(node.id);
 }
 
+/** The codex seeds of `screenplay.import`, checked whole: absent is none, and an empty list is the same as none. */
+function importSeedsOf(value: unknown): Result<readonly ScreenplayImportSeed[] | undefined, CommandError> {
+  if (value === undefined) return ok(undefined);
+  if (!Array.isArray(value)) {
+    return invalid(`params.codex must be an array, got ${typeof value}`, 'pass the ticked rows, each as { name, type }', 'codex');
+  }
+  if (value.length > SCREENPLAY_IMPORT_SEEDS_MAX) {
+    return limitExceeded(
+      `the import names ${value.length} codex entries, limit ${SCREENPLAY_IMPORT_SEEDS_MAX}`,
+      'tick fewer rows; the rest can be added in the codex later',
+      'codex',
+    );
+  }
+  const seeds: ScreenplayImportSeed[] = [];
+  for (const [index, item] of value.entries()) {
+    const where = `codex[${index}]`;
+    if (!isRecord(item)) return invalid(`params.${where} must be an object`, 'pass each row as { name, type }', where);
+    const extra = Object.keys(item).find((key) => !SEED_KEYS.has(key));
+    if (extra !== undefined) return invalid(`params.${where} has an unknown key "${extra}"`, 'a row carries only name, type and description', `${where}.${extra}`);
+    const name = requireNonBlankString(item, 'name', { maxChars: SEED_NAME_MAX, blankHint: 'give each codex row a name' });
+    if (!name.ok) return { ok: false, error: { ...name.error, message: `${where}: ${name.error.message}`, target: `${where}.name` } };
+    const type = item['type'];
+    if (typeof type !== 'string' || !(SCREENPLAY_IMPORT_SEED_TYPES as readonly string[]).includes(type)) {
+      return invalid(`params.${where}.type must be "character" or "location"`, 'a script file lists characters and places', `${where}.type`);
+    }
+    const description = item['description'];
+    if (description !== undefined && (typeof description !== 'string' || [...description].length > SEED_DESCRIPTION_MAX)) {
+      return invalid(
+        `params.${where}.description must be a string of at most ${SEED_DESCRIPTION_MAX} characters`,
+        'shorten the description or leave it out',
+        `${where}.description`,
+      );
+    }
+    seeds.push({
+      name: name.value.trim(),
+      type: type as ScreenplayImportSeed['type'],
+      ...(typeof description === 'string' && description.trim() !== '' ? { description: description.trim() } : {}),
+    });
+  }
+  return ok(seeds.length === 0 ? undefined : seeds);
+}
+
 /** The shape `screenplay.import` takes, with the parent resolved to an id. */
 export const screenplayImport: CommandDescriptor<ScreenplayImportParams> = {
   mutates: 'project',
@@ -162,10 +229,13 @@ export const screenplayImport: CommandDescriptor<ScreenplayImportParams> = {
     if (!text.ok) return text;
     const parent = importParentOf(snapshot, p.value);
     if (!parent.ok) return parent;
+    const codex = importSeedsOf(p.value['codex']);
+    if (!codex.ok) return codex;
     return ok({
       format: format.value as ScreenplayImportParams['format'],
       text: text.value,
       parentId: parent.value,
+      ...(codex.value === undefined ? {} : { codex: codex.value }),
     });
   },
 };

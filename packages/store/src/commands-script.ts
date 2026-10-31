@@ -14,7 +14,16 @@
  * The Ink plan is made by the caller: the dialogue package depends on the store, so the store cannot call `planInkImport`.
  */
 
-import { importFdx, importFountainScript, type ImportedScene, type ImportedSection } from '@caotang/screenplay';
+import { newId } from '@caotang/ids';
+import {
+  colourName,
+  importFdx,
+  importFountainScript,
+  namingScene,
+  nearestLabel,
+  type ImportedScene,
+  type ImportedSection,
+} from '@caotang/screenplay';
 import {
   ApplyRefusal,
   type ApplyContext,
@@ -22,7 +31,8 @@ import {
   type CommandParams,
 } from '@caotang/bus';
 
-import type { TreeNode } from './manifest.js';
+import { mintTermId } from './commands-project.js';
+import type { CodexEntry, TreeNode, VocabularyTerm } from './manifest.js';
 import { addDocument, addNode, nodeById, removeNode, type ProjectState } from './state.js';
 
 /** The clock seam the applies read for `createdAt` and `updatedAt`, as the rest of the store does. */
@@ -94,6 +104,7 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
     }
     const parentId = params.parentId ?? DEFAULT_PARENT;
     const at = now();
+    const hadCodex = state.manifest.codex !== undefined;
     const created: string[] = [];
     const notices: string[] = [...script.notices];
     // The sections still open, outermost first, each with its depth. A section closes every open section at its depth or
@@ -119,9 +130,26 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
     };
     const innermost = (): string => open[open.length - 1]?.id ?? parentId;
 
+    // Scene colours become binder labels (issue #265): the label of the nearest colour in the vocabulary, or one the
+    // import adds, named after the colour. The labels it adds go with the undo.
+    const labels = state.manifest.vocabulary.labels;
+    const addedLabels: VocabularyTerm[] = [];
+    const labelFor = (colour: string): string => {
+      const near = nearestLabel(colour, labels);
+      if (near !== undefined) return near.id;
+      const name = colourName(colour);
+      const named = labels.find((term) => term.name.trim().toLowerCase() === name.toLowerCase());
+      if (named !== undefined) return named.id;
+      const term: VocabularyTerm = { id: mintTermId(name, labels), name, color: colour };
+      labels.push(term);
+      addedLabels.push(term);
+      return term.id;
+    };
+    const writtenScenes: { readonly scene: ImportedScene; readonly id: string }[] = [];
+
     /** One scene: a screenplay document holding its Fountain text, with its synopsis fitted to the binder's limit. */
     const writeScene = (scene: ImportedScene, parent: string): void => {
-      const title = titleOrDefault(scene.title, 'Untitled scene');
+      const title = titleOrDefault(scene.nodeTitle ?? scene.title, 'Untitled scene');
       const synopsis = fitSynopsis(scene.synopsis);
       if (synopsis.cut) notices.push(`"${title}": its synopsis is longer than ${SYNOPSIS_LIMIT} characters and was cut to fit.`);
       const doc = addDocument(state, {
@@ -133,7 +161,9 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
         synopsis: synopsis.value,
         now: at,
       });
+      if (scene.colour !== undefined) doc.label = labelFor(scene.colour);
       created.push(doc.id);
+      writtenScenes.push({ scene, id: doc.id });
     };
 
     for (const node of script.nodes) {
@@ -156,8 +186,76 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
       writeScene(scene, sceneParent());
     }
 
+    // The codex rows the writer ticked (issue #265), in the same undo group. A name or alias the codex already holds is
+    // skipped and named, never merged; each entry attaches to the first imported scene that names it and cites that line.
+    const codex = state.manifest.codex ?? [];
+    const madeEntries: CodexEntry[] = [];
+    const collisions: string[] = [];
+    const unnamed: string[] = [];
+    if (params.codex !== undefined && params.codex.length > 0) {
+      state.manifest.codex = codex;
+      const takenNames = new Set<string>();
+      for (const entry of codex) for (const name of [entry.name, ...entry.aliases]) takenNames.add(name.trim().toLowerCase());
+      const takenIds = new Set(codex.map((entry) => entry.id));
+      const stamp = at.toISOString();
+      const bodies = writtenScenes.map((written) => written.scene);
+      for (const seed of params.codex) {
+        const key = seed.name.trim().toLowerCase();
+        if (takenNames.has(key)) {
+          collisions.push(seed.name);
+          continue;
+        }
+        takenNames.add(key);
+        const naming = namingScene(bodies, seed.name);
+        const docId = naming === null ? undefined : writtenScenes[naming.index]?.id;
+        if (docId === undefined) unnamed.push(seed.name);
+        const entry: CodexEntry = {
+          id: newId('c', { taken: takenIds }),
+          name: seed.name,
+          aliases: [],
+          type: seed.type,
+          description: seed.description ?? '',
+          includePolicy: 'detected',
+          caseSensitive: false,
+          exclude: [],
+          attachments: docId === undefined ? [] : [docId],
+          keywords: [],
+          origin: 'import',
+          sources:
+            naming === null || docId === undefined
+              ? []
+              : [{ docId, quote: naming.quote, from: naming.from, to: naming.to, extractedAt: stamp }],
+          createdAt: stamp,
+          updatedAt: stamp,
+        };
+        takenIds.add(entry.id);
+        codex.push(entry);
+        madeEntries.push(entry);
+      }
+    }
+    if (collisions.length > 0) {
+      notices.push(`${collisions.length === 1 ? 'A codex entry' : `${collisions.length} codex entries`} already named ${collisions.map((name) => `"${name}"`).join(', ')} ${collisions.length === 1 ? 'was' : 'were'} left as ${collisions.length === 1 ? 'it was' : 'they were'}: an import never merges into an entry.`);
+    }
+    if (unnamed.length > 0) {
+      notices.push(`${unnamed.map((name) => `"${name}"`).join(', ')} ${unnamed.length === 1 ? 'is' : 'are'} not named in any imported scene, so ${unnamed.length === 1 ? 'its codex entry is' : 'their codex entries are'} attached to no scene.`);
+    }
+    if (addedLabels.length > 0) {
+      notices.push(`Scene colours added ${addedLabels.length === 1 ? 'the label' : `${addedLabels.length} labels:`} ${addedLabels.map((term) => `"${term.name}"`).join(', ')}.`);
+    }
+
     context.undo.compensate(`undo the import of ${scenes} scenes and ${folders} sections`, () => {
       removeCreated(state, created);
+      const made = new Set(madeEntries.map((entry) => entry.id));
+      if (made.size > 0 && state.manifest.codex !== undefined) {
+        state.manifest.codex = state.manifest.codex.filter((entry) => !made.has(entry.id));
+        // A project with no codex before the import goes back to having none, so the manifest returns to its bytes.
+        if (state.manifest.codex.length === 0 && !hadCodex) delete state.manifest.codex;
+      }
+      const added = new Set(addedLabels.map((term) => term.id));
+      if (added.size > 0) {
+        const kept = state.manifest.vocabulary.labels.filter((term) => !added.has(term.id));
+        state.manifest.vocabulary.labels.splice(0, state.manifest.vocabulary.labels.length, ...kept);
+      }
     });
     const top = created.filter((id) => nodeById(state, id)?.parentId === parentId);
     const format = params.format === 'fdx' ? 'FDX' : 'Fountain';
@@ -166,12 +264,22 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
         const node = nodeById(state, id);
         return { nodeId: id, title: node?.title ?? id };
       }),
-      summary: `imported a ${format} script: ${scenes} scene${scenes === 1 ? '' : 's'} and ${folders} section${folders === 1 ? '' : 's'}`,
+      summary: `imported a ${format} script: ${scenes} scene${scenes === 1 ? '' : 's'} and ${folders} section${folders === 1 ? '' : 's'}${
+        madeEntries.length === 0 ? '' : `, with ${madeEntries.length} codex entr${madeEntries.length === 1 ? 'y' : 'ies'}`
+      }`,
     });
     if (script.titlePage !== null) {
       notices.push('The title page was read but not stored: set the project title and author on the project block.');
     }
-    return { parentId, nodeIds: created, scenes, folders, notices };
+    return {
+      parentId,
+      nodeIds: created,
+      scenes,
+      folders,
+      codexEntries: madeEntries.length,
+      labels: addedLabels.length,
+      notices,
+    };
   };
 
   /**

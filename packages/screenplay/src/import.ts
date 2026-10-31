@@ -35,6 +35,10 @@ export interface ImportedScene {
   readonly droppedSynopses: number;
   /** Length in eighths of a page, when the source carried one (FDX SceneProperties). */
   readonly lengthEighths: number | null;
+  /** The binder title the source gave the scene (FDX `SceneProperties Title`), used over `title`. Absent when it gave none. */
+  readonly nodeTitle?: string;
+  /** The scene's colour as `#rrggbb` (FDX `SceneProperties Color`), which the import maps to a binder label. Absent when none. */
+  readonly colour?: string;
 }
 
 export type ImportedNode = ImportedSection | ImportedScene;

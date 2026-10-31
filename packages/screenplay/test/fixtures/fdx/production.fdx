@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<FinalDraft DocumentType="Script" Template="No" Version="5">
+
+  <Content>
+    <Paragraph Number="1" Type="Scene Heading">
+      <SceneProperties Length="4/8" Page="1" Title="">
+        <SceneArcBeats>
+          <CharacterArcBeat Name="ANNA">
+            <Paragraph Alignment="Left">
+              <Text>Anna decides to stay.</Text>
+            </Paragraph>
+          </CharacterArcBeat>
+          <CharacterArcBeat Name="BEN">
+            <Paragraph Alignment="Left"/>
+          </CharacterArcBeat>
+        </SceneArcBeats>
+      </SceneProperties>
+      <Text RevisionID="0">INT. STATION - NIGHT</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text RevisionID="1">Anna picks up the </Text>
+      <Text RevisionID="1" TagNumber="1">revolver</Text>
+      <Text RevisionID="0">.</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text RevisionID="2">She checks the chamber.</Text>
+    </Paragraph>
+  </Content>
+
+  <LockedPages>
+    <LockedPage Number="1" Revision="1"/>
+  </LockedPages>
+
+  <Revisions ActiveSet="2" Location="7.75" RevisionMode="Yes" RevisionsShown="All" ShowPageColor="Yes">
+    <Revision Color="#00000000FFFF" FullRevision="No" ID="1" Mark="*" Name="Blue" PageColor="#C6C6EDEDFEFE" Style=""/>
+    <Revision Color="#FFFF0000FFFF" FullRevision="No" ID="2" Mark="*" Name="Pink" PageColor="#FDFDCCCCD4D4" Style=""/>
+    <Revision Color="#A0A0A0A00000" FullRevision="No" ID="3" Mark="*" Name="Yellow" PageColor="#FDFDFFFFABAB" Style=""/>
+  </Revisions>
+
+  <AltCollection>
+    <AltDialogue Id="a1">
+      <Paragraph Type="Dialogue">
+        <Text>Another way to say it.</Text>
+      </Paragraph>
+    </AltDialogue>
+  </AltCollection>
+
+  <DisplayBoards>
+    <DisplayBoard Id="b1" Type="Beat">
+      <Beat Id="beat-1">
+        <Paragraph><Text>Anna arrives.</Text></Paragraph>
+      </Beat>
+      <Beat Id="beat-2">
+        <Paragraph><Text>The gun.</Text></Paragraph>
+      </Beat>
+    </DisplayBoard>
+    <DisplayBoard Id="b2" Type="StoryMap"/>
+  </DisplayBoards>
+
+  <TagData>
+    <TagCategories>
+      <TagCategory Color="#FFFF00000000" Id="cat-props" Name="Props" Number="5" Style="Bold"/>
+    </TagCategories>
+    <TagDefinitions>
+      <TagDefinition CatId="cat-props" Id="def-1" Label="revolver" Number="1"/>
+    </TagDefinitions>
+    <Tags>
+      <Tag Number="1"><DefId>def-1</DefId></Tag>
+    </Tags>
+  </TagData>
+</FinalDraft>

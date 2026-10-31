@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<FinalDraft DocumentType="Script" Template="No" Version="6">
+
+  <Content>
+    <Paragraph Type="Outline 1">
+      <Text>ACT ONE</Text>
+    </Paragraph>
+    <Paragraph Type="Summary">
+      <Text>Anna loses the map and finds a reason to stay.</Text>
+    </Paragraph>
+    <Paragraph Type="Outline 2">
+      <Text>The station</Text>
+    </Paragraph>
+    <Paragraph Type="Summary">
+      <Text>Night. The last train has gone.</Text>
+    </Paragraph>
+    <Paragraph Type="Outline 3">
+      <Text>Arrival</Text>
+    </Paragraph>
+    <Paragraph Type="Note">
+      <Text>Keep this under a page.</Text>
+    </Paragraph>
+    <Paragraph Number="1" Type="Scene Heading">
+      <SceneProperties Color="#FFFF00000000" Length="3/8" Page="1" Title="Anna arrives">
+        <Summary>
+          <Paragraph Alignment="Left">
+            <Text>She steps off the train.</Text>
+          </Paragraph>
+        </Summary>
+      </SceneProperties>
+      <Text>INT. STATION - NIGHT</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text>ANNA, thirty, drags a suitcase across the empty platform.</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>ANNA</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>Hello?</Text>
+    </Paragraph>
+    <Paragraph Number="2" Type="Scene Heading">
+      <SceneProperties Color="#0000FFFF0000" Length="1 2/8" Page="1" Title="">
+      </SceneProperties>
+      <Text>EXT. LIBRARY - NIGHT</Text>
+    </Paragraph>
+    <Paragraph Type="Summary">
+      <Text>The library is still lit.</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text>A light in the window. BEN waves her in.</Text>
+    </Paragraph>
+    <Paragraph Type="Summary">
+      <Text>Ben knows her name.</Text>
+    </Paragraph>
+    <Paragraph Type="Lyrics">
+      <Text>Over the hills and far away</Text>
+    </Paragraph>
+    <Paragraph Type="Outline 1">
+      <Text>ACT TWO</Text>
+    </Paragraph>
+    <Paragraph Type="Outline 4">
+      <Text>A beat inside the act</Text>
+    </Paragraph>
+    <Paragraph Number="3" Type="Scene Heading">
+      <SceneProperties Color="#FFFFFFFFFFFF" Length="2/8" Page="2" Title="">
+      </SceneProperties>
+      <Text>INT. LIBRARY - CONTINUOUS</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>BEN</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>You're late.</Text>
+    </Paragraph>
+  </Content>
+
+  <SmartType>
+    <Characters>
+      <Character>ANNA</Character>
+      <Character>BEN</Character>
+    </Characters>
+    <Locations>
+      <Location>STATION</Location>
+      <Location>LIBRARY</Location>
+    </Locations>
+  </SmartType>
+</FinalDraft>
