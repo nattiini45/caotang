@@ -1613,8 +1613,9 @@ describe('the bus/store split these applies depend on', () => {
     // The hooks add two names with applies of the store's own: 56 + 2 = 58 names, 45 + 2 = 47 implemented.
     // The picture registry adds three names: `asset.setMeta` has an apply of the store's own, and `asset.import` and
     // `asset.importBatch` register only with the asset port, like the cover import: 58 + 3 = 61 names, and the AV script's two settings add two names with store applies: 58 + 3 + 2 = 63 names, 47 + 1 + 2 = 50 implemented.
-    expect(Object.keys(registry)).toHaveLength(63);
-    expect(implemented).toHaveLength(50);
+    // The writer's codex batch import adds `codex.importBatch`, with an apply of the store's own: 63 + 1 = 64 names, 50 + 1 = 51 implemented.
+    expect(Object.keys(registry)).toHaveLength(64);
+    expect(implemented).toHaveLength(51);
   });
 });
 
