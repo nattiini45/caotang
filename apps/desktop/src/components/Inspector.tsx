@@ -48,15 +48,25 @@ export const NOTES_MAX_CHARS = 50_000;
 export const KEYWORDS_MAX = 32;
 export const KEYWORD_CHARS_MAX = 64;
 
+/** The inspector's arrangement: see the `grouping` prop. */
+export type InspectorGrouping = 'flat' | 'disclosures';
+
 export function Inspector({
   session,
   nodeId,
   onOpenCodex,
   onAgentIntent,
   onOpenPicture,
+  grouping = 'flat',
 }: {
   session: ProjectSession;
   nodeId: string | null;
+  /**
+   * How the sections are arranged, a container fact (modern-interface.md §4.3 rule 1, §7.5): `flat`, every section in a column (the
+   * rail); `disclosures`, the node's first fields (synopsis, status and label, keywords) open, then **Notes** and **Story details**
+   * as disclosures (a popover, where the column would be too long to scan). The fields, their ids and their commands are the same.
+   */
+  grouping?: InspectorGrouping;
   /** Shows a picture's details on the picture board (the strip's "Open on the board"). */
   onOpenPicture?: (assetId: string) => void;
   /** Shows a codex entry in the codex panel (a mention chip's click). */
@@ -94,7 +104,11 @@ export function Inspector({
   // is flushed to the node that was edited, and nothing is written to the next one.
   return (
     <aside className="inspector" aria-label={t`Inspector`}>
-      <InspectorContent key={node.id} session={session} node={node} onOpenCodex={onOpenCodex} onOpenPicture={onOpenPicture} />
+      {grouping === 'disclosures' ? (
+        <InspectorDisclosures key={node.id} session={session} node={node} onOpenCodex={onOpenCodex} onOpenPicture={onOpenPicture} />
+      ) : (
+        <InspectorContent key={node.id} session={session} node={node} onOpenCodex={onOpenCodex} onOpenPicture={onOpenPicture} />
+      )}
     </aside>
   );
 }
@@ -145,6 +159,72 @@ function InspectorContent({
       {node.type === 'folder' ? <FolderPartSection session={session} node={node} /> : null}
       {node.type === 'dialogue' ? <DialogueMetaSection session={session} node={node} /> : null}
       <InspectorPictures session={session} node={node} onOpenPicture={onOpenPicture} />
+    </>
+  );
+}
+
+/**
+ * The same sections as {@link InspectorContent}, grouped for a popover (modern-interface.md §7.5): the head and the first fields, then
+ * a **Notes** disclosure and a **Story details** disclosure (export style, codex, scene declarations, story part, goals, dialogue,
+ * pictures). Every field is the same component with the same id, so a route to `#inspector-synopsis` and every command are unchanged.
+ */
+function InspectorDisclosures({
+  session,
+  node,
+  onOpenCodex,
+  onOpenPicture,
+}: {
+  session: ProjectSession;
+  node: TreeNode;
+  onOpenCodex: ((entryId: string) => void) | undefined;
+  onOpenPicture: ((assetId: string) => void) | undefined;
+}): ReactNode {
+  useLingui();
+  return (
+    <>
+      <header className="inspector-head">
+        <p className="eyebrow">{node.type === 'document' ? t`Document` : isContainer(node) ? t`Folder` : t`Item`}</p>
+        <h2 className="inspector-title">{node.title}</h2>
+        <p className="inspector-meta">{metaLine(session.state, node)}</p>
+      </header>
+
+      <section className="inspector-section" aria-labelledby="inspector-synopsis-label">
+        <h3 id="inspector-synopsis-label" className="field-label">
+          <Trans>Synopsis</Trans>
+        </h3>
+        <SynopsisField session={session} nodeId={node.id} variant="inspector" fieldId="inspector-synopsis" />
+      </section>
+
+      <section className="inspector-section" aria-label={t`Status and label`}>
+        <div className="picker-row">
+          <MetaPicker session={session} node={node} kind="status" />
+          <MetaPicker session={session} node={node} kind="label" />
+        </div>
+      </section>
+
+      <KeywordsField key={node.id} session={session} node={node} />
+
+      {node.type === 'document' ? (
+        <details className="inspector-disclosure" data-testid="inspector-notes-disclosure">
+          <summary>
+            <Trans>Notes</Trans>
+          </summary>
+          <NotesField session={session} node={node} />
+        </details>
+      ) : null}
+
+      <details className="inspector-disclosure" data-testid="inspector-story-disclosure">
+        <summary>
+          <Trans>Story details</Trans>
+        </summary>
+        {node.type === 'document' ? null : <InspectorGoals session={session} node={node} />}
+        {node.type === 'document' ? <SceneStyleSection session={session} node={node} /> : null}
+        <CodexSection session={session} node={node} onOpenCodex={onOpenCodex} />
+        {node.type === 'document' ? <SceneMetaSection session={session} node={node} /> : null}
+        {node.type === 'folder' ? <FolderPartSection session={session} node={node} /> : null}
+        {node.type === 'dialogue' ? <DialogueMetaSection session={session} node={node} /> : null}
+        <InspectorPictures session={session} node={node} onOpenPicture={onOpenPicture} />
+      </details>
     </>
   );
 }
