@@ -71,7 +71,10 @@ export const BUDGET = {
   // 891.6 kB measured with the codex batch import (#273) on top of that: `codex.importBatch`'s descriptor (its pre-validation of up to
   // 5,000 entries and their Research pages, with a refusal per failing entry) is in the registry the app builds at start and lands in
   // the first-load locale chunk; the ceiling is that plus about 1%.
-  initialGzip: 900_000,
+  // 903.9 kB measured once the shared import preview (#267) met the Final Draft structure import (#321): each fit alone (898.3 kB with
+  // the preview), and together their descriptors grow the first-load locale chunk by 4.6 kB gzip (#321's script commands) and the entry
+  // by 0.8 kB (#321's dialog); the budget is that plus about 1%.
+  initialGzip: 913_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
