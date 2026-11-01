@@ -85,10 +85,10 @@ export const SURFACES: readonly Surface[] = [
     pending: 307,
     why: 'the tab bar and the sidebar are #307’s',
   },
-  { id: 'a toast', setup: 'scene', open: [{ provoke: 'deleted-scene' }], scope: '[data-testid="modern-notices"]', pending: 311, why: 'the toast capsule is #311’s' },
-  { id: 'Settings', setup: 'scene', open: [{ palette: 'Settings' }], scope: '[data-testid="settings"]', pending: 311, why: 'dialogs in glass are #311’s' },
-  { id: 'the Export dialog', setup: 'scene', open: [{ palette: 'Compile…' }], scope: 'dialog.export-dialog, [role="dialog"][aria-label="Export"]', pending: 311, why: 'dialogs in glass are #311’s' },
-  { id: 'the projects screen', setup: 'home', open: [], scope: '.home', pending: 311, why: 'Home on the wallpaper is #311’s' },
+  { id: 'a toast', setup: 'scene', open: [{ provoke: 'deleted-scene' }, { see: { testId: 'modern-toast', pattern: 'Deleted' } }], scope: '[data-testid="modern-notices"]' },
+  { id: 'Settings', setup: 'scene', open: [{ palette: 'Settings' }], scope: '[data-testid="settings"]' },
+  { id: 'the Export dialog', setup: 'scene', open: [{ palette: 'Compile…' }], scope: 'dialog.export-dialog' },
+  { id: 'the projects screen', setup: 'home', open: [], scope: '.home' },
   { id: 'the narrow layout', setup: 'scene', open: [], scope: '[data-testid="modern-stage"]', pending: 312, why: 'the narrow Modern layout is #312’s' },
 ];
 
@@ -283,14 +283,15 @@ async function smallTargets(page: Page, scope: string): Promise<string[]> {
         if (element.closest('[aria-hidden="true"], [inert], [hidden]') !== null) continue;
         const style = getComputedStyle(element);
         if (style.visibility === 'hidden' || style.display === 'none') continue;
-        // A link inside a sentence keeps its line (WCAG 2.5.8's inline exception).
-        if (element.matches('a') && [...(element.parentElement?.childNodes ?? [])].some((child) => child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim() !== '')) continue;
+        // A link (or a button drawn as one) inside a sentence keeps its line (WCAG 2.5.8's inline exception).
+        if (element.matches('a, button') && [...(element.parentElement?.childNodes ?? [])].some((child) => child.nodeType === Node.TEXT_NODE && (child.textContent ?? '').trim() !== '')) continue;
         // A checkbox or radio counts with its label; a tree row is its own line, not its subtree.
         let measured: Element = element;
         if (element.matches('input[type=checkbox], input[type=radio]')) measured = element.closest('label') ?? (element.id === '' ? null : document.querySelector(`label[for="${element.id}"]`)) ?? element;
         if (element.matches('[role=treeitem]')) measured = element.querySelector(':scope > .row') ?? element;
         const box = measured.getBoundingClientRect();
-        if (box.width === 0 && box.height === 0) continue;
+        // Nothing to hit: a visually hidden control (a file input behind its label button) is not a target.
+        if (box.width <= 2 && box.height <= 2) continue;
         if (box.width < 43.5 || box.height < 43.5) {
           const name = element.getAttribute('aria-label') ?? (element.textContent ?? '').trim().slice(0, 30);
           problems.push(`${element.tagName.toLowerCase()}${element.getAttribute('role') === null ? '' : `[role=${element.getAttribute('role') ?? ''}]`} “${name}”: ${Math.round(box.width)}×${Math.round(box.height)}`);

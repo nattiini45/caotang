@@ -276,7 +276,7 @@ export const MODERN_HOMES: readonly Home[] = [
         via: 'a deletion’s message, with Dismiss',
         steps: [{ provoke: 'deleted-scene' }, see({ role: 'button', name: 'Dismiss', within: { testId: 'modern-notices' } }), { click: { role: 'button', name: 'Dismiss', within: { testId: 'modern-notices' } } }, see({ role: 'status', pattern: 'Deleted', within: { testId: 'modern-notices' } }, { gone: true })],
       },
-      { via: 'as a glass toast', steps: [{ provoke: 'deleted-scene' }, see({ testId: 'modern-toast' })], pending: 311, why: 'the toast capsule is #311’s' },
+      { via: 'as a toast at the top centre', steps: [{ provoke: 'deleted-scene' }, see({ testId: 'modern-toast', pattern: 'Deleted' })] },
     ],
   },
   {
@@ -591,7 +591,7 @@ export const MODERN_HOMES: readonly Home[] = [
     routes: [
       { via: 'a row’s context menu', steps: [{ binder: true }, { click: { ...sceneRow }, right: true }, see({ role: 'menu', name: `Actions for ${SCENE}` })] },
       { via: 'Project, from ⋯', steps: [{ more: 'Project details' }, see({ role: 'dialog', name: 'Project' })] },
-      { via: 'in thick glass', steps: [{ palette: 'Compile…' }, see({ css: 'dialog.mat-thick, dialog[data-material]' })], pending: 311, why: 'dialogs in glass are #311’s' },
+      { via: 'Export, from the palette', steps: [{ palette: 'Compile…' }, see({ css: 'dialog.export-dialog' })] },
     ],
   },
   {
@@ -620,7 +620,7 @@ export const MODERN_HOMES: readonly Home[] = [
     setup: 'home',
     routes: [
       { via: 'the projects screen in Modern', steps: [see(projects), see({ role: 'button', name: 'Create project' }), see({ role: 'button', name: 'Settings' })] },
-      { via: 'on the wallpaper', steps: [see({ css: "html[data-shell='modern'] .home" }), see({ testId: 'modern-home-wallpaper' })], pending: 311, why: 'Home on the wallpaper is #311’s' },
+      { via: 'Home in Modern’s frame', steps: [see({ css: "html[data-shell='modern'] .home" })] },
     ],
   },
 
