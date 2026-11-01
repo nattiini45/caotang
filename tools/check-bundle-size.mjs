@@ -69,7 +69,11 @@ export const BUDGET = {
     // smaller than main's 1,565.0 kB because #322's lazy harness and exporters keep the agent loop, the run log and the export
     // pipelines out of it; the editor's projection and paste pipeline that main's agent chunk shared are in it now. The cap is that
     // plus about 1%, rounded up to the thousand.
-    index: 1_146_000,
+    // 1,180.3 kB measured on the merge of main 5a3f777d into #322 (2026-11-01): main's work since the last merge (#317 import core,
+    // #321 FDX import, #327 script settings, #331 tokens, #333 the shared import preview dialog, #330 the shell actions and Classic
+    // shell, #329 the plain-text reader) is in the entry, beside #322's own review fixes. The cap is that plus about 1%, rounded up to
+    // the thousand.
+    index: 1_192_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
