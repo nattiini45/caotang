@@ -87,7 +87,10 @@ export const BUDGET = {
   // the Final Draft import loads on use; the entry grew 0.5 kB raw for its loader and refusal handling). Measured standalone, minified, the whole XML reader is 14.1 kB
   // (4.5 kB gzip) and the archive reader 8.5 kB (3.4 kB gzip) without fflate, which is already its own chunk; each lands in this table as the
   // importers that use it are built (#263).
-  totalJs: 6_265_000,
+  // 6,272.4 kB measured with the shared import preview (#267), 43.6 kB over main's 6,228.8 kB: the lazy ImportPreviewDialog chunk (26.9 kB, the
+  // dialog and its model), `binder.importTree`'s descriptor in the first-load locale chunk (14.1 kB) and the entry's host, request store and
+  // Twee hand-off (2.3 kB), which put all JS 7.4 kB over the old ceiling; the ceiling is that plus about 1%. The first load is 898.3 kB gzip, under its 900.0 kB budget.
+  totalJs: 6_335_000,
 };
 
 const KB = 1000;
