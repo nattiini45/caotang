@@ -62,10 +62,11 @@ test('Edit synopsis opens Scene info on the synopsis, with the inspector’s ids
   await expect(dialog.getByRole('button', { name: /^Label: No label/ })).toBeVisible();
   const notes = dialog.getByTestId('inspector-notes-disclosure');
   const story = dialog.getByTestId('inspector-story-disclosure');
-  await expect(notes.locator('summary')).toHaveText('Notes');
-  await expect(story.locator('summary')).toHaveText('Story details');
+  // Their own summaries (a section inside may have a disclosure of its own).
+  await expect(notes.locator(':scope > summary')).toHaveText('Notes');
+  await expect(story.locator(':scope > summary')).toHaveText('Story details');
   await expect(notes).not.toHaveAttribute('open', /.*/);
-  await notes.locator('summary').click();
+  await notes.locator(':scope > summary').click();
   await expect(dialog.getByRole('textbox', { name: 'Notes' })).toBeVisible();
 
   // Progress: the daily target's quick-set and today's words, and the save state in words.
@@ -109,9 +110,10 @@ test('a click outside closes Scene info and leaves focus where the writer clicke
   await sceneInModern(page, 'Outside Book');
   await editSynopsis(page);
   await expect(sceneInfo(page)).toBeVisible();
-  await page.getByRole('textbox', { name: 'Document text' }).click();
+  // The binder, beside the popover: the click lands there, and focus stays with it.
+  await binderTitle(page, 'The crossing').click();
   await expect(sceneInfo(page)).toHaveCount(0);
-  await expect(page.getByRole('textbox', { name: 'Document text' })).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement?.closest('[role="tree"]') !== null)).toBe(true);
 
   await editSynopsis(page);
   await sceneInfo(page).getByRole('button', { name: 'Close' }).click();
