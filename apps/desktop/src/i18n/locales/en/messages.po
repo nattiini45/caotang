@@ -254,10 +254,45 @@ msgstr "\"{speaker}\" matches no codex character. Add a character entry, or corr
 msgid "“{summary}” could not be undone in full. The rest of its group is kept for another try."
 msgstr "“{summary}” could not be undone in full. The rest of its group is kept for another try."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“{text}” comes at {count} page breaks. It may be a running header; it stays in the text."
+msgstr "“{text}” comes at {count} page breaks. It may be a running header; it stays in the text."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“{title}” ({words} words) is back matter and goes into the manuscript."
+msgstr "“{title}” ({words} words) is back matter and goes into the manuscript."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“{title}” ({words} words) is back matter and goes to Research."
+msgstr "“{title}” ({words} words) is back matter and goes to Research."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“{title}” ({words} words) is back matter and is left out."
+msgstr "“{title}” ({words} words) is back matter and is left out."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“{title}” is {words} words long. Check that no chapter heading was missed."
+msgstr "“{title}” is {words} words long. Check that no chapter heading was missed."
+
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "\"{title}\" is no longer in the binder."
 msgstr "\"{title}\" is no longer in the binder."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“{title}” is short: {words} words."
+msgstr "“{title}” is short: {words} words."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“{title}” reads as the book’s title, so it starts no chapter."
+msgstr "“{title}” reads as the book’s title, so it starts no chapter."
 
 #. Interpolated values: folder
 #. js-lingui-explicit-id
@@ -280,6 +315,11 @@ msgstr "“{value}” is already here."
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "“Ask the AI” sends the previewed excerpt of that one file to {profile}. Nothing else is sent, and nothing is written unless you choose Convert."
 msgstr "“Ask the AI” sends the previewed excerpt of that one file to {profile}. Nothing else is sent, and nothing is written unless you choose Convert."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "“Chapter” lines ({count})"
+msgstr "“Chapter” lines ({count})"
 
 #. js-lingui-explicit-id
 #: packages/bus/src/permission.ts
@@ -445,6 +485,16 @@ msgstr "{change}: from {from} to {to}"
 msgid "{changed, plural, one {Tagged # picture.} other {Tagged # pictures.}}"
 msgstr "{changed, plural, one {Tagged # picture.} other {Tagged # pictures.}}"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{chapter} · {number}"
+msgstr "{chapter} · {number}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{chapters, plural, one {Import # chapter} other {Import # chapters}}"
+msgstr "{chapters, plural, one {Import # chapter} other {Import # chapters}}"
+
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
 msgid "{chapters} {chapterCount, plural, one {chapter} other {chapters}}, {scenes} {sceneCount, plural, one {scene} other {scenes}}, {words} {wordCount, plural, one {word} other {words}}"
@@ -539,6 +589,11 @@ msgstr "{count, plural, one {# day} other {# days}}"
 msgid "{count, plural, one {# finding} other {# findings}}"
 msgstr "{count, plural, one {# finding} other {# findings}}"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{count, plural, one {# footnote or comment has no place in the text and cannot be kept.} other {# footnotes and comments have no place in the text and cannot be kept.}}"
+msgstr "{count, plural, one {# footnote or comment has no place in the text and cannot be kept.} other {# footnotes and comments have no place in the text and cannot be kept.}}"
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "{count, plural, one {# item} other {# items}}"
@@ -631,6 +686,11 @@ msgstr "{count, plural, one {# picture} other {# pictures}}, {total} in all."
 msgid "{count, plural, one {# point of view} other {# points of view}}"
 msgstr "{count, plural, one {# point of view} other {# points of view}}"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{count, plural, one {# run of empty lines may mark a scene break: Scenes at offers it.} other {# runs of empty lines may mark scene breaks: Scenes at offers them.}}"
+msgstr "{count, plural, one {# run of empty lines may mark a scene break: Scenes at offers it.} other {# runs of empty lines may mark scene breaks: Scenes at offers them.}}"
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{count, plural, one {# shift} other {# shifts}}"
@@ -660,6 +720,11 @@ msgstr "{count, plural, one {Add # line id} other {Add # line ids}}"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 msgstr "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
+msgstr "{count, plural, one {Import # picture} other {Import # pictures}}"
 
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
@@ -1003,10 +1068,20 @@ msgstr "{field}: {message}"
 msgid "{field}: {to}"
 msgstr "{field}: {to}"
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "{file} could not be read: {problem}"
+msgstr "{file} could not be read: {problem}"
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} could not be read: {problem}."
 msgstr "{file} could not be read: {problem}."
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "{file} has more lines than a plain-text import splits: at most {limit}."
+msgstr "{file} has more lines than a plain-text import splits: at most {limit}."
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
@@ -1017,6 +1092,16 @@ msgstr "{file} has no knot to import. An Ink story makes one container for each 
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} has no passage to import. A Twee story makes one knot for each passage."
 msgstr "{file} has no passage to import. A Twee story makes one knot for each passage."
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "{file} is too large to import as plain text: the import reads files up to {limit} MB."
+msgstr "{file} is too large to import as plain text: the import reads files up to {limit} MB."
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "{file} is too large to import as RTF: the import reads files up to {size} MB."
+msgstr "{file} is too large to import as RTF: the import reads files up to {size} MB."
 
 #. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
@@ -1097,6 +1182,21 @@ msgstr "{later, plural, one {Restored to before that turn. # later change was ta
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "{layerId, select, L2 {Codex entries} L4 {Story so far, from the synopses} L5 {Focus document text} other {The layer}} is a whole number of tokens from {min} to {max}, or empty for the default."
 msgstr "{layerId, select, L2 {Codex entries} L4 {Story so far, from the synopses} L5 {Focus document text} other {The layer}} is a whole number of tokens from {min} to {max}, or empty for the default."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{lines, plural, one {# empty line} other {# empty lines}}"
+msgstr "{lines, plural, one {# empty line} other {# empty lines}}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{lines, plural, one {A table of contents (# line) is left out.} other {A table of contents (# lines) is left out.}}"
+msgstr "{lines, plural, one {A table of contents (# line) is left out.} other {A table of contents (# lines) is left out.}}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{lines, plural, one {Leave it out (# line)} other {Leave it out (# lines)}}"
+msgstr "{lines, plural, one {Leave it out (# line)} other {Leave it out (# lines)}}"
 
 #. The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale.
 #: apps/desktop/src/components/export-preview-model.ts
@@ -1348,6 +1448,11 @@ msgstr "{part, select, prologue {Covered by the folder “{folder}”, which is 
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "{part}: {title}"
 msgstr "{part}: {title}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "{parts, plural, one {# part has no folder: each of its chapters keeps it in its keywords.} other {# parts have no folder: each chapter keeps its part in its keywords.}}"
+msgstr "{parts, plural, one {# part has no folder: each of its chapters keeps it in its keywords.} other {# parts have no folder: each chapter keeps its part in its keywords.}}"
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
@@ -2011,6 +2116,36 @@ msgstr "≈ {pace}/day to finish this week"
 msgid "1 item"
 msgstr "1 item"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a “Chapter” line"
+msgstr "a “Chapter” line"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a “Part” line"
+msgstr "a “Part” line"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a “제 N 부” line"
+msgstr "a “제 N 부” line"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a “제 N 장” line"
+msgstr "a “제 N 장” line"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a “第…部” line"
+msgstr "a “第…部” line"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a “第…章” line"
+msgstr "a “第…章” line"
+
 #. Interpolated values: calls, cap
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "A background run goes on only while this project is open in this tab."
@@ -2104,6 +2239,11 @@ msgstr "A comic page belongs to a comic book. Move it into one, or choose anothe
 msgid "A comment is text that a formatted view would hide. It is shown below as written."
 msgstr "A comment is text that a formatted view would hide. It is shown below as written."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A comment was not kept."
+msgstr "A comment was not kept."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "A container that is missing"
@@ -2188,10 +2328,20 @@ msgstr "A document that is no longer in the project"
 msgid "a fact that is gone"
 msgstr "a fact that is gone"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A field was kept as its text."
+msgstr "A field was kept as its text."
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "A fixed-layout EPUB with one picture per comic page and the balloon text kept as readable text, for an ebook reader. Made in the app."
 msgstr "A fixed-layout EPUB with one picture per comic page and the balloon text kept as readable text, for an ebook reader. Made in the app."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A folder for each part"
+msgstr "A folder for each part"
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -2202,6 +2352,11 @@ msgstr "a folder that is gone"
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "A footnote can’t be added here. Put the caret in the text, outside a note, and try again."
 msgstr "A footnote can’t be added here. Put the caret in the text, outside a note, and try again."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A footnote was not kept."
+msgstr "A footnote was not kept."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -2274,10 +2429,20 @@ msgstr "A name uses lower-case letters, digits and hyphens, up to {max} characte
 msgid "A new comic script is made from the panels and balloons on this book's pages and linked to the book. Pictures are never copied into it."
 msgstr "A new comic script is made from the panels and balloons on this book's pages and linked to the book. Pictures are never copied into it."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a new file “{unit}”"
+msgstr "a new file “{unit}”"
+
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
 msgid "A note while a card waits"
 msgstr "A note while a card waits"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a number line"
+msgstr "a number line"
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
@@ -2288,6 +2453,11 @@ msgstr "A panel of “{title}”"
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap."
 msgstr "A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A picture could not be read."
+msgstr "A picture could not be read."
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
@@ -2312,6 +2482,11 @@ msgstr "A picture the project holds"
 #: apps/desktop/src/app/providers.ts
 msgid "A price needs both the prompt price and the reply price, per 1,000 tokens. Fill both, or leave both empty."
 msgstr "A price needs both the prompt price and the reply price, per 1,000 tokens. Fill both, or leave both empty."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "a prologue or epilogue line"
+msgstr "a prologue or epilogue line"
 
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
@@ -2404,6 +2579,11 @@ msgstr "A step this one reads was changed; it is looked up again when this step 
 msgid "A tab stopped because another tab saved newer text for this project."
 msgstr "A tab stopped because another tab saved newer text for this project."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A table became paragraphs."
+msgstr "A table became paragraphs."
+
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "A tag may be at most {max} characters."
@@ -2414,10 +2594,20 @@ msgstr "A tag may be at most {max} characters."
 msgid "A task is drafted only while this project is open in this tab. Nothing is applied until you review it."
 msgstr "A task is drafted only while this project is open in this tab. Nothing is applied until you review it."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A text box was kept as text."
+msgstr "A text box was kept as text."
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "A thread’s declared payoff is not in the manuscript"
 msgstr "A thread’s declared payoff is not in the manuscript"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "A tracked change was not kept."
+msgstr "A tracked change was not kept."
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -2485,6 +2675,11 @@ msgstr "About {extractCalls, plural, one {# model call} other {# model calls}} t
 #: apps/desktop/src/components/Settings.tsx
 msgid "about {size}"
 msgstr "about {size}"
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "About {size} MB."
+msgstr "About {size} MB."
 
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
@@ -2937,6 +3132,11 @@ msgstr "Always included: this entry goes into every drafting call"
 msgid "Always, in every drafting call"
 msgstr "Always, in every drafting call"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "An embedded object was not kept."
+msgstr "An embedded object was not kept."
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "An empty placeholder — no art is placed in this panel yet."
@@ -2946,6 +3146,11 @@ msgstr "An empty placeholder — no art is placed in this panel yet."
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "an entry that is gone"
 msgstr "an entry that is gone"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "An equation was kept as text."
+msgstr "An equation was kept as text."
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
@@ -3384,12 +3589,58 @@ msgstr "Auto is turned off in Settings › Agent."
 msgid "Auto-approved"
 msgstr "Auto-approved"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Automatic"
+msgstr "Automatic"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Automatic: “Chapter” lines"
+msgstr "Automatic: “Chapter” lines"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Automatic: each file"
+msgstr "Automatic: each file"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Automatic: Heading {level}"
+msgstr "Automatic: Heading {level}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Automatic: none found"
+msgstr "Automatic: none found"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Automatic: page breaks"
+msgstr "Automatic: page breaks"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Automatic: style “{name}”"
+msgstr "Automatic: style “{name}”"
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Back"
 msgstr "Back"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "back matter"
+msgstr "back matter"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Back matter"
+msgstr "Back matter"
 
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
@@ -3476,6 +3727,11 @@ msgstr "Bearer token for {name}"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Before"
 msgstr "Before"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Before chapter 1"
+msgstr "Before chapter 1"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -3574,6 +3830,21 @@ msgstr "Both margins"
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Branch graph"
 msgstr "Branch graph"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Break lines and Heading {level} ({count})"
+msgstr "Break lines and Heading {level} ({count})"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Break lines and two or more empty lines ({count})"
+msgstr "Break lines and two or more empty lines ({count})"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Break lines only ({count})"
+msgstr "Break lines only ({count})"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -3776,6 +4047,11 @@ msgstr "Caotang cannot read the text of “{title}”, so it opens empty. Its fi
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Caotang cannot tell what encoding it is."
 msgstr "Caotang cannot tell what encoding it is."
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "Caotang cannot tell which encoding {file} is in, so it cannot import it."
+msgstr "Caotang cannot tell which encoding {file} is in, so it cannot import it."
 
 #. Interpolated values: error
 #: apps/desktop/src/App.tsx
@@ -4046,10 +4322,30 @@ msgstr "Changing the picture placements"
 msgid "Chapter"
 msgstr "Chapter"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Chapter {expected} was expected at “{title}”, which says {found}."
+msgstr "Chapter {expected} was expected at “{title}”, which says {found}."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Chapter {number}"
+msgstr "Chapter {number}"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Chapter headings in capitals, scenes set apart by a line."
 msgstr "Chapter headings in capitals, scenes set apart by a line."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Chapters are found by more than one kind of line: {families}."
+msgstr "Chapters are found by more than one kind of line: {families}."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Chapters at"
+msgstr "Chapters at"
 
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
@@ -5733,6 +6029,11 @@ msgstr "Each change you make appears here, with the command it ran. Undo takes b
 msgid "Each change, from its value now to its value after this step"
 msgstr "Each change, from its value now to its value after this step"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Each file ({count})"
+msgstr "Each file ({count})"
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Each is shown below as its code in brackets, like ⟦U+200B⟧."
@@ -5918,6 +6219,12 @@ msgstr "Enable"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Enable {name}"
 msgstr "Enable {name}"
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "Encoding"
+msgstr "Encoding"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -6539,6 +6846,11 @@ msgstr "Follow the system"
 msgid "Follows these scenes"
 msgstr "Follows these scenes"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Footnote {label}"
+msgstr "Footnote {label}"
+
 #. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
 #: apps/desktop/src/components/editor-labels.ts
 msgctxt "footnote marker"
@@ -6555,6 +6867,11 @@ msgstr "Footnote {label}"
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Footnote without a marker"
 msgstr "Footnote without a marker"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Footnotes and comments with no place in the text ({count}) are kept under “Unreferenced notes” in the notes of “{title}”."
+msgstr "Footnotes and comments with no place in the text ({count}) are kept under “Unreferenced notes” in the notes of “{title}”."
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "For example en or en-GB"
@@ -6584,6 +6901,11 @@ msgstr "For you. Never sent to the model."
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Formatted script"
 msgstr "Formatted script"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Formatting was not kept."
+msgstr "Formatting was not kept."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -6818,6 +7140,16 @@ msgstr "Header {number} name"
 msgid "Header {number} value"
 msgstr "Header {number} value"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Heading {level}"
+msgstr "Heading {level}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Heading {level} ({count})"
+msgstr "Heading {level} ({count})"
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "Healthy"
@@ -6944,6 +7276,11 @@ msgstr "Images added to shots"
 msgid "Import"
 msgstr "Import"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Import “{file}”"
+msgstr "Import “{file}”"
+
 #. Interpolated values: title
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -6970,6 +7307,11 @@ msgstr "Import a folder…"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Import a list"
 msgstr "Import a list"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import a manuscript"
+msgstr "Import a manuscript"
 
 #: apps/desktop/src/components/CardPictureDialog.tsx
 msgid "Import a picture file…"
@@ -7004,6 +7346,16 @@ msgstr "Import Ink"
 #: apps/desktop/src/components/InspectorPictures.tsx
 msgid "Import pictures here…"
 msgstr "Import pictures here…"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import plain text…"
+msgstr "Import plain text…"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import RTF…"
+msgstr "Import RTF…"
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
@@ -7356,6 +7708,11 @@ msgstr "It is a binary file that Caotang cannot draw here, and a look-alike draw
 msgid "It is also in the project folder."
 msgstr "It is also in the project folder."
 
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "It is larger than an RTF import reads."
+msgstr "It is larger than an RTF import reads."
+
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "it is not a PNG, JPEG or WebP picture"
@@ -7365,6 +7722,11 @@ msgstr "it is not a PNG, JPEG or WebP picture"
 #: apps/desktop/src/media/prompt-pack-model.ts
 msgid "it is not an object"
 msgstr "it is not an object"
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "It is not an RTF file."
+msgstr "It is not an RTF file."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -7421,6 +7783,11 @@ msgstr "its file could not be read — {why}"
 msgid "its folder is gone"
 msgstr "its folder is gone"
 
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "Its groups are nested deeper than an RTF import reads."
+msgstr "Its groups are nested deeper than an RTF import reads."
+
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "its name does not start with a shot number (name a photograph like 007.jpg)"
@@ -7435,6 +7802,11 @@ msgstr "Its placements go with it:"
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Its shots are in “{title}”."
 msgstr "Its shots are in “{title}”."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Join it to the chapter before"
+msgstr "Join it to the chapter before"
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
@@ -7460,6 +7832,11 @@ msgstr "Keep a take from my own generation"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Keep each one to {itemLimit} characters."
 msgstr "Keep each one to {itemLimit} characters."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Keep it with the text before chapter 1"
+msgstr "Keep it with the text before chapter 1"
 
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Keep originals"
@@ -7715,6 +8092,11 @@ msgstr "Leave focus mode"
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Leave it as it is — the file is not changed."
 msgstr "Leave it as it is — the file is not changed."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Leave it out"
+msgstr "Leave it out"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -8060,6 +8442,12 @@ msgstr "Making the bundle"
 #: apps/desktop/src/app/codex-model.ts
 msgid "Manual"
 msgstr "Manual"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Manuscript"
+msgstr "Manuscript"
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
@@ -8741,6 +9129,11 @@ msgstr "No"
 msgid "No cards yet"
 msgstr "No cards yet"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "No chapters were found, so the text is one chapter. Choose a rule under Chapters at to split it."
+msgstr "No chapters were found, so the text is one chapter. Choose a rule under Chapters at to split it."
+
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "No character"
@@ -8935,6 +9328,11 @@ msgstr "No one learns it yet."
 msgid "No other pictures"
 msgstr "No other pictures"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "No part folders (the part in each chapter’s keywords)"
+msgstr "No part folders (the part in each chapter’s keywords)"
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "No picture matches these filters"
@@ -9048,6 +9446,11 @@ msgstr "No scene has a day yet. Give a scene a day in the Inspector, or ask the 
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "No scene heading yet. A heading starts with INT. or EXT."
 msgstr "No scene heading yet. A heading starts with INT. or EXT."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "No scene splits"
+msgstr "No scene splits"
 
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
@@ -9241,6 +9644,11 @@ msgstr "None yet."
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "None yet. Set the filter bar, then choose Save current."
 msgstr "None yet. Set the filter bar, then choose Save current."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "None: one chapter"
+msgstr "None: one chapter"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -9498,6 +9906,11 @@ msgstr "Nothing was imported."
 msgid "Nothing was opened or changed."
 msgstr "Nothing was opened or changed."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Numbered"
+msgstr "Numbered"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
@@ -9506,6 +9919,11 @@ msgstr "Nothing was opened or changed."
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Off"
 msgstr "Off"
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "Off, underlined text is kept without its underline."
+msgstr "Off, underlined text is kept without its underline."
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -9526,6 +9944,11 @@ msgstr "On this computer"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "On. The servers below may be connected. Their tools are searchable only once their tool list has been reviewed."
 msgstr "On. The servers below may be connected. Their tools are searchable only once their tool list has been reviewed."
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "One line each"
+msgstr "One line each"
 
 #: apps/desktop/src/app/timeline-proposals.ts
 msgid "one of its scenes has no day now"
@@ -9847,12 +10270,22 @@ msgstr "Page {number} of {count}"
 msgid "Page {number}: covered lines {before} → {after}"
 msgstr "Page {number}: covered lines {before} → {after}"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "page break"
+msgstr "page break"
+
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/element-menu.ts
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Page break"
 msgstr "Page break"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Page breaks ({count})"
+msgstr "Page breaks ({count})"
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -9946,6 +10379,11 @@ msgstr "Paper frames: blank numbered frames to draw in, without the pictures"
 msgid "Paper size"
 msgstr "Paper size"
 
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "Paragraphs"
+msgstr "Paragraphs"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Parallel"
@@ -9993,6 +10431,11 @@ msgstr "Part of the step was taken back too."
 msgid "partial"
 msgstr "partial"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Parts"
+msgstr "Parts"
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "past the deadline"
@@ -10017,6 +10460,11 @@ msgstr "Permission mode"
 #: apps/desktop/src/media/ComicPhotoReturn.tsx
 msgid "Photographs in this batch"
 msgstr "Photographs in this batch"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Picture"
+msgstr "Picture"
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
@@ -10083,6 +10531,11 @@ msgstr "Picture settings"
 msgid "Picture taken off"
 msgstr "Picture taken off"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Picture: {text}"
+msgstr "Picture: {text}"
+
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -10094,6 +10547,11 @@ msgstr "Picture taken off"
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Pictures"
 msgstr "Pictures"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Pictures are left out: Import pictures is off."
+msgstr "Pictures are left out: Import pictures is off."
 
 #. The picture notices. size is a formatted amount of storage.
 #: apps/desktop/src/app/picture-notices.ts
@@ -10243,6 +10701,11 @@ msgstr "Plain Markdown, with a contents list after the title."
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Plain text (.txt)"
 msgstr "Plain text (.txt)"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Plain text file"
+msgstr "Plain text file"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -10876,6 +11339,11 @@ msgstr "Reader agent"
 msgid "harness.progress.docRead.active"
 msgstr "Reading “{doc}”"
 
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "Reading {file}…"
+msgstr "Reading {file}…"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.docRead.bare.active"
@@ -10891,6 +11359,16 @@ msgstr "Reading a skill"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Reading direction"
 msgstr "Reading direction"
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "Reading it took too long."
+msgstr "Reading it took too long."
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "Reading it was cancelled."
+msgstr "Reading it was cancelled."
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -11426,6 +11904,11 @@ msgstr "Requests, newest first"
 msgid "Requests, retries included. Nothing here holds a key or a message."
 msgstr "Requests, retries included. Nothing here holds a key or a message."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Research"
+msgstr "Research"
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Research holds notes that stay out of the manuscript. Start with one note, written first."
@@ -11697,6 +12180,11 @@ msgstr "Risk"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Role"
 msgstr "Role"
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "RTF file"
+msgstr "RTF file"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -12168,6 +12656,11 @@ msgstr "Scanning for continuity problems"
 msgid "Scene"
 msgstr "Scene"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "scene break “{marker}”"
+msgstr "scene break “{marker}”"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Scene declarations"
@@ -12207,6 +12700,11 @@ msgstr "Scene or folder"
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Scene status"
 msgstr "Scene status"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Scenes at"
+msgstr "Scenes at"
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -12490,6 +12988,11 @@ msgstr "Sent with every request, and sealed with the key — they are never show
 #: apps/desktop/src/components/Settings.tsx
 msgid "Sent with every request, and sealed with the key — they are never shown again. Leave this list untouched to keep the stored set; empty it again to clear it."
 msgstr "Sent with every request, and sealed with the key — they are never shown again. Leave this list untouched to keep the stored set; empty it again to clear it."
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "Separated by blank lines"
+msgstr "Separated by blank lines"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -12979,6 +13482,11 @@ msgstr "Some saved filters or goals could not be moved into the project, so they
 msgid "Some text did not fit the budget and is left out of the prompt: the longest passages are cut, and the least important codex entries and earlier scenes are dropped first."
 msgstr "Some text did not fit the budget and is left out of the prompt: the longest passages are cut, and the least important codex entries and earlier scenes are dropped first."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Something the import cannot read was left out."
+msgstr "Something the import cannot read was left out."
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Sound effect"
@@ -13358,6 +13866,16 @@ msgstr "Structured output accepted"
 msgid "Structured output not accepted"
 msgstr "Structured output not accepted"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "style “{name}”"
+msgstr "style “{name}”"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Style “{name}” ({count})"
+msgstr "Style “{name}” ({count})"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Styled headings, and a contents field Word can update."
@@ -13409,6 +13927,11 @@ msgstr "Synopsis"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Synopsis changed"
 msgstr "Synopsis changed"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Table of contents"
+msgstr "Table of contents"
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
@@ -13529,6 +14052,11 @@ msgstr "Task roles"
 msgid "Text"
 msgstr "Text"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Text before chapter 1"
+msgstr "Text before chapter 1"
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Text inserted"
@@ -13557,6 +14085,11 @@ msgstr "Text replaced"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Text saved"
 msgstr "Text saved"
+
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "Text the import does not keep (hidden text, deleted revisions, field codes, link targets)"
+msgstr "Text the import does not keep (hidden text, deleted revisions, field codes, link targets)"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -13921,6 +14454,11 @@ msgstr "The card picture of “{title}”"
 msgid "The change did not check out"
 msgstr "The change did not check out"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "The chapter number {found} comes more than once (“{title}”)."
+msgstr "The chapter number {found} comes more than once (“{title}”)."
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The checkpoint limit is a whole number from 1 to {max}."
@@ -14105,6 +14643,11 @@ msgstr "the export dialog"
 msgid "The fields {vendor} receives"
 msgstr "The fields {vendor} receives"
 
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "The file cannot be read as {encoding}. Choose another encoding."
+msgstr "The file cannot be read as {encoding}. Choose another encoding."
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "The file could not be read for a preview: {reason}"
@@ -14134,6 +14677,11 @@ msgstr "The file has a field Caotang keeps but does not use: {fields}. It is dro
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "The file is empty."
 msgstr "The file is empty."
+
+#. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/text-source.ts
+msgid "The file is read as {encoding}, a guess. If letters look wrong in the text, choose another encoding."
+msgstr "The file is read as {encoding}, a guess. If letters look wrong in the text, choose another encoding."
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -14777,6 +15325,11 @@ msgstr "The saved filters and goals were added to the project, but the project h
 msgid "The saved prompt for {vendor} changed, so the text you had typed for it was replaced by the saved prompt."
 msgstr "The saved prompt for {vendor} changed, so the text you had typed for it was replaced by the saved prompt."
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "The scene “{title}” is {words} words long. Check that no scene break was missed."
+msgstr "The scene “{title}” is {words} words long. Check that no scene break was missed."
+
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "The scene did not save when its view closed. Your words are in this tab; they will be written again on the next change."
 msgstr "The scene did not save when its view closed. Your words are in this tab; they will be written again on the next change."
@@ -14967,6 +15520,21 @@ msgstr "The sweep stopped early ({detail}). {removed, plural, one {# file was re
 msgid "the take's seed is a whole number from {first} to {last}"
 msgstr "the take's seed is a whole number from {first} to {last}"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "The text before chapter 1 ({words} words) goes into the manuscript."
+msgstr "The text before chapter 1 ({words} words) goes into the manuscript."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "The text before chapter 1 ({words} words) goes to Research."
+msgstr "The text before chapter 1 ({words} words) goes to Research."
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "The text before chapter 1 ({words} words) is left out."
+msgstr "The text before chapter 1 ({words} words) is left out."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "The text between the two lines of dashes at the top gives the skill its name and says when to use it. Everything after it is what the agent reads. Saving a change means you approve the skill again before the agent can use it."
@@ -15128,6 +15696,11 @@ msgstr "The writing history could not be read: {error}"
 #: apps/desktop/src/App.tsx
 msgid "The writing session could not be recorded: {error}"
 msgstr "The writing session could not be recorded: {error}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Their first words"
+msgstr "Their first words"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -16069,6 +16642,11 @@ msgstr "undated"
 msgid "under $0.0001"
 msgstr "under $0.0001"
 
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "Underline becomes italics"
+msgstr "Underline becomes italics"
+
 #. Interpolated values: source, summary
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
 #: apps/desktop/src/app/shell-actions.ts
@@ -16180,6 +16758,11 @@ msgstr "Unreached"
 msgid "Unreadable"
 msgstr "Unreadable"
 
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Unreferenced notes"
+msgstr "Unreferenced notes"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Unreliable narrator"
@@ -16201,6 +16784,11 @@ msgstr "Until the server says more: a small window, no native tools, no image in
 #: apps/desktop/src/components/Home.tsx
 msgid "Untitled project"
 msgstr "Untitled project"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "Untitled scenes"
+msgstr "Untitled scenes"
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -16541,6 +17129,11 @@ msgstr "What the payoff is for"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "What the prompt left out"
 msgstr "What the prompt left out"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "What the splitter noticed"
+msgstr "What the splitter noticed"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
@@ -16910,6 +17503,11 @@ msgstr "Your provider profiles could not be read: {error}"
 #: apps/desktop/src/app/providers.ts
 msgid "Your provider settings could not be saved in this browser: {error}"
 msgstr "Your provider settings could not be saved in this browser: {error}"
+
+#. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/import-preview/splitter-source.ts
+msgid "your split"
+msgstr "your split"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx

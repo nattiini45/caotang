@@ -658,16 +658,21 @@ describe('the user guide’s reviewed claims match the code', () => {
 });
 
 describe('the import preview (#267)', () => {
-  it('says one Undo takes the whole import back, that only the Twee import opens it, and that its commit is the writer’s alone', () => {
-    // The commit is one writer-only, compensable command (import-preview.md §5), and the Twee import opens the shared dialog.
+  it('says one Undo takes the whole import back, that the Twee, plain-text and RTF imports open it, and that its commit is the writer’s alone', () => {
+    // The commit is one writer-only, compensable command (import-preview.md §5); the Twee import and the two manuscript imports open the shared dialog.
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.agentRisk).toBe('never');
     expect(COMMAND_REGISTRY['binder.importTree'].descriptor.undo).toBe('compensable');
     expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
     expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
     expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
-    expect(guide).toContain('Today only **Import Twee** opens it.');
+    expect(guide).toContain('**Import Twee**, **Import plain text…** and **Import RTF…** open it.');
+    const manuscript = read('apps/desktop/src/components/ManuscriptImport.tsx');
+    expect(manuscript).toContain("await import('../import-preview/text-source.js')");
+    expect(manuscript).toContain("await import('../import-preview/rtf-source.js')");
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<ManuscriptImportActions />');
     const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
-    expect(notYet).toContain('only the Twee import opens the preview');
+    expect(notYet).toContain('the Twee, plain-text and RTF imports open the preview');
+    expect(notYet).not.toContain('There is no **Import RTF** command yet');
     expect(changelog).toContain('**One import preview for every structured import.**');
     expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
   });

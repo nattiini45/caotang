@@ -174,6 +174,13 @@ export interface CustomCommit {
   (plan: PreviewPlan): Promise<{ readonly ok: true; readonly message?: string } | { readonly ok: false; readonly message: string }>;
 }
 
+/** Text a reader kept out of the blocks that the injection scan still reads (RTF hidden text, link targets), with what it is. */
+export interface ScanExtra {
+  /** Where the text is, as the report names it ("hidden text"). */
+  readonly label: string;
+  readonly text: string;
+}
+
 export interface ImportPreviewSource {
   readonly fileName: string;
   /** The dialog's title: "Import “The Lighthouse Keeper.docx”". */
@@ -188,6 +195,8 @@ export interface ImportPreviewSource {
   fields?(): readonly PreviewField[];
   codexRows?(): readonly PreviewCodexRow[];
   pictures?(): readonly PreviewPicture[];
+  /** Text outside the tree that the injection scan reads too (issue #54); its hits are listed by `label`. */
+  scanExtra?(): readonly ScanExtra[];
   /** Title, author and language from the file's metadata. */
   metadata?(): { readonly title?: string; readonly author?: string; readonly language?: string };
   report?(plan: PreviewPlan): readonly PreviewReportList[];
@@ -446,8 +455,11 @@ export interface InjectionRow {
   readonly kind: string;
 }
 
-/** The injection scan over every document of the tree and its notes (issue #54), located by node. Nothing is changed by it. */
-export function scanTree(tree: readonly PreviewNode[], helpers: PreviewHelpers): { readonly total: number; readonly rows: readonly InjectionRow[]; readonly sentence: (name: string) => string | undefined } {
+/**
+ * The injection scan over every document of the tree and its notes (issue #54), located by node, and over the text the reader kept
+ * outside the tree (`extra`), located by its label with no node. Nothing is changed by it.
+ */
+export function scanTree(tree: readonly PreviewNode[], helpers: PreviewHelpers, extra: readonly ScanExtra[] = []): { readonly total: number; readonly rows: readonly InjectionRow[]; readonly sentence: (name: string) => string | undefined } {
   const parts: { where: string; text: string }[] = [];
   const titles = new Map<string, string>();
   const walk = (nodes: readonly PreviewNode[]): void => {
@@ -459,10 +471,20 @@ export function scanTree(tree: readonly PreviewNode[], helpers: PreviewHelpers):
     }
   };
   walk(tree);
+  const labels = new Map<string, string>();
+  extra.forEach((part, index) => {
+    const where = `extra:${index}`;
+    labels.set(where, part.label);
+    parts.push({ where, text: part.text });
+  });
   const found = helpers.scanImport(parts);
   return {
     total: found.total,
-    rows: found.hits.map((hit) => ({ nodeId: hit.where, where: titles.get(hit.where) ?? hit.where, excerpt: hit.excerpt, kind: hit.kind })),
+    rows: found.hits.map((hit) => {
+      const label = labels.get(hit.where);
+      if (label !== undefined) return { nodeId: '', where: label, excerpt: hit.excerpt, kind: hit.kind };
+      return { nodeId: hit.where, where: titles.get(hit.where) ?? hit.where, excerpt: hit.excerpt, kind: hit.kind };
+    }),
     // The status line's sentence after the import, the one every import says (ScriptImport.tsx).
     sentence: (name) => helpers.importScanSentence(name, found),
   };

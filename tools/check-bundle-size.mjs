@@ -98,10 +98,17 @@ export const BUDGET = {
   // catalogue and the Lingui runtime are in the entry) on top of main's 891.6 kB. The agent loop and the run log stay lazy: the
   // Settings prompt preview takes scene.draft's task from the harness's agent/scene-task.ts, not from the loop. Main's macro check
   // (the tool table) and the tool registry stay in the first load, as on main. The ceiling is that plus about 1%, rounded up to the thousand.
+  // 1,018.9 kB measured with Import plain text… and Import RTF… on the splitter source (#267, #283, #274), against 1,015.9 kB on main.
+  // The readers, the splitter and the preview's sources are lazy chunks (text-source 2.8, rtf-source 11.6, splitter-source 14.0 kB
+  // gzip, on use); the first load grows by the compiled English catalogue (+2.5 kB gzip for the preview's 118 new rule, split, check
+  // and notice messages, which must be in the entry before the first paint, i18n.md §3.3) and the two binder buttons with their
+  // loaders (+0.4 kB). Main left 0.1 kB of room, so localising the preview could not fit; the ceiling is that plus about 1%,
+  // rounded up to the thousand.
+  
   // 1,016.1 kB (1,016,124 bytes) measured with the editor's footnote words localised (#337): the labels port's footnote names, `setLabels` and the
   // decorations that rename the markers and notes of an open editor on a language switch, which put the first load about 0.1 kB over
   // the old 1,016.0 kB ceiling. The ceiling is that plus about 1%, rounded up to the thousand.
-  initialGzip: 1_027_000,
+  initialGzip: 1_030_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -125,7 +132,11 @@ export const BUDGET = {
   // 7,578.3 kB measured on the merge of main c69b6ff7 into #322 (2026-11-01), with the same main work as the entry above (the footnote
   // nodes and their editor plugin, the import preview, the FDX and plain-text readers). The ceiling is that plus about 1%, rounded up
   // to the thousand.
-  totalJs: 7_655_000,
+  // 7,671.1 kB measured with Import plain text… and Import RTF… (#267, #283, #274), against 7,579.2 kB on main: the splitter source
+  // with import-core (38.0 kB), the RTF reader and its source (31.7 kB), the plain-text reader and its source (6.2 kB), all loaded on
+  // use, and the English and German catalogues' new messages (6.6 and 7.3 kB). The ceiling is that plus about 1%, rounded up to the
+  // thousand.
+  totalJs: 7_748_000,
 };
 
 const KB = 1000;
