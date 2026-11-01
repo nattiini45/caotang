@@ -30,6 +30,12 @@ async function modernScene(page: Page, name = 'Ferry Book'): Promise<Locator> {
   await surface.click();
   await page.keyboard.type('Alpha beta.');
   await waitForSaved(page);
+  // The storage notice sits at the top centre, over the title capsule, until #311 places notices.
+  const banner = page.getByTestId('storage-banner');
+  if (await banner.isVisible()) {
+    await banner.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(banner).toBeHidden();
+  }
   return surface;
 }
 
