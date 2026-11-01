@@ -81,7 +81,8 @@ export const GUTTER = 32;
 export const NARROW_GUTTER = 8;
 export const SIDEBAR_WIDTH = 300;
 export const AGENT_WIDTH = 400;
-export const INFO_WIDTH = 360;
+/** A docked Scene info's width: scene-info.css's `--scene-info-w` (#308), so the page moves over exactly as far as the panel is wide. */
+export const INFO_WIDTH = 380;
 export const PAGE_TOP_MIN = 84;
 export const PAGE_TOP_SHARE = 0.11;
 export const PAGE_BOTTOM = 112;

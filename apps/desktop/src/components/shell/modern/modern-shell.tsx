@@ -23,6 +23,7 @@ import { OpenOnDesktop } from '../../narrow.js';
 import type { ShellRegions } from '../regions.js';
 import { modernLayout, type ModernView } from './layout.js';
 import { morphPage } from './morph.js';
+import { useSceneInfo } from './scene-info-store.js';
 import { MODERN_SLOTS, type ModernSlot, type ModernSlots } from './slots.js';
 import { Page, Stage, type StageGeometry } from './stage.js';
 import { modernViewOf } from './views.js';
@@ -62,8 +63,11 @@ export function ModernShell({
   const sidebar = slots.sidebar !== null && !view.hideRails && !view.narrow;
   const current = modernViewOf(view.rail, view.center);
   const size = useSyncExternalStore(subscribeViewport, readViewport);
-  // The agent window (#309) and a docked Scene info (#308) add their state here when they are built.
-  const layout = modernLayout({ viewport: size, view: current, sidebar, agent: false, info: false });
+  // A docked Scene info (#308) takes room at the inline-end edge while it shows (focus mode hides it). The agent window (#309) adds its
+  // state here when it is built.
+  const sceneInfo = useSceneInfo();
+  const info = slots.sceneInfo !== null && sceneInfo.open && sceneInfo.docked && !view.hideRails;
+  const layout = modernLayout({ viewport: size, view: current, sidebar, agent: false, info });
   const placed = geometry ?? layout.geometry;
   const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={regions} pageId={PAGE_ID} />);
   const skip = (event: ReactMouseEvent<HTMLAnchorElement>): void => {
