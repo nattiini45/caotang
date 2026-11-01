@@ -7,6 +7,8 @@
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
 import type { NarrowPanel } from '../../app/narrow-model.js';
+import type { SaveState } from '../../app/session.js';
+import type { TargetProgress } from '../../app/session-progress.js';
 import type { ShellAction } from '../../app/shell-actions.js';
 import type { CenterMode } from '../Binder.js';
 import type { MenuAnchor } from '../shared.js';
@@ -32,6 +34,20 @@ export interface ShellView {
   readonly overflow: MenuAnchor | null;
   readonly openOverflow: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   readonly closeOverflow: () => void;
+}
+
+/**
+ * Today's progress and the save state as values, for a shell that shows them in its own place (Modern's Scene info › Progress,
+ * modern-interface.md §6, §7.3). Classic shows them in the editor's footer and the toolbar, through `editor` and `saveState`.
+ */
+export interface ShellProgress {
+  /** Today's words and the daily target, the reading the editor's `TargetQuickSet` shows. */
+  readonly target: TargetProgress;
+  /** Saves the daily target (the app setting), as the editor's quick-set does. */
+  readonly setTarget: (words: number) => void;
+  readonly saveState: SaveState;
+  /** Export a backup, the save state's own button on a failed save. */
+  readonly exportBackup: () => void;
 }
 
 export interface ShellRegions {
@@ -65,4 +81,5 @@ export interface ShellRegions {
   /** The status line, or `null` when there is no message. */
   readonly status: ReactNode;
   readonly saveState: ReactNode;
+  readonly progress: ShellProgress;
 }
