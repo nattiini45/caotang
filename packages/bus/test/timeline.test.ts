@@ -413,6 +413,41 @@ describe('timeline.apply: moves against the projected tree', () => {
     expect(project(snapshot({}, board), [move(A, 'n_BOARD', 0, 'manuscript', 1)]).ok).toBe(false);
   });
 
+  it('keeps the comic book rules binder.move keeps: pages stay in a book, a book takes only its pages and its script', () => {
+    const comic = [
+      node('root', null, 'root', 10),
+      node('manuscript', 'root', 'folder', 10),
+      { ...node('n_BOOK', 'manuscript', 'folder', 10), kind: 'comic' },
+      node('n_PAGE', 'n_BOOK', 'comic-page', 10),
+      { ...node('n_SCRIPT', 'manuscript', 'document', 20), kind: 'comic-script' },
+      node(A, 'manuscript', 'document', 30),
+      node(CH1, 'manuscript', 'folder', 40),
+      { ...node('n_BOOK2', 'manuscript', 'folder', 50), kind: 'comic' },
+    ];
+    const refused = (op: TimelineOp, words: string) => {
+      const result = project(snapshot({}, comic), [op]);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toContain(words);
+        expect(result.error.target).toBe('ops[0].newParentId');
+      }
+    };
+    // An ordinary document, a folder and another book cannot move into a book.
+    refused(move(A, 'n_BOOK', 0, 'manuscript', 2), 'a comic book holds only its pages and its script');
+    refused(move(CH1, 'n_BOOK', 0, 'manuscript', 3), 'a comic book holds only its pages and its script');
+    refused(move('n_BOOK2', 'n_BOOK', 0, 'manuscript', 4), 'a comic book holds only its pages and its script');
+    // A page cannot leave its book for a folder or the manuscript.
+    refused(move('n_PAGE', 'manuscript', 0, 'n_BOOK', 0), 'a comic page must sit in a comic book');
+    refused(move('n_PAGE', CH1, 0, 'n_BOOK', 0), 'a comic page must sit in a comic book');
+    // A later op in the batch is checked against the tree the earlier ops made.
+    const batch = project(snapshot({}, comic), [move(A, CH1, 0, 'manuscript', 2), move(CH1, 'n_BOOK', 0, 'manuscript', 2)]);
+    expect(batch.ok).toBe(false);
+    // What the rules allow: a comic-script document moves in, a page moves to another book, and a page reorders in its book.
+    expect(project(snapshot({}, comic), [move('n_SCRIPT', 'n_BOOK', 1, 'manuscript', 1)]).ok).toBe(true);
+    expect(project(snapshot({}, comic), [move('n_PAGE', 'n_BOOK2', 0, 'n_BOOK', 0)]).ok).toBe(true);
+    expect(project(snapshot({}, comic), [move('n_PAGE', 'n_BOOK', 0, 'n_BOOK', 0)]).ok).toBe(true);
+  });
+
   it('reports a moved node whose expect names another place as a conflict', () => {
     const result = project(snapshot(), [move(A, CH2, 0, CH2, 0)]);
     expect(result.ok).toBe(false);

@@ -24,6 +24,7 @@ import {
   type ScenePatch,
   type TimelineModeName,
 } from './coherence.js';
+import { isComicFolder, isComicScript } from './descriptors-comic.js';
 import { HINT_READ_TREE, isRecord, requireNonBlankString, showValue } from './params.js';
 import { err, ok, type CommandError, type Result } from './result.js';
 
@@ -686,6 +687,19 @@ export function projectTimelineBatch(snapshot: ValidationSnapshot, ops: readonly
     }
     if (node.type !== 'shot' && isBoard) {
       return badOp(index, `"${parent.id}" is a storyboard, and a storyboard holds only shots, so "${node.id}" (a ${node.type}) cannot move into it`, 'move it beside the storyboard instead', 'newParentId');
+    }
+    // The comic book's rules binder.move checks (comics.md §2), so a timeline move cannot build a structure binder.move refuses: a
+    // comic page stays in a comic book, and a comic book holds only its pages and its comic-script document.
+    if (node.type === 'comic-page' && !isComicFolder(parent)) {
+      return badOp(index, `a comic page must sit in a comic book, and "${parent.id}" is not one`, 'move the page into a comic book, or leave it where it is', 'newParentId');
+    }
+    if (isComicFolder(parent) && node.type !== 'comic-page' && !isComicScript(node)) {
+      return badOp(
+        index,
+        `"${parent.id}" is a comic book, and a comic book holds only its pages and its script, so "${node.id}" (a ${node.type}) cannot move into it`,
+        'move it beside the comic book instead',
+        'newParentId',
+      );
     }
     for (let cursor: typeof node | undefined = parent, hops = 0; cursor !== undefined && hops <= tree.length; hops += 1) {
       if (cursor.id === node.id) {

@@ -103,11 +103,11 @@ export const COMIC_SCRIPT_KIND = 'comic-script';
  * What the comic commands read of a snapshot
  * ------------------------------------------------------------------ */
 
-export const isComicFolder = (node: ValidationNode): boolean => node.type === 'folder' && node.kind === 'comic';
+export const isComicFolder = (node: Pick<ValidationNode, 'type' | 'kind'>): boolean => node.type === 'folder' && node.kind === 'comic';
 
 export const isComicPage = (node: ValidationNode): boolean => node.type === 'comic-page';
 
-export const isComicScript = (node: ValidationNode): boolean => node.type === 'document' && node.kind === COMIC_SCRIPT_KIND;
+export const isComicScript = (node: Pick<ValidationNode, 'type' | 'kind'>): boolean => node.type === 'document' && node.kind === COMIC_SCRIPT_KIND;
 
 /** A node's pages in binder order. */
 export function comicPagesOf(snapshot: ValidationSnapshot, bookId: string): ValidationNode[] {
