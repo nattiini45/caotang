@@ -508,7 +508,9 @@ function assetSweepApply(assets: ProjectAssetPort): PictureApply<AssetSweepParam
  * nothing written.
  */
 function assetRelinkApply(clock: ApplyClock, assets: ProjectAssetPort, ledger?: UndoRetentionLedger): PictureApply<AssetRelinkParams> {
-  return async (state, params, context) => {
+  // The listing, the byte verification and the record update run inside the asset file gate, so a sweep cannot overlap them: an
+  // unrecorded file chosen here would otherwise be a sweep candidate, removed after its last check, with the record then pointed at it.
+  return (state, params, context) => withAssetFileGate(assets, async () => {
     const list = assets.list;
     const readBytes = assets.readBytes;
     if (list === undefined || readBytes === undefined) throw new Error('asset.relink reached its apply without a listing port');
@@ -551,7 +553,7 @@ function assetRelinkApply(clock: ApplyClock, assets: ProjectAssetPort, ledger?: 
     compensate(context, `point ${plural(verified.length, 'a picture', 'pictures')} back at the old file ${verified.length === 1 ? 'name' : 'names'}`, [undo], state);
     context.report({ affected: [], summary: `re-linked ${plural(verified.length, 'a renamed picture', 'renamed pictures')} by hash` });
     return { pairs: verified.map((pair) => ({ ...pair })) };
-  };
+  });
 }
 
 interface WorkingCopyPlan {
