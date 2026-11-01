@@ -90,7 +90,7 @@ export class CidEmbedding {
     return this.entries.length > 0;
   }
 
-  /** Draws glyphs from a baseline start, in a colour. With `bold` they are stroked and spaced by one line width (`emboldenOf`, @caotang/pdf-fonts embolden.ts). */
+  /** Draws glyphs from a baseline start, in a colour. With `bold` they are stroked and spaced by one line width (`emboldenOf` in `@caotang/pdf-fonts`, embolden.ts). */
   draw(page: PdfLib.PDFPage, glyphs: readonly CidGlyph[], x: number, y: number, size: number, ink: { r: number; g: number; b: number }, bold = false): void {
     const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setStrokingRgbColor, setLineWidth, setLineJoin, LineJoinStyle, setTextRenderingMode, TextRenderingMode, setCharacterSpacing, moveText, showText, PDFHexString } = this.lib;
     let key = this.keys.get(page);
