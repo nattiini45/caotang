@@ -43,8 +43,7 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await page.keyboard.press('Enter');
   await page.getByRole('textbox', { name: 'Document text' }).fill('The boat came in with the tide. Nobody was on it.');
   await waitForSaved(page);
-  // The storage notice is a toast at the top centre, over the title capsule until #311 places notices; dismissed so the baseline
-  // shows the top ornament's glass.
+  // The storage notice floats over the page's top until #311 makes notices toasts; dismissed so the baseline shows the bare page.
   const banner = page.getByTestId('storage-banner');
   await banner.getByRole('button', { name: 'Dismiss' }).click();
   await expect(banner).toBeHidden();
