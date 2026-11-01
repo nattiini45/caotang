@@ -509,6 +509,24 @@ function noteMarkup(text: string): string {
   return `[[${oneLine(text).replace(/\]\]/g, '] ]').replace(/\[\[/g, '[ [')}]]`;
 }
 
+/**
+ * A `Note` paragraph's text: its runs concatenated exactly as the file holds them, so a word split across runs (a style
+ * change or an edit in the middle of it) stays one word and the spaces the runs carry are kept. An anchored script note
+ * is a separate piece of text, so it is set off from what is around it by a space when no space is there already.
+ */
+function noteParagraphText(segments: readonly FdxSegment[]): string {
+  let out = '';
+  let afterNote = false;
+  for (const segment of segments) {
+    if (segment.text === '') continue;
+    const apart = segment.kind === 'note' || afterNote;
+    if (apart && out !== '' && !/\s$/.test(out) && !/^\s/.test(segment.text)) out += ' ';
+    out += segment.text;
+    afterNote = segment.kind === 'note';
+  }
+  return out;
+}
+
 /** What one paragraph's runs become in Fountain, and what was counted on the way. */
 interface Markup {
   readonly inline: string;
@@ -744,7 +762,7 @@ function fdxElements(paragraphs: readonly FdxParagraph[], notices: string[], cou
     }
     if (p.type === 'Note') {
       counts.noteParagraphs += 1;
-      const all = p.segments.map((segment) => segment.text).join(' ');
+      const all = noteParagraphText(p.segments);
       push({ type: 'note', text: noteMarkup(all).slice(2, -2) });
       continue;
     }
