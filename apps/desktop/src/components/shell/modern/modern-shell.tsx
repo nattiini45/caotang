@@ -13,7 +13,7 @@
 
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 
 import '../../../tokens/modern.css';
 import './shell-modern.css';
@@ -21,11 +21,28 @@ import './shell-modern.css';
 import { LazyBoundary } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';
 import type { ShellRegions } from '../regions.js';
+import { modernLayout, type ModernView } from './layout.js';
+import { morphPage } from './morph.js';
 import { MODERN_SLOTS, type ModernSlot, type ModernSlots } from './slots.js';
 import { Page, Stage, type StageGeometry } from './stage.js';
+import { modernViewOf } from './views.js';
 
 export { MODERN_SLOTS, type ModernSlot, type ModernSlotProps, type ModernSlots } from './slots.js';
 export { Page, Stage, geometryProperties, type StageGeometry } from './stage.js';
+export { modernLayout, type ModernLayout, type ModernView } from './layout.js';
+
+/** The window's size, as a store React reads (one listener on `resize`). The same object until the size changes. */
+let viewport = { width: 0, height: 0 };
+function readViewport(): { width: number; height: number } {
+  if (viewport.width !== window.innerWidth || viewport.height !== window.innerHeight) {
+    viewport = { width: window.innerWidth, height: window.innerHeight };
+  }
+  return viewport;
+}
+function subscribeViewport(listener: () => void): () => void {
+  window.addEventListener('resize', listener);
+  return () => window.removeEventListener('resize', listener);
+}
 
 /** The page's id: the skip link's target, and what a slot names with `aria-controls`. */
 export const PAGE_ID = 'modern-page';
@@ -38,11 +55,16 @@ export function ModernShell({
   regions: ShellRegions;
   /** The slots to fill; the shipped ones by default. Tests pass their own. */
   slots?: ModernSlots;
-  /** The page's place; the stylesheet's defaults when left out (#306's modernLayout supplies it). */
+  /** The page's place; {@link modernLayout}'s for the window's size and the view when left out. Tests pass their own. */
   geometry?: StageGeometry;
 }): ReactNode {
   const { view } = regions;
   const sidebar = slots.sidebar !== null && !view.hideRails && !view.narrow;
+  const current = modernViewOf(view.rail, view.center);
+  const size = useSyncExternalStore(subscribeViewport, readViewport);
+  // The agent window (#309) and a docked Scene info (#308) add their state here when they are built.
+  const layout = modernLayout({ viewport: size, view: current, sidebar, agent: false, info: false });
+  const placed = geometry ?? layout.geometry;
   const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={regions} pageId={PAGE_ID} />);
   const skip = (event: ReactMouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault();
@@ -50,16 +72,17 @@ export function ModernShell({
   };
 
   return (
-    <Stage sidebar={sidebar} {...(geometry === undefined ? {} : { geometry })}>
+    <Stage sidebar={sidebar} geometry={placed}>
       <a className="modern-skip" href={`#${PAGE_ID}`} onClick={skip}>
         <Trans>Skip to the page</Trans>
       </a>
       {slot(slots.notices)}
       {slot(slots.topOrnament)}
       {sidebar ? slot(slots.sidebar) : null}
-      <Page id={PAGE_ID} label={regions.projectName} view={view.center}>
-        <PageContent regions={regions} agentOnPage={slots.companion === null} />
+      <Page id={PAGE_ID} label={regions.projectName} view={current}>
+        <PageContent regions={regions} view={current} agentOnPage={slots.companion === null} />
       </Page>
+      <PageMorph view={current} />
       {slot(slots.bottomOrnament)}
       {slot(slots.sceneInfo)}
       {slot(slots.companion)}
@@ -73,12 +96,17 @@ export function ModernShell({
  * so its undo history and its place survive a view change), the corkboard, the pictures or the timeline. The agent drawer stays at
  * the page's foot until the companion slot (#309) takes it.
  */
-function PageContent({ regions, agentOnPage }: { regions: ShellRegions; agentOnPage: boolean }): ReactNode {
-  const { center, setCenter, narrow, hideRails } = regions.view;
+function PageContent({ regions, view, agentOnPage }: { regions: ShellRegions; view: ModernView; agentOnPage: boolean }): ReactNode {
+  const { setCenter, narrow, hideRails } = regions.view;
+  // In Codex the centre is still whatever it was; the page shows the codex instead, with the editor kept mounted but hidden.
+  const center = view === 'codex' ? null : regions.view.center;
   return (
     <>
-      {regions.media}
-      {regions.editor}
+      {view === 'codex' ? null : regions.media}
+      <div className="modern-editor-host" hidden={view === 'codex'}>
+        {regions.editor}
+      </div>
+      {view === 'codex' ? <div className="modern-codex-view">{regions.codex}</div> : null}
       {center === 'corkboard' && regions.media === null && narrow ? (
         <OpenOnDesktop
           feature="corkboard"
@@ -95,4 +123,19 @@ function PageContent({ regions, agentOnPage }: { regions: ShellRegions; agentOnP
       {agentOnPage && !hideRails ? <LazyBoundary label={t`the agent`}>{regions.agent}</LazyBoundary> : null}
     </>
   );
+}
+
+/**
+ * The page's morph on a view change (§8.3): the new view fades and scales in while the page's width follows modernLayout's
+ * `--page-w`. Nothing on the first render, and nothing under reduced motion (the tokens' durations are 0).
+ */
+function PageMorph({ view }: { view: ModernView }): null {
+  const last = useRef(view);
+  useLayoutEffect(() => {
+    if (last.current === view) return;
+    last.current = view;
+    const page = document.getElementById(PAGE_ID);
+    if (page !== null) morphPage(page);
+  }, [view]);
+  return null;
 }
