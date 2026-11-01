@@ -17,7 +17,7 @@
 .project-rename label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   min-width: 0;
   flex: 1 1 14rem;
 }
