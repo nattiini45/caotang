@@ -253,6 +253,13 @@ test('the More menu is glass with 44 px rows, and each dialog it opens is glass,
 test('a Confirm dialog is glass and grows out of the row; the status line that follows is a glass toast at the top centre', async ({ page }) => {
   await start(page);
   await projectWithScene(page, 'Harbour Book');
+  // Where storage is not persisted (WebKit), the storage notice is a toast of its own above the status line; it is dismissed so the
+  // status line is the one toast measured here.
+  const banner = page.getByTestId('storage-banner');
+  if (await banner.isVisible()) {
+    await banner.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(banner).toBeHidden();
+  }
 
   const row = page.getByRole('treeitem', { name: /The Landing/ });
   await row.click();
@@ -264,7 +271,7 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
   await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
 
-  const toast = page.getByTestId('modern-notices').getByRole('status');
+  const toast = page.getByTestId('modern-notices').getByRole('status').filter({ hasText: /Deleted/ });
   await expect(toast).toContainText(/Deleted “\u2068?The Landing\u2069?”/);
   await settle(page);
   await expectGlass(toast, '32px');
