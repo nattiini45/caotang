@@ -65,7 +65,8 @@
     transform var(--dur-1) var(--ease-spring);
 }
 
-:root[data-shell='modern'] .modern-binder-button:hover {
+:root[data-shell='modern'] .modern-binder-button:hover,
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab:hover {
   background: var(--mat-thick-bg);
 }
 
@@ -73,7 +74,9 @@
   transform: scale(0.97);
 }
 
-:root[data-shell='modern'] .modern-binder-button[aria-expanded='true'] {
+:root[data-shell='modern'] .modern-binder-button[aria-expanded='true'],
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab[aria-selected='true'],
+:root[data-shell='modern'] .modern-sidebar-pin[aria-pressed='true'] {
   background: var(--accent);
   color: var(--accent-ink);
 }
@@ -181,34 +184,10 @@
   border: 0;
 }
 
-:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: var(--target-min);
-  min-inline-size: var(--target-min);
-  padding: 0 var(--space-5);
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--scrim);
-  color: var(--on-glass);
-  font: 600 13px/1 var(--ui);
-  transition: background-color var(--dur-1) var(--ease-standard);
-}
-
-:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab:hover {
-  background: var(--mat-thick-bg);
-}
-
-:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab[aria-selected='true'] {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab,
 :root[data-shell='modern'] .modern-sidebar-pin {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start;
   gap: var(--space-3);
   min-block-size: var(--target-min);
   padding: 0 var(--space-5);
@@ -217,13 +196,19 @@
   background: var(--scrim);
   color: var(--on-glass);
   font: 600 13px/1 var(--ui);
+}
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab {
+  min-inline-size: var(--target-min);
+  transition: background-color var(--dur-1) var(--ease-standard);
+}
+
+
+
+:root[data-shell='modern'] .modern-sidebar-pin {
+  align-self: flex-start;
   cursor: pointer;
 }
 
-:root[data-shell='modern'] .modern-sidebar-pin[aria-pressed='true'] {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
 
 :root[data-shell='modern'] .modern-sidebar-panel {
   flex: 1;
