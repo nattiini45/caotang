@@ -51,7 +51,10 @@ export const BUDGET = {
     // entry 0.2 kB over the old cap; the cap is that plus about 1%.
     // 1,565.0 kB measured with the FDX tree reader (#264) on top of the interface setting (#314), 22 bytes under the old cap; the FDX reader
     // adds about 1 kB here (the rest of it is in the locale chunk); the cap is that plus about 1%.
-    index: 1_581_000,
+    // 1,584.3 kB measured with footnotes in the editor (#270): the two footnote nodes, the canonical re-flow and the orphan question, on top
+    // of the shared import preview (#333) and the Final Draft structure import (#321), which put the entry 3.3 kB over the old cap; the cap is
+    // that plus about 1%.
+    index: 1_600_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
