@@ -219,7 +219,7 @@ function strippedNote(prepared: readonly PreparedPicture[]): string {
  * asset.import and asset.importBatch
  * ------------------------------------------------------------------ */
 
-async function importPictures(
+export async function importPictures(
   state: ProjectState,
   assets: ProjectAssetPort,
   items: readonly ({ readonly stagingId: string } & PictureMeta)[],

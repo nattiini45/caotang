@@ -130,6 +130,18 @@ export {
 export * as hookCommands from './descriptors-hooks.js';
 // The writer's batch import of codex entries (codex.md §7.1), by name, for the store's registration and the harness's planner.
 export * as codexImportCommands from './descriptors-codex-import.js';
+// The commit of the shared import preview (import-preview.md §5): the descriptor for the store's registration, the shape and limits
+// for the desktop's preview, which builds the params and pre-checks them.
+export * as importTreeCommands from './descriptors-import.js';
+export type { ImportTreeCodexEntry, ImportTreeNode, ImportTreeParams, ImportTreePicture } from './descriptors-import.js';
+export {
+  IMPORT_TREE_NODES_MAX,
+  IMPORT_TREE_PICTURES_MAX,
+  IMPORT_TREE_REF_PATTERN,
+  IMPORT_TREE_TEXT_MAX,
+  IMPORT_TREE_TITLE_MAX,
+  PENDING_IMPORT_PREFIX,
+} from './descriptors-import.js';
 export {
   HOOKS_MAX,
   HOOK_EVENTS,
@@ -323,6 +335,7 @@ export type {
   DialogueSetMetaParams,
   InkContainerParams,
   ScreenplayImportParams,
+  ScreenplayImportSeed,
 } from './descriptors-script.js';
 export {
   DIALOGUE_ENGINE_TARGETS,
@@ -331,6 +344,8 @@ export {
   DIALOGUE_META_KEYS,
   SCREENPLAY_IMPORT_FORMATS,
   SCREENPLAY_IMPORT_TEXT_MAX,
+  SCREENPLAY_IMPORT_SEEDS_MAX,
+  SCREENPLAY_IMPORT_SEED_TYPES,
 } from './descriptors-script.js';
 // The AV script's show and episode settings (descriptors-av-script.ts), named by the store and by `@caotang/script`, which reads
 // the stored values with the same lists.

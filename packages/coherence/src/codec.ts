@@ -12,10 +12,11 @@
  *    unknown top-level key is dropped on the next save, with a notice (§6).
  */
 
+import { isDayOffset } from '@caotang/bus';
+
 import { isCoherenceId } from './ids.js';
 import {
   COHERENCE_FORMAT_VERSION,
-  DAY_OFFSET_LIMIT,
   DETERMINISTIC_CHECK_IDS,
   EVIDENCE_QUOTE_LIMIT,
   FINDING_CLASSES,
@@ -97,11 +98,6 @@ const TOP_KEYS = ['formatVersion', 'findings', 'runs', 'sceneMeta', 'worldRules'
 
 function isRecord(value: unknown): value is Obj {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** §5.2.2: a whole number of days from −{@link DAY_OFFSET_LIMIT} to {@link DAY_OFFSET_LIMIT}. */
-function isDayOffset(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && Math.abs(value) <= DAY_OFFSET_LIMIT;
 }
 
 function isNonNegInt(value: unknown): value is number {
@@ -349,7 +345,7 @@ export function readSceneMeta(
   notices: LoadNotice[],
   key: string,
   modes: Set<string>,
-  parts: Set<string> = new Set(),
+  parts: Set<string>,
 ): SceneMeta | undefined {
   if (!isRecord(raw)) {
     notices.push({ code: 'dropped-scene-meta', message: `The scene declarations for "${key}" are not an object and were dropped.` });

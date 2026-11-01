@@ -65,6 +65,23 @@ describe('reading the settings', () => {
     expect(readEpisodeMeta(undefined)).toEqual({ meta: {}, notices: [] });
   });
 
+  it('holds a hand-edited value to the same checks as the setters: https addresses and a capped speech rate', () => {
+    const show = readShowMeta({ fundingUrl: 'http://example.com/support', link: 'example.com', speechRateWpm: 50000, feedTitle: 'Kept' });
+    expect(show.meta).toEqual({ feedTitle: 'Kept' });
+    expect(show.notices).toHaveLength(3);
+    const episode = readEpisodeMeta({ audioUrl: 'episode.mp3', chaptersUrl: 'https://example.com/12.json' });
+    expect(episode.meta).toEqual({ chaptersUrl: 'https://example.com/12.json' });
+    expect(episode.notices).toEqual(['episodeMeta.audioUrl has a value this build cannot use, so it is left out (and kept in the file)']);
+  });
+
+  it('names the bad label of a cue vocabulary and says the default labels apply', () => {
+    const read = readShowMeta({ cueVocabulary: ['music', 'bed', 'sfx!'] });
+    expect(read.meta).toEqual({});
+    expect(read.notices).toEqual([
+      'showMeta.cueVocabulary[2] "sfx!" is not a label, so the whole list is left out (and kept in the file) and the default cue labels apply',
+    ]);
+  });
+
   it('has a words-per-minute value for each preset name the bus accepts, and six default cue labels', () => {
     expect(Object.keys(SPEECH_RATE_PRESETS)).toEqual([...SPEECH_RATE_PRESET_NAMES]);
     expect(DEFAULT_CUE_VOCABULARY).toEqual(['music', 'sfx', 'ambience', 'ad', 'pause', 'sting']);

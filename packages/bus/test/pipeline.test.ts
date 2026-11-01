@@ -1176,7 +1176,8 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // The writer's hooks add `hook.save` and `hook.delete`, descriptors here and applies in the store: 56 + 2 = 58.
     // The picture registry adds `asset.import`, `asset.importBatch` and `asset.setMeta`, descriptors here and applies in the store: 58 + 3 + 2 (the AV script's `script.setShowMeta` and `script.setEpisodeMeta`) = 63.
     // The writer's codex batch import adds `codex.importBatch`, a descriptor here with its apply in the store: 63 + 1 = 64.
-    expect(COMMAND_NAMES.length).toBe(64);
+    // The import preview's commit adds `binder.importTree`, a descriptor here with its apply in the store: 64 + 1 = 65.
+    expect(COMMAND_NAMES.length).toBe(65);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {
