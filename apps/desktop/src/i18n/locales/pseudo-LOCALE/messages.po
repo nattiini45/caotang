@@ -2574,6 +2574,11 @@ msgstr ""
 msgid "A step this one reads was changed; it is looked up again when this step runs"
 msgstr ""
 
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
+msgid "A stopped tab kept some words. They are in the binder, under Goals and sprint: "
+msgstr ""
+
 #. Interpolated values: count, stamp, titles
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "A tab stopped because another tab saved newer text for this project."
@@ -2738,10 +2743,13 @@ msgid "Active profile"
 msgstr ""
 
 #. Interpolated values: source, summary
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/ActivityPanel.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 msgid "Activity"
 msgstr ""
 
@@ -3780,13 +3788,14 @@ msgstr ""
 msgid "bestTake.vendorParams.{key} is not text or a number"
 msgstr ""
 
-#. Modern interface, provisional binder panel.
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/Binder.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
-#: apps/desktop/src/components/shell/modern/interim-sidebar.tsx
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 msgid "Binder"
 msgstr ""
 
@@ -6725,6 +6734,8 @@ msgstr ""
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
@@ -6733,6 +6744,7 @@ msgstr ""
 #: apps/desktop/src/components/FindingsPanel.tsx
 #: apps/desktop/src/components/InspectorDialogue.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Findings"
@@ -7034,6 +7046,11 @@ msgstr ""
 #: apps/desktop/src/components/BinderFooter.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "Goals"
+msgstr ""
+
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
+msgid "Goals and sprint"
 msgstr ""
 
 #: apps/desktop/src/components/FirstRun.tsx
@@ -7853,6 +7870,11 @@ msgstr ""
 msgid "Keep it with the text before chapter 1"
 msgstr ""
 
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
+msgid "Keep open"
+msgstr ""
+
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Keep originals"
 msgstr ""
@@ -8458,8 +8480,10 @@ msgstr ""
 msgid "Manual"
 msgstr ""
 
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Manuscript"
 msgstr ""
@@ -10381,8 +10405,11 @@ msgstr ""
 msgid "Panel border"
 msgstr ""
 
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 msgid "Panels"
 msgstr ""
 
@@ -13324,6 +13351,11 @@ msgstr ""
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Show the list"
+msgstr ""
+
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
+msgid "show them"
 msgstr ""
 
 #. Interpolated values: source, summary
@@ -16514,9 +16546,12 @@ msgstr ""
 msgid "Top of the body"
 msgstr ""
 
+#. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 msgid "Trace"
 msgstr ""
 
