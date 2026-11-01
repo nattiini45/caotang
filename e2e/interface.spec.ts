@@ -9,8 +9,8 @@ import { createProject } from './support.js';
  * the default themselves, so they start without the suite's Classic pin (e2e/classic-pin.ts).
  *
  * Until the parity gate opens (MODERN_DEFAULT_FOR_NEW_USERS, #313) a fresh profile resolves to Classic, and Modern is "Modern
- * (Preview)" in Settings. Modern's stylesheet is loaded only while Modern is on; its placeholder override sets `--radius` to 14px
- * (8px in Classic), which is what these specs read.
+ * (Preview)" in Settings. Modern's stylesheet is loaded only while Modern is on; its tokens (tokens/modern.css) set `--radius` to 14px
+ * (8px in Classic), which is what these specs read. The stage and the page themselves are e2e/modern-stage.spec.ts's.
  *
  * The code inside `page.evaluate` is sent to the page as text, so each callback names its own globals.
  */
@@ -38,7 +38,7 @@ function radius(page: Page): Promise<string> {
   });
 }
 
-/** Every request for Modern's stylesheet, from the dev server (`/src/modern/modern.css`) or a build (`modern-<hash>.css`). */
+/** Every request for Modern's stylesheets, from the dev server (`/src/tokens/modern.css`, `shell-modern.css`) or a build (`modern-shell-<hash>.css`). */
 function watchModernCss(page: Page): string[] {
   const seen: string[] = [];
   page.on('request', (request) => {

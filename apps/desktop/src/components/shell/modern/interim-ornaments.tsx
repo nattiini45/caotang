@@ -7,17 +7,19 @@
 /* lingui-set comment="Modern interface, provisional controls on the page's edges." */
 
 import { t } from '@lingui/core/macro';
-import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
+import { useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { classicMenu } from '../../../app/shell-actions.js';
 import type { CenterMode } from '../../Binder.js';
-import { Menu } from '../../shared.js';
+import { Menu, type MenuAnchor } from '../../shared.js';
 import { CENTER_VIEWS, keyStep } from '../ClassicShell.js';
 import type { ModernSlotProps } from './slots.js';
 
 export function InterimTopOrnament({ regions }: ModernSlotProps): ReactNode {
-  const { view, actions } = regions;
+  const { actions } = regions;
   const details = actions.find((action) => action.id === 'details');
+  // The menu's own state: the workspace's overflow menu belongs to the narrow layout and is closed in a wide window.
+  const [menu, setMenu] = useState<MenuAnchor | null>(null);
   return (
     <>
       <div className="modern-ornament is-top mat-glass" role="group" aria-label={t`Project`} data-testid="modern-top-ornament">
@@ -29,11 +31,20 @@ export function InterimTopOrnament({ regions }: ModernSlotProps): ReactNode {
           </button>
         )}
         <span className="mat-scrim modern-ornament-state">{regions.saveState}</span>
-        <button type="button" className="modern-capsule" aria-haspopup="menu" aria-expanded={view.overflow !== null} onClick={view.openOverflow}>
+        <button
+          type="button"
+          className="modern-capsule"
+          aria-haspopup="menu"
+          aria-expanded={menu !== null}
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            setMenu(menu === null ? { x: Math.max(8, box.right - 240), y: box.bottom + 8 } : null);
+          }}
+        >
           {t`More`}
         </button>
       </div>
-      {view.overflow === null ? null : <Menu label={t`More`} anchor={view.overflow} items={classicMenu(actions)} onClose={view.closeOverflow} />}
+      {menu === null ? null : <Menu label={t`More`} anchor={menu} items={classicMenu(actions)} onClose={() => setMenu(null)} />}
     </>
   );
 }
