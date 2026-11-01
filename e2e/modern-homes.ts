@@ -330,7 +330,7 @@ export const MODERN_HOMES: readonly Home[] = [
     routes: [
       { via: 'the tree', steps: [{ binder: true }, see(binderTree), see({ ...sceneRow })] },
       { via: 'a row’s menu › Edit synopsis opens Scene info on it', steps: [{ binder: true }, { click: { ...sceneRow }, right: true }, { click: { role: 'menuitem', name: 'Edit synopsis' } }, see({ css: '#inspector-synopsis', within: sceneInfo }, { focused: true })] },
-      { via: 'F2 renames the row', steps: [{ binder: true }, { press: 'F2', on: { ...sceneRow } }, see({ role: 'textbox', pattern: '^Rename' }, { focused: true }), { press: 'Escape' }] },
+      { via: 'F2 renames the row', steps: [{ binder: true }, { press: 'F2', on: { ...sceneRow } }, see({ role: 'textbox', pattern: '^Rename' }, { focused: true }), { press: 'Escape' }, see({ role: 'textbox', pattern: '^Rename' }, { gone: true })] },
       { via: 'Delete asks first', steps: [{ binder: true }, { press: 'Delete', on: { ...sceneRow } }, see({ role: 'dialog', name: `Delete “${SCENE}”?` })] },
       { via: 'Ctrl+N makes a new document', steps: [{ binder: true }, { press: 'ControlOrMeta+n', on: { ...sceneRow } }, see({ role: 'textbox', name: 'Rename Untitled' }, { focused: true })] },
       { via: 'Manuscript in the tab bar opens it', steps: [{ click: manuscript }, see(binderTree)], pending: 307, why: 'the tab bar and sidebar are #307’s' },
