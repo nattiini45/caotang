@@ -2,9 +2,9 @@
 
 > Status: **partly built** (#267). Built: the shared preview dialog (`apps/desktop/src/import-preview/`), its source interface, its
 > model (manual edits, the virtualised text pane, the mapping, the codex rows, the report, the commit), the commit command
-> `binder.importTree` (bus `descriptors-import.ts`, store `commands-import.ts`), and the Twee import moved onto it. Not built: the
-> splitter source for the block list of #266 (`splitImport` in `@caotang/import-core` is built; the source that maps its `SplitResult` onto a plan is not), the format readers that
-> feed it (#268 is the shared readers; each reader is its own issue), the **New project** destination, POV and day as mapping
+> `binder.importTree` (bus `descriptors-import.ts`, store `commands-import.ts`), the Twee import moved onto it, the splitter source
+> for the block list of #266 (`splitter-source.ts`, import-core.md §5.1), and **Import plain text…** and **Import RTF…** through it. Not built: the other format readers that
+> feed it (#268 is the shared readers; each reader is its own issue), the Worker host the readers will run in, the **New project** destination, POV and day as mapping
 > targets, and the Final Draft import's move onto the dialog (#265 extended its own dialog; moving it onto this one is a follow-up).
 > Cross-refs: block list and splitter = Imports epic #263 (research notes `doc-formats.md` §10); commands = [command-bus.md](command-bus.md) §9
 > (`binder.importTree`) · codex rows = [codex.md](codex.md) §7.1 · pictures = [pictures.md](pictures.md) D5 (inline spelling) and §6.4
@@ -27,10 +27,11 @@ proposed tree?* A source gives:
 | Part | What it is |
 |---|---|
 | `load(progress, signal)` | Reads the file once, with a progress line the dialog shows and the dialog's Cancel as the abort. Optional. |
-| `chips()` | The rule chips, each a choice: chapters at (Heading n / style "X" / "Chapter N" lines / page breaks / none), scenes at, Parts nest or flatten, front matter to manuscript / Research / skip. The splitter source of #266 makes these from its `Detected`. |
+| `chips()` | The rule chips, each a choice: chapters at (Heading n / style "X" / "Chapter N" lines / page breaks / none), scenes at, Parts nest or flatten, front matter to manuscript / Research / skip. The splitter source (`splitter-source.ts`) makes these from #266's `Detected`. |
 | `options()` | Reader toggles: tracked changes, comments → notes, underline → italics, images, snapshots, codex auto-detect (decisions 5 and 6, on by default). An option with `network` (host, count, size) is a network step (decision 10): it starts **off** whatever the source says, and its label names the host, the count and the size. |
 | `plan(settings, overrides)` | The proposed tree (`PreviewNode`: part, chapter, scene, text, front, back), the text pane's blocks, the ✂ markers with the reason for each, the counts, the losses (`LossWarning`s) and the sanity flags, a flag with a one-click fix as overrides. Pure and fast: it is run again on every chip change. |
 | `fields()`, `codexRows()`, `pictures()`, `metadata()` | What there is to map: front-matter keys or columns, codex rows (name, type, the passage that names it, a page of its own text), pictures (staged bytes behind an `import:` ref the bodies use). |
+| `scanExtra()` | Text the reader kept out of the tree (RTF hidden text, deleted revisions, field codes, link targets) that the injection scan reads too; its hits are listed by what they are, with no node. |
 | `report(plan)`, `importLabel(plan)`, `commit`, `readOnly` | For a source whose import is not a binder tree (the Twee import: one dialogue container, written with `dialogue.importInk`). |
 
 ## 3. Rules first, manual edits second

@@ -132,7 +132,8 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const plan: PreviewPlan | null = useMemo(() => (ready ? source.plan(settings, edits.overrides) : null), [ready, source, settings, edits.overrides]);
   const shown = useMemo(() => (plan === null ? [] : applyEdits(plan.tree, edits)), [plan, edits]);
   const rows = useMemo(() => visibleRows(shown, collapsed), [shown, collapsed]);
-  const scan = useMemo(() => scanTree(shown, helpers), [shown, helpers]);
+  const extraScan = useMemo(() => (ready ? (source.scanExtra?.() ?? []) : []), [ready, source]);
+  const scan = useMemo(() => scanTree(shown, helpers, extraScan), [shown, helpers, extraScan]);
   const codexRows: readonly PreviewCodexRow[] = useMemo(() => (ready ? (source.codexRows?.() ?? []) : []), [ready, source]);
   const held = useMemo(() => (session.state.manifest.codex ?? []).flatMap((entry) => [entry.name, ...entry.aliases]), [session.state.manifest.codex]);
   const colliding = useMemo(() => collisions(codexRows, held), [codexRows, held]);
@@ -489,9 +490,13 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
                   <ul aria-label="Passages that read like instructions to an AI">
                     {scan.rows.map((row, index) => (
                       <li key={`${row.nodeId}-${index}`}>
-                        <button type="button" className="button is-quiet" onClick={() => select(row.nodeId)}>
-                          {row.where}
-                        </button>
+                        {row.nodeId === '' ? (
+                          row.where
+                        ) : (
+                          <button type="button" className="button is-quiet" onClick={() => select(row.nodeId)}>
+                            {row.where}
+                          </button>
+                        )}
                         : “{row.excerpt}”
                       </li>
                     ))}

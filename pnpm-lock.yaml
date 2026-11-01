@@ -285,9 +285,15 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../../packages/ids
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../../packages/import-core
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read
+      '@caotang/import-rtf':
+        specifier: workspace:*
+        version: link:../../packages/import-rtf
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../../packages/mcp-client

@@ -59,6 +59,7 @@ import { mediaCreateItems, type MediaCreateSpec } from '../media/create-menu.js'
 import { openDialog } from './dialog-requests.js';
 import { useNarrow } from './narrow.js';
 import { EmptyState, InlineText, Menu, useReport, useSession, wordsLabel, type MenuAnchor, type MenuItem } from './shared.js';
+import { ManuscriptImportActions } from './ManuscriptImport.js';
 import { ScriptImportActions } from './ScriptImport.js';
 import {
   createNode,
@@ -543,6 +544,7 @@ export function Binder(props: BinderProps): ReactNode {
           <Trans>New folder</Trans>
         </button>
       </div>
+      <ManuscriptImportActions />
       <ScriptImportActions session={session} />
       <BinderFilterBar session={session} />
       {filtered !== null && filtered.matchCount === 0 ? (
