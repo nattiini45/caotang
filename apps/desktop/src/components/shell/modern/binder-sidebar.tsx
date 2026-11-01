@@ -132,6 +132,24 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
     lastFilterRequest = view.filterRequest;
   }, [view.filterRequest]);
 
+  // A dialog the binder opens (an import's question, the encoding check) is a DOM child of the sidebar, so a closed, inert sidebar
+  // would take it down with it: it could not be answered. A dialog opening inside opens the sidebar; focus in it then keeps it open.
+  useEffect(() => {
+    const nav = navRef.current;
+    if (nav === null || typeof MutationObserver === 'undefined') return;
+    const check = (): void => {
+      if (nav.querySelector('dialog[open]') === null) return;
+      if (closeTimer.current !== null) clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+      setOpen(true);
+      setHovered(false);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(nav, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
+    check();
+    return () => observer.disconnect();
+  }, []);
+
   const clearHover = (): void => {
     if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
     hoverTimer.current = null;
@@ -224,6 +242,8 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
   // Escape closes an unpinned sidebar and returns focus to its button, after anything inside it (a menu, a rename) has had the key.
   const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
     if (event.key !== 'Escape' || event.isDefaultPrevented() || isImeEnter(event)) return;
+    // A dialog inside the sidebar has the key first and alone: it cancels itself, and the sidebar stays.
+    if (event.target instanceof Element && event.target.closest('dialog') !== null) return;
     if (!shown || pinned) return;
     event.preventDefault();
     close();
