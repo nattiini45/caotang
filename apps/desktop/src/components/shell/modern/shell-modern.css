@@ -77,6 +77,8 @@
   inline-size: min(var(--page-w), 100% - 2 * var(--page-gutter));
   block-size: 100%;
   min-block-size: 0;
+  /* The ornaments float half over the top and bottom edges: the content starts and ends clear of them. */
+  padding-block: calc(var(--radius-ornament) + var(--space-4));
   overflow: hidden;
   transition:
     inline-size var(--dur-3) var(--ease-spring),
@@ -109,20 +111,17 @@
 :root[data-shell='modern'] .mat-glass {
   background: var(--mat-glass-bg);
   backdrop-filter: blur(var(--mat-glass-blur)) saturate(var(--mat-glass-saturate));
-  -webkit-backdrop-filter: blur(var(--mat-glass-blur)) saturate(var(--mat-glass-saturate));
 }
 
 :root[data-shell='modern'] .mat-thick {
   background: var(--mat-thick-bg);
   backdrop-filter: blur(var(--mat-thick-blur)) saturate(var(--mat-glass-saturate));
-  -webkit-backdrop-filter: blur(var(--mat-thick-blur)) saturate(var(--mat-glass-saturate));
 }
 
 :root[data-shell='modern'] .mat-frost {
   background: var(--mat-frost-bg);
   color: var(--ink);
   backdrop-filter: blur(var(--mat-frost-blur));
-  -webkit-backdrop-filter: blur(var(--mat-frost-blur));
 }
 
 /* The light-catching rim: a gradient border drawn by a mask, so it follows any radius. Gone when the rim token is none. */
@@ -135,13 +134,10 @@
   padding: 1px;
   border-radius: inherit;
   background: var(--mat-rim);
+  /* Written unprefixed: the build adds the -webkit- forms (and turns `exclude` into WebKit's `xor`) for the engines that need them. */
   mask:
     linear-gradient(#000 0 0) content-box exclude,
     linear-gradient(#000 0 0);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
   pointer-events: none;
 }
 
@@ -331,7 +327,6 @@
     color: CanvasText;
     box-shadow: none;
     backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 
   :root[data-shell='modern'] .mat-glass::before,

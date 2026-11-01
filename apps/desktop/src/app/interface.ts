@@ -5,7 +5,8 @@
  * Like the theme, it lives in this browser's local storage under one key (`caotang.interface`), read before the first render,
  * and every access is guarded (§3.1). Modern is a chunk of its own, `modern-shell` (components/shell/modern/modern-shell.tsx, with its
  * stylesheets tokens/modern.css and shell-modern.css), loaded only while Modern is on, so Classic's first load never carries it (§12).
- * The shell on screen follows {@link currentInterface}, which changes only once that chunk is in (components/shell/Shell.tsx).
+ * The shell on screen follows {@link currentInterface}, which changes only once that chunk is in (components/shell/Shell.tsx, which
+ * registers the chunk's loader with {@link setModernShellLoader}).
  *
  * The default is {@link resolveInterface} (§3.2). Local storage answers before the first paint when it holds a choice or another
  * Caotang key; otherwise the page waits behind "Opening your projects…" until the stores have opened and {@link settleInterface}
@@ -99,7 +100,7 @@ export function applyInterface(value: Interface): Promise<unknown> {
   document.documentElement.dataset['shell'] = value;
   applyModernPreferences();
   const requested = ++requests;
-  return Promise.all([value === 'modern' ? loadModernShell() : undefined, applySkin(value)]).then(
+  return Promise.all([value === 'modern' ? modernLoader() : undefined, applySkin(value)]).then(
     (loaded) => {
       // A later choice wins over an earlier one whose chunk arrived late.
       if (requested === requests) publish(value);
@@ -113,30 +114,15 @@ export function applyInterface(value: Interface): Promise<unknown> {
   );
 }
 
-/** The `modern-shell` chunk: ModernShell with its stylesheets. One import, so the chunk loads once and Shell.tsx reads the same module. */
-export type ModernShellModule = typeof import('../components/shell/modern/modern-shell.js');
+/**
+ * Loads the `modern-shell` chunk. Registered by components/shell/Shell.tsx, which owns the import (so this module stays free of the
+ * shell's components and its unit specs run in Node); until then, and in a host without the shell, Modern needs nothing loaded.
+ */
+let modernLoader: () => Promise<unknown> = () => Promise.resolve();
 
-let modernShell: Promise<ModernShellModule> | null = null;
-let modernLoaded: ModernShellModule | null = null;
-
-/** Loads the `modern-shell` chunk, once. A failed load is forgotten, so the next choice of Modern asks again. */
-export function loadModernShell(): Promise<ModernShellModule> {
-  modernShell ??= import('../components/shell/modern/modern-shell.js').then(
-    (module) => {
-      modernLoaded = module;
-      return module;
-    },
-    (error: unknown) => {
-      modernShell = null;
-      throw error;
-    },
-  );
-  return modernShell;
-}
-
-/** The `modern-shell` module once it has loaded, else `null`. */
-export function loadedModernShell(): ModernShellModule | null {
-  return modernLoaded;
+/** Registers how the `modern-shell` chunk loads. Shell.tsx calls it once, when the app's modules are evaluated. */
+export function setModernShellLoader(load: () => Promise<unknown>): void {
+  modernLoader = load;
 }
 
 let requests = 0;

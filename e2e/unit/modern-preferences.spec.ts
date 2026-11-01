@@ -7,11 +7,11 @@ import {
   readModernPreferences,
   type PreferenceStore,
 } from '../../apps/desktop/src/app/modern-preferences.js';
-import { geometryProperties } from '../../apps/desktop/src/components/shell/modern/stage.js';
+import { geometryProperties } from '../../apps/desktop/src/components/shell/modern/geometry.js';
 
 /**
  * Modern's view preferences (app/modern-preferences.ts; modern-interface.md §5.3, §9.4) and the stage's geometry
- * (components/shell/modern/stage.tsx, §8.4, §11): what is read from storage, which attributes stand for it, and the custom properties a
+ * (components/shell/modern/geometry.ts, §8.4, §11): what is read from storage, which attributes stand for it, and the custom properties a
  * geometry writes through the CSSOM.
  */
 

@@ -12,13 +12,38 @@
 
 import { useSyncExternalStore, type ReactNode } from 'react';
 
-import { currentInterface, loadedModernShell, subscribeInterface } from '../../app/interface.js';
+import { currentInterface, setModernShellLoader, subscribeInterface } from '../../app/interface.js';
 import { ClassicLayout, classicFrameClass } from './ClassicShell.js';
+import type * as ModernShellExports from './modern/modern-shell.js';
 import type { ShellRegions } from './regions.js';
+
+type ModernShellModule = typeof ModernShellExports;
+
+let modernShell: Promise<ModernShellModule> | null = null;
+let modernLoaded: ModernShellModule | null = null;
+
+/** Loads the `modern-shell` chunk, once; a failed load is forgotten, so the next choice of Modern asks again. */
+function loadModernShell(): Promise<ModernShellModule> {
+  modernShell ??= import('./modern/modern-shell.js').then(
+    (module) => {
+      modernLoaded = module;
+      return module;
+    },
+    (error: unknown) => {
+      modernShell = null;
+      throw error;
+    },
+  );
+  return modernShell;
+}
+
+// The interface loads the chunk before it says Modern is on (interface.ts); this module is evaluated with the app, before main.tsx
+// decides the first interface.
+setModernShellLoader(loadModernShell);
 
 export function Shell({ regions, children }: { regions: ShellRegions; children?: ReactNode }): ReactNode {
   const shell = useSyncExternalStore(subscribeInterface, currentInterface);
-  const modern = shell === 'modern' ? loadedModernShell() : null;
+  const modern = shell === 'modern' ? modernLoaded : null;
   if (modern !== null) {
     const { ModernShell } = modern;
     return (

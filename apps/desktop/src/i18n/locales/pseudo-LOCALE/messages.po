@@ -3642,8 +3642,10 @@ msgstr ""
 msgid "Back matter"
 msgstr ""
 
+#. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "Back to the editor"
 msgstr ""
 
@@ -3778,11 +3780,13 @@ msgstr ""
 msgid "bestTake.vendorParams.{key} is not text or a number"
 msgstr ""
 
+#. Modern interface, provisional binder panel.
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/Binder.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/interim-sidebar.tsx
 msgid "Binder"
 msgstr ""
 
@@ -4166,8 +4170,10 @@ msgstr ""
 msgid "Centered"
 msgstr ""
 
+#. Modern interface, provisional controls on the page's edges.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Centre view"
 msgstr ""
 
@@ -4665,6 +4671,11 @@ msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
+msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built: the page and its glass are in, and its own controls come next. The choice is kept in this browser and applies at once."
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
 msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. The choice is kept in this browser and applies at once."
 msgstr ""
 
@@ -5078,8 +5089,10 @@ msgstr ""
 msgid "Copy them into a folder beside the file"
 msgstr ""
 
+#. Modern interface, provisional controls on the page's edges.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Corkboard"
 msgstr ""
 
@@ -6175,8 +6188,10 @@ msgstr ""
 msgid "harness.progress.timelineEdit.active"
 msgstr ""
 
+#. Modern interface, provisional controls on the page's edges.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Editor"
 msgstr ""
 
@@ -8743,6 +8758,11 @@ msgstr ""
 msgid "Modern (Preview)"
 msgstr ""
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Modern interface"
+msgstr ""
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
@@ -8769,9 +8789,12 @@ msgstr ""
 msgid "Monthly"
 msgstr ""
 
+#. Modern interface, provisional controls on the page's edges.
+#. Modern interface, provisional controls on the page's edges.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "More"
 msgstr ""
 
@@ -10537,6 +10560,7 @@ msgid "Picture: {text}"
 msgstr ""
 
 #. Interpolated values: size and budget are formatted sizes; count is a number.
+#. Modern interface, provisional controls on the page's edges.
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -10544,6 +10568,7 @@ msgstr ""
 #: apps/desktop/src/components/InspectorPictures.tsx
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Pictures"
 msgstr ""
@@ -10860,9 +10885,11 @@ msgid "Progress toward the manuscript"
 msgstr ""
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
+#. Modern interface, provisional controls on the page's edges.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
+#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Project"
 msgstr ""
 
@@ -11527,6 +11554,16 @@ msgstr ""
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Recovering the project"
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Reduce motion"
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Reduce transparency"
 msgstr ""
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
@@ -13416,6 +13453,11 @@ msgstr ""
 msgid "Skip to the Agenda"
 msgstr ""
 
+#. Modern interface: the stage and the page.
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
+msgid "Skip to the page"
+msgstr ""
+
 #. Interpolated values: done, limit, total, used
 #. The review of returned photographs. Interpolated values: number and count are page and panel numbers; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/TaskChecklist.tsx
@@ -14270,8 +14312,10 @@ msgstr ""
 msgid "The action did not finish: {reason}"
 msgstr ""
 
+#. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the agent"
 msgstr ""
 
@@ -15106,8 +15150,10 @@ msgstr ""
 msgid "The picture's file could not be read"
 msgstr ""
 
+#. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the pictures"
 msgstr ""
 
@@ -15560,8 +15606,10 @@ msgstr ""
 msgid "The text of {kind, select, document {the document “{name}”} codex {the codex entry “{name}”} other {the file “{name}”}} was converted from {from} and opens with the project. Its original bytes are kept at “{backup}”."
 msgstr ""
 
+#. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the timeline"
 msgstr ""
 
@@ -15765,6 +15813,11 @@ msgstr ""
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "There was no picture to import."
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "These apply to the Modern interface: glass becomes solid, and nothing slides or grows. Your system’s own settings for transparency and motion are always followed as well."
 msgstr ""
 
 #: apps/desktop/src/components/InspectorDialogue.tsx
@@ -16299,12 +16352,14 @@ msgid "Time skip (declared)"
 msgstr ""
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
+#. Modern interface, provisional controls on the page's edges.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "Timeline"
