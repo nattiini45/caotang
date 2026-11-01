@@ -80,6 +80,7 @@ import { VocabularyEditor } from './VocabularyEditor.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
 import { inlineKey } from '../i18n/direction.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 import { StaleTabNotice } from './StaleTabNotice.js';
 import {
   clearSelection,
@@ -1569,11 +1570,11 @@ function changedFilesList(files: readonly FolderFileChange[], previews: readonly
                   className="folder-file-preview"
                   key={preview.path}
                   role="region"
-                  aria-label={
+                  aria-label={accessibleText(
                     count > 1
                       ? t`Changes for ${{ file: isolate(file.label) }}, file ${{ position }} of ${{ count }}`
-                      : t`Changes for ${{ file: isolate(file.label) }}`
-                  }
+                      : t`Changes for ${{ file: isolate(file.label) }}`,
+                  )}
                 >
                   <p className="field-note">
                     {count > 1 ? t`File ${{ position }} of ${{ count }} · − In the folder · + In this tab` : t`− In the folder · + In this tab`}

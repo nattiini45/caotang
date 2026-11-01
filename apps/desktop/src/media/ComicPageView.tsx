@@ -12,6 +12,7 @@
  */
 
 import { isolate } from '@caotang/i18n';
+import { accessibleText } from '../i18n/accessible-text.js';
 import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
@@ -766,7 +767,7 @@ export function ComicPageView({ session, node }: ComicPageViewProps): ReactNode 
     t`Balloon ${{ number: panel.balloons.findIndex((candidate) => candidate.id === balloon.id) + 1 }} of ${{ count: panel.balloons.length }} on panel ${{ panelNumber: panel.number }}, ${{ kind: balloonKindLabelOf(balloon.kind) }} — drag to move, T edits the text, Delete removes`;
 
   return (
-    <section className="media-view comic-view" aria-label={t`Comic page ${{ title: isolate(page.title) }}`}>
+    <section className="media-view comic-view" aria-label={accessibleText(t`Comic page ${{ title: isolate(page.title) }}`)}>
       <header className="media-head">
         <div>
           <span className="badge">{t`Page ${{ number: place.number }} of ${{ count: place.count }}`}</span>
