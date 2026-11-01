@@ -13704,6 +13704,11 @@ msgstr "Der Agent ruft das aktive Profil auf. Schlüssel werden in diesem Browse
 msgid "The agent can draft this scene’s shots from its script. They land in a new storyboard named for the scene."
 msgstr "Der Agent kann die Einstellungen dieser Szene aus ihrem Skript entwerfen. Sie landen in einem neuen Storyboard, das nach der Szene benannt ist."
 
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The agent could not be started: {error}"
+msgstr "Der Agent konnte nicht gestartet werden: {error}"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "The agent gave no notes."

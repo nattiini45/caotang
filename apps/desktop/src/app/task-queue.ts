@@ -285,7 +285,14 @@ export class TaskQueue {
     // The run is active before its agent exists, because the agent can be a download: a cancel or a close that comes meanwhile stops this run.
     this.active = active;
     try {
-      const agent = await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used));
+      let agent: TaskAgent | string;
+      try {
+        agent = await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used));
+      } catch (error) {
+        // A lazy chunk or the harness failed to load: this task's items fail with the reason, and the pump goes on to the next task.
+        const errorText = error instanceof Error ? error.message : String(error);
+        agent = t`The agent could not be started: ${{ error: errorText }}`;
+      }
       if (typeof agent === 'string') {
         for (const item of started.items) if (item.state === 'pending') await this.updateItem(id, item.key, { state: 'failed', error: agent });
       } else {

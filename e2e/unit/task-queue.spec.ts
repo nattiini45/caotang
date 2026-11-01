@@ -83,12 +83,15 @@ function queueOver(
     readonly answer?: (step: PlanStep, signal: AbortSignal | undefined) => Promise<StageOnlyResult> | StageOnlyResult;
     readonly locks?: boolean;
     readonly noProvider?: boolean;
+    /** Makes the factory throw for the task whose intent this is, as a failed lazy import would. */
+    readonly throwFor?: string;
     readonly now?: () => number;
     readonly sleep?: (ms: number) => Promise<void>;
   } = {},
 ): Harness {
   const state: Harness = { db, staged: [], sessions: [], busy: false, queue: undefined as unknown as TaskQueue };
-  const agentFor: TaskAgentFactory = (_task, id, cap): TaskAgent | string => {
+  const agentFor: TaskAgentFactory = (task, id, cap): TaskAgent | string => {
+    if (options.throwFor !== undefined && task.intent === options.throwFor) throw new Error('Failed to fetch dynamically imported module');
     if (options.noProvider === true) return 'No provider is active, so this task could not be staged.';
     state.sessions.push({ id, cap });
     return {
@@ -363,6 +366,19 @@ test('a task with no provider to stage with fails every item in words', async ()
   const task = h.queue.snapshot()[0] as TaskRecord;
   expect(task.status).toBe('failed');
   expect(task.items.every((item) => item.error === 'No provider is active, so this task could not be staged.')).toBe(true);
+});
+
+test('an agent that fails to start fails that task’s items with the reason, and the queue goes on to the next task', async () => {
+  const h = queueOver(memoryDb(), { throwFor: 'broken' });
+  await h.queue.open();
+  await h.queue.enqueue('broken', [synopses(['A', 'B'])]);
+  await h.queue.enqueue('fine', [synopses(['C'])]);
+  await h.queue.idle();
+  const [broken, fine] = h.queue.snapshot() as TaskRecord[];
+  expect(broken?.status).toBe('failed');
+  expect(broken?.items.every((item) => item.state === 'failed' && item.error?.includes('Failed to fetch dynamically imported module') === true)).toBe(true);
+  expect(fine?.status).toBe('ready');
+  expect(h.staged).toHaveLength(1);
 });
 
 test('cancel stops a running task and a waiting one; a cancelled task cannot be reviewed', async () => {
