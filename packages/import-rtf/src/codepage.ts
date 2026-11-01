@@ -75,15 +75,40 @@ export function codePageOfCharset(charset: number): number | undefined {
   return CHARSETS[charset];
 }
 
-const decoders = new Map<string, TextDecoder | null>();
+/** What windows-1252 puts at 0x80–0x9F (WHATWG index-windows-1252); 0x81, 0x8D, 0x8F, 0x90 and 0x9D stay the C1 code point. */
+const WINDOWS_1252_HIGH = [
+  0x20ac, 0x81, 0x201a, 0x192, 0x201e, 0x2026, 0x2020, 0x2021, 0x2c6, 0x2030, 0x160, 0x2039, 0x152, 0x8d, 0x17d, 0x8f,
+  0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x2dc, 0x2122, 0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178,
+] as const;
 
-function decoderFor(label: string): TextDecoder | null {
+/** windows-1252 bytes → text, from the WHATWG table: every byte outside 0x80–0x9F is its own code point. */
+export function decodeWindows1252(bytes: Uint8Array): string {
+  let text = '';
+  for (const byte of bytes) text += String.fromCharCode(byte >= 0x80 && byte <= 0x9f ? (WINDOWS_1252_HIGH[byte - 0x80] as number) : byte);
+  return text;
+}
+
+/**
+ * The labels WHATWG reads as windows-1252. Some Node releases (22.19 among them) decode them as plain Latin-1, which turns
+ * curly quotes, dashes and the euro sign into C1 controls; the host's decoder is used only when it gets 0x80–0x9F right.
+ */
+const WINDOWS_1252_LABELS = new Set(['windows-1252', 'iso-8859-1']);
+const windows1252Fallback = { decode: (bytes: Uint8Array): string => decodeWindows1252(bytes) };
+
+type Decoder = { decode(bytes: Uint8Array): string };
+
+const decoders = new Map<string, Decoder | null>();
+
+function decoderFor(label: string): Decoder | null {
   let decoder = decoders.get(label);
   if (decoder === undefined) {
     try {
       decoder = new TextDecoder(label, { fatal: false });
     } catch {
       decoder = null;
+    }
+    if (WINDOWS_1252_LABELS.has(label) && (decoder === null || decoder.decode(Uint8Array.of(0x80, 0x93, 0x97)) !== '\u20ac\u201c\u2014')) {
+      decoder = windows1252Fallback;
     }
     decoders.set(label, decoder);
   }
@@ -104,5 +129,5 @@ export function decodeCodePage(bytes: Uint8Array, codePage: number): { readonly 
   const label = CODE_PAGES[codePage];
   const decoder = label === undefined ? null : decoderFor(label);
   if (decoder !== null) return { text: decoder.decode(bytes), known: true };
-  return { text: (decoderFor('windows-1252') as TextDecoder).decode(bytes), known: false };
+  return { text: (decoderFor('windows-1252') as Decoder).decode(bytes), known: false };
 }

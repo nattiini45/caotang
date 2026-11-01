@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { readRtf, RTF_LIMITS } from '../src/index.js';
+import { decodeWindows1252 } from '../src/codepage.js';
 import { doc, lossMessages, mdOf, PIXEL_PNG, read } from './helpers.js';
 
 describe('Unicode', () => {
@@ -48,6 +49,16 @@ describe('code pages', () => {
   it('reads cp1252 bytes by default and \\ansicpg1251 when the header says so', () => {
     expect(mdOf(read(doc("\\'93Caf\\'e9\\'94\\par")))).toEqual(['“Café”']);
     expect(mdOf(read(doc("\\'cf\\'f0\\'e8\\'e2\\'e5\\'f2\\par", '\\ansi\\ansicpg1251')))).toEqual(['Привет']);
+  });
+
+  // Node 22.19's TextDecoder reads windows-1252 as Latin-1 (curly quotes became C1 controls in CI); the reader falls back to the
+  // WHATWG table there, so the table itself must match it byte for byte.
+  it('decodes windows-1252 from the WHATWG table, whatever the host TextDecoder does', () => {
+    const all = Uint8Array.from({ length: 256 }, (_, i) => i);
+    const table = decodeWindows1252(all);
+    expect(table).toHaveLength(256);
+    expect(table.slice(0x80, 0xa0)).toBe('\u20ac\u0081\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\u008d\u017d\u008f\u0090\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\u009d\u017e\u0178');
+    for (const byte of [0x00, 0x41, 0x7f, 0xa0, 0xe9, 0xff]) expect(table.charCodeAt(byte)).toBe(byte);
   });
 
   it('reads Symbol (\\fcharset2) and OEM (\\fcharset255) fonts as windows-1252, not the document code page, and says so', () => {
