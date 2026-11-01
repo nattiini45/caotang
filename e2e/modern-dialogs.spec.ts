@@ -1,6 +1,9 @@
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+
+import { ZIP_ENGINE } from '../packages/store/src/index.js';
 
 import { NO_PIN } from './classic-pin.js';
 import { waitForSaved } from './support.js';
@@ -296,6 +299,78 @@ test('removing a project from Home asks in a glass Confirm dialog, and Cancel gi
   await confirm.getByRole('button', { name: 'Cancel' }).click();
   await expect(confirm).toBeHidden();
   await expect(remove).toBeFocused();
+});
+
+/** The bundle Modern's **More › Export bundle** writes for the open project, as bytes. */
+async function exportedBundle(page: Page): Promise<Uint8Array> {
+  const [download] = await Promise.all([page.waitForEvent('download'), openFromMore(page, 'Export bundle')]);
+  return new Uint8Array(readFileSync((await download.path()) ?? ''));
+}
+
+/** The bundle changed the way integrity-recovery.spec.ts and encoding-review.spec.ts change theirs, written to a file to import. */
+async function changedBundle(testInfo: TestInfo, bytes: Uint8Array, change: 'manifest' | 'encoding'): Promise<string> {
+  const { unzipSync, zipSync } = await ZIP_ENGINE.load();
+  const entries = unzipSync(bytes);
+  if (change === 'manifest') {
+    // Cut short, with no backup copy: the recovery offers a rebuild.
+    entries['caotang.json'] = new TextEncoder().encode('{"formatVersion": 1, "project": ');
+  } else {
+    // The scene's file gains a windows-1252 “Café” (0xE9 is not UTF-8): the import pauses on the encoding review.
+    const doc = Object.keys(entries).find((path) => path.startsWith('docs/') && path.endsWith('.md') && new TextDecoder().decode(entries[path]).includes('Nobody was on it.'));
+    if (doc === undefined) throw new Error('the exported bundle has no scene file');
+    const text = new TextDecoder().decode(entries[doc]);
+    const at = text.indexOf('Nobody was on it.');
+    const encoder = new TextEncoder();
+    entries[doc] = Uint8Array.from([...encoder.encode(text.slice(0, at)), ...encoder.encode('Caf'), 0xe9, ...encoder.encode(text.slice(at))]);
+  }
+  const path = testInfo.outputPath(`modern-${change}.caotang`);
+  writeFileSync(path, zipSync(entries));
+  return path;
+}
+
+test('the Recovery and Encoding dialogs a bundle import asks are glass, keep the focus inside, and every control in them is 44 px', async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  await start(page);
+  await projectWithScene(page, 'Harbour Book');
+  const bundle = await exportedBundle(page);
+  await openFromMore(page, 'Projects');
+  await expect(page.getByRole('heading', { name: 'Projects in this browser' })).toBeVisible();
+
+  await page.getByTestId('bundle-input').setInputFiles(await changedBundle(testInfo, bundle, 'manifest'));
+  const recovery = page.getByRole('dialog', { name: 'Rebuild this project from its documents?' });
+  await expectModernDialog(page, recovery, 'dialog.confirm[open]');
+  await expect(recovery.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await recovery.getByRole('button', { name: 'Cancel' }).click();
+  await expect(recovery).toBeHidden();
+
+  await page.getByTestId('bundle-input').setInputFiles(await changedBundle(testInfo, bundle, 'encoding'));
+  const encoding = page.getByTestId('encoding-dialog');
+  await expect(encoding.getByRole('heading', { name: 'One file is not UTF-8 text' })).toBeVisible();
+  // Focus is inside (expectModernDialog); which control holds it is Classic's own behaviour and is not asserted here.
+  await expectModernDialog(page, encoding, '[data-testid="encoding-dialog"]');
+  await page.keyboard.press('Escape');
+  await expect(encoding).toBeHidden();
+});
+
+test('a Choice dialog (the Final Draft import question) is glass, keeps the focus inside, and every control in it is 44 px', async ({ page }) => {
+  await start(page);
+  await projectWithScene(page, 'Harbour Book');
+  const fdx = [
+    '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>',
+    '<FinalDraft DocumentType="Script" Template="No" Version="3">',
+    '  <Content>',
+    '    <Paragraph Type="Scene Heading"><Text>INT. HARBOUR - NIGHT</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>The boat waits.</Text></Paragraph>',
+    '  </Content>',
+    '</FinalDraft>',
+  ].join('\n');
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({ name: 'harbour.fdx', mimeType: 'application/xml', buffer: Buffer.from(fdx, 'utf8') });
+  const choice = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
+  // Focus is inside (expectModernDialog). Which control holds it is Classic's behaviour, the same in both interfaces, so it is not
+  // asserted here: in Firefox showModal() focuses the first answer, not the autoFocus Cancel.
+  await expectModernDialog(page, choice, 'dialog.confirm[open]');
+  await page.keyboard.press('Escape');
+  await expect(choice).toBeHidden();
 });
 
 test('under reduced motion a dialog only fades in: nothing moves', async ({ page }) => {
