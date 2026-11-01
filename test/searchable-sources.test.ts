@@ -190,11 +190,14 @@ const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly 
 /**
  * The Classic visual baselines (e2e/visual/classic.spec.ts, modern-interface.md §15.4): screenshots that must live beside their spec
  * and change whenever a reviewed re-baseline does, so they are exempt by an exact name pattern rather than pinned by hash. The pattern
- * admits only `classic-<scheme>-<surface>.png` in that one folder, and the test below checks that every file it admits is a PNG
- * (by its eight-byte signature) and that the set is exactly the surfaces the spec takes, so it cannot quietly cover anything else.
+ * admits only `classic-<scheme>-<surface>.png` and Modern's `modern-<scheme>-<glass|solid>-<surface>.png` (e2e/visual/modern.spec.ts,
+ * from M4 #305) in that one folder, and the test below checks that every file it admits is a PNG (by its eight-byte signature) and
+ * that the set is exactly the surfaces the specs take, so it cannot quietly cover anything else. Modern's are written by CI's visual
+ * job the first time it runs them and committed after review, so the set holds either none of them or all of them.
  */
-const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/classic-(light|dark)-[a-z-]+\.png$/;
+const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-(glass|solid)-[a-z-]+)\.png$/;
 const VISUAL_SURFACES = ['projects', 'workspace', 'corkboard', 'codex', 'findings', 'activity', 'settings-appearance', 'export', 'narrow'];
+const MODERN_VISUAL_SURFACES = ['page'];
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** The same scan over the real tree, the named binary assets and the visual baselines left out. */
@@ -281,7 +284,12 @@ describe('no source file is invisible to search', () => {
 
   it('the visual baselines it leaves out are PNGs, and exactly the Classic surfaces the visual spec takes', () => {
     const baselines = guardedFiles().filter((rel) => VISUAL_BASELINE.test(rel)).sort();
-    const expected = ['light', 'dark'].flatMap((scheme) => VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/classic-${scheme}-${surface}.png`)).sort();
+    const classic = ['light', 'dark'].flatMap((scheme) => VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/classic-${scheme}-${surface}.png`));
+    const modern = ['light', 'dark'].flatMap((scheme) =>
+      ['glass', 'solid'].flatMap((material) => MODERN_VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/modern-${scheme}-${material}-${surface}.png`)),
+    );
+    const modernCommitted = baselines.some((rel) => rel.includes('/modern-'));
+    const expected = [...classic, ...(modernCommitted ? modern : [])].sort();
     expect(baselines).toEqual(expected);
     for (const rel of baselines) expect([...readFileSync(join(repoRoot, rel)).subarray(0, 8)], rel).toEqual(PNG_SIGNATURE);
     // Nothing else in that folder: a file the pattern does not admit is scanned like any other.
