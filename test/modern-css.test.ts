@@ -15,13 +15,13 @@ import { scanCss } from '../tools/logical-css.mjs';
 
 const repoRoot = resolve(__dirname, '..');
 const MODERN_DIR = resolve(repoRoot, 'apps/desktop/src/components/shell/modern');
-// Every stylesheet in the Modern folder (each slot may bring its own), with the tokens.
+// The tokens and every stylesheet of the Modern shell's directory (shell-modern.css, and each slot's own, such as palette.css).
 const SHEETS = [
   resolve(repoRoot, 'apps/desktop/src/tokens/modern.css'),
   ...readdirSync(MODERN_DIR)
-    .filter((file) => file.endsWith('.css'))
+    .filter((name) => name.endsWith('.css'))
     .sort()
-    .map((file) => join(MODERN_DIR, file)),
+    .map((name) => join(MODERN_DIR, name)),
 ];
 const PREFIX = ":root[data-shell='modern']";
 

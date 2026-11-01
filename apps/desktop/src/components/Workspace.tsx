@@ -194,6 +194,8 @@ export function Workspace({
     notice === null ? null : { text: notice, tone: 'info' },
   );
   const [agentOpen, setAgentOpen] = useState(startIntent !== null);
+  /** Text the palette put in the agent's Intent box, unsent (modern-interface.md §8.9); the serial makes a repeat count. */
+  const [agentDraft, setAgentDraft] = useState<{ readonly text: string; readonly serial: number } | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissedForVisit());
   const [explainStorage, setExplainStorage] = useState(false);
@@ -1012,6 +1014,7 @@ export function Workspace({
           agent={agent}
           recurring={recurring}
           startIntent={startIntent}
+          draft={agentDraft}
           open={agentOpen}
           onToggle={() => setAgentOpen((on) => !on)}
           sample={sample}
@@ -1094,6 +1097,38 @@ export function Workspace({
     ) : null,
     saveState: <SaveIndicator state={saveState} onExport={exportNow} />,
     progress: { target, setTarget: saveTarget, saveState, exportBackup: exportNow },
+    search: {
+      state,
+      activeDocId: view.activeDocId,
+      openNode: (nodeId) => {
+        const node = nodeById(state, nodeId);
+        if (node === undefined) return;
+        selectNode(session, nodeId);
+        setPanel(null);
+        if (node.type !== 'document') {
+          showCenter('corkboard');
+          return;
+        }
+        setCenter('editor');
+        if (mediaKindOf(node) === null) setFocusDocId(nodeId);
+      },
+      openCodexEntry,
+      showCodex: () => {
+        setRail('codex');
+        if (narrow) setPanel('rail');
+      },
+      openSettings: setSettingsSection,
+      openAgent: (text) => {
+        setAgentOpen(true);
+        setPanel(null);
+        if (text !== null) setAgentDraft((previous) => ({ text, serial: (previous?.serial ?? 0) + 1 }));
+      },
+      openSceneInfo: () => {
+        if (narrow) setPanel('inspector');
+        requestInspector('synopsis');
+        focusSoon('#inspector-synopsis');
+      },
+    },
   };
 
   return (

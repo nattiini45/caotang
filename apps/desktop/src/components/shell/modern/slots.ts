@@ -27,6 +27,7 @@ import type { ShellRegions } from '../regions.js';
 import { InterimBottomOrnament, InterimTopOrnament } from './interim-ornaments.js';
 import { InterimNotices } from './interim-notices.js';
 import { InterimSidebar } from './interim-sidebar.js';
+import { Palette } from './palette.js';
 import { SceneInfo } from './scene-info.js';
 
 /** What every slot receives. */
@@ -63,6 +64,6 @@ export const MODERN_SLOTS: ModernSlots = {
   bottomOrnament: InterimBottomOrnament,
   sceneInfo: SceneInfo,
   companion: null,
-  palette: null,
+  palette: Palette,
 };
 

@@ -6,11 +6,14 @@
 
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
+import type { ProjectState } from '@caotang/store';
+
 import type { NarrowPanel } from '../../app/narrow-model.js';
 import type { SaveState } from '../../app/session.js';
 import type { TargetProgress } from '../../app/session-progress.js';
 import type { ShellAction } from '../../app/shell-actions.js';
 import type { CenterMode } from '../Binder.js';
+import type { SettingsSection } from '../Settings.js';
 import type { MenuAnchor } from '../shared.js';
 
 export type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
@@ -50,6 +53,28 @@ export interface ShellProgress {
   readonly exportBackup: () => void;
 }
 
+/**
+ * What Modern's palette (modern-interface.md §8.9, app/palette-model.ts) searches, and the handlers it runs beyond the shell actions
+ * and the view's setters. Each handler is one `Workspace` already uses elsewhere (§4.3 rule 3).
+ */
+export interface ShellSearch {
+  /** The project, for its scenes, folders and codex entries. */
+  readonly state: ProjectState;
+  /** The document open in the editor, or `null`. */
+  readonly activeDocId: string | null;
+  /** A binder node chosen: a document opens in the editor, a folder on the board, as choosing it in the binder does. */
+  readonly openNode: (nodeId: string) => void;
+  /** A codex entry chosen: the codex shows it, as a mention chip does. */
+  readonly openCodexEntry: (entryId: string) => void;
+  /** The codex without an entry. */
+  readonly showCodex: () => void;
+  readonly openSettings: (section: SettingsSection) => void;
+  /** Opens the agent. With text, the Intent box holds it and nothing is sent. */
+  readonly openAgent: (text: string | null) => void;
+  /** Shows the selected node's scene info (the inspector), on its synopsis. */
+  readonly openSceneInfo: () => void;
+}
+
 export interface ShellRegions {
   readonly projectName: string;
   /** The shell actions (app/shell-actions.ts), in order. */
@@ -82,4 +107,6 @@ export interface ShellRegions {
   readonly status: ReactNode;
   readonly saveState: ReactNode;
   readonly progress: ShellProgress;
+  /** What the palette searches and runs (Modern only mounts it). */
+  readonly search: ShellSearch;
 }
