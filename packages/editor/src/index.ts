@@ -52,6 +52,14 @@ export type {
 export type { DialectCause, DialectNotice } from './dialect.js';
 export { sniffDialect } from './dialect.js';
 export { insertionOf, parse, parseFragment, parseWithDiagnostics, serialize } from './pipeline.js';
+export {
+  canonicalizeFootnoteTree,
+  footnoteKey,
+  isNumericLabel,
+  planFootnotes,
+  planPmFootnotes,
+} from './footnotes.js';
+export type { FootnotePlan, PlannedDefinition, PlannedNote, TreeFootnoteResult } from './footnotes.js';
 export type { ParseResult } from './pipeline.js';
 export { laneOf, markLane } from './lanes.js';
 export type { Lane, LaneOptions } from './lanes.js';

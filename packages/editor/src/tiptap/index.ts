@@ -32,3 +32,5 @@ export { DEFAULT_EDITOR_LABELS } from './labels.js';
 export type { EditorLabels } from './labels.js';
 export type { CaotangExtensionOptions, CaotangRole } from './extensions.js';
 export { isSafeLinkTarget, plainPasteHtml } from './paste.js';
+export { ENGLISH_FOOTNOTE_WORDS, deleteOrphanNote, footnoteChord, insertFootnote, jumpFootnote } from './footnotes.js';
+export type { FootnoteNoteDeletion, FootnoteOrphan, FootnoteWords } from './footnotes.js';

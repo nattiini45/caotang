@@ -89,3 +89,16 @@ describe('plainProse', () => {
     expect(plainProse(parseProse('1. a\n2. b'), '* * *')).toBe('1. a\n2. b');
   });
 });
+
+describe('footnotes, until the exporter renders them (#271)', () => {
+  it('a body with GFM footnotes exports every marker and every note as the text it is', () => {
+    // The editor keeps footnotes as `[^n]` markers and notes since #270 (editor-engine §3.4). The
+    // exporter's parse has no footnote extension, so it reads both as text: nothing a writer typed
+    // is dropped, and the marker shows where the note belongs.
+    const body = 'The ferry was late[^1], on the second bell[^note].\n\n[^1]: The Marta.\n\n[^note]: Named.\n\n    Second paragraph.\n';
+    const text = plainProse(parseProse(body), '* * *');
+    for (const piece of ['late[^1]', 'bell[^note]', '[^1]: The Marta.', '[^note]: Named.', 'Second paragraph.']) {
+      expect(text).toContain(piece);
+    }
+  });
+});

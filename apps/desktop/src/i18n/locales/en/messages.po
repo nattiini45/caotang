@@ -1075,8 +1075,8 @@ msgstr "{kind, select, document {The document “{name}”} codex {The codex ent
 
 #. The editor load banner. Interpolated values: count and blocks are numbers; noun is the kind of Markdown construct a load kept as it was typed; line is a line number.
 #: apps/desktop/src/app/load-banner.ts
-msgid "{kind, select, table {{nodes, plural, one {table} other {tables}}} html {{nodes, plural, one {raw HTML block} other {raw HTML blocks}}} footnoteReference {{nodes, plural, one {footnote} other {footnotes}}} footnoteDefinition {{nodes, plural, one {footnote} other {footnotes}}} definition {{nodes, plural, one {reference definition} other {reference definitions}}} linkReference {{nodes, plural, one {reference link} other {reference links}}} imageReference {{nodes, plural, one {reference image} other {reference images}}} listItem {{nodes, plural, one {task-list item} other {task-list items}}} code {{nodes, plural, one {code block} other {code blocks}}} emphasis {nested emphasis} strong {nested bold} delete {nested strikethrough} other {{other}}}"
-msgstr "{kind, select, table {{nodes, plural, one {table} other {tables}}} html {{nodes, plural, one {raw HTML block} other {raw HTML blocks}}} footnoteReference {{nodes, plural, one {footnote} other {footnotes}}} footnoteDefinition {{nodes, plural, one {footnote} other {footnotes}}} definition {{nodes, plural, one {reference definition} other {reference definitions}}} linkReference {{nodes, plural, one {reference link} other {reference links}}} imageReference {{nodes, plural, one {reference image} other {reference images}}} listItem {{nodes, plural, one {task-list item} other {task-list items}}} code {{nodes, plural, one {code block} other {code blocks}}} emphasis {nested emphasis} strong {nested bold} delete {nested strikethrough} other {{other}}}"
+msgid "{kind, select, table {{nodes, plural, one {table} other {tables}}} html {{nodes, plural, one {raw HTML block} other {raw HTML blocks}}} definition {{nodes, plural, one {reference definition} other {reference definitions}}} linkReference {{nodes, plural, one {reference link} other {reference links}}} imageReference {{nodes, plural, one {reference image} other {reference images}}} listItem {{nodes, plural, one {task-list item} other {task-list items}}} code {{nodes, plural, one {code block} other {code blocks}}} emphasis {nested emphasis} strong {nested bold} delete {nested strikethrough} other {{other}}}"
+msgstr "{kind, select, table {{nodes, plural, one {table} other {tables}}} html {{nodes, plural, one {raw HTML block} other {raw HTML blocks}}} definition {{nodes, plural, one {reference definition} other {reference definitions}}} linkReference {{nodes, plural, one {reference link} other {reference links}}} imageReference {{nodes, plural, one {reference image} other {reference images}}} listItem {{nodes, plural, one {task-list item} other {task-list items}}} code {{nodes, plural, one {code block} other {code blocks}}} emphasis {nested emphasis} strong {nested bold} delete {nested strikethrough} other {{other}}}"
 
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx
@@ -2198,6 +2198,11 @@ msgstr "A fixed-layout EPUB with one picture per comic page and the balloon text
 msgid "a folder that is gone"
 msgstr "a folder that is gone"
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "A footnote can’t be added here. Put the caret in the text, outside a note, and try again."
+msgstr "A footnote can’t be added here. Put the caret in the text, outside a note, and try again."
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "A gap in time"
@@ -2496,7 +2501,7 @@ msgstr "About {total} (prompt {prompt}, reply {reply} including thinking)."
 msgid "harness.plan.cost"
 msgstr "About {total} (prompt {prompt}, reply {reply})."
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "About this document's format"
 msgstr "About this document's format"
@@ -2564,6 +2569,11 @@ msgstr "Add a character to the codex first."
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Add a fact in the Knowledge list of the Findings tab first."
 msgstr "Add a fact in the Knowledge list of the Findings tab first."
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Add a footnote at the caret (Ctrl+Shift+6). The same keys in a note go back to the text."
+msgstr "Add a footnote at the caret (Ctrl+Shift+6). The same keys in a note go back to the text."
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
@@ -2650,6 +2660,11 @@ msgstr "Add balloon"
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "Add fact"
 msgstr "Add fact"
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Add footnote"
+msgstr "Add footnote"
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
@@ -2843,7 +2858,7 @@ msgstr "Agent note · {date}"
 msgid "Agent note, {date}"
 msgstr "Agent note, {date}"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Agent preview"
 msgstr "Agent preview"
@@ -2898,7 +2913,7 @@ msgctxt "keyboard key"
 msgid "Alt"
 msgstr "Alt"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Alt text"
@@ -3073,8 +3088,8 @@ msgstr "applied"
 msgid "Applied"
 msgstr "Applied"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Apply"
 msgstr "Apply"
@@ -3683,7 +3698,7 @@ msgstr "Camera movement"
 #. Interpolated values: calls, cap
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: confirm, file, files, generation, name, path
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -3824,7 +3839,7 @@ msgstr "caotang.json in this folder was changed by another program after Caotang
 msgid "CAOTANG.md, your standing instructions, and the notes the agent keeps"
 msgstr "CAOTANG.md, your standing instructions, and the notes the agent keeps"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -4214,7 +4229,7 @@ msgstr "Choose a line to open it in the Source tab. The page breaks follow the s
 msgid "Choose a picture for this panel"
 msgstr "Choose a picture for this panel"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Choose a picture from your computer"
 msgstr "Choose a picture from your computer"
@@ -5064,7 +5079,7 @@ msgstr "Declare a time skip on one of these scenes instead."
 msgid "Declare this as a scene mode instead."
 msgstr "Declare this as a scene mode instead."
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Decorative picture (screen readers skip it)"
 msgstr "Decorative picture (screen readers skip it)"
@@ -5119,6 +5134,11 @@ msgstr "Delete picture"
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Delete picture…"
 msgstr "Delete picture…"
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Delete the note"
+msgstr "Delete the note"
 
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Delete this picture"
@@ -5301,7 +5321,7 @@ msgstr "Diff against the approved text of {file}:"
 msgid "Disable"
 msgstr "Disable"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Discard"
 msgstr "Discard"
@@ -5357,7 +5377,7 @@ msgstr "Disconnect"
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: cap, done, omitted, tokens, total, used
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/components/BackgroundTasks.tsx
@@ -5452,12 +5472,12 @@ msgstr "do not retry it as a direct call — either call the compound tool that 
 msgid "Document"
 msgstr "Document"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Document status"
 msgstr "Document status"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Document text"
 msgstr "Document text"
@@ -5529,12 +5549,12 @@ msgstr "Draft dialogue"
 msgid "harness.progress.dialogueDraft.content"
 msgstr "Draft dialogue in “{doc}”"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Draft for “{title}”: {words}, cut off at the model’s output limit. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
 msgstr "Draft for “{title}”: {words}, cut off at the model’s output limit. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Draft for “{title}”: {words}. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
 msgstr "Draft for “{title}”: {words}. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
@@ -5554,7 +5574,7 @@ msgstr "Draft for “<0/>”, {draftWords} words. It is not on screen in its sce
 msgid "Draft for step {number}"
 msgstr "Draft for step {number}"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Draft preview"
 msgstr "Draft preview"
@@ -6518,6 +6538,11 @@ msgstr "Follow the system"
 msgid "Follows these scenes"
 msgstr "Follows these scenes"
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Footnote without a marker"
+msgstr "Footnote without a marker"
+
 #: apps/desktop/src/components/InspectorDialogue.tsx
 msgid "For example en or en-GB"
 msgstr "For example en or en-GB"
@@ -6611,7 +6636,7 @@ msgstr "Full description of prompt {name}"
 msgid "Full description of template {name}"
 msgstr "Full description of template {name}"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Full width"
 msgstr "Full width"
@@ -6720,7 +6745,7 @@ msgstr "grouped by point of view"
 msgid "grouped by thread"
 msgstr "grouped by thread"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Half width"
 msgstr "Half width"
@@ -6854,7 +6879,7 @@ msgstr "Ignore matches in"
 msgid "Illegible in the image"
 msgstr "Illegible in the image"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/StoryboardView.tsx
@@ -7084,7 +7109,7 @@ msgstr "in a circle of scenes that each follow the next"
 msgid "In focus mode, hide the binder and the inspector"
 msgstr "In focus mode, hide the binder and the inspector"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "In line with the text"
 msgstr "In line with the text"
@@ -7198,18 +7223,18 @@ msgstr "Ink story imported"
 msgid "Ink, compiled to JSON"
 msgstr "Ink, compiled to JSON"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Insert"
 msgstr "Insert"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Insert into the scene"
 msgstr "Insert into the scene"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Insert picture"
 msgstr "Insert picture"
@@ -7434,6 +7459,11 @@ msgstr "Keep originals stores each file as it is. A working copy is scaled so it
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Keep the dismissal note to {limit} characters or fewer."
 msgstr "Keep the dismissal note to {limit} characters or fewer."
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Keep the note"
+msgstr "Keep the note"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -7824,7 +7854,7 @@ msgstr "Listing the pictures"
 msgid "Loading {subject}…"
 msgstr "Loading {subject}…"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Loading picture…"
 msgstr "Loading picture…"
@@ -8746,7 +8776,7 @@ msgstr "No default speaker"
 msgid "No dialogue container linked"
 msgstr "No dialogue container linked"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "No document open"
 msgstr "No document open"
@@ -9252,7 +9282,7 @@ msgstr "Not ready"
 msgid "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
 msgstr "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Not saved yet. Your words are in this tab; they will be written again on the next change."
@@ -9999,7 +10029,7 @@ msgstr "Picture file renamed"
 msgid "Picture imported"
 msgstr "Picture imported"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Picture not found: {name}. Add the file back to the project's assets folder, or delete the picture."
 msgstr "Picture not found: {name}. Add the file back to the project's assets folder, or delete the picture."
@@ -10009,7 +10039,7 @@ msgstr "Picture not found: {name}. Add the file back to the project's assets fol
 msgid "Picture note changed"
 msgstr "Picture note changed"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Picture on the web. It is not loaded, so opening this scene never contacts the network."
 msgstr "Picture on the web. It is not loaded, so opening this scene never contacts the network."
@@ -10029,7 +10059,7 @@ msgstr "Picture placed"
 msgid "Picture placed on the whole item"
 msgstr "Picture placed on the whole item"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Picture settings"
 msgstr "Picture settings"
@@ -11521,7 +11551,7 @@ msgstr "Resume"
 msgid "Resuming the run."
 msgstr "Resuming the run."
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Retry"
 msgstr "Retry"
@@ -11907,7 +11937,7 @@ msgstr "Save token"
 msgid "Save writing settings"
 msgstr "Save writing settings"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Saved"
 msgstr "Saved"
@@ -12059,7 +12089,7 @@ msgstr "Saving the filter “{name}”"
 msgid "harness.progress.memoryWrite.active"
 msgstr "Saving the memory note “{title}”"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Saving will not keep these constructs exactly:"
 msgstr "Saving will not keep these constructs exactly:"
@@ -12075,7 +12105,7 @@ msgid "Saving writes this tab’s version over them. The folder’s version is k
 msgstr "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
 
 #. Interpolated values: fieldCount, fields, name, times, unsaid
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/screenplay-model.ts
@@ -12365,12 +12395,12 @@ msgstr "Select {title}"
 msgid "Select a document"
 msgstr "Select a document"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Select a document in the binder, then press {shortcut} or choose Open in editor. Scenes are written here."
 msgstr "Select a document in the binder, then press {shortcut} or choose Open in editor. Scenes are written here."
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Select a document in the binder, then press {shortcut} or choose Open in editor. Scenes are written here. A scene goes in a chapter, so make the chapter first."
 msgstr "Select a document in the binder, then press {shortcut} or choose Open in editor. Scenes are written here. A scene goes in a chapter, so make the chapter first."
@@ -12803,7 +12833,7 @@ msgid "Simultaneous"
 msgstr "Simultaneous"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/components/PictureStorageMeter.tsx
@@ -13003,7 +13033,7 @@ msgstr "Start sprint"
 msgid "Start the review"
 msgstr "Start the review"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Start the scene. Your words are saved in this browser as you go."
 msgstr "Start the scene. Your words are saved in this browser as you go."
@@ -14021,7 +14051,7 @@ msgstr "the duration is a number of seconds, at least zero"
 msgid "The duration is a number of seconds, at least zero"
 msgstr "The duration is a number of seconds, at least zero"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "The editor could not open this document"
 msgstr "The editor could not open this document"
@@ -14401,6 +14431,16 @@ msgstr "The most findings one review may add is a whole number from 1 to {max}."
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "The new read matches the approved text."
 msgstr "The new read matches the approved text."
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "The note was kept: a marker refers to it again."
+msgstr "The note was kept: a marker refers to it again."
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "The note was kept: it was changed or is no longer there."
+msgstr "The note was kept: it was changed or is no longer there."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -14898,7 +14938,7 @@ msgstr "The skill “{folder}” was not taken: a file in it has an unsafe path 
 msgid "The skill could not be read: {reason}"
 msgstr "The skill could not be read: {reason}"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
 msgstr "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
@@ -14923,7 +14963,7 @@ msgstr "The text between the two lines of dashes at the top gives the skill its 
 msgid "The text changed under this draft"
 msgstr "The text changed under this draft"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "The text could not be brought up to date: {reason}"
 msgstr "The text could not be brought up to date: {reason}"
@@ -16814,6 +16854,16 @@ msgstr "You"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "You added:"
 msgstr "You added:"
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "You deleted the marker of footnote {label} (“{text}”). Its note is still at the end of the scene. Delete the note too?"
+msgstr "You deleted the marker of footnote {label} (“{text}”). Its note is still at the end of the scene. Delete the note too?"
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
+msgstr "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts

@@ -191,10 +191,11 @@ const rebuild = (mutate: (nodes: Record<string, NodeSpec>) => void): Schema => {
 };
 
 describe('§3.1 Nodes — the schema, read column by column out of the spec', () => {
-  it('§3.1 parses into 12 node rows — a broken parse must fail, not pass', () => {
-    // 12 = doc, paragraph, heading, blockquote, bullet_list, ordered_list,
-    // list_item, horizontal_rule, code_block, hard_break, image, text.
-    expect(specNodes).toHaveLength(12);
+  it('§3.1 parses into 14 node rows — a broken parse must fail, not pass', () => {
+    // 14 = doc, paragraph, heading, blockquote, bullet_list, ordered_list,
+    // list_item, horizontal_rule, code_block, hard_break, image, the two
+    // footnote nodes (#270, §3.4), text.
+    expect(specNodes).toHaveLength(14);
     expect(specNodes.map((r) => r.node)).toEqual([
       'doc',
       'paragraph',
@@ -207,6 +208,8 @@ describe('§3.1 Nodes — the schema, read column by column out of the spec', ()
       'code_block',
       'hard_break',
       'image',
+      'footnote_reference',
+      'footnote_definition',
       'text',
     ]);
   });

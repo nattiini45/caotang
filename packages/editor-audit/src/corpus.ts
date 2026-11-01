@@ -144,7 +144,7 @@ export const BLOCKS: CorpusEntry[] = [
   { name: 'html-raw-inline', group: 'blocks', input: 'text with <span>html</span> inside', expect: 'degrade' },
   { name: 'footnote-reference', group: 'blocks',
     input: 'Text[^1]\n\n[^1]: The note.', expect: 'degrade',
-    note: '§3.3: footnotes degrade' },
+    note: '§3.3 at the preflight: footnotes degrade. Since #270 the product keeps them as footnotes (§3.4, exact content); this entry stays the preflight’s claim about the library alone, which still throws on `footnoteReference`. The product’s footnote fixtures are in packages/editor/test (pipeline.test.ts, footnotes.test.ts).' },
 ];
 
 /* --- Caotang-specific (§5 dialect contract + §13 D2) ------------------------ */

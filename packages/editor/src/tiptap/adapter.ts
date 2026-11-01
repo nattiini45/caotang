@@ -90,6 +90,9 @@ import type {
   TextAnchor,
 } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
+import { deleteOrphanNote, insertFootnote } from './footnotes.js';
+import type { FootnoteNoteDeletion, FootnoteOrphan, FootnoteWords } from './footnotes.js';
+import { footnoteTail } from '../footnotes.js';
 import { createGhostPreview } from './ghost.js';
 import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
 import type { GhostCallbacks, GhostPreview } from './ghost.js';
@@ -165,6 +168,13 @@ export interface TiptapMountOptions extends EditorMountOptions {
    * Without a store it reports the editor's own edits.
    */
   onSaveStatusChange?: (status: EditorSaveStatus) => void;
+  /**
+   * #270: the writer deleted the last marker of these notes. The notes are kept; the app asks whether
+   * they go too and answers with {@link TiptapEditorInstance.deleteFootnoteNote}.
+   */
+  onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
+  /** #270: the words a marker and a note carry for assistive technology. English when absent. */
+  footnoteWords?: FootnoteWords;
 }
 
 /**
@@ -316,6 +326,20 @@ export interface TiptapEditorInstance extends ReviewableEditorInstance {
   choosePictures(): Promise<number>;
   /** Stores the files as pictures and inserts them at the caret, as one undoable edit. Resolves with how many went in. */
   insertPictures(files: readonly File[]): Promise<number>;
+  /**
+   * #270, Lane 1: a footnote at the caret, with an empty note at the end of the document, and the caret
+   * in the note — what Ctrl+Shift+6 does. `false` when the caret is where a footnote cannot go (inside a
+   * note, a code block).
+   */
+  insertFootnote(): boolean;
+  /**
+   * #270, Lane 1: deletes the orphan's note if no marker refers to it any more, the answer to
+   * `onFootnoteOrphaned`. The note is the one the question named, followed by the editor since
+   * by its node (not whichever note holds its label, text or place now). `'referenced'` or
+   * `'gone'`, and nothing changes, when the note has a marker again, or was removed or edited
+   * (a look-alike note in its place is not it); the app tells the writer which.
+   */
+  deleteFootnoteNote(orphan: FootnoteOrphan): FootnoteNoteDeletion;
   /** Lane 1: the user's own undo. Never reverts an agent apply. */
   undo(): boolean;
   /** Lane 1: the user's own redo. */
@@ -527,6 +551,10 @@ const createInstance = (
   let scope: Span | null = null;
 
   const pictures = opts.pictures === undefined ? null : createPictureController(opts.pictures);
+  const footnoteOptions = {
+    ...(opts.onFootnoteOrphaned !== undefined ? { onFootnoteOrphaned: opts.onFootnoteOrphaned } : {}),
+    ...(opts.footnoteWords !== undefined ? { footnoteWords: opts.footnoteWords } : {}),
+  };
   const editor = new Editor({
     element: focusEl,
     extensions: (() => {
@@ -535,6 +563,7 @@ const createInstance = (
         placeholder: opts.placeholder,
         ...(opts.labels === undefined ? {} : { labels: opts.labels }),
         ...(pictures === null ? {} : { pictures }),
+        ...footnoteOptions,
       };
       return layer === null ? caotangExtensions(options) : layer.extensions(options);
     })(),
@@ -754,7 +783,9 @@ const createInstance = (
     }
     // ProseMirror's fitting joins the blocks around a range that crosses a block boundary,
     // which is what replacing a selection across two paragraphs does in any editor.
-    dispatch(tr.replace(at, until, insertionOf(text, editor.schema)), laneOpts);
+    // #270: the text is read against the notes this document defines, so a `[^1]` the agent kept stays a marker.
+    const labels = footnoteTail(live).defs.map((def) => def.attrs.label as string);
+    dispatch(tr.replace(at, until, insertionOf(text, editor.schema, labels)), laneOpts);
   };
 
   // --- §9: the dirty pipeline is the store's (decision 4) -----------------------
@@ -1041,6 +1072,16 @@ const createInstance = (
 
     insertPictures: (files: readonly File[]): Promise<number> =>
       destroyed || pictures === null ? Promise.resolve(0) : pictures.insertFiles(editor.view, files, 'choose'),
+
+    insertFootnote: (): boolean => {
+      if (destroyed || !editor.isEditable) return false;
+      const done = insertFootnote(editor.state, (tr) => dispatch(tr));
+      if (done) editor.view.focus();
+      return done;
+    },
+
+    deleteFootnoteNote: (orphan: FootnoteOrphan): FootnoteNoteDeletion =>
+      destroyed ? 'gone' : deleteOrphanNote(editor.state, (tr) => dispatch(tr), orphan),
 
     undo: (): boolean => (destroyed ? false : editor.commands.undo()),
 

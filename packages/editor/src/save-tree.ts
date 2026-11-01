@@ -34,8 +34,10 @@ export interface SaveTreeOptions {
   readonly definitions?: boolean;
 }
 
-const isEmptyParagraph = (doc: PmNode): boolean =>
-  doc.childCount === 1 && doc.child(0).type.name === 'paragraph' && doc.child(0).content.size === 0;
+/** The document's first block is an empty paragraph: what stands in for nothing before the notes or the kept definitions. */
+const opensWithEmptyParagraph = (doc: PmNode): boolean =>
+  doc.firstChild?.type.name === 'paragraph' && doc.firstChild.content.size === 0 &&
+  Array.from({ length: doc.childCount - 1 }, (_, i) => doc.child(i + 1)).every((node) => node.type.name === 'footnote_definition');
 
 export const toSaveTree = (pm: PmNode, options: SaveTreeOptions = {}): Root => {
   const provenance = readProvenance(pm.attrs['provenance']);
@@ -49,14 +51,17 @@ export const toSaveTree = (pm: PmNode, options: SaveTreeOptions = {}): Root => {
     markHandlers: handlers as never,
   });
   if (options.definitions === false || provenance.defs.length === 0) return tree;
-  // A body that was only definitions has one empty paragraph standing in for nothing, so it is not written.
-  const blocks = isEmptyParagraph(pm) ? [] : tree.children;
+  // A body that was only definitions, or only definitions and notes, has one empty paragraph standing in for nothing at its
+  // head (#270 holds a notes-only body the same way), so it is not written. The index still counts it, so each kept
+  // definition stays beside the block it followed.
+  const blocks = tree.children;
+  const skipLead = opensWithEmptyParagraph(pm);
   const chunks = definitionChunks(pm, provenance);
   const children: Root['children'] = [];
   let next = 0;
   for (let index = 0; index <= blocks.length; index += 1) {
     while (next < chunks.length && chunks[next]!.index <= index) children.push(rawSourceNode(chunks[next++]!.text) as never);
-    if (index < blocks.length) children.push(blocks[index]!);
+    if (index < blocks.length && !(index === 0 && skipLead)) children.push(blocks[index]!);
   }
   while (next < chunks.length) children.push(rawSourceNode(chunks[next++]!.text) as never);
   return { ...tree, children };

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Inline pictures keep the Markdown the writer wrote (editor-engine §3.4, pictures.md §2.2).
+ * Inline pictures keep the Markdown the writer wrote (editor-engine §3.5, pictures.md §2.2).
  *
  * The schema has no node for a link definition and none for "this image was a reference", so the load keeps each reference's and each
  * definition's written source in the document's provenance, and a save writes it back while the node is untouched. Every case here

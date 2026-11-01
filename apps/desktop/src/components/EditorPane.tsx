@@ -33,6 +33,7 @@ import { t } from '@lingui/core/macro';
 import { keyboardLayoutStore, shortcutLabel } from '../app/keymap.js';
 import {
   createTiptapEditorApi,
+  type FootnoteOrphan,
   type GhostPreview,
   type InsertedPicture,
   type LoadResult,
@@ -46,7 +47,7 @@ import { nodeById } from '../app/binder-model.js';
 import { publishEditorCaret, type EditorCaret } from '../app/editor-selection.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { GhostView } from '../app/agent-model.js';
-import { describeLossGroup, reStyleSentence } from '../app/load-banner.js';
+import { describeLossGroup, dialectSentences } from '../app/load-banner.js';
 import { isOwnWrite } from '../app/integrity-model.js';
 import { takePending } from '../app/review-notice.js';
 import { pendingNotice } from '../app/review-text.js';
@@ -65,7 +66,7 @@ import { TargetQuickSet } from './TargetQuickSet.js';
 /** The review bar and the hold on the marks are fetched only by an editor in review mode (Settings > Writing), so the default path does not carry them. */
 const ReviewSide = lazy(() => import('./ReviewSide.js').then((module) => ({ default: module.ReviewSide })));
 
-/* lingui-set comment="Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count" */
+/* lingui-set comment="Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note" */
 
 /** One API for every mount: it holds no state of its own (the instance does). */
 const editorApi = createTiptapEditorApi();
@@ -291,6 +292,10 @@ function DocumentEditor({
   const [load, setLoad] = useState<LoadResult | null>(null);
   const [bannerOpen, setBannerOpen] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
+  // The notes whose last marker the writer deleted (editor-engine §3.4), oldest first: the editor keeps them, and the question asks
+  // about the first, then the next. One edit can orphan several notes, and each is asked about.
+  const [orphans, setOrphans] = useState<readonly FootnoteOrphan[]>([]);
+  const orphan = orphans[0] ?? null;
   // What the editor agrees with: the body and revision it was last made to hold. A store change that is not this one is the
   // only thing that makes the editor take a new body.
   const synced = useRef<{ body: string; revision: number } | null>(null);
@@ -397,6 +402,9 @@ function DocumentEditor({
             publishSelection(mounted, caret);
           },
           agentEditMode: modeAtOpen,
+          onFootnoteOrphaned: (found) => {
+            if (alive) setOrphans((queued) => [...queued, ...found]);
+          },
           ghost: {
             onApply: () => agentRef.current?.answer({ action: 'approve' }),
             onRetry: () => agentRef.current?.answer({ action: 'retry' }),
@@ -453,7 +461,11 @@ function DocumentEditor({
         ? editor.showAgentEdit(stored, { toolCallId: apply.toolCallId, revision }).then((outcome) => import('./ReviewSide.js').then((module) => module.reportLanding(outcome, report)))
         : editor.setContent(stored, { historyExcluded: true, discardUnsaved: true });
     landing
-      .then(() => editor.setRevision(revision))
+      .then(() => {
+        editor.setRevision(revision);
+        // The body was replaced from outside (an undo, a restore, an agent apply): a question about a note in the old body is stale.
+        setOrphans([]);
+      })
       .catch((error: unknown) => {
         report({
           text: t`The text could not be brought up to date: ${{ reason: error instanceof Error ? error.message : String(error) }}`,
@@ -556,6 +568,23 @@ function DocumentEditor({
 
         <div ref={host} className="editor-host" lang={contentLang} dir="auto" />
 
+        {editor !== null && orphan !== null ? (
+          <FootnoteQuestion
+            orphan={orphan}
+            onDelete={() => {
+              // The note is the one the question named, followed by the editor since; a refusal changes nothing and is said.
+              const outcome = editor.deleteFootnoteNote(orphan);
+              setOrphans((queued) => queued.filter((entry) => entry.id !== orphan.id));
+              if (outcome !== 'deleted') report({ text: footnoteKeptNotice(outcome), tone: 'info' });
+              editor.focus();
+            }}
+            onKeep={() => {
+              setOrphans((queued) => queued.filter((entry) => entry.id !== orphan.id));
+              editor.focus();
+            }}
+          />
+        ) : null}
+
         {editor !== null && agent !== null && modeAtOpen === 'suggestions' ? (
           <Suspense fallback={null}>
             <ReviewSide projectId={session.projectId} docId={docId} agent={agent} editor={editor} report={report} />
@@ -575,6 +604,23 @@ function DocumentEditor({
 
         <footer className="editor-status" aria-label={t`Document status`}>
           <span className="editor-count">{wordsLabel(counts.words)}</span>
+          {editor !== null ? (
+            <button
+              type="button"
+              className="button is-quiet editor-footnote"
+              aria-keyshortcuts="Control+Shift+6 Meta+Shift+6"
+              title={t`Add a footnote at the caret (Ctrl+Shift+6). The same keys in a note go back to the text.`}
+              onClick={() => {
+                // The command refuses where a footnote cannot go (inside a note, or where the block takes no marker); say so.
+                if (!editor.insertFootnote()) {
+                  report({ text: t`A footnote can’t be added here. Put the caret in the text, outside a note, and try again.`, tone: 'info' });
+                }
+                editor.focus();
+              }}
+            >
+              <Trans>Add footnote</Trans>
+            </button>
+          ) : null}
           <TargetQuickSet progress={target} onSetTarget={onSetTarget} />
           <span className="editor-save" aria-live="polite">
             {save.lastError !== null
@@ -632,17 +678,59 @@ function GhostBar({
   );
 }
 
+/** What the writer is told when answering "Delete the note" changed nothing. */
+function footnoteKeptNotice(outcome: 'referenced' | 'gone'): string {
+  return outcome === 'referenced'
+    ? t`The note was kept: a marker refers to it again.`
+    : t`The note was kept: it was changed or is no longer there.`;
+}
+
+/**
+ * The question after the writer deletes a footnote's marker (editor-engine §3.4). The note is kept until the writer says otherwise, so
+ * ignoring the question loses nothing; it is a status region, so a screen reader hears it without the focus moving.
+ */
+function FootnoteQuestion({
+  orphan,
+  onDelete,
+  onKeep,
+}: {
+  orphan: FootnoteOrphan;
+  onDelete: () => void;
+  onKeep: () => void;
+}): ReactNode {
+  useLingui();
+  const label = orphan.label;
+  const text = orphan.text.length > 80 ? `${orphan.text.slice(0, 79)}…` : orphan.text;
+  return (
+    <aside className="footnote-question" role="status" aria-label={t`Footnote without a marker`} data-testid="footnote-question">
+      <p>
+        {orphan.text.length > 0
+          ? t`You deleted the marker of footnote ${{ label }} (“${{ text }}”). Its note is still at the end of the scene. Delete the note too?`
+          : t`You deleted the marker of footnote ${{ label }}. Its note is still at the end of the scene. Delete the note too?`}
+      </p>
+      <button type="button" className="button" onClick={onDelete}>
+        <Trans>Delete the note</Trans>
+      </button>
+      <button type="button" className="button is-quiet" onClick={onKeep}>
+        <Trans>Keep the note</Trans>
+      </button>
+    </aside>
+  );
+}
+
 /**
  * The load banner (editor-engine §3.3 and §5). A block the save will re-style is counted once, and each construct the schema
  * cannot keep is named with its line. Nothing here is an error: the text is kept.
  */
 function LoadBanner({ load, onDismiss }: { load: LoadResult; onDismiss: () => void }): ReactNode {
   useLingui();
-  const blocks = load.dialect.length;
+  const sentences = dialectSentences(load.dialect);
   return (
     <aside className="load-banner" role="status" aria-label={t`About this document's format`}>
       <div className="load-banner-text">
-        {blocks > 0 ? <p>{reStyleSentence(blocks)}</p> : null}
+        {sentences.map((sentence) => (
+          <p key={sentence}>{sentence}</p>
+        ))}
         {load.groups.length > 0 ? (
           <>
             <p><Trans>Saving will not keep these constructs exactly:</Trans></p>

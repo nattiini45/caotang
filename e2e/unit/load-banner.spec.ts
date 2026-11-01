@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-import type { LossWarningGroup } from '../../packages/editor/src/index.js';
+import type { DialectNotice, LossWarningGroup } from '../../packages/editor/src/index.js';
 
-import { describeLossGroup, reStyleSentence } from '../../apps/desktop/src/app/load-banner.js';
+import { describeLossGroup, dialectSentences, reStyleSentence } from '../../apps/desktop/src/app/load-banner.js';
 
 /** One group of load losses, as the editor groups them (editor-engine §3.3). */
 function group(overrides: Partial<LossWarningGroup> & Pick<LossWarningGroup, 'code' | 'mdastType'>): LossWarningGroup {
@@ -38,4 +38,17 @@ test('a loss count is grouped the way the formatter locale groups numbers', () =
   expect(describeLossGroup(group({ code: 'lossy-structure', mdastType: 'table', nodes: 1200 }), 'en-US')).toContain('1,200 tables');
   expect(describeLossGroup(group({ code: 'lossy-structure', mdastType: 'table', nodes: 1200 }), 'de-DE')).toContain('1.200 tables');
   expect(reStyleSentence(1200, 'de-DE')).toContain('re-style 1.200 blocks');
+});
+
+test('the footnote notice says its own sentence, and is not counted as a re-styled block', () => {
+  const notice = (cause: DialectNotice['cause'], detail: string): DialectNotice => ({ mdastType: 'paragraph', source: '', canonical: '', cause, detail });
+  const footnotes = notice('footnote-layout', 'Saves will number the footnotes in reading order and put every note at the end of the document.');
+  expect(dialectSentences([footnotes])).toEqual([
+    'Saves will number the footnotes in reading order and put every note at the end of the document.',
+  ]);
+  expect(dialectSentences([notice('parse-side', 'x'), footnotes, notice('list-spread', 'y')])).toEqual([
+    'Saving will re-style 2 blocks to Caotang’s Markdown spelling. The words stay the same.',
+    'Saves will number the footnotes in reading order and put every note at the end of the document.',
+  ]);
+  expect(dialectSentences([])).toEqual([]);
 });

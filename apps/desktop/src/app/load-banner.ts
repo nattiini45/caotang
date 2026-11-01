@@ -6,7 +6,7 @@
  * save will do to it.
  */
 
-import type { LossWarningGroup } from '@caotang/editor';
+import type { DialectNotice, LossWarningGroup } from '@caotang/editor';
 import { plural, select, t } from '@lingui/core/macro';
 import { formatCount } from '../i18n/locale.js';
 
@@ -29,8 +29,6 @@ export function describeLossGroup(group: LossWarningGroup, locale: string = form
   const noun = select(kind, {
     table: plural(nodes, { one: 'table', other: 'tables' }),
     html: plural(nodes, { one: 'raw HTML block', other: 'raw HTML blocks' }),
-    footnoteReference: plural(nodes, { one: 'footnote', other: 'footnotes' }),
-    footnoteDefinition: plural(nodes, { one: 'footnote', other: 'footnotes' }),
     definition: plural(nodes, { one: 'reference definition', other: 'reference definitions' }),
     linkReference: plural(nodes, { one: 'reference link', other: 'reference links' }),
     imageReference: plural(nodes, { one: 'reference image', other: 'reference images' }),
@@ -54,4 +52,18 @@ export function describeLossGroup(group: LossWarningGroup, locale: string = form
 export function reStyleSentence(blocks: number, locale: string = formatterLocale()): string {
   const count = formatCount(blocks, locale);
   return t`Saving will re-style ${count} ${plural(blocks, { one: 'block', other: 'blocks' })} to Caotang’s Markdown spelling. The words stay the same.`;
+}
+
+/**
+ * The dialect notice's sentences for one load. The blocks a save re-spells are counted in one sentence; the
+ * footnote notice (#270) is not a re-spelt block but a move of the notes, so it gets its own sentence, which is the
+ * notice's own `detail`, rather than being counted as a block whose "words stay the same".
+ */
+export function dialectSentences(dialect: readonly DialectNotice[]): string[] {
+  const blocks = dialect.filter((notice) => notice.cause !== 'footnote-layout').length;
+  const footnotes = dialect.find((notice) => notice.cause === 'footnote-layout');
+  const sentences: string[] = [];
+  if (blocks > 0) sentences.push(reStyleSentence(blocks));
+  if (footnotes !== undefined) sentences.push(footnotes.detail);
+  return sentences;
 }

@@ -40,6 +40,9 @@
  * - **`list_item`** takes §3.1's content `block+` and its `listitem` group, where
  *   Tiptap requires a leading paragraph. Not defining, as §3.1 does not say so.
  * - **`ordered_list`** carries `start` only, not Tiptap's `type`.
+ * - **`footnote_reference` / `footnote_definition`** (#270) have no stock Tiptap
+ *   extension; `footnotes.ts` writes them to §3.1, and adds the behaviour (the
+ *   canonical numbering, the chord, the tooltip) to the focus editor only.
  * - **The one kept divergence: the list group.** §3.1 says `block`. The live lists
  *   are `block list`, because `isList` in `@tiptap/core` decides whether a node is a
  *   list by looking for the group name `list`, and the toggle-list commands depend
@@ -103,6 +106,8 @@ import { isAppLocalSource } from './local-source.js';
 import type { PictureController } from './pictures.js';
 import { CaotangProvenance } from './provenance-plugin.js';
 import { slashMenu } from './slash-menu.js';
+import { FootnoteBehaviour, footnoteNodes } from './footnotes.js';
+import type { FootnoteOrphan, FootnoteWords } from './footnotes.js';
 
 /** The marks a container may carry on its children when the review layer is on (editor-engine §15, the library's README). */
 const REVIEW_BLOCK_MARKS = 'insertion modification deletion';
@@ -182,6 +187,13 @@ export interface CaotangExtensionOptions {
    * marked. Only the lazily loaded review layer (`suggestions.ts`) passes it, together with the marks it adds.
    */
   reviewMarks?: boolean;
+  /**
+   * #270: the writer deleted the last marker of these notes, which are kept. The app asks whether they go too
+   * (`deleteFootnoteNote`). Focus only.
+   */
+  onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
+  /** #270: the words a marker and a note carry for assistive technology. English when absent. */
+  footnoteWords?: FootnoteWords;
 }
 
 /**
@@ -198,8 +210,9 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
   const pictures = options.pictures;
   const shape: Extensions = [
     // The source-provenance map (source-provenance.ts) rides on the document; it is never rendered. With the review layer the
-    // containers also carry the review marks as block marks (§15).
+    // containers also carry the review marks as block marks (§15). §3.1 (#270): the notes are the document's tail.
     Document.extend({
+      content: 'block+ footnote_definition*',
       ...blockMarks,
       addAttributes() {
         return { provenance: { default: undefined, rendered: false, parseHTML: () => undefined } };
@@ -255,6 +268,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
         return ['span', { class: 'caotang-image-placeholder' }, alt.length > 0 ? alt : labels.image];
       },
     }).configure({ inline: true }),
+    ...footnoteNodes(blockMarks, options.footnoteWords),
   ];
   if (role === 'ghost') return shape;
   return [
@@ -269,5 +283,6 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     UndoRedo,
     CaotangPaste,
     ...(pictures === undefined ? [] : [CaotangPictures(pictures, labels)]),
+    FootnoteBehaviour.configure({ onOrphaned: options.onFootnoteOrphaned }),
   ];
 };

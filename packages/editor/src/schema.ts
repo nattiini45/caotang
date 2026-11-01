@@ -64,7 +64,10 @@ export const caotangSchema = new Schema({
     // `provenance` is editor-only state, never rendered: the Markdown the source spelled that this schema cannot hold (link
     // definitions, reference spellings), kept so a save writes it back (source-provenance.ts). Its default is `undefined`, not
     // `null`, so a document with none has the same attrs, JSON and equality it had before the attr existed.
-    doc: { content: 'block+', attrs: { provenance: { default: undefined } } },
+    // `block+ footnote_definition*`: the notes are the document's tail and nothing
+    // else may follow them, which is GFM's canonical spelling (definitions at the
+    // end) held by the schema rather than by the save (#270).
+    doc: { content: 'block+ footnote_definition*', attrs: { provenance: { default: undefined } } },
     paragraph: { group: 'block', content: 'inline*' },
     heading: {
       group: 'block',
@@ -110,6 +113,24 @@ export const caotangSchema = new Schema({
         // Editor-only: the id of the reference this image was parsed from (source-provenance.ts).
         prov: { default: undefined },
       },
+    },
+    // #270: GFM footnotes. The reference is an inline atom that shows its label; the
+    // definition is a block that only the document's tail may hold (see `doc`).
+    // `label` is the writer's own spelling (`1`, `note`), required because a
+    // footnote without one cannot be written. Numeric labels re-flow to their
+    // position (`footnotes.ts`); named ones are kept.
+    footnote_reference: {
+      group: 'inline',
+      inline: true,
+      atom: true,
+      selectable: true,
+      attrs: { label: {} },
+    },
+    footnote_definition: {
+      content: 'block+',
+      defining: true,
+      isolating: true,
+      attrs: { label: {} },
     },
     text: { group: 'inline' },
   },
