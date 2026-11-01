@@ -232,13 +232,14 @@
   box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
 }
 
-/* ---- Notices (§8.6): toast capsules of float glass at the top centre, with the same roles, text and buttons. ---- */
+/* ---- Notices (§8.6): toast capsules of float glass at the top centre of the page, with the same roles, text and buttons. They sit
+   just below the top ornament, never over it: a tall notice that covered the title capsule would hide **More**, and Settings with it. ---- */
 :root[data-shell='modern'] .modern-notices {
   position: absolute;
-  inset-block-start: var(--space-5);
-  inset-inline: 0;
+  inset-block-start: calc(var(--page-top) + var(--radius-ornament) + var(--space-6));
+  inset-inline: var(--area-start) var(--area-end);
   margin-inline: auto;
-  inline-size: min(720px, calc(100% - 2 * var(--page-gutter)));
+  inline-size: min(720px, calc(100% - var(--area-start) - var(--area-end) - 2 * var(--page-gutter)));
   display: flex;
   flex-direction: column;
   align-items: center;

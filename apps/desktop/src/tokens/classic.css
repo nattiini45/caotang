@@ -4,7 +4,7 @@
  *
  * Three axes choose values, each an attribute on <html>, composed by attribute selectors alone:
  *   shell   data-shell="classic|modern" (app/interface.ts). Modern overrides under :root[data-shell='modern'] in its lazily
- *           loaded stylesheet (modern/modern.css), by specificity, never by load order.
+ *           loaded stylesheet (tokens/modern.css), by specificity, never by load order.
  *   skin    data-skin (app/skin.ts), absent for the default. A Classic skin redefines these tokens under
  *           :root[data-shell='classic'][data-skin='<name>'] in tokens/skins/<name>.css (tokens/skins/README.md). None ships.
  *   scheme  data-theme="light|dark", or the system (app/theme.ts): the two dark blocks below.

@@ -266,11 +266,14 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
   await settle(page);
   await expectGlass(toast, '32px');
   expect(await undersized(page.getByTestId('modern-notices'))).toEqual([]);
+  // At the top centre of the page, below the top ornament.
   const box = await toast.boundingBox();
-  const viewport = page.viewportSize();
+  const sheet = await page.locator('#modern-page').boundingBox();
   expect(box).not.toBeNull();
-  expect(box?.y ?? 999).toBeLessThan(40);
-  expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - (viewport?.width ?? 0) / 2)).toBeLessThan(4);
+  expect(sheet).not.toBeNull();
+  expect(box?.y ?? 999).toBeGreaterThan(sheet?.y ?? 0);
+  expect(box?.y ?? 999).toBeLessThan((sheet?.y ?? 0) + 120);
+  expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - ((sheet?.x ?? 0) + (sheet?.width ?? 0) / 2))).toBeLessThan(4);
   // It stays until dismissed: no timer takes it away.
   await page.waitForTimeout(1500);
   await expect(toast).toBeVisible();
