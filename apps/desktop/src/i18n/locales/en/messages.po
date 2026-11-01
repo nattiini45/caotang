@@ -12914,6 +12914,11 @@ msgstr "Some changes have not reached browser storage yet, so the project stays 
 msgid "Some documents in this folder changed since Caotang last saved them"
 msgstr "Some documents in this folder changed since Caotang last saved them"
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Some of your typing could not be saved yet, so no working copy was stored and nothing was changed. Try again once it is saved."
+msgstr "Some of your typing could not be saved yet, so no working copy was stored and nothing was changed. Try again once it is saved."
+
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Some pages already have searchable transcription text. The previous value is guarded until you approve this review."

@@ -1116,8 +1116,25 @@ export class ProjectSession {
     return this.runAsync('asset.relink', { pairs: pairs.map((pair) => ({ ...pair })) });
   }
 
-  /** Runs `asset.storeWorkingCopies` over the chosen pictures: one batch, one undo group, the originals kept for the undo. */
-  storeWorkingCopies(assetIds: readonly string[]): Promise<Result<ExecutionOutcome, CommandError>> {
+  /**
+   * Runs `asset.storeWorkingCopies` over the chosen pictures: one batch, one undo group, the originals kept for the undo.
+   *
+   * The batch rewrites every inline reference to a replaced picture in the stored bodies, and a mounted editor drops its own copy of a
+   * body the store rewrote. So the typing the editors hold is saved first, and when any of it could not be saved (a revision conflict,
+   * a failed write) nothing is stored and no reference is rewritten: the rewrite would land on the stored text and the unsaved typing
+   * would be lost without a word.
+   */
+  async storeWorkingCopies(assetIds: readonly string[]): Promise<Result<ExecutionOutcome, CommandError>> {
+    await this.autosave.flush();
+    if (this.autosave.dirtyDocIds().length > 0) {
+      const error: CommandError = {
+        code: 'revision-conflict',
+        message: t`Some of your typing could not be saved yet, so no working copy was stored and nothing was changed. Try again once it is saved.`,
+        target: 'assetIds',
+      };
+      this.rejections.push({ command: 'asset.storeWorkingCopies', issuedBy: 'user', code: error.code });
+      return { ok: false, error };
+    }
     return this.runAsync('asset.storeWorkingCopies', { assetIds: [...assetIds] });
   }
 
