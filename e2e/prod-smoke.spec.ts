@@ -201,17 +201,18 @@ test.describe('the interface', () => {
       const name = new URL(request.url()).pathname.split('/').pop() ?? '';
       if (name.endsWith('.css')) sheets.push(name.replace(/-[\w-]{8}\.css$/, ''));
     });
-    // A fresh profile resolves to Classic while the parity gate is closed (app/interface.ts), so Modern's sheet is not fetched.
+    // A fresh profile resolves to Classic while the parity gate is closed (app/interface.ts), so Modern's sheet (the `modern-shell`
+    // chunk's, since #305) is not fetched.
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('classic');
-    expect(sheets).not.toContain('modern');
+    expect(sheets).not.toContain('modern-shell');
 
     await page.evaluate(() => localStorage.setItem('caotang.interface', 'modern'));
     await page.reload();
     await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('modern');
-    expect(sheets).toContain('modern');
+    expect(sheets).toContain('modern-shell');
     expect(problems).toEqual([]);
     expect(await violations(page)).toEqual([]);
   });
