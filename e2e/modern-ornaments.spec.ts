@@ -53,6 +53,8 @@ async function lensGap(page: Page, control: Locator): Promise<number> {
 }
 
 test('Write, Board and Codex are one radio group with a lens; the keys choose, and the editor keeps its caret and undo history', async ({ page }) => {
+  // Long walk: some 20 steps at 1–2 s each on a loaded WebKit runner outgrow the default 30 s.
+  test.setTimeout(90_000);
   const surface = await modernScene(page);
   const main = page.getByRole('main', { name: 'Ferry Book' });
   // A selection inside the words (the hook reports a range, not a collapsed caret): the last word but its full stop.
@@ -116,6 +118,8 @@ test('Write, Board and Codex are one radio group with a lens; the keys choose, a
 });
 
 test('⋯ is a menu of every shell action, the other views and Appearance; Escape, Tab and a click outside close it and focus returns', async ({ page }) => {
+  // Long walk: some 20 steps at 1–2 s each on a loaded WebKit runner outgrow the default 30 s.
+  test.setTimeout(90_000);
   await modernScene(page, 'Menu Book');
   const button = more(page);
   await expect(button).toHaveAttribute('aria-haspopup', 'menu');
