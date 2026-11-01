@@ -1,0 +1,207 @@
+/*
+ * Modern's palette (docs/architecture/modern-interface.md §8.9, §5.3, §9.2, §9.5): a modal dialog of thick glass near the top of the
+ * window, its field on a scrim, its options 44 px tall. In the `modern-shell` chunk with palette.tsx.
+ *
+ * Rules as in shell-modern.css: every selector starts with :root[data-shell='modern'] and only logical properties are used (both
+ * checked by test/modern-css.test.ts). The fallbacks (reduced transparency, no backdrop-filter, more contrast, reduced motion) change
+ * the tokens this reads, so nothing here repeats them; forced colours draws its own border and highlight.
+ */
+
+/* The native modal dialog in the top layer. `.mat-thick` makes its element relative, so the dialog states its own placement. */
+:root[data-shell='modern'] dialog.modern-palette {
+  position: fixed;
+  inset-block: max(56px, 12dvh) auto;
+  inset-inline: 0;
+  margin-inline: auto;
+  margin-block: 0;
+  inline-size: min(640px, calc(100% - 32px));
+  max-block-size: calc(100dvh - max(56px, 12dvh) - 24px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sheet);
+  overflow: hidden;
+  font: 400 15px/1.35 var(--ui);
+  transition:
+    opacity var(--dur-fade) linear,
+    transform var(--dur-2) var(--ease-spring);
+}
+
+/* It grows in from slightly above (§8.3); under reduced motion --dur-2 is 0s, so only the 120 ms fade is left. */
+@starting-style {
+  :root[data-shell='modern'] dialog.modern-palette[open] {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+:root[data-shell='modern'] dialog.modern-palette::backdrop {
+  background: rgba(20, 16, 32, 0.18);
+}
+
+:root[data-shell='modern'][data-transparency='reduced'] dialog.modern-palette::backdrop {
+  background: rgba(20, 16, 32, 0.45);
+}
+
+:root[data-shell='modern'] .modern-palette-frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-block-size: inherit;
+  padding: var(--sheet-pad);
+}
+
+/* ---- The field. ---- */
+:root[data-shell='modern'] .modern-palette-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 56px;
+  padding-inline: 16px 10px;
+  border-radius: var(--radius-control);
+}
+
+:root[data-shell='modern'] .modern-palette-glass {
+  font-size: 20px;
+  line-height: 1;
+}
+
+:root[data-shell='modern'] .modern-palette-field input {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: var(--target-min);
+  border: 0;
+  background: transparent;
+  color: var(--on-glass);
+  font: 500 18px/1.3 var(--ui);
+}
+
+:root[data-shell='modern'] .modern-palette-field input::placeholder {
+  color: var(--on-glass);
+  opacity: 0.72;
+}
+
+:root[data-shell='modern'] .modern-palette-field:focus-within {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-width));
+  box-shadow: inset 0 0 0 calc(var(--focus-width) + 2px) var(--focus-halo);
+}
+
+:root[data-shell='modern'] .modern-palette-field input:focus,
+:root[data-shell='modern'] .modern-palette-field input:focus-visible {
+  outline: none;
+}
+
+:root[data-shell='modern'] .modern-palette-kbd {
+  flex: none;
+  padding-block: 2px;
+  padding-inline: 8px;
+  border-radius: 8px;
+  background: var(--scrim);
+  color: inherit;
+  font: 600 12px/1.4 var(--ui);
+}
+
+/* ---- The grouped listbox. ---- */
+:root[data-shell='modern'] .modern-palette-list {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  max-block-size: min(56dvh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+:root[data-shell='modern'] .modern-palette-group + .modern-palette-group {
+  margin-block-start: var(--space-2);
+}
+
+:root[data-shell='modern'] .modern-palette-heading {
+  padding-block: 8px 4px;
+  padding-inline: 14px;
+  color: var(--on-glass);
+  font: 700 12px/1.3 var(--ui);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+:root[data-shell='modern'] .modern-palette-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: var(--row-h);
+  padding-block: 6px;
+  padding-inline: 14px;
+  border-radius: var(--radius-inner);
+  color: var(--on-glass);
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] .modern-palette-option[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .modern-palette-option[aria-disabled='true'] {
+  cursor: default;
+  text-decoration: line-through;
+}
+
+:root[data-shell='modern'] .modern-palette-icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: 9px;
+  background: var(--scrim);
+  font-size: 15px;
+  line-height: 1;
+}
+
+:root[data-shell='modern'] .modern-palette-words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+:root[data-shell='modern'] .modern-palette-label,
+:root[data-shell='modern'] .modern-palette-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] .modern-palette-label {
+  font-weight: 600;
+  unicode-bidi: plaintext;
+}
+
+:root[data-shell='modern'] .modern-palette-detail {
+  font-size: 13px;
+  unicode-bidi: plaintext;
+}
+
+:root[data-shell='modern'] .modern-palette-hint {
+  margin: 0;
+  padding-block: 2px 4px;
+  padding-inline: 14px;
+  color: var(--on-glass);
+  font-size: 13px;
+}
+
+/* ---- Forced colours: system colours, a border, the active option in Highlight. ---- */
+@media (forced-colors: active) {
+  :root[data-shell='modern'] dialog.modern-palette,
+  :root[data-shell='modern'] .modern-palette-field {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  :root[data-shell='modern'] .modern-palette-option[aria-selected='true'] {
+    background: Highlight;
+    color: HighlightText;
+    forced-color-adjust: none;
+  }
+}

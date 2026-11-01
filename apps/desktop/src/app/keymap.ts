@@ -35,7 +35,8 @@ export type KeyAction =
   | 'open-menu'
   | 'agent-send'
   | 'agent-steer'
-  | 'agent-stop';
+  | 'agent-stop'
+  | 'palette';
 
 export interface KeyFacts {
   /** `KeyboardEvent.key`, e.g. `'n'`, `'Enter'`, `'F2'`, `'ArrowUp'`. */
@@ -80,6 +81,11 @@ export interface KeyContext {
   readonly inAgentIntent?: boolean;
   /** True when the interface reads right to left, so Left and Right name the previous and the next place, not a screen side (i18n.md §5.5). */
   readonly rtl?: boolean;
+  /**
+   * The shell on the page (modern-interface.md §8.11). Modern's chords (Ctrl+K, the palette) resolve only when it is `'modern'`;
+   * absent reads as Classic, which gains no chord (D11). Only a component under components/shell/ passes it.
+   */
+  readonly shell?: 'classic' | 'modern';
 }
 
 /** Left and Right swapped, every other key as it is: the arrow that means "next" in a right-to-left interface. */
@@ -155,6 +161,8 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   // Ctrl+Alt without the AltGraph fact keeps its documented meaning (`Ctrl+Alt+F` focuses the filter, below).
   if (facts.altGraph) return null;
 
+  // modern-interface.md §8.11: Modern's palette on Ctrl+K (Cmd+K), before the text-field rule, so it opens while typing. Classic has none.
+  if (context.shell === 'modern' && cmd && !facts.alt && !facts.shift && key === 'k') return 'palette';
   if (cmd && !facts.alt && key === 'n' && !facts.shift) return 'new-document';
   if (cmd && !facts.alt && key === 'z' && !facts.shift) return context.inTextField ? null : 'undo';
   if (cmd && !facts.alt && key === 'f' && facts.shift) return 'focus-mode';
@@ -300,6 +308,7 @@ const CHORDS: Partial<Record<KeyAction, Chord>> = {
   'agent-steer': [['ctrl'], { named: 'enter' }],
   'agent-stop': [[], { named: 'escape' }],
   undo: [['ctrl'], { printed: 'z' }],
+  palette: [['ctrl'], { printed: 'k' }],
   escape: [[], { named: 'escape' }],
 };
 
