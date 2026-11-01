@@ -30,6 +30,7 @@ import {
   type UsesSnapshot,
 } from '@caotang/pictures';
 
+import { assetIdsInText, holdAssetRemoval } from './asset-removals.js';
 import { recordsOf, replaceList, type ListUndo } from './picture-registry.js';
 import type { ProjectState } from './state.js';
 
@@ -132,18 +133,7 @@ export async function collectRetention(roots: readonly RetentionRoot[]): Promise
  * Scanners: what names a picture
  * ------------------------------------------------------------------ */
 
-/** An `assets/a_XXXXXXXXXX.png` spelling anywhere in a text (the inline form, with or without `../`). */
-const ASSET_PATH_IN_TEXT = /assets\/(a_[0-9A-HJKMNP-TV-Z]{10})\.(?:png|jpg|webp)\b/g;
-
-/** Every asset id a text spells as a path (`../assets/a_….png`, `assets/a_….png`). */
-export function assetIdsInText(text: string): string[] {
-  const ids = new Set<string>();
-  for (const match of text.matchAll(ASSET_PATH_IN_TEXT)) {
-    const id = match[1];
-    if (id !== undefined) ids.add(id);
-  }
-  return [...ids];
-}
+export { assetIdsInText };
 
 /**
  * Every asset id a JSON value names: a string that **is** an asset id (`assetId: "a_…"`), and the path
@@ -386,13 +376,16 @@ export async function executeSweep(state: ProjectState, port: SweepPort): Promis
   const remaining: string[] = [];
   let interrupted: string | undefined;
   for (const candidate of still) {
-    // A record or a use that appeared since the recheck, from a command this sweep is not gated against, keeps its file.
-    const live = previewSweep({ listing: { authoritative: true, files: [candidate.file] }, state, retention });
-    if (!live.ok || live.candidates.length === 0) {
-      remaining.push(candidate.path);
-      continue;
-    }
+    // The hold is taken in the same synchronous step as the last use check and kept until the removal settles: a body write that
+    // would newly name this file in between is refused (asset-removals.ts), so the check and the removal cannot be split by a use.
+    const release = holdAssetRemoval(state, candidate.assetId);
     try {
+      // A record or a use that appeared since the recheck, from a command this sweep is not gated against, keeps its file.
+      const live = previewSweep({ listing: { authoritative: true, files: [candidate.file] }, state, retention });
+      if (!live.ok || live.candidates.length === 0) {
+        remaining.push(candidate.path);
+        continue;
+      }
       const gone = await port.remove([candidate.path]);
       if (gone.includes(candidate.path)) removed.push(candidate.path);
       else remaining.push(candidate.path);
@@ -400,6 +393,8 @@ export async function executeSweep(state: ProjectState, port: SweepPort): Promis
       remaining.push(candidate.path);
       interrupted = failure instanceof Error ? failure.message : String(failure);
       break;
+    } finally {
+      release();
     }
   }
   for (const candidate of first.candidates) {

@@ -23,6 +23,7 @@ import { countBody, WORD_RULE_VERSION, wordRuleInUse } from './word-count.js';
 import { isBodyType } from './paths.js';
 import type { SkillFile } from '@caotang/skills';
 
+import { refuseReferenceToRemoval } from './asset-removals.js';
 import { cloneAgentFiles, emptyAgentFiles, type AgentFiles } from './agent-files.js';
 
 export interface DocumentRecord {
@@ -303,6 +304,8 @@ export function setBody(
   const record = state.documents.get(id);
   if (!record) throw new Error(`no document record for "${id}"`);
   if (record.body === body) return;
+  // A sweep removing a picture file right now holds it against new references (asset-removals.ts).
+  refuseReferenceToRemoval(state, record.body, body);
   record.body = body;
   record.revision += 1;
   recordBodyCount(state, id, body, options.now);
@@ -353,8 +356,10 @@ export function addDocument(state: ProjectState, options: AddDocumentOptions): T
     updatedAt: created,
   };
 
-  state.manifest.tree.push(node);
   const body = options.body ?? '';
+  // Checked before the node is added, so a refused document leaves nothing behind (asset-removals.ts).
+  refuseReferenceToRemoval(state, '', body);
+  state.manifest.tree.push(node);
   state.documents.set(id, { id, body, revision: 0 });
   // A document born with a body has a count. Recording it here is what keeps
   // `wordCounts` a map over *the documents the tree holds* rather than a map

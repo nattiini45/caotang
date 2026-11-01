@@ -130,13 +130,15 @@ interface Host {
   writeHook: ((path: string) => void) | undefined;
   /** Awaited after each file is stored, so a test can act while the file is there and no record names it yet. */
   afterWrite: (() => Promise<void>) | undefined;
+  /** Awaited after each file is read, so a test can act between a command's read and what it does with the bytes. */
+  afterRead: ((path: string) => Promise<void>) | undefined;
 }
 
 function host(state: ProjectState = project(), options: { readonly decoder?: ProjectAssetPort['decoder'] } = {}): Host {
   const files = new Map<string, Uint8Array>();
   const staging = createAssetStaging();
   const ledger = new UndoRetentionLedger();
-  const handle: Host = { state, files, staging, ledger, extraRoots: [], removeHook: undefined, writeHook: undefined, afterWrite: undefined } as unknown as Host;
+  const handle: Host = { state, files, staging, ledger, extraRoots: [], removeHook: undefined, writeHook: undefined, afterWrite: undefined, afterRead: undefined } as unknown as Host;
   const assets: ProjectAssetPort = {
     staging,
     writeBytes: async (path, bytes) => {
@@ -145,7 +147,11 @@ function host(state: ProjectState = project(), options: { readonly decoder?: Pro
       await handle.afterWrite?.();
     },
     list: async () => ({ authoritative: true, files: [...files.keys()].map((path) => path.slice('assets/'.length)) }),
-    readBytes: async (path) => files.get(path),
+    readBytes: async (path) => {
+      const bytes = files.get(path);
+      await handle.afterRead?.(path);
+      return bytes;
+    },
     ...(options.decoder === undefined ? {} : { decoder: options.decoder }),
     deletion: {
       listRetention: async () => collectRetention([...stateRetentionRoots(state), ...handle.extraRoots]),
@@ -434,6 +440,62 @@ describe('asset.sweep', () => {
     expect((h.state.manifest.assets ?? []).map((record) => record.id)).toEqual([imported.assetId]);
   });
 
+  it('refuses a document write that would newly name a file while the sweep is removing it, and allows it once the removal settled', async () => {
+    const h = host();
+    const doomed = id('SWEEP');
+    h.files.set(`assets/${doomed}.png`, png());
+    const naming = `The ferry was late.\n\n![](../assets/${doomed}.png)`;
+    let during: Result<ExecutionOutcome, CommandError> | undefined;
+    let other: Result<ExecutionOutcome, CommandError> | undefined;
+    const port = {
+      list: async () => ({ authoritative: true, files: [...h.files.keys()].map((path) => path.slice('assets/'.length)) }),
+      listRetention: async () => collectRetention(stateRetentionRoots(h.state)),
+      remove: async (paths: readonly string[]) => {
+        // The removal is in flight: the last use check has passed and the file is not gone yet. A write naming it lands now.
+        during = execute(command('doc.write', { docId: LANDING, body: naming }), h.bus, h.registry);
+        // A write that names no file under removal is not held up.
+        other = execute(command('doc.write', { docId: LETTER, body: 'Dear Elena, the lamp is lit.' }), h.bus, h.registry);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return paths.filter((path) => h.files.delete(path));
+      },
+    };
+    const report = await executeSweep(h.state, port);
+    expect(report.removed).toEqual([`assets/${doomed}.png`]);
+    const error = refusal(during!);
+    expect(error.code).toBe('revision-conflict');
+    expect(error.message).toContain(doomed);
+    // Nothing of the refused write landed, so no document names the removed file.
+    expect(h.state.documents.get(LANDING)?.body).toBe('The ferry was late.');
+    value(other!);
+    expect(h.state.documents.get(LETTER)?.body).toBe('Dear Elena, the lamp is lit.');
+    // The hold ends with the removal: the same write now goes through (it names a missing file, as any typed path can).
+    value(execute(command('doc.write', { docId: LANDING, body: naming }), h.bus, h.registry));
+  });
+
+  it('keeps a file a document began naming before the last check, and releases the hold when a removal fails', async () => {
+    const h = host();
+    const first = id('SWEEP');
+    const second = id('CRATE');
+    for (const [name, sample] of [[first, 0x1], [second, 0x2]] as const) h.files.set(`assets/${name}.png`, png({ sample }));
+    const port = {
+      list: async () => ({ authoritative: true, files: [...h.files.keys()].map((path) => path.slice('assets/'.length)) }),
+      listRetention: async () => collectRetention(stateRetentionRoots(h.state)),
+      remove: async (paths: readonly string[]) => {
+        if (paths[0] === `assets/${first}.png`) {
+          // While the first file is being removed, a document begins naming the second: its own last check sees the use.
+          value(execute(command('doc.write', { docId: LETTER, body: `![](../assets/${second}.png)` }), h.bus, h.registry));
+          throw new Error('the disk is busy');
+        }
+        return paths.filter((path) => h.files.delete(path));
+      },
+    };
+    const report = await executeSweep(h.state, port);
+    expect(report.interrupted).toContain('the disk is busy');
+    expect(h.files.has(`assets/${second}.png`)).toBe(true);
+    // The failed removal let go of its hold: a write naming the first file is not refused.
+    value(execute(command('doc.write', { docId: LANDING, body: `![](../assets/${first}.png)` }), h.bus, h.registry));
+  });
+
   it('removes nothing when a root names the file between the preview and the recheck (a concurrent change)', async () => {
     const h = host();
     const raced = id('SWEEP');
@@ -477,6 +539,32 @@ describe('asset.relink (rename by hash, §6.3)', () => {
 
     undoLast(h);
     expect((h.state.manifest.assets ?? []).find((candidate) => candidate.id === record.id)?.file).toBe(record.file);
+  });
+
+  it('does not overlap a sweep: the file it re-links is never removed between its verification and the record update', async () => {
+    const h = host();
+    const { record, path } = await importPicture(h);
+    const bytes = h.files.get(path)!;
+    h.files.delete(path);
+    const renamed = id('RENAMED');
+    h.files.set(`assets/${renamed}.png`, bytes);
+    let sweeping: Promise<Result<ExecutionOutcome, CommandError>> | undefined;
+    let reads = 0;
+    h.afterRead = async (read) => {
+      if (read !== `assets/${renamed}.png`) return;
+      reads += 1;
+      // The second read is the verification immediately before the record moves: a sweep started now sees the file unrecorded.
+      if (reads !== 2) return;
+      sweeping = run(h, 'asset.sweep', {});
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    };
+    const relinked = value(await run(h, 'asset.relink', { pairs: [{ assetId: record.id, file: `${renamed}.png` }] }));
+    expect((relinked.result as { pairs: { assetId: string; file: string }[] }).pairs).toEqual([{ assetId: record.id, file: `${renamed}.png` }]);
+    const swept = value(await sweeping!).result as { candidates: number; removed: string[] };
+    // The sweep waited for the re-link, so it saw the record and removed nothing; the record points at a file that is there.
+    expect(swept.removed).toEqual([]);
+    expect(h.files.has(`assets/${renamed}.png`)).toBe(true);
+    expect((h.state.manifest.assets ?? []).find((candidate) => candidate.id === record.id)?.file).toBe(`${renamed}.png`);
   });
 
   it('refuses when the named file does not hold the record’s bytes, and changes nothing', async () => {

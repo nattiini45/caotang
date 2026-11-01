@@ -196,7 +196,7 @@ As built (#152): the app runs the backfill once per session, after the open's im
 
 ### 6.3 Load-time reconciliation
 
-A record whose file is missing, plus an unrecorded file with the same `sha256`, means the file was renamed outside the app: one batched "Re-link N renamed pictures" (`asset.relink`). The file may keep the stem it was renamed to (the bytes are the identity); a name another record already holds is refused. Never re-link by name similarity.
+A record whose file is missing, plus an unrecorded file with the same `sha256`, means the file was renamed outside the app: one batched "Re-link N renamed pictures" (`asset.relink`). The file may keep the stem it was renamed to (the bytes are the identity); a name another record already holds is refused. Never re-link by name similarity. The listing, the byte check and the record update run inside the asset file gate, so a sweep cannot remove the unrecorded file between the check and the update.
 
 ### 6.4 Import pipeline (inside the async apply, in order)
 
@@ -280,7 +280,7 @@ A picture file is safe to delete only when **every** root that can name it has b
 7. **Retained snapshots and drafts:** a background task's held drafts and an open editor's ghost text, which can quote an image the writer has not placed yet; and the recovery offers a corrupted manifest's rebuild may still name.
 
 - **The snapshot is authoritative or the sweep refuses.** A body the load could not decode, a folder listing that failed, an app-database store this build does not know, or a checkpoint read that threw makes `authoritative: false`; the sweep refuses whole, naming the root, and removes nothing. It never falls back to "delete what we could read".
-- A complete snapshot that finds a file with no record and no use only *offers* it; `asset.sweep` is writer-confirmed and not undoable, removes files only (never records), and leaves every file with a record to `asset.delete` first.
+- A complete snapshot that finds a file with no record and no use only *offers* it; `asset.sweep` is writer-confirmed and not undoable, removes files only (never records), and leaves every file with a record to `asset.delete` first. Each file's last use check and its removal are one step: from that check until the removal settles, a body write that would newly name the file is refused as a revision conflict (`asset-removals.ts`, through `setBody`), so a document never starts naming a file mid-removal.
 - Fixtures: one file retained by each root above, then swept only when that root is removed; an unknown or failed root refuses the sweep and changes nothing; a genuinely unreferenced file is removed only after confirmation; a file named only by a checkpoint, a pending-journal body or a vendor prompt survives.
 
 ### 6.7 Hosted
