@@ -988,7 +988,8 @@ describe('§5 dialect contract — the rule is a comparison, not a list', () => 
         'link-reference',
         'list-task-item',
         'table-gfm',
-        'footnote-reference',
+        // (`footnote-reference` left this list with #270: footnotes are exact, §3.4,
+        // and the corpus entry is in the canonical spelling, so its bytes do not change.)
         // **Still here.**
         // The save-path comparison is strictly more sensitive and
         // *does* see this block's bytes change — a nested emphasis collapsing
@@ -996,7 +997,7 @@ describe('§5 dialect contract — the rule is a comparison, not a list', () => 
         // a dialect notice for the same block would describe one change in two
         // vocabularies. So this name is now the negative control that the extra
         // sensitivity did not drag a loss into this channel, and it is why the
-        // list cannot shrink past eight. The mechanism, precisely: it is a
+        // list cannot shrink past seven. The mechanism, precisely: it is a
         // **nested** `emphasis` that collapses into the one around it, not three
         // sibling nodes — the two shapes behave oppositely, and a check written
         // to the sibling version would warn on the case that loses nothing and
