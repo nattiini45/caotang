@@ -85,6 +85,15 @@ export interface AgentPanelProps {
   readonly onToggle: () => void;
   /** The project is a sample the first-run card made, so the demo intents are offered here. */
   readonly sample: boolean;
+  /**
+   * Where the panel sits (modern-interface.md §7.4, §8.10). `'drawer'` (the default) is Classic's drawer under the centre, with its
+   * toggle. `'window'` is Modern's companion window, which names itself: always open, no toggle, **Agent** as the header's title, the
+   * Intent box in a footer under the turns, and **Close** in the header. Escape there keeps the drawer's meaning first (it stops a
+   * stoppable turn while the Intent box is empty) and otherwise closes the window.
+   */
+  readonly placement?: 'drawer' | 'window';
+  /** Closes the window. Only the window placement draws **Close** and calls it. */
+  readonly onClose?: () => void;
 }
 
 /**
@@ -103,7 +112,21 @@ interface PendingRestore {
   readonly exact?: boolean;
 }
 
-export function AgentPanel({ session, agent, recurring, startIntent, draft = null, open, onToggle, sample }: AgentPanelProps): ReactNode {
+export function AgentPanel({
+  session,
+  agent,
+  recurring,
+  startIntent,
+  draft = null,
+  open: drawerOpen,
+  onToggle,
+  sample,
+  placement = 'drawer',
+  onClose,
+}: AgentPanelProps): ReactNode {
+  const inWindow = placement === 'window';
+  // A window is always open: only the drawer folds.
+  const open = inWindow || drawerOpen;
   useLingui();
   useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
@@ -212,6 +235,11 @@ export function AgentPanel({ session, agent, recurring, startIntent, draft = nul
     } else if (action === 'agent-steer') {
       event.preventDefault();
       steer();
+    } else if (inWindow && (action === 'escape' || action === 'agent-stop')) {
+      // The window's Escape rule (modern-interface.md §8.10): with nothing to stop, or words in the Intent box, Escape closes the window.
+      // A turn keeps running while it is closed.
+      event.preventDefault();
+      onClose?.();
     }
   };
 
@@ -296,13 +324,49 @@ export function AgentPanel({ session, agent, recurring, startIntent, draft = nul
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
-  return (
-    <section className={`agent${open ? ' is-open' : ''}`} aria-label={t`Agent`} data-testid="agent-panel" onKeyDown={onPanelKey}>
-      <header className="agent-head">
-        {/* aria-controls names the body only while the body is rendered: a closed drawer has no element with that id. */}
-        <button type="button" className="button is-quiet agent-toggle" aria-expanded={open} aria-controls={open ? 'agent-body' : undefined} onClick={onToggle}>
-          {open ? t`Hide the agent` : t`Agent`}
+  // The Intent box: at the top of the drawer's body, and in the window's footer under the turns (modern-interface.md §7.4).
+  const intentForm = (
+    <form className="agent-intent" onKeyDown={intentIme.noteKey} onSubmit={submit}>
+      <CommandComposer
+        inputRef={intentRef}
+        value={intent}
+        onChange={setIntent}
+        onRun={send}
+        disabled={snapshot.providerName === null}
+        placeholder={
+          snapshot.busy
+            ? t`${{ send: shortcutLabel('agent-send', keyboardLayout) }} queues it for the next turn, ${{ steer: shortcutLabel('agent-steer', keyboardLayout) }} sends it to this one`
+            : t`Ask the agent to draft, fill, or check something, or type / for commands`
+        }
+      />
+      <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null}>
+        {snapshot.busy ? t`Queue` : t`Send`}
+      </button>
+      {snapshot.busy ? (
+        <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null} onClick={steer}>
+          <Trans>Steer</Trans>
         </button>
+      ) : null}
+    </form>
+  );
+  // The drawer is a named region of its own; the window is inside Modern's `aside` "Agent", which names it.
+  const Root = inWindow ? 'div' : 'section';
+  return (
+    <Root
+      className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}`}
+      aria-label={inWindow ? undefined : t`Agent`}
+      data-testid="agent-panel"
+      onKeyDown={onPanelKey}
+    >
+      <header className="agent-head">
+        {inWindow ? (
+          <h2 className="agent-title">{t`Agent`}</h2>
+        ) : (
+          // aria-controls names the body only while the body is rendered: a closed drawer has no element with that id.
+          <button type="button" className="button is-quiet agent-toggle" aria-expanded={open} aria-controls={open ? 'agent-body' : undefined} onClick={onToggle}>
+            {open ? t`Hide the agent` : t`Agent`}
+          </button>
+        )}
         <span className="agent-provider" data-testid="agent-provider">
           {provider === null ? t`No provider` : t`Provider: ${{ provider: isolate(providerLabel(provider, snapshot.providerIsDemo)) }}`}
         </span>
@@ -346,6 +410,17 @@ export function AgentPanel({ session, agent, recurring, startIntent, draft = nul
         <p className="visually-hidden" role="status" aria-live="polite" data-testid="agent-announcement">
           {snapshot.announcement}
         </p>
+        {inWindow ? (
+          <button
+            type="button"
+            className="button is-quiet agent-close"
+            data-testid="agent-close"
+            title={t`Close the agent (${{ shortcut: shortcutLabel('agent-toggle', keyboardLayout) }}). A running turn keeps working.`}
+            onClick={onClose}
+          >
+            {t({ message: 'Close', context: 'agent window' })}
+          </button>
+        ) : null}
       </header>
 
       {/* An unfinished run is shown with the drawer closed too: it is the first thing the writer has to decide after a reload. */}
@@ -356,28 +431,7 @@ export function AgentPanel({ session, agent, recurring, startIntent, draft = nul
 
       {open ? (
         <div id="agent-body" className="agent-body">
-          <form className="agent-intent" onKeyDown={intentIme.noteKey} onSubmit={submit}>
-            <CommandComposer
-              inputRef={intentRef}
-              value={intent}
-              onChange={setIntent}
-              onRun={send}
-              disabled={snapshot.providerName === null}
-              placeholder={
-                snapshot.busy
-                  ? t`${{ send: shortcutLabel('agent-send', keyboardLayout) }} queues it for the next turn, ${{ steer: shortcutLabel('agent-steer', keyboardLayout) }} sends it to this one`
-                  : t`Ask the agent to draft, fill, or check something, or type / for commands`
-              }
-            />
-            <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null}>
-              {snapshot.busy ? t`Queue` : t`Send`}
-            </button>
-            {snapshot.busy ? (
-              <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null} onClick={steer}>
-                <Trans>Steer</Trans>
-              </button>
-            ) : null}
-          </form>
+          {inWindow ? null : intentForm}
 
           {oldInstruction !== null ? (
             <p className="agent-old-instruction" data-testid="agent-old-instruction">
@@ -481,6 +535,7 @@ export function AgentPanel({ session, agent, recurring, startIntent, draft = nul
           )}
         </div>
       ) : null}
+      {inWindow ? <footer className="agent-foot">{intentForm}</footer> : null}
 
       <TranscriptionReviewDialog session={session} broker={session.transcriptionReviews} />
       <ConfirmDialog
@@ -535,7 +590,7 @@ export function AgentPanel({ session, agent, recurring, startIntent, draft = nul
           </>
         ) : null}
       </ConfirmDialog>
-    </section>
+    </Root>
   );
 }
 
