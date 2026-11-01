@@ -20,6 +20,7 @@ import {
   deletionBlockers,
   inlineAssetIds,
   isAssetId,
+  isRecordFileName,
   parseAssetFileName,
   placeLink,
   reorderLinks,
@@ -608,7 +609,12 @@ const assetRelink: CommandDescriptor<AssetRelinkParams> = {
         return invalid(`params.pairs[${index}].file must be an asset file name (a_XXXXXXXXXX.png, .jpg or .webp), got ${showValue(file.value)}`, undefined, `pairs[${index}].file`);
       }
       // The file may carry a different stem: a file renamed outside Caotang keeps whatever picture name it was given, and the
-      // bytes are what the apply verifies (§6.3). A file another record already names cannot be this one's new name.
+      // bytes are what the apply verifies (§6.3). Its extension must still be the record MIME's, so the record keeps loading on
+      // reopen (`isRecordFileName`, the same rule both record readers apply). A file another record already names cannot be this
+      // one's new name.
+      if (!isRecordFileName(file.value, record.mime)) {
+        return invalid(`params.pairs[${index}].file "${file.value}" is not a ${record.mime} file, the type the picture "${assetId.value}" was stored as`, 're-link only to a file of the same type', `pairs[${index}].file`);
+      }
       if (file.value === record.file) return invalid(`the picture "${assetId.value}" already names the file "${file.value}", so there is nothing to re-link`, undefined, `pairs[${index}].file`);
       if ((snapshot.manifest.assets ?? []).some((other) => other.file === file.value)) {
         return invalid(`the file "${file.value}" is another picture's file, so it cannot be this one's new name`, 're-link only to a file no record names', `pairs[${index}].file`);

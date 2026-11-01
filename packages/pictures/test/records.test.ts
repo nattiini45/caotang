@@ -147,6 +147,31 @@ describe('validateAssetRecord (strict)', () => {
   it('rejects non-objects', () => {
     for (const v of [null, 1, 'x', [], undefined]) expect(validateAssetRecord(v).ok).toBe(false);
   });
+
+  // PawCommit F1 (#322): a picture re-linked by hash after a rename outside Caotang (asset.relink) keeps the stem it was found
+  // under, so a record whose file has another safe asset stem must still load on reopen and pass the strict write check.
+  it('accepts a re-linked file with a different stem when its extension matches the MIME, strict and tolerant alike', () => {
+    for (const [mime, ext] of [['image/png', 'png'], ['image/jpeg', 'jpg'], ['image/webp', 'webp']] as const) {
+      const relinked = record({ mime, file: `a_8M3RY4N5B2.${ext}` });
+      expect(validateAssetRecord(relinked).ok).toBe(true);
+      const read = readAssetRecords([relinked]);
+      expect(read.unreadable).toEqual([]);
+      expect(read.records).toEqual([relinked]);
+      expect(read.records[0]?.id).toBe('a_7K2QX9M4A1');
+    }
+  });
+
+  it('still refuses a different stem whose extension is not the MIME, and names that are not safe asset file names', () => {
+    for (const file of ['a_8M3RY4N5B2.jpg', 'photo.png', '../a_8M3RY4N5B2.png', 'a_8M3RY4N5B2.png.png', 'sub/a_8M3RY4N5B2.png', 'a_8M3RY4N5B2.PNG']) {
+      const entry = record({ file });
+      const strict = validateAssetRecord(entry);
+      expect(strict.ok, file).toBe(false);
+      if (!strict.ok) expect(strict.issues.some((i) => i.path === 'file'), file).toBe(true);
+      const read = readAssetRecords([entry]);
+      expect(read.records, file).toEqual([]);
+      expect(read.unreadable, file).toEqual([entry]);
+    }
+  });
 });
 
 describe('metadata patches keep record fields and link notes apart', () => {

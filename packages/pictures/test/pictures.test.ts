@@ -134,8 +134,12 @@ describe('the record and its load rules (pictures.md §2.1)', () => {
     expect(read.ok && read.record.tags).toEqual(['sea']);
   });
 
-  it('refuses a record whose file is not its id, whose mime does not match, or whose hash is not hex', () => {
-    expect(readAssetRecord({ ...base, file: 'a_ZZZZZZZZZZ.png' }).ok).toBe(false);
+  it('refuses a record whose file is not a safe asset name of its type, whose mime does not match, or whose hash is not hex', () => {
+    // A file under another safe asset stem is a picture re-linked by hash after a rename (asset.relink, §6.3) and loads; the id
+    // stays its identity. A file that is not of the record's type, or not an asset file name at all, is still refused.
+    expect(readAssetRecord({ ...base, file: 'a_ZZZZZZZZZZ.png' }).ok).toBe(true);
+    expect(readAssetRecord({ ...base, file: 'a_ZZZZZZZZZZ.jpg' }).ok).toBe(false);
+    expect(readAssetRecord({ ...base, file: 'renamed.png' }).ok).toBe(false);
     expect(readAssetRecord({ ...base, mime: 'image/jpeg' }).ok).toBe(false);
     expect(readAssetRecord({ ...base, sha256: 'xyz' }).ok).toBe(false);
     // Repeated tags and an alt text over its limit are refused when a record is written (a load keeps the rest of such a record).

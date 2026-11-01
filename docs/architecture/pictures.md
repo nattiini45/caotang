@@ -196,7 +196,7 @@ As built (#152): the app runs the backfill once per session, after the open's im
 
 ### 6.3 Load-time reconciliation
 
-A record whose file is missing, plus an unrecorded file with the same `sha256`, means the file was renamed outside the app: one batched "Re-link N renamed pictures" (`asset.relink`). The file may keep the stem it was renamed to (the bytes are the identity); a name another record already holds is refused. Never re-link by name similarity. The listing, the byte check and the record update run inside the asset file gate, so a sweep cannot remove the unrecorded file between the check and the update.
+A record whose file is missing, plus an unrecorded file with the same `sha256`, means the file was renamed outside the app: one batched "Re-link N renamed pictures" (`asset.relink`). The file may keep the stem it was renamed to (the bytes are the identity), as long as it is a safe asset file name whose extension is the record MIME's; both record readers, strict and tolerant, accept such a name, so the re-linked record loads on reopen and its id stays the picture's identity. A name another record already holds is refused. Never re-link by name similarity. The listing, the byte check and the record update run inside the asset file gate, so a sweep cannot remove the unrecorded file between the check and the update.
 
 ### 6.4 Import pipeline (inside the async apply, in order)
 

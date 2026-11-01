@@ -65,3 +65,18 @@ describe('asset.setMeta', () => {
     expect(v({ assetId: 'a_7K2QX9M4A1', patch: { note: 'x' }, expect: { note: null } })).toBe(false);
   });
 });
+
+// PawCommit F1 (#322): asset.relink takes a renamed file with a different safe stem, but only of the record's own type, so the
+// record it writes still loads on reopen.
+describe('asset.relink file names', () => {
+  const v = (file: string) => pictureCommands.assetRelink.validate({ pairs: [{ assetId: 'a_7K2QX9M4A1', file }] }, snapshot);
+  const code = (file: string) => {
+    const result = v(file);
+    return result.ok ? undefined : result.error.code;
+  };
+  it('accepts a different stem with the MIME extension and refuses another extension', () => {
+    expect(v('a_8M3RY4N5B2.png').ok).toBe(true);
+    expect(code('a_8M3RY4N5B2.jpg')).toBe('invalid-params');
+    expect(code('../a_8M3RY4N5B2.png')).toBe('invalid-params');
+  });
+});

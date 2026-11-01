@@ -10,6 +10,7 @@
  */
 
 import { extensionOfMime, isSha256Hex } from './asset-files.js';
+import { parseAssetFileName } from './files.js';
 import { isAssetId } from './ids.js';
 import {
   ASSET_LINK_ROLES,
@@ -270,6 +271,17 @@ function readList(raw: unknown, key: string, notices: PictureIssue[]): readonly 
   return raw;
 }
 
+/**
+ * Whether a record may name `file`: a safe asset file name (`a_XXXXXXXXXX.<png|jpg|webp>`) whose extension is the record MIME's.
+ * The stem is usually the record's own id, but a picture re-linked by hash after a rename outside Caotang (`asset.relink`,
+ * pictures.md §6.3) keeps the stem it was found under; the record id stays the picture's identity.
+ */
+export function isRecordFileName(file: unknown, mime: AssetRecord['mime']): boolean {
+  if (typeof file !== 'string') return false;
+  const parsed = parseAssetFileName(file);
+  return parsed !== undefined && parsed.extension === extensionOfMime(mime);
+}
+
 /** Reads `assets[]` from a manifest, keeping everything that can be kept. */
 export function readAssetRecords(raw: unknown): ReadRecords {
   const notices: PictureIssue[] = [];
@@ -291,9 +303,9 @@ export function readAssetRecords(raw: unknown): ReadRecords {
     }
     const id = applied.value['id'] as string;
     const mime = applied.value['mime'] as AssetRecord['mime'];
-    if (applied.value['file'] !== `${id}.${extensionOfMime(mime)}`) {
+    if (!isRecordFileName(applied.value['file'], mime)) {
       unreadable.push(entry);
-      notices.push({ code: 'unreadable', path: `${path}.file`, message: `${path}.file is not "${id}.${extensionOfMime(mime)}", the id's file for its type` });
+      notices.push({ code: 'unreadable', path: `${path}.file`, message: `${path}.file is not an asset file name ending in .${extensionOfMime(mime)} (such as "${id}.${extensionOfMime(mime)}"), the file for its type` });
       return;
     }
     if (seen.has(id)) {
@@ -365,7 +377,9 @@ export function validateAssetRecord(value: unknown): Validation<AssetRecord> {
     const id = applied.value['id'] as string;
     const file = applied.value['file'] as string;
     const mime = applied.value['mime'] as AssetRecord['mime'];
-    if (file !== `${id}.${extensionOfMime(mime)}`) extra.push({ code: 'file-name', path: 'file', message: `file must be ${id}.${extensionOfMime(mime)}, named from the id and the sniffed type` });
+    if (!isRecordFileName(file, mime)) {
+      extra.push({ code: 'file-name', path: 'file', message: `file must be an asset file name ending in .${extensionOfMime(mime)} (such as ${id}.${extensionOfMime(mime)}), matching the sniffed type` });
+    }
     if ((applied.value['width'] === undefined) !== (applied.value['height'] === undefined)) {
       extra.push({ code: 'size', path: 'width', message: 'width and height are given together or not at all' });
     }

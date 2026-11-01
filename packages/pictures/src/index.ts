@@ -51,6 +51,7 @@ export type { Orientation, RecordOrientation } from './metadata.js';
 export {
   LINK_ID_PATTERN,
   isLinkId,
+  isRecordFileName,
   readAssetLinks,
   readAssetRecords,
   validateAssetLink,
