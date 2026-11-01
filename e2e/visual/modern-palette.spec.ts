@@ -11,7 +11,7 @@ import { waitForSaved } from '../support.js';
 
 test.use({ storageState: NO_PIN });
 
-const NOW = new Date('Mon 2026-06-01 11:00 AM CEST (UTC+02:00)');
+const NOW = new Date(Date.UTC(2026, 5, 1, 9, 0, 0));
 
 type Scheme = 'light' | 'dark';
 

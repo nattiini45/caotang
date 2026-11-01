@@ -27,7 +27,12 @@ import { activateCatalogue, activateEnglish } from '../src/i18n/runtime.js';
 beforeEach(activateEnglish);
 afterEach(activateEnglish);
 
-const NOW = new Date('2026-10-01T09:00:00Z');
+const NOW = new Date(Date.UTC(2026, 9, 1, 9, 0, 0));
+
+/** An ISO instant at 10:00 UTC on a day (month counted from 1). */
+function stamp(year: number, month: number, day: number): string {
+  return new Date(Date.UTC(year, month - 1, day, 10, 0, 0)).toISOString();
+}
 
 function entry(id: string, name: string, aliases: string[] = [], type = 'character'): CodexEntry {
   return {
@@ -60,10 +65,10 @@ function project(language?: string): ProjectState {
   const harbour = node('sHarbour');
   if (harbour !== undefined) harbour.synopsis = 'Lin waits for the night ferry with a stolen ticket.';
   const stamps: Record<string, string> = {
-    sTicket: '2026-10-03T10:00:00Z',
-    sHarbour: '2026-10-05T10:00:00Z',
-    sZoe: '2026-10-04T10:00:00Z',
-    sLin: '2026-10-02T10:00:00Z',
+    sTicket: stamp(2026, 10, 3),
+    sHarbour: stamp(2026, 10, 5),
+    sZoe: stamp(2026, 10, 4),
+    sLin: stamp(2026, 10, 2),
   };
   for (const [id, at] of Object.entries(stamps)) {
     const found = node(id);
@@ -109,7 +114,7 @@ describe('the empty palette', () => {
     for (let n = 0; n < 8; n += 1) {
       addDocument(state, { id: `sExtra${n}`, parentId: 'fOne', title: `Extra ${n}`, body: '', now: NOW });
       const extra = state.manifest.tree.find((node) => node.id === `sExtra${n}`);
-      if (extra !== undefined) extra.updatedAt = `2026-09-0${n + 1}T10:00:00Z`;
+      if (extra !== undefined) extra.updatedAt = stamp(2026, 9, n + 1);
     }
     const recent = recentScenes(sources(state, { activeDocId: 'sLin' })).map((node) => node.id);
     expect(recent[0]).toBe('sLin');
