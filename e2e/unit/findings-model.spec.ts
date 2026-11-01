@@ -20,6 +20,7 @@ import {
 } from '../../apps/desktop/src/app/findings-model.js';
 import { addDocument, type CodexEntry, type ProjectState } from '../../packages/store/src/index.js';
 import { IDS, project } from './fixtures.js';
+import { withoutIsolates } from '../support.js';
 
 const NOW = '2026-10-08T09:00:00.000Z';
 
@@ -296,9 +297,10 @@ test.describe('the scene declarations model (coherence.md §5.2, §8)', () => {
     expect(inheritedStoryPart(state, file, IDS.sceneD)).toBeUndefined();
     expect(inheritedStoryPart(state, undefined, IDS.sceneA)).toBeUndefined();
     expect(storyPartChoices().map((choice) => choice.label)).toEqual(['Main story', 'Prologue', 'Epilogue']);
-    expect(dayLabel(-14)).toBe('Day \u221214');
-    expect(dayLabel(0)).toBe('Day 0');
-    expect(dayLabel(12)).toBe('Day 12');
+    // The number is isolated like every interpolated value (i18n.md §5.3); the sign is U+2212, never a hyphen.
+    expect(withoutIsolates(dayLabel(-14))).toBe('Day \u221214');
+    expect(withoutIsolates(dayLabel(0))).toBe('Day 0');
+    expect(withoutIsolates(dayLabel(12))).toBe('Day 12');
   });
 
   test('timeline modes read in words, and linear is the default', () => {

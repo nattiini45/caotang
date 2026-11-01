@@ -119,8 +119,9 @@ test('an ambiguous title is answered under the box with its candidates, before a
 test('/context lists the next request’s layers and what it left out, with zero model calls', async () => {
   const { controller, session, requests } = await rig([]);
   expect(controller.sendLine('/context')).toEqual({ kind: 'shown' });
+  // The preview loads the harness module on demand, so the note lands a moment after the line is taken.
+  await expect.poll(() => controller.snapshot().command?.kind).toBe('context');
   const note = controller.snapshot().command;
-  expect(note?.kind).toBe('context');
   expect(note?.title).toMatch(/would send about [\d,]+ tokens/);
   expect(note?.lines.some((line) => line.startsWith('L0 System: '))).toBe(true);
   expect(note?.lines.some((line) => line.startsWith('L7 Task: '))).toBe(true);

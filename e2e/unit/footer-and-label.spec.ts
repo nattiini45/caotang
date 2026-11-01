@@ -58,7 +58,7 @@ test.describe('the binder footer words (goals-progress §2.2, sprint timer)', ()
     pinFormatLocale('en-US');
     try {
       expect(formatDay('2026-01-05')).toBe('Jan 5, 2026');
-      expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript')).toBe(
+      expect(withoutIsolates(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript'))).toBe(
         'at least 12,000 words on The Manuscript by Oct 31, 2026',
       );
     } finally {
