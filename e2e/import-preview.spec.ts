@@ -63,7 +63,7 @@ test('a DOCX-like file: split reasons, a removed split, a rule change that asks,
   await expect(detected).toContainText('3 chapters · 5 scenes');
 
   // A codex row that collides with an earlier row starts as Skip.
-  await expect(dialog.getByRole('combobox', { name: 'What to do with mara' })).toHaveValue('skip');
+  await expect(dialog.getByRole('combobox', { name: 'What to do with mara', exact: true })).toHaveValue('skip');
 
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
@@ -81,9 +81,9 @@ test('Import writes the tree, the codex rows and the picture as one undo step, a
   const tree = dialog.getByRole('tree', { name: 'Binder (proposed)' });
   await tree.getByText('Chapter 1: The Landing', { exact: true }).click();
   await page.keyboard.press('F2');
-  await dialog.getByRole('textbox', { name: 'Rename Chapter 1: The Landing' }).fill('The Landing');
+  await dialog.getByRole('textbox', { name: 'Rename Chapter 1: The Landing', exact: true }).fill('The Landing');
   await page.keyboard.press('Enter');
-  await tree.getByRole('checkbox', { name: 'Import Chapter 3: The Lantern' }).uncheck();
+  await tree.getByRole('checkbox', { name: 'Import Chapter 3: The Lantern', exact: true }).uncheck();
 
   await dialog.getByRole('button', { name: 'Import 3 chapters' }).click();
   await expect(dialog).toBeHidden();
