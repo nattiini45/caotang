@@ -10,7 +10,7 @@
 /* lingui-set comment="The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)" */
 
 import { plural, t } from '@lingui/core/macro';
-import { readRtf, type RtfErrorCode, type RtfImport } from '@caotang/import-rtf';
+import { RTF_LIMITS, readRtf, type RtfErrorCode, type RtfImport } from '@caotang/import-rtf';
 
 import { formatCount } from '../i18n/locale.js';
 import type { ImportPreviewSource, PreviewOption, PreviewPicture, PreviewSettings, ScanExtra } from './model.js';
@@ -35,6 +35,12 @@ export function rtfErrorText(code: RtfErrorCode): string {
     case 'cancelled':
       return t`Reading it was cancelled.`;
   }
+}
+
+/** Why a file of this size is not read at all, before its bytes are loaded; undefined when the reader takes it. */
+export function rtfSizeRefusal(fileName: string, size: number): string | undefined {
+  if (size <= RTF_LIMITS.maxInputBytes) return undefined;
+  return t`${{ file: fileName }} is too large to import as RTF: the import reads files up to ${{ size: formatCount(RTF_LIMITS.maxInputBytes / (1024 * 1024)) }} MB.`;
 }
 
 function underlineOf(settings: PreviewSettings): 'italic' | 'none' {

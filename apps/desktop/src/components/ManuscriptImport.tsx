@@ -28,8 +28,14 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openText = async (file: File): Promise<void> => {
     try {
+      const { plainTextPreviewSource, plainTextSizeRefusal } = await import('../import-preview/text-source.js');
+      // The size is checked before the file is read, so a file past the reader's cap never reaches memory.
+      const refusal = plainTextSizeRefusal(file.name, file.size);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const { plainTextPreviewSource } = await import('../import-preview/text-source.js');
       const opened = plainTextPreviewSource(file.name, bytes);
       if (!opened.ok) {
         report({ text: opened.message, tone: 'error' });
@@ -43,8 +49,13 @@ export function ManuscriptImportActions(): ReactNode {
 
   const openRtf = async (file: File): Promise<void> => {
     try {
+      const { rtfPreviewSource, rtfSizeRefusal } = await import('../import-preview/rtf-source.js');
+      const refusal = rtfSizeRefusal(file.name, file.size);
+      if (refusal !== undefined) {
+        report({ text: refusal, tone: 'error' });
+        return;
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const { rtfPreviewSource } = await import('../import-preview/rtf-source.js');
       openImportPreview({ source: rtfPreviewSource(file.name, bytes) });
     } catch (failure) {
       failed(file, failure);

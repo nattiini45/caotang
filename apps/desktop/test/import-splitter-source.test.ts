@@ -15,7 +15,7 @@ import { pinFormatLocale } from '../src/i18n/locale.js';
 import { activateCatalogue, activateEnglish } from '../src/i18n/runtime.js';
 import { PREVIEW_HELPERS } from '../src/import-preview/helpers.js';
 import { NO_EDITS, NO_OVERRIDES, buildCommit, initialSettings, scanTree, type CommitInput, type ImportPreviewSource, type PreviewPlan } from '../src/import-preview/model.js';
-import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource } from '../src/import-preview/rtf-source.js';
+import { RTF_OPTIONS, rtfErrorText, rtfPreviewSource, rtfSizeRefusal } from '../src/import-preview/rtf-source.js';
 import {
   SPLIT_CHIPS,
   chipsFromSplit,
@@ -31,7 +31,7 @@ import {
   treeOf,
   withoutPictures,
 } from '../src/import-preview/splitter-source.js';
-import { TEXT_CHIPS, plainTextPreviewSource } from '../src/import-preview/text-source.js';
+import { TEXT_CHIPS, plainTextPreviewSource, plainTextSizeRefusal } from '../src/import-preview/text-source.js';
 
 beforeEach(() => {
   activateEnglish();
@@ -279,6 +279,21 @@ describe('the sources', () => {
   it('refuses an empty-encoding file and a file past the size cap before any dialog opens', () => {
     const big = plainTextPreviewSource('big.txt', new Uint8Array(32 * 1024 * 1024 + 1));
     expect(big).toEqual({ ok: false, message: 'big.txt is too large to import as plain text: the import reads files up to 32 MB.' });
+  });
+
+  it('refuses a file past either reader’s cap by its size alone, before its bytes are read', () => {
+    expect(plainTextSizeRefusal('big.txt', 32 * 1024 * 1024)).toBeUndefined();
+    expect(plainTextSizeRefusal('big.txt', 32 * 1024 * 1024 + 1)).toBe('big.txt is too large to import as plain text: the import reads files up to 32 MB.');
+    expect(rtfSizeRefusal('big.rtf', 256 * 1024 * 1024)).toBeUndefined();
+    expect(rtfSizeRefusal('big.rtf', 256 * 1024 * 1024 + 1)).toBe('big.rtf is too large to import as RTF: the import reads files up to 256 MB.');
+    // The binder reads a file's bytes only after the size check.
+    const actions = readFileSync(resolve(repo, 'apps/desktop/src/components/ManuscriptImport.tsx'), 'utf8');
+    const openText = actions.slice(actions.indexOf('const openText'), actions.indexOf('const openRtf'));
+    const openRtf = actions.slice(actions.indexOf('const openRtf'), actions.indexOf('return ('));
+    expect(openText.indexOf('plainTextSizeRefusal(file.name, file.size)')).toBeGreaterThan(0);
+    expect(openText.indexOf('plainTextSizeRefusal(file.name, file.size)')).toBeLessThan(openText.indexOf('file.arrayBuffer()'));
+    expect(openRtf.indexOf('rtfSizeRefusal(file.name, file.size)')).toBeGreaterThan(0);
+    expect(openRtf.indexOf('rtfSizeRefusal(file.name, file.size)')).toBeLessThan(openRtf.indexOf('file.arrayBuffer()'));
   });
 
   it('an RTF file loads, splits at its headings, and brings its pictures in unless the option is off', async () => {

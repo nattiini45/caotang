@@ -1098,6 +1098,11 @@ msgstr ""
 msgid "{file} is too large to import as plain text: the import reads files up to {limit} MB."
 msgstr ""
 
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "{file} is too large to import as RTF: the import reads files up to {size} MB."
+msgstr ""
+
 #. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "{file}: {change, select, changed {changed} removed {removed} added {added} other {changed}}"

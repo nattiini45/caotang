@@ -1099,6 +1099,11 @@ msgstr "{file} hat keine Passage zu importieren. Eine Twee-Geschichte legt für 
 msgid "{file} is too large to import as plain text: the import reads files up to {limit} MB."
 msgstr "{file} ist zu groß für einen Klartext-Import: Der Import liest Dateien bis {limit} MB."
 
+#. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/rtf-source.ts
+msgid "{file} is too large to import as RTF: the import reads files up to {size} MB."
+msgstr "{file} ist zu groß für einen RTF-Import: Der Import liest Dateien bis {size} MB."
+
 #. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "{file}: {change, select, changed {changed} removed {removed} added {added} other {changed}}"

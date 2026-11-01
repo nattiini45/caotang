@@ -32,15 +32,19 @@ function isEncoding(value: string | undefined): value is DecodableEncoding {
   return value !== undefined && (ENCODINGS as readonly string[]).includes(value);
 }
 
+/** Why a file of this size is not read at all, before its bytes are loaded; undefined when the reader takes it. */
+export function plainTextSizeRefusal(fileName: string, size: number): string | undefined {
+  if (size <= MAX_TEXT_BYTES) return undefined;
+  return t`${{ file: fileName }} is too large to import as plain text: the import reads files up to ${{ limit: formatCount(MAX_TEXT_BYTES / (1024 * 1024)) }} MB.`;
+}
+
 /**
  * Opens a plain-text file for the preview, or says why it cannot: larger than the reader takes, more lines than it splits, or in no
  * encoding it can name. An encoding it guessed is a chip the writer can change, preselected with the guess.
  */
 export function plainTextPreviewSource(fileName: string, bytes: Uint8Array): TextImportOpening {
   const first = decodePlainText(bytes);
-  if (first.status === 'too-large') {
-    return { ok: false, message: t`${{ file: fileName }} is too large to import as plain text: the import reads files up to ${{ limit: formatCount(MAX_TEXT_BYTES / (1024 * 1024)) }} MB.` };
-  }
+  if (first.status === 'too-large') return { ok: false, message: plainTextSizeRefusal(fileName, first.bytes) ?? '' };
   if (first.status === 'too-many-lines') {
     return { ok: false, message: t`${{ file: fileName }} has more lines than a plain-text import splits: at most ${{ limit: formatCount(MAX_TEXT_LINES) }}.` };
   }
