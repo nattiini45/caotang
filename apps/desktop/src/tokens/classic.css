@@ -1,0 +1,202 @@
+/*
+ * Classic's tokens (docs/architecture/modern-interface.md §2, §5.1, §5.2, §5.4): every :root block the shell had, moved here from
+ * styles.css and features.css, and loaded first in the entry stylesheet (main.tsx), so every other sheet reads them.
+ *
+ * Three axes choose values, each an attribute on <html>, composed by attribute selectors alone:
+ *   shell   data-shell="classic|modern" (app/interface.ts). Modern overrides under :root[data-shell='modern'] in its lazily
+ *           loaded stylesheet (modern/modern.css), by specificity, never by load order.
+ *   skin    data-skin (app/skin.ts), absent for the default. A Classic skin redefines these tokens under
+ *           :root[data-shell='classic'][data-skin='<name>'] in tokens/skins/<name>.css (tokens/skins/README.md). None ships.
+ *   scheme  data-theme="light|dark", or the system (app/theme.ts): the two dark blocks below.
+ *
+ * The colour, type and layout names (--paper … --inspector-w) are Classic's semantic tokens and keep their names and values (D6);
+ * e2e/unit/theme-contrast.spec.ts reads their ratios. The tokens after them name what had no token: each Classic value is the literal
+ * it replaced, or an alias of a token above, so Classic renders exactly as before (§5.4, the Classic snapshots in e2e/visual/). A
+ * literal that fits no step stays a literal in its own rule: Classic is not rounded to a scale. e2e/unit/token-parity.spec.ts checks
+ * that every token is defined in light and in both dark blocks.
+ */
+
+:root {
+  color-scheme: light dark;
+  --paper: #faf9f6;
+  --panel: #f2f0eb;
+  --raised: #ffffff;
+  --ink: #1f1e1b;
+  --ink-soft: #4d4a44;
+  --muted: #6b665f;
+  --line: #e2ded5;
+  --line-strong: #cfc9bd;
+  --accent: #2c5d8f;
+  --accent-ink: #ffffff;
+  --accent-soft: #e4edf6;
+  --danger: #9a3b2e;
+  --danger-soft: #f6e6e3;
+  --warn: #7d5f16;
+  --focus: #2c5d8f;
+  --suggest-add-bg: #dcefdd;
+  --suggest-add-ink: #14301a;
+  --suggest-del-bg: #f7e0dc;
+  --suggest-del-ink: #5a1d14;
+  --dot-empty: #bdb8ae;
+  --shadow: 0 1px 2px rgba(31, 30, 27, 0.06), 0 4px 12px rgba(31, 30, 27, 0.05);
+  --radius: 8px;
+  --ui: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --manuscript: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --rail-w: 288px;
+  --inspector-w: 296px;
+
+  /* Surfaces: the stage and the manuscript page. --panel and --raised stay as they are. */
+  --surface-app: var(--paper);
+  --surface-page: var(--paper);
+
+  /* Shape. A radius that fits no step (2, 3, 5, 10, 14 px, 50%) stays a literal in its rule. --radius stays Classic's 8 px card radius. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: var(--radius);
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Space and density, in px. 10 and 14 px, and the rem and em spacing, stay literals. Classic sizes a control by its padding, so it
+     has no control height; --row-h is the binder row's, --target-min the 24 px pointer target (WCAG 2.2 2.5.8). */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --control-h: auto;
+  --control-pad-x: 12px;
+  --target-min: 24px;
+  --row-h: 30px;
+
+  /* Elevation: none, the base shadow, a popover, a floating panel. Dark has no base shadow (--shadow: none). */
+  --elev-0: none;
+  --elev-1: var(--shadow);
+  --elev-2: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+  --elev-3: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
+
+  /* Focus: the 2 px ring 2 px out, in --focus. Classic has no halo. */
+  --focus-width: 2px;
+  --focus-offset: 2px;
+  --focus-halo: none;
+
+  /* Motion. Classic has one transition, the narrow drawer and sheet (0.2 s, ease), and nothing at the other steps. */
+  --dur-1: 0s;
+  --dur-2: 0.2s;
+  --dur-3: 0s;
+  --ease-standard: ease;
+  --ease-spring: ease;
+
+  /* Type: the UI's sizes, small to large, and its two line heights. Headings and em sizes stay literals. */
+  --text-xs: 11.5px;
+  --text-sm: 12px;
+  --text-md: 12.5px;
+  --text-lg: 13px;
+  --text-xl: 14px;
+  --leading-ui: 1.45;
+  --leading-prose: 1.7;
+
+  /* Materials are Modern's (§5.3). Classic defines them solid, so a stray use renders sanely. Nothing in Classic is translucent, so
+     reduced transparency changes nothing here; a skin may make a surface translucent only inside
+     @media (prefers-reduced-transparency: no-preference) (tokens/skins/README.md). */
+  --mat-glass-bg: var(--raised);
+  --mat-glass-blur: 0px;
+  --mat-glass-saturate: 100%;
+  --mat-glass-edge-hi: transparent;
+  --mat-glass-edge-lo: transparent;
+  --mat-thick-bg: var(--raised);
+  --mat-thick-blur: 0px;
+  --mat-frost-bg: var(--paper);
+  --scrim: transparent;
+  --wallpaper: none;
+
+  /* State colours the findings, MCP and review surfaces use (moved from features.css): a healthy or verified green, the review's amber. */
+  --ok: #3d7a4f;
+  --ok-soft: #e3efe6;
+  --review: #8a6512;
+  --review-soft: #f5edd6;
+  font-family: var(--ui);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #161513;
+    --panel: #1d1c19;
+    --raised: #23221e;
+    --ink: #ebe8e1;
+    --ink-soft: #c9c5bc;
+    --muted: #a8a398;
+    --line: #2f2d28;
+    --line-strong: #48443c;
+    --accent: #8fb6de;
+    --accent-ink: #10202f;
+    --accent-soft: #22324a;
+    --danger: #e08b7c;
+    --danger-soft: #3a2420;
+    --warn: #d6b25e;
+    --focus: #8fb6de;
+    --suggest-add-bg: #1f3b27;
+    --suggest-add-ink: #c6ebcd;
+    --suggest-del-bg: #472622;
+    --suggest-del-ink: #f4c2b8;
+    --dot-empty: #55514a;
+    --shadow: none;
+    --ok: #8fcaa0;
+    --ok-soft: #1f2e24;
+    --review: #e0b862;
+    --review-soft: #332b17;
+  }
+}
+
+:root[data-theme='dark'] {
+  --paper: #161513;
+  --panel: #1d1c19;
+  --raised: #23221e;
+  --ink: #ebe8e1;
+  --ink-soft: #c9c5bc;
+  --muted: #a8a398;
+  --line: #2f2d28;
+  --line-strong: #48443c;
+  --accent: #8fb6de;
+  --accent-ink: #10202f;
+  --accent-soft: #22324a;
+  --danger: #e08b7c;
+  --danger-soft: #3a2420;
+  --warn: #d6b25e;
+  --focus: #8fb6de;
+  --suggest-add-bg: #1f3b27;
+  --suggest-add-ink: #c6ebcd;
+  --suggest-del-bg: #472622;
+  --suggest-del-ink: #f4c2b8;
+  --dot-empty: #55514a;
+  --shadow: none;
+  --ok: #8fcaa0;
+  --ok-soft: #1f2e24;
+  --review: #e0b862;
+  --review-soft: #332b17;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* From 1100 px down the rails narrow (styles.css, "A narrow window is not a supported layout"). */
+@media (max-width: 1100px) {
+  :root {
+    --rail-w: 232px;
+    --inspector-w: 260px;
+  }
+}
+
+/* Reduced motion: no duration anywhere. Classic's drawer and sheet also drop their transition (styles.css, the narrow layout). */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0s;
+    --dur-2: 0s;
+    --dur-3: 0s;
+  }
+}
