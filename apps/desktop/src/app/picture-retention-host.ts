@@ -36,6 +36,11 @@ export interface HostRetentionParts {
   readonly storage: UnsentStorage | undefined;
   /** The app database the editor-history journals live in; `null` where there is none (nothing is kept then). */
   readonly appDb: () => AppDb | null;
+  /**
+   * Writes the editor's unsaved words to the pending journal now. Called right before that root is read, so a sweep's per-file check
+   * sees a picture the writer began naming since the last lifecycle write, not an older journal.
+   */
+  readonly keepPending?: () => void;
 }
 
 /** A stored JSON value, parsed. An absent key is `null`; a value that is not JSON, or a storage that throws, refuses the sweep. */
@@ -54,7 +59,10 @@ export function hostRetentionRoots(parts: HostRetentionParts, extra: () => reado
       list: async () => ({ authoritative: true, ids: undoGroupRetention(parts.undo().groups(), parts.ledger).ids }),
     },
     textsRetentionRoot(t`the checkpoints`, async () => (await readBodySnapshots(parts.store, parts.projectId)).map((row) => row.body)),
-    valueRetentionRoot(t`the pending journal`, () => storedJson(parts.storage, pendingKey(parts.projectId))),
+    valueRetentionRoot(t`the pending journal`, () => {
+      parts.keepPending?.();
+      return storedJson(parts.storage, pendingKey(parts.projectId));
+    }),
     valueRetentionRoot(t`the words kept from a stopped tab`, () => storedJson(parts.storage, unsentKey(parts.projectId))),
     valueRetentionRoot(t`the editor history journals`, async () => {
       const db = parts.appDb();

@@ -496,6 +496,33 @@ describe('asset.sweep', () => {
     value(execute(command('doc.write', { docId: LANDING, body: `![](../assets/${first}.png)` }), h.bus, h.registry));
   });
 
+  // PawCommit (#322, 638c78eb): the sweep is not undoable, so a root that begins naming a later candidate while an earlier file is
+  // being removed (an unsaved body reaching the pending journal) must keep that file: each file's roots are read under its hold.
+  it('keeps a later candidate a retention root began naming while an earlier file was being removed', async () => {
+    const h = host();
+    const first = id('SWEEP');
+    const second = id('CRATE');
+    for (const [name, sample] of [[first, 0x1], [second, 0x2]] as const) h.files.set(`assets/${name}.png`, png({ sample }));
+    let journalNames: string[] = [];
+    const journal: RetentionRoot = {
+      name: 'the pending journal',
+      list: async () => ({ authoritative: true, ids: new Map(journalNames.map((assetId) => [assetId, ['an unsaved body']] as const)) }),
+    };
+    const port = {
+      list: async () => ({ authoritative: true, files: [...h.files.keys()].map((path) => path.slice('assets/'.length)) }),
+      listRetention: async () => collectRetention([...stateRetentionRoots(h.state), journal]),
+      remove: async (paths: readonly string[]) => {
+        // While the first file is being removed, the writer's unsaved text starts naming the second and reaches the journal.
+        if (paths[0] === `assets/${first}.png`) journalNames = [second];
+        return paths.filter((path) => h.files.delete(path));
+      },
+    };
+    const report = await executeSweep(h.state, port);
+    expect(report.removed).toEqual([`assets/${first}.png`]);
+    expect(report.remaining).toEqual([`assets/${second}.png`]);
+    expect(h.files.has(`assets/${second}.png`)).toBe(true);
+  });
+
   it('removes nothing when a root names the file between the preview and the recheck (a concurrent change)', async () => {
     const h = host();
     const raced = id('SWEEP');

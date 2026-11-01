@@ -356,7 +356,8 @@ export interface SweepReport {
 
 /**
  * Runs one sweep: preview the exact candidates, then **re-read the listing and the retention roots
- * immediately before removal** and remove only the files that are still candidates. Each file is removed on
+ * immediately before removal**, and again for each file once its removal hold is taken, and remove only the files that are
+ * still candidates. Each file is removed on
  * its own, so an interruption reports every removed and remaining file honestly. A refused sweep removes
  * nothing.
  */
@@ -380,9 +381,14 @@ export async function executeSweep(state: ProjectState, port: SweepPort): Promis
     // would newly name this file in between is refused (asset-removals.ts), so the check and the removal cannot be split by a use.
     const release = holdAssetRemoval(state, candidate.assetId);
     try {
-      // A record or a use that appeared since the recheck, from a command this sweep is not gated against, keeps its file.
-      const live = previewSweep({ listing: { authoritative: true, files: [candidate.file] }, state, retention });
-      if (!live.ok || live.candidates.length === 0) {
+      // With the hold taken, the listing and every retention root are read again for this file: an earlier snapshot can miss a root
+      // that began naming it while an earlier file was being removed (an unsaved body reaching the pending journal, an undo group).
+      // The hold keeps the project state from gaining a new use while these reads await. A record or a use that appeared since the
+      // recheck, from a command this sweep is not gated against, keeps its file too.
+      const listingNow = await port.list();
+      const retentionNow = await port.listRetention();
+      const live = previewSweep({ listing: listingNow, state, retention: retentionNow });
+      if (!live.ok || !live.candidates.some((still) => still.path === candidate.path)) {
         remaining.push(candidate.path);
         continue;
       }

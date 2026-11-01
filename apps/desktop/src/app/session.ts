@@ -1077,6 +1077,7 @@ export class ProjectSession {
         ledger: this.undoRetention,
         storage: browserStorage(),
         appDb: activeAppDb,
+        keepPending: () => this.pending.keep(),
       },
       () => [...this.retentionRoots],
     );

@@ -160,6 +160,21 @@ describe('the retention roots the app reads', () => {
     expect([...snapshot.ids].sort()).toEqual([id('PEND'), id('XNSENT')].sort());
   });
 
+  // PawCommit (#322, 638c78eb): the sweep reads each file's roots under its hold, and the pending journal is written from the editor
+  // right before it is read, so words typed since the last lifecycle write still keep their picture.
+  it('writes the pending journal from the editor right before reading it', async () => {
+    const storage = memoryStorage({});
+    let kept = 0;
+    const keepPending = () => {
+      kept += 1;
+      storage.setItem(pendingKey(PROJECT), JSON.stringify([{ docId: 'n_SCENE00001', body: `Just typed ![](../assets/${id('FRESH')}.png)`, baseRevision: 3, at: 'Sun 2026-11-01 1:00 PM CET (UTC+01:00)' }]));
+    };
+    const snapshot = await collectRetention(hostRetentionRoots({ ...(await parts({ storage })), keepPending }));
+    expect(kept).toBe(1);
+    expect(snapshot.authoritative).toBe(true);
+    expect(snapshot.ids.has(id('FRESH'))).toBe(true);
+  });
+
   it('keeps a picture named only by an editor-history journal, whatever shape the journal has', async () => {
     const appDb = historyDb({ n_SCENE00001: { docId: 'n_SCENE00001', journal: { base: `![](../assets/${id('HSTRY')}.webp)`, steps: [{ unknown: 'a shape this build does not know' }] } } });
     const snapshot = await collectRetention(hostRetentionRoots(await parts({ appDb: () => appDb })));
