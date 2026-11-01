@@ -3,8 +3,8 @@
  *
  * The editor package renders three strings a writer reads or a screen reader announces: the empty-scene hint, the accessible
  * name of the agent's ghost preview, and the note beside a stream that stopped. A fourth stands in for an image whose source
- * the page may not load: its alt text, or "Image" when it has none. The package ships English defaults for the headless and
- * test callers, and the app hands a translated set through the mount options. Nothing here imports Lingui or React: the app
+ * the page may not load: its alt text, or "Image" when it has none. A footnote's marker and its note carry an accessible name
+ * ("Footnote 2") too. The package ships English defaults for the headless and test callers (the CLI and the MCP server among them), and the app hands a translated set through the mount options. Nothing here imports Lingui or React: the app
  * owns the messages and passes their rendered words in.
  */
 
@@ -38,6 +38,10 @@ export interface EditorLabels {
   readonly sizeInline: string;
   readonly pictureApply: string;
   readonly pictureCancel: string;
+  /** #270: the accessible name of a footnote marker (`<sup role="doc-noteref">`); `label` is the marker's label, as shown. */
+  readonly footnoteReference: (label: string) => string;
+  /** #270: the accessible name of a footnote's note (`role="note"`); `label` is the note's label, as shown. */
+  readonly footnoteNote: (label: string) => string;
 }
 
 /** The words the package uses when its caller supplies none: the source English, for tests and headless callers. */
@@ -62,4 +66,6 @@ export const DEFAULT_EDITOR_LABELS: EditorLabels = {
   sizeInline: 'In line with the text',
   pictureApply: 'Apply',
   pictureCancel: 'Cancel',
+  footnoteReference: (label) => `Footnote ${label}`,
+  footnoteNote: (label) => `Footnote ${label}`,
 };

@@ -91,7 +91,7 @@ import type {
 } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
 import { deleteOrphanNote, insertFootnote } from './footnotes.js';
-import type { FootnoteNoteDeletion, FootnoteOrphan, FootnoteWords } from './footnotes.js';
+import type { FootnoteNoteDeletion, FootnoteOrphan } from './footnotes.js';
 import { footnoteTail } from '../footnotes.js';
 import { createGhostPreview } from './ghost.js';
 import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
@@ -173,8 +173,6 @@ export interface TiptapMountOptions extends EditorMountOptions {
    * they go too and answers with {@link TiptapEditorInstance.deleteFootnoteNote}.
    */
   onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
-  /** #270: the words a marker and a note carry for assistive technology. English when absent. */
-  footnoteWords?: FootnoteWords;
 }
 
 /**
@@ -553,7 +551,6 @@ const createInstance = (
   const pictures = opts.pictures === undefined ? null : createPictureController(opts.pictures);
   const footnoteOptions = {
     ...(opts.onFootnoteOrphaned !== undefined ? { onFootnoteOrphaned: opts.onFootnoteOrphaned } : {}),
-    ...(opts.footnoteWords !== undefined ? { footnoteWords: opts.footnoteWords } : {}),
   };
   const editor = new Editor({
     element: focusEl,

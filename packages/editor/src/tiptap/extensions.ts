@@ -107,7 +107,7 @@ import type { PictureController } from './pictures.js';
 import { CaotangProvenance } from './provenance-plugin.js';
 import { slashMenu } from './slash-menu.js';
 import { FootnoteBehaviour, footnoteNodes } from './footnotes.js';
-import type { FootnoteOrphan, FootnoteWords } from './footnotes.js';
+import type { FootnoteOrphan } from './footnotes.js';
 
 /** The marks a container may carry on its children when the review layer is on (editor-engine §15, the library's README). */
 const REVIEW_BLOCK_MARKS = 'insertion modification deletion';
@@ -192,8 +192,6 @@ export interface CaotangExtensionOptions {
    * (`deleteFootnoteNote`). Focus only.
    */
   onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
-  /** #270: the words a marker and a note carry for assistive technology. English when absent. */
-  footnoteWords?: FootnoteWords;
 }
 
 /**
@@ -268,7 +266,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
         return ['span', { class: 'caotang-image-placeholder' }, alt.length > 0 ? alt : labels.image];
       },
     }).configure({ inline: true }),
-    ...footnoteNodes(blockMarks, options.footnoteWords),
+    ...footnoteNodes(blockMarks, labels),
   ];
   if (role === 'ghost') return shape;
   return [

@@ -32,7 +32,8 @@
  *
  * ## Accessibility
  *
- * A marker is a `<sup role="doc-noteref">` with an `aria-label` ("Footnote 2"), and
+ * A marker is a `<sup role="doc-noteref">` with an `aria-label` ("Footnote 2" in English;
+ * the app's translated `footnoteReference` label otherwise), and
  * its note's text is its `title`, so hovering shows the note and a screen reader
  * announces the marker by name. A note is a `role="note"` region labelled the same way.
  */
@@ -50,6 +51,7 @@ import {
   planPmFootnotes,
   referencedFootnoteKeys,
 } from '../footnotes.js';
+import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
 
 /** A note whose last marker the writer deleted. */
 export interface FootnoteOrphan {
@@ -67,16 +69,11 @@ export interface FootnoteOrphan {
   readonly text: string;
 }
 
-/** The words the editor puts on a marker and a note for assistive technology. English by default. */
-export interface FootnoteWords {
-  reference(label: string): string;
-  note(label: string): string;
-}
-
-export const ENGLISH_FOOTNOTE_WORDS: FootnoteWords = {
-  reference: (label) => `Footnote ${label}`,
-  note: (label) => `Footnote ${label}`,
-};
+/**
+ * The words the editor puts on a marker and a note for assistive technology: the two footnote entries of the editor's
+ * labels port (`labels.ts`), so the app translates them with the rest and a headless caller gets the English defaults.
+ */
+export type FootnoteWords = Pick<EditorLabels, 'footnoteReference' | 'footnoteNote'>;
 
 /** How far a note's text is shown in a marker's tooltip. */
 const PREVIEW_CHARS = 200;
@@ -341,13 +338,13 @@ const referenceDom = (words: FootnoteWords) =>
       'data-footnote-ref': label,
       class: 'caotang-footnote-ref',
       role: 'doc-noteref',
-      'aria-label': words.reference(label),
+      'aria-label': words.footnoteReference(label),
     },
     label,
   ];
 
 /** The two nodes, aligned to §3.1. `blockMarks` is the review layer's, as for the other containers. */
-export const footnoteNodes = (blockMarks: { marks?: string }, words: FootnoteWords = ENGLISH_FOOTNOTE_WORDS) => {
+export const footnoteNodes = (blockMarks: { marks?: string }, words: FootnoteWords = DEFAULT_EDITOR_LABELS) => {
   const dom = referenceDom(words);
   return [
     TiptapNode.create({
@@ -385,7 +382,7 @@ export const footnoteNodes = (blockMarks: { marks?: string }, words: FootnoteWor
         const label = node.attrs.label as string;
         return [
           'div',
-          { 'data-footnote': label, class: 'caotang-footnote', role: 'note', 'aria-label': words.note(label) },
+          { 'data-footnote': label, class: 'caotang-footnote', role: 'note', 'aria-label': words.footnoteNote(label) },
           0,
         ];
       },
