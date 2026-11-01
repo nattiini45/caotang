@@ -66,9 +66,9 @@ async function watchChord(page: Page): Promise<void> {
  * closed and inert until Manuscript in the tab bar opens it; before that it is on the page, and this does nothing.
  */
 async function openBinder(page: Page): Promise<void> {
-  const tabs = page.getByRole('navigation', { name: 'Binder' });
-  if ((await tabs.count()) === 0) return;
-  await tabs.getByRole('button', { name: 'Manuscript' }).click();
+  // Keyed on #307's tab bar itself: a navigation named "Binder" exists before it too (the binder's own), without Manuscript.
+  if ((await page.getByTestId('modern-binder-bar').count()) === 0) return;
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
   await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
 }
 
