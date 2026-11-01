@@ -78,6 +78,7 @@ packages/import-rtf/    the RTF reader every RTF-based import shares (standalone
 packages/ids/           id helpers
 packages/import-read/   the readers every import shares: a namespace-aware XML reader (no DOMParser) and a zip/folder reader over fflate's unzipSync with caps; main thread, Worker and Node
 packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
+packages/import-core/   the import block model and the pure chapter and scene splitter every document reader shares (no DOM, no dependencies)
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)

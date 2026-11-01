@@ -1,6 +1,6 @@
 # The RTF reader 🧭
 
-> Status: the package `packages/import-rtf` (`@caotang/import-rtf`) is **built** (#274) and tested in Node, on the main thread and in a `'self'` Worker. Nothing in the app calls it yet: the standalone **Import RTF** command and the Scrivener import (#275) reach it through the import preview (#267), which is not built. It emits the block list of import-core.md §2 (#266, pull request #317); until that package is merged it carries a field-for-field copy of the model (`src/model.ts`). Epic: #263.
+> Status: the package `packages/import-rtf` (`@caotang/import-rtf`) is **built** (#274) and tested in Node, on the main thread and in a `'self'` Worker. Nothing in the app calls it yet: the standalone **Import RTF** command and the Scrivener import (#275) reach it through the import preview (#267), which is not built. It emits the block list of import-core.md §2 (#266), whose types it re-exports from `@caotang/import-core` (`src/model.ts`). Epic: #263.
 
 ## 1. Purpose
 

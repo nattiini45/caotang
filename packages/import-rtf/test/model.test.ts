@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { ImportBlock, ImportDocument, LossCode } from '../src/model.js';
 
 /**
- * `src/model.ts` repeats `@caotang/import-core`'s model until #317 is merged. This pins the shapes the reader emits, so a drift
- * shows here first; when the copy becomes a re-export of `@caotang/import-core`, these still compile and pass.
+ * `src/model.ts` re-exports `@caotang/import-core`'s model. This pins the shapes the reader emits, so a change there that would
+ * break the reader shows here first.
  */
 describe('the import block model the reader emits', () => {
   it('has the block kinds and loss codes of import-core.md §2', () => {

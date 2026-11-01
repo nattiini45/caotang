@@ -729,6 +729,8 @@ importers:
 
   packages/ids: {}
 
+  packages/import-core: {}
+
   packages/import-read:
     dependencies:
       fflate:
@@ -737,6 +739,9 @@ importers:
 
   packages/import-rtf:
     dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../import-read

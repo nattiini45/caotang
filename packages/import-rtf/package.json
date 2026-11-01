@@ -4,13 +4,14 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "An own RTF to Markdown converter for Scrivener's content.rtf and standalone .rtf and .rtfd files: bytes in, the import block list and its losses out. No DOM and no dependencies, so it runs on the main thread, in a 'self' Worker and in Node.",
+  "description": "An own RTF to Markdown converter for Scrivener's content.rtf and standalone .rtf and .rtfd files: bytes in, the import block list and its losses out. No DOM and no third-party dependencies, so it runs on the main thread, in a 'self' Worker and in Node.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@caotang/import-core": "workspace:*",
     "@caotang/import-read": "workspace:*"
   },
   "scripts": {
