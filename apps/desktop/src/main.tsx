@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App.js';
 import { initInterface } from './app/interface.js';
 import { initTheme } from './app/theme.js';
+import './tokens/classic.css';
 import './styles.css';
 import './features.css';
 
