@@ -5,7 +5,7 @@
 > `binder.importTree` (bus `descriptors-import.ts`, store `commands-import.ts`), and the Twee import moved onto it. Not built: the
 > splitter source for the block list of #266 (`splitImport` in `@caotang/import-core` is built; the source that maps its `SplitResult` onto a plan is not), the format readers that
 > feed it (#268 is the shared readers; each reader is its own issue), the **New project** destination, POV and day as mapping
-> targets, and the Final Draft import's move onto the dialog (its dialog stays as it is until #265 lands).
+> targets, and the Final Draft import's move onto the dialog (#265 extended its own dialog; moving it onto this one is a follow-up).
 > Cross-refs: block list and splitter = Imports epic #263 (research notes `doc-formats.md` §10); commands = [command-bus.md](command-bus.md) §9
 > (`binder.importTree`) · codex rows = [codex.md](codex.md) §7.1 · pictures = [pictures.md](pictures.md) D5 (inline spelling) and §6.4
 > (the pipeline) · Twee = [dialogue-narrative.md](dialogue-narrative.md) §4 · the injection scan = issue #54.

@@ -143,3 +143,18 @@ export {
   type FdxRenderResult,
   type FdxRenderer,
 } from './fdx.js';
+export {
+  FDX_SEEDS_MAX,
+  FDX_SEED_DESCRIPTION_MAX,
+  FDX_SEED_NAME_MAX,
+  LABEL_COLOUR_TOLERANCE,
+  castListLine,
+  colourName,
+  fitSeedDescription,
+  fdxColour,
+  namingScene,
+  nearestLabel,
+  type FdxCodexSeed,
+  type FdxProductionData,
+  type FdxSeedSource,
+} from './fdx-extras.js';
