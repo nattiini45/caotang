@@ -6,8 +6,10 @@
  * Keys (APG radio): Tab enters the group on the chosen view; the arrow keys, Home and End choose and move; Tab goes on to Ask and
  * Search. When the page shows the timeline or the pictures (chosen in **⋯**), no radio is checked and Tab enters on Write.
  *
- * Ask and Search are stubs until the agent window (M8, #309) and the palette (M9, #310): **Ask** opens and focuses the agent drawer,
- * which is still at the page's foot; **Search** focuses the binder's filter field, the one search there is today (Ctrl+Alt+F).
+ * **Ask** opens and closes the agent's companion window (#309, companion-actions.ts): `id` {@link ASK_ID}, so Escape and **Close** give
+ * focus back to it and Ctrl+J grows the window out of it; `aria-controls` the window, `aria-expanded` while it is open, and a dot
+ * while the agent works or waits for an answer with the window closed (`data-activity`, §8.10). **Search** opens the palette (#310,
+ * `openPalette` in requests.ts), as Ctrl+K (Cmd+K) does.
  */
 /* lingui-set comment="Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search." */
 
@@ -15,30 +17,13 @@ import { t } from '@lingui/core/macro';
 import { useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { shortcutLabel } from '../../../app/keymap.js';
-import { focusBinderFilter } from '../../BinderFilters.js';
 import { keyStep } from '../ClassicShell.js';
+import { ASK_ID, COMPANION_ID, askState, toggleCompanion } from './companion-actions.js';
 import { Icon } from './icons.js';
+import { openPalette } from './requests.js';
 import type { ModernSlotProps } from './slots.js';
 import { viewName } from './top-ornament.js';
 import { ORNAMENT_VIEWS, chooseView, modernViewOf, viewControlId, type OrnamentView } from './views.js';
-
-/** Ask's stub (until #309): opens the agent drawer at the page's foot if it is closed, and moves focus into it. */
-export function askStub(): void {
-  const panel = document.querySelector<HTMLElement>('[data-testid="agent-panel"]');
-  if (panel === null) return;
-  const toggle = panel.querySelector<HTMLButtonElement>('.agent-toggle');
-  if (toggle !== null && toggle.getAttribute('aria-expanded') === 'false') toggle.click();
-  requestAnimationFrame(() => {
-    const field = panel.querySelector<HTMLElement>('textarea, [role="textbox"], input[type="text"]');
-    (field ?? toggle)?.focus();
-    panel.scrollIntoView({ block: 'nearest' });
-  });
-}
-
-/** Search's stub (until #310): the binder's filter field, the one search there is today. */
-export function searchStub(): void {
-  focusBinderFilter();
-}
 
 const ICONS: Readonly<Record<OrnamentView, 'write' | 'board' | 'codex'>> = { write: 'write', board: 'board', codex: 'codex' };
 
@@ -86,7 +71,9 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
     document.getElementById(viewControlId(next))?.focus();
   };
 
-  const searchKey = shortcutLabel('focus-filter');
+  const searchKey = shortcutLabel('palette');
+  const askKey = shortcutLabel('agent-toggle');
+  const ask = askState(view);
   return (
     <nav className="modern-ornament is-bottom mat-glass" aria-label={t`Views and tools`} data-testid="modern-bottom-ornament">
       <div ref={group} className="modern-views" role="radiogroup" aria-label={t`View`} onKeyDown={onKey}>
@@ -111,16 +98,32 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
           );
         })}
       </div>
-      <button type="button" className="modern-capsule" data-testid="modern-ask" title={t`Ask the agent`} onClick={askStub}>
+      <button
+        type="button"
+        id={ASK_ID}
+        className="modern-capsule modern-ask"
+        data-testid="modern-ask"
+        title={t`Ask the agent (${{ shortcut: askKey }})`}
+        aria-controls={COMPANION_ID}
+        aria-expanded={ask.expanded}
+        data-activity={ask.activity}
+        onClick={(event) => toggleCompanion(view, event.currentTarget)}
+      >
         <Icon name="ask" />
         <span className="modern-label">{t`Ask`}</span>
+        {ask.activity === 'idle' || ask.expanded ? null : (
+          <span className="modern-ask-dot" data-testid="modern-ask-activity">
+            <span className="visually-hidden">{ask.activity === 'working' ? t`The agent is working` : t`The agent is waiting for you`}</span>
+          </span>
+        )}
       </button>
       <button
         type="button"
         className="modern-capsule"
         data-testid="modern-search"
-        title={t`Search the binder (${{ shortcut: searchKey }})`}
-        onClick={searchStub}
+        title={t`Search and commands (${{ shortcut: searchKey }})`}
+        aria-haspopup="dialog"
+        onClick={(event) => openPalette(event.currentTarget)}
       >
         <Icon name="search" />
         <span className="modern-label">{t`Search`}</span>

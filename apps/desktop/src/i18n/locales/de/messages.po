@@ -3457,13 +3457,16 @@ msgstr "Fragen"
 msgid "Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each change first, and nothing is written until you approve it."
 msgstr "Bitten Sie ihn, eine Szene zu entwerfen, die Zusammenfassungen eines Kapitels auszufüllen oder das Manuskript auf Kontinuität zu prüfen. Er schlägt jede Änderung zuerst vor, und es wird nichts geschrieben, bis Sie sie genehmigen."
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
-#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "Ask the agent"
 msgstr "Den Agenten fragen"
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Ask the agent ({shortcut})"
+msgstr "Den Agenten fragen ({shortcut})"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -12845,11 +12848,13 @@ msgstr "Szenenüberschrift"
 msgid "Scene headings"
 msgstr "Szenenüberschriften"
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Scene info"
 msgstr "Szeneninfo"
 
@@ -13024,6 +13029,11 @@ msgstr "Suchen"
 msgid "Search and commands"
 msgstr "Suche und Befehle"
 
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Search and commands ({shortcut})"
+msgstr "Suche und Befehle ({shortcut})"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.toolSearch.content"
@@ -13039,11 +13049,6 @@ msgstr "Namen, Aliasse und Beschreibungen durchsuchen"
 #: apps/desktop/src/components/shell/modern/palette.tsx
 msgid "Search scenes, codex and commands"
 msgstr "Szenen, Kodex und Befehle durchsuchen"
-
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
-#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
-msgid "Search the binder ({shortcut})"
-msgstr "Im Binder suchen ({shortcut})"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -14536,6 +14541,16 @@ msgstr "Der Agent ist mit einem anderen Durchlauf beschäftigt. Lassen Sie ihn f
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "Der Agent ist für dieses Projekt noch nicht bereit. Öffnen Sie das Agenten-Panel und versuchen Sie es erneut."
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "The agent is waiting for you"
+msgstr "Der Agent wartet auf Sie"
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "The agent is working"
+msgstr "Der Agent arbeitet"
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts

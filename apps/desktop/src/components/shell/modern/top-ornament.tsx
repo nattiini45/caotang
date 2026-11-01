@@ -2,12 +2,14 @@
  * Modern's top ornament (modern-interface.md §6, §7.1, §8.1, §8.2): a glass capsule centred on the page's top edge, a toolbar named
  * "Scene". It holds the **title capsule** (the project's name, the view when it is not Write, and a dot while a finding is open) and
  * **⋯**, the menu of every shell action (app/shell-actions.ts) with the two other centre views and **Appearance** inside. The save state
- * sits beside the title until Scene info (#308) takes it, so a failed save's **Export a backup** is never out of reach.
+ * sits beside the title (Scene info's Progress repeats it), so a failed save's **Export a backup** is never out of reach until the
+ * notices (#311) show it as a persistent toast.
  *
  * Keys: Tab enters the toolbar on its current control and leaves it; the arrow keys, Home and End move inside it (APG toolbar). In
  * the menu, the arrow keys, Home and End move, Enter or Space chooses, Escape or Tab closes, and focus returns to **⋯**.
  *
- * Until Scene info (#308) exists, the title capsule opens Project details, as Classic's project name does.
+ * The title capsule is Scene info's opener (#308, `useSceneInfoOpener` in scene-info-store.ts): a click toggles the popover, which
+ * anchors under the capsule, grows out of it and gives focus back to it on Escape. Project details stays in **⋯**.
  */
 /* lingui-set comment="Modern interface, the top ornament: the project's title capsule and the More (⋯) menu." */
 
@@ -32,6 +34,7 @@ import type { ShellView } from '../regions.js';
 import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
 import type { ModernSlotProps } from './slots.js';
+import { useSceneInfoOpener } from './scene-info-store.js';
 import { MENU_VIEWS, chooseView, modernViewOf } from './views.js';
 import type { ModernView } from './layout.js';
 
@@ -107,7 +110,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   const more = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
   const roving = useRovingToolbar(toolbar);
-  const details = actions.find((action) => action.id === 'details');
+  const sceneInfo = useSceneInfoOpener();
   const current = modernViewOf(view.rail, view.center);
   const findings = regions.findingsBadge;
 
@@ -134,11 +137,11 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
         onFocus={roving.onFocus}
       >
         <button
+          {...sceneInfo.buttonProps}
           type="button"
           className="modern-capsule modern-title"
           data-testid="modern-title-capsule"
-          title={details?.hint}
-          onClick={details?.run}
+          title={t`Scene info`}
         >
           <span className="modern-title-name">{regions.projectName}</span>
           {current === 'write' ? null : (

@@ -207,7 +207,7 @@ test('⋯ is a menu of every shell action, the other views and Appearance; Escap
   expect(await page.evaluate(() => localStorage.getItem('caotang.interface'))).toBe('classic');
 });
 
-test('the top ornament is one toolbar stop: the arrow keys move between the title capsule and ⋯, and the title opens Project details', async ({ page }) => {
+test('the top ornament is one toolbar stop: the arrow keys move between the title capsule and ⋯, and the title opens Scene info', async ({ page }) => {
   await modernScene(page, 'Toolbar Book');
   const title = scene(page).getByTestId('modern-title-capsule');
   await expect(title).toContainText('Toolbar Book');
@@ -231,16 +231,93 @@ test('the top ornament is one toolbar stop: the arrow keys move between the titl
   await page.keyboard.press('Shift+Tab');
   await expect(title).toBeFocused();
 
+  // The title capsule is Scene info's opener (#308): it says so, opens it, and Escape gives focus back to it.
+  await expect(title).toHaveAttribute('aria-haspopup', 'dialog');
+  await expect(title).toHaveAttribute('aria-expanded', 'false');
   await title.click();
-  await expect(page.getByRole('dialog').first()).toBeVisible();
+  const info = page.getByRole('dialog', { name: 'Scene info' });
+  await expect(info).toBeVisible();
+  await expect(title).toHaveAttribute('aria-expanded', 'true');
+  await expect(title).toHaveAttribute('aria-controls', 'modern-scene-info');
+  await page.keyboard.press('Escape');
+  await expect(info).toHaveCount(0);
+  await expect(title).toBeFocused();
+  await expect(title).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('Ask opens the agent and Search goes to the binder’s filter until their own windows exist', async ({ page }) => {
-  await modernScene(page, 'Stub Book');
-  await views(page).getByRole('button', { name: 'Search' }).click();
-  await expect(page.locator('#binder-filter-text')).toBeFocused();
+test('Ask opens and closes the agent’s window and shows when the agent works; Search opens the palette', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await modernScene(page, 'Ask Book');
+  const ask = views(page).getByRole('button', { name: 'Ask' });
+  await expect(ask).toHaveAttribute('id', 'modern-ask');
+  await expect(ask).toHaveAttribute('aria-controls', 'modern-companion');
+  await expect(ask).toHaveAttribute('aria-expanded', 'false');
+  await expect(ask).toHaveAttribute('data-activity', 'idle');
+  await expect(page.getByTestId('modern-ask-activity')).toHaveCount(0);
+
+  await ask.click();
+  const agent = page.getByRole('complementary', { name: 'Agent' });
+  await expect(agent).toBeVisible();
+  await expect(ask).toHaveAttribute('aria-expanded', 'true');
+  // Ask again closes it; focus stays on Ask.
+  await ask.click();
+  await expect(agent).toBeHidden();
+  await expect(ask).toHaveAttribute('aria-expanded', 'false');
+  await expect(ask).toBeFocused();
+  // Opened by Ask and closed by Escape, focus comes back to Ask.
+  await ask.click();
+  await expect(agent).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(agent).toBeHidden();
+  await expect(ask).toBeFocused();
+
+  // Search is the palette's opener: it opens the palette, and Escape gives focus back to it.
+  const search = views(page).getByRole('button', { name: 'Search' });
+  await search.click();
+  const palette = page.getByRole('dialog', { name: 'Search and commands' });
+  await expect(palette).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(palette).toBeHidden();
+  await expect(search).toBeFocused();
+});
+
+test('a docked Scene info and the agent window stack at the inline-end edge, and the page moves over for both', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1000 });
+  await modernScene(page, 'Stack Book');
+  const area = page.locator('.modern-page-area');
+  const info = page.getByRole('dialog', { name: 'Scene info' });
+  const agent = page.getByRole('complementary', { name: 'Agent' });
+  const keep = info.getByRole('button', { name: 'Keep open' });
+
+  await scene(page).getByTestId('modern-title-capsule').click();
+  await keep.click();
+  await expect(info).toHaveClass(/is-docked/);
+  await expect.poll(() => area.evaluate((element) => getComputedStyle(element).insetInlineEnd)).toBe('412px');
+
   await views(page).getByRole('button', { name: 'Ask' }).click();
-  await expect(page.getByTestId('agent-panel').locator('.agent-toggle')).toHaveAttribute('aria-expanded', 'true');
+  await expect(agent).toBeVisible();
+  // The page's room is both windows and their gutters (modernLayout), never the later one alone.
+  await expect.poll(() => area.evaluate((element) => getComputedStyle(element).insetInlineEnd)).toBe('844px');
+  const settledBox = async (locator: Locator) => {
+    await locator.evaluate((element) => Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished)));
+    return locator.boundingBox();
+  };
+  const agentBox = await settledBox(agent);
+  const infoBox = await settledBox(info);
+  const pageBox = await page.locator('#modern-page').boundingBox();
+  expect(agentBox).not.toBeNull();
+  expect(infoBox).not.toBeNull();
+  // The agent window at the edge, Scene info beside it, the page before both: nothing over anything.
+  expect((agentBox?.x ?? 0) + (agentBox?.width ?? 0)).toBeGreaterThan(1920 - 40);
+  expect((infoBox?.x ?? 0) + (infoBox?.width ?? 0)).toBeLessThanOrEqual(agentBox?.x ?? 0);
+  expect((pageBox?.x ?? 0) + (pageBox?.width ?? 0)).toBeLessThanOrEqual(infoBox?.x ?? 0);
+
+  // Closing the agent window gives its room back, and Scene info returns to the edge.
+  await views(page).getByRole('button', { name: 'Ask' }).click();
+  await expect(agent).toBeHidden();
+  await expect.poll(() => area.evaluate((element) => getComputedStyle(element).insetInlineEnd)).toBe('412px');
+  await keep.click();
+  await expect(info).toHaveClass(/is-popover/);
 });
 
 test('the ornaments show seven controls, each at least 44 by 44 px, and every ⋯ item is 44 px tall', async ({ page }) => {

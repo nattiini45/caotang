@@ -3456,13 +3456,16 @@ msgstr "Ask"
 msgid "Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each change first, and nothing is written until you approve it."
 msgstr "Ask it to draft a scene, fill the synopses of a chapter, or check the manuscript for continuity. It proposes each change first, and nothing is written until you approve it."
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
-#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "Ask the agent"
 msgstr "Ask the agent"
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Ask the agent ({shortcut})"
+msgstr "Ask the agent ({shortcut})"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -12844,11 +12847,13 @@ msgstr "Scene heading"
 msgid "Scene headings"
 msgstr "Scene headings"
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Scene info"
 msgstr "Scene info"
 
@@ -13023,6 +13028,11 @@ msgstr "Search"
 msgid "Search and commands"
 msgstr "Search and commands"
 
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Search and commands ({shortcut})"
+msgstr "Search and commands ({shortcut})"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.toolSearch.content"
@@ -13038,11 +13048,6 @@ msgstr "Search names, aliases and descriptions"
 #: apps/desktop/src/components/shell/modern/palette.tsx
 msgid "Search scenes, codex and commands"
 msgstr "Search scenes, codex and commands"
-
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
-#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
-msgid "Search the binder ({shortcut})"
-msgstr "Search the binder ({shortcut})"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -14535,6 +14540,16 @@ msgstr "The agent is busy with another turn. Let it finish, then fix the finding
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "The agent is not ready for this project yet. Open the agent panel, then try again."
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "The agent is waiting for you"
+msgstr "The agent is waiting for you"
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "The agent is working"
+msgstr "The agent is working"
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
