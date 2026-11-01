@@ -104,6 +104,10 @@ export const BUDGET = {
   // and notice messages, which must be in the entry before the first paint, i18n.md §3.3) and the two binder buttons with their
   // loaders (+0.4 kB). Main left 0.1 kB of room, so localising the preview could not fit; the ceiling is that plus about 1%,
   // rounded up to the thousand.
+  
+  // 1,016.1 kB (1,016,124 bytes) measured with the editor's footnote words localised (#337): the labels port's footnote names, `setLabels` and the
+  // decorations that rename the markers and notes of an open editor on a language switch, which put the first load about 0.1 kB over
+  // the old 1,016.0 kB ceiling. The ceiling is that plus about 1%, rounded up to the thousand.
   initialGzip: 1_030_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
