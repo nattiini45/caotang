@@ -171,6 +171,11 @@ describe('timeline.gap across parts (§5.2.2)', () => {
     expect(out.map((finding) => finding.message)).toEqual(['"B" happens 30 days after "A"']);
   });
 
+  it('still reports order-drift, and no gap, for a binder-reversed pair across a part boundary', () => {
+    const drafts = run(pair(), withMeta({ a: { dayOffset: 0 }, b: { dayOffset: -3650, storyPart: 'prologue' } }), ['timeline.order-drift', 'timeline.gap']);
+    expect(drafts.map((d) => d.checkId)).toEqual(['timeline.order-drift']);
+  });
+
   describe('a folder’s part covers its scenes, and a scene’s own part wins', () => {
     const state = (): ReturnType<typeof buildState> =>
       buildState({
@@ -202,6 +207,26 @@ describe('timeline.gap across parts (§5.2.2)', () => {
         GAP,
       );
       expect(out).toEqual([]);
+    });
+
+    it('takes the nearest folder’s part through the real scan path, with a prologue folder inside an epilogue folder', () => {
+      const nested = buildState({
+        folders: [
+          { id: 'outer', title: 'Outer' },
+          { id: 'inner', title: 'Inner', parent: 'outer' },
+        ],
+        scenes: [
+          { id: 'p1', title: 'P1', parent: 'inner', body: 'P1.' },
+          { id: 'p2', title: 'P2', parent: 'inner', body: 'P2.' },
+          { id: 'e1', title: 'E1', parent: 'outer', body: 'E1.' },
+        ],
+      });
+      const out = run(
+        nested,
+        withMeta({ outer: { storyPart: 'epilogue' }, inner: { storyPart: 'prologue' }, p1: { dayOffset: -400 }, p2: { dayOffset: -300 }, e1: { dayOffset: 4000 } }),
+        GAP,
+      );
+      expect(out.map((finding) => finding.message)).toEqual(['"P2" happens 100 days after "P1"']);
     });
 
     it('reports the jump when the folder declares no part (negative control)', () => {

@@ -7,6 +7,7 @@ import { initTheme } from './app/theme.js';
 import { I18nProvider } from './i18n/I18nProvider.js';
 import { publishDocumentLanguage } from './i18n/language.js';
 import { activateEnglish } from './i18n/runtime.js';
+import './tokens/classic.css';
 import './styles.css';
 import './features.css';
 

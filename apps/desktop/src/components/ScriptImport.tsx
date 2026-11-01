@@ -16,7 +16,7 @@ import { isolate } from '@caotang/i18n';
 
 import { compileInk, mintImportIds, planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
 import { importScanSentence, scanImport } from '@caotang/harness';
-import { importFdx, type FdxImportedScript } from '@caotang/screenplay';
+import { importFdx, type FdxCodexSeed, type FdxImportedScript } from '@caotang/screenplay';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
@@ -24,15 +24,17 @@ import { readXmlFileText } from '../app/xml-file.js';
 import type { ProjectSession } from '../app/session.js';
 import { importLineIdsSentence } from '../media/ink-model.js';
 import { useReport, useSession } from './shared.js';
-import { FdxImportDialog } from './FdxImportDialog.js';
+import { FdxImportDialog, seedFlagged } from './FdxImportDialog.js';
 import { TweeImportDialog } from './TweeImportDialog.js';
 
-/* lingui-set comment="Interpolated values: choices, count, file, name, scenes, sections, stripped" */
+/* lingui-set comment="Interpolated values: choices, count, entries, file, name, scenes, sections, stripped" */
 
 /** What `screenplay.import` hands back (screenplay.md §2.2): the counts it made, and the notices it raised. */
 interface ScriptImportResult {
   readonly scenes: number;
   readonly folders: number;
+  /** The codex entries made from the ticked rows of a Final Draft import (issue #265). */
+  readonly codexEntries?: number;
   readonly notices: readonly string[];
 }
 
@@ -57,8 +59,22 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     readonly scan: string[];
   } | null>(null);
 
-  const writeScript = (fileName: string, format: 'fdx' | 'fountain', text: string, scan: readonly string[]): void => {
-    const outcome = session.dispatch('screenplay.import', { format, text });
+  const writeScript = (
+    fileName: string,
+    format: 'fdx' | 'fountain',
+    text: string,
+    scan: readonly string[],
+    seeds: readonly FdxCodexSeed[] = [],
+  ): void => {
+    // The ticked codex rows ride on the one dispatch, so one undo takes the script and its codex entries together.
+    // A row the import scan flags is added as `manual`, as codex.importBatch adds one (issue #54).
+    const codex = seeds.map((seed) => ({
+      name: seed.name,
+      type: seed.type,
+      ...(seed.description === '' ? {} : { description: seed.description }),
+      ...(seedFlagged(seed) ? { includePolicy: 'manual' as const } : {}),
+    }));
+    const outcome = session.dispatch('screenplay.import', codex.length === 0 ? { format, text } : { format, text, codex });
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });
       return;
@@ -66,8 +82,12 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     const result = outcome.value.result as ScriptImportResult;
     const scenes = result.scenes;
     const sections = result.folders;
+    const entries = result.codexEntries ?? 0;
     const name = isolate(fileName);
-    const made = t`Imported ${plural(scenes, { one: '# scene', other: '# scenes' })} and ${plural(sections, { one: '# section', other: '# sections' })} from ${{ file: name }}.`;
+    const made =
+      entries === 0
+        ? t`Imported ${plural(scenes, { one: '# scene', other: '# scenes' })} and ${plural(sections, { one: '# section', other: '# sections' })} from ${{ file: name }}.`
+        : t`Imported ${plural(scenes, { one: '# scene', other: '# scenes' })} and ${plural(sections, { one: '# section', other: '# sections' })}, with ${plural(entries, { one: '# codex entry', other: '# codex entries' })}, from ${{ file: name }}.`;
     report({ text: [made, ...result.notices, ...scan].join(' '), tone: 'info' });
   };
 
@@ -90,11 +110,11 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     setPendingFdx({ fileName: file.name, text, script: importFdx(text), scan });
   };
 
-  const importFdxFile = (): void => {
+  const importFdxFile = (seeds: readonly FdxCodexSeed[]): void => {
     if (pendingFdx === null) return;
     const { fileName, text, scan } = pendingFdx;
     setPendingFdx(null);
-    writeScript(fileName, 'fdx', text, scan);
+    writeScript(fileName, 'fdx', text, scan, seeds);
   };
 
   const importInk = async (file: File): Promise<void> => {
@@ -216,6 +236,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
         fileName={pendingFdx?.fileName ?? null}
         script={pendingFdx?.script ?? null}
         warnings={pendingFdx?.scan ?? []}
+        existingNames={(session.state.manifest.codex ?? []).flatMap((entry) => [entry.name, ...entry.aliases])}
         onImport={importFdxFile}
         onCancel={() => setPendingFdx(null)}
       />

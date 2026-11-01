@@ -15,7 +15,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 12px 24px 24px;
+  padding: var(--space-5) 24px 24px;
   overflow: auto;
 }
 
@@ -24,11 +24,11 @@
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .media-title {
-  margin: 2px 0 0;
+  margin: var(--space-1) 0 0;
   font-family: var(--manuscript);
   font-size: 22px;
   font-weight: 600;
@@ -43,10 +43,10 @@
 
 .media-view select {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
   min-width: 0;
@@ -59,7 +59,7 @@
 }
 
 .media-view .badge {
-  margin-inline-end: 6px;
+  margin-inline-end: var(--space-3);
 }
 
 /* ------------------------------------------------------------------ *
@@ -80,7 +80,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-1);
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
   font-size: 13.5px;
   line-height: 1.5;
@@ -181,7 +181,7 @@
 .sp-source-pane {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .sp-source-bar {
@@ -193,7 +193,7 @@
   width: 100%;
   min-height: 60vh;
   resize: vertical;
-  padding: 16px 18px;
+  padding: var(--space-6) 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
@@ -206,28 +206,28 @@
 }
 
 .sp-source:focus {
-  outline: 2px solid var(--focus);
+  outline: var(--focus-width) solid var(--focus);
   outline-offset: 0;
 }
 
 .sp-side {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .sp-readout {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-4);
   margin: 0;
 }
 
 .sp-readout div {
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
 }
 
@@ -237,7 +237,7 @@
 }
 
 .sp-readout dd {
-  margin: 2px 0 0;
+  margin: var(--space-1) 0 0;
   font-size: 18px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -253,16 +253,16 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .sp-scene-link {
   width: 100%;
   font: inherit;
-  font-size: 12.5px;
-  padding: 5px 8px;
+  font-size: var(--text-md);
+  padding: 5px var(--space-4);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-soft);
   text-align: left;
@@ -304,13 +304,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .sb-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--space-6);
   align-items: start;
 }
 
@@ -329,7 +329,7 @@
   aspect-ratio: 16 / 9;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
 }
 
@@ -345,21 +345,21 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 8px;
+  padding: var(--space-4);
   text-align: center;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
 .sb-spec {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
 .sb-action {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-lg);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -372,7 +372,7 @@
 
 .sb-foot {
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 /*
@@ -399,12 +399,12 @@
 
 .sb-step {
   display: inline-flex;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .sb-step .button {
-  padding: 2px 6px;
-  font-size: 12px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
 }
 
 .sb-editor {
@@ -415,7 +415,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-1);
 }
 
 .sb-editor .eyebrow {
@@ -426,10 +426,10 @@
 .sb-editor input[type='number'] {
   width: 100%;
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
 }
@@ -446,25 +446,25 @@
 .pp-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .pp-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 16px;
+  gap: var(--space-6);
 }
 
 .pp-target {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   min-width: 220px;
 }
 
 .pp-target > span {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -476,7 +476,7 @@
 .pp-shots {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 12px;
+  gap: var(--space-5);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -485,12 +485,12 @@
 .pp-shot {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: var(--space-4);
+  padding: var(--space-5);
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--raised);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-1);
   min-width: 0;
 }
 
@@ -498,7 +498,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .pp-prompt {
@@ -511,14 +511,14 @@
 
 .pp-note {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
 .pp-audio {
   margin: 0;
   padding-inline-start: 18px;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
@@ -527,17 +527,17 @@
 }
 
 .pp-mapped summary {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
   cursor: pointer;
 }
 
 .pp-mapped pre {
-  margin: 6px 0 0;
-  padding: 8px;
-  border-radius: 6px;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
   background: var(--panel);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   overflow: auto;
   max-height: 220px;
 }
@@ -545,7 +545,7 @@
 .pp-checks {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 /* ------------------------------------------------------------------ *
@@ -555,29 +555,29 @@
 .dlg-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .dlg-errors {
-  padding: 10px 12px;
+  padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
   border-inline-start: 3px solid var(--danger);
   border-radius: var(--radius);
   background: var(--danger-soft);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .dlg-errors p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .dlg-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 16px;
+  gap: var(--space-6);
   align-items: start;
 }
 
@@ -585,7 +585,7 @@
   min-width: 0;
   max-height: 70vh;
   overflow: auto;
-  padding: 8px;
+  padding: var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel);
@@ -615,7 +615,7 @@
 
 /* A choice's label on its edge (dialogue graph). The halo is the panel's own colour, so the words read over the arrow and over another edge. */
 .dlg-edge-label {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   fill: var(--ink);
   paint-order: stroke;
   stroke: var(--panel);
@@ -632,8 +632,8 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: 8px 10px;
+  gap: var(--space-2);
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--raised);
@@ -642,7 +642,7 @@
   text-align: start;
   cursor: pointer;
   overflow: hidden;
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-1);
 }
 
 .dlg-node.is-selected {
@@ -668,7 +668,7 @@
 }
 
 .dlg-node-meta {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -679,14 +679,14 @@
 .dlg-side {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .dlg-findings {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -695,15 +695,15 @@
 .dlg-finding {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-4);
   width: 100%;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   text-align: start;
   cursor: pointer;
 }
@@ -713,16 +713,16 @@
 }
 
 .dlg-detail .inspector-meta {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
 }
 
 .dlg-lines {
   margin: 0;
   padding-inline-start: 20px;
-  font-size: 13px;
+  font-size: var(--text-lg);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .dlg-lines .is-choice {
@@ -730,7 +730,7 @@
 }
 
 .dlg-line-id {
-  margin-inline-start: 6px;
+  margin-inline-start: var(--space-3);
   font-size: 11px;
   color: var(--muted);
 }
@@ -738,7 +738,7 @@
 .dlg-choices {
   margin: 0;
   padding-inline-start: 18px;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 /* The Ink source, edited in place under the outline (DialogueView). Monospace, because the text is code the writer reads by its indent. */
@@ -746,14 +746,14 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .dlg-source-edit .ink-source {
   width: 100%;
   min-height: 12em;
   font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 12.5px;
+  font-size: var(--text-md);
   line-height: 1.5;
   white-space: pre;
   overflow: auto;
@@ -763,9 +763,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 6px;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
   background: var(--panel);
 }
 
@@ -786,7 +786,7 @@
   }
 
   .media-view {
-    padding: 12px 16px 24px;
+    padding: var(--space-5) var(--space-6) 24px;
   }
 
   .sp-page {
@@ -822,10 +822,10 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: var(--space-4);
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
 }
 
@@ -842,7 +842,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: var(--space-5);
   padding: 24px;
 }
 
@@ -860,7 +860,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   color: #fff;
 }
 
@@ -869,7 +869,7 @@
   max-width: 100%;
   max-height: 78vh;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .sb-lightbox-close {
@@ -888,7 +888,7 @@
 .sb-prompt {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -907,8 +907,8 @@
 .sb-prompt .sb-reference label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
 }
 
 .sb-image select,
@@ -920,10 +920,10 @@
 .sb-coverage textarea {
   width: 100%;
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   color: var(--ink);
 }
@@ -936,48 +936,48 @@
 .sb-covers {
   margin: 0;
   padding-inline-start: 18px;
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .sb-prompt-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px 10px;
+  gap: var(--space-4) 10px;
 }
 
 .sb-prompt-grid label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .sb-check {
   flex-direction: row !important;
   align-items: center;
-  gap: 8px !important;
+  gap: var(--space-4) !important;
 }
 
 .sb-references,
 .sb-take {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
   margin: 0;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .sb-reference {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr) auto;
-  gap: 8px;
+  gap: var(--space-4);
   align-items: end;
 }
 
 .sb-references:focus {
-  outline: 2px solid var(--line);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--line);
+  outline-offset: var(--focus-offset);
 }
 
 .sb-checks {
@@ -1084,7 +1084,7 @@
    A script page is a grid of 14px rows, and a line names its row, so the two sides of a dual-dialogue pair share theirs. */
 .sp-preview {
   display: grid;
-  gap: 16px;
+  gap: var(--space-6);
   min-width: 0;
 }
 
@@ -1092,14 +1092,14 @@
   max-width: 612px;
   width: 100%;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 24px var(--space-6);
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-1);
   font-family: 'Courier Prime', 'Courier New', Courier, monospace;
-  font-size: 12px;
+  font-size: var(--text-sm);
   line-height: 14px;
   color: var(--ink);
 }
@@ -1125,7 +1125,7 @@
 }
 
 .sp-page-sheet .sp-line.is-linked:focus-visible {
-  outline: 2px solid var(--accent, currentColor);
+  outline: var(--focus-width) solid var(--accent, currentColor);
   outline-offset: 1px;
 }
 
@@ -1143,22 +1143,22 @@
 .script-import {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 0 8px;
+  gap: var(--space-4);
+  padding: var(--space-2) 0 var(--space-4);
 }
 
 /* The one-time line-id choice of Import Ink: a native checkbox and its label, on a line of its own when the row is narrow. */
 .script-import-ids {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   font-size: 13.5px;
   color: var(--ink-soft);
 }
 
 /* The report a Twee import shows before it writes: the dialog is the shared .confirm one, with a list in it. */
 .twee-report ul {
-  margin: 8px 0 0;
+  margin: var(--space-4) 0 0;
   padding-inline-start: 18px;
   font-size: 13.5px;
   line-height: 1.55;
@@ -1166,19 +1166,47 @@
 }
 
 .twee-report h3 {
-  margin: 12px 0 0;
+  margin: var(--space-5) 0 0;
   font-size: 13.5px;
+}
+
+/* The optional codex rows of a Final Draft import (issue #265): unticked checkboxes, scrolling when the cast is long. */
+.fdx-seeds {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13.5px;
+}
+
+.fdx-seeds p {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+}
+
+.twee-report .fdx-seeds ul {
+  max-height: 14rem;
+  overflow: auto;
+  padding-inline-start: 0;
+  list-style: none;
+}
+
+.fdx-seed {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .scene-check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 @media (max-width: 900px) {
   .sp-page-sheet {
-    padding: 16px 10px;
+    padding: var(--space-6) 10px;
   }
 }
 

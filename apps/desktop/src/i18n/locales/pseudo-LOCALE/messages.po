@@ -781,12 +781,12 @@ msgstr ""
 msgid "{count} items"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{count} line above the first knot was not imported. Copy it by hand if you need it."
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{count} lines above the first knot were not imported. Copy them by hand if you need them."
 msgstr ""
@@ -1003,17 +1003,17 @@ msgstr ""
 msgid "{field}: {to}"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} could not be read: {problem}."
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} has no knot to import. An Ink story makes one container for each knot."
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} has no passage to import. A Twee story makes one knot for each passage."
 msgstr ""
@@ -2670,7 +2670,7 @@ msgstr ""
 msgid "Add line ids on save"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Add line ids to the imported containers (one time)"
 msgstr ""
@@ -6942,7 +6942,7 @@ msgstr ""
 msgid "Import a picture file…"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import a script, an Ink story or a Twee story"
 msgstr ""
@@ -6962,7 +6962,7 @@ msgstr ""
 msgid "harness.progress.codexImport.none.content"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import Ink"
 msgstr ""
@@ -6972,7 +6972,7 @@ msgstr ""
 msgid "Import pictures here…"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import script"
 msgstr ""
@@ -6987,7 +6987,7 @@ msgstr ""
 msgid "Import this Twee story?"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import Twee"
 msgstr ""
@@ -6999,7 +6999,7 @@ msgstr ""
 msgid "Imported"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {containers, plural, one {# dialogue container} other {# dialogue containers}} from {file}."
 msgstr ""
@@ -7009,19 +7009,30 @@ msgstr ""
 msgid "Imported {count, plural, one {# skill} other {# skills}}. Read each one and approve it before the agent can use it."
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {file} as one dialogue container: {passages, plural, one {# knot} other {# knots}}, {choices, plural, one {# choice} other {# choices}}, {stripped, plural, one {# logic block} other {# logic blocks}} stripped."
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {scenes, plural, one {# scene} other {# scenes}} and {sections, plural, one {# section} other {# sections}} from {file}."
+msgstr ""
+
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Imported {scenes, plural, one {# scene} other {# scenes}} and {sections, plural, one {# section} other {# sections}}, with {entries, plural, one {# codex entry} other {# codex entries}}, from {file}."
 msgstr ""
 
 #. js-lingui-explicit-id
 #: packages/store/src/commands-script.ts
 msgid "store.script.importSummary"
+msgstr ""
+
+#. Interpolated values: entries
+#. js-lingui-explicit-id
+#: packages/store/src/commands-script.ts
+msgid "store.script.importSummaryCodex"
 msgstr ""
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
@@ -7168,7 +7179,7 @@ msgstr ""
 msgid "inherited from its folder"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Ink file"
 msgstr ""
@@ -12243,7 +12254,7 @@ msgstr ""
 msgid "Script coverage"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Script file"
 msgstr ""
@@ -15958,7 +15969,7 @@ msgstr ""
 msgid "Turns"
 msgstr ""
 
-#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Twee file"
 msgstr ""

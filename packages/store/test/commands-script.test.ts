@@ -33,6 +33,8 @@ import {
   type ProjectState,
   type TreeNode,
 } from '../src/index.js';
+import { CODEX_DESCRIPTION_MAX, CODEX_NAME_MAX, SCREENPLAY_IMPORT_SEEDS_MAX } from '@caotang/bus';
+import { FDX_SEED_DESCRIPTION_MAX, FDX_SEED_NAME_MAX, FDX_SEEDS_MAX } from '@caotang/screenplay';
 import { IMPORTED_DIALOGUE_CHAPTER, IMPORTED_SCENES_CHAPTER } from '../src/commands-script.js';
 
 const OPENED = new Date('2026-10-02T15:00:00.000Z');
@@ -245,6 +247,117 @@ describe('screenplay.import', () => {
     const house = byTitle(h.state, 'INT. HOUSE - DAY');
     expect(getBody(h.state, house.id).startsWith('INT. HOUSE - DAY #2A#')).toBe(true);
     expect(JSON.stringify(outcome)).toContain('The title page was read but not stored');
+  });
+
+  // Issue #265: Final Draft's scene title names the node, its colour becomes a label, and the ticked cast rows become codex
+  // entries, all in the one undo group.
+  const OUTLINED = [
+    '<FinalDraft DocumentType="Script" Version="6">',
+    '  <Content>',
+    '    <Paragraph Type="Outline 1"><Text>ACT ONE</Text></Paragraph>',
+    '    <Paragraph Type="Summary"><Text>Anna arrives.</Text></Paragraph>',
+    '    <Paragraph Type="Scene Heading" Number="1"><SceneProperties Title="Anna arrives" Color="#FFFF00000000"/><Text>INT. STATION - NIGHT</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>ANNA drags a suitcase.</Text></Paragraph>',
+    '    <Paragraph Type="Scene Heading" Number="2"><SceneProperties Title="" Color="#F0F000000000"/><Text>EXT. LIBRARY - NIGHT</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>Alice waves Anna in.</Text></Paragraph>',
+    '    <Paragraph Type="Scene Heading" Number="3"><SceneProperties Color="#00000000FFFF"/><Text>INT. LIBRARY - NIGHT</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>Books.</Text></Paragraph>',
+    '  </Content>',
+    '</FinalDraft>',
+  ].join('\n');
+
+  /** The state an undo must return, codex and labels included. */
+  function fullSnapshot(state: ProjectState): string {
+    return JSON.stringify({ base: snapshotOf(state), codex: state.manifest.codex, labels: state.manifest.vocabulary.labels });
+  }
+
+  it('names an FDX scene by its SceneProperties title, keeps the heading in the text, and makes outline elements folders', () => {
+    const h = harness();
+    succeed(h, 'screenplay.import', { format: 'fdx', text: OUTLINED, parentId: CHAPTER });
+    const act = byTitle(h.state, 'ACT ONE');
+    expect(act).toMatchObject({ type: 'folder', parentId: CHAPTER, synopsis: 'Anna arrives.' });
+    const station = byTitle(h.state, 'Anna arrives');
+    expect(station.parentId).toBe(act.id);
+    expect(getBody(h.state, station.id).startsWith('INT. STATION - NIGHT #1#')).toBe(true);
+    // A blank title leaves the heading as the node title.
+    expect(byTitle(h.state, 'EXT. LIBRARY - NIGHT').parentId).toBe(act.id);
+  });
+
+  it('maps scene colours to labels: a near colour shares one new label, an existing label of a near colour is reused', () => {
+    const h = harness();
+    h.state.manifest.vocabulary.labels.push({ id: 'night', name: 'Night', color: '#0a0af0' });
+    const outcome = succeed(h, 'screenplay.import', { format: 'fdx', text: OUTLINED, parentId: CHAPTER });
+    const red = h.state.manifest.vocabulary.labels.find((term) => term.name === 'Red');
+    expect(red).toEqual({ id: 'red', name: 'Red', color: '#ff0000' });
+    expect(byTitle(h.state, 'Anna arrives').label).toBe('red');
+    expect(byTitle(h.state, 'EXT. LIBRARY - NIGHT').label).toBe('red');
+    expect(byTitle(h.state, 'INT. LIBRARY - NIGHT').label).toBe('night');
+    expect(h.state.manifest.vocabulary.labels).toHaveLength(2);
+    expect(JSON.stringify(outcome)).toContain('Scene colours added the label \\"Red\\"');
+  });
+
+  it('creates the ticked codex rows attached to the first scene that names them, skips a name the codex holds, and one undo removes it all', () => {
+    const h = harness();
+    const before = fullSnapshot(h.state);
+    const outcome = succeed(h, 'screenplay.import', {
+      format: 'fdx',
+      text: OUTLINED,
+      parentId: CHAPTER,
+      codex: [
+        { name: 'ANNA', type: 'character', description: 'a pilot' },
+        { name: 'LIBRARY', type: 'location' },
+        { name: 'ALICE', type: 'character' },
+        { name: 'GHOST', type: 'character' },
+      ],
+    });
+    const codex = h.state.manifest.codex ?? [];
+    const anna = codex.find((entry) => entry.name === 'ANNA');
+    expect(anna).toMatchObject({ type: 'character', description: 'a pilot', origin: 'import', includePolicy: 'detected' });
+    expect(anna?.attachments).toEqual([byTitle(h.state, 'Anna arrives').id]);
+    expect(anna?.sources[0]).toMatchObject({ docId: byTitle(h.state, 'Anna arrives').id, quote: 'ANNA drags a suitcase.' });
+    const library = codex.find((entry) => entry.name === 'LIBRARY');
+    expect(library?.attachments).toEqual([byTitle(h.state, 'EXT. LIBRARY - NIGHT').id]);
+    // "Alice" is in the codex already: never merged, never duplicated.
+    expect(codex.filter((entry) => entry.name.toLowerCase() === 'alice')).toHaveLength(1);
+    expect(codex.find((entry) => entry.name === 'GHOST')?.attachments).toEqual([]);
+    const text = JSON.stringify(outcome);
+    expect(text).toContain('an import never merges into an entry');
+    expect(text).toContain('not named in any imported scene');
+    expect(outcome.result).toMatchObject({ codexEntries: 3, labels: 2 });
+    undoGroup(h, outcome);
+    expect(fullSnapshot(h.state)).toBe(before);
+  });
+
+  it('adds a row with the include policy it carries (a flagged row is manual), detected without one', () => {
+    const h = harness();
+    succeed(h, 'screenplay.import', {
+      format: 'fdx',
+      text: OUTLINED,
+      parentId: CHAPTER,
+      codex: [
+        { name: 'ANNA', type: 'character', includePolicy: 'manual' },
+        { name: 'LIBRARY', type: 'location' },
+      ],
+    });
+    const codex = h.state.manifest.codex ?? [];
+    expect(codex.find((entry) => entry.name === 'ANNA')?.includePolicy).toBe('manual');
+    expect(codex.find((entry) => entry.name === 'LIBRARY')?.includePolicy).toBe('detected');
+  });
+
+  // The FDX reader offers only rows the command accepts: its limits are the bus's (pawcommit-review F1 on #321).
+  it('offers seeds within the limits screenplay.import checks', () => {
+    expect(FDX_SEEDS_MAX).toBe(SCREENPLAY_IMPORT_SEEDS_MAX);
+    expect(FDX_SEED_NAME_MAX).toBe(CODEX_NAME_MAX);
+    expect(FDX_SEED_DESCRIPTION_MAX).toBe(CODEX_DESCRIPTION_MAX);
+  });
+
+  it('leaves a project with no codex without one after the undo', () => {
+    const h = harness();
+    delete h.state.manifest.codex;
+    const outcome = succeed(h, 'screenplay.import', { format: 'fdx', text: OUTLINED, parentId: CHAPTER, codex: [{ name: 'ANNA', type: 'character' }] });
+    expect(h.state.manifest.codex).toHaveLength(1);
+    undoGroup(h, outcome);
+    expect('codex' in h.state.manifest).toBe(false);
   });
 
   it('refuses a file with nothing to import, and leaves the state untouched', () => {

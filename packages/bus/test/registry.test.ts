@@ -306,7 +306,7 @@ const ROW_SAMPLE: Partial<Record<CommandName, Record<string, unknown>>> = {
   // The four newest rows of §9. Each carries only the keys its own row declares (the inverse tripwire below).
   'shot.importImage': { nodeId: SHOT_ID, stagingId: 'stg_ABCDEF0123' },
   'shot.importImages': { items: [{ nodeId: SHOT_ID, stagingId: 'stg_ABCDEF0123' }] },
-  'screenplay.import': { format: 'fountain' },
+  'screenplay.import': { format: 'fountain', codex: [{ name: 'ANNA', type: 'character' }] },
   'dialogue.importInk': { containers: [{ title: 'The Harbour', body: 'Mara: The boats are in.' }] },
   'dialogue.setMeta': { nodeId: DIALOGUE_ID, patch: { engineTarget: 'ink-json', autoLineIds: true, locBaseline: 'en-GB' } },
   'script.setShowMeta': { nodeId: SHOW_ID, patch: { ratePreset: 'broadcast', cueVocabulary: ['music', 'bed'], targetRuntimeSec: 1800 } },
