@@ -39,3 +39,6 @@ packages/cli/test/fixtures/continuity-project/** text eol=lf
 
 # Recorded model responses (golden tasks): one JSON record per line, parsed by the replay gateway, so a CRLF checkout must not reach it.
 packages/harness/test/golden-tasks/**/*.jsonl text eol=lf
+
+# Plain-text import fixtures: their encodings and CRLF line endings are what the reader is tested on, so git must not convert them.
+packages/import-read/test/fixtures/text/** binary

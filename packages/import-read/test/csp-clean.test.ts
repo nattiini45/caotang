@@ -21,7 +21,7 @@ function code(text: string): string {
 
 describe('the import readers stay inside the app policy', () => {
   it('has the source files the test expects', () => {
-    expect(files.sort()).toEqual(['index.ts', 'xml.ts', 'zip.ts']);
+    expect(files.sort()).toEqual(['index.ts', 'text.ts', 'xml.ts', 'zip.ts']);
   });
 
   const forbidden: Array<[string, RegExp]> = [
