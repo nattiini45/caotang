@@ -16,7 +16,8 @@ import { readProject } from '@caotang/store';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { FolderChangedError, MCP_VOICE, NodeArtifactFs, openFolder, type OpenFolder } from '../src/folder-api.js';
-import { folderBytes, OPENED, seedProject, CHAPTER_TWO, LANDING, STORM } from './fixture.js';
+import { declarationsWritten } from '../src/timeline-persistence.js';
+import { folderBytes, OPENED, seedProject, CHAPTER_ONE, CHAPTER_TWO, LANDING, STORM } from './fixture.js';
 import { removeDir, tempDir } from './support.js';
 
 const ENTRY = 'c_HANNE00001';
@@ -70,11 +71,11 @@ afterEach(() => {
 });
 
 /** A project folder with the app's coherence.json in it, open through the SDK's own folder session. */
-async function opened(label: string): Promise<Opened> {
+async function opened(label: string, file: CoherenceFile = appFile()): Promise<Opened> {
   const root = tempDir(`sdk-timeline-${label}`);
   made.push(root);
   await seedProject(root);
-  writeFileSync(join(root, 'coherence.json'), serializeCoherenceFile(appFile()));
+  writeFileSync(join(root, 'coherence.json'), serializeCoherenceFile(file));
   const folder = await openFolder({ root, voice: MCP_VOICE, writeCoherence: true, report: () => {} });
   const harness = createProductHarness({ state: folder.state, registry: folder.registry, externalWrites: true, ports: 'external' });
   return { folder, harness, root };
@@ -325,5 +326,106 @@ describe('a timeline batch written as its two files (timeline.md §9.2)', () => 
     } finally {
       await project.folder.close();
     }
+  });
+  it('persists a batch that only marks a scene as the main story, and one that only clears the mark', async () => {
+    // Chapter 1 is a prologue folder, so the landing inherits the prologue until the batch marks it.
+    const file = appFile();
+    file.sceneMeta[CHAPTER_ONE] = { storyPart: 'prologue' };
+    const project = await opened('main-story', file);
+    try {
+      const marked = await applyEdit(project, { ops: [{ op: 'meta', nodeId: LANDING, patch: { mainStory: true } }] });
+      expect(marked.status).toBe('persisted');
+      if (marked.status !== 'persisted') return;
+      expect(marked.files).toEqual(['coherence.json']);
+      expect(marked.readback.scenes).toEqual([
+        { nodeId: LANDING, title: 'The Landing', dayOffset: 3, durationDays: 1, timelineMode: 'linear', pov: null, storyPart: 'main' },
+      ]);
+      expect(onDisk(project.root).sceneMeta[LANDING]).toEqual({ dayOffset: 3, durationDays: 1, mainStory: true });
+
+      const cleared = await applyEdit(project, { ops: [{ op: 'meta', nodeId: LANDING, patch: { clear: ['mainStory'] } }] }, 'c_2');
+      expect(cleared.status).toBe('persisted');
+      if (cleared.status !== 'persisted') return;
+      expect(cleared.files).toEqual(['coherence.json']);
+      expect(cleared.readback.scenes[0]?.storyPart).toBe('prologue');
+      expect(onDisk(project.root).sceneMeta[LANDING]).toEqual({ dayOffset: 3, durationDays: 1 });
+    } finally {
+      await project.folder.close();
+    }
+  });
+
+  it('refuses when the app marked the same scene as the main story while the batch was being confirmed', async () => {
+    const project = await opened('main-story-clash');
+    const raced = appFile();
+    raced.sceneMeta[LANDING] = { dayOffset: 3, durationDays: 1, mainStory: true };
+    writeFileSync(join(project.root, 'coherence.json'), serializeCoherenceFile(raced));
+    const racedBytes = folderBytes(project.root);
+    const result = await applyEdit(project, { ops: [{ op: 'meta', nodeId: LANDING, patch: { storyPart: 'epilogue' } }] });
+    try {
+      expect(result.status).toBe('conflict');
+      if (result.status !== 'conflict') return;
+      expect(result.conflict.scenes).toContainEqual({
+        nodeId: LANDING,
+        title: 'The Landing',
+        field: 'mainStory',
+        expected: 'not marked',
+        current: 'marked as the main story',
+      });
+      expect(result.conflict.error.message).toContain('main-story mark');
+      expect(folderBytes(project.root)).toEqual(racedBytes);
+    } finally {
+      await project.folder.close();
+    }
+  });
+
+  it('keeps a field the app changed on the same scene when the batch changed another one', async () => {
+    const project = await opened('same-scene');
+    // The app gives the landing a point of view and clears its duration while the batch only moves its day.
+    const raced = appFile();
+    raced.sceneMeta[LANDING] = { dayOffset: 3, pov: ENTRY };
+    writeFileSync(join(project.root, 'coherence.json'), serializeCoherenceFile(raced));
+    const result = await applyEdit(project, { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 30 } }] });
+    try {
+      expect(result.status).toBe('persisted');
+      if (result.status !== 'persisted') return;
+      expect(onDisk(project.root).sceneMeta[LANDING]).toEqual({ dayOffset: 30, pov: ENTRY });
+      expect(result.readback.scenes).toEqual([
+        { nodeId: LANDING, title: 'The Landing', dayOffset: 30, durationDays: null, timelineMode: 'linear', pov: ENTRY, storyPart: 'main' },
+      ]);
+    } finally {
+      await project.folder.close();
+    }
+  });
+});
+
+describe('declarationsWritten: only the fields a batch changed reach the disk record', () => {
+  const held: Record<string, SceneMeta> = { [LANDING]: { dayOffset: 3, durationDays: 1, threads: [] } as SceneMeta };
+
+  it('writes the changed field over the disk record and keeps every other field the folder holds', () => {
+    const disk = { ...emptyCoherenceFile(), sceneMeta: { [LANDING]: { dayOffset: 3, pov: ENTRY, expectedPresent: [ENTRY] } } };
+    const mine = { ...emptyCoherenceFile(), sceneMeta: { [LANDING]: { dayOffset: 9, durationDays: 1 } } };
+    expect(declarationsWritten(disk, mine, [LANDING], held).sceneMeta[LANDING]).toEqual({ dayOffset: 9, pov: ENTRY, expectedPresent: [ENTRY] });
+  });
+
+  it('writes a clear as a removed field, and drops a record left empty', () => {
+    const disk = { ...emptyCoherenceFile(), sceneMeta: { [LANDING]: { dayOffset: 3 } } };
+    const mine = { ...emptyCoherenceFile(), sceneMeta: {} };
+    expect(declarationsWritten(disk, mine, [LANDING], { [LANDING]: { dayOffset: 3 } }).sceneMeta[LANDING]).toBeUndefined();
+  });
+
+  it('never leaves a main-story mark beside a story part the batch declared, nor the reverse', () => {
+    const declared = declarationsWritten(
+      { ...emptyCoherenceFile(), sceneMeta: { [LANDING]: { mainStory: true, pov: ENTRY } } },
+      { ...emptyCoherenceFile(), sceneMeta: { [LANDING]: { storyPart: 'epilogue' } } },
+      [LANDING],
+      {},
+    );
+    expect(declared.sceneMeta[LANDING]).toEqual({ storyPart: 'epilogue', pov: ENTRY });
+    const marked = declarationsWritten(
+      { ...emptyCoherenceFile(), sceneMeta: { [LANDING]: { storyPart: 'prologue' } } },
+      { ...emptyCoherenceFile(), sceneMeta: { [LANDING]: { mainStory: true } } },
+      [LANDING],
+      {},
+    );
+    expect(marked.sceneMeta[LANDING]).toEqual({ mainStory: true });
   });
 });

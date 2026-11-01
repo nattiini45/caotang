@@ -551,7 +551,7 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
      *
      * **The merge is per scene, and a clash refuses.** `coherence.json` holds declarations the desktop app edits too, and it is outside
      * the drift check, so its disk copy is what this write starts from (`holdCoherence.mergeInto` keeps this host's own unsaved
-     * findings on top). The batch's declarations then go over exactly the scenes it touched (`declarationsWritten`), and every other
+     * findings on top). The batch's changed fields then go over exactly the scenes it touched (`declarationsWritten`), and every other
      * scene's declaration, every finding and dismissal, every world rule and the review state stay the app's. Two values for one field
      * is the one thing a merge cannot settle, so it is a conflict: the batch is taken back out of the session's copy and nothing is
      * written. A move cannot be merged at all — the manifest is one JSON document — and the save's digest check already stops on any
@@ -643,7 +643,7 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
           return { status: 'persisted', outcome: result.outcome, readback: { scenes: [], moved: [] }, files };
         }
 
-        const writtenFile = declarationsWritten(base, mine, declarations);
+        const writtenFile = declarationsWritten(base, mine, declarations, heldMeta);
         const report: WriteReport = { written: [], rotated: [], dropped: [], pruned: [] };
         try {
           await saveProjectOnce(report);

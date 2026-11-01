@@ -157,6 +157,7 @@ const TIMELINE_FIELD_WORDS: Readonly<Record<string, string>> = {
   timelineMode: 'mode',
   pov: 'point of view',
   storyPart: 'story part',
+  mainStory: 'main-story mark',
   after_add: '“after” links',
   after_remove: '“after” links',
 };

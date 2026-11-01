@@ -30,8 +30,11 @@ import type { Manifest, TreeNode } from '@caotang/store';
 /** The two project files a timeline batch can change, as its answer names them. */
 export type TimelineFile = 'caotang.json' | 'coherence.json';
 
-/** The scene fields a batch can declare, and the read-back reports. `after` is here because an ordering op changes it. */
-export const SCENE_FIELDS = ['dayOffset', 'durationDays', 'timelineMode', 'pov', 'storyPart', 'after'] as const;
+/**
+ * The scene fields a batch can declare. `after` is here because an ordering op changes it, and `mainStory` because a meta op can mark a
+ * scene as the main story (or clear the mark) with no other field changed — a batch that did only that is still a change to write.
+ */
+export const SCENE_FIELDS = ['dayOffset', 'durationDays', 'timelineMode', 'pov', 'storyPart', 'mainStory', 'after'] as const;
 
 export type SceneField = (typeof SCENE_FIELDS)[number];
 
@@ -42,6 +45,7 @@ export const FIELD_WORDS: Readonly<Record<SceneField, string>> = {
   timelineMode: 'mode',
   pov: 'point of view',
   storyPart: 'story part',
+  mainStory: 'main-story mark',
   after: '“after” list',
 };
 
@@ -135,12 +139,15 @@ export interface TreePlace {
   readonly order: number;
 }
 
+/** One field's value as the compare reads it: `mainStory` is `true` or `null` (only the mark is stored). */
+export type FieldValue = string | number | boolean | string[] | null;
+
 /**
  * A declaration's value for one field, as the compare reads it: an absent field and a clear are the same thing, `linear` is no
  * mode at all, and an empty `after` list is no list. The bus reads `expect` the same way (`parseMetaExpect`, timeline.ts), so a
  * comparison here cannot disagree with the one the apply makes.
  */
-export function fieldValue(record: SceneMeta | undefined, field: SceneField): string | number | string[] | null {
+export function fieldValue(record: SceneMeta | undefined, field: SceneField): FieldValue {
   if (record === undefined) return null;
   switch (field) {
     case 'dayOffset':
@@ -153,6 +160,8 @@ export function fieldValue(record: SceneMeta | undefined, field: SceneField): st
       return record.pov ?? null;
     case 'storyPart':
       return record.storyPart ?? null;
+    case 'mainStory':
+      return record.mainStory === true ? true : null;
     case 'after':
       return record.after === undefined || record.after.length === 0 ? null : [...record.after];
   }
@@ -188,7 +197,7 @@ export function placesOf(tree: readonly TreeNode[]): Map<string, TreePlace> {
 /** How a value reads in words, for a conflict: days, durations, modes and parts as a writer says them. */
 function wordsOf(
   field: SceneField,
-  value: string | number | string[] | null,
+  value: FieldValue,
   titles: ReadonlyMap<string, string>,
   entryNames: ReadonlyMap<string, string>,
 ): string {
@@ -204,6 +213,8 @@ function wordsOf(
         return 'no point of view';
       case 'storyPart':
         return 'inherited';
+      case 'mainStory':
+        return 'not marked';
       case 'after':
         return 'no “after” list';
     }
@@ -216,6 +227,8 @@ function wordsOf(
     case 'timelineMode':
     case 'storyPart':
       return String(value);
+    case 'mainStory':
+      return 'marked as the main story';
     case 'pov':
       return entryNames.get(String(value)) ?? String(value);
     case 'after':
@@ -226,7 +239,7 @@ function wordsOf(
 /**
  * The scenes and fields where the folder disagrees with what this host proposed, for the scenes a batch changes.
  *
- * Only the fields the batch changes are compared: the app is free to have set a scene's point of view while the batch sets its day,
+ * Only the fields the batch changes are compared (a story part and the main-story mark count as one): the app is free to have set a scene's point of view while the batch sets its day,
  * and that is a merge, not a clash. A clash is the one case a merge could not settle — two values for one field — so it is the one
  * case that refuses, before any file is written.
  */
@@ -239,19 +252,25 @@ export function declarationClashes(
 ): SceneClash[] {
   const clashes: SceneClash[] = [];
   for (const nodeId of declarationChanges(held, next)) {
-    for (const field of SCENE_FIELDS) {
+    const changed = SCENE_FIELDS.filter(
+      (field) => JSON.stringify(fieldValue(held[nodeId], field)) !== JSON.stringify(fieldValue(next[nodeId], field)),
+    );
+    // A story part and the main-story mark are one decision (they exclude each other), so a batch that writes either is compared on
+    // both: an app-side mark is not silently dropped by a batch-declared part, nor an app-side part by a batch-written mark.
+    const compared = changed.some((field) => field === 'storyPart' || field === 'mainStory')
+      ? SCENE_FIELDS.filter((field) => changed.includes(field) || field === 'storyPart' || field === 'mainStory')
+      : changed;
+    for (const field of compared) {
       const was = fieldValue(held[nodeId], field);
-      if (JSON.stringify(was) !== JSON.stringify(fieldValue(next[nodeId], field))) {
-        const onDisk = fieldValue(disk[nodeId], field);
-        if (JSON.stringify(onDisk) !== JSON.stringify(was)) {
-          clashes.push({
-            nodeId,
-            title: titles.get(nodeId) ?? nodeId,
-            field,
-            expected: wordsOf(field, was, titles, entryNames),
-            current: wordsOf(field, onDisk, titles, entryNames),
-          });
-        }
+      const onDisk = fieldValue(disk[nodeId], field);
+      if (JSON.stringify(onDisk) !== JSON.stringify(was)) {
+        clashes.push({
+          nodeId,
+          title: titles.get(nodeId) ?? nodeId,
+          field,
+          expected: wordsOf(field, was, titles, entryNames),
+          current: wordsOf(field, onDisk, titles, entryNames),
+        });
       }
     }
   }
@@ -270,22 +289,39 @@ export function titlesOf(manifest: Manifest): Map<string, string> {
 
 /**
  * The `coherence.json` a batch writes: `disk` (the file the folder holds now, with this host's own unsaved findings delta already
- * merged onto it) with the declarations of exactly the scenes the batch changed taken from `mine`.
+ * merged onto it) with, for exactly the scenes the batch changed, the **fields** the batch changed taken from `mine`.
  *
  * Every other part of `disk` is kept as it is — the other scenes' declarations, the findings the app added, dismissed or fixed, the
  * runs, the world rules and the review state — because a timeline batch changes none of them, and a write that replaced them would
- * be this host overwriting work it never read. A scene the batch cleared loses its record entirely, as the store's apply does.
+ * be this host overwriting work it never read. The same holds inside a scene the batch touched: a field the batch did not change
+ * (`held` and `mine` agree on it) keeps the folder's value, so a point of view, a thread or an explicit clear the app wrote while the
+ * batch was being confirmed survives it. `declarationClashes` has already refused a batch whose changed fields the app changed too.
+ *
+ * A story part and the main-story mark exclude each other (coherence.md §5.2.2): when the batch wrote one of them, the other is
+ * dropped from the merged record, so an app-side mark cannot end up beside a batch-declared part. A scene whose merged record is
+ * empty loses its record entirely, as the store's apply does.
  */
 export function declarationsWritten(
   disk: CoherenceFile,
   mine: CoherenceFile,
   changed: readonly string[],
+  held: Readonly<Record<string, SceneMeta>>,
 ): CoherenceFile {
   const written: CoherenceFile = structuredClone(disk);
   for (const nodeId of changed) {
-    const record = mine.sceneMeta[nodeId];
-    if (record === undefined) delete written.sceneMeta[nodeId];
-    else written.sceneMeta[nodeId] = structuredClone(record);
+    const from = held[nodeId];
+    const to = mine.sceneMeta[nodeId];
+    const record: Record<string, unknown> = structuredClone((written.sceneMeta[nodeId] ?? {}) as Record<string, unknown>);
+    const proposed = (to ?? {}) as Record<string, unknown>;
+    const fields = SCENE_FIELDS.filter((field) => JSON.stringify(fieldValue(from, field)) !== JSON.stringify(fieldValue(to, field)));
+    for (const field of fields) {
+      if (fieldValue(to, field) === null) delete record[field];
+      else record[field] = structuredClone(proposed[field]);
+    }
+    if (fields.includes('storyPart') && record['storyPart'] !== undefined) delete record['mainStory'];
+    if (fields.includes('mainStory') && record['mainStory'] === true) delete record['storyPart'];
+    if (Object.keys(record).length === 0) delete written.sceneMeta[nodeId];
+    else written.sceneMeta[nodeId] = record as SceneMeta;
   }
   return written;
 }
