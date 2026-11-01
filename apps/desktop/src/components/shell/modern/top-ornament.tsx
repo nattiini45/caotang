@@ -12,7 +12,15 @@
 /* lingui-set comment="Modern interface, the top ornament: the project's title capsule and the More (⋯) menu." */
 
 import { plural, t } from '@lingui/core/macro';
-import { useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 
 import { applyInterface, rememberInterface } from '../../../app/interface.js';
 import { shortcutLabel } from '../../../app/keymap.js';
@@ -49,18 +57,31 @@ function toolbarControls(toolbar: HTMLElement): HTMLElement[] {
 
 /**
  * The APG toolbar's roving tab stop over every control in `ref`, including ones another component draws there (the save state's
- * **Export a backup**): one is in the tab order, the arrow keys, Home and End move between them.
+ * **Export a backup**): one is in the tab order (the one last used), the arrow keys, Home and End move between them.
  */
-export function useRovingToolbar(ref: RefObject<HTMLElement | null>): (event: ReactKeyboardEvent<HTMLElement>) => void {
+export function useRovingToolbar(ref: RefObject<HTMLElement | null>): {
+  onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  onFocus: (event: ReactFocusEvent<HTMLElement>) => void;
+} {
   const current = useRef(0);
+  const settle = (controls: readonly HTMLElement[], at: number): void => {
+    current.current = at;
+    controls.forEach((control, index) => (control.tabIndex = index === at ? 0 : -1));
+  };
   useLayoutEffect(() => {
     const toolbar = ref.current;
     if (toolbar === null) return;
     const controls = toolbarControls(toolbar);
-    const at = Math.min(current.current, controls.length - 1);
-    controls.forEach((control, index) => (control.tabIndex = index === at ? 0 : -1));
+    settle(controls, Math.max(0, Math.min(current.current, controls.length - 1)));
   });
-  return (event) => {
+  const onFocus = (event: ReactFocusEvent<HTMLElement>): void => {
+    const toolbar = ref.current;
+    if (toolbar === null) return;
+    const controls = toolbarControls(toolbar);
+    const at = controls.indexOf(event.target as HTMLElement);
+    if (at !== -1) settle(controls, at);
+  };
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
     const toolbar = ref.current;
     if (toolbar === null || event.target === toolbar) return;
     const controls = toolbarControls(toolbar);
@@ -74,10 +95,10 @@ export function useRovingToolbar(ref: RefObject<HTMLElement | null>): (event: Re
     else if (key === 'End') next = controls.length - 1;
     if (next === null) return;
     event.preventDefault();
-    current.current = next;
-    controls.forEach((control, index) => (control.tabIndex = index === next ? 0 : -1));
+    settle(controls, next);
     controls[next]?.focus();
   };
+  return { onKeyDown, onFocus };
 }
 
 export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
@@ -85,7 +106,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   const toolbar = useRef<HTMLDivElement>(null);
   const more = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
-  const onKeyDown = useRovingToolbar(toolbar);
+  const roving = useRovingToolbar(toolbar);
   const details = actions.find((action) => action.id === 'details');
   const current = modernViewOf(view.rail, view.center);
   const findings = regions.findingsBadge;
@@ -100,13 +121,8 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
         role="toolbar"
         aria-label={t`Scene`}
         data-testid="modern-top-ornament"
-        onKeyDown={onKeyDown}
-        onFocus={(event) => {
-          // Remember the control focus came to, so Tab back in returns there.
-          const controls = toolbar.current === null ? [] : toolbarControls(toolbar.current);
-          const at = controls.indexOf(event.target as HTMLElement);
-          if (at !== -1) controls.forEach((control, index) => (control.tabIndex = index === at ? 0 : -1));
-        }}
+        onKeyDown={roving.onKeyDown}
+        onFocus={roving.onFocus}
       >
         <button
           type="button"
