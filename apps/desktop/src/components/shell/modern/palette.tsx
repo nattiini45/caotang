@@ -69,11 +69,12 @@ export function Palette({ regions }: ModernSlotProps): ReactNode {
         (target instanceof HTMLElement && target.isContentEditable);
       const action = resolveKey({ ...keyFacts(event), composing: isImeEnter(event) }, { inTextField, inBinder: false, shell: 'modern' });
       if (action !== 'palette') return;
-      const modal = document.querySelector('dialog:modal');
-      if (modal !== null && !modal.classList.contains('modern-palette')) return;
+      // Every dialog in the app is opened with showModal(), so an open one is modal.
+      const modal = Array.from(document.getElementsByTagName('dialog')).find((dialog) => dialog.open);
+      if (modal !== undefined && !modal.classList.contains('modern-palette')) return;
       event.preventDefault();
       event.stopPropagation();
-      if (modal !== null) {
+      if (modal !== undefined) {
         modal.querySelector<HTMLInputElement>('input')?.select();
         return;
       }

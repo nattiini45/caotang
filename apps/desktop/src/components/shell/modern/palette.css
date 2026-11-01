@@ -21,7 +21,17 @@
   border-radius: var(--radius-sheet);
   overflow: hidden;
   font: 400 15px/1.35 var(--ui);
-  animation: modern-palette-in var(--dur-2) var(--ease-spring);
+  transition:
+    opacity var(--dur-fade) linear,
+    transform var(--dur-2) var(--ease-spring);
+}
+
+/* It grows in from slightly above (§8.3); under reduced motion --dur-2 is 0s, so only the 120 ms fade is left. */
+@starting-style {
+  :root[data-shell='modern'] dialog.modern-palette[open] {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
 }
 
 :root[data-shell='modern'] dialog.modern-palette::backdrop {
@@ -30,35 +40,6 @@
 
 :root[data-shell='modern'][data-transparency='reduced'] dialog.modern-palette::backdrop {
   background: rgba(20, 16, 32, 0.45);
-}
-
-@keyframes modern-palette-in {
-  from {
-    opacity: 0;
-    transform: translateY(-8px) scale(0.98);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* Reduced motion: no movement, a short fade (§8.3). */
-@media (prefers-reduced-motion: reduce) {
-  :root[data-shell='modern'] dialog.modern-palette {
-    animation: modern-palette-fade var(--dur-fade) linear;
-  }
-}
-
-:root[data-shell='modern'][data-motion='reduced'] dialog.modern-palette {
-  animation: modern-palette-fade var(--dur-fade) linear;
-}
-
-@keyframes modern-palette-fade {
-  from {
-    opacity: 0;
-  }
 }
 
 :root[data-shell='modern'] .modern-palette-frame {
