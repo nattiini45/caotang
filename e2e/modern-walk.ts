@@ -1,5 +1,6 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { test as base, expect, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
 
+import { NO_PIN } from './classic-pin.js';
 import { SCENE, type Route, type Setup, type Step, type Target } from './modern-homes.js';
 import { binderTitle, createProject, waitForSaved } from './support.js';
 
@@ -65,7 +66,63 @@ export interface SetupOptions {
   readonly solid?: boolean;
 }
 
-/** Puts the app where a route or a surface starts, in Modern. */
+/** Builds the project a setup starts from, in Classic, the way a writer would: a new project, and for 'scene' Chapter 1 with one scene. */
+async function buildProject(page: Page, setup: Exclude<Setup, 'home'>): Promise<void> {
+  await createProject(page, PROJECT);
+  if (setup === 'scene') {
+    await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+    await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+    await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(SCENE);
+    await page.keyboard.press('Enter');
+    await page.getByRole('textbox', { name: 'Document text' }).fill(SCENE_TEXT);
+    await waitForSaved(page);
+  }
+}
+
+const SCENE_TEXT = 'The boat came in with the tide. Nobody was on it.';
+
+type State = Exclude<BrowserContextOptions['storageState'], string | undefined>;
+
+/**
+ * The Modern specs' `test`: each worker builds the 'empty' and the 'scene' project once, in Classic in a context of its own, and keeps
+ * the browser's storage (local storage and IndexedDB) as a storage state; every test then starts from a copy of it, opens the project
+ * from the projects screen and switches to Modern live. A describe block names its setup with `test.use({ setup })`; 'home' starts
+ * from a fresh profile.
+ */
+export const test = base.extend<{ setup: Setup }, { builtState: (setup: Exclude<Setup, 'home'>) => Promise<State> }>({
+  setup: ['scene', { option: true }],
+  builtState: [
+    async ({ browser }, provide, workerInfo) => {
+      const built = new Map<string, Promise<State>>();
+      const build = async (setup: Exclude<Setup, 'home'>): Promise<State> => {
+        const { baseURL, locale } = workerInfo.project.use;
+        const context = await browser.newContext({ baseURL, locale, storageState: NO_PIN, viewport: { width: 1440, height: 900 } });
+        try {
+          const page = await context.newPage();
+          await storageKept(page, true);
+          await buildProject(page, setup);
+          return await context.storageState({ indexedDB: true });
+        } finally {
+          await context.close();
+        }
+      };
+      await provide((setup) => {
+        let state = built.get(setup);
+        if (state === undefined) {
+          state = build(setup);
+          built.set(setup, state);
+        }
+        return state;
+      });
+    },
+    { scope: 'worker', timeout: 60_000 },
+  ],
+  storageState: async ({ setup, builtState }, provide) => {
+    await provide(setup === 'home' ? NO_PIN : await builtState(setup));
+  },
+});
+
+/** Puts the app where a route or a surface starts, in Modern: the built project (see `test`) opened in Classic, then Modern switched on. */
 export async function setUp(page: Page, setup: Setup, options: SetupOptions = {}): Promise<void> {
   await storageKept(page, options.banner !== true);
   await page.addInitScript(
@@ -81,14 +138,14 @@ export async function setUp(page: Page, setup: Setup, options: SetupOptions = {}
     await expect(page.getByRole('heading', { name: 'Projects in this browser' })).toBeVisible();
     return;
   }
-  await createProject(page, PROJECT);
+  await page.goto('/');
+  const row = page.getByRole('listitem').filter({ hasText: PROJECT });
+  await expect(row, 'the built project is listed (the spec uses the `test` of modern-walk.ts)').toBeVisible({ timeout: 20_000 });
+  await row.getByRole('button', { name: 'Open' }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
   if (setup === 'scene') {
-    await page.getByRole('button', { name: 'Create Chapter 1' }).click();
-    await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
-    await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(SCENE);
-    await page.keyboard.press('Enter');
-    await page.getByRole('textbox', { name: 'Document text' }).fill('The boat came in with the tide. Nobody was on it.');
-    await waitForSaved(page);
+    await binderTitle(page, SCENE).click();
+    await expect(page.getByRole('textbox', { name: 'Document text' })).toContainText(SCENE_TEXT);
   }
   await switchToModern(page);
 }

@@ -2,11 +2,10 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
-import { NO_PIN } from './classic-pin.js';
 import type { Pending, Setup, Step } from './modern-homes.js';
-import { cspViolations, runStep, setUp, watchCsp } from './modern-walk.js';
+import { cspViolations, runStep, setUp, test, watchCsp } from './modern-walk.js';
 
 /**
  * The Modern accessibility gate (M12, #313; modern-interface.md §9, §11, §15.3). Every Modern surface, in both schemes and on glass
@@ -27,7 +26,7 @@ import { cspViolations, runStep, setUp, watchCsp } from './modern-walk.js';
  * A surface still being built is `test.fixme` with the issue that builds it, as MODERN_HOMES does.
  */
 
-test.use({ storageState: NO_PIN, viewport: { width: 1440, height: 900 } });
+test.use({ viewport: { width: 1440, height: 900 } });
 
 interface Surface {
   readonly id: string;
@@ -347,11 +346,13 @@ function unexplained(surface: string, check: Check, problems: readonly string[])
 for (const surface of SURFACES) {
   test.describe(`${surface.id}`, () => {
     // axe is injected as an inline script, which the app's policy refuses; the CSP listener has its own test below, without this.
-    test.use({ bypassCSP: true });
+    test.use({ bypassCSP: true, setup: surface.setup });
     for (const scheme of SCHEMES) {
       for (const material of MATERIALS) {
-        test(`${scheme}, ${material}: axe, contrast computed on ${material}, every control 44 px`, async ({ page }) => {
+        test(`${scheme}, ${material}: axe, contrast computed on ${material}, every control 44 px`, async ({ page, browserName }) => {
           test.fixme(surface.pending !== undefined, `#${surface.pending ?? ''}: ${surface.why ?? ''}`);
+          // Solid is the same CSS in every engine (no backdrop-filter to differ on), so Chromium alone holds it; glass runs everywhere.
+          test.skip(material === 'solid' && browserName !== 'chromium', 'the solid material is checked in Chromium');
           for (const gap of GAPS.filter((each) => each.surface === surface.id)) test.info().annotations.push({ type: `gap #313 (${gap.check})`, description: gap.why });
           await open(page, surface, { scheme, solid: material === 'solid' });
           await expect(page.locator('html')).toHaveAttribute('data-shell', 'modern');
