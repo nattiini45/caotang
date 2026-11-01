@@ -276,7 +276,7 @@ function checkPatch(
       continue;
     }
     const check = checks[key];
-    if (check === undefined) continue;
+    if (check === undefined) return invalid(`params.patch.${key} has no check in this build, so it was not written`, 'this is a bug in Caotang; please report it', `patch.${key}`);
     const checked = check(value, `patch.${key}`);
     if (!checked.ok) return checked;
     typed[key] = checked.value;
