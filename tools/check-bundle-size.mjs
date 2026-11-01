@@ -71,7 +71,10 @@ export const BUDGET = {
   // 891.6 kB measured with the codex batch import (#273) on top of that: `codex.importBatch`'s descriptor (its pre-validation of up to
   // 5,000 entries and their Research pages, with a refusal per failing entry) is in the registry the app builds at start and lands in
   // the first-load locale chunk; the ceiling is that plus about 1%.
-  initialGzip: 900_000,
+  // 903.9 kB measured once the shared import preview (#267) met the Final Draft structure import (#321): each fit alone (898.3 kB with
+  // the preview), and together their descriptors grow the first-load locale chunk by 4.6 kB gzip (#321's script commands) and the entry
+  // by 0.8 kB (#321's dialog); the budget is that plus about 1%.
+  initialGzip: 913_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -87,7 +90,10 @@ export const BUDGET = {
   // the Final Draft import loads on use; the entry grew 0.5 kB raw for its loader and refusal handling). Measured standalone, minified, the whole XML reader is 14.1 kB
   // (4.5 kB gzip) and the archive reader 8.5 kB (3.4 kB gzip) without fflate, which is already its own chunk; each lands in this table as the
   // importers that use it are built (#263).
-  totalJs: 6_265_000,
+  // 6,272.4 kB measured with the shared import preview (#267), 43.6 kB over main's 6,228.8 kB: the lazy ImportPreviewDialog chunk (26.9 kB, the
+  // dialog and its model), `binder.importTree`'s descriptor in the first-load locale chunk (14.1 kB) and the entry's host, request store and
+  // Twee hand-off (2.3 kB), which put all JS 7.4 kB over the old ceiling; the ceiling is that plus about 1%. The first load is 898.3 kB gzip, under its 900.0 kB budget.
+  totalJs: 6_335_000,
 };
 
 const KB = 1000;

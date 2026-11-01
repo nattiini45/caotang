@@ -911,6 +911,41 @@ export class ProjectSession {
   }
 
   /**
+   * Commits an import preview (`binder.importTree`, import-preview.md §5): the whole proposed tree, its notes, the terms and codex rows
+   * it adds, and its pictures, as one command and so one undo step. The pictures' bytes are staged here and the command names them by
+   * `ref`, as the shot imports do; a refusal writes nothing and is kept for the status line.
+   */
+  async importTree(
+    params: Omit<CommandParams['binder.importTree'], 'pictures'>,
+    pictures: readonly { readonly ref: string; readonly bytes: Uint8Array; readonly alt?: string; readonly caption?: string }[] = [],
+  ): Promise<Result<ExecutionOutcome, CommandError>> {
+    const command: Command<CommandParams['binder.importTree']> = {
+      id: newId('cmd'),
+      name: 'binder.importTree',
+      params: {
+        ...params,
+        ...(pictures.length === 0
+          ? {}
+          : {
+              pictures: pictures.map((picture) => ({
+                ref: picture.ref,
+                stagingId: this.assetStaging.stage(picture.bytes),
+                ...(picture.alt === undefined ? {} : { alt: picture.alt }),
+                ...(picture.caption === undefined ? {} : { caption: picture.caption }),
+              })),
+            }),
+      },
+      issuedBy: 'user',
+      createdAt: Date.now(),
+    };
+    const result = await executeAsync(command, this.bus, this.registry);
+    if (!result.ok) this.rejections.push({ command: command.name, issuedBy: command.issuedBy, code: result.error.code });
+    if (pictures.length > 0) await this.refreshAssetRecords();
+    this.afterCommand();
+    return result;
+  }
+
+  /**
    * Lists the project's stored images again, for the exporter. The exporter reads them synchronously, so this runs at each point the
    * images can have changed (the open, the import of a cover or a shot's picture, the attach of a folder, an export asked for), and a
    * compile reads what it last listed. A listing that fails is held as its error: the compile that needs the images is then refused

@@ -1,0 +1,214 @@
+/* The shared import preview (import-preview.md). Loaded with the dialog's chunk. */
+
+dialog.confirm.import-preview {
+  width: min(1100px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.import-preview-body h3 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+}
+
+.import-preview-body h4 {
+  margin: 8px 0 4px;
+  font-size: 12.5px;
+}
+
+.import-preview-detected {
+  font-weight: 600;
+}
+
+.import-preview-progress {
+  color: var(--muted);
+}
+
+.import-preview-error {
+  color: var(--danger, #b42318);
+}
+
+.import-preview-muted,
+.import-preview-hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.import-preview-warn {
+  color: var(--danger, #b42318);
+  font-weight: normal;
+  font-size: 12px;
+}
+
+.import-preview-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+
+.import-preview-chips label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.import-preview-ask {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.import-preview-ask p {
+  margin: 0;
+  flex-basis: 100%;
+}
+
+.import-preview-panes {
+  display: grid;
+  grid-template-columns: minmax(240px, 2fr) 3fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.import-preview-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.import-preview-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 6px;
+  cursor: default;
+}
+
+.import-preview-row[data-level='2'] {
+  padding-inline-start: 22px;
+}
+
+.import-preview-row[data-level='3'] {
+  padding-inline-start: 38px;
+}
+
+.import-preview-row[data-level='4'] {
+  padding-inline-start: 54px;
+}
+
+.import-preview-row.is-selected {
+  background: var(--selection, rgba(60, 120, 200, 0.14));
+}
+
+.import-preview-row.is-excluded .import-preview-title {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.import-preview-row:focus-visible {
+  outline: 2px solid var(--focus, #3b82f6);
+  outline-offset: -2px;
+}
+
+.import-preview-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.import-preview-row.is-part .import-preview-title,
+.import-preview-row.is-chapter .import-preview-title {
+  font-weight: 600;
+}
+
+.import-preview-scroll {
+  height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 0 10px;
+}
+
+.import-preview-block {
+  position: relative;
+}
+
+.import-preview-text {
+  margin: 0;
+  padding: 4px 0 6px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.import-preview-block.is-heading .import-preview-text {
+  font-weight: 600;
+}
+
+.import-preview-marker {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  border-top: 1px dashed var(--line-strong);
+  color: var(--muted);
+  font-size: 12px;
+  padding-top: 2px;
+}
+
+.import-preview-marker.is-chapter,
+.import-preview-marker.is-part {
+  border-top-style: solid;
+}
+
+.import-preview-gap {
+  display: flex;
+  gap: 6px;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.import-preview-block:hover > .import-preview-gap,
+.import-preview-gap:focus-within {
+  height: auto;
+  opacity: 1;
+}
+
+.import-preview-section {
+  margin-top: 12px;
+}
+
+.import-preview-table th {
+  text-align: start;
+  font-weight: 600;
+  padding-inline-end: 10px;
+}
+
+.import-preview-table td {
+  padding: 2px 8px 2px 0;
+}
+
+.import-preview-options label {
+  display: block;
+  margin: 2px 0;
+}
+
+.import-preview-report ul {
+  margin: 4px 0 8px;
+  padding-inline-start: 20px;
+}
+
+@media (max-width: 760px) {
+  .import-preview-panes {
+    grid-template-columns: 1fr;
+  }
+}

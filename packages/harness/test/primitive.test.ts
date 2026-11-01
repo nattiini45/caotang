@@ -158,6 +158,8 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('hook.delete')),
       // @ts-expect-error the writer's batch import is the app's; the agent imports through codex.import, capped at 20
       () => primitiveTool(specFor('codex.importBatch')),
+      // @ts-expect-error the import preview's commit is the writer's; the agent imports one document at a time through doc.import
+      () => primitiveTool(specFor('binder.importTree')),
       // @ts-expect-error a memory note is the writer's to forget: hard-denied for an agent as a deletion
       () => primitiveTool(specFor('memory.forget')),
     ];
