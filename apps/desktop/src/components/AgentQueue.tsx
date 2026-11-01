@@ -33,6 +33,7 @@ export function AgentQueue({
   cardKey,
   onHold,
   onRelease,
+  headingLevel = 4,
 }: {
   agent: AgentController;
   snapshot: AgentSnapshot;
@@ -41,8 +42,11 @@ export function AgentQueue({
   cardKey: string | null;
   onHold: (note: HeldNote) => void;
   onRelease: () => void;
+  /** The section heading's level: 4 in Classic's drawer, 3 in Modern's window, whose title is the h2 (modern-interface.md §9.1). */
+  headingLevel?: 3 | 4;
 }): ReactNode {
   useLingui();
+  const Heading = headingLevel === 3 ? 'h3' : 'h4';
   const { queue, notes } = snapshot;
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -127,7 +131,7 @@ export function AgentQueue({
 
       {queue.length > 0 ? (
         <section className="agent-queue" aria-label={t`Queued messages`} data-testid="agent-queue">
-          <h4><Trans>Queued messages</Trans></h4>
+          <Heading><Trans>Queued messages</Trans></Heading>
           {snapshot.queuePaused ? (
             <p className="agent-queue-paused">
               {queuePausedText()}{' '}

@@ -145,3 +145,63 @@
     background: Canvas;
   }
 }
+
+/* ---- What the accessibility gate (#313) found in Scene info: the inspector's notes on the glass, and its controls (§9.3, §9.5). ---- */
+
+/* The inspector's field notes and complaints (--warn, --danger) are Classic's paper colours, about 3:1 on thick glass over the light
+   wallpaper. On the glass they take a deeper amber and red that keep 4.5:1 over every wallpaper colour, on the bare glass and on a
+   disclosure's scrim alike; dark takes paler ones. Opaque (Reduce transparency) they are far above it. */
+:root[data-shell='modern']:not([data-theme='dark']) .scene-info {
+  --warn: #3f2e00;
+  --danger: #521c14;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) .scene-info {
+    --warn: #f6e2ad;
+    --danger: #fde2db;
+  }
+}
+
+:root[data-shell='modern'][data-theme='dark'] .scene-info {
+  --warn: #f6e2ad;
+  --danger: #fde2db;
+}
+
+/* Every field, picker and button in Scene info is at least 44 px: the inspector keeps Classic's 17–35 px heights otherwise. A link in
+   a sentence keeps its line (the save state's Export a backup); a checkbox or radio counts with its label. */
+:root[data-shell='modern'] .scene-info :is(button, .button):not(.status-link, .scene-info-save button),
+:root[data-shell='modern'] .scene-info select,
+:root[data-shell='modern'] .scene-info input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden']) {
+  min-block-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .scene-info :is(button, .button):not(.status-link, .scene-info-save button) {
+  min-inline-size: var(--target-min);
+}
+
+/* A nested disclosure (Scene declarations) keeps its marker: a list item, centred on its 44 px line. */
+:root[data-shell='modern'] .scene-info summary {
+  min-block-size: var(--target-min);
+  align-content: center;
+}
+
+:root[data-shell='modern'] .scene-info label:has(> input:is([type='checkbox'], [type='radio'])) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+}
+
+/* The project's line (§7.1): its name, a capsule that opens Project details. */
+:root[data-shell='modern'] .scene-info-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-block: 0 var(--space-4);
+}
+
+:root[data-shell='modern'] .scene-info-project > .modern-capsule {
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}

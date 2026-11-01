@@ -1,0 +1,40 @@
+/*
+ * The editor's own controls on Modern's page (docs/architecture/modern-interface.md §7.3, §9.5): what the accessibility gate (#313)
+ * found there. In the `modern-shell` chunk's stylesheet, loaded only while Modern is on; Classic's editor is unchanged.
+ *
+ * The editor footer stays on the page in Modern. Scene info › Progress (#308) holds the daily target and the save state, but not the
+ * scene's word count or **Add footnote**, so the footer is not hidden; its controls, and the toolbar's, are 44 px targets instead.
+ *
+ * Rules as in shell-modern.css: every selector starts with :root[data-shell='modern'] and only logical properties are used (checked by
+ * test/modern-css.test.ts).
+ */
+
+/* Insert picture (the toolbar), Add footnote and the daily target (the footer), and the target's own form when it is open. */
+:root[data-shell='modern'] .modern-page .editor-toolbar .button,
+:root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button),
+:root[data-shell='modern'] .modern-page .editor-status .target-quick-set input {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .modern-page .editor-toolbar .button,
+:root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+}
+
+:root[data-shell='modern'] .modern-page .editor-status .editor-footnote {
+  padding-inline: var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-page .editor-status .target-button {
+  padding-inline: var(--space-4);
+}
+
+/* The footer's words and its controls share one line, centred on the 44 px targets. */
+:root[data-shell='modern'] .modern-page .editor-status {
+  align-items: center;
+  row-gap: var(--space-2);
+}

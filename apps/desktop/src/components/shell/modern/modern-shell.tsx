@@ -18,6 +18,7 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import '../../../tokens/modern.css';
 import './shell-modern.css';
 import './surfaces-modern.css';
+import './editor-modern.css';
 
 import { LazyBoundary } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';

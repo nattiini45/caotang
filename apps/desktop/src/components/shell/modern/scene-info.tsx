@@ -115,6 +115,7 @@ function SceneInfoPanel({
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const progressId = useId();
+  const projectId = useId();
   // The popover's place, from its opener, kept in the window on a resize (§8.2), written through the CSSOM (§11). Docked, the
   // stylesheet places it.
   useLayoutEffect(() => {
@@ -197,6 +198,8 @@ function SceneInfoPanel({
     : regions.inspector;
   const { progress } = regions;
   const save = saveStateWords(progress.saveState);
+  // The project's line (§7.1): its name, which opens Project details, as the title capsule's project name does.
+  const details = regions.actions.find((action) => action.id === 'details');
 
   return (
     <div
@@ -232,6 +235,23 @@ function SceneInfoPanel({
           </button>
         </div>
         <div className="scene-info-body">
+          {details === undefined ? null : (
+            <p className="scene-info-project" data-testid="scene-info-project">
+              <span id={`${projectId}-label`} className="field-label">
+                <Trans>Project</Trans>
+              </span>
+              <button
+                type="button"
+                id={`${projectId}-name`}
+                className="modern-capsule"
+                aria-labelledby={`${projectId}-label ${projectId}-name`}
+                title={details.hint ?? details.label}
+                onClick={details.run}
+              >
+                <bdi>{regions.projectName}</bdi>
+              </button>
+            </p>
+          )}
           {inspector}
           <section className="scene-info-progress" aria-labelledby={progressId} data-testid="scene-info-progress">
             <h3 id={progressId} className="field-label">

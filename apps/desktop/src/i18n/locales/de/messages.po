@@ -10985,10 +10985,12 @@ msgstr "Fortschritt zum Manuskript"
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Modern interface, provisional controls on the page's edges.
+#. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
 #: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
+#: apps/desktop/src/components/shell/modern/scene-info.tsx
 msgid "Project"
 msgstr "Projekt"
 

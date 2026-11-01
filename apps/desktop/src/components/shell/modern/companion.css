@@ -188,3 +188,49 @@
     opacity: 0.6;
   }
 }
+
+/* ---- What the accessibility gate (#313) found in the window: contrast on the glass, 44 px targets, heading levels (§9.1, §9.3, §9.5). ---- */
+
+/* Close sits on the thick glass, not on a solid pane: Classic's quiet --ink-soft read about 2.5:1 (light) and 3.3:1 (dark) there. */
+:root[data-shell='modern'] .modern-companion .agent-head .agent-close {
+  color: var(--on-glass);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .agent-close:hover:not(:disabled) {
+  background: var(--m-solid);
+  color: var(--ink);
+}
+
+/* A Mode radio counts with its label: the whole row is the target. */
+:root[data-shell='modern'] .modern-companion .agent-mode-option {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+/* Every control in the body (New task, Run now, a task's form, a history disclosure), but a link inside a sentence. */
+:root[data-shell='modern'] .modern-companion .agent-body :is(button, .button):not(.status-link),
+:root[data-shell='modern'] .modern-companion .agent-body select,
+:root[data-shell='modern'] .modern-companion .agent-body input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden']) {
+  min-block-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body summary {
+  min-block-size: var(--target-min);
+  align-content: center;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body label:has(> input:is([type='checkbox'], [type='radio'])) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+}
+
+/* In the window the panel's title is the h2, so its sections are h3 (AgentPanel's sectionHeading); they look as the drawer's h4 do. */
+:root[data-shell='modern'] .modern-companion :is(.recurring, .agent-queue, .agent-tasks) > h3 {
+  margin-block: 0 var(--space-2);
+  margin-inline: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--muted);
+}
