@@ -78,7 +78,15 @@ export function flip(from: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>, t
   const dy = from.top + from.height / 2 - (to.top + to.height / 2);
   const sx = to.width > 0 ? Math.max(from.width / to.width, 0.05) : 1;
   const sy = to.height > 0 ? Math.max(from.height / to.height, 0.05) : 1;
-  return `translate(${round(dx)}px, ${round(dy)}px) scale(${round(sx, 3)}, ${round(sy, 3)})`;
+  return [translate(dx, dy), scale(sx, sy)].join(' ');
+}
+
+function translate(x: number, y: number): string {
+  return `translate(${round(x)}px,${round(y)}px)`;
+}
+
+function scale(x: number, y: number): string {
+  return `scale(${round(x, 3)},${round(y, 3)})`;
 }
 
 function round(value: number, places = 1): number {
@@ -142,8 +150,8 @@ function closed(dialog: HTMLDialogElement): void {
   ghost.style.setProperty('inline-size', `${from.width}px`);
   ghost.style.setProperty('block-size', `${from.height}px`);
   document.body.append(ghost);
-  const start = `translate(${round(from.left)}px, ${round(from.top)}px)`;
-  const end = `translate(${round(to.left)}px, ${round(to.top)}px) scale(${round(to.width / from.width, 3)}, ${round(to.height / from.height, 3)})`;
+  const start = translate(from.left, from.top);
+  const end = [translate(to.left, to.top), scale(to.width / from.width, to.height / from.height)].join(' ');
   const animation = ghost.animate(
     [
       { transform: start, opacity: 0.9 },

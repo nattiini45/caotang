@@ -235,7 +235,7 @@
 /* ---- Notices (§8.6): toast capsules of float glass at the top centre, with the same roles, text and buttons. ---- */
 :root[data-shell='modern'] .modern-notices {
   position: absolute;
-  inset-block-start: var(--space-6);
+  inset-block-start: var(--space-5);
   inset-inline: 0;
   margin-inline: auto;
   inline-size: min(720px, calc(100% - 2 * var(--page-gutter)));
@@ -275,8 +275,8 @@
   transform: none;
   max-inline-size: none;
   margin: 0;
-  padding-block: var(--space-3);
-  padding-inline: 22px var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: 22px var(--space-2);
   border: 1px solid var(--mat-sheet-rim);
   border-radius: var(--radius-sheet);
   background: var(--mat-float-bg);
