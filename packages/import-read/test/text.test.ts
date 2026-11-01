@@ -5,11 +5,14 @@ import { splitImport, type ImportBlock, type ProposedNode } from '@caotang/impor
 import { describe, expect, it } from 'vitest';
 
 import {
+  countPlainTextLines,
   decodePlainText,
   detectParagraphMode,
   escapePlainMarkdown,
   MAX_TEXT_BYTES,
+  MAX_TEXT_LINES,
   normalisePlainText,
+  PlainTextLimitError,
   plainTextBlocks,
   readPlainText,
 } from '../src/text.js';
@@ -109,6 +112,24 @@ describe('decodePlainText reads every common encoding through the store detectio
     const big = new Uint8Array(MAX_TEXT_BYTES + 1);
     expect(decodePlainText(big)).toEqual({ status: 'too-large', bytes: MAX_TEXT_BYTES + 1, limit: MAX_TEXT_BYTES });
   });
+
+  it('refuses 32 MiB of one-character lines by its line count, before splitting it or building a block', () => {
+    // 16 million lines that fit under the byte cap: the case where memory, not bytes, is what runs out.
+    const bytes = new Uint8Array(MAX_TEXT_BYTES).fill(0x0a);
+    for (let i = 0; i < bytes.length; i += 2) bytes[i] = 0x61;
+    const started = performance.now();
+    expect(readPlainText(bytes)).toEqual({ status: 'too-many-lines', lines: MAX_TEXT_LINES + 1, limit: MAX_TEXT_LINES });
+    expect(decodePlainText(bytes, { encoding: 'windows-1252' })).toMatchObject({ status: 'too-many-lines' });
+    expect(performance.now() - started).toBeLessThan(15_000);
+  });
+
+  it('takes a file at the line cap and refuses one line more', () => {
+    const atCap = new TextEncoder().encode('a\n'.repeat(MAX_TEXT_LINES - 1) + 'a');
+    const read = readPlainText(atCap);
+    expect(read.status).toBe('read');
+    if (read.status === 'read') expect(read.doc.blocks).toHaveLength(MAX_TEXT_LINES);
+    expect(readPlainText(new TextEncoder().encode('a\n'.repeat(MAX_TEXT_LINES)))).toMatchObject({ status: 'too-many-lines' });
+  });
 });
 
 describe('normalisePlainText', () => {
@@ -121,6 +142,18 @@ describe('normalisePlainText', () => {
 
   it('keeps tabs and the form feed', () => {
     expect(normalisePlainText('a\tb\fc').text).toBe('a\tb\fc');
+  });
+});
+
+describe('countPlainTextLines', () => {
+  it('counts every line ending once (CRLF as one) and form feeds, and stops past the limit', () => {
+    expect(countPlainTextLines('')).toBe(1);
+    expect(countPlainTextLines('a\r\nb\rc\nd\u2028e\u2029f\u0085g\fh')).toBe(8);
+    expect(countPlainTextLines('\n'.repeat(100), 10)).toBe(11);
+  });
+
+  it('plainTextBlocks throws a named error past the cap rather than allocating', () => {
+    expect(() => plainTextBlocks('\n'.repeat(MAX_TEXT_LINES))).toThrow(PlainTextLimitError);
   });
 });
 
@@ -205,6 +238,21 @@ describe('plainTextBlocks', () => {
   it('a chapter line directly above its text (no blank line) still stands alone, and so does a setext underline heading', () => {
     const { doc } = plainTextBlocks('Chapter 1\nThe ferry came at noon\nand left at one.\n\nThe Landing\n===========\nShe walked up the hill.\n');
     expect(paraTexts(doc.blocks)).toEqual(['Chapter 1', 'The ferry came at noon and left at one.', 'The Landing', 'She walked up the hill.']);
+  });
+
+  it('a `---` under prose is a scene break, not a heading underline', () => {
+    const { doc } = plainTextBlocks('She closed the door behind her\n---\nMorning came grey.\n');
+    expect(doc.blocks.map((b) => b.kind)).toEqual(['para', 'break', 'para']);
+    expect(doc.blocks[1]).toMatchObject({ marker: '---' });
+    const prose = plainTextBlocks('The ferry came at noon\nand left at one.\n---\nNext.\n').doc;
+    expect(prose.blocks.map((b) => b.kind)).toEqual(['para', 'break', 'para']);
+    expect(paraTexts(prose.blocks)).toEqual(['The ferry came at noon and left at one.', 'Next.']);
+  });
+
+  it('keeps spaces and tabs inside a line as written', () => {
+    const { doc } = plainTextBlocks('Name:\tAda  Lovelace   \n', { paragraphs: 'line' });
+    expect(paraTexts(doc.blocks)).toEqual(['Name:\tAda  Lovelace']);
+    expect(doc.losses).toBeUndefined();
   });
 
   it('a form feed is a page break, and leading indentation is dropped and reported', () => {
