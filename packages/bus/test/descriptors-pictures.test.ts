@@ -4,8 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { ASSET_IMPORT_BATCH_MAX, COMMAND_REGISTRY, pictureCommands } from '../src/index.js';
-import { makeSnapshot } from './fixtures.js';
+import { ASSET_IMPORT_BATCH_MAX, COMMAND_REGISTRY, pictureCommands, picturesUsesSnapshot } from '../src/index.js';
+import { RESEARCH, makeSnapshot } from './fixtures.js';
 
 const snapshot = makeSnapshot({
   // The record `asset.setMeta` names, with the caption its expect reads (the validate reads the record, pictures.md §2.4).
@@ -63,6 +63,40 @@ describe('asset.setMeta', () => {
     expect(v({ assetId: 'a_7K2QX9M4A1', patch: { caption: 'x' }, expect: { alt: null } })).toBe(false);
     expect(v({ assetId: 'a_7K2QX9M4A1', patch: { tags: ['a', 'a'] }, expect: { tags: null } })).toBe(false);
     expect(v({ assetId: 'a_7K2QX9M4A1', patch: { note: 'x' }, expect: { note: null } })).toBe(false);
+  });
+});
+
+// PawCommit F3 (#322): a picture named only by a shot's vendor prompt (`shot.vendorRefs[vendor].references[].assetId`) is a use,
+// so asset.delete refuses it as the store's own snapshot does, and a malformed stored vendorRefs is skipped, never thrown on.
+describe('asset.delete and shot vendor-prompt references', () => {
+  const PICTURE = 'a_7K2QX9M4A1';
+  const record = { id: PICTURE, file: `${PICTURE}.png`, mime: 'image/png' as const, sha256: 'a'.repeat(64), bytes: 10, createdAt: 'Fri 2026-10-30 11:00 AM CET (UTC+01:00)' };
+  const withShot = (shot: Record<string, unknown>) =>
+    makeSnapshot({ assets: [record], extraNodes: [{ id: 'n_shot0001', parentId: RESEARCH, type: 'document', title: 'Harbour wide', shot }] });
+
+  it('lists the vendor reference with its owning shot and refuses the delete', () => {
+    const snap = withShot({ vendorRefs: { runway: { references: [{ assetId: PICTURE, role: 'style' }] } } });
+    expect(picturesUsesSnapshot(snap).vendor).toEqual([{ assetId: PICTURE, owner: { kind: 'shot', nodeId: 'n_shot0001' } }]);
+    const result = pictureCommands.assetDelete.validate({ assetId: PICTURE }, snap);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('invalid-params');
+      expect(result.error.message).toContain('a prompt reference');
+    }
+  });
+
+  it('skips malformed vendorRefs without throwing and still deletes an unused picture', () => {
+    for (const shot of [
+      { vendorRefs: 'x' },
+      { vendorRefs: null },
+      { vendorRefs: { runway: null } },
+      { vendorRefs: { runway: { references: 'x' } } },
+      { vendorRefs: { runway: { references: [null, 7, { assetId: 3 }, { assetId: 'not-an-id' }] } } },
+    ]) {
+      const snap = withShot(shot);
+      expect(picturesUsesSnapshot(snap).vendor).toEqual([]);
+      expect(pictureCommands.assetDelete.validate({ assetId: PICTURE }, snap).ok).toBe(true);
+    }
   });
 });
 

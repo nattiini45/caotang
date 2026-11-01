@@ -37,6 +37,7 @@ import {
   type ReadAssetRecord,
   type RecordPatch,
   type UsesSnapshot,
+  type VendorRef,
 } from '@caotang/pictures';
 
 import { panelPictureRefs } from '@caotang/comic';
@@ -137,6 +138,12 @@ export function picturesUsesSnapshot(snapshot: ValidationSnapshot): UsesSnapshot
     // The registry's own reading of an inline image, linear on a body of unclosed `![` (CodeQL js/polynomial-redos).
     for (const assetId of inlineAssetIds(document.body)) inline.push({ assetId, nodeId });
   }
+  // A shot's vendor prompt names pictures in `shot.vendorRefs[vendor].references[].assetId` (video-prompt-pack.md §3); a stored
+  // value is read tolerantly, so a malformed entry is skipped rather than thrown on, as the store's own reading does.
+  const vendor: VendorRef[] = [];
+  for (const node of snapshot.manifest.tree) {
+    for (const assetId of vendorRefAssetIds(node.shot)) vendor.push({ assetId, owner: { kind: 'shot', nodeId: node.id } });
+  }
   const panels = snapshot.manifest.tree.flatMap((node) =>
     panelPictureRefs(node.comicPage).map((ref) => ({ assetId: ref.assetId, nodeId: node.id, ...(ref.panelId === undefined ? {} : { panelId: ref.panelId }) })),
   );
@@ -146,8 +153,28 @@ export function picturesUsesSnapshot(snapshot: ValidationSnapshot): UsesSnapshot
     codex: (snapshot.manifest.codex ?? []).map((entry) => ({ id: entry.id, visualRefs: entry.visualRefs })),
     links: snapshot.manifest.assetLinks ?? [],
     inline,
+    vendor,
     panels,
   };
+}
+
+/** The picture ids a shot's vendor prompts reference, skipping anything malformed. */
+function vendorRefAssetIds(shot: unknown): string[] {
+  if (!isRecord(shot)) return [];
+  const vendorRefs = shot['vendorRefs'];
+  if (!isRecord(vendorRefs)) return [];
+  const ids: string[] = [];
+  for (const entry of Object.values(vendorRefs)) {
+    if (!isRecord(entry)) continue;
+    const references = entry['references'];
+    if (!Array.isArray(references)) continue;
+    for (const reference of references) {
+      if (!isRecord(reference)) continue;
+      const assetId = reference['assetId'];
+      if (isAssetId(assetId)) ids.push(assetId);
+    }
+  }
+  return ids;
 }
 
 function recordOf(snapshot: ValidationSnapshot, assetId: string): ReadAssetRecord | undefined {
