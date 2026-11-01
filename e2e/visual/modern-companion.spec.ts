@@ -48,7 +48,7 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await page.keyboard.press('ControlOrMeta+j');
   const pane = page.getByRole('complementary', { name: 'Agent' });
   await expect(pane).toBeVisible();
-  await expect(pane.getByRole('heading', { name: 'Agent' })).toBeVisible();
+  await expect(pane.getByRole('heading', { name: 'Agent', exact: true })).toBeVisible();
   // Nothing focused, so no ring is in the picture.
   await page.evaluate(() => (globalThis as unknown as { document: { activeElement: { blur?: () => void } | null } }).document.activeElement?.blur?.());
 }

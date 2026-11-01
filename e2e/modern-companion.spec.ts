@@ -79,7 +79,7 @@ test('Ctrl+J opens the window from the editor while typing, with Agent, Mode and
   await expect(editor).toHaveText('The boat came in with the tide.');
 
   const pane = companion(page);
-  await expect(pane.getByRole('heading', { name: 'Agent' })).toBeVisible();
+  await expect(pane.getByRole('heading', { name: 'Agent', exact: true })).toBeVisible();
   await expect(pane.getByRole('group', { name: 'Mode' })).toBeVisible();
   await expect(pane.getByRole('button', { name: 'Close' })).toBeVisible();
   // The drawer's toggle is not drawn in the window.
