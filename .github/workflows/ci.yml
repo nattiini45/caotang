@@ -196,17 +196,7 @@ jobs:
           CAOTANG_VISUAL: '1'
         run: |
           if ls e2e/visual/__snapshots__/*.png >/dev/null 2>&1; then
-            # Committed snapshots compare at zero pixels. A spec whose snapshot is not committed yet (a new Modern surface) writes it
-            # and passes, with a warning, so its PNG can be reviewed from the artifact and committed; the next run compares it.
-            pnpm exec playwright test --project=visual --update-snapshots=missing
-            new=''
-            if command -v git >/dev/null 2>&1; then
-              git config --global --add safe.directory "$GITHUB_WORKSPACE"
-              new=$(git status --porcelain --untracked-files=all e2e/visual/__snapshots__ | grep '^??' || true)
-            fi
-            if [ -n "$new" ]; then
-              echo "::warning title=New visual baselines::Written by this run, not compared: $(echo "$new" | sed 's/^?? //' | tr '\n' ' '). Review them in the visual-baselines artifact and commit them."
-            fi
+            pnpm exec playwright test --project=visual
           else
             echo "::warning title=Classic baselines::No Classic snapshots are committed yet. This run wrote them; review the visual-baselines artifact and commit it into e2e/visual/__snapshots__/."
             pnpm exec playwright test --project=visual --update-snapshots=all

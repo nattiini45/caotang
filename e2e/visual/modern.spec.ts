@@ -13,7 +13,7 @@ import { waitForSaved } from '../support.js';
 
 test.use({ storageState: NO_PIN });
 
-const NOW = new Date('Mon 2026-06-01 11:00 AM CEST (UTC+02:00)');
+const NOW = new Date('2026-06-01T09:00:00Z');
 
 type Scheme = 'light' | 'dark';
 
@@ -43,6 +43,10 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await page.keyboard.press('Enter');
   await page.getByRole('textbox', { name: 'Document text' }).fill('The boat came in with the tide. Nobody was on it.');
   await waitForSaved(page);
+  // The storage notice floats over the page's top until #311 makes notices toasts; dismissed so the baseline shows the bare page.
+  const banner = page.getByTestId('storage-banner');
+  await banner.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(banner).toBeHidden();
   // Nothing focused, so no ring is in the picture.
   await page.evaluate(() => (globalThis as unknown as { document: { activeElement: { blur?: () => void } | null } }).document.activeElement?.blur?.());
 }

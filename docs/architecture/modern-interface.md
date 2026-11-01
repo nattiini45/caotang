@@ -1,6 +1,6 @@
 # Modern interface — a spatial shell beside Classic
 
-> Status: **specified, built in part.** Epic #301, milestone "Modern interface". The foundation (§16, M1, #302: the Interface setting, the `data-shell` attribute, the default rule, an empty lazily loaded Modern stylesheet, semantic-token groundwork and the Classic visual snapshots) is **built** (#314). The shell actions and the regions with `ClassicShell` (§4.1, §4.2, M2, #303) are **built**. Classic's token layer and the skin hook (M3, #304: `tokens/classic.css`, the tokens of §5.1 with Classic's values behind the shell frame, binder, agent panel, dialogs and media views, `data-skin`, §2.2) are **built** (#331). Nothing else in this document exists in the current build. The decisions in §17 bind the work when it is cut.
+> Status: **specified, built in part.** Epic #301, milestone "Modern interface". The foundation (§16, M1, #302: the Interface setting, the `data-shell` attribute, the default rule, an empty lazily loaded Modern stylesheet, semantic-token groundwork and the Classic visual snapshots) is **built** (#314). The shell actions and the regions with `ClassicShell` (§4.1, §4.2, M2, #303) are **built**. Classic's token layer and the skin hook (M3, #304: `tokens/classic.css`, the tokens of §5.1 with Classic's values behind the shell frame, binder, agent panel, dialogs and media views, `data-skin`, §2.2) are **built** (#331). Modern's stage, page and materials (M4, #305: the `modern-shell` lazy chunk with `ModernShell`, the stage, the wallpaper, the page, the slots of §6.1, `tokens/modern.css`, `shell-modern.css`, every fallback of §5.3, the Appearance switches and the bundle gate of §12) are **built**; until #306–#311 fill their slots Modern shows provisional controls built from Classic's. Nothing else in this document exists in the current build. The decisions in §17 bind the work when it is cut.
 > Scope: a second **shell** for the writing studio, called **Modern**, chosen by the owner from the concept "Glass 2 · Spatial" (2026-10-31): the manuscript as one solid floating page on a wallpaper, glass ornaments on its edges, a binder that grows out of a slim tab bar, the inspector and the status line in a scene-info popover, views that switch by morphing the page, and the agent in a companion glass window. The current interface stays, unchanged, as **Classic**, and the writer chooses in Settings › Appearance › Interface. A token layer that lets later **skins** restyle Classic (concepts A Calm, B Glass, C Focus) is designed here as a hook only.
 > Cross-refs: the Classic shell, the narrow layout and Settings = [ui-modules.md](ui-modules.md) §0–§5 · the keyboard map = `apps/desktop/src/app/keymap.ts` and ui-modules §2.5/§5.6 · the agent panel = [agent-harness.md](agent-harness.md) §8 · the editor, ghost and review marks = [editor-engine.md](editor-engine.md) §8/§15 · the codex panel = [codex-panels.md](codex-panels.md) · findings = [coherence.md](coherence.md) §8 · the binder footer = [binder-filters.md](binder-filters.md), [goals-progress.md](goals-progress.md) · interface languages and right-to-left = [i18n.md](i18n.md) §3, §5, §7 · the bundle gate = `tools/check-bundle-size.mjs` · the concept = `ui-concepts/glass2-spatial/index.html` (a design reference outside the repository; this document is the contract, not the mock).
 
@@ -148,12 +148,14 @@ The existing names (`--paper`, `--panel`, `--raised`, `--ink`, `--ink-soft`, `--
 
 ### 5.3 Materials (Modern)
 
-| Material | Used for | Recipe (starting values from the concept; M4 measures and settles them) |
+| Material | Used for | Recipe (starting values from the concept; the values M4 settled follow the table) |
 |---|---|---|
 | **Paper** | The manuscript page, board cards, the codex detail | Opaque `--surface-page`; never glass. `--radius-page` 36 px, `--elev-3`. |
 | **Glass** | Ornaments, the binder tab bar, the view lens | Light `rgba(255,255,255,.14)`, dark `rgba(30,28,44,.18)`; `backdrop-filter: blur(9px) saturate(185%)`; an inner top highlight (`--mat-glass-edge-hi`) and bottom edge; a light-catching rim drawn as a masked gradient border. A pointer-following specular highlight is decoration, set through the CSSOM (§11), off under reduced motion and reduced transparency. |
 | **Thick glass** | The scene-info popover, the **⋯** menu, the palette, the agent window, sheets and dialogs, toasts | Light `rgba(255,250,248,.40)`, dark `rgba(22,20,34,.46)`; `blur(22–24px)`. Any run of text sits on it or on a `--scrim` chip. |
 | **Frost** | The board's wall behind its paper cards | `--surface-page` at about 62% with `blur(30px)`. |
+
+**Settled in M4 (#305).** The computed contrast test (`e2e/unit/modern-contrast.spec.ts`, §9.3) changed the concept's dark values, which fell under 4.5:1 over the night sun: the dark **scrim** is `rgba(14,12,24,.56)` (from .34), dark **thick glass** `rgba(22,20,34,.64)` (from .46) and dark **frost** `rgba(28,27,33,.68)` (from .62). The light values stay the concept's (glass .14, thick glass .40, frost .62, scrim .30). The **focus ring** is two-tone and meets 3:1 on every surface: `#3730a3` in light and `#bcb7ff` in dark, each with a halo. The values live in `tokens/modern.css` as per-scheme primitives (`--m-*`) that the material tokens name, so each fallback below changes tokens only.
 
 **Scrims and contrast.** Text and icons never sit on thin glass alone. Labels on an ornament sit on a `--scrim` (light `rgba(255,252,250,.30)`, dark `rgba(14,12,24,.34)`) or on thick glass. The concept's text glow is decoration and is not counted toward contrast. The bar is computed, not eyeballed (§9.3).
 
@@ -198,6 +200,24 @@ Motion: `--dur-1` 120 ms (hover, press), `--dur-2` 240 ms (close), `--dur-3` 520
 | Projects screen | `Home` on the paper colour | `Home` on the wallpaper, its sections on paper |
 
 Below 960 px see §13.
+
+### 6.1 Slots (built in M4, #305)
+
+`ModernShell` (`components/shell/modern/modern-shell.tsx`, the `modern-shell` chunk) is the stage, the skip link, the page and seven **slots**, the places the later Modern issues fill. They are one object, `MODERN_SLOTS` in `components/shell/modern/slots.ts`, with one line per slot, so the parallel issues merge without touching each other: an issue builds its component under `components/shell/modern/`, changes only its own line, and deletes the provisional (`Interim…`) file it replaces. Nothing else in `ModernShell` changes.
+
+| Slot | Owner | What M4 ships in it | DOM place (§9.1) |
+|---|---|---|---|
+| `notices` | #311 | `InterimNotices` (the status line, the storage notices) | after the skip link |
+| `topOrnament` | #306 | `InterimTopOrnament` (the project's name, the save state, the **More** menu) | before the binder |
+| `sidebar` | #307 | `InterimSidebar` (the binder on paper) | before the page |
+| `bottomOrnament` | #306 | `InterimBottomOrnament` (the centre views as one radio group) | after the page |
+| `sceneInfo` | #308 | nothing (the inspector waits for Scene info) | after the bottom ornament |
+| `companion` | #309 | nothing (the agent drawer stays at the page's foot) | after Scene info |
+| `palette` | #310 | nothing | last, before the dialogs |
+
+**Props.** Every slot is a `ModernSlot`, a component of `ModernSlotProps` `{ regions, pageId }`: `regions` is the `ShellRegions` (the same feature elements Classic shows, and the view state), and `pageId` is the page's id, `'modern-page'` (`PAGE_ID`), for a control that moves focus to the page or names it with `aria-controls`. A slot never reads the interface (§4.3 rule 1); it is Modern by being here. A `null` slot renders nothing; the sidebar slot renders only when the rails are shown and the window is not narrow. `ModernShell` takes a `slots` prop for tests, `MODERN_SLOTS` by default.
+
+**Geometry.** Room a slot takes from the page is not the slot's business: it is the stage's **geometry**, `ModernShell`'s `geometry` prop of type `StageGeometry` (`components/shell/modern/geometry.ts`), which #306's `modernLayout` computes. Its fields, in CSS px, are `pageWidth` (default 780), `pageTop` (default max(84, 11% of the height)), `pageBottom` (the bottom ornament's room, default 112), `areaStart` (the sidebar's room, default 0, or the sidebar's width while a sidebar slot is shown, `has-sidebar`) and `areaEnd` (the companion window or a docked Scene info, default 0). `geometryProperties` turns it into the custom properties `shell-modern.css` reads (`--page-w`, `--page-top`, `--page-bottom`, `--area-start`, `--area-end`), written through the CSSOM (React's `style` prop, which `style-src 'self'` does not govern, §11); a field left out keeps the stylesheet's default.
 
 ## 7. Inventory: every surface and its Modern home
 
@@ -402,6 +422,8 @@ Numbers against `main`'s budget (`index` 1,565,000 B raw, first load 886,000 B g
 
 Changes to `tools/check-bundle-size.mjs` (M4): a cap map for named lazy chunks; a check that `modern-shell` is not among `initialFilesOf(index.html)`; a CSS section (the entry stylesheet may not grow beyond its measured size plus 1%, and Modern's CSS has its cap); and a reported "Modern first load" (the first load plus Modern's chunk and CSS, gzip), which must stay within 25 kB gzip of the Classic first load. `totalJs` rises once, by the measured size of the Modern chunk, in the pull request that adds it. A `modulepreload` for the Modern chunk is not used, because it would land in Classic's first load.
 
+**Measured at M4 (#305)** (`node tools/check-bundle-size.mjs` on the production build): the first load is 1,020.2 kB gzip against main's 1,019.1 kB (+1.1 kB for the interface store, the shared shell frame, the Modern preferences and the Appearance switches; over this table's +0.6 kB target for the boot switch, inside the 1,030,000 B ceiling, which did not move). `index` is 1,193.6 kB raw, 359.1 kB gzip. `modern-shell` is 4.6 kB raw, 1.8 kB gzip (cap 70 kB raw), and its stylesheet 12.6 kB raw, 2.8 kB gzip (cap 30 kB raw); the entry stylesheet is 105.5 kB raw, unchanged. Each wallpaper is 3.3 kB (SVG, about 1.2 kB gzip; cap 40 kB). **Modern first load** is 1,024.8 kB gzip, 4.6 kB over Classic's (allowed 25 kB). All JS is 7,682.6 kB raw; `totalJs` rose once, from 7,748,000 to 7,753,000.
+
 ## 13. Narrow and mobile
 
 Below 960 px (`NARROW_QUERY`), Modern has its own narrow layout, with the narrow layout's rules (ui-modules §1) unchanged in substance:
@@ -444,7 +466,7 @@ Playwright `toHaveScreenshot` in a `visual` project, run only in CI in the pinne
 | 0 | this spec | The contract | — |
 | 1 | M1 #302 (built, #314) | The setting, `data-shell`, the default rule with the parity gate, the empty lazy Modern stylesheet, token groundwork, Classic snapshots, the Classic e2e pin | Settings › Appearance › Interface with Modern as "Preview" |
 | 2 | M2 #303 (built), M3 #304 (built, #331) | One shell-actions list; size, shape, density, elevation and motion tokens; the skin hook | Nothing |
-| 3 | M4 #305, M5 #306 | The stage, wallpaper, page and materials with every fallback; ornaments, **⋯**, the Write / Board / Codex morph | Modern (Preview) is usable for writing |
+| 3 | M4 #305 (built), M5 #306 | The stage, wallpaper, page and materials with every fallback; ornaments, **⋯**, the Write / Board / Codex morph | Modern (Preview) is usable for writing |
 | 4 | M6 #307, M7 #308, M8 #309, M9 #310 | The sidebar, Scene info, the agent window, the palette | Every surface reachable |
 | 5 | M10 #311, M11 #312 | Dialogs, menus, Home and notices in glass; the narrow Modern layout | Modern complete on every width |
 | 6 | M12 #313 | The accessibility and reachability gate; the user guide and changelog for both interfaces; the parity gate removed, so new users get Modern | New users start in Modern |
