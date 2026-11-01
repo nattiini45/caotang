@@ -173,10 +173,12 @@ test('⋯ is a menu of every shell action, the other views and Appearance; Escap
   await menu(page).getByRole('menuitemradio', { name: 'Dark' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(button).toBeFocused();
+  // ⋯ pressed while the closing menu still shrinks opens a fresh one.
   await button.click();
   await expect(menu(page).getByRole('menuitemradio', { name: 'Dark' })).toHaveAttribute('aria-checked', 'true');
   await menu(page).getByRole('menuitemcheckbox', { name: 'Reduce transparency' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-transparency', 'reduced');
+  await expect(menu(page)).toHaveCount(0);
 
   // The other views: the timeline, with no radio of the ornament checked and Write the group's tab stop.
   await button.click();
@@ -184,12 +186,14 @@ test('⋯ is a menu of every shell action, the other views and Appearance; Escap
   await expect(page.locator('#modern-page')).toHaveAttribute('data-view', 'timeline');
   await expect(views(page).getByRole('radio', { checked: true })).toHaveCount(0);
   await expect(views(page).getByRole('radio', { name: 'Write' })).toHaveAttribute('tabindex', '0');
+  await expect(menu(page)).toHaveCount(0);
 
   // An action runs its own handler: Settings opens Settings.
   await button.click();
   await menu(page).getByRole('menuitem', { name: 'Settings' }).click();
   await expect(page.getByTestId('settings')).toBeVisible();
   await page.getByTestId('settings').getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByTestId('settings')).toBeHidden();
 
   // And the way back to Classic.
   await button.click();

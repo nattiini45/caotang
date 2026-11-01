@@ -79,7 +79,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(page.getByRole('menu', { name: 'More' })).toBeVisible();
       }
       await page.evaluate(() => (globalThis as unknown as { document: { activeElement: { blur?: () => void } | null } }).document.activeElement?.blur?.());
-      await expect(page).toHaveScreenshot(`modern-${scheme}-${surface}.png`, { animations: 'disabled', caret: 'hide', mask: masks(page), maxDiffPixels: 0 });
+      await expect(page).toHaveScreenshot(`modern-${scheme}-glass-${surface}.png`, { animations: 'disabled', caret: 'hide', mask: masks(page), maxDiffPixels: 0 });
     });
   }
 }

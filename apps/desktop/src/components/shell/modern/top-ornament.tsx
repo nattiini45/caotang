@@ -111,7 +111,16 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   const current = modernViewOf(view.rail, view.center);
   const findings = regions.findingsBadge;
 
-  const toggle = (): void => setMenu((state) => (state === 'open' ? 'closing' : state === 'closing' ? 'closing' : 'open'));
+  // Each opening is a fresh popover (its key), so ⋯ pressed while the last one is still shrinking opens a new one at once.
+  const [opening, setOpening] = useState(0);
+  const toggle = (): void => {
+    if (menu === 'open') {
+      setMenu('closing');
+      return;
+    }
+    setOpening((count) => count + 1);
+    setMenu('open');
+  };
 
   return (
     <>
@@ -156,10 +165,10 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           data-testid="modern-more"
           onClick={toggle}
           onKeyDown={(event) => {
-            if (event.key === 'ArrowDown' && menu === 'closed') {
+            if (event.key === 'ArrowDown' && menu !== 'open') {
               event.preventDefault();
               event.stopPropagation();
-              setMenu('open');
+              toggle();
             }
           }}
         >
@@ -168,6 +177,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
       </div>
       {menu === 'closed' ? null : (
         <GlassPopover
+          key={opening}
           opener={more}
           prefer="below"
           align="end"

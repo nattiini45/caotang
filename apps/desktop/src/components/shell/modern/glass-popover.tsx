@@ -154,7 +154,10 @@ export function GlassPopover({
     };
     animation.finished.then(finish, finish);
     return () => {
-      if (!done) animation.cancel();
+      // Unmounted or reopened before it finished: stop the shrink without reporting it closed.
+      if (done) return;
+      done = true;
+      animation.cancel();
     };
   }, [closing, opener]);
 
