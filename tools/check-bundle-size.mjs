@@ -12,7 +12,7 @@
  *   - a lazy chunk on BUDGET.lazy over its own raw cap, missing from the build, or in the first load (Modern's `modern-shell`,
  *     modern-interface.md §12, loads only while Modern is on);
  *   - the entry stylesheet (the stylesheet links in index.html) more than BUDGET.css.entryMargin over BUDGET.css.entry, or a lazy
- *     stylesheet over its cap on BUDGET.css.caps (Modern's, 30 kB raw);
+ *     stylesheet over its cap on BUDGET.css.caps (Modern's, 50 kB raw);
  *   - "Modern first load" (the first load plus `modern-shell`'s JS and CSS, gzip) more than BUDGET.modernFirstLoadDelta over Classic's
  *     first load.
  *
@@ -160,7 +160,7 @@ export const BUDGET = {
     entry: 105_500,
     entryMargin: 0.01,
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
-    caps: { 'modern-shell': 30_000 },
+    caps: { 'modern-shell': 50_000 } // raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this one on-use sheet, about 6 kB gzip; it never loads for Classic,
   },
   /** "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. */
   modernFirstLoadDelta: 25_000,
