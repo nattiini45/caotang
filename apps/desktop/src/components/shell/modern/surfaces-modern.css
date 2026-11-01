@@ -79,8 +79,9 @@
 }
 
 /* ---- Dialogs (§7.6): every native dialog, in sheet glass with concentric corners, over a veil. Width, height and scrolling stay
-   Classic's, so nothing inside reflows differently. ---- */
-:root[data-shell='modern'] dialog {
+   Classic's, so nothing inside reflows differently. The palette (#310) keeps its own thick glass and entry (palette.css): it is left
+   out with a zero-specificity :where(), so no rule here gains weight against Classic's. ---- */
+:root[data-shell='modern'] dialog:where(:not(.modern-palette)) {
   border: 1px solid var(--mat-sheet-rim);
   border-radius: var(--radius-sheet);
   background: var(--mat-sheet-bg);
@@ -92,16 +93,16 @@
     inset 0 -1px 0 var(--mat-glass-edge-lo);
 }
 
-:root[data-shell='modern'] dialog::backdrop {
+:root[data-shell='modern'] dialog:where(:not(.modern-palette))::backdrop {
   background: var(--mat-veil, rgba(20, 19, 17, 0.35));
 }
 
 /* Classic's opaque panels inside a dialog step back, so the sheet reads as one piece of glass; their lines stay. */
-:root[data-shell='modern'] dialog :is(.settings-nav, .settings-head, .export-actions, .project-dialog-actions) {
+:root[data-shell='modern'] dialog:where(:not(.modern-palette)) :is(.settings-nav, .settings-head, .export-actions, .project-dialog-actions) {
   background: transparent;
 }
 
-:root[data-shell='modern'] dialog h2 {
+:root[data-shell='modern'] dialog:where(:not(.modern-palette)) h2 {
   letter-spacing: -0.01em;
 }
 
@@ -192,41 +193,41 @@
 
 /* ---- Controls inside these surfaces: every one at least 44 px (§9.5). A checkbox or radio counts with its label; a link inside a
    sentence keeps its line. ---- */
-:root[data-shell='modern'] :is(dialog, .menu, .home, .modern-notices, .ink-gate) :is(button, .button):not(p button, .status-link, .menu-item),
-:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) select,
-:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden']) {
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .menu, .home, .modern-notices, .ink-gate) :is(button, .button):not(p button, .status-link, .menu-item),
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home, .modern-notices, .ink-gate) select,
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home, .modern-notices, .ink-gate) input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden']) {
   min-block-size: var(--target-min);
 }
 
-:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) .button {
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home, .modern-notices, .ink-gate) .button {
   border-radius: var(--radius-pill);
   transition:
     background-color var(--dur-1) var(--ease-standard),
     transform var(--dur-1) var(--ease-spring);
 }
 
-:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) .button:active:not(:disabled) {
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home, .modern-notices, .ink-gate) .button:active:not(:disabled) {
   transform: scale(0.97);
 }
 
-:root[data-shell='modern'] :is(dialog, .home) :is(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden'])) {
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home) :is(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden'])) {
   border-radius: 12px;
 }
 
-:root[data-shell='modern'] :is(dialog, .home) label:has(> input:is([type='checkbox'], [type='radio'])) {
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home) label:has(> input:is([type='checkbox'], [type='radio'])) {
   display: flex;
   align-items: center;
   gap: var(--space-4);
   min-block-size: var(--target-min);
 }
 
-:root[data-shell='modern'] dialog .settings-nav-item {
+:root[data-shell='modern'] dialog:where(:not(.modern-palette)) .settings-nav-item {
   display: flex;
   align-items: center;
   border-radius: 14px;
 }
 
-:root[data-shell='modern'] :is(dialog, .menu, .home, .modern-notices, .ink-gate) :is(button, .button, select, input):focus-visible {
+:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .menu, .home, .modern-notices, .ink-gate) :is(button, .button, select, input):focus-visible {
   outline: var(--focus-width) solid var(--focus);
   outline-offset: var(--focus-offset);
   box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
@@ -370,7 +371,7 @@
 
 /* ---- Forced colours: system colours, a 1 px CanvasText border on every container, no shadows, no blur. ---- */
 @media (forced-colors: active) {
-  :root[data-shell='modern'] dialog,
+  :root[data-shell='modern'] dialog:where(:not(.modern-palette)),
   :root[data-shell='modern'] .menu,
   :root[data-shell='modern'] .modern-toast > :is(.status-line, .storage-banner),
   :root[data-shell='modern'] .ink-gate:is(.empty-state, [role='alert']),

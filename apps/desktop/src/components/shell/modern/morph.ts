@@ -24,6 +24,9 @@ interface Opened {
 
 /** How long after a press the pressed control still counts as the opener. */
 const PRESS_WINDOW_MS = 2000;
+/** A dialog with this class brings its own material and entry (the palette, palette.css), so the morph and the sheet glass leave it. */
+const OWN_PRESENTATION = 'modern-palette';
+
 /** The fade a dialog appears with when nothing may move (§5.5). */
 const FADE_MS = 120;
 
@@ -192,6 +195,8 @@ export function installMorph(): void {
     for (const record of records) {
       const dialog = record.target;
       if (!(dialog instanceof HTMLDialogElement)) continue;
+      // The palette (#310) has its own presentation in palette.css: it grows in from just above, not out of an opener.
+      if (dialog.classList.contains(OWN_PRESENTATION)) continue;
       if (dialog.open && !open.has(dialog)) {
         if (modern()) opened(dialog);
       } else if (!dialog.open && open.has(dialog)) {
