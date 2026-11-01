@@ -122,15 +122,20 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The narrow layout is the stylesheet's block below 960 px, and the guide says so.
     expect(read('apps/desktop/src/styles.css')).toContain('@media (max-width: 959px)');
     expect(section).toContain('under 960 px wide');
-    const workspace = read('apps/desktop/src/components/Workspace.tsx');
+    // The narrow toolbar's buttons are drawn by the Classic shell (modern-interface.md §4.1).
+    const shell = read('apps/desktop/src/components/shell/ClassicShell.tsx');
     for (const label of ['Binder', 'Inspector', 'More']) {
       expect(section).toContain(`**${label}**`);
-      expect(workspace.split('\n').some((row) => row.trim() === `<Trans>${label}</Trans>`)).toBe(true);
+      // The label is a catalogue message (i18n.md): the shell renders it as `<Trans>…</Trans>`, or as plain text before it was localised.
+      expect(shell.split('\n').some((row) => [label, `<Trans>${label}</Trans>`].includes(row.trim()))).toBe(true);
     }
-    // The More menu's entries, each a label in the overflow list.
+    // The More menu's entries, each a label in the shell actions the menu renders from (modern-interface.md §4.2).
+    const actions = read('apps/desktop/src/app/shell-actions.ts');
+    expect(shell).toContain('items={classicMenu(actions)}');
     for (const label of ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', 'Save to folder', 'Settings']) {
       expect(section).toContain(`**${label}**`);
-      expect(workspace).toContain(`t\`${label}\``);
+      // Each label is a catalogue message (t`…`) in the shell actions, or a plain string literal.
+      expect(actions.includes(`t\`${label}\``) || actions.includes(`'${label}'`)).toBe(true);
     }
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
     expect(section).toContain('**Actions for …**');

@@ -1,7 +1,9 @@
 /**
- * The writing shell — ui-modules §1. A toolbar on top; a left rail with the binder, codex, activity and findings
- * tab slots; the centre (the editor, or the corkboard for a container); the inspector on the right. Focus mode
- * hides both rails and keeps the centre exactly as it was.
+ * The writing workspace — ui-modules §1, modern-interface.md §4.1. It holds the state and the handlers of the writing studio and
+ * builds the regions a shell arranges: the feature elements, the shell actions (app/shell-actions.ts) and the view state. The Classic
+ * shell (shell/ClassicShell.tsx) lays them out: a toolbar on top; a left rail with the binder, codex, activity and findings tab
+ * slots; the centre (the editor, or the corkboard for a container); the inspector on the right. Focus mode hides both rails and
+ * keeps the centre exactly as it was.
  *
  * This file owns only ephemeral UI state (which tab, which centre, focus mode, card size, the row being renamed,
  * the delete being confirmed, the export dialog, the theme, the status line). Project and view state live in the
@@ -16,7 +18,6 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
@@ -29,8 +30,9 @@ import type { AgentController, SubmitOptions } from '../app/agent.js';
 import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
-import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
-import { narrowMediaFeature, togglePanel, type NarrowPanel } from '../app/narrow-model.js';
+import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
+import { shellActions } from '../app/shell-actions.js';
+import { narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
   exportBundle,
   folderOverwriteSnapshotFor,
@@ -80,7 +82,6 @@ import { VocabularyEditor } from './VocabularyEditor.js';
 import { ImportPreviewHost } from '../import-preview/ImportPreviewHost.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
-import { inlineKey } from '../i18n/direction.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 import { StaleTabNotice } from './StaleTabNotice.js';
 import {
@@ -93,15 +94,10 @@ import {
   selectNode,
   setExpanded,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, Menu, ReportContext, useSession, type MenuAnchor, type MenuItem, type StatusMessage } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
-
-type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
-
-/** The rail's tabs in the order the arrow keys walk them (WAI-ARIA tabs). */
-const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'trace', 'findings'];
-/** The centre views, in the order the arrow keys walk the radio group. */
-const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard', 'timeline', 'pictures'];
+import { ClassicShell, railTabId } from './shell/ClassicShell.js';
+import type { RailTab, ShellRegions } from './shell/regions.js';
 
 /** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
 const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
@@ -112,26 +108,6 @@ const ExportDialog = lazyView(() => import('./ExportDialog.js').then((module) =>
 const FindingsPanel = lazyView(() => import('./FindingsPanel.js').then((module) => ({ default: module.FindingsPanel })));
 const ActivityPanel = lazyView(() => import('./ActivityPanel.js').then((module) => ({ default: module.ActivityPanel })));
 const TracePanel = lazyView(() => import('./TracePanel.js').then((module) => ({ default: module.TracePanel })));
-
-/** The id of a rail tab, which its tabpanel names itself by (`aria-labelledby`). */
-function railTabId(tab: RailTab): string {
-  return `rail-tab-${tab}`;
-}
-
-/**
- * The item an arrow, Home or End key moves to from `current`, or `null` for any other key. Arrows wrap at both ends, as the
- * WAI-ARIA tab and radio patterns have them, and Home and End go to the first and last item.
- */
-function keyStep<T>(items: readonly T[], current: T, pressed: string): T | null {
-  const at = items.indexOf(current);
-  if (at === -1) return null;
-  const key = inlineKey(pressed);
-  if (key === 'ArrowRight' || key === 'ArrowDown') return items[(at + 1) % items.length] ?? null;
-  if (key === 'ArrowLeft' || key === 'ArrowUp') return items[(at - 1 + items.length) % items.length] ?? null;
-  if (key === 'Home') return items[0] ?? null;
-  if (key === 'End') return items[items.length - 1] ?? null;
-  return null;
-}
 
 /**
  * The one title in rename mode, and where it is shown. The binder and the corkboard can both
@@ -655,30 +631,9 @@ export function Workspace({
       if (active === null || active === document.body || left?.contains(active)) document.getElementById(`narrow-toggle-${before}`)?.focus();
     }
   }, [openPanel, rail]);
-  const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
-    event.preventDefault();
-    setPanel(null);
-  };
   const openOverflow = (event: ReactMouseEvent<HTMLButtonElement>): void => {
     const box = event.currentTarget.getBoundingClientRect();
     setOverflow({ x: Math.max(8, box.right - 240), y: box.bottom + 4 });
-  };
-
-  // The rail's tabs and the centre's radio group: arrows (and Home and End) move the selection and its focus together.
-  const onRailTabKey = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const next = keyStep(RAIL_TABS, rail, event.key);
-    if (next === null) return;
-    event.preventDefault();
-    setRail(next);
-    document.getElementById(railTabId(next))?.focus();
-  };
-  const onCenterKey = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const next = keyStep(CENTER_VIEWS, center, event.key);
-    if (next === null) return;
-    event.preventDefault();
-    setCenter(next);
-    document.getElementById(`center-${next}`)?.focus();
   };
 
   const keyHandler = useRef(onKey);
@@ -924,443 +879,221 @@ export function Workspace({
     if (next === 'home') leaveNow();
     else if (next !== null) setCenterNow(next);
   };
-  // The toolbar's controls beyond the two panels, in the narrow layout. They are the wide toolbar's buttons, with the same handlers.
-  const overflowItems: readonly MenuItem[] = [
-    { key: 'projects', label: t`Projects`, onSelect: leave },
-    { key: 'details', label: t`Project details`, onSelect: () => openDialog({ kind: 'project' }) },
-    { key: 'undo', label: t`Undo`, disabled: undoLabel === null, onSelect: undoNow },
-    { key: 'focus', label: focusMode ? t`Leave focus mode` : t`Focus mode`, onSelect: toggleFocus },
-    { key: 'skills', label: t`Skills`, separatorBefore: true, onSelect: () => openDialog({ kind: 'skills' }) },
-    { key: 'instructions', label: t`Instructions`, onSelect: () => openDialog({ kind: 'agent-instructions' }) },
-    { key: 'compile', label: t`Compile…`, separatorBefore: true, onSelect: () => setExporting(true) },
-    { key: 'bundle', label: t`Export bundle`, onSelect: exportBundleOffering },
-    ...(folderAccessSupported() ? [{ key: 'folder', label: t`Save to folder`, onSelect: saveToFolder }] : []),
-    { key: 'settings', label: t`Settings`, separatorBefore: true, onSelect: () => setSettingsSection('providers') },
-    { key: 'theme', label: theme === 'dark' ? t`Light theme` : t`Dark theme`, onSelect: toggleTheme },
-  ];
+  // The shell actions (modern-interface.md §4.2): Classic's toolbar and its narrow More menu both render from this one list.
+  const actions = shellActions(
+    { undoLabel, focusMode, theme, folderPicker: folderAccessSupported(), keyboardLayout },
+    {
+      projects: leave,
+      details: () => openDialog({ kind: 'project' }),
+      undo: undoNow,
+      focus: toggleFocus,
+      skills: () => openDialog({ kind: 'skills' }),
+      instructions: () => openDialog({ kind: 'agent-instructions' }),
+      compile: () => setExporting(true),
+      bundle: exportBundleOffering,
+      folder: saveToFolder,
+      settings: () => setSettingsSection('providers'),
+      theme: toggleTheme,
+    },
+  );
+
+  // The regions a shell arranges (modern-interface.md §4.1): the feature elements, built once here, and the view state.
+  const regions: ShellRegions = {
+    projectName: state.manifest.project.name,
+    actions,
+    view: {
+      rail,
+      setRail,
+      center,
+      setCenter,
+      focusMode,
+      hideRails,
+      narrow,
+      agentOpen,
+      openPanel,
+      setPanel,
+      overflow,
+      openOverflow,
+      closeOverflow: () => setOverflow(null),
+    },
+    binder: (
+      <>
+        <Binder
+          session={session}
+          renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
+          onRename={renameOn('binder')}
+          onAskDelete={askDelete}
+          onShowCenter={showCenter}
+          onOpened={() => setPanel(null)}
+          onFocusSynopsis={() => {
+            if (narrow) setPanel('inspector');
+            focusSoon('#inspector-synopsis');
+          }}
+          onAgentIntent={runAgentIntent}
+        />
+        <BinderFooter session={session} runtime={store} target={target} />
+      </>
+    ),
+    codex: <CodexPanel session={session} onOpenDocument={openDocument} focus={codexFocus} onAgentIntent={runAgentIntent} />,
+    findings: (
+      <FindingsPanel
+        session={session}
+        onReveal={revealPassage}
+        settings={settingsNow.coherence}
+        providers={services.providers}
+        onOpenAgent={() => {
+          setAgentOpen(true);
+          setPanel(null);
+        }}
+        onOpenDocument={openDocument}
+        focusGroup={findingsFocus}
+        onGroupFocused={() => setFindingsFocus(null)}
+        onShowOnTimeline={showOnTimeline}
+      />
+    ),
+    findingsBadge: openFindingCount(session.coherenceFile()),
+    activity: <ActivityPanel session={session} onExport={() => void exportActivity()} />,
+    trace: <TracePanel services={services} projectName={state.manifest.project.name} />,
+    inspector: (
+      <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
+    ),
+    editor: (
+      <EditorPane
+        session={session}
+        docId={activeDoc}
+        onNewDocument={() => createAndEdit(newItemParent(state, selected), 'document')}
+        onNewChapter={
+          newDocumentRefusalText(newItemParent(state, selected)) === undefined ? undefined : () => createAndEdit('manuscript', 'folder')
+        }
+        focusDocId={focusDocId}
+        onFocusHandled={clearFocus}
+        reveal={reveal}
+        onRevealHandled={clearReveal}
+        visible={center === 'editor' && mediaView === null}
+        agent={agent}
+        target={target}
+        onSetTarget={saveTarget}
+        agentEditMode={settingsNow.editor.agentEditMode}
+      />
+    ),
+    corkboard: (
+      <Corkboard
+        session={session}
+        zoom={zoom}
+        onZoom={setZoom}
+        renaming={renaming?.surface === 'card' ? renaming.nodeId : null}
+        onRename={renameOn('card')}
+        onAskDelete={askDelete}
+      />
+    ),
+    timeline: (
+      <TimelineView
+        session={session}
+        onOpenDocument={openDocument}
+        onOpenFindings={openInFindings}
+        focusRequest={timelineFocus}
+        onFocusHandled={() => setTimelineFocus(null)}
+      />
+    ),
+    pictures: (
+      <PictureBoard session={session} focus={pictureFocus} onFocusHandled={() => setPictureFocus(null)} onOpenNode={openPictureNode} />
+    ),
+    media: mediaView,
+    // The agent arrives with its lazy chunk; until it exists the boundary shows nothing.
+    agent:
+      agent === null || recurring === null ? null : (
+        <AgentPanel
+          session={session}
+          agent={agent}
+          recurring={recurring}
+          startIntent={startIntent}
+          open={agentOpen}
+          onToggle={() => setAgentOpen((on) => !on)}
+          sample={sample}
+        />
+      ),
+    // A status region is a div: ARIA does not allow the role on an aside.
+    storageBanner: showStorageBanner ? (
+      <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
+        <div>
+          {narrow ? (
+            <p>
+              <Trans>
+                Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
+                storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home.
+                Export a backup often and keep it somewhere else.
+              </Trans>
+            </p>
+          ) : (
+            <p>
+              <Trans>
+                Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
+                can open anywhere.
+              </Trans>
+            </p>
+          )}
+          {explainStorage ? (
+            <p className="muted">
+              <Trans>
+                Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
+                the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser.
+              </Trans>
+            </p>
+          ) : null}
+        </div>
+        <div className="storage-banner-actions">
+          <button type="button" className="button" onClick={exportBundleOffering}>
+            <Trans>Export a backup</Trans>
+          </button>
+          <button type="button" className="button is-quiet" aria-expanded={explainStorage} onClick={() => setExplainStorage((on) => !on)}>
+            <Trans>Learn why</Trans>
+          </button>
+          <button
+            type="button"
+            className="button is-quiet"
+            onClick={() => {
+              dismissBannerForVisit();
+              setBannerDismissed(true);
+            }}
+          >
+            <Trans>Dismiss</Trans>
+          </button>
+        </div>
+      </div>
+    ) : null,
+    pictureNotices: (
+      <PictureNotices
+        projectId={session.projectId}
+        facts={pictureFacts}
+        onExport={exportBundleOffering}
+        {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
+      />
+    ),
+    status: message ? (
+      <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
+        <span>
+          {message.text}
+          {message.link ? (
+            <>
+              <button type="button" className="status-link" onClick={message.link.onClick}>
+                {message.link.label}
+              </button>
+              {message.link.after}
+            </>
+          ) : null}
+        </span>
+        <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
+          <Trans>Dismiss</Trans>
+        </button>
+      </div>
+    ) : null,
+    saveState: <SaveIndicator state={saveState} onExport={exportNow} />,
+  };
 
   return (
     <ReportContext.Provider value={report}>
-      <div className={`workspace${hideRails ? ' is-focus' : ''}`}>
-        <header className="toolbar" inert={openPanel !== null}>
-          <div className="toolbar-start">
-            {narrow ? (
-              hideRails ? null : (
-                <button
-                  type="button"
-                  id="narrow-toggle-rail"
-                  className="button"
-                  aria-expanded={openPanel === 'rail'}
-                  aria-controls="narrow-rail"
-                  onClick={() => setPanel(togglePanel(openPanel, 'rail'))}
-                >
-                  <Trans>Binder</Trans>
-                </button>
-              )
-            ) : (
-              <button type="button" className="button is-quiet" onClick={leave}>
-                <Trans>Projects</Trans>
-              </button>
-            )}
-            {narrow ? (
-              // The save state sits under the name: a toolbar of three buttons has no room for a sentence beside them.
-              <div className="toolbar-title">
-                <h1 className="project-name">{state.manifest.project.name}</h1>
-                <SaveIndicator state={saveState} onExport={exportNow} />
-              </div>
-            ) : (
-              <h1 className="project-name">
-                {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
-                <button
-                  type="button"
-                  className="project-name-button"
-                  title={t`Project details: title, author, language, ISBN and cover`}
-                  onClick={() => openDialog({ kind: 'project' })}
-                >
-                  {state.manifest.project.name}
-                </button>
-              </h1>
-            )}
-          </div>
-          {narrow ? (
-            // Narrow: the rail and the inspector open from here, and every other control is in the overflow menu (ui-modules §1).
-            <div className="toolbar-end">
-              {hideRails ? null : (
-                <button
-                  type="button"
-                  id="narrow-toggle-inspector"
-                  className="button"
-                  aria-expanded={openPanel === 'inspector'}
-                  aria-controls="narrow-sheet"
-                  onClick={() => setPanel(togglePanel(openPanel, 'inspector'))}
-                >
-                  <Trans>Inspector</Trans>
-                </button>
-              )}
-              <button type="button" className="button" aria-haspopup="menu" aria-expanded={overflow !== null} onClick={openOverflow}>
-                <Trans>More</Trans>
-              </button>
-            </div>
-          ) : (
-            <div className="toolbar-end">
-              <button
-                type="button"
-                className="button"
-                disabled={undoLabel === null}
-                title={undoLabel === null ? t`Nothing to undo` : t`Undo: ${{ label: undoLabel }}`}
-                onClick={undoNow}
-              >
-                <Trans>Undo</Trans>
-              </button>
-              <button
-                type="button"
-                className="button"
-                aria-pressed={focusMode}
-                title={t`Focus mode (${{ shortcut: shortcutLabel('focus-mode', keyboardLayout) }})`}
-                onClick={toggleFocus}
-              >
-                <Trans>Focus</Trans>
-              </button>
-              <button type="button" className="button" title={t`Reusable writing instructions for the agent`} onClick={() => openDialog({ kind: 'skills' })}>
-                <Trans>Skills</Trans>
-              </button>
-              <button
-                type="button"
-                className="button"
-                title={t`CAOTANG.md, your standing instructions, and the notes the agent keeps`}
-                onClick={() => openDialog({ kind: 'agent-instructions' })}
-              >
-                <Trans>Instructions</Trans>
-              </button>
-              <button type="button" className="button" onClick={() => setExporting(true)}>
-                <Trans>Compile…</Trans>
-              </button>
-              <button type="button" className="button" onClick={exportBundleOffering}>
-                <Trans>Export bundle</Trans>
-              </button>
-              {folderAccessSupported() ? (
-                <button type="button" className="button" onClick={saveToFolder}>
-                  <Trans>Save to folder</Trans>
-                </button>
-              ) : null}
-              <button type="button" className="button" onClick={() => setSettingsSection('providers')} data-testid="open-settings">
-                <Trans>Settings</Trans>
-              </button>
-              <button
-                type="button"
-                className="button"
-                aria-label={theme === 'dark' ? t`Light theme` : t`Dark theme`}
-                title={theme === 'dark' ? t`Use the light theme` : t`Use the dark theme`}
-                onClick={toggleTheme}
-              >
-                {theme === 'dark' ? <Trans>Light theme</Trans> : <Trans>Dark theme</Trans>}
-              </button>
-              <SaveIndicator state={saveState} onExport={exportNow} />
-            </div>
-          )}
-        </header>
-
-        {hideRails ? null : (
-          <nav
-            id="narrow-rail"
-            className={`rail${narrow ? ' is-drawer' : ''}${openPanel === 'rail' ? ' is-open' : ''}`}
-            aria-label={t`Project panels`}
-            onKeyDown={narrow ? onPanelKey : undefined}
-          >
-            {narrow ? (
-              <div className="panel-head">
-                <span className="panel-title">
-                  <Trans>Project panels</Trans>
-                </span>
-                <button type="button" className="button" aria-label={t`Close panels`} onClick={() => setPanel(null)}>
-                  <Trans>Close</Trans>
-                </button>
-              </div>
-            ) : null}
-            <div role="tablist" aria-label={t`Panels`} className="rail-tabs" onKeyDown={onRailTabKey}>
-              <RailTabButton tab="binder" current={rail} label={t`Binder`} onSelect={setRail} />
-              <RailTabButton tab="codex" current={rail} label={t`Codex`} onSelect={setRail} />
-              <RailTabButton tab="activity" current={rail} label={t`Activity`} onSelect={setRail} />
-              <RailTabButton tab="trace" current={rail} label={t`Trace`} onSelect={setRail} />
-              <RailTabButton
-                tab="findings"
-                current={rail}
-                label={t`Findings`}
-                badge={openFindingCount(session.coherenceFile())}
-                onSelect={setRail}
-              />
-            </div>
-            <div role="tabpanel" id="rail-panel" aria-labelledby={railTabId(rail)} className="rail-panel">
-              {rail === 'binder' ? (
-                <>
-                  <Binder
-                    session={session}
-                    renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
-                    onRename={renameOn('binder')}
-                    onAskDelete={askDelete}
-                    onShowCenter={showCenter}
-                    onOpened={() => setPanel(null)}
-                    onFocusSynopsis={() => {
-                      if (narrow) setPanel('inspector');
-                      focusSoon('#inspector-synopsis');
-                    }}
-                    onAgentIntent={runAgentIntent}
-                  />
-                  <BinderFooter session={session} runtime={store} target={target} />
-                </>
-              ) : rail === 'codex' ? (
-                <CodexPanel session={session} onOpenDocument={openDocument} focus={codexFocus} onAgentIntent={runAgentIntent} />
-              ) : rail === 'findings' ? (
-                <LazyBoundary label={t`Findings`}>
-                  <FindingsPanel
-                    session={session}
-                    onReveal={revealPassage}
-                    settings={settingsNow.coherence}
-                    providers={services.providers}
-                    onOpenAgent={() => {
-                      setAgentOpen(true);
-                      setPanel(null);
-                    }}
-                    onOpenDocument={openDocument}
-                    focusGroup={findingsFocus}
-                    onGroupFocused={() => setFindingsFocus(null)}
-                    onShowOnTimeline={showOnTimeline}
-                  />
-                </LazyBoundary>
-              ) : rail === 'trace' ? (
-                <LazyBoundary label={t`Trace`}>
-                  <TracePanel services={services} projectName={state.manifest.project.name} />
-                </LazyBoundary>
-              ) : (
-                <LazyBoundary label={t`Activity`}>
-                  <ActivityPanel
-                    session={session}
-                    onExport={() => void exportActivity()}
-                  />
-                </LazyBoundary>
-              )}
-            </div>
-          </nav>
-        )}
-
-        <main className="center" inert={openPanel !== null}>
-          <div role="radiogroup" aria-label={t`Centre view`} className="center-switch" onKeyDown={onCenterKey}>
-            <button
-              type="button"
-              id="center-editor"
-              role="radio"
-              aria-checked={center === 'editor'}
-              tabIndex={center === 'editor' ? 0 : -1}
-              className="segmented-item"
-              onClick={() => setCenter('editor')}
-            >
-              <Trans>Editor</Trans>
-            </button>
-            <button
-              type="button"
-              id="center-corkboard"
-              role="radio"
-              aria-checked={center === 'corkboard'}
-              tabIndex={center === 'corkboard' ? 0 : -1}
-              className="segmented-item"
-              onClick={() => setCenter('corkboard')}
-            >
-              <Trans>Corkboard</Trans>
-            </button>
-            <button
-              type="button"
-              id="center-timeline"
-              role="radio"
-              aria-checked={center === 'timeline'}
-              tabIndex={center === 'timeline' ? 0 : -1}
-              className="segmented-item"
-              onClick={() => setCenter('timeline')}
-            >
-              <Trans>Timeline</Trans>
-            </button>
-            <button
-              type="button"
-              id="center-pictures"
-              role="radio"
-              aria-checked={center === 'pictures'}
-              tabIndex={center === 'pictures' ? 0 : -1}
-              className="segmented-item"
-              onClick={() => setCenter('pictures')}
-            >
-              <Trans>Pictures</Trans>
-            </button>
-          </div>
-          {/* A status region is a div: ARIA does not allow the role on an aside. */}
-          {showStorageBanner ? (
-            <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
-              <div>
-                {narrow ? (
-                  <p>
-                    <Trans>
-                      Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
-                      storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home.
-                      Export a backup often and keep it somewhere else.
-                    </Trans>
-                  </p>
-                ) : (
-                  <p>
-                    <Trans>
-                      Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
-                      can open anywhere.
-                    </Trans>
-                  </p>
-                )}
-                {explainStorage ? (
-                  <p className="muted">
-                    <Trans>
-                      Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
-                      the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser.
-                    </Trans>
-                  </p>
-                ) : null}
-              </div>
-              <div className="storage-banner-actions">
-                <button type="button" className="button" onClick={exportBundleOffering}>
-                  <Trans>Export a backup</Trans>
-                </button>
-                <button type="button" className="button is-quiet" aria-expanded={explainStorage} onClick={() => setExplainStorage((on) => !on)}>
-                  <Trans>Learn why</Trans>
-                </button>
-                <button
-                  type="button"
-                  className="button is-quiet"
-                  onClick={() => {
-                    dismissBannerForVisit();
-                    setBannerDismissed(true);
-                  }}
-                >
-                  <Trans>Dismiss</Trans>
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {showStorageBanner ? null : (
-            <PictureNotices
-              projectId={session.projectId}
-              facts={pictureFacts}
-              onExport={exportBundleOffering}
-              {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
-            />
-          )}
-          {mediaView}
-          {/* Kept mounted while the corkboard is shown, so the editor keeps its undo history and its place. */}
-          <EditorPane
-            session={session}
-            docId={activeDoc}
-            onNewDocument={() => createAndEdit(newItemParent(state, selected), 'document')}
-            onNewChapter={
-              newDocumentRefusalText(newItemParent(state, selected)) === undefined ? undefined : () => createAndEdit('manuscript', 'folder')
-            }
-            focusDocId={focusDocId}
-            onFocusHandled={clearFocus}
-            reveal={reveal}
-            onRevealHandled={clearReveal}
-            visible={center === 'editor' && mediaView === null}
-            agent={agent}
-            target={target}
-            onSetTarget={saveTarget}
-            agentEditMode={settingsNow.editor.agentEditMode}
-          />
-          {center === 'corkboard' && mediaView === null && narrow ? (
-            <OpenOnDesktop
-              feature="corkboard"
-              actions={
-                <button type="button" className="button" onClick={() => setCenter('editor')}>
-                  Back to the editor
-                </button>
-              }
-            />
-          ) : null}
-          {center === 'corkboard' && mediaView === null && !narrow ? (
-            <Corkboard
-              session={session}
-              zoom={zoom}
-              onZoom={setZoom}
-              renaming={renaming?.surface === 'card' ? renaming.nodeId : null}
-              onRename={renameOn('card')}
-              onAskDelete={askDelete}
-            />
-          ) : null}
-          {center === 'pictures' ? (
-            <LazyBoundary label={t`the pictures`}>
-              <PictureBoard
-                session={session}
-                focus={pictureFocus}
-                onFocusHandled={() => setPictureFocus(null)}
-                onOpenNode={openPictureNode}
-              />
-            </LazyBoundary>
-          ) : null}
-          {center === 'timeline' ? (
-            <LazyBoundary label={t`the timeline`}>
-              <TimelineView
-                session={session}
-                onOpenDocument={openDocument}
-                onOpenFindings={openInFindings}
-                focusRequest={timelineFocus}
-                onFocusHandled={() => setTimelineFocus(null)}
-              />
-            </LazyBoundary>
-          ) : null}
-          {hideRails ? null : (
-            <LazyBoundary label={t`the agent`}>
-              {agent === null || recurring === null ? null : (
-                <AgentPanel
-                  session={session}
-                  agent={agent}
-                  recurring={recurring}
-                  startIntent={startIntent}
-                  open={agentOpen}
-                  onToggle={() => setAgentOpen((on) => !on)}
-                  sample={sample}
-                />
-              )}
-            </LazyBoundary>
-          )}
-        </main>
-
-        {hideRails ? null : narrow ? (
-          <div id="narrow-sheet" className={`sheet${openPanel === 'inspector' ? ' is-open' : ''}`} onKeyDown={onPanelKey}>
-            <div className="panel-head">
-              <span className="panel-title">
-                <Trans>Inspector</Trans>
-              </span>
-              <button type="button" id="narrow-close-inspector" className="button" aria-label={t`Close inspector`} onClick={() => setPanel(null)}>
-                <Trans>Close</Trans>
-              </button>
-            </div>
-            <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
-          </div>
-        ) : (
-          <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
-        )}
-        {openPanel === null ? null : <div className="scrim" data-testid="panel-scrim" aria-hidden="true" onClick={() => setPanel(null)} />}
-        {overflow === null ? null : <Menu label={t`More`} anchor={overflow} items={overflowItems} onClose={() => setOverflow(null)} />}
-
-        {message ? (
-          <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
-            <span>
-              {message.text}
-              {message.link ? (
-                <>
-                  <button type="button" className="status-link" onClick={message.link.onClick}>
-                    {message.link.label}
-                  </button>
-                  {message.link.after}
-                </>
-              ) : null}
-            </span>
-            <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
-              <Trans>Dismiss</Trans>
-            </button>
-          </div>
-        ) : null}
-
+      {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have. */}
+      <ClassicShell regions={regions}>
         <ConfirmDialog
           open={doomed !== undefined}
           title={doomed ? t`Delete “${{ title: isolate(doomed.title) }}”?` : t`Delete?`}
@@ -1442,7 +1175,7 @@ export function Workspace({
             onProvidersChanged={() => agent?.refresh()}
           />
         ) : null}
-      </div>
+      </ClassicShell>
     </ReportContext.Provider>
   );
 }
@@ -1461,45 +1194,6 @@ function DeleteSummary({ descendants, documents, words }: { descendants: number;
         ? t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it, and ${plural(words, { one: '# word', other: '# words' })} across ${plural(documents, { one: '# document', other: '# documents' })}. You can undo it right after with Ctrl+Z.`
         : t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it. You can undo it right after with Ctrl+Z.`}
     </p>
-  );
-}
-
-/**
- * One rail tab. Roving tabindex: the selected tab is the one Tab reaches, and the arrow keys (handled by the tab list) move
- * between the rest. The tabpanel names itself by this tab's id.
- */
-function RailTabButton({
-  tab,
-  current,
-  label,
-  badge = 0,
-  onSelect,
-}: {
-  tab: RailTab;
-  current: RailTab;
-  label: string;
-  /** A count the tab shows beside its name (the open findings). Zero shows nothing. */
-  badge?: number;
-  onSelect: (tab: RailTab) => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={railTabId(tab)}
-      aria-selected={current === tab}
-      aria-controls="rail-panel"
-      tabIndex={current === tab ? 0 : -1}
-      className={`rail-tab${current === tab ? ' is-current' : ''}`}
-      onClick={() => onSelect(tab)}
-    >
-      {label}
-      {badge > 0 ? (
-        <span className="rail-badge" aria-label={t`${plural(badge, { one: '# open', other: '# open' })}`} data-testid={`${tab}-badge`}>
-          {badge}
-        </span>
-      ) : null}
-    </button>
   );
 }
 

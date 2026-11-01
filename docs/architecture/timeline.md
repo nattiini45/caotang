@@ -18,7 +18,7 @@
 | Batch validation | `packages/harness/src/tools/restructure.ts` `projectedSnapshot`; `packages/store/src/state.ts` `siblingOrderAt` and its renormalisation | Shows what a later op must see. **Not reusable as it stands:** `projectedSnapshot` carries no coherence file and changes parents without sibling order, and a move can renormalise a sibling set. The timeline adds a pure bus projection that reproduces the store's canonical move, index and order semantics (§4.3). |
 | Undo | `packages/bus/src/undo.ts` | One agent turn = one group; one user command = one group; **no multi-command user group**, so a user batch is one batch command (`shot.importImages`) |
 | Approve and preview | plan cards, `submitPlan`, `plan-preview.ts`, `PlanCard.tsx` | The proposed edit → review → apply → checkpoint model |
-| Centre views | `Workspace.tsx` `CENTER_VIEWS = ['editor', 'corkboard', 'timeline']`, a radiogroup; `lazy-view.tsx` | Where Timeline joins, as a lazy chunk |
+| Centre views | `shell/ClassicShell.tsx` `CENTER_VIEWS = ['editor', 'corkboard', 'timeline', 'pictures']`, a radiogroup; `lazy-view.tsx` | Where Timeline joins, as a lazy chunk |
 | Exports | `MEDIA_FORMATS`, `render-xlsx.ts`, `render-contact-sheet.ts` (pdf-lib), `png-encode.ts` | Timeline CSV, XLSX, PDF |
 | Guards | `tools/check-bundle-size.mjs`, the CSP, `test/registry.test.ts`, the user-guide and not-in-this-build tests | A new command, tool or format starts in its spec and lands with spec, decisions.md, USER-GUIDE and CHANGELOG |
 

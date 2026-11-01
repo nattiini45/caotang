@@ -411,8 +411,8 @@ msgstr "{already, plural, one {# ist bereits eine Arbeitskopie.} other {# sind b
 msgid "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 msgstr "{already, plural, one {# Bild war bereits vorhanden.} other {# Bilder waren bereits vorhanden.}}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "{badge, plural, one {# open} other {# open}}"
 msgstr "{badge, plural, one {# offen} other {# offen}}"
 
@@ -2538,11 +2538,11 @@ msgstr "Aktiv"
 msgid "Active profile"
 msgstr "Aktives Profil"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: source, summary
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/ActivityPanel.tsx
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Activity"
 msgstr "Aktivität"
 
@@ -3376,6 +3376,11 @@ msgstr "Automatisch genehmigt"
 msgid "Back"
 msgstr "Zurück"
 
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
+msgid "Back to the editor"
+msgstr "Zurück zum Editor"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -3502,11 +3507,11 @@ msgstr "bestTake.vendorParams ist kein Objekt"
 msgid "bestTake.vendorParams.{key} is not text or a number"
 msgstr "bestTake.vendorParams.{key} ist weder Text noch eine Zahl"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/Binder.tsx
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Binder"
 msgstr "Binder"
 
@@ -3815,8 +3820,8 @@ msgstr "caotang.json in „{name}“ kann nicht gelesen werden. Die einzelne Sic
 msgid "caotang.json in this folder was changed by another program after Caotang read it, so nothing was written. Close this, then open the folder again to see its current copy."
 msgstr "caotang.json in diesem Ordner wurde, nachdem Caotang ihn gelesen hat, von einem anderen Programm geändert, daher wurde nichts geschrieben. Schließen Sie dies und öffnen Sie den Ordner erneut, um seine aktuelle Kopie zu sehen."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "CAOTANG.md, your standing instructions, and the notes the agent keeps"
 msgstr "CAOTANG.md, Ihre dauerhaften Anweisungen und die Notizen, die der Agent führt"
 
@@ -3870,8 +3875,8 @@ msgstr "Karten, die den eigenen Text oder die eigenen Felder des Projekts änder
 msgid "Centered"
 msgstr "Zentriert"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Centre view"
 msgstr "Ansicht zentrieren"
 
@@ -4389,17 +4394,17 @@ msgid "Clip length, seconds"
 msgstr "Cliplänge, Sekunden"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: confirm, file, files, generation, name, path
 #. Interpolated values: subject
 #. The review of returned photographs. Interpolated values: number and count are page and panel numbers; counts are numbers grouped for the formatter locale.
 #. The shot picture viewer. Interpolated values: title is the shot's title.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/CardPictureDialog.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/RecoveryDialog.tsx
 #: apps/desktop/src/components/Settings.tsx
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/media/ComicPhotoReturn.tsx
 #: apps/desktop/src/media/ShotLightbox.tsx
 msgid "Close"
@@ -4409,8 +4414,8 @@ msgstr "Schließen"
 msgid "Close details"
 msgstr "Details schließen"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Close inspector"
 msgstr "Inspektor schließen"
 
@@ -4418,15 +4423,15 @@ msgstr "Inspektor schließen"
 msgid "Close other tabs and try again, or choose a smaller picture."
 msgstr "Schließen Sie andere Registerkarten und versuchen Sie es erneut, oder wählen Sie ein kleineres Bild."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Close panels"
 msgstr "Bereiche schließen"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/InspectorSections.tsx
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Codex"
 msgstr "Kodex"
 
@@ -4651,9 +4656,8 @@ msgstr "Einen Export kompilieren"
 msgid "Compile errors"
 msgstr "Kompilierfehler"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Compile…"
 msgstr "Kompilieren…"
 
@@ -4763,8 +4767,8 @@ msgstr "Konvertieren – die Datei wird als Text neu geschrieben, den Caotang le
 msgid "Copy them into a folder beside the file"
 msgstr "Kopieren Sie sie in einen Ordner neben der Datei"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Corkboard"
 msgstr "Pinnwand"
 
@@ -4925,10 +4929,9 @@ msgstr "Tagesziel, in Wörtern (0 für keins)"
 msgid "Dark"
 msgstr "Dunkel"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Dark theme"
 msgstr "Dunkles Design"
 
@@ -5851,8 +5854,8 @@ msgstr "Die Zeitachse wird bearbeitet"
 msgid "harness.progress.timelineEdit.active"
 msgstr "Die Zeitachse wird bearbeitet ({count, plural, one {# Änderung} other {# Änderungen}})"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Editor"
 msgstr "Editor"
 
@@ -6092,9 +6095,8 @@ msgstr "Exportieren Sie eine kleinere Kopie aus dem Programm, das sie erstellt h
 msgid "Export as Markdown"
 msgstr "Als Markdown exportieren"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Export bundle"
 msgstr "Bundle exportieren"
 
@@ -6381,15 +6383,15 @@ msgstr "Feststellungsstatus geändert"
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/FindingsPanel.tsx
 #: apps/desktop/src/components/InspectorDialogue.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
-#: apps/desktop/src/components/Workspace.tsx
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Findings"
 msgstr "Feststellungen"
@@ -6455,8 +6457,8 @@ msgstr "Rückblende"
 msgid "Flashback"
 msgstr "Rückblende"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Focus"
 msgstr "Fokus"
 
@@ -6470,13 +6472,13 @@ msgstr "Fokussieren Sie eine Szene auf der Zeitachse, um sie zu ändern."
 msgid "Focus document text"
 msgstr "Dokumenttext fokussieren"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Focus mode"
 msgstr "Fokusmodus"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Focus mode ({shortcut})"
 msgstr "Fokusmodus ({shortcut})"
 
@@ -7213,12 +7215,12 @@ msgstr "In die Szene einfügen"
 msgid "Insert picture"
 msgstr "Bild einfügen"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/Inspector.tsx
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Inspector"
 msgstr "Inspektor"
 
@@ -7247,13 +7249,12 @@ msgstr "Inspektor-Ziel: Maß"
 msgid "Inspector goal words"
 msgstr "Inspektor-Ziel: Wörter"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/app/skills-model.ts
 #: apps/desktop/src/components/SkillsPanel.tsx
-#: apps/desktop/src/components/Workspace.tsx
 msgid "Instructions"
 msgstr "Anleitung"
 
@@ -7662,8 +7663,8 @@ msgstr "Lernt"
 msgid "Leave empty to title the document from the first non-empty line of the first approved page."
 msgstr "Lassen Sie das Feld leer, um das Dokument nach der ersten nicht leeren Zeile der ersten genehmigten Seite zu benennen."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Leave focus mode"
 msgstr "Fokusmodus verlassen"
 
@@ -7737,10 +7738,9 @@ msgstr "Die Comic-Seite wird lettert"
 msgid "Light"
 msgstr "Hell"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Light theme"
 msgstr "Helles Design"
 
@@ -8338,9 +8338,9 @@ msgstr "Monat beginnt am"
 msgid "Monthly"
 msgstr "Monatlich"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "More"
 msgstr "Mehr"
 
@@ -9425,8 +9425,8 @@ msgstr "Nichts zu kompilieren: Jedes Dokument in dieser Auswahl ist leer."
 msgid "Nothing to page yet. Write the scene's heading in the Source tab, and it will appear here."
 msgstr "Noch nichts zu paginieren. Schreiben Sie die Überschrift der Szene in den Quell-Tab, dann erscheint sie hier."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Nothing to undo"
 msgstr "Nichts rückgängig zu machen"
 
@@ -9882,8 +9882,8 @@ msgstr "In diesem Panel ist die Panel-Art platziert."
 msgid "Panel border"
 msgstr "Panel-Rahmen"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Panels"
 msgstr "Panels"
 
@@ -10040,14 +10040,14 @@ msgstr "Bildeinstellungen"
 msgid "Picture taken off"
 msgstr "Bild abgenommen"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/InspectorPictures.tsx
 #: apps/desktop/src/components/PictureStorageMeter.tsx
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Pictures"
 msgstr "Bilder"
@@ -10360,8 +10360,8 @@ msgstr "Fortschritt zum Manuskript"
 msgid "Project"
 msgstr "Projekt"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Project details"
 msgstr "Projektdetails"
 
@@ -10370,8 +10370,8 @@ msgstr "Projektdetails"
 msgid "Project details changed"
 msgstr "Projektdetails geändert"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Project details: title, author, language, ISBN and cover"
 msgstr "Projektdetails: Titel, Autor, Sprache, ISBN und Titelbild"
 
@@ -10390,9 +10390,9 @@ msgstr "Projektbilder"
 msgid "Project name"
 msgstr "Projektname"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Project panels"
 msgstr "Projekt-Panels"
 
@@ -10406,9 +10406,8 @@ msgstr "Projekt umbenannt"
 msgid "Project summary"
 msgstr "Projektzusammenfassung"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Projects"
 msgstr "Projekte"
 
@@ -11543,10 +11542,10 @@ msgstr "Fotos zurückgeben…"
 msgid "Returned photographs"
 msgstr "Zurückgegebene Fotos"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/components/SkillsPanel.tsx
-#: apps/desktop/src/components/Workspace.tsx
 msgid "Reusable writing instructions for the agent"
 msgstr "Wiederverwendbare Schreibanweisungen für den Agenten"
 
@@ -11888,9 +11887,8 @@ msgstr "Thread speichern"
 msgid "Save to a folder"
 msgstr "In einem Ordner speichern"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Save to folder"
 msgstr "In Ordner speichern"
 
@@ -12536,12 +12534,11 @@ msgstr "Synopsis von „{doc}“ wird gesetzt"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/LazySettings.tsx
 #: apps/desktop/src/components/Settings.tsx
-#: apps/desktop/src/components/Workspace.tsx
 msgid "Settings"
 msgstr "Einstellungen"
 
@@ -12849,12 +12846,11 @@ msgstr "Skill ein- oder ausgeschaltet"
 msgid "Skill zip"
 msgstr "Skill-Zip"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/components/SkillsPanel.tsx
-#: apps/desktop/src/components/Workspace.tsx
 msgid "Skills"
 msgstr "Skills"
 
@@ -13698,8 +13694,8 @@ msgstr "Der 1. (die Standardeinstellung)"
 msgid "The action did not finish: {reason}"
 msgstr "Die Aktion wurde nicht abgeschlossen: {reason}"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "the agent"
 msgstr "Der Agent"
 
@@ -14509,8 +14505,8 @@ msgstr "Das Bild der Einstellung „{title}“"
 msgid "The picture's file could not be read"
 msgstr "Die Datei des Bildes konnte nicht gelesen werden"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "the pictures"
 msgstr "die Bilder"
 
@@ -14943,8 +14939,8 @@ msgstr "Der Text von {file} ist leer, daher kann er nicht genehmigt werden. Füg
 msgid "The text of {kind, select, document {the document “{name}”} codex {the codex entry “{name}”} other {the file “{name}”}} was converted from {from} and opens with the project. Its original bytes are kept at “{backup}”."
 msgstr "Der Text von {kind, select, document {dem Dokument „{name}“} codex {dem Kodexeintrag „{name}“} other {der Datei „{name}“}} wurde aus {from} konvertiert und öffnet sich mit dem Projekt. Seine ursprünglichen Bytes bleiben unter „{backup}“ erhalten."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "the timeline"
 msgstr "die Zeitachse"
 
@@ -15677,14 +15673,14 @@ msgid "Time skip (declared)"
 msgstr "Zeitsprung (deklariert)"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/ExportDialog.tsx
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 #: apps/desktop/src/components/timeline/TimelineView.tsx
-#: apps/desktop/src/components/Workspace.tsx
 msgid "Timeline"
 msgstr "Zeitachse"
 
@@ -15837,9 +15833,9 @@ msgstr "Tools von {name}"
 msgid "Top of the body"
 msgstr "Beginn des Textkörpers"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Trace"
 msgstr "Ablauf"
 
@@ -16020,11 +16016,10 @@ msgstr "undatiert"
 msgid "under $0.0001"
 msgstr "unter 0,0001 $"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: source, summary
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/components/ActivityPanel.tsx
-#: apps/desktop/src/components/Workspace.tsx
 msgid "Undo"
 msgstr "Rückgängig"
 
@@ -16053,8 +16048,8 @@ msgstr "Machen Sie zuerst die späteren Änderungen rückgängig"
 msgid "Undo the later changes first. Taking back this one now could also take back text written after it."
 msgstr "Machen Sie zuerst die späteren Änderungen rückgängig. Das Zurücknehmen dieses Eintrags jetzt könnte auch Text zurücknehmen, der danach geschrieben wurde."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Undo: {label}"
 msgstr "Rückgängig: {label}"
 
@@ -16273,8 +16268,8 @@ msgstr "Als Kartenbild verwenden"
 msgid "Use external tool servers"
 msgstr "Externe Tool-Server verwenden"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Use the dark theme"
 msgstr "Das dunkle Design verwenden"
 
@@ -16283,8 +16278,8 @@ msgstr "Das dunkle Design verwenden"
 msgid "Use the folder’s version"
 msgstr "Die Version des Ordners verwenden"
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/shell-actions.ts
 msgid "Use the light theme"
 msgstr "Das helle Design verwenden"
 
