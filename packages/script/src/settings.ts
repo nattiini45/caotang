@@ -7,7 +7,14 @@
  * the stored object is not touched (the next save writes it back as it is).
  */
 
-import { ENCLOSURE_MIME_TYPES, EPISODE_TYPES, SCRIPT_LABEL_PATTERN, SPEECH_RATE_PRESET_NAMES } from '@caotang/bus';
+import {
+  CUE_VOCABULARY_MAX,
+  ENCLOSURE_MIME_TYPES,
+  EPISODE_TYPES,
+  SCRIPT_LABEL_PATTERN,
+  SPEECH_RATE_PRESET_NAMES,
+  SPEECH_RATE_WPM_MAX,
+} from '@caotang/bus';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 /** The speech-rate presets, in words per minute (§4, SD5): narration at 150, broadcast at 170. */
@@ -67,12 +74,23 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const nonBlank: Reader = (v) => (typeof v === 'string' && v.trim() !== '' ? v : undefined);
 const positive: Reader = (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined);
+/** Mirrors the setters (`@caotang/bus`): an absolute https address, and a speech rate of at most SPEECH_RATE_WPM_MAX. */
+const httpsUrl: Reader = (v) => {
+  if (nonBlank(v) === undefined) return undefined;
+  try {
+    return new URL((v as string).trim()).protocol === 'https:' ? v : undefined;
+  } catch {
+    return undefined;
+  }
+};
+const wordsPerMinute: Reader = (v) => (positive(v) !== undefined && (v as number) <= SPEECH_RATE_WPM_MAX ? v : undefined);
+const isLabel = (item: unknown): item is string => typeof item === 'string' && SCRIPT_LABEL_PATTERN.test(item.trim());
 const wholeFrom = (min: number): Reader => (v) => (typeof v === 'number' && Number.isSafeInteger(v) && v >= min ? v : undefined);
 const oneOf = (values: readonly string[]): Reader => (v) => (typeof v === 'string' && values.includes(v) ? v : undefined);
 const bool: Reader = (v) => (typeof v === 'boolean' ? v : undefined);
 const labels: Reader = (v) => {
-  if (!Array.isArray(v) || v.length === 0) return undefined;
-  if (!v.every((item): item is string => typeof item === 'string' && SCRIPT_LABEL_PATTERN.test(item.trim()))) return undefined;
+  if (!Array.isArray(v) || v.length === 0 || v.length > CUE_VOCABULARY_MAX) return undefined;
+  if (!v.every(isLabel)) return undefined;
   return v.map((item) => item.trim());
 };
 
@@ -84,24 +102,24 @@ const SHOW_READERS: Readonly<Record<keyof ShowMeta, Reader>> = {
   language: nonBlank,
   explicit: bool,
   category: nonBlank,
-  link: nonBlank,
+  link: httpsUrl,
   imageAssetId: nonBlank,
   targetRuntimeSec: positive,
-  speechRateWpm: positive,
+  speechRateWpm: wordsPerMinute,
   ratePreset: oneOf(SPEECH_RATE_PRESET_NAMES),
   cueVocabulary: labels,
-  fundingUrl: nonBlank,
+  fundingUrl: httpsUrl,
 };
 
 const EPISODE_READERS: Readonly<Record<keyof EpisodeMeta, Reader>> = {
-  audioUrl: nonBlank,
+  audioUrl: httpsUrl,
   audioBytes: wholeFrom(1),
   audioMime: oneOf(ENCLOSURE_MIME_TYPES),
   episode: wholeFrom(0),
   season: wholeFrom(1),
   episodeType: oneOf(EPISODE_TYPES),
-  transcriptUrl: nonBlank,
-  chaptersUrl: nonBlank,
+  transcriptUrl: httpsUrl,
+  chaptersUrl: httpsUrl,
 };
 
 function readWith<T>(raw: unknown, readers: Readonly<Record<string, Reader>>, field: string): SettingsRead<T> {
@@ -112,7 +130,10 @@ function readWith<T>(raw: unknown, readers: Readonly<Record<string, Reader>>, fi
   for (const [key, read] of Object.entries(readers)) {
     if (raw[key] === undefined) continue;
     const value = read(raw[key]);
-    if (value === undefined) notices.push(`${field}.${key} has a value this build cannot use, so it is left out (and kept in the file)`);
+    const bad = key === 'cueVocabulary' && Array.isArray(raw[key]) ? (raw[key] as unknown[]).findIndex((item) => !isLabel(item)) : -1;
+    if (value === undefined && bad >= 0) {
+      notices.push(`${field}.${key}[${bad}] ${JSON.stringify((raw[key] as unknown[])[bad])} is not a label, so the whole list is left out (and kept in the file) and the default cue labels apply`);
+    } else if (value === undefined) notices.push(`${field}.${key} has a value this build cannot use, so it is left out (and kept in the file)`);
     else meta[key] = value;
   }
   return { meta: meta as T, notices };
