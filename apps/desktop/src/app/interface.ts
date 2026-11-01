@@ -10,6 +10,7 @@
  * Caotang key; otherwise the page waits behind "Opening your projects…" until the stores have opened and {@link settleInterface}
  * answers. Either answer is stored at once, so it never flips on a later visit.
  */
+import { applySkin } from './skin.js';
 
 export type Interface = 'classic' | 'modern';
 
@@ -88,10 +89,13 @@ export function rememberInterface(value: Interface): void {
   }
 }
 
-/** Puts an interface on the page. The promise settles once Modern's stylesheet is in (at once for Classic). */
+/**
+ * Puts an interface on the page, with the skin that goes with it (skin.ts: a Classic skin, or none). The promise settles once
+ * Modern's stylesheet, or a chosen skin's, is in (at once for Classic with the default skin).
+ */
 export function applyInterface(value: Interface): Promise<unknown> {
   document.documentElement.dataset['shell'] = value;
-  return value === 'modern' ? import('../modern/modern.css') : Promise.resolve();
+  return Promise.all([value === 'modern' ? import('../modern/modern.css') : undefined, applySkin(value)]);
 }
 
 let pending = false;

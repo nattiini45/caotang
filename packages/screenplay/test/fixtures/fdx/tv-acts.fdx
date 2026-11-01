@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<FinalDraft DocumentType="Script" Template="No" Version="5">
+
+  <Content>
+    <Paragraph Type="Cold Opening">
+      <Text>COLD OPEN</Text>
+    </Paragraph>
+    <Paragraph Number="1" Type="Scene Heading">
+      <Text>INT. KITCHEN - MORNING</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text>The toaster catches fire.</Text>
+    </Paragraph>
+    <Paragraph Type="End of Act">
+      <Text>END OF COLD OPEN</Text>
+    </Paragraph>
+    <Paragraph Type="New Act">
+      <Text>ACT ONE</Text>
+    </Paragraph>
+    <Paragraph Number="2" Type="Scene Heading">
+      <Text>INT. FIRE STATION - DAY</Text>
+    </Paragraph>
+    <Paragraph Type="Character">
+      <Text>CHIEF ROSA</Text>
+    </Paragraph>
+    <Paragraph Type="Dialogue">
+      <Text>Again?</Text>
+    </Paragraph>
+    <Paragraph Type="End of Act">
+      <Text>END OF ACT ONE</Text>
+    </Paragraph>
+    <Paragraph Type="New Act">
+      <Text>ACT TWO</Text>
+    </Paragraph>
+    <Paragraph Number="3" Type="Scene Heading">
+      <Text>EXT. STREET - DAY</Text>
+    </Paragraph>
+    <Paragraph Type="Action">
+      <Text>Sirens.</Text>
+    </Paragraph>
+    <Paragraph Type="Cast List">
+      <Text>CHIEF ROSA - runs the station</Text>
+    </Paragraph>
+    <Paragraph Type="Cast List">
+      <Text>TOM, her nephew</Text>
+    </Paragraph>
+  </Content>
+
+  <Cast>
+    <Narrator Actor="Man 1">
+      <Element Type="Character"/>
+    </Narrator>
+    <Member Actor="Woman 1" Character="CHIEF ROSA"/>
+  </Cast>
+
+  <CharacterHighlighting>
+    <Character Color="#FFFFFFFFFFFF" Name="CHIEF ROSA" Visible="No"/>
+  </CharacterHighlighting>
+</FinalDraft>

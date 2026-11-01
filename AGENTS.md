@@ -76,7 +76,7 @@ packages/gateway/        provider gateway (profiles, roles, endpoints)
 packages/harness/        the agent harness — its tools and its registry
 packages/import-rtf/    the RTF reader every RTF-based import shares (standalone .rtf/.rtfd and Scrivener's content.rtf): bytes → the import block list and its losses; no DOM, no dependencies
 packages/ids/           id helpers
-packages/import-read/   the readers every import shares: a namespace-aware XML reader (no DOMParser) and a zip/folder reader over fflate's unzipSync with caps; main thread, Worker and Node
+packages/import-read/   the readers every import shares: a namespace-aware XML reader (no DOMParser) and a zip/folder reader over fflate's unzipSync with caps; main thread, Worker and Node; and the plain-text reader (any common encoding, to import blocks)
 packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
 packages/import-core/   the import block model and the pure chapter and scene splitter every document reader shares (no DOM, no dependencies)
 packages/mcp-client/     MCP client (Streamable HTTP)

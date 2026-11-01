@@ -115,7 +115,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'asset.import': ['stagingId', 'caption', 'alt', 'source', 'largePhotos'],
   'asset.importBatch': ['items', 'largePhotos'],
   'asset.setMeta': ['assetId', 'patch', 'expect'],
-  'screenplay.import': ['format', 'text', 'parentId'],
+  'screenplay.import': ['format', 'text', 'parentId', 'codex'],
   'dialogue.importInk': ['containers', 'parentId'],
   'dialogue.setMeta': ['nodeId', 'patch'],
   'script.setShowMeta': ['nodeId', 'patch'],
@@ -132,6 +132,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'hook.save': ['hook'],
   'hook.delete': ['hookId'],
   'codex.importBatch': ['entries', 'pages', 'parentId'],
+  'binder.importTree': ['parentId', 'nodes', 'vocabulary', 'codex', 'pictures'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */

@@ -3,11 +3,16 @@
  * cue ends, beds and the start of each timed segment.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 
-import { parseEpisode, scriptTotals } from '../src/index.js';
+import type { AnimaticTotals } from '../../storyboard/src/animatic.js';
+import { parseEpisode, scriptTotals, type ScriptTotals } from '../src/index.js';
 
 describe('ScriptTotals is the AnimaticTotals shape', () => {
+  it('is the same type as AnimaticTotals (a type-only import, so the script package does not depend on storyboard at runtime)', () => {
+    expectTypeOf<ScriptTotals>().toEqualTypeOf<AnimaticTotals>();
+  });
+
   it("has animaticTotals' three keys: seconds, timedCount and untimed", () => {
     expect(Object.keys(parseEpisode('## A\nHOST: Hi [1s]').totals)).toEqual(['seconds', 'timedCount', 'untimed']);
   });

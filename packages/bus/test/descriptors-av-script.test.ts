@@ -108,6 +108,11 @@ describe('script.setShowMeta', () => {
     });
   });
 
+  it('accepts a cue vocabulary of fifty labels, the limit', () => {
+    const cueVocabulary = Array.from({ length: 50 }, (_, i) => `cue${i}`);
+    expect(run('script.setShowMeta', { nodeId: SHOW, patch: { cueVocabulary } })).toEqual({ ok: true, value: { nodeId: SHOW, patch: { cueVocabulary } } });
+  });
+
   it('refuses a node that is not a show folder', () => {
     const e = refused(run('script.setShowMeta', { nodeId: 'manuscript', patch: { author: 'A' } }));
     expect(e.target).toBe('nodeId');
@@ -130,6 +135,7 @@ describe('script.setShowMeta', () => {
     [{ cueVocabulary: ['music', 'MUSIC'] }, 'patch.cueVocabulary[1]', /twice/],
     [{ cueVocabulary: ['2nd'] }, 'patch.cueVocabulary[0]', /not a label/],
     [{ cueVocabulary: 'music' }, 'patch.cueVocabulary', /list of labels/],
+    [{ cueVocabulary: Array.from({ length: 51 }, (_, i) => `cue${i}`) }, 'patch.cueVocabulary', /limit 50/],
     [{ author: '   ' }, 'patch.author', /non-blank/],
     [{ description: 'x'.repeat(4001) }, 'patch.description', /4000/],
   ])('refuses %j at %s', (patch, target, message) => {

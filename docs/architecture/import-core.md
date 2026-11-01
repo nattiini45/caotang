@@ -1,6 +1,6 @@
 # Import core: the block model and the chapter and scene splitter 🧭
 
-> Status: the package `packages/import-core` (`@caotang/import-core`) is **built** (#266): the block model, the rule set and the splitter, with golden fixtures. Nothing in the app calls it yet. The readers that emit blocks (DOCX, RTF and Scrivener, Markdown, plain text, EPUB, ODT, HTML), the preview dialog (#267) and committing nested Part folders (#269) are **specified, not built**. Epic: #263.
+> Status: the package `packages/import-core` (`@caotang/import-core`) is **built** (#266): the block model, the rule set and the splitter, with golden fixtures. Nothing in the app calls it yet. The plain-text reader is **built** (#283, §7.1). The preview dialog is built (#267, [import-preview.md](import-preview.md)) with a source interface shaped for `SplitResult` and `SplitOverrides`, but the source that runs `splitImport` for it is not. The other readers that emit blocks (DOCX, RTF and Scrivener, Markdown, EPUB, ODT, HTML) and committing nested Part folders (#269) are **specified, not built**. Epic: #263.
 
 ## 1. Purpose
 
@@ -91,10 +91,25 @@ Shown in the preview, never fixed by the splitter: `chapter-short` (< 100 words)
 
 ## 5. What is not built
 
-- The readers. Each emits `ImportDocument` and is a lazy chunk (#31).
-- The preview dialog (#267), which edits `SplitRules`, shows `detected` as chips and `splits` as markers, and commits one undo group.
+- The other readers (DOCX, RTF and Scrivener, Markdown, EPUB, ODT, HTML). Each emits `ImportDocument` and is a lazy chunk (#31).
+- The splitter source for the preview dialog. The dialog itself is built (#267, [import-preview.md](import-preview.md)) and commits one undo group through `binder.importTree`; the source that edits `SplitRules`, shows `detected` as chips and `splits` as markers, and maps `SplitResult` onto the dialog's plan is not.
 - Committing the tree. The splitter emits Part folders holding chapter folders; the binder allows them once #269 lands. Until then a caller can use `parts: 'flatten'`.
 
 ## 6. Fixtures
 
 `packages/import-core/test/fixtures/*.json` are reader-independent block lists, each with a golden test of the proposed tree, the front and back matter, the flags and the notices: a Heading-styled Word manuscript, Shunn format, Parts → Chapters → Scenes with a prologue and an epilogue, German "Kapitel 1", Chinese "第一章", a TOC at the start, front and back matter, mixed chapter families with a gap and a duplicate, empty `#` scene breaks, a setext heading beside a thematic break, and a stray "Chapter 3". The 26k-word chapter and the 200k-word timing document are generated in the tests.
+
+## 7. Readers
+
+Each reader emits `ImportDocument`, runs on the main thread, in a `'self'` Worker and in Node, and is a lazy chunk (#31).
+
+### 7.1 Plain text (built, #283)
+
+`@caotang/import-read/text` (`packages/import-read/src/text.ts`). Two halves, so the preview re-runs only the cheap one when the writer toggles paragraphs:
+
+- `decodePlainText(bytes, { encoding? })` decodes through the store's `detectEncoding` and `decodeAs` (`@caotang/store/encoding`); it keeps no decoder of its own. It answers `decoded` (`text`, `encoding`, `guessed`, `candidates`) for UTF-8 (a byte-order mark consumed), UTF-16 with a byte-order mark (certain) or by zero-byte parity (guessed), and Windows-1252 (guessed); `ask` (`detection`, `suggested`) for any other best reading or none; `too-large` past `MAX_TEXT_BYTES` (32 MiB), before decoding; and `too-many-lines` past `MAX_TEXT_LINES` (250,000 lines, blank lines and form feeds included), counted on the decoded text in one pass (`countPlainTextLines`, stopping at the limit) before anything is split or a block built. The byte cap alone does not bound memory: 32 MiB of one-character lines is 16 million lines, each a string and a block; a 200k-word novel hard-wrapped at 70 characters is about 17,000 lines. With `encoding` set (the writer's pick) it decodes as that.
+- `plainTextBlocks(text, { paragraphs?, fileName? })` normalises CRLF, CR and U+2028/2029/0085 to LF and U+00A0, U+202F, U+2007 to a space, and removes C0 controls other than tab, LF and form feed, DEL and C1 controls. `paragraphs` is `'auto'` (default), `'blank'` or `'line'`; `detectParagraphMode` picks `'line'` at ≥ 8 non-blank lines with blank lines ≤ 5 % of them. Blank mode joins a paragraph's lines with a space; a first line that matches a chapter family or `specialOf` on a short line, and a heading-like line under a setext underline (`===`, `---`, dropped), become paragraphs of their own. Heading-like is the first line of its paragraph, short (`isShortLine`), and a chapter line, all capitals, title case (every word of four or more letters capitalised) or caseless; under any other line the `---` stays a scene break. A symbol-only line (`breakMarkerOf`, the centred limit) is a `break`; a form feed is a `pagebreak`. Signals: `allCaps` (two or more letters, all capitals), `emptyBefore`/`emptyAfter` for blank lines beyond the one that separates paragraphs (blank mode) or all of them (line mode). `md` is `escapePlainMarkdown(text)`: inline `\ ` * _ [ ] < ~` and entity-like `&` everywhere, a leading `#`, `>`, `-`/`+` list marker, `1.`/`1)` and a thematic-break line. Leading indentation is dropped; spaces and tabs inside a line are kept as written (only a paragraph's edges are trimmed). `plainTextBlocks` throws `PlainTextLimitError` past `MAX_TEXT_LINES`; text from `decodePlainText` never reaches it. `metadata.title` is the file name without `.txt`.
+- Losses: `formatting` for normalised no-break spaces and dropped indentation, `unsupported` for removed control characters and U+FFFD left by the decode, each with a count. Nothing changes without a line in the report.
+- `readPlainText(bytes, options)` runs both and returns `read` with the blocks, the paragraph modes and the encoding, or the decode's `ask` / `too-large`.
+- The reader does no injection scan and no commit: the preview (#267) scans every block through `scanImport` and commits one undo group. It runs synchronously (a 200k-word file reads in well under 100 ms); the Worker host, its timeout and its cancel belong to the preview's reader host.
+- Fixtures (`packages/import-read/test/fixtures/text/`, checked in as binary so git keeps their bytes): one manuscript in UTF-8 and in Windows-1252 with CRLF (the test writes it as UTF-16 LE with CRLF and UTF-16 BE too, so no zero bytes are checked in), with "CHAPTER ONE" lines and `* * *` breaks; a Word "Save as text" file (one line per paragraph, no blank lines, a no-break space); and a Shift JIS file the reader asks about. `test/text.test.ts` checks each decodes to the same blocks and splits into the same chapters and scenes.

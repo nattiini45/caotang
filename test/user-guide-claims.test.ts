@@ -122,15 +122,18 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The narrow layout is the stylesheet's block below 960 px, and the guide says so.
     expect(read('apps/desktop/src/styles.css')).toContain('@media (max-width: 959px)');
     expect(section).toContain('under 960 px wide');
-    const workspace = read('apps/desktop/src/components/Workspace.tsx');
+    // The narrow toolbar's buttons are drawn by the Classic shell (modern-interface.md §4.1).
+    const shell = read('apps/desktop/src/components/shell/ClassicShell.tsx');
     for (const label of ['Binder', 'Inspector', 'More']) {
       expect(section).toContain(`**${label}**`);
-      expect(workspace.split('\n').some((row) => row.trim() === label)).toBe(true);
+      expect(shell.split('\n').some((row) => row.trim() === label)).toBe(true);
     }
-    // The More menu's entries, each a label in the overflow list.
+    // The More menu's entries, each a label in the shell actions the menu renders from (modern-interface.md §4.2).
+    const actions = read('apps/desktop/src/app/shell-actions.ts');
+    expect(shell).toContain('items={classicMenu(actions)}');
     for (const label of ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', 'Save to folder', 'Settings']) {
       expect(section).toContain(`**${label}**`);
-      expect(workspace).toContain(`'${label}'`);
+      expect(actions).toContain(`'${label}'`);
     }
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
     expect(section).toContain('**Actions for …**');
@@ -647,5 +650,21 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(notYet).toContain('The import window that offers this for a CSV file, a wiki export or another writing app is not built yet');
     expect(changelog).toContain(`adds up to ${codexImportCommands.CODEX_IMPORT_BATCH_MAX.toLocaleString('en-GB')} codex entries`);
     expect(read('docs/architecture/codex.md')).toContain('### 7.1 The writer\'s batch import (`codex.importBatch`)');
+  });
+});
+
+describe('the import preview (#267)', () => {
+  it('says one Undo takes the whole import back, that only the Twee import opens it, and that its commit is the writer’s alone', () => {
+    // The commit is one writer-only, compensable command (import-preview.md §5), and the Twee import opens the shared dialog.
+    expect(COMMAND_REGISTRY['binder.importTree'].descriptor.agentRisk).toBe('never');
+    expect(COMMAND_REGISTRY['binder.importTree'].descriptor.undo).toBe('compensable');
+    expect(read('apps/desktop/src/components/TweeImportDialog.tsx')).toContain('tweePreviewSource(');
+    expect(guide).toContain('- **The import preview.** An import that brings in a whole book shows it first as a proposed binder beside its text');
+    expect(guide).toContain('one **Undo** takes all of it back, pictures and codex entries included');
+    expect(guide).toContain('Today only **Import Twee** opens it.');
+    const notYet = guide.slice(guide.indexOf('## What is not in this build yet'));
+    expect(notYet).toContain('only the Twee import opens the preview');
+    expect(changelog).toContain('**One import preview for every structured import.**');
+    expect(read('docs/architecture/import-preview.md')).toContain('## 5. The commit: `binder.importTree`');
   });
 });

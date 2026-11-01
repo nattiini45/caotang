@@ -1,6 +1,6 @@
 # Modern interface — a spatial shell beside Classic
 
-> Status: **specified, not built.** Epic #301, milestone "Modern interface". The foundation (§16, M1, #302: the Interface setting, the `data-shell` attribute, the default rule, an empty lazily loaded Modern stylesheet, semantic-token groundwork and the Classic visual snapshots) is **being built**. Nothing else in this document exists in the current build. The decisions in §17 bind the work when it is cut.
+> Status: **specified, built in part.** Epic #301, milestone "Modern interface". The foundation (§16, M1, #302: the Interface setting, the `data-shell` attribute, the default rule, an empty lazily loaded Modern stylesheet, semantic-token groundwork and the Classic visual snapshots) is **built** (#314). The shell actions and the regions with `ClassicShell` (§4.1, §4.2, M2, #303) are **built**. Classic's token layer and the skin hook (M3, #304: `tokens/classic.css`, the tokens of §5.1 with Classic's values behind the shell frame, binder, agent panel, dialogs and media views, `data-skin`, §2.2) are **built** (#331). Nothing else in this document exists in the current build. The decisions in §17 bind the work when it is cut.
 > Scope: a second **shell** for the writing studio, called **Modern**, chosen by the owner from the concept "Glass 2 · Spatial" (2026-10-31): the manuscript as one solid floating page on a wallpaper, glass ornaments on its edges, a binder that grows out of a slim tab bar, the inspector and the status line in a scene-info popover, views that switch by morphing the page, and the agent in a companion glass window. The current interface stays, unchanged, as **Classic**, and the writer chooses in Settings › Appearance › Interface. A token layer that lets later **skins** restyle Classic (concepts A Calm, B Glass, C Focus) is designed here as a hook only.
 > Cross-refs: the Classic shell, the narrow layout and Settings = [ui-modules.md](ui-modules.md) §0–§5 · the keyboard map = `apps/desktop/src/app/keymap.ts` and ui-modules §2.5/§5.6 · the agent panel = [agent-harness.md](agent-harness.md) §8 · the editor, ghost and review marks = [editor-engine.md](editor-engine.md) §8/§15 · the codex panel = [codex-panels.md](codex-panels.md) · findings = [coherence.md](coherence.md) §8 · the binder footer = [binder-filters.md](binder-filters.md), [goals-progress.md](goals-progress.md) · interface languages and right-to-left = [i18n.md](i18n.md) §3, §5, §7 · the bundle gate = `tools/check-bundle-size.mjs` · the concept = `ui-concepts/glass2-spatial/index.html` (a design reference outside the repository; this document is the contract, not the mock).
 
@@ -8,11 +8,11 @@
 
 | Area | Where | What Modern builds on, or must not break |
 |---|---|---|
-| The shell | `components/Workspace.tsx` (1,553 lines): a toolbar, a left rail with five tabs (Binder, Codex, Activity, Trace, Findings), the centre (Editor / Corkboard radio group, the storage banner, the editor or a media view, the agent drawer), the inspector, the status line, and every dialog | All state and handlers live in one component; the JSX is the Classic layout. Modern needs the state, not the layout. |
+| The shell | `components/Workspace.tsx` (1,553 lines before M2; since M2 the state, the handlers and the dialogs, with the layout in `components/shell/ClassicShell.tsx`): a toolbar, a left rail with five tabs (Binder, Codex, Activity, Trace, Findings), the centre (Editor / Corkboard radio group, the storage banner, the editor or a media view, the agent drawer), the inspector, the status line, and every dialog | All state and handlers live in one component; the JSX is the Classic layout. Modern needs the state, not the layout. |
 | The narrow layout | `app/narrow-model.ts`, `components/narrow.tsx`, `@media (max-width: 959px)` in `styles.css` | `NARROW_QUERY`, `NarrowPanel`, `togglePanel`, `DESKTOP_FEATURES` ("Open on desktop"), the drawer and sheet focus rules (ui-modules §1). |
-| Duplicated actions | The wide toolbar's buttons and the narrow **More** menu (`overflowItems`) list the same eleven actions twice, with the same handlers | Modern's **⋯** menu and the palette would be a third and fourth copy. §4.2 makes one list. |
+| Duplicated actions | Before M2, the wide toolbar's buttons and the narrow **More** menu (`overflowItems`) listed the same eleven actions twice, with the same handlers. Since M2 both render from `app/shell-actions.ts` | Modern's **⋯** menu and the palette would be a third and fourth copy. §4.2 makes one list. |
 | Colour tokens | 23 colour tokens on `:root` in `styles.css`, redefined twice for dark (the system query, and `:root[data-theme='dark']`) | They are the Classic values and stay exact. |
-| Everything else in CSS | `--radius: 8px` is the only shape token; `styles.css` has 53 literal `border-radius` values and 14 `rgba()` literals, `features.css` 11 radii, `media/media.css` 14, and the per-component sheets a few more; paddings, control heights and transitions are literals | Modern changes size, shape, density and motion, so those literals become tokens whose Classic values equal the literals they replace (§5.4). |
+| Everything else in CSS | Before M3: `--radius: 8px` was the only shape token; `styles.css` had 53 literal `border-radius` values and 14 `rgba()` literals, `features.css` 11 radii, `media/media.css` 14, and the per-component sheets a few more; paddings, control heights and transitions were literals. Since M3 (#304) 652 declarations read the tokens of §5.1; a literal that fits no step (a 10 or 14 px space, a 3, 5 or 10 px radius, a rem or em size, a heading size) stays a literal | Modern changes size, shape, density and motion, so those literals become tokens whose Classic values equal the literals they replace (§5.4). |
 | Theme | `app/theme.ts`: `caotang.theme` in local storage, applied as `data-theme` on `<html>` before the first paint, only for an explicit choice | The interface preference follows the same pattern for the same reason (§3). |
 | Settings › Appearance | `AppearanceSection` in `components/Settings.tsx`: the theme radio only | Gains **Interface** (and, for Modern, **Reduce transparency** and **Reduce motion**). |
 | CSP | `index.html`: `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:` | No inline `<style>`, no `style` attribute in markup, no eval, no WebAssembly (§11). |
@@ -53,12 +53,12 @@ The owner's verdict on the current interface, and on the earlier glass concept: 
 
 The axes compose by attribute selectors alone. No script computes a colour, and no component reads an axis to pick a style.
 
-### 2.2 The skin hook (designed, not built)
+### 2.2 The skin hook (built in M3, #304; no skin ships)
 
-- A skin is one CSS file, `apps/desktop/src/tokens/skins/<name>.css`, that redefines semantic tokens (§5.1) under `:root[data-shell='classic'][data-skin='<name>']`, once for light and once for dark (both the system query and `[data-theme='dark']`, as `styles.css` does today). A guard test (M3) fails on any selector in a skin file that is not one of those `:root` forms.
-- A skin loads lazily, as Modern's stylesheet does (§12), and only while chosen.
-- The preference is `caotang.skin` in local storage, read before the first paint like the theme. No UI offers it until the first skin ships; until then the key is reserved and ignored.
-- Modern has no skin axis in this epic. `data-skin` is ignored while `data-shell='modern'`.
+- A skin is one CSS file, `apps/desktop/src/tokens/skins/<name>.css`, that redefines semantic tokens (§5.1) under `:root[data-shell='classic'][data-skin='<name>']`, once for light and once for dark (both the system query and `[data-theme='dark']`, as `tokens/classic.css` does). The rules are in `tokens/skins/README.md`. The guard `test/skin-files.test.ts` fails on any selector in a skin file that is not one of those `:root` forms, on a declaration that is not a token `tokens/classic.css` defines, on any at-rule but the dark scheme query and the two `no-preference` queries below, on a motion token (`--dur-*`, `--ease-*`) outside `@media (prefers-reduced-motion: no-preference)`, and on a material token or a colour that is not opaque outside `@media (prefers-reduced-transparency: no-preference)`, so a skin cannot take away what a writer's system asked for.
+- A skin loads lazily, as Modern's stylesheet does (§12), and only while chosen: `app/skin.ts` finds every `tokens/skins/*.css` through `import.meta.glob`, each its own chunk.
+- The preference is `caotang.skin` in local storage, read before the first paint with the interface (`applyInterface` puts the skin on with the shell). No UI offers it until the first skin ships; until then the key is reserved and ignored: `data-skin` is absent while the key is absent, names `default`, or names a skin that is not in the build. No skin ships.
+- Modern has no skin axis in this epic. `data-skin` is ignored, and taken off, while `data-shell='modern'`.
 
 ## 3. The preference, the default and migration
 
@@ -102,9 +102,13 @@ Workspace (state, handlers, dialogs) ──► regions ──► ClassicShell  (
 
 `EditorPane` stays mounted while another view is shown, as it does under the corkboard today, so its undo history, caret and scroll survive a view change in either shell.
 
+Built (M2): `ShellRegions` and `ShellView` in `components/shell/regions.ts`; `ClassicShell` in `components/shell/ClassicShell.tsx` holds the Classic JSX, its rail and centre arrow keys, and the narrow panels' Escape. `Workspace` keeps the state, the handlers, the focus effects and the dialogs, and passes the dialogs to the shell as children, so they sit at the end of the workspace element as before. The storage banner and the status line are built by `Workspace` as region elements; the rail's five panels are built every render and the shell shows the selected one.
+
 ### 4.2 Shell actions
 
 One list, `app/shell-actions.ts` (pure, M2): each action has an id, its visible words, its handler, `disabled`, an optional `KeyAction` for its shortcut label, a group (project, writing, agent, output, app) and whether it exists in the narrow layout. The Classic toolbar, Classic's narrow **More** menu, Modern's **⋯** menu and the palette's commands render from it. The eleven Classic actions are: Projects, Project details, Undo, Focus mode, Skills, Instructions, Compile…, Export bundle, Save to folder (only where the browser has a folder picker), Settings, and the theme. A test fails if any surface lists an action that is not in the list, or the list holds one no surface shows.
+
+Built (M2): `shellActions(facts, handlers)` returns the list in that order; `handlers` is a record keyed by action id, so an action without a handler does not compile. An action also carries `toolbarLabel` (Classic's **Focus**), `hint` (a toolbar button's title, with the chord where Classic shows one, from `shortcutLabel`), `ariaLabel` (the theme) and `pressed` (focus mode). Undo carries the `undo` chord and Focus mode `focus-mode`; Classic's toolbar and More menu draw neither, as before. `CLASSIC_TOOLBAR` places the actions in the wide toolbar (Projects at the start, Project details as the project's name, the rest at the end), and `classicMenu` builds the More menu with a rule before each of `CLASSIC_MENU_SECTIONS` after the first (project and writing share the first section, as the menu always had). Every action exists in the narrow layout. The test is `e2e/unit/shell-actions.spec.ts`.
 
 ### 4.3 Rules
 
@@ -125,19 +129,19 @@ The existing names (`--paper`, `--panel`, `--raised`, `--ink`, `--ink-soft`, `--
 
 | Group | Tokens (Classic value = today's literal) |
 |---|---|
-| Surfaces | `--surface-app` (= `--paper`), `--surface-page` (= `--paper`), `--surface-sunken`, plus the existing `--panel` and `--raised` |
-| Status | `--warn-soft`, `--ok`, `--ok-soft` (where a literal exists today) |
-| Shape | `--radius-xs`, `--radius-sm`, `--radius-md` (= 8 px, today's `--radius`), `--radius-lg`, `--radius-pill`; Modern adds `--radius-page`, `--radius-sheet`, `--radius-ornament`, `--radius-control`, `--radius-inner` |
-| Space and density | `--space-1` … `--space-6`, `--control-h`, `--control-pad-x`, `--target-min`, `--row-h` |
-| Elevation | `--elev-0` (none), `--elev-1` (= today's `--shadow`), `--elev-2`, `--elev-3` |
+| Surfaces | `--surface-app` (= `--paper`), `--surface-page` (= `--paper`), plus the existing `--panel` and `--raised`; `--surface-sunken` waits for M4, since no Classic literal stands for it |
+| Status | `--ok`, `--ok-soft`, `--review`, `--review-soft` (existing, moved from `features.css`); `--warn-soft` waits for M4, since no Classic literal stands for it |
+| Shape | `--radius-xs` 4 px, `--radius-sm` 6 px, `--radius-md` (= `--radius`, 8 px), `--radius-lg` 12 px, `--radius-pill` 999 px; Modern adds `--radius-page`, `--radius-sheet`, `--radius-ornament`, `--radius-control`, `--radius-inner` |
+| Space and density | `--space-1` … `--space-6` 2, 4, 6, 8, 12, 16 px; `--control-h` `auto` (Classic sizes a control by its padding); `--control-pad-x` 12 px (a button's side padding); `--target-min` 24 px (WCAG 2.5.8); `--row-h` 30 px (a binder row) |
+| Elevation | `--elev-0` (none), `--elev-1` (= `--shadow`), `--elev-2` (`--shadow` and `0 8px 24px` at 12%), `--elev-3` (`--shadow` and `0 12px 40px` at 18%) |
 | Focus | `--focus-width` (2 px), `--focus-offset` (2 px), `--focus-halo` (none in Classic) |
-| Motion | `--dur-1`, `--dur-2`, `--dur-3`, `--ease-standard`, `--ease-spring` (Classic: today's few transition values, none where there is none) |
-| Type scale | `--text-xs` … `--text-xl`, `--leading-ui`, `--leading-prose` |
+| Motion | `--dur-1`, `--dur-2`, `--dur-3`, `--ease-standard`, `--ease-spring` (Classic: `--dur-2` 0.2 s and `--ease-standard` `ease`, the narrow drawer's and sheet's; `--dur-1`, `--dur-3` 0 s and `--ease-spring` `ease`, since Classic has no such motion; every duration 0 s under `prefers-reduced-motion: reduce`) |
+| Type scale | `--text-xs` … `--text-xl` 11.5, 12, 12.5, 13, 14 px; `--leading-ui` 1.45; `--leading-prose` 1.7 (the manuscript column) |
 | Material (Modern only; Classic defines them as solid so a stray use renders sanely) | `--mat-glass-bg`, `--mat-glass-blur`, `--mat-glass-saturate`, `--mat-glass-edge-hi`, `--mat-glass-edge-lo`, `--mat-thick-bg`, `--mat-thick-blur`, `--mat-frost-bg`, `--scrim`, `--wallpaper` |
 
 ### 5.2 Files and cascade
 
-- `tokens/classic.css` holds the Classic values, light and dark, in the entry stylesheet (it is today's `:root` blocks, moved). `styles.css`, `features.css` and the component sheets stay unlayered and keep their selectors.
+- `tokens/classic.css` holds the Classic values, light and dark, in the entry stylesheet (it is the `:root` blocks of `styles.css` and `features.css`, moved, imported first by `main.tsx`; built in M3). `styles.css`, `features.css` and the component sheets stay unlayered and keep their selectors. `e2e/unit/token-parity.spec.ts` checks that every semantic token is defined in Classic light and in both Classic dark blocks, resolves there, and keeps its Classic value.
 - `tokens/modern.css` and `shell-modern.css` are in Modern's lazy CSS (§12). Every selector in them starts with `:root[data-shell='modern']`, which a guard test checks (M4). That prefix outranks Classic's unprefixed rules deterministically, so Modern overrides by specificity, never by load order, and Classic never sees a Modern rule even if the file is cached.
 - Modern changes most of a feature's look through token values; the few component overrides (a button's capsule shape, a tree row's height) live in `shell-modern.css` under the same prefix. Classic's shell frame (`.workspace` grid, `.toolbar`, `.rail`, the inspector column, `.center-switch`, `.status-line`, the narrow drawer and sheet) needs no scoping: Modern does not render those containers, so their rules match nothing.
 - Modern's styles use logical properties only (`inset-inline-start`, `margin-inline-end`), the guard of i18n.md §5.1.
@@ -168,7 +172,7 @@ The existing names (`--paper`, `--panel`, `--raised`, `--ink`, `--ink-soft`, `--
 
 - M1 commits Classic visual snapshots (§15.4) **before** any token work.
 - Every literal that becomes a token gets a token whose Classic value equals that literal. A literal that fits no scale step stays a literal or gets its own component alias: Classic is not rounded to a scale.
-- Each token-migration pull request touches one area (shell frame, binder, agent panel, dialogs, media) and must leave every Classic snapshot unchanged at a zero-pixel threshold.
+- Token migration moves one area at a time (shell frame, binder, agent panel, dialogs, media; M3 did each in its own commit) and must leave every Classic snapshot unchanged at a zero-pixel threshold.
 - The `:root` colour values do not change at all. `e2e/unit/theme-contrast.spec.ts` keeps reading them.
 
 ### 5.5 Geometry and motion (Modern values)
@@ -438,8 +442,8 @@ Playwright `toHaveScreenshot` in a `visual` project, run only in CI in the pinne
 | Phase | Issue | What lands | Visible to writers |
 |---|---|---|---|
 | 0 | this spec | The contract | — |
-| 1 | M1 #302 (being built) | The setting, `data-shell`, the default rule with the parity gate, the empty lazy Modern stylesheet, token groundwork, Classic snapshots, the Classic e2e pin | Settings › Appearance › Interface with Modern as "Preview" |
-| 2 | M2 #303, M3 #304 | One shell-actions list; size, shape, density, elevation and motion tokens; the skin hook | Nothing |
+| 1 | M1 #302 (built, #314) | The setting, `data-shell`, the default rule with the parity gate, the empty lazy Modern stylesheet, token groundwork, Classic snapshots, the Classic e2e pin | Settings › Appearance › Interface with Modern as "Preview" |
+| 2 | M2 #303 (built), M3 #304 (built, #331) | One shell-actions list; size, shape, density, elevation and motion tokens; the skin hook | Nothing |
 | 3 | M4 #305, M5 #306 | The stage, wallpaper, page and materials with every fallback; ornaments, **⋯**, the Write / Board / Codex morph | Modern (Preview) is usable for writing |
 | 4 | M6 #307, M7 #308, M8 #309, M9 #310 | The sidebar, Scene info, the agent window, the palette | Every surface reachable |
 | 5 | M10 #311, M11 #312 | Dialogs, menus, Home and notices in glass; the narrow Modern layout | Modern complete on every width |

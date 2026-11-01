@@ -842,6 +842,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
     // Read out, not typed out: a name promoted to `never` later must arrive here
     // without this file being edited.
     expect(NEVER).toEqual([
+      'binder.importTree',
       'codex.importBatch',
       'editor.insert',
       'editor.replaceRange',
@@ -863,8 +864,9 @@ describe('§10 — the permission matrix, over the registry that implements the 
     expect(NEVER.length).toBeGreaterThan(0);
     for (const name of NEVER) {
       // Not wired in this registry, so the bus refuses it before the gate; commands-skills.test.ts refuses it for an agent with the staging
-      // injected, and the MCP client's tests refuse `mcp.readResource` for an agent with the client injected.
-      if (name === 'skill.import' || name === 'mcp.readResource') continue;
+      // injected, and the MCP client's tests refuse `mcp.readResource` for an agent with the client injected. `binder.importTree` registers only
+      // with the asset port; commands-import.test.ts refuses it for an agent with the port injected.
+      if (name === 'skill.import' || name === 'mcp.readResource' || name === 'binder.importTree') continue;
       const h = scriptedHarness();
       const result = h.dispatch(
         cmd({ name, params: userParams(name, h.state), issuedBy: 'agent', turnId: 'turn-x' }),
@@ -889,7 +891,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
   it('allows every never-class name for a user, and asks for a confirm where the effect is destructive', () => {
     expect(NEVER.length).toBeGreaterThan(0);
     for (const name of NEVER) {
-      if (name === 'skill.import' || name === 'mcp.readResource') continue;
+      if (name === 'skill.import' || name === 'mcp.readResource' || name === 'binder.importTree') continue;
       const h = scriptedHarness();
       const result = h.dispatch(cmd({ name, params: userParams(name, h.state) }));
 
