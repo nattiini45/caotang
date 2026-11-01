@@ -830,6 +830,12 @@ importers:
 
   packages/import-read:
     dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
       fflate:
         specifier: 0.8.3
         version: 0.8.3
