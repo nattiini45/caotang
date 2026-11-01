@@ -49,14 +49,14 @@ export function InkGate({ variant = 'pane', children }: InkGateProps): ReactNode
       </>
     );
     return variant === 'inline' ? (
-      <div className="form-message is-error" role="alert">
+      <div className="form-message is-error ink-gate" role="alert">
         <p>
           {title}. {body}
         </p>
         {actions}
       </div>
     ) : (
-      <div role="alert">
+      <div className="ink-gate" role="alert">
         <EmptyState title={title} actions={actions}>
           {body}
         </EmptyState>
@@ -69,7 +69,7 @@ export function InkGate({ variant = 'pane', children }: InkGateProps): ReactNode
       {text}
     </p>
   ) : (
-    <div className="empty-state" role="status">
+    <div className="empty-state ink-gate" role="status">
       {text}
     </div>
   );

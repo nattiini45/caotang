@@ -416,7 +416,7 @@ Numbers against `main`'s budget (`index` 1,565,000 B raw, first load 886,000 B g
 | Shell actions (M2) | Entry | about neutral: it replaces the duplicated lists |
 | `ClassicShell` (moved JSX) | Entry | neutral |
 | Modern JS (`ModernShell`, ornaments, sidebar, popovers, morph, palette, companion window, layout) | One lazy chunk, `modern-shell`, imported only when `data-shell='modern'`, started at boot beside the store's opening so it costs no extra wait behind the loading screen | target 60 kB raw / 18 kB gzip, cap 70 kB raw |
-| Modern CSS (`tokens/modern.css`, `shell-modern.css`) | The same chunk's stylesheet | cap 30 kB raw / 7 kB gzip |
+| Modern CSS (`tokens/modern.css`, `shell-modern.css`) | The same chunk's stylesheet | cap 50 kB raw / 10 kB gzip (raised from 30 kB at #311, once every Modern surface shared the sheet) |
 | Wallpaper | Asset referenced from Modern's CSS | at most 40 kB per scheme |
 | A Classic skin (later) | Its own lazy stylesheet | at most 6 kB raw each |
 

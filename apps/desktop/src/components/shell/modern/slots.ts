@@ -7,7 +7,7 @@
  *
  * | Slot             | Issue | M4 fills it with                                   | DOM place (§9.1)                      |
  * |------------------|-------|----------------------------------------------------|----------------------------------------|
- * | `notices`        | #311  | `InterimNotices` (status line, storage notices)    | after the skip link                    |
+ * | `notices`        | #311  | `ModernNotices` (#311's toasts, built)             | after the skip link                    |
  * | `topOrnament`    | #306  | `InterimTopOrnament` (name, save state, More menu) | before the binder                      |
  * | `sidebar`        | #307  | `BinderSidebar` (built: binder-sidebar.tsx)        | before the page                        |
  * | `bottomOrnament` | #306  | `InterimBottomOrnament` (the centre views)         | after the page                         |
@@ -27,7 +27,7 @@ import type { ShellRegions } from '../regions.js';
 import { BinderSidebar } from './binder-sidebar.js';
 import { CompanionWindow } from './companion.js';
 import { InterimBottomOrnament, InterimTopOrnament } from './interim-ornaments.js';
-import { InterimNotices } from './interim-notices.js';
+import { ModernNotices } from './notices.js';
 import { Palette } from './palette.js';
 import { SceneInfo } from './scene-info.js';
 
@@ -59,7 +59,7 @@ export interface ModernSlots {
 
 /** The slots as M4 ships them. One line per slot; an issue changes only its own. */
 export const MODERN_SLOTS: ModernSlots = {
-  notices: InterimNotices,
+  notices: ModernNotices,
   topOrnament: InterimTopOrnament,
   sidebar: BinderSidebar,
   bottomOrnament: InterimBottomOrnament,
