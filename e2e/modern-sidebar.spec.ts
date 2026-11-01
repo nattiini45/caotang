@@ -264,10 +264,18 @@ test('Keep open pins the sidebar, the page moves over, a scene chosen keeps it, 
   await page.waitForTimeout(700);
   await expectOpen(page);
 
+  // A reload may land on the projects screen (WebKit and Firefox keep a bundle, not a folder, and do not reopen it): open it again.
   await page.reload();
+  const reopen = page.locator('.project-row', { hasText: 'Harbour Book' }).getByRole('button', { name: 'Open' });
+  await expect(page.getByTestId('modern-stage').or(reopen)).toBeVisible({ timeout: 20_000 });
+  if (await reopen.isVisible()) await reopen.click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
   await expectOpen(page);
   await expect(keepOpen(page)).toHaveAttribute('aria-pressed', 'true');
+  // A project opened again from the list opens no scene: choose one, so the editor is there to move focus to below.
+  await sidebar(page).locator('.row-title', { hasText: 'The ferry' }).click();
+  await expect(editorText(page)).toBeVisible();
+  await expectOpen(page);
 
   await keepOpen(page).click();
   await expect(keepOpen(page)).toHaveAttribute('aria-pressed', 'false');
