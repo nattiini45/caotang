@@ -20,6 +20,18 @@ test.use({ storageState: NO_PIN });
 
 const companion = (page: Page): Locator => page.getByRole('complementary', { name: 'Agent' });
 const intentBox = (page: Page): Locator => companion(page).getByRole('combobox', { name: 'Intent' });
+/** The window by its id, which still finds it while it is `hidden` (a role query leaves hidden elements out). */
+const companionElement = (page: Page): Locator => page.locator('#modern-companion');
+
+/**
+ * Waits until the window's morph (and its content's fade) has run out, so a measure reads where the window sits and not a frame of
+ * the FLIP transform, which starts at the opener's size (the whole editor for Ctrl+J) and overshoots on the spring.
+ */
+async function settled(pane: Locator): Promise<void> {
+  await pane.evaluate((element) =>
+    Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined))),
+  );
+}
 
 /** Modern, chosen before the app starts, as a writer who picked it in Settings would have it. */
 async function modern(page: Page): Promise<void> {
@@ -118,6 +130,7 @@ test('an empty state’s agent request opens the window out of its button, and t
   // Beside the page above 1,280 px: the page moves over by the window and a gutter, and recedes to 98.5%.
   await expect.poll(() => area.evaluate((element) => getComputedStyle(element).insetInlineEnd)).toBe('432px');
   await expect.poll(() => area.evaluate((element) => getComputedStyle(element).transform)).toBe('matrix(0.985, 0, 0, 0.985, 0, 0)');
+  await settled(pane);
   const pageBox = await page.locator('#modern-page').boundingBox();
   const windowBox = await pane.boundingBox();
   expect(windowBox?.width).toBe(400);
@@ -144,6 +157,7 @@ test('from 1,280 px down the window is a sheet over the page with a scrim, and a
   // The page is not pushed: the window overlaps it, over a scrim.
   const area = page.locator('.modern-page-area');
   await expect.poll(() => area.evaluate((element) => getComputedStyle(element).insetInlineEnd)).toBe('0px');
+  await settled(pane);
   const windowBox = await pane.boundingBox();
   const pageBox = await page.locator('#modern-page').boundingBox();
   expect(windowBox?.width).toBe(400);
@@ -174,7 +188,8 @@ test('under reduced motion the window fades in place and the page does not reced
   expect(await area.evaluate((element) => getComputedStyle(element).transform)).toBe('none');
   await page.keyboard.press('ControlOrMeta+j');
   await expect(pane).toBeHidden();
-  await expect(pane).toHaveAttribute('data-morph', 'none');
+  // Closed at once, with no shrink; the role query no longer finds the hidden window, so read it by id.
+  await expect(companionElement(page)).toHaveAttribute('data-morph', 'none');
 });
 
 /** The text after "Request: " in the request's user messages, up to the line's end. */
