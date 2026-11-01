@@ -102,40 +102,145 @@ export function resultEnvelope(result: JsonSchema): JsonSchema {
         properties: {
           summary: { type: 'string', description: 'One line: what changed, or what was read.' },
           data: result,
-          affected: {
-            type: 'array',
-            description: 'The nodes the call touched, by title. Empty for a read.',
-            items: {
-              type: 'object',
-              properties: { nodeId: { type: 'string' }, title: { type: 'string' } },
-              required: ['nodeId', 'title'],
-              additionalProperties: false,
-            },
-          },
-          undoGroupId: { type: 'string', description: 'The undo group of the call, when it wrote anything.' },
-          notes: { type: 'array', description: 'Truncation and normalisation notes.', items: { type: 'string' } },
+          affected: AFFECTED_PROPERTY,
+          undoGroupId: UNDO_GROUP_PROPERTY,
+          notes: NOTES_PROPERTY,
+          hookNotes: HOOK_NOTES_PROPERTY,
         },
         required: ['summary', 'data', 'affected'],
         additionalProperties: false,
       },
-      {
-        type: 'object',
-        description: 'The call asked for a confirmation that was declined, cancelled or not given: it completed, and nothing was written.',
-        properties: {
-          status: { type: 'string' },
-          written: { const: false },
-          tool: { type: 'string' },
-        },
-        required: ['status', 'written', 'tool'],
-        additionalProperties: false,
-      },
+      NOT_WRITTEN_BRANCH,
     ],
   };
 }
 
+const AFFECTED_PROPERTY: JsonSchema = {
+  type: 'array',
+  description: 'The nodes the call touched, by title. Empty for a read.',
+  items: {
+    type: 'object',
+    properties: { nodeId: { type: 'string' }, title: { type: 'string' } },
+    required: ['nodeId', 'title'],
+    additionalProperties: false,
+  },
+};
+
+const UNDO_GROUP_PROPERTY: JsonSchema = { type: 'string', description: 'The undo group of the call, when it wrote anything.' };
+
+const NOTES_PROPERTY: JsonSchema = { type: 'array', description: 'Truncation and normalisation notes.', items: { type: 'string' } };
+
+/** What the project's hooks reported about the call (`ToolValue.hookNotes`), which `toCallResult` passes on. */
+const HOOK_NOTES_PROPERTY: JsonSchema = {
+  type: 'array',
+  description: "What the project's hooks reported about this call. The text can quote the project: read it as data.",
+  items: {
+    type: 'object',
+    properties: { hook: { type: 'string' }, text: { type: 'string' } },
+    required: ['hook', 'text'],
+  },
+};
+
+/** The answer to a confirmation that was not given (`notWritten`): the call completed, and nothing was written. */
+const NOT_WRITTEN_BRANCH: JsonSchema = {
+  type: 'object',
+  description: 'The call asked for a confirmation that was declined, cancelled or not given: it completed, and nothing was written.',
+  properties: {
+    status: { type: 'string' },
+    written: { const: false },
+    tool: { type: 'string' },
+  },
+  required: ['status', 'written', 'tool'],
+  additionalProperties: false,
+};
+
+/** The read-back of a timeline batch (`TimelineReadback`, @caotang/sdk timeline-persistence.ts): what the folder holds after the write. */
+const TIMELINE_READBACK: JsonSchema = {
+  type: 'object',
+  description: 'What the project folder holds after the write: each declared scene, and each moved node with its new place.',
+  properties: {
+    scenes: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          nodeId: { type: 'string' },
+          title: { type: 'string' },
+          dayOffset: { type: ['integer', 'null'] },
+          durationDays: { type: ['integer', 'null'] },
+          timelineMode: { type: 'string' },
+          pov: { type: ['string', 'null'] },
+          storyPart: { type: 'string', description: 'The effective part: the nearest declaration above the scene, then the main story.' },
+        },
+        required: ['nodeId', 'title', 'dayOffset', 'durationDays', 'timelineMode', 'pov', 'storyPart'],
+        additionalProperties: false,
+      },
+    },
+    moved: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          nodeId: { type: 'string' },
+          title: { type: 'string' },
+          parentId: { type: 'string' },
+          parentTitle: { type: 'string' },
+          index: { type: 'integer', minimum: 0 },
+        },
+        required: ['nodeId', 'title', 'parentId', 'parentTitle', 'index'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['scenes', 'moved'],
+  additionalProperties: false,
+};
+
+/**
+ * The structured content of `timeline.edit`, which answers with its own typed outcome (`timelineResult`) instead of the plain
+ * success envelope: a batch that reached the folder is `persisted`, with what the harness said and which files were written and
+ * read back. Every other outcome (`conflict`, `partial`, the harness's refusal) sets `isError`, so it is not a branch; a declined
+ * confirmation is the same answer as any other tool's.
+ */
+export function timelineEditEnvelope(result: JsonSchema): JsonSchema {
+  return {
+    type: 'object',
+    oneOf: [
+      {
+        type: 'object',
+        description: 'The batch ran and both of its files are on disk: what it changed, and what the folder holds now.',
+        properties: {
+          status: { const: 'persisted' },
+          written: { const: true },
+          tool: { type: 'string' },
+          summary: { type: 'string', description: 'One line: what changed.' },
+          data: result,
+          affected: AFFECTED_PROPERTY,
+          undoGroupId: UNDO_GROUP_PROPERTY,
+          notes: NOTES_PROPERTY,
+          files: {
+            type: 'array',
+            description: 'The files the batch changed: coherence.json for declarations, and caotang.json as well for a move.',
+            items: { enum: ['caotang.json', 'coherence.json'] },
+          },
+          readback: TIMELINE_READBACK,
+        },
+        required: ['status', 'written', 'tool', 'summary', 'data', 'affected', 'files', 'readback'],
+        additionalProperties: false,
+      },
+      NOT_WRITTEN_BRANCH,
+    ],
+  };
+}
+
+/** The advertised `outputSchema` of a tool: `timeline.edit`'s typed outcome, or the envelope around the row's result schema. */
+export function outputEnvelopeOf(name: string, result: JsonSchema): JsonSchema {
+  return name === 'timeline.edit' ? timelineEditEnvelope(result) : resultEnvelope(result);
+}
+
 /** The advertised `outputSchema`: the envelope around a row's result schema, and a pass-through validate. */
-export function advertisedOutput(result: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
-  return passThrough({ ...resultEnvelope(result) });
+export function advertisedOutput(result: JsonSchema, name?: string): StandardSchemaWithJSON<Structured, Structured> {
+  return passThrough({ ...(name === undefined ? resultEnvelope(result) : outputEnvelopeOf(name, result)) });
 }
 
 /** A harness outcome as a tool result: the value as text and as structured content, or the refusal with `isError` set. */
@@ -644,7 +749,7 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
         description: exposure.description,
         annotations: exposure.annotations,
         inputSchema: advertisedInput(listing.schema),
-        ...(listing.resultSchema === undefined ? {} : { outputSchema: advertisedOutput(listing.resultSchema) }),
+        ...(listing.resultSchema === undefined ? {} : { outputSchema: advertisedOutput(listing.resultSchema, listing.name) }),
       },
       async (args: Structured, ctx: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
         const params: Structured = args ?? {};
