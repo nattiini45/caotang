@@ -199,6 +199,11 @@
   min-block-size: var(--target-min);
 }
 
+:root[data-shell='modern'] dialog:where(:not(.modern-palette)) input[type='color'] {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
 :root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home, .modern-notices, .ink-gate) .button {
   border-radius: var(--radius-pill);
   transition:

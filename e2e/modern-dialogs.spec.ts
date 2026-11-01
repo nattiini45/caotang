@@ -6,7 +6,7 @@ import { expect, test, type Locator, type Page, type TestInfo } from '@playwrigh
 import { ZIP_ENGINE } from '../packages/store/src/index.js';
 
 import { NO_PIN } from './classic-pin.js';
-import { waitForSaved } from './support.js';
+import { binderTitle, waitForSaved } from './support.js';
 
 /**
  * Modern's dialogs, menus, notices and projects screen (M10, #311; modern-interface.md §6, §7.6, §8.2, §8.3, §8.6, §9.5): in Modern
@@ -391,6 +391,23 @@ test('a Choice dialog (the Final Draft import question) is glass, keeps the focu
   await expectModernDialog(page, choice, 'dialog.confirm[open]');
   await page.keyboard.press('Escape');
   await expect(choice).toBeHidden();
+});
+
+test('the Vocabulary dialog, opened from Scene info’s label picker, is glass, keeps the focus inside, and every control in it is 44 px', async ({ page }) => {
+  await start(page);
+  await projectWithScene(page, 'Harbour Book');
+  await openBinder(page);
+  // Scene info (#308) holds the inspector in Modern; its label picker opens the Vocabulary dialog as Classic's does.
+  await binderTitle(page, 'The Landing').click({ button: 'right' });
+  await page.getByRole('menu', { name: 'Actions for The Landing' }).getByRole('menuitem', { name: 'Edit synopsis' }).click();
+  const info = page.getByRole('dialog', { name: 'Scene info' });
+  await expect(info).toBeVisible();
+  await info.getByRole('button', { name: /^Label: No label/ }).click();
+  await page.getByRole('menuitem', { name: '+ Add label…' }).click();
+  const vocabulary = page.getByRole('dialog', { name: 'Statuses and labels' });
+  await expectModernDialog(page, vocabulary, 'dialog.vocabulary-dialog');
+  await page.keyboard.press('Escape');
+  await expect(vocabulary).toHaveCount(0);
 });
 
 test('under reduced motion a dialog only fades in: nothing moves', async ({ page }) => {
