@@ -3,7 +3,7 @@
 > Status: **partly built** (#267). Built: the shared preview dialog (`apps/desktop/src/import-preview/`), its source interface, its
 > model (manual edits, the virtualised text pane, the mapping, the codex rows, the report, the commit), the commit command
 > `binder.importTree` (bus `descriptors-import.ts`, store `commands-import.ts`), and the Twee import moved onto it. Not built: the
-> splitter source for the block list of #266 (that issue's `splitImport` plugs in as a source when it lands), the format readers that
+> splitter source for the block list of #266 (`splitImport` in `@caotang/import-core` is built; the source that maps its `SplitResult` onto a plan is not), the format readers that
 > feed it (#268 is the shared readers; each reader is its own issue), the **New project** destination, POV and day as mapping
 > targets, and the Final Draft import's move onto the dialog (its dialog stays as it is until #265 lands).
 > Cross-refs: block list and splitter = Imports epic #263 (research notes `doc-formats.md` §10); commands = [command-bus.md](command-bus.md) §9
