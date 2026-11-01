@@ -28,6 +28,7 @@ import { InterimBottomOrnament, InterimTopOrnament } from './interim-ornaments.j
 import { InterimNotices } from './interim-notices.js';
 import { InterimSidebar } from './interim-sidebar.js';
 import { CompanionWindow } from './companion.js';
+import { Palette } from './palette.js';
 
 /** What every slot receives. */
 export interface ModernSlotProps {
@@ -63,6 +64,6 @@ export const MODERN_SLOTS: ModernSlots = {
   bottomOrnament: InterimBottomOrnament,
   sceneInfo: null,
   companion: CompanionWindow,
-  palette: null,
+  palette: Palette,
 };
 

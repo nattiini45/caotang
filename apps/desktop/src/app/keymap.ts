@@ -36,7 +36,8 @@ export type KeyAction =
   | 'agent-send'
   | 'agent-steer'
   | 'agent-stop'
-  | 'agent-toggle';
+  | 'agent-toggle'
+  | 'palette';
 
 export interface KeyFacts {
   /** `KeyboardEvent.key`, e.g. `'n'`, `'Enter'`, `'F2'`, `'ArrowUp'`. */
@@ -82,8 +83,9 @@ export interface KeyContext {
   /** True when the interface reads right to left, so Left and Right name the previous and the next place, not a screen side (i18n.md §5.5). */
   readonly rtl?: boolean;
   /**
-   * The shell the key was typed in (modern-interface.md §8.11). Only the Modern shell passes `'modern'`, from its own listener under
-   * components/shell/modern/; every other caller leaves it out, which is Classic, where Modern's chords mean nothing.
+   * The shell the key was typed in (modern-interface.md §8.11). Modern's chords (Ctrl+K, the palette; Ctrl+J, the agent's companion
+   * window) resolve only when it is `'modern'`; absent reads as Classic, which gains no chord (D11). Only a component under
+   * components/shell/ passes it.
    */
   readonly shell?: 'classic' | 'modern';
 }
@@ -162,7 +164,8 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   if (facts.altGraph) return null;
 
   // modern-interface.md §8.11: Modern's own chords come before the text-field rule, so they work while typing; they mean nothing in
-  // Classic (D10, D11). Ctrl+J (Cmd+J) toggles the agent's companion window.
+  // Classic (D10, D11). Ctrl+K (Cmd+K) opens the palette; Ctrl+J (Cmd+J) toggles the agent's companion window.
+  if (context.shell === 'modern' && cmd && !facts.alt && !facts.shift && key === 'k') return 'palette';
   if (context.shell === 'modern' && cmd && !facts.alt && !facts.shift && key === 'j') return 'agent-toggle';
 
   if (cmd && !facts.alt && key === 'n' && !facts.shift) return 'new-document';
@@ -311,6 +314,7 @@ const CHORDS: Partial<Record<KeyAction, Chord>> = {
   'agent-stop': [[], { named: 'escape' }],
   'agent-toggle': [['ctrl'], { printed: 'j' }],
   undo: [['ctrl'], { printed: 'z' }],
+  palette: [['ctrl'], { printed: 'k' }],
   escape: [[], { named: 'escape' }],
 };
 

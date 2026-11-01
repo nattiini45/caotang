@@ -9,7 +9,7 @@ import { resolveKey, shortcutLabel, type KeyContext, type KeyFacts } from '../..
  *
  * The matrix walks every key below with every modifier combination, in every context the app passes, three ways: no shell (every
  * caller today), Classic, and Modern. Classic must equal no shell everywhere; Modern must equal it everywhere except Modern's own
- * chords, listed in MODERN_CHORDS (#310 adds Ctrl+K there).
+ * chords, listed in MODERN_CHORDS (Ctrl+J, the agent window; Ctrl+K, #310's palette).
  */
 
 const KEYS = [
@@ -44,7 +44,7 @@ const CONTEXTS: Readonly<Record<string, KeyContext>> = {
 };
 
 /** Modern's own chords: the letter, with the command modifier alone, and the action. */
-const MODERN_CHORDS: Readonly<Record<string, string>> = { j: 'agent-toggle' };
+const MODERN_CHORDS: Readonly<Record<string, string>> = { j: 'agent-toggle', k: 'palette' };
 
 function isModernChord(facts: KeyFacts): string | null {
   const command = facts.ctrl || facts.meta;

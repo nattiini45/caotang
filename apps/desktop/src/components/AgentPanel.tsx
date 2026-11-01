@@ -76,6 +76,11 @@ export interface AgentPanelProps {
   /** The project's recurring tasks (agent-harness.md §12). */
   readonly recurring: RecurringTasks;
   readonly startIntent: StartIntent | null;
+  /**
+   * Text put in the Intent box from elsewhere (Modern's palette with no match, modern-interface.md §8.9), never sent: the writer
+   * reads it and sends it. The serial makes a repeat of the same text count. A draft already in the box is kept, with the text after it.
+   */
+  readonly draft?: { readonly text: string; readonly serial: number } | null;
   readonly open: boolean;
   readonly onToggle: () => void;
   /** The project is a sample the first-run card made, so the demo intents are offered here. */
@@ -107,7 +112,18 @@ interface PendingRestore {
   readonly exact?: boolean;
 }
 
-export function AgentPanel({ session, agent, recurring, startIntent, open: drawerOpen, onToggle, sample, placement = 'drawer', onClose }: AgentPanelProps): ReactNode {
+export function AgentPanel({
+  session,
+  agent,
+  recurring,
+  startIntent,
+  draft = null,
+  open: drawerOpen,
+  onToggle,
+  sample,
+  placement = 'drawer',
+  onClose,
+}: AgentPanelProps): ReactNode {
   const inWindow = placement === 'window';
   // A window is always open: only the drawer folds.
   const open = inWindow || drawerOpen;
@@ -140,6 +156,20 @@ export function AgentPanel({ session, agent, recurring, startIntent, open: drawe
     handled.current = startIntent.serial;
     void agent.submit(startIntent.intent, { demo: true });
   }, [agent, startIntent]);
+
+  // Text from the palette: into the Intent box, after any draft already there, with the caret at its end. Nothing is sent.
+  const drafted = useRef(0);
+  useEffect(() => {
+    if (draft === null || draft.serial === drafted.current) return;
+    drafted.current = draft.serial;
+    setIntent((current) => (current.trim() === '' ? draft.text : `${current.trimEnd()} ${draft.text}`));
+    requestAnimationFrame(() => {
+      const field = intentRef.current;
+      if (field === null) return;
+      field.focus();
+      field.setSelectionRange(field.value.length, field.value.length);
+    });
+  }, [draft]);
 
   useEffect(() => {
     if (snapshot.message !== null) report({ text: snapshot.message, tone: 'error' });

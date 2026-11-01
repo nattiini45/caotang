@@ -15,7 +15,8 @@ import { scanCss } from '../tools/logical-css.mjs';
 
 const repoRoot = resolve(__dirname, '..');
 const MODERN_DIR = resolve(repoRoot, 'apps/desktop/src/components/shell/modern');
-// The tokens, and every stylesheet under components/shell/modern/ (each Modern surface may keep its own, as companion.css does).
+// The tokens and every stylesheet of the Modern shell's directory (shell-modern.css, and each slot's own, such as companion.css and
+// palette.css).
 const SHEETS = [
   resolve(repoRoot, 'apps/desktop/src/tokens/modern.css'),
   ...readdirSync(MODERN_DIR)
