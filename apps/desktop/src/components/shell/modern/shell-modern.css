@@ -232,10 +232,11 @@
 /* ---- Notices: the status line and the storage notices float at the top centre (§8.6, provisional until #311). ---- */
 :root[data-shell='modern'] .modern-notices {
   position: absolute;
-  inset-block-start: var(--space-6);
-  inset-inline: 0;
+  /* Below the top ornament, never over it: a notice that covered the title capsule would hide **More**, and with it Settings. */
+  inset-block-start: calc(var(--page-top) + var(--radius-ornament) + var(--space-6));
+  inset-inline: var(--area-start) var(--area-end);
   margin-inline: auto;
-  inline-size: min(720px, calc(100% - 2 * var(--page-gutter)));
+  inline-size: min(720px, calc(100% - var(--area-start) - var(--area-end) - 2 * var(--page-gutter)));
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
