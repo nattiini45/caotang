@@ -17,6 +17,9 @@ import type { SettingsSection } from '../Settings.js';
 import type { MenuAnchor } from '../shared.js';
 import type { MinimapDot } from './minimap.js';
 
+/** What the agent is doing: a turn working, a card waiting for the writer's answer, or nothing. */
+export type AgentActivity = 'idle' | 'working' | 'waiting';
+
 export type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
 
 /** The view state a shell needs to arrange the regions, with the setters that change it. The state itself lives in `Workspace`. */
@@ -31,6 +34,10 @@ export interface ShellView {
   /** The window is below 960 px (`NARROW_QUERY`). */
   readonly narrow: boolean;
   readonly agentOpen: boolean;
+  /** Opens or closes the agent: Classic's drawer, Modern's companion window (modern-interface.md §8.10). */
+  readonly setAgentOpen: (open: boolean) => void;
+  /** What the agent is doing, so a control can show a turn that keeps running while the agent is out of sight (§8.10, **Ask**). */
+  readonly agentActivity: AgentActivity;
   /** The narrow layout's open panel (ui-modules §1), or `null`. Always `null` in a wide window and while the rails are hidden. */
   readonly openPanel: NarrowPanel | null;
   readonly setPanel: (panel: NarrowPanel | null) => void;
@@ -108,7 +115,10 @@ export interface ShellRegions {
   readonly pictures: ReactNode;
   /** A media node's own view (a screenplay scene, a storyboard, a dialogue), or its "Open on desktop", or `null`. */
   readonly media: ReactNode;
+  /** The agent panel as Classic's drawer, at the foot of the centre. */
   readonly agent: ReactNode;
+  /** The same agent panel for a window of its own (`placement="window"`): always open, with **Close** in its header. Modern's companion. */
+  readonly agentWindow: ReactNode;
   /** The storage banner, or `null` when it is not shown. */
   readonly storageBanner: ReactNode;
   /** The picture-aware storage notices (pictures.md §6.5), shown only while the general banner is not. */

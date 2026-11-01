@@ -12,7 +12,7 @@
  * | `sidebar`        | #307  | `BinderSidebar` (built: binder-sidebar.tsx)        | before the page                        |
  * | `bottomOrnament` | #306  | `InterimBottomOrnament` (the centre views)         | after the page                         |
  * | `sceneInfo`      | #308  | `SceneInfo` (built by #308; scene-info.tsx)        | after the bottom ornament              |
- * | `companion`      | #309  | nothing (the agent drawer stays on the page)       | after Scene info                       |
+ * | `companion`      | #309  | `CompanionWindow` (built, companion.tsx)           | after Scene info                       |
  * | `palette`        | #310  | nothing                                            | last, before the dialogs               |
  *
  * Each slot is a component that receives the regions (the same feature elements Classic shows, and the view state) and the page's
@@ -25,6 +25,7 @@ import type { ComponentType } from 'react';
 
 import type { ShellRegions } from '../regions.js';
 import { BinderSidebar } from './binder-sidebar.js';
+import { CompanionWindow } from './companion.js';
 import { InterimBottomOrnament, InterimTopOrnament } from './interim-ornaments.js';
 import { InterimNotices } from './interim-notices.js';
 import { Palette } from './palette.js';
@@ -50,7 +51,7 @@ export interface ModernSlots {
   readonly bottomOrnament: ModernSlot | null;
   /** Scene info, the thick-glass popover from the title capsule, or docked beside the page (§7.5, §8.2). #308. */
   readonly sceneInfo: ModernSlot | null;
-  /** The agent's companion window beside the page (§8.10). #309; until then the agent drawer stays on the page. */
+  /** The agent's companion window beside the page (§8.10). #309: `CompanionWindow`; with the slot empty the agent drawer stays on the page. */
   readonly companion: ModernSlot | null;
   /** The palette, Ctrl+K (§8.9). #310. */
   readonly palette: ModernSlot | null;
@@ -63,7 +64,7 @@ export const MODERN_SLOTS: ModernSlots = {
   sidebar: BinderSidebar,
   bottomOrnament: InterimBottomOrnament,
   sceneInfo: SceneInfo,
-  companion: null,
+  companion: CompanionWindow,
   palette: Palette,
 };
 

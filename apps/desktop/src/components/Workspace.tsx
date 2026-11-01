@@ -100,7 +100,7 @@ import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
-import type { RailTab, ShellRegions } from './shell/regions.js';
+import type { AgentActivity, RailTab, ShellRegions } from './shell/regions.js';
 import { Shell } from './shell/Shell.js';
 
 /** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
@@ -238,6 +238,12 @@ export function Workspace({
       setAgent(null);
     };
   }, [session, services.providers, services.settings]);
+  // What the agent is doing, for a shell that shows it with the agent out of sight (Modern's Ask, modern-interface.md §8.10). The
+  // selector reads one field of the cached snapshot, so the workspace renders again only when the activity changes, not on every step.
+  const agentActivity = useSyncExternalStore(
+    useCallback((listener: () => void) => (agent === null ? () => undefined : agent.subscribe(listener)), [agent]),
+    (): AgentActivity => activityOf(agent),
+  );
   /** Starts a turn for intent once the controller has loaded: the request waits for it, so a click before the download is not lost. */
   const submitToAgent = useCallback(
     (intent: string, options?: SubmitOptions): void => {
@@ -919,6 +925,8 @@ export function Workspace({
       hideRails,
       narrow,
       agentOpen,
+      setAgentOpen,
+      agentActivity,
       openPanel,
       setPanel,
       overflow,
@@ -1024,6 +1032,23 @@ export function Workspace({
           draft={agentDraft}
           open={agentOpen}
           onToggle={() => setAgentOpen((on) => !on)}
+          sample={sample}
+        />
+      ),
+    // The same panel for a shell that hosts it in a window of its own (Modern's companion, modern-interface.md §7.4, §8.10): always open,
+    // with Close in its header. Only the shell that places it mounts it.
+    agentWindow:
+      agent === null || recurring === null ? null : (
+        <AgentPanel
+          session={session}
+          agent={agent}
+          recurring={recurring}
+          startIntent={startIntent}
+          draft={agentDraft}
+          open
+          onToggle={() => setAgentOpen((on) => !on)}
+          onClose={() => setAgentOpen(false)}
+          placement="window"
           sample={sample}
         />
       ),
@@ -1569,4 +1594,11 @@ function focusAfterDelete(place: DeletePlace): void {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** What the agent is doing: a turn working, a card waiting for the writer, or nothing. `idle` until the controller has loaded. */
+function activityOf(agent: AgentController | null): AgentActivity {
+  if (agent === null) return 'idle';
+  const snapshot = agent.snapshot();
+  return snapshot.busy ? 'working' : snapshot.pending !== null ? 'waiting' : 'idle';
 }
