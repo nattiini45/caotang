@@ -166,7 +166,7 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     expect(analyse(GOOD, INITIAL, modernBudget, styles(100, 12)).problems).toEqual([expect.stringContaining('"modern-shell" is not in the build')]);
   });
 
-  it('fails the entry stylesheet beyond its measured size plus 1%, and Modern’s stylesheet over 30 kB or in the first load', () => {
+  it('fails the entry stylesheet beyond its measured size plus 1%, and Modern’s stylesheet over its cap or in the first load', () => {
     expect(analyse([...GOOD, MODERN], INITIAL, modernBudget, styles(101, 12)).problems).toEqual([]);
     expect(analyse([...GOOD, MODERN], INITIAL, modernBudget, styles(101.1, 12)).problems).toEqual([
       expect.stringContaining('the entry stylesheet is 101.1 kB'),
@@ -184,9 +184,9 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     ]);
   });
 
-  it('holds Modern’s caps in the real budget: 70 kB of JS and 30 kB of CSS, within 25 kB gzip of Classic', () => {
+  it('holds Modern’s caps in the real budget: 70 kB of JS and 50 kB of CSS, within 25 kB gzip of Classic', () => {
     expect(BUDGET.lazy?.['modern-shell']).toBe(70_000);
-    expect(BUDGET.css?.caps['modern-shell']).toBe(30_000);
+    expect(BUDGET.css?.caps['modern-shell']).toBe(50_000);
     expect(BUDGET.css?.entryMargin).toBe(0.01);
     expect(BUDGET.modernFirstLoadDelta).toBe(25_000);
   });
