@@ -291,9 +291,10 @@ test('every control of the tab bar and the sidebar, and every tree row, is at le
   ];
   for (const target of targets) {
     const box = await target.boundingBox();
-    expect(box, await target.textContent()).not.toBeNull();
-    expect(box?.width ?? 0, await target.textContent()).toBeGreaterThanOrEqual(44);
-    expect(box?.height ?? 0, await target.textContent()).toBeGreaterThanOrEqual(44);
+    const label = (await target.textContent()) ?? '';
+    expect(box, label).not.toBeNull();
+    expect(box?.width ?? 0, label).toBeGreaterThanOrEqual(44);
+    expect(box?.height ?? 0, label).toBeGreaterThanOrEqual(44);
   }
   const rows = sidebar(page).getByRole('treeitem');
   expect(await rows.count()).toBeGreaterThan(2);
