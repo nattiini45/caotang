@@ -67,6 +67,10 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await banner.getByRole('button', { name: 'Dismiss' }).click();
   await expect(banner).toBeHidden();
   await leaveBinder(page);
+  // The pointer off every control (it was left on New document), so no hover state is in the picture: the beside shots differed
+  // between attempts by the binder buttons' hover border.
+  const size = page.viewportSize() ?? { width: 1440, height: 900 };
+  await page.mouse.move(Math.round(size.width / 2), size.height - 8);
   // The window, opened with its chord, with the panel drawn.
   await page.keyboard.press('ControlOrMeta+j');
   const pane = page.getByRole('complementary', { name: 'Agent' });
