@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { NO_PIN } from './classic-pin.js';
-import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, waitForSaved, writerText } from './support.js';
 
 /**
  * The production build, smoke-tested. This spec runs only in the `production-preview` project (playwright.config.ts), against
@@ -355,7 +355,7 @@ test('the shared XML reader is a chunk of its own, fetched when a Final Draft fi
   });
   // The decoded file is shown in the Final Draft report first (#264); nothing is written until Import is chosen.
   await page.getByRole('dialog', { name: 'Import this Final Draft script?' }).getByRole('button', { name: 'Import', exact: true }).click();
-  await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
+  await expect(page.getByText(new RegExp(`Imported 1 scene and .* from ${writerText('night.fdx')}`))).toBeVisible();
   expect(chunks()).toContain('xml');
   expect(problems).toEqual([]);
   expect(await violations(page)).toEqual([]);
