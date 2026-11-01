@@ -12743,7 +12743,6 @@ msgid "Scene headings"
 msgstr "Szenenüberschriften"
 
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
-#. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 msgid "Scene info"
 msgstr "Szeneninfo"

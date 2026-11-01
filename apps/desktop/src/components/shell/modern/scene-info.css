@@ -139,16 +139,6 @@
   }
 }
 
-/* ---- The provisional opener at the top ornament's end, until #306's title capsule registers itself. ---- */
-:root[data-shell='modern'] .scene-info-opener {
-  position: absolute;
-  inset-block-start: calc(var(--page-top) - var(--radius-ornament));
-  inset-inline-end: calc(var(--area-end) + var(--page-gutter));
-  z-index: 2;
-  padding: var(--ornament-pad);
-  border-radius: var(--radius-ornament);
-}
-
 @media (forced-colors: active) {
   :root[data-shell='modern'] .scene-info {
     border: 1px solid CanvasText;

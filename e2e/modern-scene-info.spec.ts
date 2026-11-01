@@ -4,11 +4,11 @@ import { NO_PIN } from './classic-pin.js';
 import { binderRow, createProject, waitForSaved } from './support.js';
 
 /**
- * Modern's Scene info (M7, #308; modern-interface.md §7.3, §7.5, §8.2, §8.3): the inspector as a non-modal dialog of thick glass from
- * the title capsule (until #306's capsule registers itself, Scene info's provisional opener), with the same ids, so the routes to
- * `#inspector-synopsis` keep working; the first fields, **Notes** and **Story details** as disclosures, and **Progress** with today's
- * words and the save state in words. Escape commits the field and closes, and focus returns to the opener; a click outside closes;
- * **Keep open** docks it; reduced motion fades it in place of the morph. These specs run Modern, so they start without the Classic pin.
+ * Modern's Scene info (M7, #308; modern-interface.md §7.3, §7.5, §8.2, §8.3): the inspector as a non-modal dialog of thick glass, with
+ * the same ids, so the routes to `#inspector-synopsis` keep working; the first fields, **Notes** and **Story details** as disclosures,
+ * and **Progress** with today's words and the save state in words. Escape commits the field and closes, and focus goes back; a click
+ * outside closes; **Keep open** docks it; reduced motion fades it in place of the morph. The title capsule that opens it is #306's, so
+ * these specs open it by the binder's **Edit synopsis**, the route every shell has. They run Modern, so they start without the pin.
  */
 
 test.use({ storageState: NO_PIN });
@@ -29,31 +29,27 @@ async function sceneInModern(page: Page, project: string): Promise<void> {
   await waitForSaved(page);
 }
 
-function opener(page: Page) {
-  return page.getByTestId('scene-info-opener').getByRole('button', { name: 'Scene info' });
+/** Opens Scene info on the synopsis by the binder's Edit synopsis. */
+async function editSynopsis(page: Page, title = 'The crossing'): Promise<void> {
+  await page.getByRole('button', { name: `Actions for ${title}` }).click();
+  await page.getByRole('menuitem', { name: 'Edit synopsis' }).click();
 }
 
 function sceneInfo(page: Page) {
   return page.getByRole('dialog', { name: 'Scene info' });
 }
 
-test('Scene info opens from its opener on the synopsis, with the inspector’s ids, its sections and Progress', async ({ page }) => {
+test('Edit synopsis opens Scene info on the synopsis, with the inspector’s ids, its sections and Progress', async ({ page }) => {
   await sceneInModern(page, 'Harbour Book');
   // Closed, the inspector is not in the page: Scene info holds it.
   await expect(page.locator('#inspector-synopsis')).toHaveCount(0);
 
-  const open = opener(page);
-  await expect(open).toHaveAttribute('aria-haspopup', 'dialog');
-  await expect(open).toHaveAttribute('aria-expanded', 'false');
-  await open.click();
-
+  await editSynopsis(page);
   const dialog = sceneInfo(page);
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveAttribute('aria-modal', 'false');
   await expect(dialog).toHaveAttribute('id', 'modern-scene-info');
-  await expect(open).toHaveAttribute('aria-expanded', 'true');
-  await expect(open).toHaveAttribute('aria-controls', 'modern-scene-info');
-  // Focus moves to the first field as it opens; the field keeps its Classic id.
+  // Focus moves to the synopsis as it opens; the field keeps its Classic id.
   await expect(dialog.locator('#inspector-synopsis')).toBeFocused();
   await expect(dialog.getByRole('heading', { name: 'The crossing' })).toBeVisible();
 
@@ -81,19 +77,19 @@ test('Scene info opens from its opener on the synopsis, with the inspector’s i
   await expect(binderRow(page, 'The crossing').getByRole('button', { name: /^Status of The crossing: Final/ })).toBeVisible();
 });
 
-test('Escape in the synopsis commits it, closes Scene info and returns focus to the opener', async ({ page }) => {
+test('Escape in the synopsis commits it, closes Scene info and gives focus back', async ({ page }) => {
   await sceneInModern(page, 'Escape Book');
-  await opener(page).click();
+  await editSynopsis(page);
   const field = sceneInfo(page).locator('#inspector-synopsis');
   await expect(field).toBeFocused();
   await page.keyboard.type('Lin crosses at dawn.');
   // Escape at once, inside the field's debounce: the field commits before Scene info goes.
   await page.keyboard.press('Escape');
   await expect(sceneInfo(page)).toHaveCount(0);
-  await expect(opener(page)).toBeFocused();
-  await expect(opener(page)).toHaveAttribute('aria-expanded', 'false');
+  // The menu item that asked is gone, so focus goes to the page (with #306's title capsule, to the capsule).
+  await expect(page.locator('#modern-page')).toBeFocused();
 
-  await opener(page).click();
+  await editSynopsis(page);
   await expect(sceneInfo(page).locator('#inspector-synopsis')).toHaveValue('Lin crosses at dawn.');
   // The store holds the synopsis: it was written through the inspector's own command.
   await page.keyboard.press('Escape');
@@ -105,33 +101,36 @@ test('Escape in the synopsis commits it, closes Scene info and returns focus to 
   expect(synopsis).toBe('Lin crosses at dawn.');
 });
 
-test('a click outside closes Scene info and leaves focus where the writer clicked; the opener closes it too', async ({ page }) => {
+test('a click outside closes Scene info and leaves focus where the writer clicked; Close closes it too', async ({ page }) => {
   await sceneInModern(page, 'Outside Book');
-  await opener(page).click();
+  await editSynopsis(page);
   await expect(sceneInfo(page)).toBeVisible();
   await page.getByRole('textbox', { name: 'Document text' }).click();
   await expect(sceneInfo(page)).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Document text' })).toBeFocused();
 
-  await opener(page).click();
-  await expect(sceneInfo(page)).toBeVisible();
-  await opener(page).click();
+  await editSynopsis(page);
+  await sceneInfo(page).getByRole('button', { name: 'Close' }).click();
   await expect(sceneInfo(page)).toHaveCount(0);
-  await expect(opener(page)).toBeFocused();
 });
 
-test('Edit synopsis in the binder opens Scene info on the synopsis', async ({ page }) => {
-  await sceneInModern(page, 'Route Book');
-  await page.getByRole('button', { name: 'Actions for The crossing' }).click();
-  await page.getByRole('menuitem', { name: 'Edit synopsis' }).click();
-  await expect(sceneInfo(page)).toBeVisible();
-  await expect(page.locator('#inspector-synopsis')).toBeFocused();
-  await page.keyboard.type('A ferry, late.');
+test('an inspector request from the text (the route the synopsis chord takes) opens Scene info, and Escape goes back to the text', async ({ page }) => {
+  await sceneInModern(page, 'Chord Book');
+  // Ctrl+Shift+Y in a screenplay's Source and Edit synopsis send the same request (app/inspector-request.ts); this sends it from the text.
+  await page.getByRole('textbox', { name: 'Document text' }).click();
+  const synopsisRequest = page.evaluate(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const event = new CustomEvent('caotang-inspector-request', { detail: { field: 'synopsis' }, cancelable: true });
+        window.dispatchEvent(event);
+        resolve(event.defaultPrevented);
+      }),
+  );
+  expect(await synopsisRequest).toBe(true);
+  await expect(sceneInfo(page).locator('#inspector-synopsis')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(sceneInfo(page)).toHaveCount(0);
-  await expect(opener(page)).toBeFocused();
-  await opener(page).click();
-  await expect(page.locator('#inspector-synopsis')).toHaveValue('A ferry, late.');
+  await expect(page.getByRole('textbox', { name: 'Document text' })).toBeFocused();
 });
 
 test('Keep open docks Scene info beside the page: a click outside leaves it, Escape gives focus back, and it is kept', async ({ page }) => {
@@ -140,7 +139,7 @@ test('Keep open docks Scene info beside the page: a click outside leaves it, Esc
   const pageBox = async () => (await page.locator('#modern-page').boundingBox())?.x ?? 0;
   const before = await pageBox();
 
-  await opener(page).click();
+  await editSynopsis(page);
   const keep = sceneInfo(page).getByRole('button', { name: 'Keep open' });
   await expect(keep).toHaveAttribute('aria-pressed', 'false');
   await keep.click();
@@ -160,29 +159,32 @@ test('Keep open docks Scene info beside the page: a click outside leaves it, Esc
   await sceneInfo(page).locator('#inspector-synopsis').click();
   await page.keyboard.press('Escape');
   await expect(sceneInfo(page)).toBeVisible();
-  await expect(opener(page)).toBeFocused();
+  await expect(sceneInfo(page).locator('#inspector-synopsis')).not.toBeFocused();
 
   // Kept across a reload: the next opening is docked.
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Projects in this browser' })).toBeVisible();
   await page.getByRole('listitem').filter({ hasText: 'Docked Book' }).getByRole('button', { name: 'Open', exact: true }).click();
-  await opener(page).click();
+  await editSynopsis(page);
   await expect(sceneInfo(page)).toHaveClass(/is-docked/);
   await sceneInfo(page).getByRole('button', { name: 'Keep open' }).click();
   await expect(sceneInfo(page)).toHaveClass(/is-popover/);
 });
 
 test.describe('motion', () => {
-  test('Scene info morphs out of its opener', async ({ page }) => {
+  test('with motion on, the durations stand, and a route-opened Scene info fades in place', async ({ page }) => {
     await sceneInModern(page, 'Morph Book');
-    await opener(page).click();
-    await expect(sceneInfo(page)).toHaveAttribute('data-entrance', 'morph');
+    await editSynopsis(page);
+    // A route has no opener to grow from, so it fades; #306's capsule gives the morph (scene-info-model.test.ts covers the rule).
+    await expect(sceneInfo(page)).toHaveAttribute('data-entrance', 'fade');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dur-3').trim())).toBe('520ms');
   });
 
   test('under reduced motion it fades in place, and nothing moves', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await sceneInModern(page, 'Still Book');
-    await opener(page).click();
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dur-3').trim())).toBe('0s');
+    await editSynopsis(page);
     await expect(sceneInfo(page)).toHaveAttribute('data-entrance', 'fade');
     const moving = await sceneInfo(page).evaluate((element) =>
       element.getAnimations({ subtree: true }).some((animation) => {

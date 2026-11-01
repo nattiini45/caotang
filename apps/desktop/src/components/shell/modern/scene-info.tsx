@@ -15,8 +15,8 @@
  *   opener and leaves it open. The page moves over for it; from 1,280 px down it overlaps the page as a sheet (§8.4). Focus mode hides
  *   it, as the Writing setting hides Classic's inspector (§8.8).
  *
- * Until #306's title capsule registers itself, Scene info draws a provisional **Scene info** capsule at the top ornament's end, so
- * Modern (Preview) can reach it; the capsule's registration removes it, with nothing here to change.
+ * The title capsule is #306's: it registers itself through `useSceneInfoOpener` (scene-info-store.ts), and nothing here changes when it
+ * does. Until then the routes open Scene info at the top centre, and focus goes back to where the writer was, or to the page.
  */
 /* lingui-set comment="Modern interface: Scene info, the inspector as a popover from the title capsule." */
 
@@ -47,9 +47,9 @@ import {
   openSceneInfo,
   resetSceneInfo,
   sceneInfoOpener,
+  sceneInfoReturnTarget,
   setSceneInfoDocked,
   useSceneInfo,
-  useSceneInfoOpener,
   type SceneInfoFocus,
 } from './scene-info-store.js';
 import type { ModernSlotProps } from './slots.js';
@@ -71,24 +71,7 @@ export function SceneInfo({ regions }: ModernSlotProps): ReactNode {
 
   // Focus mode hides Scene info with the rails (§8.8); its state stays, so leaving focus mode brings a docked one back.
   const shown = info.open && !regions.view.hideRails;
-  return (
-    <>
-      {info.hasCapsule || regions.view.hideRails ? null : <ProvisionalOpener />}
-      {shown ? <SceneInfoPanel regions={regions} docked={info.docked} focus={info.focus} request={info.request} /> : null}
-    </>
-  );
-}
-
-/** Scene info's opener until #306's title capsule registers itself. */
-function ProvisionalOpener(): ReactNode {
-  const { buttonProps } = useSceneInfoOpener('provisional');
-  return (
-    <div className="scene-info-opener mat-glass" data-testid="scene-info-opener">
-      <button type="button" className="modern-capsule" {...buttonProps}>
-        <Trans>Scene info</Trans>
-      </button>
-    </div>
-  );
+  return shown ? <SceneInfoPanel regions={regions} docked={info.docked} focus={info.focus} request={info.request} /> : null;
 }
 
 /** The opener's box, for anchoring and the morph. */
@@ -204,7 +187,7 @@ function SceneInfoPanel({
     // Escape in a field commits it first: the field's blur writes its draft (useDebouncedText), as leaving it any other way does.
     const active = document.activeElement;
     if (active instanceof HTMLElement && active !== panel.current && panel.current?.contains(active)) active.blur();
-    if (docked) sceneInfoOpener()?.focus();
+    if (docked) sceneInfoReturnTarget()?.focus();
     else closeSceneInfo();
   };
 
