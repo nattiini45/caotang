@@ -59,7 +59,7 @@ export function morphFrames(from: Box, to: Box): readonly [MorphFrame, MorphFram
   const sx = round(from.width / to.width);
   const sy = round(from.height / to.height);
   return [
-    { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, transformOrigin: '0 0', opacity: 0.4 },
+    { transform: [`translate(${dx}px,${dy}px)`, `scale(${sx},${sy})`].join(' '), transformOrigin: '0 0', opacity: 0.4 },
     { transform: 'none', transformOrigin: '0 0', opacity: 1 },
   ];
 }

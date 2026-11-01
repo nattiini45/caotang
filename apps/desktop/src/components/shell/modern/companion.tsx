@@ -138,6 +138,21 @@ export function CompanionWindow({ regions, pageId }: ModernSlotProps): ReactNode
 
   useEffect(() => () => stop(running.current), []);
 
+  // Opened before the agent's code has loaded (Ctrl+J as the project opens), focus waits on the window itself; it moves on into the
+  // Intent box once the panel is drawn, unless the writer has moved it by then.
+  useEffect(() => {
+    const element = aside.current;
+    if (!open || element === null || typeof MutationObserver === 'undefined') return;
+    const observer = new MutationObserver(() => {
+      if (document.activeElement !== element) return;
+      if (element.querySelector('.agent-intent input:not(:disabled), [data-testid="agent-close"]') === null) return;
+      focusInto(element);
+      observer.disconnect();
+    });
+    observer.observe(element, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled'] });
+    return () => observer.disconnect();
+  }, [open]);
+
   const close = (): void => view.setAgentOpen(false);
   return (
     <>

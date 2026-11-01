@@ -50,7 +50,7 @@ describe('the morph (§8.3)', () => {
     const frames = morphFrames(ask, pane);
     expect(frames).not.toBeNull();
     const [first, last] = frames!;
-    expect(first.transform).toBe('translate(-308px, 720px) scale(0.24, 0.07)');
+    expect(first.transform).toBe('translate(-308px,720px) scale(0.24,0.07)');
     expect(first.transformOrigin).toBe('0 0');
     expect(first.opacity).toBeLessThan(1);
     expect(last).toEqual({ transform: 'none', transformOrigin: '0 0', opacity: 1 });
