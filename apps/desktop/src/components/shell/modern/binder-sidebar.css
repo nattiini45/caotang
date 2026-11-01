@@ -1,0 +1,312 @@
+/*
+ * Modern's binder tab bar and sidebar (M6, #307; docs/architecture/modern-interface.md §5.3, §6, §8.5, §9.5): a slim glass tab bar
+ * at the inline-start edge, and the sidebar beside it that the bar grows into, the page's height. In the `modern-shell` chunk's
+ * stylesheet, with binder-sidebar.tsx.
+ *
+ * Rules: every selector starts with :root[data-shell='modern'] (D7) and only logical properties are used (i18n.md §5.1); both are
+ * checked by test/modern-css.test.ts. Colours, shapes, motion and materials come from tokens (tokens/modern.css).
+ *
+ * The page moves over for the bar, and for the sidebar too while it is pinned: the stage's --area-start, set here from what the
+ * stage holds (`:has`), until #306's modernLayout writes the geometry through the CSSOM.
+ */
+
+:root[data-shell='modern'] .modern-stage {
+  --binder-inset: 16px;
+  --binder-bar-w: 88px;
+  --binder-gap: 8px;
+  --binder-sidebar-w: 340px;
+  /* The sidebar grows out of the bar: it starts a little toward the bar, mirrored in a right-to-left interface. */
+  --binder-shift: calc(-12px * var(--dir, 1));
+}
+
+:root[data-shell='modern'] .modern-stage.has-sidebar:has(> .modern-binder) {
+  --area-start: calc(var(--binder-inset) + var(--binder-bar-w));
+}
+
+:root[data-shell='modern'] .modern-stage.has-sidebar:has(> .modern-binder.is-pinned) {
+  --area-start: calc(var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap) + var(--binder-sidebar-w));
+}
+
+/* ---- The tab bar: glass, its labels on scrims (§5.3), every control at least 44 px (§9.5). ---- */
+:root[data-shell='modern'] .modern-binder-bar {
+  position: absolute;
+  inset-block-start: var(--page-top);
+  inset-inline-start: var(--binder-inset);
+  inline-size: var(--binder-bar-w);
+  max-block-size: calc(100% - var(--page-top) - var(--page-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  padding: var(--ornament-pad);
+  border-radius: var(--radius-ornament);
+  z-index: 3;
+}
+
+:root[data-shell='modern'] .modern-binder-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: 64px;
+  min-inline-size: var(--target-min);
+  padding: var(--space-4) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--scrim);
+  color: var(--on-glass);
+  font: 600 12px/1.2 var(--ui);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease-standard),
+    transform var(--dur-1) var(--ease-spring);
+}
+
+:root[data-shell='modern'] .modern-binder-button:hover {
+  background: var(--mat-thick-bg);
+}
+
+:root[data-shell='modern'] .modern-binder-button:active {
+  transform: scale(0.97);
+}
+
+:root[data-shell='modern'] .modern-binder-button[aria-expanded='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .modern-binder-label {
+  /* Words wrap between words, never inside one (§10). */
+  overflow-wrap: normal;
+  hyphens: manual;
+}
+
+:root[data-shell='modern'] .modern-binder-icon {
+  inline-size: 22px;
+  block-size: 22px;
+  flex: none;
+}
+
+/* An open finding: a dot on Panels, as the title capsule has one (§6). The count itself is on the Findings tab. */
+:root[data-shell='modern'] .modern-binder-dot {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-end: var(--space-3);
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+/* The minimap: decorative status dots (§9.1), the open scene ringed. */
+:root[data-shell='modern'] .modern-minimap {
+  display: grid;
+  grid-template-columns: repeat(4, 8px);
+  justify-content: center;
+  gap: 6px;
+  padding-block: var(--space-4);
+  overflow: hidden;
+}
+
+:root[data-shell='modern'] .modern-minimap:empty {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-minimap-dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--on-glass);
+}
+
+:root[data-shell='modern'] .modern-minimap-dot.is-empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--on-glass);
+}
+
+:root[data-shell='modern'] .modern-minimap-dot.is-current {
+  outline: 2px solid var(--on-glass);
+  outline-offset: 1px;
+}
+
+/* ---- The sidebar: thick glass beside the bar, the page's height; its panel on solid ground so the binder's text keeps 4.5:1. ---- */
+:root[data-shell='modern'] .modern-sidebar {
+  position: absolute;
+  inset-block: var(--page-top) var(--page-bottom);
+  inset-inline-start: calc(var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap));
+  inline-size: var(--binder-sidebar-w);
+  max-inline-size: calc(100% - var(--binder-inset) - var(--binder-bar-w) - 2 * var(--binder-gap));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+  padding: var(--sheet-pad);
+  border-radius: var(--radius-sheet);
+  z-index: 4;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(var(--binder-shift)) scale(0.97);
+  /* Closing: fade and shrink back toward the bar, then leave the accessibility tree. */
+  transition:
+    opacity var(--dur-2) var(--ease-standard),
+    transform var(--dur-2) var(--ease-standard),
+    visibility 0s linear var(--dur-2);
+}
+
+:root[data-shell='modern'] .modern-binder.is-open .modern-sidebar {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  /* Opening: a spring out of the bar; under reduced motion only the 120 ms fade is left (§5.5). */
+  transition:
+    opacity var(--dur-fade) var(--ease-standard),
+    transform var(--dur-3) var(--ease-spring),
+    visibility 0s;
+}
+
+:root[data-shell='modern'] .modern-sidebar-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+:root[data-shell='modern'] .modern-sidebar-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+}
+
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--scrim);
+  color: var(--on-glass);
+  font: 600 13px/1 var(--ui);
+  transition: background-color var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab:hover {
+  background: var(--mat-thick-bg);
+}
+
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab[aria-selected='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .modern-sidebar-pin {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--scrim);
+  color: var(--on-glass);
+  font: 600 13px/1 var(--ui);
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] .modern-sidebar-pin[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .modern-sidebar-panel {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  padding: var(--space-5);
+  border-radius: var(--radius-inner);
+  background: var(--m-solid);
+  color: var(--ink);
+}
+
+/* Goals and sprint: the binder footer in one disclosure under the tree (§7.2). */
+:root[data-shell='modern'] .modern-sidebar-goals {
+  margin-block-start: var(--space-5);
+  border-block-start: 1px solid var(--line);
+  padding-block-start: var(--space-3);
+}
+
+:root[data-shell='modern'] .modern-sidebar-disclosure {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--target-min);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--ink);
+  font: 600 13px/1.2 var(--ui);
+  text-align: start;
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] .modern-sidebar-disclosure:hover {
+  background: var(--accent-soft);
+}
+
+:root[data-shell='modern'] .modern-sidebar-chevron {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  transform: scaleX(var(--dir, 1));
+  transition: transform var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] .modern-sidebar-disclosure[aria-expanded='true'] .modern-sidebar-chevron {
+  transform: rotate(90deg);
+}
+
+/* The two-tone focus ring (§9.2) on every control of the bar and the sidebar's head. */
+:root[data-shell='modern'] .modern-binder-button:focus-visible,
+:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab:focus-visible,
+:root[data-shell='modern'] .modern-sidebar-pin:focus-visible,
+:root[data-shell='modern'] .modern-sidebar-disclosure:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
+}
+
+/* ---- Forced colours (§5.3): system colours and a border on every container and control. ---- */
+@media (forced-colors: active) {
+  :root[data-shell='modern'] .modern-binder-bar,
+  :root[data-shell='modern'] .modern-sidebar,
+  :root[data-shell='modern'] .modern-sidebar-panel,
+  :root[data-shell='modern'] .modern-binder-button,
+  :root[data-shell='modern'] .modern-sidebar-tabs .rail-tab,
+  :root[data-shell='modern'] .modern-sidebar-pin {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  :root[data-shell='modern'] .modern-binder-button[aria-expanded='true'],
+  :root[data-shell='modern'] .modern-sidebar-tabs .rail-tab[aria-selected='true'],
+  :root[data-shell='modern'] .modern-sidebar-pin[aria-pressed='true'] {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  :root[data-shell='modern'] .modern-minimap-dot {
+    background: CanvasText;
+  }
+}

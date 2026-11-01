@@ -98,6 +98,7 @@ import {
 import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { railTabId } from './shell/ClassicShell.js';
+import { minimapDots } from './shell/minimap.js';
 import type { RailTab, ShellRegions } from './shell/regions.js';
 import { Shell } from './shell/Shell.js';
 
@@ -179,6 +180,8 @@ export function Workspace({
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
   const [filterFocusRequest, setFilterFocusRequest] = useState(0);
+  // Counts the documents chosen in the binder, so a shell whose binder floats over the page (Modern's sidebar) can close it on each.
+  const [binderChoice, setBinderChoice] = useState(0);
   const [zoom, setZoom] = useState<ZoomLevel>('M');
   const [renaming, setRenaming] = useState<Renaming | null>(null);
   const [askingDelete, setAskingDelete] = useState<string | null>(null);
@@ -917,25 +920,29 @@ export function Workspace({
       overflow,
       openOverflow,
       closeOverflow: () => setOverflow(null),
+      filterRequest: filterFocusRequest,
+      binderChoice,
     },
     binder: (
-      <>
-        <Binder
-          session={session}
-          renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
-          onRename={renameOn('binder')}
-          onAskDelete={askDelete}
-          onShowCenter={showCenter}
-          onOpened={() => setPanel(null)}
-          onFocusSynopsis={() => {
-            if (narrow) setPanel('inspector');
-            focusSoon('#inspector-synopsis');
-          }}
-          onAgentIntent={runAgentIntent}
-        />
-        <BinderFooter session={session} runtime={store} target={target} />
-      </>
+      <Binder
+        session={session}
+        renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
+        onRename={renameOn('binder')}
+        onAskDelete={askDelete}
+        onShowCenter={showCenter}
+        onOpened={() => {
+          setPanel(null);
+          setBinderChoice((count) => count + 1);
+        }}
+        onFocusSynopsis={() => {
+          if (narrow) setPanel('inspector');
+          focusSoon('#inspector-synopsis');
+        }}
+        onAgentIntent={runAgentIntent}
+      />
     ),
+    binderFooter: <BinderFooter session={session} runtime={store} target={target} />,
+    minimap: minimapDots(state, activeDoc),
     codex: <CodexPanel session={session} onOpenDocument={openDocument} focus={codexFocus} onAgentIntent={runAgentIntent} />,
     findings: (
       <FindingsPanel

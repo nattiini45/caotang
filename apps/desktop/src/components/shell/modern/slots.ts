@@ -9,7 +9,7 @@
  * |------------------|-------|----------------------------------------------------|----------------------------------------|
  * | `notices`        | #311  | `InterimNotices` (status line, storage notices)    | after the skip link                    |
  * | `topOrnament`    | #306  | `InterimTopOrnament` (name, save state, More menu) | before the binder                      |
- * | `sidebar`        | #307  | `InterimSidebar` (the binder on paper)             | before the page                        |
+ * | `sidebar`        | #307  | `BinderSidebar` (built: binder-sidebar.tsx)        | before the page                        |
  * | `bottomOrnament` | #306  | `InterimBottomOrnament` (the centre views)         | after the page                         |
  * | `sceneInfo`      | #308  | nothing (the inspector waits for Scene info)       | after the bottom ornament              |
  * | `companion`      | #309  | nothing (the agent drawer stays on the page)       | after Scene info                       |
@@ -24,9 +24,9 @@
 import type { ComponentType } from 'react';
 
 import type { ShellRegions } from '../regions.js';
+import { BinderSidebar } from './binder-sidebar.js';
 import { InterimBottomOrnament, InterimTopOrnament } from './interim-ornaments.js';
 import { InterimNotices } from './interim-notices.js';
-import { InterimSidebar } from './interim-sidebar.js';
 
 /** What every slot receives. */
 export interface ModernSlotProps {
@@ -58,7 +58,7 @@ export interface ModernSlots {
 export const MODERN_SLOTS: ModernSlots = {
   notices: InterimNotices,
   topOrnament: InterimTopOrnament,
-  sidebar: InterimSidebar,
+  sidebar: BinderSidebar,
   bottomOrnament: InterimBottomOrnament,
   sceneInfo: null,
   companion: null,

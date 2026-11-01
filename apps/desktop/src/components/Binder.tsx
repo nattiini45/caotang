@@ -253,7 +253,8 @@ export function Binder(props: BinderProps): ReactNode {
       { ...keyFacts(event), ctrl: false, meta: false, composing: isImeEnter(event) },
       { inTextField: false, inBinder: true, rtl: uiIsRtl() },
     );
-    if (action === null) return;
+    // Escape means nothing to the tree itself: it is left to the panel around it (the narrow drawer, Modern's sidebar), which closes.
+    if (action === null || action === 'escape') return;
     const index = rows.findIndex((row) => row.node.id === selected);
     const current = index === -1 ? undefined : rows[index];
     event.preventDefault();

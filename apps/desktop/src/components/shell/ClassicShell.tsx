@@ -175,7 +175,7 @@ export function ClassicLayout({ regions }: { regions: ShellRegions }): ReactNode
           </div>
           <div role="tabpanel" id="rail-panel" aria-labelledby={railTabId(rail)} className="rail-panel">
             {rail === 'binder'
-              ? regions.binder
+              ? <>{regions.binder}{regions.binderFooter}</>
               : rail === 'codex'
                 ? regions.codex
                 : rail === 'findings'
@@ -304,7 +304,7 @@ function ToolbarButton({ action, quiet = false }: { action: ShellAction; quiet?:
  * One rail tab. Roving tabindex: the selected tab is the one Tab reaches, and the arrow keys (handled by the tab list) move
  * between the rest. The tabpanel names itself by this tab's id.
  */
-function RailTabButton({
+export function RailTabButton({
   tab,
   current,
   label,
