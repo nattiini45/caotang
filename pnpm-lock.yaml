@@ -840,6 +840,15 @@ importers:
         specifier: 0.8.3
         version: 0.8.3
 
+  packages/import-rtf:
+    dependencies:
+      '@caotang/import-core':
+        specifier: workspace:*
+        version: link:../import-core
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+
   packages/mcp-client:
     dependencies:
       '@caotang/bus':
