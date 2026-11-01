@@ -1,6 +1,6 @@
 # Import core: the block model and the chapter and scene splitter 🧭
 
-> Status: the package `packages/import-core` (`@caotang/import-core`) is **built** (#266): the block model, the rule set and the splitter, with golden fixtures. Nothing in the app calls it yet. The readers that emit blocks (DOCX, RTF and Scrivener, Markdown, plain text, EPUB, ODT, HTML), the preview dialog (#267) and committing nested Part folders (#269) are **specified, not built**. Epic: #263.
+> Status: the package `packages/import-core` (`@caotang/import-core`) is **built** (#266): the block model, the rule set and the splitter, with golden fixtures. Nothing in the app calls it yet. The preview dialog is built (#267, [import-preview.md](import-preview.md)) with a source interface shaped for `SplitResult` and `SplitOverrides`, but the source that runs `splitImport` for it is not. The readers that emit blocks (DOCX, RTF and Scrivener, Markdown, plain text, EPUB, ODT, HTML) and committing nested Part folders (#269) are **specified, not built**. Epic: #263.
 
 ## 1. Purpose
 
@@ -92,7 +92,7 @@ Shown in the preview, never fixed by the splitter: `chapter-short` (< 100 words)
 ## 5. What is not built
 
 - The readers. Each emits `ImportDocument` and is a lazy chunk (#31).
-- The preview dialog (#267), which edits `SplitRules`, shows `detected` as chips and `splits` as markers, and commits one undo group.
+- The splitter source for the preview dialog. The dialog itself is built (#267, [import-preview.md](import-preview.md)) and commits one undo group through `binder.importTree`; the source that edits `SplitRules`, shows `detected` as chips and `splits` as markers, and maps `SplitResult` onto the dialog's plan is not.
 - Committing the tree. The splitter emits Part folders holding chapter folders; the binder allows them once #269 lands. Until then a caller can use `parts: 'flatten'`.
 
 ## 6. Fixtures

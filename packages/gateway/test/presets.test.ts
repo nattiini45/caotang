@@ -96,6 +96,8 @@ describe('the registry', () => {
       }
       if (preset.cors === 'blocked') expect(preset.corsNote, preset.id).toBeTruthy();
     }
+    // Z.ai answered a browser chat request on 2026-10-30, so its old "refuses the browser preflight" note is gone for good.
+    expect(presetFor('zhipu-zai')!.corsNote, 'zhipu-zai').toBeUndefined();
   });
 
   it('opts into the browser-access header on every anthropic-messages preset pointed at an Anthropic host', () => {

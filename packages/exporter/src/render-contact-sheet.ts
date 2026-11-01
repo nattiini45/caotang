@@ -141,7 +141,8 @@ export interface ContactSheetPdfInput {
    * Reads the Bold of the fallback font (Noto Sans Mono CJK SC Bold, `@caotang/font-noto-cjk`) for text the CJK font sets (Han, kana,
    * Hangul, Greek, Cyrillic) in a bold place: the header title, the page label and the number chip; Arabic, Hebrew, Devanagari and
    * emoji there keep their own fonts. Called at most once, and only when such a place holds such text. A loader with a `common` file
-   * reads it when every such character of the bold places is in it; a loader without one reads the full file. The font must be a bold
+   * reads it when every such character of the bold places is in it or in neither file (it prints as `?` either way, `cjkLoaderFor` in
+   * `@caotang/pdf-fonts`); a loader without one reads the full file. The font must be a bold
    * face (weight 600 or more). When the loader is absent, cannot be read or is not bold, that text is the Regular with a synthetic stroke
    * (`@caotang/pdf-fonts` embolden.ts), drawn as before the Bold existed, and the log says why.
    */

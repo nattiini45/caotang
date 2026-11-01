@@ -158,6 +158,7 @@ export const FOOTPRINT_CLASS: Readonly<Record<CommandName, 'content' | 'move' | 
   'hook.save': 'global',
   'hook.delete': 'global',
   'codex.importBatch': 'global',
+  'binder.importTree': 'global',
 };
 
 const FOOTPRINTS: Readonly<Record<'content' | 'move', FootprintOf>> = { content, move };
