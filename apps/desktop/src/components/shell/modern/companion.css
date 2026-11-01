@@ -1,0 +1,190 @@
+/*
+ * The agent's companion window (M8, #309; docs/architecture/modern-interface.md §5.3, §8.4, §8.10, §13). In the `modern-shell` chunk with
+ * shell-modern.css, loaded only while Modern is on. Every selector starts with :root[data-shell='modern'] (D7) and only logical
+ * properties are used (i18n.md §5.1); test/modern-css.test.ts checks both.
+ *
+ * The window is thick glass at the stage's inline-end edge, aligned with the page. Its header sits on the glass with --on-glass text;
+ * the turns and the Intent box sit on solid panes, so the agent's muted text keeps 4.5:1 whatever the wallpaper behind (§5.3, §9.3).
+ *
+ * Above 1,280 px the open window takes room from the page (--area-end, which #306's modernLayout also writes from companionAreaEnd in
+ * companion-model.ts); from 1,280 px down it overlaps the page as a sheet over a scrim; below 960 px it is a full-width sheet.
+ */
+
+:root[data-shell='modern'] .modern-companion {
+  --companion-w: 400px;
+  position: absolute;
+  inset-block: var(--page-top) var(--page-bottom);
+  inset-inline-end: var(--page-gutter);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  inline-size: min(var(--companion-w), calc(100% - 2 * var(--page-gutter)));
+  min-block-size: 0;
+  padding: var(--sheet-pad);
+  border-radius: var(--radius-sheet);
+}
+
+:root[data-shell='modern'] .modern-companion[hidden] {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-companion:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* The page moves over (above 1,280 px) and recedes slightly while the window is open (§8.10). */
+:root[data-shell='modern'] .modern-page-area {
+  transition:
+    inset-inline-end var(--dur-3) var(--ease-spring),
+    transform var(--dur-3) var(--ease-spring);
+}
+
+:root[data-shell='modern'] .modern-stage:has(> .modern-companion.is-open) > .modern-page-area {
+  transform: scale(0.985);
+}
+
+@media (min-width: 1281px) {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-companion.is-open) {
+    --area-end: calc(400px + var(--page-gutter));
+  }
+}
+
+/* Reduced motion: the page moves over at once and does not recede (§5.5, §8.10). */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-companion.is-open) > .modern-page-area {
+    transform: none;
+  }
+}
+
+:root[data-shell='modern'][data-motion='reduced'] .modern-stage:has(> .modern-companion.is-open) > .modern-page-area {
+  transform: none;
+}
+
+/* The scrim behind a sheet (from 1,280 px down); a click on it closes the window. Not drawn while the window sits beside the page. */
+:root[data-shell='modern'] .modern-companion-scrim {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: var(--scrim);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
+
+:root[data-shell='modern'] .modern-companion-scrim.is-open {
+  opacity: 1;
+}
+
+@media (max-width: 1280px) {
+  :root[data-shell='modern'] .modern-companion-scrim {
+    display: block;
+  }
+
+  :root[data-shell='modern'] .modern-companion {
+    box-shadow: var(--elev-glass), var(--elev-3);
+  }
+}
+
+/* Below 960 px: a full-width, full-height sheet (§13; the narrow layout's own rules are M11, #312). */
+@media (max-width: 959px) {
+  :root[data-shell='modern'] .modern-companion {
+    inset-block: var(--space-4);
+    inset-inline: var(--page-gutter);
+    inline-size: auto;
+  }
+}
+
+/* ---- The agent panel inside the window (AgentPanel, placement="window"). ---- */
+:root[data-shell='modern'] .modern-companion .agent {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-block-size: 0;
+  max-block-size: none;
+  border-block-start: 0;
+  background: transparent;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head {
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  padding-block: 0;
+  padding-inline: var(--space-4) 0;
+  color: var(--on-glass);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-title {
+  margin: 0;
+  font: 600 17px/var(--target-min) var(--ui);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .agent-provider,
+:root[data-shell='modern'] .modern-companion .agent-head .agent-busy,
+:root[data-shell='modern'] .modern-companion .agent-head .agent-spend,
+:root[data-shell='modern'] .modern-companion .agent-mode {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--m-solid);
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-close {
+  margin-inline-start: auto;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .button {
+  min-block-size: var(--target-min);
+  border-radius: var(--radius-control);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body,
+:root[data-shell='modern'] .modern-companion .agent-foot,
+:root[data-shell='modern'] .modern-companion .agent-interrupted,
+:root[data-shell='modern'] .modern-companion .recurring-offers.has-offers {
+  border-radius: var(--radius-inner);
+  background: var(--m-solid);
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot {
+  flex: 0 0 auto;
+  padding: var(--space-2) var(--space-4);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot .agent-intent {
+  margin: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot .agent-intent input,
+:root[data-shell='modern'] .modern-companion .agent-foot .button {
+  min-block-size: var(--target-min);
+}
+
+/* In the footer the command list opens above the Intent box, inside the window. */
+:root[data-shell='modern'] .modern-companion .agent-foot .command-menu {
+  inset-block: auto calc(100% + 2px);
+}
+
+@media (forced-colors: active) {
+  :root[data-shell='modern'] .modern-companion,
+  :root[data-shell='modern'] .modern-companion .agent-body,
+  :root[data-shell='modern'] .modern-companion .agent-foot {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  :root[data-shell='modern'] .modern-companion-scrim {
+    background: Canvas;
+    opacity: 0.6;
+  }
+}

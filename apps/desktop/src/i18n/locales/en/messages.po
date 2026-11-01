@@ -3036,9 +3036,11 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Modern interface: the agent's companion window.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -3046,6 +3048,7 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/shell/modern/companion.tsx
 msgid "Agent"
 msgstr "Agent"
 
@@ -4757,6 +4760,12 @@ msgstr "Clip length, seconds"
 msgid "Close"
 msgstr "Close"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgctxt "agent window"
+msgid "Close"
+msgstr "Close"
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Close details"
 msgstr "Close details"
@@ -4774,6 +4783,11 @@ msgstr "Close other tabs and try again, or choose a smaller picture."
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 msgid "Close panels"
 msgstr "Close panels"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Close the agent ({shortcut}). A running turn keeps working."
+msgstr "Close the agent ({shortcut}). A running turn keeps working."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -14452,9 +14466,11 @@ msgstr "The 1st (the default)"
 msgid "The action did not finish: {reason}"
 msgstr "The action did not finish: {reason}"
 
+#. Modern interface: the agent's companion window.
 #. Modern interface: the stage and the page.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/companion.tsx
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the agent"
 msgstr "the agent"
