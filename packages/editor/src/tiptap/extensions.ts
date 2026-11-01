@@ -107,7 +107,7 @@ import type { PictureController } from './pictures.js';
 import { CaotangProvenance } from './provenance-plugin.js';
 import { slashMenu } from './slash-menu.js';
 import { FootnoteBehaviour, footnoteNodes } from './footnotes.js';
-import type { FootnoteOrphan, FootnoteWords } from './footnotes.js';
+import type { FootnoteOrphan } from './footnotes.js';
 
 /** The marks a container may carry on its children when the review layer is on (editor-engine §15, the library's README). */
 const REVIEW_BLOCK_MARKS = 'insertion modification deletion';
@@ -192,8 +192,11 @@ export interface CaotangExtensionOptions {
    * (`deleteFootnoteNote`). Focus only.
    */
   onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
-  /** #270: the words a marker and a note carry for assistive technology. English when absent. */
-  footnoteWords?: FootnoteWords;
+  /**
+   * The app's labels as they are now, over `labels`, for the words a mounted editor can change in place (the footnote names, on a
+   * language switch). Focus only.
+   */
+  currentLabels?: () => Partial<EditorLabels>;
 }
 
 /**
@@ -203,6 +206,7 @@ export interface CaotangExtensionOptions {
 export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extensions => {
   const role: CaotangRole = options.role ?? 'focus';
   const labels: EditorLabels = { ...DEFAULT_EDITOR_LABELS, ...options.labels };
+  const currentLabels = options.currentLabels;
   const blockMarks = options.reviewMarks === true ? { marks: REVIEW_BLOCK_MARKS } : {};
   // The schema-shaping half. Its order is the mark rank: `Italic` precedes `Bold`
   // and `Strike` precedes `Code`, because the list is what the stable priority sort
@@ -268,7 +272,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
         return ['span', { class: 'caotang-image-placeholder' }, alt.length > 0 ? alt : labels.image];
       },
     }).configure({ inline: true }),
-    ...footnoteNodes(blockMarks, options.footnoteWords),
+    ...footnoteNodes(blockMarks, labels),
   ];
   if (role === 'ghost') return shape;
   return [
@@ -283,6 +287,9 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     UndoRedo,
     CaotangPaste,
     ...(pictures === undefined ? [] : [CaotangPictures(pictures, labels)]),
-    FootnoteBehaviour.configure({ onOrphaned: options.onFootnoteOrphaned }),
+    FootnoteBehaviour.configure({
+      onOrphaned: options.onFootnoteOrphaned,
+      words: currentLabels === undefined ? undefined : () => ({ ...DEFAULT_EDITOR_LABELS, ...currentLabels() }),
+    }),
   ];
 };

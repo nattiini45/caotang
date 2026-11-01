@@ -62,6 +62,7 @@ import type { ImportReport } from '../media/picture-board-model.js';
 import { IMAGE_ACCEPT } from '../media/shot-image-model.js';
 import { EmptyState, useReport, useSession, wordsLabel } from './shared.js';
 import { TargetQuickSet } from './TargetQuickSet.js';
+import { editorLabels } from './editor-labels.js';
 
 /** The review bar and the hold on the marks are fetched only by an editor in review mode (Settings > Writing), so the default path does not carry them. */
 const ReviewSide = lazy(() => import('./ReviewSide.js').then((module) => ({ default: module.ReviewSide })));
@@ -320,6 +321,11 @@ function DocumentEditor({
     if (host.current !== null) labelSurface(host.current);
   }, [i18n.locale, editor]);
 
+  // The editor's own words follow the switch too (the footnote markers' and notes' names at once), without a remount.
+  useEffect(() => {
+    editor?.setLabels(editorLabels());
+  }, [i18n.locale, editor]);
+
   const stored = getBody(session.state, docId);
   const revision = getRevision(session.state, docId);
   const save = session.autosave.status(docId);
@@ -369,27 +375,7 @@ function DocumentEditor({
           autosave: session.autosave,
           injectCSS: false,
           placeholder: t`Start the scene. Your words are saved in this browser as you go.`,
-          labels: {
-            ghostRegion: t`Agent preview`,
-            ghostStopped: (reason) => t`The stream stopped before it finished (${{ reason }}). The text above is partial; Retry or Discard.`,
-            image: t`Image`,
-            insertPicture: t`Insert picture`,
-            slashMenu: t`Insert`,
-            slashPictureHint: t`Choose a picture from your computer`,
-            imageMissing: (name) => t`Picture not found: ${{ name }}. Add the file back to the project's assets folder, or delete the picture.`,
-            imageRemote: t`Picture on the web. It is not loaded, so opening this scene never contacts the network.`,
-            imageLoading: t`Loading picture…`,
-            pictureSettings: t`Picture settings`,
-            pictureAlt: t`Alt text`,
-            pictureCaption: t`Caption`,
-            pictureDecorative: t`Decorative picture (screen readers skip it)`,
-            pictureSize: t`Size`,
-            sizeFull: t`Full width`,
-            sizeHalf: t`Half width`,
-            sizeInline: t`In line with the text`,
-            pictureApply: t`Apply`,
-            pictureCancel: t`Cancel`,
-          },
+          labels: editorLabels(),
           pictures,
           history: { journal, onChange: saver.onChange },
           // The Inspector's picture strip attaches a picture to the paragraph the caret is in, so the selection is published

@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import { TextSelection } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/core';
 
+import { DEFAULT_EDITOR_LABELS } from '../src/tiptap/index.js';
 import type { FootnoteOrphan } from '../src/tiptap/index.js';
 import { focusDom, mountInto, pressUndo, tiptapOf } from './tiptap-harness.js';
 
@@ -285,12 +286,58 @@ describe('§3.4 · what assistive technology and a pointer are given', () => {
     expect($from.parent.textContent).toBe('Two.');
   });
 
-  it('the words are the app’s when it passes its own', async () => {
-    const { host } = await mountInto('A[^1].\n\n[^1]: One.\n', {
-      footnoteWords: { reference: (label) => `Fußnote ${label}`, note: (label) => `Anmerkung ${label}` },
+  it('the words are the app’s when it passes its own through the editor labels', async () => {
+    const { host } = await mountInto('A[^1] and B[^b].\n\n[^1]: One.\n\n[^b]: Two.\n', {
+      labels: { footnoteReference: (label) => `Fußnote ${label}`, footnoteNote: (label) => `Anmerkung ${label}` },
     });
+    const refs = [...focusDom(host).querySelectorAll('sup[role="doc-noteref"]')];
+    expect(refs.map((ref) => [ref.getAttribute('aria-label'), ref.textContent])).toEqual([
+      ['Fußnote 1', '1'],
+      ['Fußnote b', 'b'],
+    ]);
+    const notes = [...focusDom(host).querySelectorAll('div.caotang-footnote')];
+    expect(notes.map((note) => note.getAttribute('aria-label'))).toEqual(['Anmerkung 1', 'Anmerkung b']);
+  });
+
+  it('labels that leave the footnote words out keep the English defaults', async () => {
+    const { host } = await mountInto('A[^1].\n\n[^1]: One.\n', { labels: { image: 'Bild' } });
+    expect(focusDom(host).querySelector('sup')!.getAttribute('aria-label')).toBe('Footnote 1');
+    expect(focusDom(host).querySelector('div.caotang-footnote')!.getAttribute('aria-label')).toBe('Footnote 1');
+  });
+
+  it('new labels rename the markers and notes of a mounted editor, without a change to undo or save', async () => {
+    const { host, instance } = await mountInto('A[^1] and B[^b].\n\n[^1]: One.\n\n[^b]: Two.\n');
+    const body = instance.getContent();
+    const names = (): Array<string | null> => [
+      ...[...focusDom(host).querySelectorAll('sup[role="doc-noteref"]')].map((ref) => ref.getAttribute('aria-label')),
+      ...[...focusDom(host).querySelectorAll('div.caotang-footnote')].map((note) => note.getAttribute('aria-label')),
+    ];
+    expect(names()).toEqual(['Footnote 1', 'Footnote b', 'Footnote 1', 'Footnote b']);
+    instance.setLabels({ footnoteReference: (label) => `Fußnote ${label}`, footnoteNote: (label) => `Anmerkung ${label}` });
+    expect(names()).toEqual(['Fußnote 1', 'Fußnote b', 'Anmerkung 1', 'Anmerkung b']);
+    // The tooltip is still the note's text, and the switch is not an edit.
+    expect(focusDom(host).querySelector('sup')!.getAttribute('title')).toBe('One.');
+    expect(instance.getContent()).toBe(body);
+    expect(instance.hasUnsavedEdits()).toBe(false);
+    // Labels that leave the footnote words out go back to English.
+    instance.setLabels({});
+    expect(names()).toEqual(['Footnote 1', 'Footnote b', 'Footnote 1', 'Footnote b']);
+  });
+
+  it('a scene without footnotes takes new labels, and a footnote added afterwards carries them', async () => {
+    const { host, instance } = await mountInto('The ferry was late.\n');
+    instance.setLabels({ footnoteReference: (label) => `Fußnote ${label}`, footnoteNote: (label) => `Anmerkung ${label}` });
+    const editor = tiptapOf(focusDom(host));
+    editor.commands.setTextSelection(5);
+    expect(instance.insertFootnote()).toBe(true);
     expect(focusDom(host).querySelector('sup')!.getAttribute('aria-label')).toBe('Fußnote 1');
     expect(focusDom(host).querySelector('div.caotang-footnote')!.getAttribute('aria-label')).toBe('Anmerkung 1');
+  });
+
+  it('the package’s default footnote words are the English source', () => {
+    expect(DEFAULT_EDITOR_LABELS.footnoteReference('2')).toBe('Footnote 2');
+    expect(DEFAULT_EDITOR_LABELS.footnoteNote('2')).toBe('Footnote 2');
+    expect(DEFAULT_EDITOR_LABELS.footnoteReference('note')).toBe('Footnote note');
   });
 });
 

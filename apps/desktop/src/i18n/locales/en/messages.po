@@ -2858,8 +2858,8 @@ msgstr "Agent note · {date}"
 msgid "Agent note, {date}"
 msgstr "Agent note, {date}"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Agent preview"
 msgstr "Agent preview"
 
@@ -2913,8 +2913,8 @@ msgctxt "keyboard key"
 msgid "Alt"
 msgstr "Alt"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Alt text"
 msgstr "Alt text"
@@ -3089,7 +3089,8 @@ msgid "Applied"
 msgstr "Applied"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Apply"
 msgstr "Apply"
@@ -3698,7 +3699,6 @@ msgstr "Camera movement"
 #. Interpolated values: calls, cap
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: confirm, file, files, generation, name, path
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -3710,9 +3710,10 @@ msgstr "Camera movement"
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
 #: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/BinderFilters.tsx
-#: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/components/EncodingDialog.tsx
 #: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -3839,9 +3840,9 @@ msgstr "caotang.json in this folder was changed by another program after Caotang
 msgid "CAOTANG.md, your standing instructions, and the notes the agent keeps"
 msgstr "CAOTANG.md, your standing instructions, and the notes the agent keeps"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/media/ComicPageView.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Caption"
@@ -4229,8 +4230,8 @@ msgstr "Choose a line to open it in the Source tab. The page breaks follow the s
 msgid "Choose a picture for this panel"
 msgstr "Choose a picture for this panel"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Choose a picture from your computer"
 msgstr "Choose a picture from your computer"
 
@@ -5079,8 +5080,8 @@ msgstr "Declare a time skip on one of these scenes instead."
 msgid "Declare this as a scene mode instead."
 msgstr "Declare this as a scene mode instead."
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Decorative picture (screen readers skip it)"
 msgstr "Decorative picture (screen readers skip it)"
 
@@ -6538,6 +6539,18 @@ msgstr "Follow the system"
 msgid "Follows these scenes"
 msgstr "Follows these scenes"
 
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
+msgctxt "footnote marker"
+msgid "Footnote {label}"
+msgstr "Footnote {label}"
+
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
+msgctxt "footnote note"
+msgid "Footnote {label}"
+msgstr "Footnote {label}"
+
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Footnote without a marker"
@@ -6636,8 +6649,8 @@ msgstr "Full description of prompt {name}"
 msgid "Full description of template {name}"
 msgstr "Full description of template {name}"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Full width"
 msgstr "Full width"
 
@@ -6745,8 +6758,8 @@ msgstr "grouped by point of view"
 msgid "grouped by thread"
 msgstr "grouped by thread"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Half width"
 msgstr "Half width"
 
@@ -6879,9 +6892,9 @@ msgstr "Ignore matches in"
 msgid "Illegible in the image"
 msgstr "Illegible in the image"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Image"
 msgstr "Image"
@@ -7109,8 +7122,8 @@ msgstr "in a circle of scenes that each follow the next"
 msgid "In focus mode, hide the binder and the inspector"
 msgstr "In focus mode, hide the binder and the inspector"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "In line with the text"
 msgstr "In line with the text"
 
@@ -7223,8 +7236,8 @@ msgstr "Ink story imported"
 msgid "Ink, compiled to JSON"
 msgstr "Ink, compiled to JSON"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Insert"
 msgstr "Insert"
 
@@ -7234,7 +7247,8 @@ msgid "Insert into the scene"
 msgstr "Insert into the scene"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "Insert picture"
 msgstr "Insert picture"
@@ -7854,8 +7868,8 @@ msgstr "Listing the pictures"
 msgid "Loading {subject}…"
 msgstr "Loading {subject}…"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Loading picture…"
 msgstr "Loading picture…"
 
@@ -10029,8 +10043,8 @@ msgstr "Picture file renamed"
 msgid "Picture imported"
 msgstr "Picture imported"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Picture not found: {name}. Add the file back to the project's assets folder, or delete the picture."
 msgstr "Picture not found: {name}. Add the file back to the project's assets folder, or delete the picture."
 
@@ -10039,8 +10053,8 @@ msgstr "Picture not found: {name}. Add the file back to the project's assets fol
 msgid "Picture note changed"
 msgstr "Picture note changed"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Picture on the web. It is not loaded, so opening this scene never contacts the network."
 msgstr "Picture on the web. It is not loaded, so opening this scene never contacts the network."
 
@@ -10059,8 +10073,8 @@ msgstr "Picture placed"
 msgid "Picture placed on the whole item"
 msgstr "Picture placed on the whole item"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "Picture settings"
 msgstr "Picture settings"
 
@@ -12833,9 +12847,9 @@ msgid "Simultaneous"
 msgstr "Simultaneous"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. Interpolated values: size and budget are formatted sizes; count is a number.
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Size"
@@ -14938,8 +14952,8 @@ msgstr "The skill “{folder}” was not taken: a file in it has an unsafe path 
 msgid "The skill could not be read: {reason}"
 msgstr "The skill could not be read: {reason}"
 
-#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
-#: apps/desktop/src/components/EditorPane.tsx
+#. Words the editor shows or announces. Interpolated values: reason is a failure message; name is a picture's file name; label is a footnote's label (a number or a name)
+#: apps/desktop/src/components/editor-labels.ts
 msgid "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
 msgstr "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
 
