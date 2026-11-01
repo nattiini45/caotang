@@ -39,7 +39,7 @@ function Bar({ startMs, durationMs, spanMs }: { startMs: number; durationMs: num
   return (
     <>
       <span className="trace-track" aria-hidden="true">
-        <span className="trace-bar" style={{ left: `${left}%`, width: `${width}%` }} />
+        <span className="trace-bar" style={{ insetInlineStart: `${left}%`, width: `${width}%` }} />
       </span>
       <span className="visually-hidden">{barSentence(startMs, durationMs)}</span>
     </>

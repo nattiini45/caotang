@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { createProject } from './support.js';
+import { createProject, writerText } from './support.js';
 
 /**
  * A project is renamed from the projects list (Home.tsx): the rename is the project's own `project.rename` command, so the name the
@@ -23,7 +23,7 @@ test('a project is renamed from the projects list, and it opens under its new na
   await form.getByRole('textbox', { name: 'New name', exact: true }).fill('New Name');
   await form.getByRole('button', { name: 'Save the name' }).click();
 
-  await expect(page.getByText('Renamed the project to “New Name”.')).toBeVisible();
+  await expect(page.getByText(new RegExp(`Renamed the project to “${writerText('New Name')}”\\.`))).toBeVisible();
   await expect(page.locator('.project-row .project-name', { hasText: 'New Name' })).toBeVisible();
   await expect(page.locator('.project-row .project-name', { hasText: 'Old Name' })).toHaveCount(0);
 

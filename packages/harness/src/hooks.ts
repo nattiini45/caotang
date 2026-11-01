@@ -133,6 +133,18 @@ export const WRITTEN_TEXT: Readonly<Record<string, WrittenText>> = {
   'goal.save': { read: [], skip: ['id', 'node', 'deadline'] },
   'memory.write': { read: ['title', 'body'], skip: ['slug', 'expectedDigest'] },
   'instructions.propose': { read: ['text'], skip: ['expectedDigest'] },
+  // The PR's picture, comic and timeline writes. A caption, alt text or placement note is the writer's text in the project; ids,
+  // anchors (a quote used to find a paragraph), tags, references and labels are set aside.
+  'pictures.annotate': { read: ['items[].caption', 'items[].alt', 'items[].note'], skip: ['items[].id', 'items[].tags[]'] },
+  'pictures.attach': { read: ['attach[].note'], skip: ['attach[].assetId', 'attach[].to.doc', 'attach[].to.anchor', 'detach[]'] },
+  'pictures.import': { read: ['caption', 'alt'], skip: ['stagingId', 'links[].doc', 'links[].anchor', 'source.label', 'source.server', 'source.tool'] },
+  'pictures.place': { read: [], skip: ['assetId', 'doc', 'anchor'] },
+  // The pages it writes are generated after approval and read from the staged draft (`proseOf`), not from its params.
+  'pictures.transcribe': { read: [], skip: ['assetIds[]', 'language', 'secondRead.profileId', 'secondRead.model'] },
+  'comic.derive': { read: [], skip: ['book', 'script'] },
+  'comic.letter': { read: [], skip: ['book', 'page'] },
+  'comic.scriptFromPages': { read: [], skip: ['book'] },
+  'timeline.edit': { read: [], skip: ['ops[].nodeId', 'ops[].patch.pov', 'ops[].patch.after_add[]', 'ops[].patch.after_remove[]', 'ops[].newParentId', 'ops[].nodeIds[]', 'label'] },
 };
 
 /**
@@ -216,6 +228,15 @@ export function proseOf(tool: string, params: CallParams, proposal?: unknown): s
   }
   if (typeof proposal === 'string') parts.push(proposal);
   else if (isRecord(proposal)) {
+    // A transcription's staged proposal is its plan, and after approval the plan with the generated pages (`draft.pages[]`): each
+    // page's read, and its second read, is text the call writes. A plan alone holds none.
+    if (tool === 'pictures.transcribe' && isRecord(proposal['draft']) && Array.isArray(proposal['draft']['pages'])) {
+      for (const page of proposal['draft']['pages']) {
+        if (!isRecord(page)) continue;
+        if (typeof page['text'] === 'string') parts.push(page['text']);
+        if (typeof page['secondText'] === 'string') parts.push(page['secondText']);
+      }
+    }
     if (typeof proposal['text'] === 'string') parts.push(proposal['text']);
     if (typeof proposal['ink'] === 'string') parts.push(proposal['ink']);
     if (Array.isArray(proposal['items'])) {

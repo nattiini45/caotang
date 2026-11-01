@@ -2,7 +2,7 @@
 
 Run Caotang's agent against a project folder from Node: a script, a CLI, CI, a scheduled task, another tool. It is the same agent the app has, on the same command bus, with a policy answering the cards where the app has a person.
 
-The package is MIT-licensed and private to this workspace, like the others. Node 22.12 or later.
+The package is MIT-licensed and private to this workspace, like the others. Node 22.19 or later.
 
 ```ts
 import { openProject } from '@caotang/sdk';

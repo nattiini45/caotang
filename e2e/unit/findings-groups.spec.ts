@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { emptyCoherenceFile, type CoherenceFile, type Finding } from '../../packages/coherence/src/index.js';
 
-import { groupsByFact, runViewsOf, scanCoverageLine, scopeFor, severitySections, type FindingView } from '../../apps/desktop/src/app/findings-model.js';
+import { groupsByFact, runTimeLabel, runViewsOf, scanCoverageLine, scopeFor, severitySections, type FindingView } from '../../apps/desktop/src/app/findings-model.js';
 import { IDS, project } from './fixtures.js';
 
 const NOW = '2026-10-08T09:00:00.000Z';
@@ -120,18 +120,43 @@ test.describe('the run history (coherence.md §4.1, §8)', () => {
         },
       ],
     );
-    const runs = runViewsOf(file, (docId) => (docId === IDS.sceneA ? 'The Storm' : docId));
+    const runs = runViewsOf(file, (docId) => (docId === IDS.sceneA ? 'The Storm' : docId), 'en-US');
     expect(runs.map((run) => run.id)).toEqual(['r_NEWEST0002', 'r_OLDEST0001']);
     expect(runs[0]).toMatchObject({ kind: 'Model review', status: 'partial', scopeLabel: '2 documents', findingCount: 0 });
     expect(runs[0]?.checkLabels).toEqual(['Model: timeline plot']);
-    expect(runs[0]?.tokenLine).toBe('1,200 tokens in, 300 out (gpt-test)');
-    expect(runs[1]).toMatchObject({ kind: 'Quick scan', scopeLabel: '"The Storm"', findingCount: 1, notes: ['2 empty document(s) skipped'] });
+    expect(runs[0]?.tokenLine).toBe('1,200 tokens in, 300 out (\u2068gpt-test\u2069)');
+    expect(runs[1]).toMatchObject({ kind: 'Quick scan', scopeLabel: '"\u2068The Storm\u2069"', findingCount: 1, notes: ['2 empty document(s) skipped'] });
     expect(runs[1]?.checkLabels[1]).toBe('A screenplay character cue matches no codex entry');
   });
 
+  test('a run’s token counts and time are grouped and written in the formatter locale', () => {
+    const file = fileWith(
+      [],
+      [
+        {
+          id: 'r_NEWEST0002',
+          at: '2026-10-08T09:00:00',
+          kind: 'llm',
+          checkIds: ['llm:timeline-plot'],
+          scope: { docIds: [IDS.sceneA] },
+          findingsUpserted: [],
+          status: 'complete',
+          tokens: { promptTokens: 1200, completionTokens: 300 },
+          model: 'gpt-test',
+        },
+      ],
+    );
+    const [run] = runViewsOf(file, () => 'The Storm', 'de-DE');
+    expect(run?.tokenLine).toBe('1.200 tokens in, 300 out (\u2068gpt-test\u2069)');
+    expect(run?.at).toBe('08.10.2026, 09:00');
+    // The stamp above is a local one, so its reading does not depend on the machine's timezone.
+    expect(runTimeLabel('2026-10-08T09:00:00', 'en-US')).toBe('Oct 8, 2026, 9:00 AM');
+    expect(runTimeLabel('not a stamp', 'de-DE')).toBe('not a stamp');
+  });
+
   test('a file with no run has no history, and no file has none either', () => {
-    expect(runViewsOf(emptyCoherenceFile(), () => '')).toEqual([]);
-    expect(runViewsOf(undefined, () => '')).toEqual([]);
+    expect(runViewsOf(emptyCoherenceFile(), () => '', 'en-US')).toEqual([]);
+    expect(runViewsOf(undefined, () => '', 'en-US')).toEqual([]);
   });
 });
 

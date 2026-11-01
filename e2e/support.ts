@@ -93,6 +93,32 @@ function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
 
+/** A pattern for visible text that holds isolated writer values: the isolation marks may sit between any two characters. `exact` anchors it to the whole text. */
+export function loose(text: string, exact = false): RegExp {
+  const marks = '[\\u2066-\\u2069]*';
+  const body = [...text].map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(marks);
+  return new RegExp(exact ? `^${marks}${body}${marks}$` : body);
+}
+
+/** A region's text with the visible writer-text isolates removed, for a sentence that names several titles. */
+export function withoutIsolates(value: string | null): string {
+  return (value ?? '').replace(/[\u2066-\u2069]/g, '');
+}
+
+/**
+ * A writer-typed value as a message renders it for a locator: optionally wrapped in the bidi
+ * isolates FSI/PDI (U+2068/U+2069) that visible writer text carries (i18n.md §5.3), and escaped for
+ * a RegExp. An exact string assertion no longer matches once the value is isolated.
+ */
+export function writerText(value: string): string {
+  return `\\u2068?${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\u2069?`;
+}
+
+/** A saved-profile line ("Saved “name”."), tolerating the isolates around the writer-typed profile name. */
+export function savedMessage(name: string): RegExp {
+  return new RegExp(`Saved “${writerText(name)}”\\.`);
+}
+
 /** Every activity row, in order. */
 export async function trace(page: Page): Promise<TraceRow[]> {
   return page.evaluate(() => {

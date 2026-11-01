@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { withoutIsolates } from '../support.js';
 
 import { consistencyLinesOf, packPreviewOf } from '../../apps/desktop/src/media/prompt-pack-model.js';
 import {
@@ -43,7 +44,7 @@ function runwayDraft(overrides: Partial<PromptDraft> = {}): PromptDraft {
 }
 
 function storyboard(): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Scene 1 — Shots', id: FOLDER, now: NOW });
   addShotNode(state, {
     parentId: FOLDER,
@@ -206,7 +207,7 @@ test.describe('the codex’s visual references reach the pack', () => {
     const assets: ReadonlyMap<string, AssetRecord> = new Map([[PORTRAIT, { id: PORTRAIT, fileName: 'elena.png' }]]);
     const preview = packPreviewOf(state, FOLDER, RUNWAY, assets);
     const row = preview?.rows[0];
-    expect(row?.consistency).toEqual(['Elena: mentioned in the action, sends 1 reference']);
+    expect(row?.consistency?.map(withoutIsolates)).toEqual(['Elena: mentioned in the action, sends 1 reference']);
     expect(row?.references).toEqual(['elena.png']);
   });
 
@@ -217,7 +218,7 @@ test.describe('the codex’s visual references reach the pack', () => {
         source: 'none',
         supplied: [],
         withheld: [{ entryId: ELENA, name: 'Elena', reason: 'no-visual-reference' }],
-      }),
+      }).map(withoutIsolates),
     ).toEqual(['Elena: not sent, because it has no visual reference image']);
   });
 });

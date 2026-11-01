@@ -5,7 +5,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, traceNames, waitForSaved } from './support.js';
+import { binderTitle, createProject, traceNames, waitForSaved, writerText } from './support.js';
 
 const PROJECT = 'Night Shift';
 
@@ -74,7 +74,7 @@ test('confirming the report makes one dialogue container in one step', async ({ 
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Import', exact: true }).click();
 
-  await expect(page.getByText(/Imported lantern\.twee as one dialogue container: 3 knots, 2 choices, 1 logic block stripped\./)).toBeVisible();
+  await expect(page.getByText(new RegExp(`Imported ${writerText('lantern.twee')} as one dialogue container: 3 knots, 2 choices, 1 logic block stripped\\.`))).toBeVisible();
   await waitForSaved(page);
   await expect(binderTitle(page, 'The Lantern')).toBeVisible();
   const names = await traceNames(page);
@@ -95,6 +95,6 @@ test('a file with no passage is refused on the status line', async ({ page }) =>
   await createProject(page, PROJECT);
   await chooseTwee(page, 'empty.twee', ':: StoryTitle\nOnly a title\n');
 
-  await expect(page.getByText(/empty\.twee has no passage to import\./)).toBeVisible();
+  await expect(page.getByText(new RegExp(`${writerText('empty.twee')} has no passage to import\\.`))).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Import this Twee story?' })).toBeHidden();
 });

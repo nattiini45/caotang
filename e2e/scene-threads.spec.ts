@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, countOf, createProject, traceNames, waitForSaved } from './support.js';
+import { binderRow, binderTitle, countOf, createProject, traceNames, waitForSaved, withoutIsolates } from './support.js';
 
 /**
  * Threads on a scene (coherence.md §5.5): a writer declares that Scene A plants a thread and Scene B pays it off, edits and
@@ -54,7 +54,9 @@ test('a thread is declared, edited and removed in the inspector, and the scan na
   await page.getByRole('tab', { name: 'Findings' }).click();
   await page.getByRole('button', { name: 'Scan the manuscript' }).click();
   const notes = page.getByTestId('findings-panel').getByRole('region', { name: 'Notes' });
-  await expect(notes).toContainText('"Scene A" declares the thread "the lamp" with its payoff in "Scene B", which this scan did not read');
+  await expect
+    .poll(async () => withoutIsolates(await notes.textContent()))
+    .toContain('"Scene A" declares the thread "the lamp" with its payoff in "Scene B", which this scan did not read');
   await expect(page.getByTestId('findings-panel').getByRole('region', { name: 'Warnings' })).toHaveCount(0);
 
   // Once Scene B has text, the payoff is there and the next scan raises nothing.

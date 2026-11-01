@@ -11,7 +11,7 @@ import { textEntry, zipEntries } from './zip-entries.js';
  * it: the project is removed from the browser, imported back from its bundle, and the same checks pass again.
  */
 
-/** A 1×1 PNG, the smallest picture a cover can be. The cover import checks its signature, and the EPUB carries its bytes. */
+/** A 1×1 PNG, the smallest picture a cover can be. The cover import checks it, and the EPUB carries its transcoded PNG. */
 const COVER_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
   'base64',
@@ -63,7 +63,11 @@ function expectPackage(entries: Map<string, Uint8Array>): string {
   expect(opf).toContain('<meta refines="#isbn-id" property="identifier-type" scheme="onix:codelist5">15</meta>');
   expect(opf).toContain('<item id="cover-image" href="cover.png" media-type="image/png" properties="cover-image"/>');
   expect(opf).toContain('<meta name="cover" content="cover-image"/>');
-  expect(Array.from(entries.get('OEBPS/cover.png') ?? [])).toEqual(Array.from(COVER_PNG));
+  // EPUB export strips and re-encodes the cover under the picture profile, so check the carried PNG rather than the source bytes.
+  const cover = entries.get('OEBPS/cover.png');
+  expect(cover).toBeDefined();
+  expect(Array.from(cover?.subarray(0, 8) ?? [])).toEqual(Array.from(COVER_PNG.subarray(0, 8)));
+  expect(cover?.length).toBeGreaterThan(8);
 
   const pubId = /<dc:identifier id="pub-id">(urn:uuid:[^<]+)<\/dc:identifier>/.exec(opf)?.[1];
   expect(pubId).toMatch(/^urn:uuid:[0-9a-f-]{36}$/);

@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Presence checks — [coherence.md §5.1](../../../../docs/architecture/coherence.md):
  * `pov.coverage` and `presence.expected`.
@@ -29,6 +30,11 @@ export function checkPovCoverage(input: CheckInput): CheckOutput {
         factGroup: groupKey(pov.trim().toLowerCase(), 'pov-unresolved'),
         evidence: [headEvidence(scene)],
         message: `POV "${pov}" is not a codex entry, so its coverage cannot be checked; create the entry to check it`,
+        messageRef: {
+          id: 'coherence.pov.unresolved',
+          message: 'POV "{pov}" is not a codex entry, so its coverage cannot be checked; create the entry to check it',
+          values: { pov },
+        },
         expected: 'a codex entry for the point-of-view character',
       });
       continue;
@@ -43,6 +49,11 @@ export function checkPovCoverage(input: CheckInput): CheckOutput {
       factGroup: groupKey(entry.id, 'pov-coverage'),
       evidence: [headEvidence(scene)],
       message: `POV "${labelOf(entry)}" is never named in "${scene.title}"`,
+      messageRef: {
+        id: 'coherence.pov.notNamed',
+        message: 'POV "{entry}" is never named in "{sceneTitle}"',
+        values: { entry: labelOf(entry), sceneTitle: scene.title },
+      },
       expected: `"${labelOf(entry)}" named in the scene, or dismiss as deep POV`,
     });
   }
@@ -76,6 +87,11 @@ export function checkPresenceExpected(input: CheckInput): CheckOutput {
         factGroup: groupKey(entry.id, 'expected-present'),
         evidence: [headEvidence(scene)],
         message: `"${labelOf(entry)}" is expected in "${scene.title}" but is never named there`,
+        messageRef: {
+          id: 'coherence.presence.expectedAbsent',
+          message: '"{entry}" is expected in "{sceneTitle}" but is never named there',
+          values: { entry: labelOf(entry), sceneTitle: scene.title },
+        },
         expected: `"${labelOf(entry)}" named in the scene`,
       });
     }

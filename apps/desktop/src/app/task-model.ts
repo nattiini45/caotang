@@ -3,10 +3,14 @@
  * project as it stands, with the status in words. Pure, so the words are tested without a browser.
  */
 
+import { t } from '@lingui/core/macro';
 import { staleSteps } from '@caotang/harness';
+import { isolate } from '@caotang/i18n';
 import type { ProjectState } from '@caotang/store';
 
 import { reviewOf, type TaskRecord, type TaskStatus } from './task-store.js';
+
+/* lingui-set comment="Interpolated values: done, intent, outdated, staged, total" */
 
 export interface TaskView {
   readonly id: string;
@@ -36,22 +40,23 @@ export interface TaskView {
 function statusText(task: TaskRecord, done: number, total: number, outdated: number): string {
   switch (task.status) {
     case 'queued':
-      return 'Waiting to start';
+      return t`Waiting to start`;
     case 'running':
-      return `Drafting: ${done} of ${total} done`;
+      return t`Drafting: ${{ done }} of ${{ total }} done`;
     case 'ready': {
       const staged = task.items.filter((item) => item.state === 'staged').length;
-      const base = `Ready to review: ${staged} of ${total} drafted`;
-      return outdated > 0 ? `${base}, ${outdated} out of date` : base;
+      return outdated > 0
+        ? t`Ready to review: ${{ staged }} of ${{ total }} drafted, ${{ outdated }} out of date`
+        : t`Ready to review: ${{ staged }} of ${{ total }} drafted`;
     }
     case 'failed':
-      return 'Failed: nothing could be drafted';
+      return t`Failed: nothing could be drafted`;
     case 'cancelled':
-      return 'Cancelled';
+      return t`Cancelled`;
     case 'interrupted':
-      return `Stopped when the project was closed: ${done} of ${total} done. Resume to finish it`;
+      return t`Stopped when the project was closed: ${{ done }} of ${{ total }} done. Resume to finish it`;
     case 'applied':
-      return 'Applied';
+      return t`Applied`;
   }
 }
 
@@ -92,11 +97,11 @@ export function viewOf(task: TaskRecord, state: ProjectState): TaskView {
 export function announcementFor(task: TaskRecord): string {
   switch (task.status) {
     case 'ready':
-      return `A background task is ready to review: ${task.intent}`;
+      return t`A background task is ready to review: ${{ intent: isolate(task.intent) }}`;
     case 'failed':
-      return `A background task failed: ${task.intent}`;
+      return t`A background task failed: ${{ intent: isolate(task.intent) }}`;
     case 'interrupted':
-      return `A background task was stopped: ${task.intent}`;
+      return t`A background task was stopped: ${{ intent: isolate(task.intent) }}`;
     default:
       return '';
   }

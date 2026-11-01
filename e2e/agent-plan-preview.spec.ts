@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { FAKE_ENDPOINT, endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { idOf, projectTrace } from './support.js';
+import { idOf, loose, projectTrace, savedMessage } from './support.js';
 
 /**
  * What a plan card shows before the writer approves it (agent-harness §2, §3): the synopses a batch writes, the codex entry a
@@ -68,7 +68,7 @@ test('a codex entry a plan creates shows its description in the card before Appr
   const entries = card.getByRole('figure', { name: 'Codex entries this step writes' });
   await expect(entries).toContainText('New entry: Kestrel');
   // The new entry's description is the text the write adds, and it is shown as the writer reads it: no raw JSON, no quotes.
-  await expect(entries).toContainText(`Description: ${description}`);
+  await expect(entries).toContainText(loose(`Description: ${description}`));
   await expect(card.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
   expect((await projectTrace(page)).filter((name) => name === 'codex.upsert')).toEqual([]);
 });
@@ -107,7 +107,7 @@ async function usePricedEndpoint(page: Page): Promise<void> {
   await form.getByLabel('Prompt', { exact: true }).fill('1');
   await form.getByLabel('Reply', { exact: true }).fill('2');
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Priced endpoint”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Priced endpoint'))).toBeVisible();
   await settings.locator('[data-profile="Priced endpoint"]').getByRole('button', { name: 'Use this profile' }).click();
   await expect(settings.getByText('is now the active profile')).toBeVisible();
   await settings.getByRole('button', { name: 'Close' }).click();

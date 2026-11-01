@@ -5,6 +5,8 @@
  * download is slow or fails, and for a container made in a project that had none.
  */
 
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
 
 import { inkCompilerFailures, inkCompilerStatus, requestInkCompiler, subscribeInkCompiler, type InkCompilerStatus } from '../app/ink-compiler.js';
@@ -32,34 +34,36 @@ export function InkGate({ variant = 'pane', children }: InkGateProps): ReactNode
   if (status === 'failed') {
     // Some browsers keep a failed import for the life of the page, so a second failure sends the writer to Reload, which always fetches fresh.
     const retried = inkCompilerFailures() > 1;
-    const title = retried ? 'The Ink compiler still could not be loaded' : 'The Ink compiler could not be loaded';
-    const reason = retried ? 'Reload the page to fetch it again.' : 'This can happen after an update, or when the connection drops.';
+    const title = retried ? t`The Ink compiler still could not be loaded` : t`The Ink compiler could not be loaded`;
+    const body = retried
+      ? t`Reload the page to fetch it again. Nothing in the project changed.`
+      : t`This can happen after an update, or when the connection drops. Nothing in the project changed.`;
     const actions = (
       <>
         <button type="button" className="button" onClick={() => void requestInkCompiler()}>
-          Try again
+          <Trans>Try again</Trans>
         </button>
         <button type="button" className={retried ? 'button is-primary' : 'button'} onClick={reloadPage}>
-          Reload
+          <Trans>Reload</Trans>
         </button>
       </>
     );
     return variant === 'inline' ? (
       <div className="form-message is-error" role="alert">
         <p>
-          {title}. {reason} Nothing in the project changed.
+          {title}. {body}
         </p>
         {actions}
       </div>
     ) : (
       <div role="alert">
         <EmptyState title={title} actions={actions}>
-          {reason} Nothing in the project changed.
+          {body}
         </EmptyState>
       </div>
     );
   }
-  const text = 'Loading the Ink compiler…';
+  const text = t`Loading the Ink compiler…`;
   return variant === 'inline' ? (
     <p className="field-note" role="status">
       {text}

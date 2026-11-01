@@ -124,13 +124,22 @@ test('a bundle made from the projects list after a reload carries the project’
     page.waitForEvent('download'),
     page.getByRole('button', { name: `Export ${PROJECT} as a bundle` }).click(),
   ]);
-  await expect(page.getByRole('status').filter({ hasText: `Exported “${PROJECT}”` })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: `Exported “\u2068${PROJECT}\u2069”` })).toBeVisible();
   await expect(page.getByText('is not available in this browser')).toHaveCount(0);
 
   const path = await download.path();
   if (path === null) throw new Error('the bundle was not downloaded');
   const entries = zipEntries(new Uint8Array(await readFile(path)));
+  // The cover and the shot are different bytes (FRAME), so they are two asset records, and both references survive the bundle.
   expect([...entries.keys()].filter((name) => name.startsWith('assets/'))).toHaveLength(2);
+  const manifest = JSON.parse(new TextDecoder().decode(entries.get('caotang.json'))) as {
+    project: { coverAssetId?: string };
+    tree: { type: string; shot?: { image?: string } }[];
+  };
+  const shot = manifest.tree.find((node) => node.type === 'shot');
+  expect(manifest.project.coverAssetId).toBeDefined();
+  expect(shot?.shot?.image).toBeDefined();
+  expect(shot?.shot?.image).not.toBe(manifest.project.coverAssetId);
 });
 
 test('a folder saved after a reload holds every picture of the project, not only the ones this page added', async ({ page, browserName }) => {

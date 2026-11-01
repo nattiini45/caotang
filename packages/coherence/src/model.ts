@@ -8,6 +8,8 @@
  * truth for the manuscript: a finding quotes it, a scene declaration sits beside it.
  */
 
+import type { MessageRef } from '@caotang/i18n';
+
 /** project-format §1: a top-level file beside `caotang.json`, loaders ignore it when unknown. */
 export const COHERENCE_FILE = 'coherence.json';
 
@@ -71,7 +73,7 @@ export type WorldRuleOrigin = (typeof WORLD_RULE_ORIGINS)[number];
  * The deterministic registry, closed (§5.4: adding a check is a spec change with fixtures). The first eight are §5.1's.
  * Six more come from the media-track specs, which each say they ride this rule: screenplay.md §4 adds two
  * (`script.cue-*`), storyboard.md §5 adds one (`script.shot-coverage`), and dialogue-narrative.md §5 adds three
- * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1), `plot.unresolved-thread` (§5.5) and `knowledge.leak` (§4.4) follow, and `medium.speaker-parity` (§5.1, the first cross-medium check) is last. The count is 8 + 2 + 1 + 3 + 1 + 1 + 1 + 1 = 18.
+ * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1), `plot.unresolved-thread` (§5.5) and `knowledge.leak` (§4.4) follow, and `medium.speaker-parity` (§5.1, the first cross-medium check) is last of the first landing. The comic lint of comics.md §4 (D9, #173) appends last: `comic.balloon-density`, `comic.em-dash` and `comic.caps-policy`, computed by `@caotang/comic` and registered here, and the comic book's `comic.balloon-coverage` (comics.md §3.2) follows them. The count is 8 + 2 + 1 + 3 + 1 + 1 + 1 + 1 + 3 + 1 = 22.
  * New ids are appended, so the order of the first eight, which the run report and the check order depend on, does not move.
  */
 export const DETERMINISTIC_CHECK_IDS = [
@@ -93,6 +95,10 @@ export const DETERMINISTIC_CHECK_IDS = [
   'plot.unresolved-thread',
   'knowledge.leak',
   'medium.speaker-parity',
+  'comic.balloon-density',
+  'comic.em-dash',
+  'comic.caps-policy',
+  'comic.balloon-coverage',
 ] as const;
 export type DeterministicCheckId = (typeof DETERMINISTIC_CHECK_IDS)[number];
 
@@ -123,6 +129,10 @@ export const DETERMINISTIC_CHECK_LABELS: Readonly<Record<DeterministicCheckId, s
   'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
   'knowledge.leak': 'A character knows something before they learn it',
   'medium.speaker-parity': 'The screenplay and its dialogue name different speakers',
+  'comic.balloon-density': 'A balloon or panel carries more words than the lettering guidance',
+  'comic.em-dash': 'A balloon uses an em dash instead of a double dash',
+  'comic.caps-policy': 'A ß in a caps book will be lettered as SS',
+  'comic.balloon-coverage': 'A script line has no balloon, or a balloon no longer matches its script line',
 };
 
 /** §5.3's five ConStory categories. The enum is closed; subtypes are model-proposed strings. */
@@ -208,6 +218,13 @@ export interface Finding {
   supersededBy?: string;
   /** Additive (not in §3): the one-line statement the inbox card shows. */
   message: string;
+  /**
+   * §3's additive message reference (I7): a deterministic check's stable id, values and English
+   * template. It sits beside {@link message}, which stays exactly as written for old files and for
+   * the MCP server, the SDK and the CLI. `llm:*` findings never carry one: the model writes its
+   * prose in the language of the scan and a later interface switch must not rewrite it.
+   */
+  messageRef?: MessageRef;
   /** Additive (not in §3): the declaration side, rendered as the "expected" line (§5.1). */
   expected?: string;
   /** Additive (not in §3): the free-text note from the last dismissal or fix. */
@@ -290,6 +307,8 @@ export interface SceneMeta {
    * (or a nearer folder) declares its own. Absent is the main story.
    */
   storyPart?: StoryPart;
+  /** timeline.md §2.3: declared in the main story, overriding a prologue or epilogue inherited from a folder above. Additive; only `true` is stored. */
+  mainStory?: true;
 }
 
 export interface WorldRule {

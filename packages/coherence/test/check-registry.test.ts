@@ -24,9 +24,9 @@ describe('the check registry', () => {
     expect(Object.keys(DETERMINISTIC_CHECKS)).toEqual([...DETERMINISTIC_CHECK_IDS]);
   });
 
-  it('holds eighteen checks, the last of them medium.speaker-parity, and gives each a label', () => {
-    expect(DETERMINISTIC_CHECK_IDS).toHaveLength(18);
-    expect(DETERMINISTIC_CHECK_IDS.at(-1)).toBe('medium.speaker-parity');
+  it('holds twenty-two checks, the last of them comic.balloon-coverage, and gives each a label', () => {
+    expect(DETERMINISTIC_CHECK_IDS).toHaveLength(22);
+    expect(DETERMINISTIC_CHECK_IDS.at(-1)).toBe('comic.balloon-coverage');
     for (const id of DETERMINISTIC_CHECK_IDS) expect(DETERMINISTIC_CHECK_LABELS[id], id).not.toBe('');
     expect(DETERMINISTIC_CHECK_LABELS['plot.unresolved-thread']).toBe('A thread’s declared payoff is not in the manuscript');
     expect(DETERMINISTIC_CHECK_LABELS['knowledge.leak']).toBe('A character knows something before they learn it');

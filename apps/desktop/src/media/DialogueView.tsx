@@ -5,6 +5,11 @@
  * (the path the prose editor uses), and the graph and the findings are read from that text once the writer pauses.
  */
 
+import { accessibleText } from '../i18n/accessible-text.js';
+import { isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 
 import { getBody, getRevision, type TreeNode } from '@caotang/store';
@@ -30,6 +35,8 @@ import { inkSegments } from './source-decor.js';
 import { caretAfterEdit, isOwnWrite } from './rebase-model.js';
 import { saveLineOf, unwrittenFlushOf } from './screenplay-model.js';
 
+
+/* lingui-set comment="The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers." */
 export interface DialogueViewProps {
   readonly session: ProjectSession;
   /** The dialogue container. */
@@ -48,6 +55,7 @@ const EDGE_LABEL_CHARS = 28;
 const NOOP = (): void => undefined;
 
 export function DialogueView({ session, node, reveal = null, onRevealHandled = NOOP }: DialogueViewProps): ReactNode {
+  useLingui();
   useSession(session);
   const report = useReport();
   // The cleanup below runs after the view is gone, so it calls the report it last saw, and the effect does not restart for it.
@@ -214,13 +222,13 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
   const save = session.autosave.status(docId);
 
   return (
-    <section className="media-view dlg-view" aria-label={`Dialogue: ${node.title}`}>
+    <section className="media-view dlg-view" aria-label={accessibleText(t`Dialogue: ${{ title: isolate(node.title) }}`)}>
       <header className="media-head">
         <div>
-          <p className="eyebrow">Dialogue container</p>
+          <p className="eyebrow"><Trans>Dialogue container</Trans></p>
           <h2 className="media-title">{node.title}</h2>
         </div>
-        <ul className="dlg-stats" aria-label="Structure">
+        <ul className="dlg-stats" aria-label={t`Structure`}>
           <li className="chip">{countLabel(model.stats.knots, 'knot')}</li>
           <li className="chip">{countLabel(model.stats.stitches, 'stitch', 'stitches')}</li>
           <li className="chip">{countLabel(model.stats.choices, 'choice')}</li>
@@ -229,8 +237,8 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
       </header>
 
       {model.errors.length === 0 ? null : (
-        <section className="dlg-errors" role="alert" aria-label="Compile errors">
-          <p>The Ink does not compile. Fix these errors in the Ink text below.</p>
+        <section className="dlg-errors" role="alert" aria-label={t`Compile errors`}>
+          <p><Trans>The Ink does not compile. Fix these errors in the Ink text below.</Trans></p>
           <ul className="findings">
             {model.errors.map((error) => (
               <li key={error}>{error}</li>
@@ -240,16 +248,16 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
       )}
 
       <div className="dlg-layout">
-        <div className="dlg-canvas-wrap" aria-label="Branch graph">
+        <div className="dlg-canvas-wrap" aria-label={t`Branch graph`}>
           <Graph model={model} selectedId={selectedId} onSelect={chooseNode} />
         </div>
 
-        <aside className="dlg-side" aria-label="Outline and findings">
+        <aside className="dlg-side" aria-label={t`Outline and findings`}>
           {model.findings.length === 0 ? (
-            <p className="muted">No loose end, dead end or unknown speaker in this container.</p>
+            <p className="muted"><Trans>No loose end, dead end or unknown speaker in this container.</Trans></p>
           ) : (
-            <section className="inspector-section" aria-label="Findings">
-              <h3 className="field-label">Findings</h3>
+            <section className="inspector-section" aria-label={t`Findings`}>
+              <h3 className="field-label"><Trans>Findings</Trans></h3>
               <ul className="dlg-findings">
                 {flagged.flatMap((item) =>
                   item.findings.map((finding, index) => (
@@ -268,10 +276,10 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
           {selected === null ? null : <NodeDetail item={selected} />}
 
           {model.notes.length === 0 && model.parseWarnings.length === 0 && model.variables.length === 0 ? null : (
-            <section className="inspector-section" aria-label="Declarations and notes">
+            <section className="inspector-section" aria-label={t`Declarations and notes`}>
               {model.variables.length === 0 ? null : (
                 <>
-                  <h3 className="field-label">Variables</h3>
+                  <h3 className="field-label"><Trans>Variables</Trans></h3>
                   <ul className="keyword-list">
                     {model.variables.map((variable) => (
                       <li key={variable} className="chip">
@@ -289,28 +297,28 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
             </section>
           )}
 
-          <section className="inspector-section dlg-source-edit" aria-label="The Ink text">
+          <section className="inspector-section dlg-source-edit" aria-label={t`The Ink text`}>
             <div className="dlg-source-head">
-              <h3 className="field-label">The Ink text</h3>
+              <h3 className="field-label"><Trans>The Ink text</Trans></h3>
               {missing === 0 || confirming ? null : (
                 <button type="button" className="button is-quiet" onClick={() => setConfirming(true)}>
-                  {`Add line ids to ${countLabel(missing, 'line')}`}
+                  {plural(missing, { one: 'Add line ids to # line', other: 'Add line ids to # lines' })}
                 </button>
               )}
             </div>
             {confirming ? (
-              <div className="dlg-confirm" role="group" aria-label="Confirm adding line ids">
+              <div className="dlg-confirm" role="group" aria-label={t`Confirm adding line ids`}>
                 <p className="field-note">{confirmLineIdsSentence(missing)}</p>
                 <button type="button" className="button" onClick={addIds}>
                   {addLineIdsLabel(missing)}
                 </button>
                 <button type="button" className="button is-quiet" onClick={() => setConfirming(false)}>
-                  Cancel
+                  <Trans>Cancel</Trans>
                 </button>
               </div>
             ) : null}
             <SourceField
-              label="Ink source"
+              label={t`Ink source`}
               inputRef={inkField}
               inputClassName="notes ink-source"
               rows={14}
@@ -422,16 +430,18 @@ function Graph({ model, selectedId, onSelect }: GraphProps): ReactNode {
 
 /** The node's own content, read from the parse: its lines, its choices and its diverts. */
 function NodeDetail({ item }: { readonly item: OutlineNode }): ReactNode {
+  useLingui();
+  const line = item.line;
+  const where = item.kind === 'root' ? t`The first lines of the container.` : t`Line ${line}`;
   return (
-    <section className="inspector-section dlg-detail" aria-label={`Node ${item.name}`}>
-      <p className="eyebrow">{item.kind === 'stitch' ? 'Stitch' : item.kind === 'knot' ? 'Knot' : 'Top of the body'}</p>
+    <section className="inspector-section dlg-detail" aria-label={accessibleText(t`Node ${{ name: isolate(item.name) }}`)}>
+      <p className="eyebrow">{item.kind === 'stitch' ? t`Stitch` : item.kind === 'knot' ? t`Knot` : t`Top of the body`}</p>
       <h3 className="inspector-title">{item.name}</h3>
       <p className="inspector-meta">
-        {item.kind === 'root' ? 'The first lines of the container.' : `Line ${item.line}`}
-        {item.reached ? '' : ' · no divert or choice reaches it'}
+        {item.reached ? where : t`${where} · no divert or choice reaches it`}
       </p>
       {item.lines.length === 0 ? (
-        <p className="muted">No spoken line in this node.</p>
+        <p className="muted"><Trans>No spoken line in this node.</Trans></p>
       ) : (
         <ol className="dlg-lines">
           {item.lines.map((line) => (
@@ -443,21 +453,21 @@ function NodeDetail({ item }: { readonly item: OutlineNode }): ReactNode {
         </ol>
       )}
       {item.choices.length === 0 ? null : (
-        <ul className="dlg-choices" aria-label="Choices">
+        <ul className="dlg-choices" aria-label={t`Choices`}>
           {item.choices.map((choice) => (
             <li key={`${choice.line}:${choice.label}`}>
               “{choice.label}” → {choice.target}
-              {choice.condition === null ? '' : ` when ${choice.condition}`}
-              {choice.onceOnly ? ' (once)' : ''}
+              {choice.condition === null ? '' : ` ${t`when ${{ condition: choice.condition }}`}`}
+              {choice.onceOnly ? ` ${t`(once)`}` : ''}
             </li>
           ))}
         </ul>
       )}
-      {item.diverts.length === 0 ? null : <p className="muted">Diverts to {item.diverts.join(', ')}.</p>}
+      {item.diverts.length === 0 ? null : <p className="muted">{t`Diverts to ${{ targets: item.diverts.join(', ') }}.`}</p>}
       {item.findings.map((finding, index) => (
         <p key={index} className="field-note">
           {finding.message}
-          {finding.expected === undefined ? '' : ` Expected: ${finding.expected}.`}
+          {finding.expected === undefined ? '' : ` ${t`Expected: ${{ expected: finding.expected }}.`}`}
         </p>
       ))}
     </section>
@@ -465,6 +475,7 @@ function NodeDetail({ item }: { readonly item: OutlineNode }): ReactNode {
 }
 
 function FindingBadge({ finding }: { readonly finding: DialogueFinding }): ReactNode {
-  const label = finding.checkId === 'branch.loose-end' ? 'Loose end' : finding.checkId === 'branch.dead-end' ? 'Unreached' : 'Unknown speaker';
+  useLingui();
+  const label = finding.checkId === 'branch.loose-end' ? t`Loose end` : finding.checkId === 'branch.dead-end' ? t`Unreached` : t`Unknown speaker`;
   return <span className={`badge ${finding.severity === 'warning' ? 'is-warn' : ''} dlg-badge`}>{label}</span>;
 }

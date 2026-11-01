@@ -4,11 +4,12 @@
  */
 
 import { HARD_DENIED, HARD_DENY_CLASSES } from '@caotang/bus';
+import { addDocument, addNode } from '@caotang/store';
 import { VIDEO_TEMPLATE_IDS } from '@caotang/video-prompt-pack';
 import { describe, expect, it } from 'vitest';
 
 import { createAgentPorts, TOOL_METADATA, TOOL_NAMES } from '../src/index.js';
-import { LANDING, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
+import { LANDING, LANDING_BODY, makeHarness, makeState, refusalOf, run, runAsync, snapshotOf, valueOf } from './fixtures.js';
 
 describe('the activity source', () => {
   it('stamps every row a native call writes as native, the default', () => {
@@ -49,6 +50,40 @@ describe('the rows a harness call writes', () => {
   });
 });
 
+/** A picture the place tool can resolve, so its permission gate rather than its preparation is what answers. */
+function gateState() {
+  const state = makeState();
+  state.manifest.assets = [
+    {
+      id: 'a_0000000001',
+      file: 'a_0000000001.png',
+      mime: 'image/png',
+      sha256: '0'.repeat(64),
+      bytes: 24,
+      width: 1,
+      height: 1,
+      source: { kind: 'import' },
+      createdAt: '2026-10-08T09:00:00.000Z',
+    },
+  ];
+  // The comic tools prepare their real targets before the bus gate answers. Give them one valid book, page and linked script,
+  // just as the other fixtures give their commands resolvable targets.
+  const now = new Date(1_700_000_000_000);
+  const book = addNode(state, { parentId: 'manuscript', title: 'Comic', kind: 'comic', now, id: 'n_COMIC000001' });
+  const page = addNode(state, { parentId: book.id, title: 'Page 1', type: 'comic-page', now, id: 'n_COMICPAGE01' });
+  page.comicPage = { size: 'us', panels: [] };
+  const script = addDocument(state, {
+    parentId: book.id,
+    title: 'Script',
+    kind: 'comic-script',
+    body: 'Page 1\n\nPanel 1\n\nELENA: The ferry is late.',
+    now,
+    id: 'n_COMICSCRIPT',
+  });
+  book.comic = { scriptDocId: script.id };
+  return state;
+}
+
 describe('the tool-level permission matrix', () => {
   const writeConfirm = TOOL_METADATA.filter((meta) => meta.risk === 'write-confirm').map((meta) => meta.name);
   const writeAuto = TOOL_METADATA.filter((meta) => meta.risk === 'write-auto').map((meta) => meta.name);
@@ -58,15 +93,17 @@ describe('the tool-level permission matrix', () => {
   // (coherence.setFindingStatus, restricted to `fixed` by the coherence tool's own rule); the
   // storyboard and prompt-pack modules' write tools: shots.derive and prompt.draft (write-confirm), and the
   // write-auto shots.annotate; and the dialogue module's dialogue.draft (write-confirm,
-  // dialogue-narrative.md §7); its read, dialogue.table, is not in either list. The five allowlisted bus primitives add
-  // notes.replace and vocabulary.upsert (write-confirm), and synopsis.set, filter.save and goal.save (write-auto). The two rows issue #71 names,
-  // memory.write and instructions.propose, are write-confirm too; memory.read is a read.
+  // dialogue-narrative.md §7); its read, dialogue.table, is not in either list. The allowlisted bus primitives add
+  // notes.replace, vocabulary.upsert and timeline.edit (write-confirm), and synopsis.set, filter.save and goal.save (write-auto). The two
+  // rows issue #71 names, memory.write and instructions.propose, are write-confirm too; memory.read is a read.
   it('lists the write-confirm and write-auto tools the matrix covers', () => {
     expect(writeConfirm.sort()).toEqual([
       'binder.restructure',
       'codex.import',
       'codex.write',
       'coherence.review',
+      'comic.derive',
+      'comic.scriptFromPages',
       'dialogue.apply',
       'dialogue.draft',
       'doc.import',
@@ -74,17 +111,21 @@ describe('the tool-level permission matrix', () => {
       'instructions.propose',
       'memory.write',
       'notes.replace',
+      'pictures.import',
+      'pictures.place',
+      'pictures.transcribe',
       'prompt.draft',
       'scene.apply',
       'scene.draft',
       'shots.derive',
       'synopsis.fill',
+      'timeline.edit',
       'vocabulary.upsert',
     ]);
-    expect(writeAuto.sort()).toEqual(['coherence.setFindingStatus', 'filter.save', 'goal.save', 'meta.set', 'notes.append', 'shots.annotate', 'synopsis.set']);
+    expect(writeAuto.sort()).toEqual(['coherence.setFindingStatus', 'comic.letter', 'filter.save', 'goal.save', 'meta.set', 'notes.append', 'pictures.annotate', 'pictures.attach', 'shots.annotate', 'synopsis.set']);
   });
 
-  it('refuses every write-confirm tool when neither a plan nor a confirmation is present, and names the tool', () => {
+  it('refuses every write-confirm tool when neither a plan nor a confirmation is present, and names the tool', async () => {
     // The LLM-backed ports are injected here, so the gate, not the not-wired refusal, is what answers.
     // A port with no implementation is refused as not wired first: `coherence.review` has no default port
     // (its model call is async), and `shots.derive` and `prompt.draft` need a staged proposal or a model, so they
@@ -102,11 +143,13 @@ describe('the tool-level permission matrix', () => {
           'scene.apply': implemented,
           'dialogue.apply': implemented,
         },
+        asyncPorts: { 'pictures.import': async () => implemented(), 'pictures.transcribe': async () => implemented() },
       },
-      makeState(),
+      gateState(),
     );
     for (const name of writeConfirm) {
-      const error = refusalOf(run(harness, name, minimalParams(name)));
+      const outcome = name === 'pictures.import' || name === 'pictures.transcribe' ? await runAsync(harness, name, minimalParams(name)) : run(harness, name, minimalParams(name));
+      const error = refusalOf(outcome);
       expect(error.code, name).toBe('permission-denied');
       expect(error.message, name).toContain(`"${name}" is a write-confirm tool`);
     }
@@ -127,8 +170,8 @@ describe('the tool-level permission matrix', () => {
 describe('a delegated agent’s calls (agent-harness §2, "Delegate")', () => {
   const approved = { approvedPlan: true, confirmed: true } as const;
 
-  it('refuses every tool that is not a read when the turn names an agent path, whatever approval rides on it, and writes nothing', () => {
-    const state = makeState();
+  it('refuses every tool that is not a read when the turn names an agent path, whatever approval rides on it, and writes nothing', async () => {
+    const state = gateState();
     const implemented = () => ({ ok: true as const, value: { data: {}, summary: '', affected: [] } });
     const harness = makeHarness(
       {
@@ -142,6 +185,7 @@ describe('a delegated agent’s calls (agent-harness §2, "Delegate")', () => {
           'scene.apply': implemented,
           'dialogue.apply': implemented,
         },
+        asyncPorts: { 'pictures.import': async () => implemented(), 'pictures.transcribe': async () => implemented() },
       },
       state,
     );
@@ -154,7 +198,9 @@ describe('a delegated agent’s calls (agent-harness §2, "Delegate")', () => {
     ];
     expect(writes.length).toBeGreaterThan(10);
     for (const [name, params] of writes) {
-      const error = refusalOf(run(harness, name, params, { agentPath: 'turn-1/reader#1', permission: approved }));
+      const context = { agentPath: 'turn-1/reader#1', permission: approved };
+      const outcome = name === 'pictures.import' || name === 'pictures.transcribe' ? await runAsync(harness, name, params, context) : run(harness, name, params, context);
+      const error = refusalOf(outcome);
       expect(error.code, name).toBe('permission-denied');
       expect(error.message, name).toContain('a delegated agent can only read; return the change as a proposed step');
     }
@@ -230,6 +276,8 @@ function minimalParams(name: string): Record<string, unknown> {
       return { text: 'British spelling.' };
     case 'vocabulary.upsert':
       return { kind: 'status', name: 'In Review', color: '#3fa66a' };
+    case 'timeline.edit':
+      return { ops: [{ op: 'move', nodeId: LANDING, newParentId: 'Chapter 2', index: 0 }] };
     case 'export.compile':
       return { selection: { root: 'manuscript' }, format: 'md' };
     case 'scene.draft':
@@ -249,6 +297,15 @@ function minimalParams(name: string): Record<string, unknown> {
     case 'prompt.draft':
       // A shot id the storyboard tools would name, and a vendor template the package installs.
       return { shots: ['n_SHOT0000001'], vendor: VIDEO_TEMPLATE_IDS[0] };
+    case 'pictures.import':
+      return { stagingId: 'stg_ABCDEF0123' };
+    case 'pictures.place':
+      return { assetId: 'a_0000000001', doc: LANDING, anchor: LANDING_BODY };
+    case 'pictures.transcribe':
+      return { assetIds: ['a_0000000001'] };
+    case 'comic.derive':
+    case 'comic.scriptFromPages':
+      return { book: 'Comic' };
     default:
       return {};
   }

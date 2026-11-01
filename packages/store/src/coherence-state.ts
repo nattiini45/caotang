@@ -24,6 +24,7 @@
  */
 
 import type { KnowledgeFactRecord, SceneMetaRecord } from '@caotang/bus';
+import type { MessageRef } from '@caotang/i18n';
 
 /**
  * The part of one finding the store's applies touch, the evidence an `affected` row names (§8), and the fields the
@@ -49,6 +50,8 @@ export interface CoherenceFindingState {
   readonly severity?: string;
   readonly factGroup?: string;
   readonly message?: string;
+  /** I7: the deterministic finding's message reference, carried through the store's structural copy. */
+  readonly messageRef?: MessageRef;
   readonly expected?: string;
 }
 

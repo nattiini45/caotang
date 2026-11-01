@@ -56,6 +56,8 @@ async function compile(host: Rig, format: Format, options?: { colourEmoji?: bool
   if (file === undefined || file.bytes === undefined) throw new Error('no binary file');
   const rendered = await file.bytes();
   const bare = rendered instanceof Uint8Array || typeof rendered === 'string';
+  // The PR's rendered union adds a skipped file; a colour-emoji render is never skipped.
+  if (!bare && 'skip' in rendered) throw new Error('the file was skipped');
   const contents = bare ? rendered : rendered.contents;
   const notes = [...output.notes, ...(bare ? [] : rendered.notes)];
   return { result: { log: { notes } }, bytes: typeof contents === 'string' ? new TextEncoder().encode(contents) : new Uint8Array(contents) };

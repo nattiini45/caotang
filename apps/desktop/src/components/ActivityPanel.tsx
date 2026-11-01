@@ -13,16 +13,18 @@
  * (command-bus §8), and the older rows are one window at a time, on the button that names how many are left
  * (activity-window.ts). The export carries the whole log, rows and all.
  */
+/* lingui-set comment="Interpolated values: source, summary" */
 
 import { useState, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 
 import type { ProjectSession } from '../app/session.js';
 import { issuerLabel, sourceBadge, timeLabel } from '../app/activity-model.js';
+import { accessibleText } from '../i18n/accessible-text.js';
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from './activity-window.js';
 import { EmptyState, useReport, useSession } from './shared.js';
-
-/** The title of an Undo that waits for the changes made after its group. */
-const LATER_CHANGES_FIRST = 'Undo the later changes first';
 
 export function ActivityPanel({ session, onExport }: { session: ProjectSession; onExport: () => void }): ReactNode {
   useSession(session);
@@ -51,7 +53,7 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
       report(
         detail !== null
           ? { text: detail, tone: 'error' }
-          : { text: `“${summary}” could not be undone in full. The rest of its group is kept for another try.`, tone: 'error' },
+          : { text: t`“${{ summary }}” could not be undone in full. The rest of its group is kept for another try.`, tone: 'error' },
       );
     });
   };
@@ -61,47 +63,56 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
       <div className="activity-toolbar">
         <label className="check">
           <input type="checkbox" checked={showViews} onChange={(event) => setShowViews(event.target.checked)} />
-          Show view changes
+          <Trans>Show view changes</Trans>
         </label>
         <button type="button" className="button is-quiet" onClick={onExport}>
-          Export as Markdown
+          <Trans>Export as Markdown</Trans>
         </button>
       </div>
 
       {rows.length === 0 ? (
-        <EmptyState title="Nothing has changed yet">
-          Each change you make appears here, with the command it ran. Undo takes back one change, or one group of them.
-          Next step: type a sentence in the editor, or make a folder in the binder, and its row appears here.
+        <EmptyState title={t`Nothing has changed yet`}>
+          <Trans>
+            Each change you make appears here, with the command it ran. Undo takes back one change, or one group of them.
+            Next step: type a sentence in the editor, or make a folder in the binder, and its row appears here.
+          </Trans>
         </EmptyState>
       ) : (
-        <ol className="activity-list" aria-label="Activity">
-          {rows.map(({ index, entry, title, undo }) => (
-            <li key={index} className={`activity-row is-${entry.issuedBy}`} data-command={entry.command}>
-              <div className="activity-head">
-                <span className="activity-title">{title}</span>
-                <span className={`badge is-source-${entry.source}`} title={`Source: ${sourceBadge(entry.source)}`}>
-                  {sourceBadge(entry.source)}
-                </span>
-              </div>
-              <p className="activity-summary">{entry.summary}</p>
-              <p className="activity-meta">
-                <time dateTime={new Date(entry.at).toISOString()}>{timeLabel(entry.at)}</time>
-                <span> · {issuerLabel(entry.issuedBy)}</span>
-              </p>
-              {undo !== null ? (
-                <button
-                  type="button"
-                  className="button is-quiet activity-undo"
-                  disabled={undo.id !== newest}
-                  title={undo.id === newest ? undo.label : LATER_CHANGES_FIRST}
-                  aria-label={`Undo: ${entry.summary}`}
-                  onClick={() => undoGroup(undo.id, entry.summary)}
-                >
-                  Undo
-                </button>
-              ) : null}
-            </li>
-          ))}
+        <ol className="activity-list" aria-label={t`Activity`}>
+          {rows.map(({ index, entry, title, undo }) => {
+            // A row saved before I7 has no ref and reads exactly as written; a new row follows the UI language.
+            const summary =
+              entry.summaryRef === undefined
+                ? entry.summary
+                : renderRef(entry.summaryRef, { userValues: titleValues(entry.summaryRef) });
+            return (
+              <li key={index} className={`activity-row is-${entry.issuedBy}`} data-command={entry.command}>
+                <div className="activity-head">
+                  <span className="activity-title">{title}</span>
+                  <span className={`badge is-source-${entry.source}`} title={t`Source: ${{ source: sourceBadge(entry.source) }}`}>
+                    {sourceBadge(entry.source)}
+                  </span>
+                </div>
+                <p className="activity-summary">{summary}</p>
+                <p className="activity-meta">
+                  <time dateTime={new Date(entry.at).toISOString()}>{timeLabel(entry.at)}</time>
+                  <span> · {issuerLabel(entry.issuedBy)}</span>
+                </p>
+                {undo !== null ? (
+                  <button
+                    type="button"
+                    className="button is-quiet activity-undo"
+                    disabled={undo.id !== newest}
+                    title={undo.id === newest ? undo.label : t`Undo the later changes first`}
+                    aria-label={t`Undo: ${{ summary: accessibleText(summary) }}`}
+                    onClick={() => undoGroup(undo.id, summary)}
+                  >
+                    <Trans>Undo</Trans>
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
         </ol>
       )}
 

@@ -10,6 +10,8 @@
  * on anyway is set aside on its own shot as an error row, so one bad shot cannot take the pack, or the panel, down.
  */
 
+import { isolate } from '@caotang/i18n';
+import { plural, t } from '@lingui/core/macro';
 import { nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 
 import {
@@ -38,11 +40,19 @@ import {
   type VideoVendorTemplate,
 } from './engines.js';
 
+
+/* lingui-set comment="Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number." */
 /** The three artifacts an export writes, with the label and the MIME type each download carries. */
 export const PACK_ARTIFACTS: readonly { readonly artifact: PackArtifact; readonly label: string; readonly mime: string }[] = [
-  { artifact: 'json', label: 'JSON pack', mime: 'application/json' },
-  { artifact: 'markdown', label: 'Markdown pack', mime: 'text/markdown' },
-  { artifact: 'csv', label: 'CSV shot list', mime: 'text/csv' },
+  { artifact: 'json', get label() {
+      return t`JSON pack`;
+    }, mime: 'application/json' },
+  { artifact: 'markdown', get label() {
+      return t`Markdown pack`;
+    }, mime: 'text/markdown' },
+  { artifact: 'csv', get label() {
+      return t`CSV shot list`;
+    }, mime: 'text/csv' },
 ];
 
 /** The templates a panel offers, in the engine's order. */
@@ -72,54 +82,64 @@ function messageOf(error: unknown): string {
  * throw on it (`clean` calls `trim` on every prompt part, and `resolveReferences` reads each reference's fields).
  */
 export function recordProblemOf(value: unknown): string | null {
-  if (!isPlainObject(value)) return 'it is not an object';
-  if (typeof value.vendor !== 'string') return 'vendor is not text';
-  if (!(VIDEO_MODES as readonly unknown[]).includes(value.mode)) return `mode is not one of ${VIDEO_MODES.join(', ')}`;
+  if (!isPlainObject(value)) return t`it is not an object`;
+  if (typeof value.vendor !== 'string') return t`vendor is not text`;
+  if (!(VIDEO_MODES as readonly unknown[]).includes(value.mode)) {
+    const modes = VIDEO_MODES.join(', ');
+    return t`mode is not one of ${modes}`;
+  }
 
   const prompt = value.prompt;
-  if (!isPlainObject(prompt)) return 'prompt is not an object';
+  if (!isPlainObject(prompt)) return t`prompt is not an object`;
   for (const part of PROMPT_PARTS) {
-    if (prompt[part] !== undefined && typeof prompt[part] !== 'string') return `prompt.${part} is not text`;
+    if (prompt[part] !== undefined && typeof prompt[part] !== 'string') {
+      const name = `prompt.${part}`;
+      return t`${name} is not text`;
+    }
   }
 
   const audio = value.audio;
   if (audio !== undefined) {
-    if (!isPlainObject(audio)) return 'audio is not an object';
+    if (!isPlainObject(audio)) return t`audio is not an object`;
     for (const cue of AUDIO_CUES) {
-      if (audio[cue] !== undefined && typeof audio[cue] !== 'string') return `audio.${cue} is not text`;
+      if (audio[cue] !== undefined && typeof audio[cue] !== 'string') {
+        const name = `audio.${cue}`;
+        return t`${name} is not text`;
+      }
     }
   }
 
   for (const field of TEXT_FIELDS) {
-    if (value[field] !== undefined && typeof value[field] !== 'string') return `${field} is not text`;
+    if (value[field] !== undefined && typeof value[field] !== 'string') return t`${field} is not text`;
   }
   for (const field of NUMBER_FIELDS) {
-    if (value[field] !== undefined && typeof value[field] !== 'number') return `${field} is not a number`;
+    if (value[field] !== undefined && typeof value[field] !== 'number') return t`${field} is not a number`;
   }
-  if (value.promptExtend !== undefined && typeof value.promptExtend !== 'boolean') return 'promptExtend is not true or false';
+  if (value.promptExtend !== undefined && typeof value.promptExtend !== 'boolean') return t`promptExtend is not true or false`;
 
   const references = value.references;
-  if (!Array.isArray(references)) return 'references is not a list';
+  if (!Array.isArray(references)) return t`references is not a list`;
   for (const [index, reference] of (references as unknown[]).entries()) {
-    const label = `references item ${index + 1}`;
-    if (!isPlainObject(reference)) return `${label} is not an object`;
-    if (!(REFERENCE_TYPES as readonly unknown[]).includes(reference.type)) return `${label} has no type from ${REFERENCE_TYPES.join(', ')}`;
+    const item = index + 1;
+    const types = REFERENCE_TYPES.join(', ');
+    if (!isPlainObject(reference)) return t`references item ${item} is not an object`;
+    if (!(REFERENCE_TYPES as readonly unknown[]).includes(reference.type)) return t`references item ${item} has no type from ${types}`;
     for (const key of ['entryId', 'assetId'] as const) {
-      if (reference[key] !== undefined && typeof reference[key] !== 'string') return `${label} ${key} is not text`;
+      if (reference[key] !== undefined && typeof reference[key] !== 'string') return t`references item ${item} ${key} is not text`;
     }
   }
 
   const take = value.bestTake;
   if (take !== undefined) {
-    if (!isPlainObject(take)) return 'bestTake is not an object';
-    if (typeof take.seed !== 'number') return 'bestTake.seed is not a number';
-    if (typeof take.model !== 'string') return 'bestTake.model is not text';
+    if (!isPlainObject(take)) return t`bestTake is not an object`;
+    if (typeof take.seed !== 'number') return t`bestTake.seed is not a number`;
+    if (typeof take.model !== 'string') return t`bestTake.model is not text`;
     const params = take.vendorParams;
-    if (!isPlainObject(params)) return 'bestTake.vendorParams is not an object';
+    if (!isPlainObject(params)) return t`bestTake.vendorParams is not an object`;
     for (const [key, param] of Object.entries(params)) {
-      if (typeof param !== 'string' && typeof param !== 'number') return `bestTake.vendorParams.${key} is not text or a number`;
+      if (typeof param !== 'string' && typeof param !== 'number') return t`bestTake.vendorParams.${key} is not text or a number`;
     }
-    if (take.note !== undefined && typeof take.note !== 'string') return 'bestTake.note is not text';
+    if (take.note !== undefined && typeof take.note !== 'string') return t`bestTake.note is not text`;
   }
   return null;
 }
@@ -263,11 +283,18 @@ function unreadRecordsOf(state: ProjectState, folderId: string, templateId: stri
 export function consistencyLinesOf(provenance: ReferenceProvenance): string[] {
   return [
     ...provenance.supplied.map((entry) => {
-      const how = entry.reason === 'override' ? 'named by this shot' : `mentioned in ${mentionWords(entry.where)}`;
+      const name = isolate(entry.name);
+      const where = mentionWords(entry.where);
       const count = entry.assetIds.length;
-      return `${entry.name}: ${how}, sends ${count} reference${count === 1 ? '' : 's'}`;
+      return entry.reason === 'override'
+        ? plural(count, { one: `${name}: named by this shot, sends # reference`, other: `${name}: named by this shot, sends # references` })
+        : plural(count, { one: `${name}: mentioned in ${where}, sends # reference`, other: `${name}: mentioned in ${where}, sends # references` });
     }),
-    ...provenance.withheld.map((entry) => `${entry.name}: not sent, because ${withheldWords(entry.reason)}`),
+    ...provenance.withheld.map((entry) => {
+      const name = isolate(entry.name);
+      const reason = withheldWords(entry.reason);
+      return t`${name}: not sent, because ${reason}`;
+    }),
   ];
 }
 
@@ -279,13 +306,14 @@ export function consistencyLinesOf(provenance: ReferenceProvenance): string[] {
 function wordedFor(issue: ValidationIssue, numbers: ReadonlyMap<string, number>, displayName: string): ValidationIssue {
   if (issue.code !== 'empty-prompt') return issue;
   const number = issue.shotId === undefined ? undefined : numbers.get(issue.shotId);
-  const shot = number === undefined ? 'This shot' : `Shot ${number}`;
+  const shot = number === undefined ? t`This shot` : t`Shot ${number}`;
+  const vendor = displayName;
   if (issue.severity === 'warning') {
-    return { ...issue, message: `${shot} has no prompt for ${displayName} yet, so the pack leaves it out. Write its prompt in the shot's fields on the board.` };
+    return { ...issue, message: t`${shot} has no prompt for ${vendor} yet, so the pack leaves it out. Write its prompt in the shot's fields on the board.` };
   }
   return {
     ...issue,
-    message: `The shot has no prompt text for ${displayName}. Its camera, subject, action or context needs text, which the shot's fields on the board take.`,
+    message: t`The shot has no prompt text for ${vendor}. Its camera, subject, action or context needs text, which the shot's fields on the board take.`,
   };
 }
 
@@ -302,18 +330,21 @@ export function packPreviewOf(
   const numbers = shotNumbers(snapshot);
   const shotLabel = (shotId: string): string => {
     const number = numbers.get(shotId);
-    return number === undefined ? 'A shot' : `Shot ${number}`;
+    return number === undefined ? t`A shot` : t`Shot ${number}`;
   };
 
   // A stored record the guard refuses is left out of the pack. Its row says why, and its shot counts as missing.
   const issues: PanelIssue[] = unreadRecordsOf(state, folderId, template.id).map(
-    ({ shotId, problem }): PanelIssue => ({
-      code: 'unreadable-record',
-      severity: 'warning',
-      field: 'vendorRefs',
-      message: `${shotLabel(shotId)} has a stored prompt record that is not readable (${problem}). It is left out of this pack until the record is fixed.`,
-      shotId,
-    }),
+    ({ shotId, problem }): PanelIssue => {
+      const shot = shotLabel(shotId);
+      return {
+        code: 'unreadable-record',
+        severity: 'warning',
+        field: 'vendorRefs',
+        message: t`${shot} has a stored prompt record that is not readable (${problem}). It is left out of this pack until the record is fixed.`,
+        shotId,
+      };
+    },
   );
 
   // Each shot's record is run on its own first, so a throw is attributed to the shot it came from. That record is set aside
@@ -324,14 +355,14 @@ export function packPreviewOf(
     const failure = probeShot(snapshot, template.id, shot.id);
     if (failure !== null) setAside.set(shot.id, failure);
   }
+  const vendor = template.displayName;
   for (const [shotId, failure] of setAside) {
+    const shot = shotLabel(shotId);
     issues.push({
       code: 'unreadable-record',
       severity: 'error',
       field: 'vendorRefs',
-      message:
-        `${shotLabel(shotId)} has a stored ${template.displayName} prompt that the pack could not read (${failure}). ` +
-        'The export is held until the record is fixed.',
+      message: t`${shot} has a stored ${vendor} prompt that the pack could not read (${failure}). The export is held until the record is fixed.`,
       shotId,
       vendor: template.id,
     });
@@ -351,11 +382,12 @@ export function packPreviewOf(
   try {
     run = preparePack(working, template.id);
   } catch (error) {
+    const reason = messageOf(error);
     issues.push({
       code: 'pack-failed',
       severity: 'error',
       field: 'prompt',
-      message: `The ${template.displayName} pack could not be built: ${messageOf(error)}. The export is held until this is fixed.`,
+      message: t`The ${vendor} pack could not be built: ${reason}. The export is held until this is fixed.`,
     });
   }
 

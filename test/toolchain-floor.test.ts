@@ -253,12 +253,45 @@ describe("the toolchain floor, read out of the lockfile", () => {
     ).toBe(true);
   });
 
-  it('declares engines.node as vitest does, because vitest is what sets the floor', () => {
+  it('declares engines.node as vitest does, with the 22 line at the highest 22 floor the tree declares', () => {
     // The third declaration was vitest 5's own `engines`, copied verbatim. If
     // vitest moves, the user-facing support claim has to move with it — and this
     // is the assertion that says so, in the failure direction the repo wants:
     // loud, on the day the floor moves.
-    expect(manifest.engines.node).toBe(declaredEngines('vitest', resolvedVersions('vitest')[0]!));
+    //
+    // The install is engine-strict, so a package that needs a later Node 22 than
+    // vitest does raises the 22 line for everyone: Lingui 6 (the interface
+    // catalogues, #322) declares `>=22.19.0`, and Node 22.12 refuses to install it.
+    // The floor is read from every lockfile entry, never transcribed.
+    const vitest = declaredEngines('vitest', resolvedVersions('vitest')[0]!);
+    const floors = resolutions
+      .map((r) => /engines:\s*\{node:\s*([^}]+)\}/.exec(r.block.split(/\n(?= {2}\S)/)[0]!)?.[1] ?? '')
+      .flatMap((range) => [...range.matchAll(/(?:\^|>=)\s*22\.(\d+)\.(\d+)/g)].map((m) => [Number(m[1]), Number(m[2])] as const));
+    expect(floors.length).toBeGreaterThan(0);
+    const [minor, patch] = floors.reduce((a, b) => (b[0] > a[0] || (b[0] === a[0] && b[1] > a[1]) ? b : a));
+    expect(vitest).toMatch(/\^22\.\d+\.\d+/);
+    expect(manifest.engines.node).toBe(vitest.replace(/\^22\.\d+\.\d+/, `^22.${minor}.${patch}`));
+  });
+
+  it('installs nothing whose engines exclude the Node 22 line unless a patch says why', () => {
+    // CI's 22 leg runs an engine-strict install, so one package that asks for Node 24 alone fails it, and a peer or engines
+    // fact like this is invisible to `pnpm audit`. pseudolocale 3 (under @lingui/cli) declares `>=24.0.0` for a few
+    // string functions; patches/pseudolocale@3.1.0.patch sets it to the 22 floor, as the pdfjs-dist patch does.
+    const workspace = readFileSync(resolve(repoRoot, 'pnpm-workspace.yaml'), 'utf8');
+    const patched = new Set([...workspace.matchAll(/^\s+'?([^\s:']+)'?:\s*patches\//gm)].map((m) => m[1]!));
+    expect(patched.size).toBeGreaterThan(0);
+    const excluding = resolutions
+      .filter((r) => {
+        // The entry's own lines only: `block` runs on into the entries after it.
+        const own = r.block.split(/\n(?= {2}\S)/)[0]!;
+        const range = /engines:\s*\{node:\s*([^}]+)\}/.exec(own)?.[1];
+        if (range === undefined) return false;
+        const lows = range.split('||').map((part) => Number(/(\d+)/.exec(part)?.[1] ?? '0'));
+        return lows.every((major) => major > 22);
+      })
+      .map((r) => `${r.name}@${r.version}`)
+      .filter((key) => !patched.has(key));
+    expect(excluding, `packages whose engines leave out Node 22: ${excluding.join(', ')}`).toEqual([]);
   });
 
   it('names no build-allowlist entry that is not installed', () => {

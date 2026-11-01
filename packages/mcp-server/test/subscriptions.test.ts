@@ -41,6 +41,21 @@ async function until(check: () => boolean, what: string, ms = 5000): Promise<voi
 /** Gives a quiet period for a notice that should not come. */
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 150));
 
+/**
+ * The budget for the two notice tests below — the only server fixtures here measured above the
+ * 5 000 ms default, and explicit and per-test, never `vitest.config.ts`'s default.
+ *
+ * Each starts a project fixture and a server, seeds a writing project, connects a real client and
+ * waits on the change feed. Measured on one development machine under a loaded host (16 logical
+ * CPUs; another project's vitest worker was using a core): in this package's own suite (19 files,
+ * Vitest's default worker pool) they timed out at the 5 000 ms default; with a 30 000 ms override
+ * the same suite passed, and the 2026-07-28 notice test took **10 610 ms** while the 2025-era one
+ * took **7 718 ms**. 30 000 ms clears both recorded figures with headroom and still fails a hang.
+ * The repo's convention is a measured per-test budget: the config default is intentionally not
+ * widened, and the guard in `packages/editor/test/dialect.test.ts` rejects a global `testTimeout`.
+ */
+const SERVER_FIXTURE_TIMEOUT = 30_000;
+
 interface Seen {
   readonly updated: string[];
   listChanges: number;
@@ -106,7 +121,7 @@ describe('a 2026-07-28 listen stream', () => {
     } finally {
       await client.close();
     }
-  });
+  }, SERVER_FIXTURE_TIMEOUT);
 
   it('is told nothing by a read', async () => {
     const fixture = await writable('sub-read');
@@ -172,7 +187,7 @@ describe('a 2025-era connection', () => {
     } finally {
       await client.close();
     }
-  });
+  }, SERVER_FIXTURE_TIMEOUT);
 
   it('stops being told when the connection ends: the feed keeps no listener for a closed one', async () => {
     const fixture = await writable('sub-closed');
@@ -215,7 +230,7 @@ describe('a 2025-era connection', () => {
       await session.close();
       removeDir(root);
     }
-  }, 30_000);
+  });
 });
 
 describe('a read-only server', () => {

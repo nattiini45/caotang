@@ -824,7 +824,7 @@ describe('the registration refusal is never reached, because the captures are co
     expect(getBody(h.state, LANDING)).not.toBe('AFTER');
   });
 
-  it('the bus registry still refuses the five, and without an exporter the store registry implements eighteen of the twenty', () => {
+  it('the bus registry still refuses the five, and the store registry implements every apply that needs no host port', () => {
     // Both halves of the bus/store registry split, extended to these applies. A bus registry
     // that quietly started implementing a name, and a store registry that quietly
     // stopped, each fail here.
@@ -857,7 +857,9 @@ describe('the registration refusal is never reached, because the captures are co
     // The hooks add `hook.save` and `hook.delete`: 45 + 2 = 47.
     // The picture registry adds `asset.setMeta` (the two imports need the asset port): 47 + 1 + 2 (`script.setShowMeta`, `script.setEpisodeMeta`) = 50.
     // The writer's codex batch import adds `codex.importBatch`: 50 + 1 = 51.
-    expect(implemented).toHaveLength(51);
+    // The timeline batch and the calendar setting are compensable and need no port: 51 + 2 = 53.
+    // The eight picture commands that touch only the manifest beyond `asset.setMeta` need no port: 53 + 8 = 61. The seven comic commands make 68.
+    expect(implemented).toHaveLength(68);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

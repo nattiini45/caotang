@@ -27,11 +27,10 @@
  * both directions, and the load path is where a version changes.
  */
 
-import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookCheck, type ProjectHook, type ProjectMacro } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookCheck, type ProjectHook, type ProjectMacro } from '@caotang/bus';
 import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
 import type {
-  AssetRecord,
   CodexEntry,
   Derived,
   ExportRecipe,
@@ -176,6 +175,8 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
   { key: 'kind', value: (node: TreeNode) => node.kind, write: (value) => str(value as string, 'node.kind') },
   { key: 'shot', value: (node: TreeNode) => node.shot, write: (value) => criterion(value, 'node.shot') },
   { key: 'dialogue', value: (node: TreeNode) => node.dialogue, write: (value) => criterion(value, 'node.dialogue') },
+  { key: 'comic', value: (node: TreeNode) => node.comic, write: (value) => criterion(value, 'node.comic') },
+  { key: 'comicPage', value: (node: TreeNode) => node.comicPage, write: (value) => criterion(value, 'node.comicPage') },
   { key: 'showMeta', value: (node: TreeNode) => node.showMeta, write: (value) => criterion(value, 'node.showMeta') },
   { key: 'episodeMeta', value: (node: TreeNode) => node.episodeMeta, write: (value) => criterion(value, 'node.episodeMeta') },
   { key: 'style', value: (node: TreeNode) => node.style, write: (value) => str(value as string, 'node.style') },
@@ -186,7 +187,7 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
 /** One optional node field: where its value is, and how it is written. */
 interface OptionalNodeField {
   /** The manifest key it is written under. */
-  readonly key: 'kind' | 'shot' | 'dialogue' | 'showMeta' | 'episodeMeta' | 'style' | 'createdAt' | 'updatedAt';
+  readonly key: 'kind' | 'shot' | 'dialogue' | 'comic' | 'comicPage' | 'showMeta' | 'episodeMeta' | 'style' | 'createdAt' | 'updatedAt';
   /** The node's value for it, or `undefined` when the node does not carry it. */
   readonly value: (node: TreeNode) => unknown;
   /** The text the serializer writes for it. */
@@ -311,6 +312,51 @@ function projectGoal(g: ProjectGoal): string {
   return oneLine(pairs);
 }
 
+const ASSET_RECORD_KEYS = [
+  'id',
+  'file',
+  'mime',
+  'sha256',
+  'bytes',
+  'width',
+  'height',
+  'orientation',
+  'caption',
+  'alt',
+  'decorative',
+  'tags',
+  'source',
+  'transcription',
+  'workingCopy',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+const ASSET_LINK_KEYS = ['id', 'assetId', 'target', 'role', 'order', 'note', 'when'] as const;
+
+/**
+ * One `assets[]` or `assetLinks[]` entry: the keys this build knows, in the spec's order, then any key a newer build added, in the
+ * order it was read, so a record that passes through this build comes out with every field it came in with (pictures.md §2.1).
+ */
+function pictureEntry(entry: object, known: readonly string[], field: string): string {
+  const record = entry as Record<string, unknown>;
+  const pairs: [string, string][] = [];
+  for (const name of known) {
+    if (record[name] !== undefined) pairs.push([name, criterion(record[name], `${field}.${name}`)]);
+  }
+  for (const name of Object.keys(record)) {
+    if (!known.includes(name) && record[name] !== undefined) pairs.push([name, criterion(record[name], `${field}.${name}`)]);
+  }
+  return oneLine(pairs);
+}
+
+/** Readable entries first, then the ones this build could not read, untouched. */
+function pictureArray(entries: readonly object[], unreadable: readonly unknown[] | undefined, known: readonly string[], field: string): string {
+  const lines = entries.map((entry) => pictureEntry(entry, known, field));
+  for (const raw of unreadable ?? []) lines.push(criterion(raw, field));
+  return objectArray(lines, 1);
+}
+
 /**
  * extensibility.md §10. A macro is a block, not a line: its fields one to a line and its steps one to a line, so a changed step is a one-line
  * diff. A step's params and the macro's param spec are written as the JSON they are, in the key order they hold.
@@ -334,32 +380,6 @@ function macroBlock(m: ProjectMacro): string {
     `${inner}"steps": ${objectArray(steps, 3)}`,
     `${INDENT.repeat(2)}}`,
   ].join('\n');
-}
-
-/**
- * pictures.md §2.1. One record per line, keys in a fixed order; every optional key is written only when present, so a record
- * round-trips with no new key. `source`, `transcription` and `workingCopy` are small objects written inline.
- */
-function assetRecord(a: AssetRecord): string {
-  const pairs: [string, string][] = [
-    ['id', str(a.id, 'asset.id')],
-    ['file', str(a.file, 'asset.file')],
-    ['mime', str(a.mime, 'asset.mime')],
-    ['sha256', str(a.sha256, 'asset.sha256')],
-    ['bytes', scalar(a.bytes, 'asset.bytes')],
-  ];
-  if (a.width !== undefined) pairs.push(['width', scalar(a.width, 'asset.width')]);
-  if (a.height !== undefined) pairs.push(['height', scalar(a.height, 'asset.height')]);
-  if (a.caption !== undefined) pairs.push(['caption', str(a.caption, 'asset.caption')]);
-  if (a.alt !== undefined) pairs.push(['alt', str(a.alt, 'asset.alt')]);
-  if (a.decorative === true) pairs.push(['decorative', scalar(true, 'asset.decorative')]);
-  if (a.tags !== undefined) pairs.push(['tags', inlineArray(a.tags, 'asset.tags')]);
-  if (a.source !== undefined) pairs.push(['source', criterion(a.source, 'asset.source')]);
-  if (a.transcription !== undefined) pairs.push(['transcription', criterion(a.transcription, 'asset.transcription')]);
-  if (a.workingCopy !== undefined) pairs.push(['workingCopy', criterion(a.workingCopy, 'asset.workingCopy')]);
-  pairs.push(['createdAt', str(a.createdAt, 'asset.createdAt')]);
-  if (a.updatedAt !== undefined) pairs.push(['updatedAt', str(a.updatedAt, 'asset.updatedAt')]);
-  return oneLine(pairs);
 }
 
 /**
@@ -514,8 +534,43 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
     pairs.push(['scriptFont', str(font, 'recipe.options.scriptFont')]);
   }
   if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
+  if (typeof o.bleed === 'boolean') pairs.push(['bleed', String(o.bleed)]);
+  if (typeof o.cropMarks === 'boolean') pairs.push(['cropMarks', String(o.cropMarks)]);
+  if (typeof o.contentsLabel === 'string') pairs.push(['contentsLabel', str(o.contentsLabel, 'recipe.options.contentsLabel')]);
+  if (typeof o.pictures === 'string' && (PICTURE_MODES as readonly string[]).includes(o.pictures)) pairs.push(['pictures', str(o.pictures, 'recipe.options.pictures')]);
+  const imageMax: unknown = o.epubImageMaxPx;
+  if (typeof imageMax === 'number' && Number.isSafeInteger(imageMax) && imageMax >= EPUB_IMAGE_MAX_PX_MIN && imageMax <= EPUB_IMAGE_MAX_PX_MAX) {
+    pairs.push(['epubImageMaxPx', String(imageMax)]);
+  }
+  if (typeof o.epubKeepWebp === 'boolean') pairs.push(['epubKeepWebp', String(o.epubKeepWebp)]);
+  if (typeof o.keepPictureMetadata === 'boolean') pairs.push(['keepPictureMetadata', String(o.keepPictureMetadata)]);
+  if (typeof o.timelinePictures === 'boolean') pairs.push(['timelinePictures', String(o.timelinePictures)]);
   if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
+}
+
+/**
+ * The timeline's lens setting: the lens choice, then the calendar with one member per line and one month, intercalary entry, leap
+ * rule or era per line, so a rename or a new month is a one-line diff. Members keep the order the editor saved them in.
+ */
+function timelineSettings(timeline: NonNullable<Manifest['timeline']>): string {
+  const members: string[] = [];
+  if (timeline.lens !== undefined) members.push(`${INDENT.repeat(2)}"lens": ${str(timeline.lens, 'timeline.lens')}`);
+  if (timeline.calendar !== undefined) {
+    const lines = Object.entries(timeline.calendar).map(([name, value]) => {
+      const field = `timeline.calendar.${name}`;
+      const items = Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'object' && item !== null && !Array.isArray(item))
+        ? objectArray(value.map((item) => criterion(item, field)), 3)
+        : criterion(value, field);
+      return `${INDENT.repeat(3)}${key(name)}: ${items}`;
+    });
+    members.push(
+      lines.length === 0
+        ? `${INDENT.repeat(2)}"calendar": {}`
+        : `${INDENT.repeat(2)}"calendar": {\n${lines.join(',\n')}\n${INDENT.repeat(2)}}`,
+    );
+  }
+  return `${INDENT}"timeline": {\n${members.join(',\n')}\n${INDENT}},`;
 }
 
 function derived(d: Derived): string {
@@ -597,7 +652,7 @@ export function serializeManifest(
   parts.push(`${INDENT}"tree": ${objectArray(manifest.tree.map(node), 1)},`);
   parts.push(derived(manifest.derived));
 
-  // Additive arrays are written only when present: absence is a valid v1 state
+  // Additive arrays are written only when present (the picture registry's only when it holds an entry, pictures.md §2.1): absence is a valid v1 state
   // and a load→write cycle must not invent entries the author never made.
   if (manifest.codex !== undefined) {
     parts.push(`${INDENT}"codex": ${objectArray(manifest.codex.map(codexEntry), 1)},`);
@@ -607,6 +662,12 @@ export function serializeManifest(
   }
   if (manifest.goals !== undefined) {
     parts.push(`${INDENT}"goals": ${objectArray(manifest.goals.map(projectGoal), 1)},`);
+  }
+  if ((manifest.assets?.length ?? 0) > 0 || (manifest.unreadableAssets?.length ?? 0) > 0) {
+    parts.push(`${INDENT}"assets": ${pictureArray(manifest.assets ?? [], manifest.unreadableAssets, ASSET_RECORD_KEYS, 'assets')},`);
+  }
+  if ((manifest.assetLinks?.length ?? 0) > 0 || (manifest.unreadableAssetLinks?.length ?? 0) > 0) {
+    parts.push(`${INDENT}"assetLinks": ${pictureArray(manifest.assetLinks ?? [], manifest.unreadableAssetLinks, ASSET_LINK_KEYS, 'assetLinks')},`);
   }
   if (manifest.recipes !== undefined) {
     parts.push(`${INDENT}"recipes": ${objectArray(manifest.recipes.map(exportRecipe), 1)},`);
@@ -620,8 +681,8 @@ export function serializeManifest(
   if (hasAgentBlock(manifest.agent)) {
     parts.push(agentBlock(manifest.agent));
   }
-  if (manifest.assets !== undefined && manifest.assets.length > 0) {
-    parts.push(`${INDENT}"assets": ${objectArray(manifest.assets.map(assetRecord), 1)},`);
+  if (manifest.timeline !== undefined && (manifest.timeline.lens !== undefined || manifest.timeline.calendar !== undefined)) {
+    parts.push(timelineSettings(manifest.timeline));
   }
 
   // Drop the trailing comma of the last member, then close.

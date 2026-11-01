@@ -4,12 +4,12 @@
  * 800 ms cadence ui-modules §4.1 specifies for synopsis and notes.
  */
 
+import { Trans } from '@lingui/react/macro';
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
-  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -17,9 +17,9 @@ import {
   type ReactNode,
 } from 'react';
 
+import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
-import { isImeEnter } from '../app/ime.js';
-import { formatCount as formatInterfaceCount } from '../i18n/locale.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
 export function useSession(session: ProjectSession): number {
@@ -47,6 +47,38 @@ export const ReportContext = createContext<Report>(() => {});
 
 export function useReport(): Report {
   return useContext(ReportContext);
+}
+
+/* ------------------------------------------------------------------ *
+ * An IME's composing Enter reaches a form as a submit, which does
+ * not carry the composition fact the keydown has (ui-modules §2.5).
+ * ------------------------------------------------------------------ */
+
+/**
+ * Carries a composing Enter from a form's keydown to the submit it causes. A browser dispatches `submit` as a `SubmitEvent`,
+ * which has no `isComposing` or `keyCode`; the Enter keydown the form saw does. `noteKey` records a composing Enter, and
+ * `takesSubmit` consumes the mark once. The mark is dropped at the end of the keydown's own task, because a form's implicit
+ * submit is that keydown's default action in the same task — a Save clicked afterwards is never swallowed.
+ */
+export function useComposingEnter(): {
+  readonly noteKey: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  readonly takesSubmit: () => boolean;
+} {
+  const marked = useRef(false);
+  return {
+    noteKey: (event) => {
+      if (event.key !== 'Enter' || !isImeEnter(event.nativeEvent)) return;
+      marked.current = true;
+      window.setTimeout(() => {
+        marked.current = false;
+      }, 0);
+    },
+    takesSubmit: () => {
+      if (!marked.current) return false;
+      marked.current = false;
+      return true;
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -154,11 +186,18 @@ export function Menu({
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    // An item's own key chooses it, as a click does. A key with a modifier is not one.
-    const keyed =
-      event.ctrlKey || event.metaKey || event.altKey
+    // An item's own key chooses it, as a click does, read through the app's one layout rule so a layout that prints
+    // another script's letter or digit still reaches the item's (ui-modules §2.5): Arabic-Indic ٣ is the physical
+    // Digit3, and chooses the third entry as `3` does. A key with a modifier, and a key an input method is composing,
+    // is not a mnemonic.
+    const mnemonic =
+      event.ctrlKey || event.metaKey || event.altKey || isImeEnter(event.nativeEvent)
         ? undefined
-        : enabled.find((item) => item.shortcut !== undefined && item.shortcut.toLowerCase() === event.key.toLowerCase());
+        : layoutLetter(event.key, event.code);
+    const keyed =
+      mnemonic === undefined
+        ? undefined
+        : enabled.find((item) => item.shortcut !== undefined && item.shortcut.toLowerCase() === mnemonic);
     if (keyed !== undefined) {
       event.preventDefault();
       onClose();
@@ -185,7 +224,7 @@ export function Menu({
       ref={ref}
       role="menu"
       tabIndex={-1}
-      aria-label={label}
+      aria-label={accessibleText(label)}
       className="menu"
       style={{ left: anchor.x, top: anchor.y }}
       onKeyDown={onKeyDown}
@@ -219,7 +258,11 @@ export function Menu({
           </button>
         </div>
       ))}
-      {enabled.length === 0 ? <p className="menu-empty">Nothing to choose.</p> : null}
+      {enabled.length === 0 ? (
+        <p className="menu-empty">
+          <Trans>Nothing to choose.</Trans>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -248,8 +291,6 @@ export function ConfirmDialog({
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
-  // Each dialog names itself with its own id: two confirmations can be in the page at once (a delete, and a restore).
-  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -262,18 +303,20 @@ export function ConfirmDialog({
     <dialog
       ref={ref}
       className="confirm"
-      aria-labelledby={titleId}
+      // The visible title may isolate writer text; the accessible name is the same words without the
+      // invisible marks, so a role-name lookup matches what the writer reads.
+      aria-label={accessibleText(title)}
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
       }}
     >
       <form method="dialog" className="confirm-body">
-        <h2 id={titleId}>{title}</h2>
+        <h2>{title}</h2>
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
           <button type="button" className="button" autoFocus onClick={onCancel}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           {alternate === undefined ? null : (
             <button type="button" className="button is-primary" data-testid="confirm-alternate" onClick={alternate.onSelect}>
@@ -314,7 +357,6 @@ export function ChoiceDialog({
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -327,14 +369,14 @@ export function ChoiceDialog({
     <dialog
       ref={ref}
       className="confirm"
-      aria-labelledby={titleId}
+      aria-label={accessibleText(title)}
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
       }}
     >
       <form method="dialog" className="confirm-body">
-        <h2 id={titleId}>{title}</h2>
+        <h2>{title}</h2>
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
           {choices.map((choice) => (
@@ -343,7 +385,7 @@ export function ChoiceDialog({
             </button>
           ))}
           <button type="button" className="button" autoFocus onClick={onCancel}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
         </div>
       </form>
@@ -389,7 +431,7 @@ export function InlineText({
     <input
       ref={ref}
       type="text"
-      aria-label={label}
+      aria-label={accessibleText(label)}
       className={`inline-text ${className ?? ''}`.trim()}
       value={value}
       maxLength={120}
@@ -398,6 +440,8 @@ export function InlineText({
         // The Enter that confirms an input method's candidate, and the Escape that cancels one, are the input method's (#188).
         if (isImeEnter(event)) return;
         if (event.key === 'Enter') {
+          // The Enter that commits an IME candidate is the input method's: it neither saves nor leaves the field.
+          if (isImeEnter(event.nativeEvent)) return;
           event.preventDefault();
           event.stopPropagation();
           finish(true);
@@ -491,7 +535,7 @@ export function EmptyState({
   actions?: ReactNode;
 }): ReactNode {
   return (
-    <section className="empty-state" aria-label={title}>
+    <section className="empty-state" aria-label={accessibleText(title)}>
       <h2>{title}</h2>
       {children ? <div className="empty-text">{children}</div> : null}
       {actions ? <div className="empty-actions">{actions}</div> : null}
@@ -499,11 +543,5 @@ export function EmptyState({
   );
 }
 
-/** A count grouped in the formatter locale (D3); the one the rest of the app uses, re-exported for the components. */
-export function formatCount(n: number): string {
-  return formatInterfaceCount(n);
-}
-
-export function wordsLabel(n: number): string {
-  return `${formatCount(n)} ${n === 1 ? 'word' : 'words'}`;
-}
+/** A count as a panel shows it, grouped by the formatter locale. Defined in the model layer so a test can pin it. */
+export { documentsLabel, formatCount, wordsLabel } from '../app/counts.js';

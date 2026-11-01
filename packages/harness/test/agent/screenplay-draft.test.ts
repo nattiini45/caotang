@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { type ChatRequest } from '@caotang/gateway';
+import { type ChatRequest, textOf} from '@caotang/gateway';;
 import { userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { addDocument, getBody, type ProjectState } from '@caotang/store';
 
@@ -94,7 +94,7 @@ describe('a scene draft of a screenplay scene, through the loop', () => {
     const drafting: MockScript = {
       match: (req: ChatRequest) => req.responseFormat === 'text' && userTextOf(req).includes(`Brief: ${BRIEF}`),
       respond: (req: ChatRequest) => {
-        roles.push(req.messages[0]?.content ?? '');
+        roles.push(textOf(req.messages[0]?.content ?? ''));
         return { content: FOUNTAIN };
       },
     };
@@ -131,7 +131,7 @@ describe('a scene draft of a screenplay scene, through the loop', () => {
     const drafting: MockScript = {
       match: (req: ChatRequest) => req.responseFormat === 'text' && userTextOf(req).includes(`Brief: ${BRIEF}`),
       respond: (req: ChatRequest) => {
-        roles.push(req.messages[0]?.content ?? '');
+        roles.push(textOf(req.messages[0]?.content ?? ''));
         return { content: 'ELENA\nIs anyone there?' };
       },
     };
@@ -160,7 +160,7 @@ describe('a scene draft of a screenplay scene, through the loop', () => {
     const drafting: MockScript = {
       match: (req: ChatRequest) => req.responseFormat === 'text' && userTextOf(req).includes(`Brief: ${BRIEF}`),
       respond: (req: ChatRequest) => {
-        roles.push(req.messages[0]?.content ?? '');
+        roles.push(textOf(req.messages[0]?.content ?? ''));
         return { content: 'The lamp went out.' };
       },
     };

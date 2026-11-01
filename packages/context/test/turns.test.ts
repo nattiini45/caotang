@@ -3,6 +3,7 @@
  * The turns block is a pure function of the turns, so these read its rendered items.
  */
 import { describe, expect, it } from 'vitest';
+import { textOf } from '@caotang/gateway';
 
 import { assemble, type AgentTask, type RecentTurn } from '../src/index.js';
 import { turnsBlock } from '../src/layers/turns.js';
@@ -13,7 +14,7 @@ const CONTINUE: AgentTask = { tool: 'scene.draft', instruction: 'Write the next 
 const turn = (n: number, extra: Partial<RecentTurn> = {}): RecentTurn => ({ turnId: `t_${n}`, intent: `Intent ${n}.`, outcome: `did ${n}`, ...extra });
 
 const turnsOf = (turns: readonly RecentTurn[]): string => {
-  const text = assemble(CONTINUE, { ...buildApp(), turns, activity: [] }).messages[1]?.content ?? '';
+  const text = textOf(assemble(CONTINUE, { ...buildApp(), turns, activity: [] }).messages[1]?.content ?? '');
   return text.slice(text.indexOf('# Recent turns'), text.indexOf('# Task'));
 };
 

@@ -238,7 +238,7 @@ test('a drafted scene can be approved only once its draft has been on screen, an
     });
 
   const unseen = check(false, false);
-  expect(unseen.blocked).toBe('Open “The Friend” to read the draft for step 1 before you approve it.');
+  expect(unseen.blocked).toBe('Open “\u2068The Friend\u2069” to read the draft for step 1 before you approve it.');
   expect(unseen.steps[0]).toMatchObject({ docId: 'doc_friend', onScreen: false, previewed: false });
   expect(check(true, false).blocked).toBeNull();
   expect(check(true, true).steps[0]).toMatchObject({ onScreen: true, previewed: true });
@@ -262,8 +262,8 @@ test('a screenplay scene’s draft counts as previewed where the card shows it, 
   expect(screenplay.steps[0]).toMatchObject({ docId: 'doc_lamp', onScreen: false, previewed: true });
 
   // A prose scene that is not on screen still has to be opened, because its ghost is the preview (agent-harness §8).
-  expect(check('prose').blocked).toBe('Open “The Lamp” to read the draft for step 1 before you approve it.');
-  expect(check(undefined).blocked).toBe('Open “The Lamp” to read the draft for step 1 before you approve it.');
+  expect(check('prose').blocked).toBe('Open “\u2068The Lamp\u2069” to read the draft for step 1 before you approve it.');
+  expect(check(undefined).blocked).toBe('Open “\u2068The Lamp\u2069” to read the draft for step 1 before you approve it.');
 });
 
 test('a draft that names no scene, or that has no draft, holds the card, and a step the card already refuses does not', () => {
@@ -274,7 +274,7 @@ test('a draft that names no scene, or that has no draft, holds the card, and a s
     onScreen: () => false,
     previewed: () => false,
   });
-  expect(unknown.blocked).toContain('“Nowhere Town”, which is not a scene in this project');
+  expect(unknown.blocked).toContain('“\u2068Nowhere Town\u2069”, which is not a scene in this project');
 
   const missing = draftCheckOf({
     card: cardOf([stepOf(0, 'scene.draft', { doc: 'The Friend' })]),
@@ -303,7 +303,7 @@ test('two drafts of one scene hold the card, and a step that has run is not chec
     onScreen: () => true,
     previewed: () => true,
   });
-  expect(twice.blocked).toBe('Steps 1 and 2 both draft “The Friend”. Drop one of them.');
+  expect(twice.blocked).toBe('Steps 1 and 2 both draft “\u2068The Friend\u2069”. Drop one of them.');
 
   const ran = draftCheckOf({
     card: cardOf([stepOf(0, 'scene.draft', { doc: 'The Friend' }, 'done')]),
@@ -393,7 +393,7 @@ test('a delegated agent’s call shows its agent, its reserved calls, how it sta
   expect(finished?.result).toBe('Only the keeper knows.');
   // The state is in words, and a proposal says plainly that it has not run.
   expect(finished?.proposed).toBe('2 steps proposed. None has run: a step only runs if it is in a plan you approve.');
-  expect(finished?.trace.map((row) => row.text)).toEqual(['Read “The Storm” — done', 'Hand work to a helper agent — refused', 'Write codex entries — proposed, not run']);
+  expect(finished?.trace.map((row) => row.text)).toEqual(['Read “\u2068The Storm\u2069” — done', 'Hand work to a helper agent — refused', 'Write codex entries — proposed, not run']);
   expect(new Set(finished?.trace.map((row) => row.key)).size).toBe(3);
   expect(elapsedOf(turn.cards[0] as StatusCard, 99_999)).toBe(4_000);
 });
@@ -421,10 +421,12 @@ test('a budget event is the turn’s run, and its spend line reads against the l
   const spend = { modelCalls: 2, promptTokens: 3_000, completionTokens: 120, estimatedTokens: 0, steps: 1, activeMs: 83_000 };
   const after = reduceTurn(turn, { type: 'budget', turnId: TURN, spend, limits: { maxTokens: 50_000, maxActiveMs: 600_000 } });
   expect(after.run).toEqual({ spend, limits: { maxTokens: 50_000, maxActiveMs: 600_000 } });
-  expect(spendLine(after.run)).toBe('3,120 of 50,000 tokens · 1:23 of 10:00 worked');
+  expect(spendLine(after.run, 'en-US')).toBe('3,120 of 50,000 tokens · 1:23 of 10:00 worked');
   // A cost figure and a step limit join the line when they are set; without limits the figures stand alone.
   const priced = { ...spend, costUsd: 0.0123 };
-  expect(spendLine({ spend: priced, limits: { maxCostUsd: 0.5, maxSteps: 4 } })).toBe('3,120 tokens · $0.0123 of $0.5000 · 1 of 4 steps · 1:23 worked');
+  expect(spendLine({ spend: priced, limits: { maxCostUsd: 0.5, maxSteps: 4 } }, 'en-US')).toBe('3,120 tokens · $0.0123 of $0.5000 · 1 of 4 steps · 1:23 worked');
+  // The token figures are grouped the way the formatter locale groups numbers.
+  expect(spendLine(after.run, 'de-DE')).toBe('3.120 of 50.000 tokens · 1:23 of 10:00 worked');
   // Another turn's spend is not this turn's.
   expect(reduceTurn(turn, { type: 'budget', turnId: 'other.turn-9', spend, limits: {} })).toBe(turn);
 });

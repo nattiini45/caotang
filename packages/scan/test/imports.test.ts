@@ -17,6 +17,19 @@ const ENTRY = join(PACKAGES, 'scan/src/index.ts');
 /** What the scan must never load. */
 const FORBIDDEN = ['fontkit', '@pdf-lib/fontkit', 'pdf-lib', 'docx'];
 
+/**
+ * The budget for the wide walk below — explicit and per-test, never `vitest.config.ts`'s default.
+ *
+ * The walk parses **202** TypeScript source files with the compiler API, because it counts the
+ * on-demand imports the exporter's entry only reaches at runtime. It does not measure wall clock:
+ * the count of forbidden packages it must find is the claim. Measured on one development machine:
+ * **450 ms** alone; **3 176–4 741 ms** under the full suite's worker pool, which is what a
+ * 5 000 ms default cannot reliably cover. 30 000 ms clears every figure recorded with headroom and
+ * still fails a hang. Raising the config default instead would move every other test's budget,
+ * which the timeout decision in `packages/editor/test/dialect.test.ts` rules out.
+ */
+const WIDE_WALK_TIMEOUT = 30_000;
+
 interface Graph {
   readonly files: Set<string>;
   readonly external: Set<string>;
@@ -131,5 +144,5 @@ describe('the scan import graph', () => {
   it('would notice one: counting on-demand imports, the walk finds all of them from the exporter’s own entry', () => {
     const wide = walk(join(PACKAGES, 'exporter/src/index.ts'), true);
     expect(FORBIDDEN.filter((name) => wide.external.has(name)).sort()).toEqual(['@pdf-lib/fontkit', 'docx', 'fontkit', 'pdf-lib']);
-  });
+  }, WIDE_WALK_TIMEOUT);
 });

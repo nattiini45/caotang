@@ -7,10 +7,11 @@
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { addDocument, addFolder, createEmptyManifest, createProjectState, writeProject, type PermissionRule } from '@caotang/store';
+import { addDocument, addFolder, createEmptyManifest, createProjectState, writeProject, type PermissionRule, type ProjectState } from '@caotang/store';
 
 import { NodeArtifactFs } from '../src/index.js';
 import { OPENED, acceptConfirm, connectClient, folderBytes, removeDir, resultJson, startOver, tempDir } from './support.js';
@@ -20,9 +21,19 @@ const ACT_TWO = 'n_ACT2TW0001';
 const SECRET = 'n_SECRET0001';
 const OPEN = 'n_0PEN000001';
 const SECRET_BODY = 'The keeper buried the ledger under the third stone.';
+const OPEN_PICTURE = 'a_MEADW00001';
+const SECRET_PICTURE = 'a_STVNE00002';
+/** A 2 × 2 PNG header, padded: what the sniff and the header read look at. */
+const PNG = (() => {
+  const bytes = new Uint8Array(64);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+  new DataView(bytes.buffer).setUint32(16, 2);
+  new DataView(bytes.buffer).setUint32(20, 2);
+  return bytes;
+})();
 
 /** A folder with a locked chapter (Act 1) and a hidden one (Act 2), and a manifest carrying `rules` as given. */
-async function project(rules: unknown): Promise<string> {
+async function project(rules: unknown, pictures = false): Promise<string> {
   const root = tempDir('rules');
   mkdirSync(root, { recursive: true });
   const fs = new NodeArtifactFs(root);
@@ -31,7 +42,20 @@ async function project(rules: unknown): Promise<string> {
   addFolder(state, { parentId: 'manuscript', title: 'Act 2', now: OPENED, id: ACT_TWO });
   addDocument(state, { parentId: ACT_ONE, title: 'The Open Scene', body: 'Fog.', now: OPENED, id: OPEN });
   addDocument(state, { parentId: ACT_TWO, title: 'The Secret Scene', body: SECRET_BODY, now: OPENED, id: SECRET, synopsis: 'A ledger.' });
+  if (pictures) {
+    // One picture placed in each act: the one in the hidden act describes it.
+    const record = (id: string, caption: string) => ({ id, file: `${id}.png`, mime: 'image/png', sha256: (id === OPEN_PICTURE ? 'b' : 'c').repeat(64), bytes: PNG.length, width: 2, height: 2, createdAt: OPENED.toISOString(), caption });
+    state.manifest.assets = [record(OPEN_PICTURE, 'Fog over the moor'), record(SECRET_PICTURE, 'The third stone')] as NonNullable<ProjectState['manifest']['assets']>;
+    state.manifest.assetLinks = [
+      { id: 'l_MEADW00001', assetId: OPEN_PICTURE, target: { kind: 'node', nodeId: OPEN }, role: 'reference', order: 10 },
+      { id: 'l_STVNE00002', assetId: SECRET_PICTURE, target: { kind: 'node', nodeId: SECRET }, role: 'reference', order: 10 },
+    ] as NonNullable<ProjectState['manifest']['assetLinks']>;
+  }
   await writeProject(fs, state, { now: OPENED });
+  if (pictures) {
+    mkdirSync(join(root, 'assets'), { recursive: true });
+    for (const id of [OPEN_PICTURE, SECRET_PICTURE]) writeFileSync(join(root, 'assets', `${id}.png`), PNG);
+  }
   const manifestPath = `${root}/caotang.json`;
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
   manifest['agent'] = { rules };
@@ -191,6 +215,38 @@ describe('the project’s rules at the server', () => {
       expect(allowed.isError).not.toBe(true);
       const refused = await client.callTool({ name: 'notes.append', arguments: { doc: OPEN, text: 'no' } });
       expect(refused.isError).toBe(true);
+    } finally {
+      await client.close();
+      await server.close();
+      removeDir(root);
+    }
+  });
+
+  it('keeps a read-denied chapter off the timeline and its pictures out of the picture reads, as tools and as resources', async () => {
+    const root = await project([HIDE], true);
+    const server = await startOver(root, false);
+    const client = await connectClient(server.url, server.token);
+    const text = async (uri: string) => (await client.readResource({ uri })).contents.map((entry) => ('text' in entry ? entry.text : '')).join('');
+    try {
+      const timeline = JSON.stringify(resultJson(await client.callTool({ name: 'timeline.read', arguments: {} })));
+      expect(timeline).toContain('The Open Scene');
+      for (const word of ['Secret', SECRET, ACT_TWO]) expect(timeline).not.toContain(word);
+      for (const uri of ['caotang://timeline', 'caotang://timeline.csv', 'caotang://assets']) {
+        const read = await text(uri).catch(() => '');
+        for (const word of ['Secret', SECRET, SECRET_PICTURE, 'third stone']) expect(read).not.toContain(word);
+      }
+
+      const listed = await client.callTool({ name: 'pictures.list', arguments: {} });
+      const shown = JSON.stringify(resultJson(listed));
+      expect(shown).toContain(OPEN_PICTURE);
+      for (const word of [SECRET_PICTURE, 'third stone', SECRET]) expect(shown).not.toContain(word);
+      expect(shown).toContain('withheld from the agent by a rule');
+
+      const viewed = await client.callTool({ name: 'pictures.view', arguments: { assetIds: [SECRET_PICTURE] } });
+      expect(viewed.isError).toBe(true);
+      expect(JSON.stringify(viewed)).not.toContain('third stone');
+      expect((await client.callTool({ name: 'pictures.view', arguments: { assetIds: [OPEN_PICTURE] } })).isError).not.toBe(true);
+      await expect(client.readResource({ uri: `caotang://asset/${SECRET_PICTURE}` })).rejects.toBeDefined();
     } finally {
       await client.close();
       await server.close();

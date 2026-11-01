@@ -66,27 +66,26 @@
  * the agent has no tool for either, and nothing here is saved: a reload starts both again.
  */
 
+import { plural, select, t } from '@lingui/core/macro';
 import type { GhostPreview } from '@caotang/editor/tiptap';
 import type { ProfileView, TaskRole, ThinkingLevel } from '@caotang/gateway';
 import {
   checkMacro,
-  createAgentSession,
-  createBudgetMeter,
-  createContextPort,
   docResolverFor,
   expandMacro,
   isMacroCommand,
   macroCommandName,
   macroIntent,
-  preloadFor,
   resolveSlash,
   RUN_LOG_VERSION,
   structureDigest,
   summarizeRun,
+  withheldAnywhere,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
   type BudgetMeter,
   type ContextConfig,
+  type LanguagePolicy,
   type AgentEvent,
   type AgentSession,
   type BudgetSpend,
@@ -105,8 +104,9 @@ import {
   type TurnReport,
 } from '@caotang/harness';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, nodeById } from '@caotang/store';
+import { createRunLogPort, nodeById, valueRetentionRoot } from '@caotang/store';
 
+import { registerAgent } from './agent-registry.js';
 import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
@@ -117,7 +117,22 @@ import type { RestorePlan } from '@caotang/bus';
 import { TaskQueue, type TaskAgent } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
 import { TaskStore, type TaskRecord } from './task-store.js';
+import type * as LazyHarness from './lazy-harness.js';
+import { uiLocale } from '../i18n/format-locale.js';
 import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
+
+/** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
+type HarnessModule = typeof LazyHarness;
+
+/** The download is one request for the page: a later turn reuses it, and one that failed is asked for again. */
+let harnessModule: Promise<HarnessModule> | null = null;
+function loadHarnessModule(): Promise<HarnessModule> {
+  harnessModule ??= import('./lazy-harness.js').catch((error: unknown) => {
+    harnessModule = null;
+    throw error;
+  });
+  return harnessModule;
+}
 
 /** How L6 words the time of a restore: the writer's own clock, as `HH:MM`. */
 function localClockTime(epochMs: number): string {
@@ -286,19 +301,19 @@ export interface AgentApply {
   readonly toolCallId: string;
 }
 
+/* lingui-set comment="Interpolated values: calls, error, mode, readError, reason, waiting" */
+
 /** What the panel says when the queue waits after a turn that stopped on a question. */
-export const QUEUE_PAUSED = 'The last turn stopped on a question. Answer it or choose Run the queue.';
+export function queuePausedText(): string {
+  return t`The last turn stopped on a question. Answer it or choose Run the queue.`;
+}
 
 // Said without a pointer to the first-run card, which the writer can dismiss for good (settings firstRun), so it may not be on screen.
-const NO_PROVIDER = 'No provider is active. Add one in Settings > Providers to use the agent.';
-
-/** The controller each open project's session has, so a panel outside the agent panel (the findings tab) can start a turn in it. */
-const controllers = new WeakMap<ProjectSession, AgentController>();
-
-/** The agent controller of an open project, or `undefined` when its panel has not been made. */
-export function agentFor(session: ProjectSession): AgentController | undefined {
-  return controllers.get(session);
+function noProviderText(): string {
+  return t`No provider is active. Add one in Settings > Providers to use the agent.`;
 }
+
+export { agentFor } from './agent-registry.js';
 
 export class AgentController {
   private turns: TurnView[] = [];
@@ -320,6 +335,8 @@ export class AgentController {
   private queuePaused = false;
   private queueSeq = 0;
   private pendingNotes: PendingNote[] = [];
+  /** Notes written before the turn's session existed; they are in `pendingNotes` under a provisional id until the turn starts. */
+  private earlyNotes: { readonly noteId: string; readonly text: string }[] = [];
   private announcement = '';
   /** The runs found interrupted, read from the run log when the panel attaches and after each turn. */
   private interrupted: InterruptedRunView[] = [];
@@ -378,6 +395,8 @@ export class AgentController {
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
   private detached = false;
+  /** Lets go of the sweep's root for the drafts this controller holds (`attach` registers it). */
+  private letGoOfRetention: () => void = () => undefined;
   /**
    * Whether the writer was told that the interrupted runs could not be checked; the check runs after every turn, so once is enough
    * until a check works again, which tells again if the log later stops being readable.
@@ -480,8 +499,14 @@ export class AgentController {
     if (trimmed === '') return null;
     // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
     // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
-    const preload = [...new Set([...preloadFor(this.activeNode()), ...(options.preload ?? [])])];
-    return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn, ...(options.forcePlan === true ? { forcePlan: true } : {}) }));
+    const node = this.activeNode();
+    return this.turnWith(trimmed, options, (agent, turn, loop) =>
+      agent.submit(trimmed, {
+        preload: [...new Set([...loop.preloadFor(node), ...(options.preload ?? [])])],
+        ...turn,
+        ...(options.forcePlan === true ? { forcePlan: true } : {}),
+      }),
+    );
   }
 
   /* ------------------------------------------------------------------ *
@@ -502,7 +527,7 @@ export class AgentController {
     const resolved = resolveSlash(line, this.slashContext());
     const starts = resolved.kind === 'plan' || (resolved.kind === 'intent' && resolved.command !== undefined) || (resolved.kind === 'session' && resolved.action === 'restore');
     if (this.busy && starts) {
-      this.commandNote = { kind: 'info', title: 'A turn is running', lines: ['Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again.'] };
+      this.commandNote = { kind: 'info', title: t`A turn is running`, lines: [t`Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again.`] };
       this.bump();
       return { kind: 'kept' };
     }
@@ -529,15 +554,8 @@ export class AgentController {
           return { kind: 'shown' };
         }
         if (resolved.action === 'context') {
-          const pinned = this.providers.resolveForRole?.('chat');
-          const profile = pinned?.profile ?? this.providers.active();
-          const preview = this.sessionFor('chat').contextPreview({
-            ...(profile === undefined ? {} : { profileId: profile.id }),
-            ...(pinned?.model === undefined ? {} : { model: pinned.model }),
-            ...(pinned?.thinking === undefined ? {} : { thinking: pinned.thinking }),
-          });
-          this.commandNote = contextNote(preview);
-          this.bump();
+          // The preview is the chat session's, which needs the harness's download; the note appears under the box once it has loaded.
+          void this.showContext();
           return { kind: 'shown' };
         }
         const target = restoreTarget(
@@ -560,6 +578,20 @@ export class AgentController {
     }
   }
 
+  /** `/context`: what the next chat turn would send, as a note under the Intent box (agent-harness §2). */
+  private async showContext(): Promise<void> {
+    const loop = await this.harnessLoop();
+    const pinned = this.providers.resolveForRole?.('chat');
+    const profile = pinned?.profile ?? this.providers.active();
+    const preview = this.sessionFor('chat', loop).contextPreview({
+      ...(profile === undefined ? {} : { profileId: profile.id }),
+      ...(pinned?.model === undefined ? {} : { model: pinned.model }),
+      ...(pinned?.thinking === undefined ? {} : { thinking: pinned.thinking }),
+    });
+    this.commandNote = contextNote(preview);
+    this.bump();
+  }
+
   /** Clears what the last slash command said under the Intent box. */
   dismissCommandNote(): void {
     if (this.commandNote === null) return;
@@ -571,7 +603,8 @@ export class AgentController {
   private slashContext() {
     const state = this.session.state;
     return {
-      resolve: docResolverFor(state, this.session.harness.withheldAnywhere()),
+      // The rules are read from the session, not the harness, so a command resolves before the harness's download has been asked for.
+      resolve: docResolverFor(state, withheldAnywhere({ rules: this.session.rulesNow() }, state)),
       recipes: (state.manifest.recipes ?? []).map((recipe) => ({ name: recipe.name, format: recipe.format })),
     };
   }
@@ -599,8 +632,8 @@ export class AgentController {
    */
   runMacro(macroId: string, values: Record<string, unknown>): { readonly started: true } | { readonly started: false; readonly problem: string } {
     const macro = this.session.macros().find((candidate) => candidate.id === macroId);
-    if (macro === undefined) return { started: false, problem: 'That macro is not in the project any more.' };
-    if (this.busy) return { started: false, problem: 'A turn is running. Wait for it to end, or stop it, then run the macro.' };
+    if (macro === undefined) return { started: false, problem: t`That macro is not in the project any more.` };
+    if (this.busy) return { started: false, problem: t`A turn is running. Wait for it to end, or stop it, then run the macro.` };
     const plan = expandMacro(macro, values);
     if (!plan.ok) return { started: false, problem: plan.error.message };
     const checked = checkMacro(macro);
@@ -645,12 +678,19 @@ export class AgentController {
   /** Picks the mode for this panel. It applies from the next card, also in a turn that is running. Auto is refused while Settings has it off. */
   setMode(mode: PermissionMode): void {
     if (mode === 'auto' && this.agentSettings().lockAuto) {
-      this.message = 'Auto is turned off in Settings › Agent.';
+      this.message = t`Auto is turned off in Settings › Agent.`;
       this.bump();
       return;
     }
     this.modeOverride = mode;
-    this.announcement = `Mode: ${mode}. It applies from the next card.`;
+    const modeKey = mode === 'plan-only' ? 'planOnly' : mode === 'accept-edits' ? 'acceptEdits' : mode;
+    this.announcement = t`Mode: ${select(modeKey, {
+        planOnly: 'Plan only',
+        ask: 'Ask',
+        acceptEdits: 'Accept edits',
+        auto: 'Auto',
+        other: 'Ask',
+      })}. It applies from the next card.`;
     this.bump();
   }
 
@@ -690,12 +730,12 @@ export class AgentController {
   private async beforeAutoApply(card: PlanCardView): Promise<string | void> {
     let held: string | undefined;
     if (!(await this.typingSaved())) {
-      held = 'Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved.';
+      held = t`Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved.`;
     } else if (card.steps.some((step) => step.tool.startsWith('export.compile'))) {
       try {
         await this.session.exportsReady();
       } catch {
-        held = 'The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.';
+        held = t`The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.`;
       }
     }
     if (held === undefined) {
@@ -750,7 +790,7 @@ export class AgentController {
   private async turnWith(
     intent: string,
     options: SubmitOptions,
-    start: (agent: AgentSession, turn: TurnOptions) => Promise<TurnReport>,
+    start: (agent: AgentSession, turn: TurnOptions, loop: HarnessModule) => Promise<TurnReport>,
   ): Promise<TurnReport | null> {
     if (this.busy) return null;
     this.message = null;
@@ -773,7 +813,7 @@ export class AgentController {
       const profile: ProfileView | undefined =
         options.demo === true ? await this.providers.demoProfile() : (resolved?.profile ?? this.providers.active());
       if (profile === undefined) {
-        this.message = NO_PROVIDER;
+        this.message = noProviderText();
         return null;
       }
       // The dialogue tools compile Ink synchronously, so the compiler is loaded before the turn plans (ink-compiler.ts).
@@ -789,25 +829,33 @@ export class AgentController {
       // settlement, so a cancelled/refused/failed turn cannot leave its state behind in the shared session.
       const model = resolved?.model;
       const thinking = resolved?.thinking;
+      this.session.setPictureVision(() => this.providers.gateway.modelCaps(profile.id, model).vision === true);
+      // The harness and the agent loop are a separate download, made when the first turn starts (lazy-harness.ts).
+      const loop = await this.harnessLoop();
       // A demo turn resolves no role, so its pins are the demo profile's alone.
       this.limitPins.set(role, pinsOf(resolved) ?? { profileId: profile.id });
       pinnedRole = role;
       // A session is kept for each role, so a turn under another role never carries the chat conversation or stamps its requests as chat.
-      const agent = this.sessionFor(role);
+      const agent = this.sessionFor(role, loop);
       this.runningAgent = agent;
       this.runMode = options.mode ?? null;
       this.runCalls = options.maxModelCalls ?? null;
-      this.meter = createBudgetMeter(this.runLimits(), options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
-      report = await start(agent, {
-        signal: abort.signal,
-        profileId: profile.id,
-        ...(model === undefined ? {} : { model }),
-        ...(thinking === undefined ? {} : { thinking }),
-        ...(options.command === undefined ? {} : { command: options.command }),
-      });
+      this.meter = loop.createBudgetMeter(this.runLimits(), options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
+      report = await start(
+        agent,
+        {
+          signal: abort.signal,
+          profileId: profile.id,
+          ...(model === undefined ? {} : { model }),
+          ...(thinking === undefined ? {} : { thinking }),
+          ...(options.command === undefined ? {} : { command: options.command }),
+        },
+        loop,
+      );
       return report;
     } catch (error) {
-      this.message = `The turn stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`;
+      const reason = error instanceof Error ? error.message : String(error);
+      this.message = t`The turn stopped unexpectedly: ${{ error: reason }}`;
       return null;
     } finally {
       // The turn has settled, so the next one may start. Only the turn that set the per-turn fields clears them.
@@ -822,6 +870,7 @@ export class AgentController {
       this.runMode = null;
       this.runCalls = null;
       this.runningTurnId = null;
+      this.earlyNotes = [];
       if (this.turnOwner === owner) {
         this.turnOwner = 0;
         this.intentForNextTurn = null;
@@ -855,8 +904,13 @@ export class AgentController {
     }
     // A turn that stopped on a question, or never ran, holds the queue; a turn that went through (the answer to that question, say) lets it go.
     this.queuePaused = (report === null || (report.status === 'failed' && report.askBack !== undefined)) && this.queue.length > 0;
-    if (stopped) this.announcement = this.queue.length > 0 && !this.queuePaused ? 'Stopped by you. The next queued message runs now.' : 'Stopped by you.';
-    else if (this.queuePaused) this.announcement = QUEUE_PAUSED;
+    if (stopped) {
+      this.announcement =
+        this.queue.length > 0 && !this.queuePaused
+          ? t`Stopped by you. The next queued message runs now.`
+          : t`Stopped by you.`;
+    }
+    else if (this.queuePaused) this.announcement = queuePausedText();
     if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
   }
 
@@ -886,7 +940,8 @@ export class AgentController {
       // Said once, and never over a message the writer has not read yet, such as a turn's own result, nor over a turn that has begun.
       if (!superseded() && !this.runLogUnreadableTold && this.message === null) {
         this.runLogUnreadableTold = true;
-        this.message = `Interrupted agent runs could not be checked: ${error instanceof Error ? error.message : String(error)}`;
+        const reason = error instanceof Error ? error.message : String(error);
+        this.message = t`Interrupted agent runs could not be checked: ${reason}`;
         this.bump();
       }
       return;
@@ -901,11 +956,11 @@ export class AgentController {
         summary = await this.summarizeLogged(run.runId);
       } catch {
         // A read that failed, or a document the project could not give: the run stays listed, and only the writer discards it.
-        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.' });
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.` });
         continue;
       }
       if (run.schema !== RUN_LOG_VERSION || summary === undefined) {
-        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.' });
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.` });
         continue;
       }
       views.push({
@@ -939,13 +994,13 @@ export class AgentController {
    */
   async resumeRun(runId: string): Promise<TurnReport | null> {
     if (this.busy) {
-      this.message = 'The agent is working on another turn. Resume the run when it has finished.';
+      this.message = t`The agent is working on another turn. Resume the run when it has finished.`;
       this.bump();
       return null;
     }
     const view = this.interrupted.find((entry) => entry.runId === runId);
     if (view === undefined || !view.resumable) {
-      this.message = 'That run can no longer be resumed.';
+      this.message = t`That run can no longer be resumed.`;
       this.bump();
       return null;
     }
@@ -961,12 +1016,12 @@ export class AgentController {
       // A read that failed may work next time; a log that was read and cannot be summarized will not.
       this.message =
         readError !== undefined
-          ? `The run log could not be read: ${readError}. The run was not resumed. Try again, or discard the log.`
-          : 'This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.';
+          ? t`The run log could not be read: ${readError}. The run was not resumed. Try again, or discard the log.`
+          : t`This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.`;
       this.bump();
       return null;
     }
-    this.announcement = 'Resuming the run.';
+    this.announcement = t`Resuming the run.`;
     return this.turnWith(view.intent, { restoredSpend }, (agent, turn) => agent.resume(runId, turn));
   }
 
@@ -975,11 +1030,12 @@ export class AgentController {
     try {
       await this.runLog.discard(runId);
     } catch (error) {
-      this.message = `The run log could not be discarded: ${error instanceof Error ? error.message : String(error)}`;
+      const reason = error instanceof Error ? error.message : String(error);
+      this.message = t`The run log could not be discarded: ${reason}`;
       this.bump();
       return;
     }
-    this.announcement = 'Run log discarded. What the agent wrote stays in the project.';
+    this.announcement = t`Run log discarded. What the agent wrote stays in the project.`;
     await this.loadInterrupted();
     this.bump();
   }
@@ -995,7 +1051,7 @@ export class AgentController {
   stop(): void {
     if (this.turnAbort === null || this.stopping) return;
     this.stopping = true;
-    this.announcement = 'Stopping the turn.';
+    this.announcement = t`Stopping the turn.`;
     this.turnAbort.abort();
     const resolve = this.resolveDecision;
     this.resolveDecision = null;
@@ -1013,9 +1069,24 @@ export class AgentController {
   steer(text: string): SteerResult {
     const note = text.trim();
     if (note === '') return 'refused';
-    if (!this.busy || this.runningAgent === null || this.runningTurnId === null) return 'idle';
+    if (!this.busy) return 'idle';
+    if (this.runningAgent === null || this.runningTurnId === null) return this.holdNote(note);
     if (this.pending !== null) return 'card-waiting';
     return this.sendNote(note);
+  }
+
+  /**
+   * A turn is busy from the moment it is submitted, but its session is not ready until the harness has loaded. A note written in
+   * that gap would otherwise read as "no turn running" and be submitted as a message that `busy` refuses, losing it. It is held,
+   * shown as a waiting note, and handed to the turn when the turn starts, before its first request.
+   */
+  private holdNote(note: string): SteerResult {
+    const held = { noteId: `early-${this.nextQueueId()}`, text: note };
+    this.earlyNotes = [...this.earlyNotes, held];
+    this.pendingNotes = [...this.pendingNotes, { ...held, lands: 'next-model-call' }];
+    this.announcement = t`Note sent. The agent reads it at its next step.`;
+    this.bump();
+    return 'sent';
   }
 
   /** Cancels the waiting card, and sends the note with the Cancel: the turn goes back to the model with it (agent-harness §2). */
@@ -1034,7 +1105,7 @@ export class AgentController {
       return 'refused';
     }
     this.pendingNotes = [...this.pendingNotes, { noteId: receipt.value.noteId, text: note, lands: receipt.value.lands }];
-    this.announcement = 'Note sent. The agent reads it at its next step.';
+    this.announcement = t`Note sent. The agent reads it at its next step.`;
     this.bump();
     return 'sent';
   }
@@ -1044,7 +1115,10 @@ export class AgentController {
     const text = intent.trim();
     if (text === '') return;
     this.queue = [...this.queue, { id: this.nextQueueId(), intent: text, options }];
-    this.announcement = this.busy ? `Queued. ${this.queue.length} ${this.queue.length === 1 ? 'message' : 'messages'} waiting.` : '';
+    const waiting = this.queue.length;
+    this.announcement = this.busy
+      ? t`Queued. ${{ count: waiting }} ${plural(waiting, { one: 'message', other: 'messages' })} waiting.`
+      : '';
     this.bump();
     if (!this.busy && !this.queuePaused) queueMicrotask(() => void this.runNext());
   }
@@ -1123,7 +1197,7 @@ export class AgentController {
   answer(decision: Decision): void {
     const resolve = this.resolveDecision;
     if (resolve === null) {
-      this.message = 'That card is no longer waiting for a decision, so nothing was sent.';
+      this.message = t`That card is no longer waiting for a decision, so nothing was sent.`;
       this.bump();
       return;
     }
@@ -1151,7 +1225,7 @@ export class AgentController {
       void (async () => {
         if (!(await this.typingSaved())) {
           // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
-          this.message = 'Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.';
+          this.message = t`Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.`;
           if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
             this.pending = parked;
             this.resolveDecision = resolve;
@@ -1170,7 +1244,8 @@ export class AgentController {
           try {
             await this.session.exportsReady();
           } catch (error) {
-            this.message = `The project’s images could not be listed again (${error instanceof Error ? error.message : String(error)}), so the export was not applied. Approve it again to try once more.`;
+            const reason = error instanceof Error ? error.message : String(error);
+            this.message = t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
             if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
               this.pending = parked;
               this.resolveDecision = resolve;
@@ -1195,7 +1270,7 @@ export class AgentController {
    */
   async restore(turnId: string): Promise<RestoreResult> {
     const group = this.checkpointOf(turnId);
-    if (group === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
+    if (group === undefined) return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.`, undone: [] };
     const outcome = await this.session.restoreBefore(group);
     // The restore takes every later group back too, so every turn whose group went is told to the planner as restored, not only this one.
     this.noteRestored(outcome.undone);
@@ -1211,7 +1286,7 @@ export class AgentController {
   async restoreStep(turnId: string, stepId: string): Promise<RestoreResult> {
     const group = this.checkpointOf(turnId);
     const agent = this.sessionOf(turnId);
-    if (group === undefined || agent === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
+    if (group === undefined || agent === undefined) return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.`, undone: [] };
     const held = this.entriesIn(group);
     const outcome = await this.session.restoreBefore(group, () => agent.restoreStep(turnId, stepId));
     const number = (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
@@ -1241,7 +1316,7 @@ export class AgentController {
     const group = this.checkpointOf(turnId);
     const from = stepId === undefined ? undefined : this.sessionOf(turnId)?.stepStart(turnId, stepId);
     if (group === undefined || (stepId !== undefined && from === undefined)) {
-      return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [], kept: 0 };
+      return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.`, undone: [], kept: 0 };
     }
     const held = this.entriesIn(group);
     const outcome = await this.session.restoreExact(group, from);
@@ -1268,8 +1343,10 @@ export class AgentController {
     // The restore awaits the autosave flush, so a turn may have started since the menu opened; the rewind is refused while one runs.
     const rewound = this.rewindConversation(turnId);
     if (rewound === null) {
-      const why = this.busy ? 'a turn is running, so the conversation was not rewound' : 'that turn is no longer in this session’s conversation, so nothing was rewound';
-      return { ok: false, message: `The project was restored, but ${why}.`, projectRestored: true };
+      const message = this.busy
+        ? t`The project was restored, but a turn is running, so the conversation was not rewound.`
+        : t`The project was restored, but that turn is no longer in this session’s conversation, so nothing was rewound.`;
+      return { ok: false, message, projectRestored: true };
     }
     return { ok: true, later: outcome.later, intent: rewound.intent };
   }
@@ -1286,7 +1363,7 @@ export class AgentController {
     const result = agent.rewindConversation(turnId);
     if (result.rewound.length === 0) return null;
     this.turns = this.turns.map((turn) => (result.rewound.includes(turn.turnId) ? { ...turn, rewound: true } : turn));
-    this.announcement = 'Conversation rewound. The agent no longer sees that turn or the ones after it.';
+    this.announcement = t`Conversation rewound. The agent no longer sees that turn or the ones after it.`;
     this.bump();
     return result;
   }
@@ -1357,10 +1434,24 @@ export class AgentController {
    * Events
    * ------------------------------------------------------------------ */
 
+  /** Gives the turn the notes written while its session was loading, in order, and swaps each provisional id for the turn's own. */
+  private handEarlyNotes(turnId: string): void {
+    const early = this.earlyNotes;
+    this.earlyNotes = [];
+    if (early.length === 0 || this.runningAgent === null) return;
+    for (const held of early) {
+      const receipt = this.runningAgent.steer(turnId, held.text);
+      // A refused note stays waiting under its provisional id, so it still becomes a queued message when the turn ends.
+      if (!receipt.ok) continue;
+      this.pendingNotes = this.pendingNotes.map((note) => (note.noteId === held.noteId ? { ...note, noteId: receipt.value.noteId, lands: receipt.value.lands } : note));
+    }
+  }
+
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
       this.runningTurnId = event.turnId;
       this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn, this.commandForNextTurn)];
+      this.handEarlyNotes(event.turnId);
     }
     // A note has reached the model: it is no longer waiting.
     if (event.type === 'steer') this.pendingNotes = this.pendingNotes.filter((note) => note.noteId !== event.note.noteId);
@@ -1511,7 +1602,8 @@ export class AgentController {
       }
       this.dropOffer();
       this.offer = { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve };
-      this.announcement = `This plan needs ${offer.estimatedCalls} model calls. Choose how it runs.`;
+      const calls = offer.estimatedCalls;
+      this.announcement = t`This plan needs ${{ calls }} ${plural(calls, { one: 'model call', other: 'model calls' })}. Choose how it runs.`;
       this.bump();
     });
   }
@@ -1551,13 +1643,13 @@ export class AgentController {
    */
   async reviewTask(id: string): Promise<TurnReport | null> {
     if (this.busy) {
-      this.message = 'The agent is working on another turn. Open this task when it has finished.';
+      this.message = t`The agent is working on another turn. Open this task when it has finished.`;
       this.bump();
       return null;
     }
     const found = this.tasks.review(id);
     if (found === undefined) {
-      this.message = 'That task is no longer ready to review.';
+      this.message = t`That task is no longer ready to review.`;
       this.bump();
       return null;
     }
@@ -1596,6 +1688,36 @@ export class AgentController {
     return this.tasks.idle();
   }
 
+  /** The configured routes a writer may explicitly choose for a transcription's second read. */
+  transcriptionRoutes(): readonly { profileId: string; model?: string; label: string; vision: boolean }[] {
+    return this.providers.list().map((profile) => ({
+      profileId: profile.id,
+      model: profile.defaultModel,
+      label: `${profile.name}, ${profile.defaultModel}`,
+      vision: this.providers.gateway.modelCaps(profile.id, profile.defaultModel).vision === true,
+    }));
+  }
+
+  /** Resolves one route without silently substituting another profile or the primary model. */
+  private transcriptionRoute(profileId: string | undefined, model: string | undefined) {
+    const id = profileId ?? this.providers.active()?.id;
+    if (id === undefined) return undefined;
+    const profile = this.providers.get(id);
+    if (profile === undefined) return undefined;
+    const concrete = model ?? profile.defaultModel;
+    return {
+      profileId: id,
+      model: concrete,
+      label: `${profile.name}, ${concrete}`,
+      vision: this.providers.gateway.modelCaps(id, concrete).vision === true,
+    };
+  }
+
+  /** The interface and project languages, read once at the start of each turn (i18n §6.1). */
+  private languagePolicy(): LanguagePolicy {
+    return { ui: uiLocale(), project: this.session.state.manifest.project.language ?? 'en' };
+  }
+
   /** The sink and the clock the providers lend a session (agent-harness §5.2). A bare stand-in for the providers lends neither. */
   private readonly traceSink = (): TraceSink | undefined => (this.providers as Partial<ProviderService>).trace?.sink();
   private readonly clock = (): number => (this.providers as Partial<ProviderService>).now?.() ?? Date.now();
@@ -1614,14 +1736,25 @@ export class AgentController {
     };
   }
 
-  /** The session of a task role, made on its first use (see `sessions`). */
-  private sessionFor(role: TaskRole): AgentSession {
+  /** The agent loop's download and the session's harness, both loaded (lazy-harness.ts). Every turn and task waits here first. */
+  private async harnessLoop(): Promise<HarnessModule> {
+    const [loop] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
+    return loop;
+  }
+
+  /** The session of a task role, made on its first use (see `sessions`). The harness has loaded (`harnessLoop`) before this runs. */
+  private sessionFor(role: TaskRole, loop: HarnessModule): AgentSession {
     const kept = this.sessions.get(role);
     if (kept !== undefined) return kept;
-    const agent = createAgentSession({
-      harness: this.session.harness,
+    const harness = this.session.harness;
+    const agent = loop.createAgentSession({
+      harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: this.contextConfigFor(() => this.limitPins.get(role) ?? pinsOf(this.providers.resolveForRole?.(role))), withheld: (tool) => this.session.harness.withheld(tool) }),
+      pictureOutbox: this.session.pictureOutbox,
+      transcribe: (input) => this.session.transcribePictures(input),
+      transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
+      languages: () => this.languagePolicy(),
+      context: loop.createContextPort({ state: this.session.state, config: this.contextConfigFor(() => this.limitPins.get(role) ?? pinsOf(this.providers.resolveForRole?.(role))), withheld: (tool) => harness.withheld(tool) }),
       decide: (pending) => this.decide(pending),
       emit: (event) => this.onEvent(event),
       role,
@@ -1657,16 +1790,22 @@ export class AgentController {
   }
 
   /** The session a task is staged with: the Background role's profile, the task's id as its name, and no way to decide a card. */
-  private agentForTask(sessionId: string, maxModelCalls: number): TaskAgent | string {
+  private async agentForTask(sessionId: string, maxModelCalls: number): Promise<TaskAgent | string> {
     const resolved = this.providers.resolveForRole?.('background');
     const profile = resolved?.profile ?? this.providers.active();
-    if (profile === undefined) return NO_PROVIDER;
-    return createAgentSession({
-      harness: this.session.harness,
+    if (profile === undefined) return noProviderText();
+    this.session.setPictureVision(() => this.providers.gateway.modelCaps(profile.id, resolved?.model).vision === true);
+    const [loop, harness] = await Promise.all([loadHarnessModule(), this.session.harnessReady()]);
+    return loop.createAgentSession({
+      harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: this.contextConfigFor(() => pinsOf(resolved) ?? { profileId: profile.id }), withheld: (tool) => this.session.harness.withheld(tool) }),
+      pictureOutbox: this.session.pictureOutbox,
+      transcribe: (input) => this.session.transcribePictures(input),
+      transcriptionRoute: (profileId, model) => this.transcriptionRoute(profileId, model),
+      context: loop.createContextPort({ state: this.session.state, config: this.contextConfigFor(() => pinsOf(resolved) ?? { profileId: profile.id }), withheld: (tool) => harness.withheld(tool) }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
+      languages: () => this.languagePolicy(),
       role: 'background',
       sessionId,
       maxModelCalls,
@@ -1738,6 +1877,8 @@ export class AgentController {
   /** Ends the controller. A decision still waiting is cancelled, so the turn ends and nothing is left parked. */
   detach(): void {
     this.detached = true;
+    this.letGoOfRetention();
+    this.letGoOfRetention = () => undefined;
     const resolve = this.resolveDecision;
     this.resolveDecision = null;
     this.pending = null;
@@ -1755,10 +1896,19 @@ export class AgentController {
    */
   attach(): void {
     this.detached = false;
+    this.letGoOfRetention();
+    this.letGoOfRetention = this.session.addRetentionRoot(
+      valueRetentionRoot(t`the agent’s drafts`, () => {
+        // A round trip through JSON: a value that cannot be written out cannot be read for the pictures it names, and a root that
+        // cannot be read refuses the sweep rather than counting as empty.
+        const held = { pending: this.pending, ghosts: this.ghosts, streams: [...this.streams], notes: this.pendingNotes, tasks: this.tasks.snapshot() };
+        return JSON.parse(JSON.stringify(held)) as unknown;
+      }),
+    );
     void this.loadInterrupted();
     this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.
-    controllers.set(this.session, this);
+    registerAgent(this.session, this);
   }
 }

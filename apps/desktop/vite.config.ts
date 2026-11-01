@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { lingui } from '@lingui/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -22,6 +23,27 @@ function thirdPartyNotices(): Plugin {
     closeBundle() {
       const text = generateNotices({ root: REPO_ROOT, filters: ['./apps/desktop'] });
       writeFileSync(fileURLToPath(new URL(`dist/${NOTICES_FILE}`, import.meta.url)), text);
+    },
+  };
+}
+
+/**
+ * Gives the German catalogue chunk a URL the runtime can import again with a fresh query. A browser caches a failed module URL
+ * for the life of the page, so repeating `import('./locales/de/messages.po')` after a network failure never requests again.
+ * The module is also emitted as an entry, so Rolldown shares one chunk between this URL and the ordinary dynamic import.
+ */
+function catalogueChunkUrl(): Plugin {
+  const urlModule = fileURLToPath(new URL('src/i18n/de-catalogue-url.ts', import.meta.url)).replaceAll('\\', '/');
+  const catalogue = fileURLToPath(new URL('src/i18n/locales/de/messages.po', import.meta.url));
+  return {
+    name: 'caotang-catalogue-chunk-url',
+    apply: 'build',
+    async transform(_code, id) {
+      if (id.replaceAll('\\', '/') !== urlModule) return null;
+      const resolved = await this.resolve(catalogue);
+      if (resolved === null) throw new Error(`The German catalogue ${catalogue} did not resolve.`);
+      const ref = this.emitFile({ type: 'chunk', id: resolved.id, name: 'messages' });
+      return { code: `export const deCatalogueUrl = import.meta.ROLLUP_FILE_URL_${ref};\n`, map: null };
     },
   };
 }
@@ -69,6 +91,9 @@ function packageOf(id: string): string | undefined {
   return first?.startsWith('@') === true ? `${first}/${second ?? ''}` : first;
 }
 
+/** The source of the workspace packages whose modules have no effect on import (matched on the resolved path, either separator). */
+const PURE_PACKAGE_SOURCE = /[\\/]packages[\\/](harness|gateway|mcp-client|context|exporter|coherence|bus|store|codex|dialogue|storyboard|skills|pictures|comic|timeline|video-prompt-pack|pdf-fonts|screenplay|ids)[\\/]src[\\/]/;
+
 const EDITOR_PACKAGES = new Set(['linkifyjs', 'orderedmap', 'rope-sequence']);
 const MARKDOWN_PACKAGES = new Set([
   'unified', 'trough', 'bail', 'is-plain-obj', 'ccount', 'longest-streak', 'markdown-table', 'zwitch', 'devlop',
@@ -78,6 +103,9 @@ const MARKDOWN_PREFIXES = ['micromark', 'mdast-util-', 'remark-', 'unist-', 'vfi
 
 /** The vendor chunk a module goes in: React, the editor (tiptap and ProseMirror), or the Markdown pipeline. Everything else is left to the default. */
 function vendorChunkOf(id: string): string | null {
+  const path = id.replaceAll('\\', '/');
+  // Keep the source catalogue in its own cacheable chunk instead of hiding it inside a shared app chunk.
+  if (path.endsWith('/src/i18n/locales/en/messages.po')) return 'locale-en';
   const name = packageOf(id);
   if (name === undefined) return null;
   if (name === 'react' || name === 'react-dom' || name === 'scheduler') return 'vendor-react';
@@ -88,7 +116,10 @@ function vendorChunkOf(id: string): string | null {
 
 export default defineConfig(({ command }) => ({
   base: BASE,
-  plugins: [react(), thirdPartyNotices(), devCsp()],
+  // `macroTransform` is Lingui's native transform (no Babel/SWC plugin): it compiles `msg`/`<Trans>` in the
+  // app's `.tsx` and turns import of a `.po` file into that locale's compiled message catalogue. The same
+  // option is set in vitest.config.ts, so the macro contract is one transform in both pipelines.
+  plugins: [lingui({ macroTransform: true, failOnCompileError: true }), react(), thirdPartyNotices(), catalogueChunkUrl(), devCsp()],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
   server: {
     // Bind the IPv4 loopback explicitly. Vite otherwise binds ::1 (IPv6) only on
@@ -113,6 +144,10 @@ export default defineConfig(({ command }) => ({
     // Vite's own warning is turned down to the highest cap on the script's allow-list: tools/check-bundle-size.mjs is the gate.
     chunkSizeWarningLimit: Math.max(...Object.values(BUDGET.allow)) / 1000,
     rolldownOptions: {
+      // The workspace packages are libraries of declarations: nothing in their src/ runs on import. Without this, one constant imported
+      // from a package's barrel keeps every module that barrel re-exports in the importing chunk, and the lazy-loaded agent and exporter
+      // come in with the first page (see lazy-harness.ts and lazy-exporter.ts).
+      treeshake: { moduleSideEffects: [{ test: PURE_PACKAGE_SOURCE, sideEffects: false }] },
       output: {
         // Vendor chunks: a release that touches only app code leaves these hashes alone, so the browser keeps them cached, and the size
         // table names what the bytes are. They are not how the first download gets smaller (the dynamic imports are).

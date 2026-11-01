@@ -281,7 +281,8 @@ async function connected(): Promise<McpClient> {
 
 describe('step checkpoints in a plan that mixes native and external steps', () => {
   const intent = 'Tag, note, tag.';
-  const FIND_WRITE = steps({ tool: 'tool.search', params: { query: 'write' }, expect: 'the write tool is loaded' });
+  // Merge: "bible", not "write": with the timeline, picture and comic rows the native rows that match "write" fill the search cap.
+  const FIND_WRITE = steps({ tool: 'tool.search', params: { query: 'bible' }, expect: 'the write tool is loaded' });
   const mixed = steps(
     { tool: 'meta.set', params: { targets: [LANDING], status: 'revised' }, expect: 'The Landing is revised' },
     { tool: WRITE, params: { text: 'A note.' }, expect: 'a note is written' },
@@ -325,7 +326,7 @@ describe('step checkpoints in a plan that mixes native and external steps', () =
 describe('the agent has no way to rewind', () => {
   it('registers no tool for a rewind or a restore', () => {
     expect(TOOL_NAMES.filter((name) => /rewind|restore|checkpoint/i.test(name))).toEqual([]);
-    // 36 agent-visible tools and the four externalOnly host-model rows (#81), which only the MCP server lists.
-    expect(TOOL_NAMES).toHaveLength(40);
+    // Merge: 48 agent-visible tools (36 + timeline.read/edit, seven picture and three comic rows) and the four externalOnly host-model rows (#81), which only the MCP server lists.
+    expect(TOOL_NAMES).toHaveLength(52);
   });
 });

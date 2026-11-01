@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { createProject, waitForSaved } from './support.js';
+import { createProject, waitForSaved, writerText } from './support.js';
 
 /**
  * Leaving a project (project-format §8) and running a demo (context-assembly §6): a project left with changes the writer has no
@@ -17,7 +17,7 @@ test('leaving a project with changes since its last bundle suggests one on the p
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
 
   const suggestion = page.getByTestId('leave-suggestion');
-  await expect(suggestion).toContainText('“Leave Book” has changes that are not in a bundle yet');
+  await expect(suggestion).toContainText(new RegExp(`“${writerText('Leave Book')}” has changes that are not in a bundle yet`));
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     suggestion.getByRole('button', { name: 'Export a bundle' }).click(),

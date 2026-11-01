@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, useFakeEndpoint, type FakeAnswer, type FakeReply } from './endpoint.js';
-import { projectTrace } from './support.js';
+import { projectTrace, loose } from './support.js';
 
 /**
  * A delegated agent in the agent panel (agent-harness §2, §8): the planner hands a reading to the reader, whose call is a status card
@@ -88,7 +88,7 @@ test('a delegated reading is a status card with its agent, reserved calls, elaps
   const transcript = agent.getByText('Transcript (1)', { exact: true });
   await transcript.focus();
   await page.keyboard.press('Enter');
-  await expect(agent.getByRole('listitem')).toHaveText(['Read “The Landing” — done']);
+  await expect(agent.getByRole('listitem')).toHaveText([loose('Read “The Landing” — done', true)]);
 
   await expect(page.locator('.agent-turn').last()).toContainText('Only the keeper knows.');
   // A reading changes nothing: no checkpoint, no command.

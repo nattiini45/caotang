@@ -55,6 +55,9 @@ import {
 import { delegateParams } from './delegate.js';
 import { memoryReadParams, prepareMemoryRead } from './memory.js';
 import { skillLoadParams } from './skills.js';
+import { prepareTimelineRead, timelineReadParams } from './timeline-read.js';
+import { PICTURE_DEFINITIONS } from './pictures.js';
+import { COMIC_DEFINITIONS } from './comics.js';
 import type { CallParams } from '../types.js';
 import type { CommandError } from '@caotang/bus';
 
@@ -101,6 +104,12 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   'memory.read': { kind: 'native', params: memoryReadParams, prepare: prepareMemoryRead },
   // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.
   'agent.delegate': { kind: 'port', port: 'agent.delegate', params: delegateParams },
+  // The story timeline's read (timeline.md §5.1). Its write, timeline.edit, is a primitive below.
+  'timeline.read': { kind: 'native', params: timelineReadParams, prepare: prepareTimelineRead },
+  // The picture registry's native tools (pictures.md §8.1).
+  ...PICTURE_DEFINITIONS,
+  // The comic script/page workflow's native tools (comics.md §3.2).
+  ...COMIC_DEFINITIONS,
   // The host-model pairs (agent-harness §3, "External-only rows"): the in-app tool's arguments in, the host's reply back through the in-app port.
   'scene.brief': { kind: 'port', port: 'scene.brief', params: sceneBriefParams, refine: refineSceneDraft },
   'scene.apply': { kind: 'port', port: 'scene.apply', params: sceneApplyParams, refine: refineSceneDraft },

@@ -41,6 +41,18 @@ export const EXPORT_FORMATS = [
   'pdf',
   // The storyboard's contact sheet (storyboard.md §6): a PDF of shot cards. Appended last, so the order above holds.
   'contact-sheet-pdf',
+  // The comic PDF (comics.md §5): one PDF page per comic page, at trim plus bleed. Appended after the contact sheet.
+  'comic-pdf',
+  // The timeline's own exports (timeline.md §8): its table as CSV and as a spreadsheet, and the drawn axis as SVG
+  // and as a paginated PDF. Appended after the comic PDF, so the order above holds.
+  'timeline-csv',
+  'timeline-xlsx',
+  'timeline-svg',
+  'timeline-pdf',
+  // The comic's raster formats (comics.md §5): a CBZ and a fixed-layout EPUB, both drawn on a canvas, so only the app makes them.
+  // Appended after the timeline's, so the order above holds.
+  'cbz',
+  'comic-epub',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -63,12 +75,19 @@ export const MEDIA_FORMATS = [
   'shot-list-xlsx',
   'pdf',
   'contact-sheet-pdf',
+  'comic-pdf',
+  'timeline-csv',
+  'timeline-xlsx',
+  'timeline-svg',
+  'timeline-pdf',
+  'cbz',
+  'comic-epub',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
 
-/** Formats whose artifact is a binary container, which `ArtifactFs` (string-only) cannot hold. */
-export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf', 'contact-sheet-pdf'];
+/** Formats whose artifact is a binary container, which `ArtifactFs` (string-only) cannot hold. The SVG is text, so it is not here. */
+export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf', 'contact-sheet-pdf', 'comic-pdf', 'timeline-xlsx', 'timeline-pdf', 'cbz', 'comic-epub'];
 
 export function isExportFormat(value: string): value is ExportFormat {
   return (EXPORT_FORMATS as readonly string[]).includes(value);
@@ -104,6 +123,15 @@ export interface ExportSelection {
  * `packages/store/src/manifest.ts`; the type-equality checks in `test/scene-numbers-union.test.ts` pin its bus-typed fields to the renderers'.
  */
 export type ExportRecipeOptions = Readonly<StoreExportRecipeOptions>;
+
+/**
+ * What a compile reads: a recipe's options, plus the comic's reading direction over the book's own setting (comics.md §5), an option a
+ * compile request may carry and the store does not keep. `comic-pdf`, `cbz` and `comic-epub` read it.
+ */
+export type CompileOptions = ExportRecipeOptions & { readonly readingDirection?: 'ltr' | 'rtl' };
+
+/** The `pictures` recipe option's values (pictures.md §4): the Markdown and plain-text modes. */
+export type PictureExportMode = 'copy' | 'link' | 'drop' | 'placeholder';
 
 /**
  * exporter.md §2: a named, saved selection — "paperback draft" vs "beta read" are one click. Recipes live in the
@@ -312,6 +340,9 @@ export const TEXT_PROOF_FORMATS = [
   'promptpack',
   'coherence-md',
   'coherence-json',
+  // Merge: the timeline's two text formats (timeline.md §8) render as text, so they have a Proof too.
+  'timeline-csv',
+  'timeline-svg',
 ] as const satisfies readonly ExportFormat[];
 
 /** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */

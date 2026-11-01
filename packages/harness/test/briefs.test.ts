@@ -5,8 +5,9 @@
  * default context budgets and no skill loaded. A later turn adds the earlier-turns layer and a loaded skill adds its block.
  */
 
+import { textOf } from '@caotang/gateway';
 import { draftScript, userTextOf } from '@caotang/gateway/mock';
-import type { ChatMessage } from '@caotang/gateway';
+import type { ChatMessage, MessageContent } from '@caotang/gateway';
 import { describe, expect, it } from 'vitest';
 
 import { addDocument, getBody, getRevision, type ProjectState } from '@caotang/store';
@@ -179,8 +180,8 @@ describe('the registry column', () => {
  * The messages with the envelope ids made one. A turn's envelopes carry its own id, and a brief's the fixed one (a host's prompt has no
  * turn); every other byte is the same.
  */
-const sameBytes = (messages: readonly { readonly role: string; readonly content: string }[]) =>
-  messages.map(({ role, content }) => ({ role, content: content.split(/ id="[0-9A-F]{12}"/).join(' id="N"') }));
+const sameBytes = (messages: readonly { readonly role: string; readonly content: MessageContent }[]) =>
+  messages.map(({ role, content }) => ({ role, content: textOf(content).split(/ id="[0-9A-F]{12}"/).join(' id="N"') }));
 
 describe('a brief is what the in-app tool sends its model', () => {
   /** The messages the agent loop sent the mock provider for one planned step, and the state it drafted from. */
@@ -216,7 +217,7 @@ describe('a brief is what the in-app tool sends its model', () => {
     const { harness } = hostOf(project());
     const data = briefOf(brief(harness, 'scene.brief', params).data);
     expect(sameBytes(data.messages)).toEqual(sameBytes(sent));
-    expect(data.messages[0]?.content.startsWith(sceneRole(params['target_words'] as number | undefined, undefined, (params['mode'] ?? 'draft') as 'draft'))).toBe(true);
+    expect(textOf(data.messages[0]?.content ?? '').startsWith(sceneRole(params['target_words'] as number | undefined, undefined, (params['mode'] ?? 'draft') as 'draft'))).toBe(true);
   });
 
   it('scene.brief, rewrite_selection: the selection is quoted as the loop quotes it', async () => {
@@ -235,7 +236,7 @@ describe('a brief is what the in-app tool sends its model', () => {
     const { harness } = hostOf(project());
     const data = briefOf(brief(harness, 'dialogue.brief', params).data);
     expect(sameBytes(data.messages)).toEqual(sameBytes(sent));
-    expect(data.messages[0]?.content.startsWith(dialogueRole(4))).toBe(true);
+    expect(textOf(data.messages[0]?.content ?? '').startsWith(dialogueRole(4))).toBe(true);
   });
 
   it('carries CAOTANG.md and the codex as the in-app assembly does, names itself project data, and says what it dropped', () => {
@@ -254,7 +255,7 @@ describe('a brief is what the in-app tool sends its model', () => {
     addDocument(state, { id: 'n_SCRN000001', parentId: 'manuscript', title: 'Harbour', kind: 'screenplay', body: 'INT. HARBOUR - NIGHT\n\nELENA waits.\n', now: OPENED });
     const { harness } = hostOf(state);
     const data = briefOf(brief(harness, 'scene.brief', { doc: 'Harbour', instruction: 'More.', mode: 'continue' }).data);
-    expect(data.messages[0]?.content.startsWith(sceneRole(undefined, 'screenplay', 'continue'))).toBe(true);
+    expect(textOf(data.messages[0]?.content ?? '').startsWith(sceneRole(undefined, 'screenplay', 'continue'))).toBe(true);
     expect(data.messages[0]?.content).toContain('Fountain');
   });
 });

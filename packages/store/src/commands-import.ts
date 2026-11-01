@@ -8,7 +8,7 @@
  * with nothing written (the `doc.import` rule, `packages/harness/src/tools/doc-import.ts`).
  *
  * **Order.** The pictures first, because they are the only step that awaits and the only one that can fail on the host (a full
- * disk): they are stored through the picture pipeline (`importPictures`, dedup by hash, GPS strip), and every body's `](import:…`
+ * disk): they are stored through the picture pipeline (`runImport`, dedup by hash, GPS strip), and every body's `](import:…`
  * target becomes the picture's `../assets/` path (pictures.md D5). After the last await, synchronously: the vocabulary terms, the
  * folders and documents in reading order, then the codex pages and entries, each entry attached to the document it cites with
  * the citation moved by the rewrite.
@@ -28,9 +28,10 @@ import {
 } from '@caotang/bus';
 
 import type { ApplyClock, ProjectAssetPort } from './commands-project.js';
-import { importPictures } from './commands-pictures.js';
+import { runImport } from './commands-pictures.js';
 import { parseDocumentFile, serializeDocumentFile } from './document-file.js';
 import type { CodexEntry, CodexIncludePolicy, VocabularyTerm } from './manifest.js';
+import { withAssetFileGate } from './picture-retention.js';
 import { addDocument, addNode, nodeById, removeNode, type ProjectState } from './state.js';
 
 type ProjectApply<P> = CommandApply<P, ProjectState>;
@@ -105,14 +106,16 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
         undo: { ...context.undo, compensate: (_label: string, restore: () => void) => (takePicturesBack = restore) } as ApplyContext['undo'],
         report: () => undefined,
       };
-      const { stored } = await importPictures(
-        state,
-        assets,
-        pictures.map((picture) => ({ stagingId: picture.stagingId, ...(picture.alt === undefined ? {} : { alt: picture.alt }), ...(picture.caption === undefined ? {} : { caption: picture.caption }) })),
-        undefined,
-        clock,
-        held,
-        true,
+      // Inside the asset file gate, as every picture write is, so a sweep cannot remove a file this import is about to name.
+      const stored = await withAssetFileGate(assets, () =>
+        runImport(
+          state,
+          assets,
+          clock,
+          held,
+          pictures.map((picture) => ({ stagingId: picture.stagingId, ...(picture.alt === undefined ? {} : { alt: picture.alt }), ...(picture.caption === undefined ? {} : { caption: picture.caption }) })),
+          undefined,
+        ),
       );
       for (const [index, picture] of pictures.entries()) {
         const path = stored[index]?.path;

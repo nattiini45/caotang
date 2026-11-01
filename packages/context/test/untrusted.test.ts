@@ -3,6 +3,7 @@
  * and the deterministic scan. Nothing here calls a model.
  */
 import { describe, expect, it } from 'vitest';
+import { textOf } from '@caotang/gateway';
 
 import {
   STATIC_NONCE,
@@ -143,7 +144,7 @@ describe('the envelope in layer LI', () => {
   const META: AgentTask = { tool: 'meta', instruction: 'Summarise the project.' };
   const userOf = (text: string, nonce?: string): string => {
     const app = withInstructions(buildApp(), { instructions: text });
-    return assemble(META, nonce === undefined ? app : { ...app, nonce }).messages[1]?.content ?? '';
+    return textOf(assemble(META, nonce === undefined ? app : { ...app, nonce }).messages[1]?.content ?? '');
   };
 
   it('uses the id the snapshot carries', () => {

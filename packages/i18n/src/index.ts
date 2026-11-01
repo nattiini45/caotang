@@ -24,6 +24,7 @@ export {
   pluralRules,
   relativeTimeFormat,
 } from './format.js';
+export { defaultTitleOf, isDefaultTitle, type DefaultTitleKind } from './default-titles.js';
 
 /** First strong isolate (U+2068): opens a run whose direction comes from its own first strong character. */
 export const FSI = '\u2068';

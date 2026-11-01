@@ -24,7 +24,7 @@
  * counts, finish reasons and every timing stay.
  */
 
-import { redactDeep, type ChatMessage, type ChatRole, type FinishReason, type GatewayTraceEvent, type TaskRole, type ThinkingLevel } from '@caotang/gateway';
+import { redactDeep, textOf, type ChatMessage, type ChatRole, type FinishReason, type GatewayTraceEvent, type TaskRole, type ThinkingLevel } from '@caotang/gateway';
 import type { CommandError, Result } from '@caotang/bus';
 
 import { canonicalJson, isRecord } from '../util.js';
@@ -491,7 +491,8 @@ const GROUP_RECORDS = (record: { readonly turnId?: string }): string => record.t
 function messageOf(message: ChatMessage): TraceMessage {
   return {
     role: message.role,
-    content: message.content,
+    // Merge: a part array (the PR's image parts) is traced as its text, each image as its placeholder; the bytes never enter a trace.
+    content: textOf(message.content),
     ...(message.toolCalls === undefined || message.toolCalls.length === 0
       ? {}
       : { toolCalls: message.toolCalls.map((call) => ({ id: call.id, name: call.name, argumentsJson: call.argumentsJson })) }),

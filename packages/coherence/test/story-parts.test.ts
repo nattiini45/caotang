@@ -89,6 +89,17 @@ describe('the coherence.json codec with negative days and parts (§5.2.2)', () =
     expect(notices[0]?.message).toBe('Unknown story parts "coda", "7" read as the main story. The parts are prologue and epilogue.');
   });
 
+  it('loads and saves the additive mainStory mark, and reads an interim `main` part as that mark (timeline.md §2.3)', () => {
+    const outcome = parseCoherenceFile(fileOf({ a: { mainStory: true, dayOffset: 1 }, b: { storyPart: 'main' }, c: { mainStory: 'yes' } }));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.sceneMeta).toEqual({ a: { dayOffset: 1, mainStory: true }, b: { mainStory: true }, c: {} });
+    expect(outcome.notices.filter((notice) => notice.code === 'unknown-story-part')).toEqual([]);
+    expect(outcome.notices.map((notice) => notice.code)).toEqual(['dropped-scene-meta']);
+    const again = parseCoherenceFile(serializeCoherenceFile(outcome.file));
+    expect(again.kind === 'ok' && again.file.sceneMeta).toEqual(outcome.file.sceneMeta);
+  });
+
   it('loads a file written before the change unchanged, and saves it byte for byte', () => {
     const old = withMeta({ s1: { dayOffset: 0, durationDays: 2, timelineMode: 'flashback' }, s2: { dayOffset: 40, after: ['s1'] } });
     const text = serializeCoherenceFile(old);

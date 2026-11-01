@@ -25,6 +25,8 @@ interface TextAnchor {
 - Coordinate system: UTF-16 code-unit offsets into the **body projection** = the stored document body exactly as in `docs/<id>.md` minus YAML front matter, with `***` separators as stored. This is the same coordinate system `doc.read range` uses (agent-harness §3) — one projection, three consumers (read, anchors, mention detection).
 - Size bounds: `exact` ≤ 2000 chars (plan-card previewable); longer targets split into multiple anchored steps.
 
+**A paragraph anchor is this anchor plus two tie-breakers, not a second mechanism.** The picture registry ([pictures.md](pictures.md) §2.3) stores a `ParagraphAnchor extends TextAnchor` with `blockHash` (an FNV of the normalised paragraph) and `ordinal`; it resolves through the same ladder, and pictures §2.3 adds the mapped-block verification and the guarded fallback on top. The picture store's old/new body-write boundary calls it on every body change and on recovery; this file's ladder is unchanged.
+
 ## 3. Resolution ladder (at apply time)
 
 ```ts

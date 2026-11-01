@@ -12,10 +12,12 @@ import {
   jpegHasGps,
   jpegOrientation,
   pixelSize,
-  readAssetRecord,
+  readAssetRecords,
   sha256Hex,
   sniffImage,
   usesOf,
+  usesSnapshotOf,
+  validateAssetRecord,
   type PictureDecoder,
 } from '../src/index.js';
 import { preparePicture, stripPrivateMetadata } from '../src/prepare.js';
@@ -119,18 +121,30 @@ describe('the record and its load rules (pictures.md §2.1)', () => {
     createdAt: '2026-10-30T10:00:00.000Z',
   };
 
+  /** One record through the load's reader: the record it keeps, or none. */
+  const readAssetRecord = (value: unknown) => {
+    const read = readAssetRecords([value]);
+    const record = read.records[0];
+    return record === undefined ? ({ ok: false } as const) : ({ ok: true, record } as const);
+  };
+
   it('reads a full record and keeps an unknown source kind as its string', () => {
     const read = readAssetRecord({ ...base, width: 2, height: 2, caption: 'Ferry', alt: 'A ferry', decorative: true, tags: ['sea'], source: { kind: 'scanner', label: 'x.png' } });
     expect(read.ok && read.record.source?.kind).toBe('scanner');
     expect(read.ok && read.record.tags).toEqual(['sea']);
   });
 
-  it('refuses a record whose file is not its id, whose mime does not match, or whose hash is not hex', () => {
-    expect(readAssetRecord({ ...base, file: 'a_ZZZZZZZZZZ.png' }).ok).toBe(false);
+  it('refuses a record whose file is not a safe asset name of its type, whose mime does not match, or whose hash is not hex', () => {
+    // A file under another safe asset stem is a picture re-linked by hash after a rename (asset.relink, §6.3) and loads; the id
+    // stays its identity. A file that is not of the record's type, or not an asset file name at all, is still refused.
+    expect(readAssetRecord({ ...base, file: 'a_ZZZZZZZZZZ.png' }).ok).toBe(true);
+    expect(readAssetRecord({ ...base, file: 'a_ZZZZZZZZZZ.jpg' }).ok).toBe(false);
+    expect(readAssetRecord({ ...base, file: 'renamed.png' }).ok).toBe(false);
     expect(readAssetRecord({ ...base, mime: 'image/jpeg' }).ok).toBe(false);
     expect(readAssetRecord({ ...base, sha256: 'xyz' }).ok).toBe(false);
-    expect(readAssetRecord({ ...base, tags: ['a', 'a'] }).ok).toBe(false);
-    expect(readAssetRecord({ ...base, alt: 'x'.repeat(501) }).ok).toBe(false);
+    // Repeated tags and an alt text over its limit are refused when a record is written (a load keeps the rest of such a record).
+    expect(validateAssetRecord({ ...base, tags: ['a', 'a'] }).ok).toBe(false);
+    expect(validateAssetRecord({ ...base, alt: 'x'.repeat(501) }).ok).toBe(false);
   });
 });
 
@@ -147,8 +161,8 @@ describe('usesOf: uses are derived, never stored', () => {
       },
       documents: new Map([['n_DOC0000001', { body: 'Text.\n\n![A ferry](../assets/a_0123456789.png "The ferry")\n' }]]),
     };
-    expect(usesOf('a_0123456789', project).map((use) => use.kind)).toEqual(['cover', 'shot', 'visualRef', 'inline']);
-    expect(usesOf('a_ABCDEFGHJK', project)).toEqual([]);
+    expect(usesOf(usesSnapshotOf(project), 'a_0123456789').map((use) => use.kind)).toEqual(['cover', 'shot', 'codex', 'inline']);
+    expect(usesOf(usesSnapshotOf(project), 'a_ABCDEFGHJK')).toEqual([]);
   });
 
   it('reads only images under assets/', () => {

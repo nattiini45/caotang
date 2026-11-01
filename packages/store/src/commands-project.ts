@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Project export: the applies of the project block, the saved export recipes, the vocabulary and the cover import.
  * Their descriptors are the bus's (`projectCommands` in `@caotang/bus`, `descriptors-project.ts`), so a refusal here is
@@ -33,10 +34,12 @@ import {
 } from '@caotang/bus';
 import { PICTURE_MAX_BYTES, type PictureDecoder } from '@caotang/pictures';
 
-import { commitRecords, preparedFromStaging, storePicture } from './commands-pictures.js';
 import { defaultLanguage, mintIdentifier } from './project-identity.js';
 import { defaultRecipe } from './create.js';
 import type { ExportRecipe, ProjectIdentity, VocabularyTerm } from './manifest.js';
+import type { AssetStaging } from './asset-staging.js';
+import { withAssetFileGate, type AssetDeletionPort } from './picture-retention.js';
+import { PictureWriteError, planPictureImport, publishPlan, type ImportWording } from './picture-import.js';
 import { nodeById, type ProjectState } from './state.js';
 
 type ProjectApply<P> = CommandApply<P, ProjectState>;
@@ -50,31 +53,7 @@ export interface ApplyClock {
  * The host's ports
  * ------------------------------------------------------------------ */
 
-/**
- * Image bytes the host has chosen and is holding until the one command that imports them runs. Staging is in memory
- * and single-use: `take` hands the bytes over and forgets them, so a staged image is imported once or not at all.
- */
-export interface AssetStaging {
-  stage(bytes: Uint8Array): string;
-  take(token: string): Uint8Array | undefined;
-}
-
-/** An in-memory staging area. The host keeps one for the life of the project it has open. */
-export function createAssetStaging(): AssetStaging {
-  const held = new Map<string, Uint8Array>();
-  return {
-    stage(bytes) {
-      const token = `stg_${newId('c').slice(2)}`;
-      held.set(token, bytes.slice());
-      return token;
-    },
-    take(token) {
-      const bytes = held.get(token);
-      held.delete(token);
-      return bytes;
-    },
-  };
-}
+export { createAssetStaging, type AssetStaging, type RetryableAssetStaging } from './asset-staging.js';
 
 /**
  * The write side of the cover import. `writeBytes` puts one file under `assets/` atomically (the same contract as the
@@ -84,13 +63,29 @@ export interface ProjectAssetPort {
   readonly staging: AssetStaging;
   writeBytes(path: string, bytes: Uint8Array): Promise<void>;
   /**
+   * The file names under assets/ (a_XXXXXXXXXX.png, not paths), and whether the list is the whole folder. A host that cannot list
+   * leaves this out: an import then matches only the project's records, and never concludes that a file is missing.
+   */
+  list?(): Promise<{ readonly authoritative: boolean; readonly files: readonly string[] }>;
+  /** One file's bytes by project path (assets/a_….png), or nothing when it is not there. Lets an import match a file that has no record. */
+  readBytes?(path: string): Promise<Uint8Array | null | undefined>;
+  /** Random bytes for the picture ids, so a test can pin them. */
+  readonly randomBytes?: (length: number) => Uint8Array;
+  /**
+   * The removal half of the port (pictures.md §6.4.2): the retention inventory the sweep reads and the removal itself, separate from
+   * writing, because a writer-only port cannot answer "is this file safe to delete". `asset.sweep` is registered only when the host
+   * injects this; without it the name stays descriptor-only and the bus refuses it as not wired.
+   */
+  readonly deletion?: AssetDeletionPort;
+  /**
    * Whether a file under `assets/` is held. The import's dedup asks it before it trusts a record with the same hash: a record
    * whose file is gone is re-created over the bytes being imported (pictures.md §6.2). Absent, a record is trusted as it stands.
    */
   has?(path: string): Promise<boolean>;
   /**
-   * What the host can decode (pictures.md §6.4): HEIC to JPEG, and working copies of large photos. Absent (Node, a test), HEIC is
-   * refused with the remedy and large photos keep their originals.
+   * What the host can decode for an import (pictures.md §6.4): HEIC to JPEG, and working copies of large photos, which
+   * `asset.storeWorkingCopies` uses too. Absent (Node, a test), HEIC is refused with the remedy, large photos keep their originals and
+   * the bulk working-copy action refuses before it writes.
    */
   readonly decoder?: PictureDecoder;
 }
@@ -131,6 +126,10 @@ export function sniffCoverImage(bytes: Uint8Array): CoverImageKind | undefined {
   return undefined;
 }
 
+/** The cover import's refusal for staged bytes that are gone, as the writer has always read it; the rest are the pipeline's. */
+const COVER_WORDING: ImportWording = {
+  missing: () => 'the image is no longer held, so nothing was imported',
+};
 /** A vocabulary id from a name: lower-case words joined by hyphens (`Act 1` → `act-1`), made unique among the terms. */
 export function mintTermId(name: string, terms: readonly VocabularyTerm[]): string {
   const base =
@@ -179,6 +178,14 @@ function optionsParamsOf(options: NonNullable<ExportRecipe['options']>): RecipeO
     ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
     ...(options.scriptFont === undefined ? {} : { scriptFont: options.scriptFont }),
     ...(options.paperFrames === undefined ? {} : { paperFrames: options.paperFrames }),
+    ...(options.bleed === undefined ? {} : { bleed: options.bleed }),
+    ...(options.cropMarks === undefined ? {} : { cropMarks: options.cropMarks }),
+    ...(options.contentsLabel === undefined ? {} : { contentsLabel: options.contentsLabel }),
+    ...(options.pictures === undefined ? {} : { pictures: options.pictures }),
+    ...(options.epubImageMaxPx === undefined ? {} : { epubImageMaxPx: options.epubImageMaxPx }),
+    ...(options.epubKeepWebp === undefined ? {} : { epubKeepWebp: options.epubKeepWebp }),
+    ...(options.keepPictureMetadata === undefined ? {} : { keepPictureMetadata: options.keepPictureMetadata }),
+    ...(options.timelinePictures === undefined ? {} : { timelinePictures: options.timelinePictures }),
     ...(options.colourEmoji === undefined ? {} : { colourEmoji: options.colourEmoji }),
   };
 }
@@ -206,6 +213,11 @@ function projectRenameApply(clock: ApplyClock): ProjectApply<ProjectRenameParams
     context.report({
       affected: [{ nodeId: 'root', title: params.title }],
       summary: `renamed the project to "${params.title}"`,
+      summaryRef: {
+        id: 'store.project.renameSummary',
+        message: 'renamed the project to "{title}"',
+        values: { title: params.title },
+      },
     });
     return { title: params.title };
   };
@@ -255,28 +267,39 @@ function projectSetMetadataApply(clock: ApplyClock): ProjectApply<ProjectSetMeta
  * Writes a staged image into `assets/` and makes it the cover. The file is written first and the reference set second:
  * a failed write leaves the project as it was, and the reference never names a file that was not written.
  *
- * The undo restores the previous reference and leaves the file, and its record in the picture registry, in place. A file the
- * reference no longer names is harmless to every reader (`assets/` is ignored by the loader, and only the named cover is
- * exported), and removing it here would make undo depend on a write this apply does not own.
+ * The picture goes through the shared import engine (picture-import.ts): private metadata is removed, the bytes are hashed, and the same
+ * bytes as a picture the project already holds reuse its file and id. The undo restores the previous reference and leaves the file and
+ * its record in place: a picture the reference no longer names is harmless to every reader, and removing it here would make undo depend
+ * on a write this apply does not own.
  */
 function projectImportAssetApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectApply<ProjectImportAssetParams> {
-  return async (state, params, context) => {
-    // The picture registry's import (commands-pictures.ts): the pipeline, then the dedup by hash, then the file. The same bytes
-    // imported twice name one file.
-    const prepared = await preparedFromStaging(assets, params.stagingId, { what: 'the image' });
-    const stored = await storePicture(state, assets, prepared, { source: { kind: 'import' } }, [], clock);
+  return async (state, params, context) => withAssetFileGate(assets, async () => {
+    const now = new Date(clock.now());
+    const plan = await planPictureImport(state, assets, [{ stagingId: params.stagingId }], {
+      mode: 'legacy',
+      wording: COVER_WORDING,
+      now,
+      randomBytes: assets.randomBytes,
+    });
+    try {
+      await plan.writeFiles();
+    } catch (failure) {
+      // The cover import has always let the host's own write error through, so a caller reads the host's words.
+      throw failure instanceof PictureWriteError ? failure.cause : failure;
+    }
 
-    // Everything after the last await is synchronous.
-    commitRecords(state, [stored]);
+    // The picture is recorded with the reference that names it, in the same synchronous step, so no save sees one without the other.
+    const [picture] = plan.items;
+    if (picture === undefined) throw new Error('a one-picture plan holds one picture');
+    publishPlan(state, plan, now, { links: false });
     const project = identityOf(state);
     const previous = project.coverAssetId ?? null;
-    project.coverAssetId = stored.assetId;
+    project.coverAssetId = picture.assetId;
     context.undo.inverse(inverseCommand('project.setMetadata', { patch: { coverAssetId: previous } }, clock));
     context.report({ affected: [{ nodeId: 'root', title: project.name }], summary: 'set the cover image' });
-    return { assetId: stored.assetId, path: stored.path };
-  };
+    return { assetId: picture.assetId, path: picture.path };
+  });
 }
-
 function vocabularyUpsertApply(clock: ApplyClock): ProjectApply<VocabularyUpsertParams> {
   return (state, params, context) => {
     const terms = termsOf(state, params.kind);

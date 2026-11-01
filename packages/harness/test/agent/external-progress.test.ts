@@ -89,7 +89,8 @@ interface Fixture {
 }
 
 async function fixtureFor(intent: string, tool: string, params: Record<string, unknown>, options: Options): Promise<Fixture> {
-  const find = steps({ tool: 'tool.search', params: { query: tool === WRITE ? 'write' : 'lore' }, expect: 'the tool is loaded' });
+  // Merge: "bible", not "write": with the timeline, picture and comic rows the native rows that match "write" fill the search cap.
+  const find = steps({ tool: 'tool.search', params: { query: tool === WRITE ? 'bible' : 'lore' }, expect: 'the tool is loaded' });
   const call = steps({ tool, params, expect: 'the server answers' });
   const gateway = await mockGateway([transcript(intent, [find, call])]);
   const harness = makeHarness({ mcp: { client: await connectedClient(options) } }, makeState());

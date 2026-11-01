@@ -6,15 +6,19 @@
  * is gated on the same check (see `Workspace`). Opening a project asks the browser to keep its storage (ui-modules §5.3).
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { RuntimeStoreNewerError, type RuntimeStore } from '@caotang/store';
 
+/* lingui-set comment="Interpolated values: error" */
+
 import { runtimeStore } from './app/runtime.js';
-import { activeCoherenceModel } from './app/coherence-review.js';
 import { droppedFieldsSentence } from './app/integrity-model.js';
 import { fixtureWireFactory } from './app/mcp.js';
 import { openAppServices, type AppServices } from './app/services.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
+import { initializeInterfaceLanguage, languageRevision, subscribeLanguage } from './i18n/language.js';
 import { listProjects, openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
 import { interfacePending, settleInterface } from './app/interface.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
@@ -44,6 +48,9 @@ export function App(): ReactNode {
   // The session in view, mirrored in a ref so the test hook and the switch logic read the current one without re-rendering for it.
   const current = useRef<ProjectSession | null>(null);
   const serial = useRef(0);
+  // A switch activates in place; re-rendering the tree keeps the editor, its journal and every open
+  // card exactly where they are (i18n.md §3.3: no reload).
+  useSyncExternalStore(subscribeLanguage, languageRevision);
   // False while the interface's default waits for the stores (app/interface.ts, modern-interface.md §3.2).
   const [shellReady, setShellReady] = useState(() => !interfacePending());
 
@@ -69,14 +76,18 @@ export function App(): ReactNode {
     const factory = typeof indexedDB === 'undefined' ? null : indexedDB;
     // The MCP transport is the development fixture's only in a development build; a shipped build uses the SDK's wire.
     const mcpWire = import.meta.env.DEV ? fixtureWireFactory() : undefined;
-    openAppServices(factory, { mcpWire }).then((opened) => {
+    openAppServices(factory, { mcpWire }).then(async (opened) => {
+      // The stored interface language is loaded before the first real screen, so the writer does not
+      // see English and then watch it change. A failed catalogue falls back to English with a notice.
+      const languageFailure = await initializeInterfaceLanguage(opened.settings.current().interfaceLanguage);
       if (!alive) return;
+      if (languageFailure !== null) setNotice(languageFailure);
       setServices(opened);
       // The session defaults follow the settings: the debounce and the checkpoint limits a new session starts with.
       const apply = (): void => {
         const { editor, retention } = opened.settings.current();
         // The agent's coherence scans follow the Coherence settings, and its review runs through the active provider (coherence.md §7).
-        const coherence = { checks: () => opened.settings.current().coherence.enabledChecks, model: () => activeCoherenceModel(opened.providers) };
+        const coherence = { checks: () => opened.settings.current().coherence.enabledChecks, providers: opened.providers };
         // The writer's own agent rules are read at each agent call, so an edit in Settings applies to the turn in flight at its next call.
         const appRules = () => opened.settings.current().agent.rules;
         setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: opened.mcp.client }, coherence, appRules });
@@ -141,7 +152,8 @@ export function App(): ReactNode {
   /** Ends a session. A writing session that could not be recorded is said, not dropped in silence. */
   const closeSession = (leaving: ProjectSession): void => {
     void leaving.close().catch((error: unknown) => {
-      setNotice(`The writing session could not be recorded: ${error instanceof Error ? error.message : String(error)}`);
+      const errorText = error instanceof Error ? error.message : String(error);
+      setNotice(t`The writing session could not be recorded: ${{ error: errorText }}`);
     });
   };
 
@@ -160,7 +172,8 @@ export function App(): ReactNode {
         setStartIntent({ intent, serial: serial.current });
       },
       (error: unknown) => {
-        setNotice(`The sample could not be opened: ${error instanceof Error ? error.message : String(error)}`);
+        const errorText = error instanceof Error ? error.message : String(error);
+        setNotice(t`The sample could not be opened: ${{ error: errorText }}`);
       },
     );
   };
@@ -168,16 +181,22 @@ export function App(): ReactNode {
   if (failure !== null) {
     return (
       <main className="fatal" role="alert">
-        <h1>Caotang could not open its storage</h1>
+        <h1>
+          <Trans>Caotang could not open its storage</Trans>
+        </h1>
         <p>{failure}</p>
-        {failureNewer ? null : <p>Projects are kept in this browser’s storage. Check that it is enabled for this site, then reload.</p>}
+        {failureNewer ? null : (
+          <p>
+            <Trans>Projects are kept in this browser’s storage. Check that it is enabled for this site, then reload.</Trans>
+          </p>
+        )}
       </main>
     );
   }
   if (store === null || services === null || !shellReady) {
     return (
       <main className="loading" role="status">
-        Opening your projects…
+        <Trans>Opening your projects…</Trans>
       </main>
     );
   }
@@ -208,8 +227,8 @@ function noticeFor(opened: Opened): string | null {
     // A copy of a folder's project may differ from the folder, and cannot be saved back into it (lifecycle `saveFolder`).
     lines.push(
       opened.session.folderBaseline() !== null
-        ? 'That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list.'
-        : 'That project is already in this browser, so the file opened as a separate copy.',
+        ? t`That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list.`
+        : t`That project is already in this browser, so the file opened as a separate copy.`,
     );
   }
   // Each line is a whole sentence (lifecycle `noticesOf`, `openNoticeLines`), so joining them with a space reads as prose.

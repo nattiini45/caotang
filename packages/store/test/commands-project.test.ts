@@ -272,6 +272,15 @@ describe('recipe.save and recipe.delete — the saved export configurations', ()
     });
   });
 
+  it('restores every picture option when a replaced recipe is undone', () => {
+    const b = bus();
+    const options = { pictures: 'placeholder' as const, epubImageMaxPx: 960, epubKeepWebp: true, keepPictureMetadata: true, timelinePictures: false };
+    okValue(run(b, 'recipe.save', { name: 'Beta', includeRootIds: ['manuscript'], format: 'epub', options }));
+    okValue(run(b, 'recipe.save', { name: 'Beta', includeRootIds: ['manuscript'], format: 'md' }));
+    undoLast(b);
+    expect(b.state.manifest.recipes?.find((recipe) => recipe.name === 'Beta')).toEqual({ name: 'Beta', includeRootIds: ['manuscript'], format: 'epub', options });
+  });
+
   it('starts a project with the default Manuscript recipe, and deletes it like any other', () => {
     const b = bus();
     expect(b.state.manifest.recipes?.map((recipe) => recipe.name)).toEqual(['Manuscript']);

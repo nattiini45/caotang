@@ -134,6 +134,15 @@ describe('exporter.proof — the file a text compile writes', () => {
     expect(pack.otherFiles).toEqual(['runway-gen4-prompt-pack.md', 'runway-gen4-shot-list.csv']);
     expect(pack.text).toBe(await compiled(r, { format: 'promptpack', templateId: 'runway-gen4' }));
   });
+
+  it('is the timeline table and the drawn axis a timeline compile writes (merge: the timeline text formats have a Proof)', async () => {
+    for (const format of ['timeline-csv', 'timeline-svg'] as const) {
+      const r = rig();
+      await r.exporter.ready();
+      const proof = textOf(await r.exporter.proof({ selection: WHOLE, format }));
+      expect(proof.text).toBe(await compiled(r, { format }));
+    }
+  });
 });
 
 describe('exporter.proof — the formats it has none for, and refusals', () => {

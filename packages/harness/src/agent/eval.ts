@@ -26,7 +26,7 @@
  */
 
 import type { CoherenceModel, ModelReply, ModelRequest } from '@caotang/coherence';
-import { createManualClock, type ChatRequest, type Clock, type Gateway, type GatewayTraceEvent } from '@caotang/gateway';
+import { createManualClock, textOf, type ChatRequest, type Clock, type Gateway, type GatewayTraceEvent } from '@caotang/gateway';
 import { agentFileTexts, type ProjectState } from '@caotang/store';
 
 import { metadataFor, type ToolName } from '../metadata.js';
@@ -228,7 +228,7 @@ function reviewModelOf(gateway: Gateway): CoherenceModel {
         },
         request.signal,
       );
-      return { content: message.content };
+      return { content: textOf(message.content) };
     },
   };
 }
@@ -456,8 +456,8 @@ function matchRequests(expected: readonly RequestExpect[], actual: readonly Chat
     let found = -1;
     for (let at = cursor; at < actual.length; at += 1) {
       const request = actual[at] as ChatRequest;
-      const text = request.messages.map((message) => message.content).join('\n');
-      const system = request.messages[0]?.content ?? '';
+      const text = request.messages.map((message) => textOf(message.content)).join('\n');
+      const system = textOf(request.messages[0]?.content ?? '');
       if (want.system !== undefined && !system.startsWith(want.system)) continue;
       if (!(want.includes ?? []).every((part) => text.includes(part))) continue;
       if ((want.excludes ?? []).some((part) => text.includes(part))) continue;

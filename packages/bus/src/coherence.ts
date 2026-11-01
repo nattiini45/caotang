@@ -32,12 +32,16 @@ export const TIMELINE_MODES = [
 export type TimelineModeName = (typeof TIMELINE_MODES)[number];
 
 /**
- * §5.2.2's `storyPart`: the parts of the book a scene or a folder can be declared to belong to. Absent is the main story,
- * which is stored as absence, so there is no `main` value to write.
+ * §5.2.2's `storyPart` (timeline.md §2.3): the parts of the book a scene or a folder can be declared to belong to. Absent inherits
+ * the nearest declaration above it, then the main story, which is stored as absence, so there is no `main` value to write; `null` in
+ * a patch clears a declaration.
  */
 export const STORY_PARTS = ['prologue', 'epilogue'] as const;
 
 export type StoryPartName = (typeof STORY_PARTS)[number];
+
+/** A declared story part: the same two names, under the name the timeline uses. */
+export type DeclaredStoryPart = StoryPartName;
 
 /** §5.2.2: `dayOffset` is a whole number of days from −this to +this (about 27,000 years either way). */
 export const DAY_OFFSET_LIMIT = 10_000_000;
@@ -88,11 +92,20 @@ export interface KnowledgeLinkRecord {
 /** §5.2 plus §5.2.1, §5.5 and §4.4: one document's declarations. Absent keys are "not declared". */
 export interface SceneMetaRecord {
   pov?: string;
+  /** A whole number of days from day 0, negative before it (coherence.md §5.2.2). */
   dayOffset?: number;
   durationDays?: number;
   after?: string[];
   expectedPresent?: string[];
   timelineMode?: string;
+  /** coherence.md §5.2.2: a declared story part. Absent inherits the nearest folder's declaration, then the main story. */
+  storyPart?: DeclaredStoryPart;
+  /**
+   * timeline.md §2.3: the node is declared to be in the main story, overriding a prologue or epilogue it would inherit from a folder above
+   * it. Additive to §5.2.2 (main never wrote it, so a project without it loads unchanged). Only `true` is stored; a node's own `storyPart`
+   * still wins over it.
+   */
+  mainStory?: true;
   /** Kept sorted by handle, so an add and the undo of a remove leave the list as it was. */
   threads?: SceneThread[];
   /** §4.4: characters who learn a fact in this scene. Kept in the order they were declared. */
@@ -101,8 +114,6 @@ export interface SceneMetaRecord {
   knows?: KnowledgeLinkRecord[];
   /** §5.1 `medium.speaker-parity`: the dialogue container (a `dialogue` node id) this scene's speakers are compared with. */
   dialogueContainer?: string;
-  /** §5.2.2: the part of the book this scene, or every scene under this folder, belongs to. Absent is the main story. */
-  storyPart?: string;
 }
 
 /** §7.1's `patch`. `null` on a scalar clears it; `timelineMode` has no clear form (`linear` is the clear). */
@@ -115,6 +126,10 @@ export interface ScenePatch {
   expectedPresent_add?: string[];
   expectedPresent_remove?: string[];
   timelineMode?: string;
+  /** coherence.md §5.2.2: `prologue` or `epilogue`; anything else is refused. `null` clears the declaration, back to the inherited part or the main story. */
+  storyPart?: string | null;
+  /** timeline.md §2.3: `true` declares the node in the main story even inside a prologue or epilogue folder; `null` or `false` clears it. */
+  mainStory?: boolean | null;
   /** §5.5: threads to declare. A handle already declared is refused unless `threads_remove` takes it in the same patch. */
   threads_add?: SceneThread[];
   /** §5.5: handles to remove, matched without regard to case. Applied before `threads_add`, so the two together edit a thread. */
@@ -128,8 +143,6 @@ export interface ScenePatch {
   knows_remove?: KnowledgeLinkRecord[];
   /** §5.1: the dialogue container to compare this scene's speakers with. `null` clears the link. */
   dialogueContainer?: string | null;
-  /** §5.2.2: `prologue` or `epilogue`. `null` clears it, back to the main story. */
-  storyPart?: string | null;
 }
 
 /** The closed set of `patch` keys (§7.1). A key outside it is refused with the list of keys that are valid. */
@@ -142,6 +155,7 @@ export const SCENE_PATCH_KEYS = [
   'expectedPresent_add',
   'expectedPresent_remove',
   'timelineMode',
+  'storyPart',
   'threads_add',
   'threads_remove',
   'learns_add',
@@ -149,7 +163,7 @@ export const SCENE_PATCH_KEYS = [
   'knows_add',
   'knows_remove',
   'dialogueContainer',
-  'storyPart',
+  'mainStory',
 ] as const;
 
 /** What a patch is checked against: the codex entries by id, and the documents a dependency may name. */
@@ -227,10 +241,24 @@ export function applySceneMetaPatch(
   if (patch.storyPart !== undefined) {
     const part = patch.storyPart;
     if (part === null) delete next.storyPart;
-    else if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) next.storyPart = part;
+    else if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) next.storyPart = part as DeclaredStoryPart;
     else {
       return { ok: false, error: `storyPart ${showPatchValue(part)} is not a part; valid parts are ${STORY_PARTS.join(', ')}, or null for the main story` };
     }
+  }
+
+  // timeline.md §2.3: a part and the main-story mark are one declaration each way, so declaring one replaces the other.
+  if (patch.storyPart !== undefined && patch.storyPart !== null && patch.mainStory === true) {
+    return { ok: false, error: 'storyPart and mainStory cannot both be declared; a node is in one part' };
+  }
+  if (next.storyPart !== undefined && patch.storyPart !== undefined && patch.storyPart !== null) delete next.mainStory;
+  if (patch.mainStory !== undefined) {
+    const value = patch.mainStory;
+    if (value === null || value === false) delete next.mainStory;
+    else if (value === true) {
+      next.mainStory = true;
+      delete next.storyPart;
+    } else return { ok: false, error: `mainStory must be true, or null to clear it; got ${showPatchValue(value)}` };
   }
 
   if (patch.after_add !== undefined || patch.after_remove !== undefined) {
@@ -445,8 +473,16 @@ export function inverseScenePatch(before: SceneMetaRecord | undefined, forward: 
   if (forward.dayOffset !== undefined) inverse.dayOffset = prior.dayOffset ?? null;
   if (forward.durationDays !== undefined) inverse.durationDays = prior.durationDays ?? null;
   if (forward.timelineMode !== undefined) inverse.timelineMode = prior.timelineMode ?? 'linear';
+  if (forward.storyPart !== undefined) {
+    inverse.storyPart = prior.storyPart ?? null;
+    // A declared part replaced a main-story mark (timeline.md §2.3); the undo puts the mark back.
+    if (forward.storyPart !== null && prior.mainStory === true) inverse.mainStory = true;
+  }
+  if (forward.mainStory !== undefined) {
+    inverse.mainStory = prior.mainStory ?? null;
+    if (forward.mainStory === true && prior.storyPart !== undefined) inverse.storyPart = prior.storyPart;
+  }
   if (forward.dialogueContainer !== undefined) inverse.dialogueContainer = prior.dialogueContainer ?? null;
-  if (forward.storyPart !== undefined) inverse.storyPart = prior.storyPart ?? null;
   if (forward.after_add !== undefined || forward.after_remove !== undefined) {
     const { added, removed } = membershipChange(prior.after ?? [], after.after ?? []);
     inverse.after_add = removed;

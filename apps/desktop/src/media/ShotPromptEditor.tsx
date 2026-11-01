@@ -7,6 +7,10 @@
  * say. Each row that names a field links to it. An unsaved edit is checked once it is saved.
  */
 
+import { accessibleText } from '../i18n/accessible-text.js';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { ProjectSession } from '../app/session.js';
@@ -41,6 +45,8 @@ import {
 } from './prompt-edit-model.js';
 import type { MediaPorts } from './ports.js';
 
+
+/* lingui-set comment="The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference." */
 export interface ShotPromptEditorProps {
   readonly session: ProjectSession;
   readonly shotId: string;
@@ -68,6 +74,7 @@ export function ShotPromptEditor({ session, shotId, folderId, assets, ports, foc
   const appliedRef = useRef<unknown>(null);
   const template = templateById(vendorId);
   if (template === undefined) return null;
+  const vendor = template.displayName;
   const record = recordOf(session.state, shotId, template.id);
   // A stored record that changed since the held text was taken (an undo, or an agent's apply to this shot) replaces that text with the
   // stored values, and the message says so when the writer had typed something. A save made here is taken in by `stored`, not here.
@@ -75,7 +82,7 @@ export function ShotPromptEditor({ session, shotId, folderId, assets, ports, foc
   if (held[template.id] !== undefined && sync.state !== held[template.id]) {
     setHeld((previous) => ({ ...previous, [template.id]: sync.state }));
     if (sync.replaced) {
-      setMessage(`The saved prompt for ${template.displayName} changed, so the text you had typed for it was replaced by the saved prompt.`);
+      setMessage(t`The saved prompt for ${vendor} changed, so the text you had typed for it was replaced by the saved prompt.`);
     }
   }
   const current = sync.state;
@@ -137,6 +144,8 @@ interface PromptRecordEditorProps {
 }
 
 function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, appliedRef, template, record, draft, onEdit, onStored, onVendor, message, onMessage }: PromptRecordEditorProps): ReactNode {
+  useLingui();
+  const vendor = template.displayName;
   const setMessage = onMessage;
 
   // A check's link brings its field into view: the editor focuses the input the field names, once per request.
@@ -172,7 +181,7 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
     }
     const result = commitShotCommand(session, planned.value, ports);
     if (result.ok) onStored(recordOf(session.state, shotId, template.id));
-    setMessage(result.ok ? `Saved the prompt for ${template.displayName}.` : result.message);
+    setMessage(result.ok ? t`Saved the prompt for ${vendor}.` : result.message);
   };
 
   const remove = (): void => {
@@ -183,18 +192,19 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
     }
     const result = commitShotCommand(session, planned.value, ports);
     if (result.ok) onStored(undefined);
-    setMessage(result.ok ? `Removed the prompt for ${template.displayName}.` : result.message);
+    setMessage(result.ok ? t`Removed the prompt for ${vendor}.` : result.message);
   };
 
   const durations = template.limits.durations;
+  const duration = draft.durationSec;
   const aspects = template.limits.aspectRatios;
   const resolutions = template.limits.resolutions;
 
   return (
-    <section className="sb-prompt" aria-label={`Prompt for ${template.displayName}`}>
-      <h3 className="field-label">Prompt</h3>
+    <section className="sb-prompt" aria-label={accessibleText(t`Prompt for ${vendor}`)}>
+      <h3 className="field-label"><Trans>Prompt</Trans></h3>
       <label className="sb-prompt-vendor">
-        <span>Vendor for this prompt</span>
+        <span><Trans>Vendor for this prompt</Trans></span>
         <select id={fieldIdOf('vendor')} value={template.id} onChange={(event) => onVendor(event.target.value)}>
           {PACK_TEMPLATES.map((item) => (
             <option key={item.id} value={item.id}>
@@ -205,18 +215,18 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
       </label>
 
       {checks.length === 0 ? null : (
-        <ul className="findings sb-checks" aria-label={`Checks for ${template.displayName}`}>
+        <ul className="findings sb-checks" aria-label={accessibleText(t`Checks for ${vendor}`)}>
           {checks.map((issue) => {
             const key = issue.field === undefined ? undefined : fieldKeyOf(issue.field);
             return (
               <li key={`${issue.code}:${issue.field}:${issue.message}`} className={`pp-issue is-${issue.severity}`}>
-                <span className={`badge ${issue.severity === 'error' ? 'is-error' : 'is-warn'}`}>{issue.severity === 'error' ? 'Error' : 'Warning'}</span>{' '}
+                <span className={`badge ${issue.severity === 'error' ? 'is-error' : 'is-warn'}`}>{issue.severity === 'error' ? t`Error` : t`Warning`}</span>{' '}
                 {issue.message}
                 {key === undefined ? null : (
                   <>
                     {' '}
                     <button type="button" className="button is-quiet" onClick={() => goTo(key)}>
-                      Go to the field
+                      <Trans>Go to the field</Trans>
                     </button>
                   </>
                 )}
@@ -228,73 +238,73 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
 
       <div className="sb-prompt-grid">
         <label>
-          <span>Generation mode</span>
+          <span><Trans>Generation mode</Trans></span>
           <select id={fieldIdOf('mode')} value={draft.mode} onChange={(event) => set('mode', event.target.value)}>
             {template.limits.modes.map((mode) => (
               <option key={mode} value={mode}>
-                {mode === 't2v' ? 'Text to video' : 'Image to video'}
+                {mode === 't2v' ? t`Text to video` : t`Image to video`}
               </option>
             ))}
           </select>
         </label>
         <label>
-          <span>Prompt: camera</span>
+          <span><Trans>Prompt: camera</Trans></span>
           <input id={fieldIdOf('prompt.camera')} type="text" value={draft.camera} onChange={(event) => set('camera', event.target.value)} />
         </label>
         <label>
-          <span>Prompt: subject</span>
+          <span><Trans>Prompt: subject</Trans></span>
           <input id={fieldIdOf('prompt.subject')} type="text" value={draft.subject} onChange={(event) => set('subject', event.target.value)} />
         </label>
         <label>
-          <span>Prompt: action</span>
+          <span><Trans>Prompt: action</Trans></span>
           <input id={fieldIdOf('prompt.action')} type="text" value={draft.action} onChange={(event) => set('action', event.target.value)} />
         </label>
         <label>
-          <span>Prompt: context</span>
+          <span><Trans>Prompt: context</Trans></span>
           <input id={fieldIdOf('prompt.context')} type="text" value={draft.context} onChange={(event) => set('context', event.target.value)} />
         </label>
         <label>
-          <span>Prompt: style</span>
+          <span><Trans>Prompt: style</Trans></span>
           <input id={fieldIdOf('prompt.style')} type="text" value={draft.style} onChange={(event) => set('style', event.target.value)} />
         </label>
         <label>
-          <span>Audio: dialogue, in quotes</span>
+          <span><Trans>Audio: dialogue, in quotes</Trans></span>
           <input id={fieldIdOf('audio.dialogue')} type="text" value={draft.dialogue} onChange={(event) => set('dialogue', event.target.value)} />
         </label>
         <label>
-          <span>Audio: sound effects</span>
+          <span><Trans>Audio: sound effects</Trans></span>
           <input type="text" value={draft.sfx} onChange={(event) => set('sfx', event.target.value)} />
         </label>
         <label>
-          <span>Audio: ambient sound</span>
+          <span><Trans>Audio: ambient sound</Trans></span>
           <input type="text" value={draft.ambient} onChange={(event) => set('ambient', event.target.value)} />
         </label>
         <label>
-          <span>Audio: music</span>
+          <span><Trans>Audio: music</Trans></span>
           <input type="text" value={draft.music} onChange={(event) => set('music', event.target.value)} />
         </label>
         <label>
-          <span>Negative prompt</span>
+          <span><Trans>Negative prompt</Trans></span>
           <textarea id={fieldIdOf('negativePrompt')} rows={2} value={draft.negativePrompt} onChange={(event) => set('negativePrompt', event.target.value)} />
         </label>
         <label>
-          <span>Clip length, seconds</span>
+          <span><Trans>Clip length, seconds</Trans></span>
           <select id={fieldIdOf('durationSec')} value={draft.durationSec} onChange={(event) => set('durationSec', event.target.value)}>
-            <option value="">Not set</option>
+            <option value=""><Trans>Not set</Trans></option>
             {durations.map((seconds) => (
               <option key={seconds} value={String(seconds)}>
                 {seconds}
               </option>
             ))}
             {draft.durationSec === '' || durations.some((seconds) => String(seconds) === draft.durationSec) ? null : (
-              <option value={draft.durationSec}>{draft.durationSec} (not in the list)</option>
+              <option value={draft.durationSec}>{t`${duration} (not in the list)`}</option>
             )}
           </select>
         </label>
         <label>
-          <span>Aspect ratio</span>
+          <span><Trans>Aspect ratio</Trans></span>
           <select id={fieldIdOf('aspectRatio')} value={draft.aspectRatio} onChange={(event) => set('aspectRatio', event.target.value)}>
-            <option value="">Not set</option>
+            <option value=""><Trans>Not set</Trans></option>
             {aspects.map((ratio) => (
               <option key={ratio} value={ratio}>
                 {ratio}
@@ -303,9 +313,9 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
           </select>
         </label>
         <label>
-          <span>Resolution</span>
+          <span><Trans>Resolution</Trans></span>
           <select id={fieldIdOf('resolution')} value={draft.resolution} onChange={(event) => set('resolution', event.target.value)}>
-            <option value="">{resolutions === undefined ? 'This model takes none' : 'Not set'}</option>
+            <option value="">{resolutions === undefined ? t`This model takes none` : t`Not set`}</option>
             {(resolutions ?? VIDEO_RESOLUTIONS).map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -314,11 +324,11 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
           </select>
         </label>
         <label>
-          <span>Vendor seed</span>
+          <span><Trans>Vendor seed</Trans></span>
           <input id={fieldIdOf('seed')} type="number" min={1} step={1} value={draft.seed} onChange={(event) => set('seed', event.target.value)} />
         </label>
         <label>
-          <span>Vendor model name</span>
+          <span><Trans>Vendor model name</Trans></span>
           <input type="text" value={draft.model} onChange={(event) => set('model', event.target.value)} />
         </label>
         {template.limits.promptExtend ? (
@@ -329,15 +339,15 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
               checked={draft.promptExtend}
               onChange={(event) => set('promptExtend', event.target.checked)}
             />
-            <span>Let the vendor rewrite the prompt</span>
+            <span><Trans>Let the vendor rewrite the prompt</Trans></span>
           </label>
         ) : null}
       </div>
 
-      <fieldset className="sb-references" id={fieldIdOf('references')} tabIndex={-1} aria-label="References">
-        <legend className="field-label">References</legend>
+      <fieldset className="sb-references" id={fieldIdOf('references')} tabIndex={-1} aria-label={t`References`}>
+        <legend className="field-label"><Trans>References</Trans></legend>
         {draft.references.length === 0 ? (
-          <p className="muted">No reference is named, so the codex entries the action mentions send theirs.</p>
+          <p className="muted"><Trans>No reference is named, so the codex entries the action mentions send theirs.</Trans></p>
         ) : null}
         {draft.references.map((reference, index) => (
           <ReferenceRow
@@ -351,32 +361,32 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
           />
         ))}
         <button type="button" className="button is-quiet" onClick={() => set('references', [...draft.references, { type: REFERENCE_TYPES[0], target: '' }])}>
-          Add a reference
+          <Trans>Add a reference</Trans>
         </button>
       </fieldset>
 
       <fieldset className="sb-take">
-        <legend className="field-label">Best take</legend>
+        <legend className="field-label"><Trans>Best take</Trans></legend>
         <label className="sb-check">
           <input type="checkbox" checked={draft.keepTake} onChange={(event) => set('keepTake', event.target.checked)} />
-          <span>Keep a take from my own generation</span>
+          <span><Trans>Keep a take from my own generation</Trans></span>
         </label>
         {draft.keepTake ? (
           <div className="sb-prompt-grid">
             <label>
-              <span>Take seed</span>
+              <span><Trans>Take seed</Trans></span>
               <input id={fieldIdOf('bestTake.seed')} type="number" min={1} step={1} value={draft.takeSeed} onChange={(event) => set('takeSeed', event.target.value)} />
             </label>
             <label>
-              <span>Take model</span>
+              <span><Trans>Take model</Trans></span>
               <input type="text" value={draft.takeModel} onChange={(event) => set('takeModel', event.target.value)} />
             </label>
             <label>
-              <span>Settings, one key: value per line</span>
+              <span><Trans>Settings, one key: value per line</Trans></span>
               <textarea rows={3} value={draft.takeParams} onChange={(event) => set('takeParams', event.target.value)} />
             </label>
             <label>
-              <span>Note</span>
+              <span><Trans>Note</Trans></span>
               <input type="text" value={draft.takeNote} onChange={(event) => set('takeNote', event.target.value)} />
             </label>
           </div>
@@ -384,17 +394,17 @@ function PromptRecordEditor({ session, shotId, folderId, assets, ports, focus, a
       </fieldset>
 
       <label>
-        <span>Writer’s note for this shot (not sent to the model)</span>
+        <span><Trans>Writer’s note for this shot (not sent to the model)</Trans></span>
         <textarea rows={2} value={draft.notes} onChange={(event) => set('notes', event.target.value)} />
       </label>
 
       <div className="empty-actions">
         <button type="button" className="button is-primary" onClick={save}>
-          Save prompt
+          <Trans>Save prompt</Trans>
         </button>
         {record === undefined ? null : (
           <button type="button" className="button is-quiet" onClick={remove}>
-            Remove this prompt
+            <Trans>Remove this prompt</Trans>
           </button>
         )}
       </div>
@@ -417,11 +427,13 @@ interface ReferenceRowProps {
 }
 
 function ReferenceRow({ reference, index, session, assets, onChange, onRemove }: ReferenceRowProps): ReactNode {
+  useLingui();
   const entries = session.state.manifest.codex ?? [];
+  const number = index + 1;
   return (
     <div className="sb-reference">
       <label>
-        <span>Kind {index + 1}</span>
+        <span>{t`Kind ${number}`}</span>
         <select value={reference.type} onChange={(event) => onChange({ ...reference, type: event.target.value })}>
           {REFERENCE_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -431,17 +443,17 @@ function ReferenceRow({ reference, index, session, assets, onChange, onRemove }:
         </select>
       </label>
       <label>
-        <span>Names</span>
+        <span><Trans>Names</Trans></span>
         <select value={reference.target} onChange={(event) => onChange({ ...reference, target: event.target.value })}>
-          <option value="">Choose a codex entry or an image</option>
-          <optgroup label="Codex entries">
+          <option value=""><Trans>Choose a codex entry or an image</Trans></option>
+          <optgroup label={t`Codex entries`}>
             {entries.map((entry) => (
               <option key={entry.id} value={`entry:${entry.id}`}>
                 {entry.name}
               </option>
             ))}
           </optgroup>
-          <optgroup label="Project images">
+          <optgroup label={t`Project images`}>
             {[...assets.values()].map((asset) => (
               <option key={asset.id} value={`asset:${asset.id}`}>
                 {asset.fileName}
@@ -451,8 +463,8 @@ function ReferenceRow({ reference, index, session, assets, onChange, onRemove }:
         </select>
       </label>
       {/* The name starts with the visible word, so a voice control that says "Remove" finds it (WCAG 2.5.3), and it names the reference. */}
-      <button type="button" className="button is-quiet" aria-label={`Remove reference ${index + 1}`} onClick={onRemove}>
-        Remove
+      <button type="button" className="button is-quiet" aria-label={accessibleText(t`Remove reference ${number}`)} onClick={onRemove}>
+        <Trans>Remove</Trans>
       </button>
     </div>
   );

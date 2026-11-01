@@ -42,7 +42,7 @@ The schema is exactly "what can be expressed in CommonMark + GFM-strike + GFM fo
 
 | Node | Group | Content | Attrs | Markdown source |
 |---|---|---|---|---|
-| `doc` | — | block+ footnote_definition* | — | body projection root ([project-format.md](project-format.md) §3); the notes are its tail (§3.4) |
+| `doc` | — | block+ footnote_definition* | `provenance?: SourceProvenance` | body projection root ([project-format.md](project-format.md) §3). The one attr is the editor-only source-provenance map (§3.5): where each reference-style image or link, and each link-reference definition, was written in the loaded body. It is never rendered and is not part of the visible text or offsets. The notes are its tail (§3.4). |
 | `paragraph` | block | inline* | — | paragraph |
 | `heading` | block | inline* | `level: 1\|2\|3\|4\|5\|6` | ATX/setext heading |
 | `blockquote` | block | block+ | — | `>` blockquote |
@@ -52,7 +52,7 @@ The schema is exactly "what can be expressed in CommonMark + GFM-strike + GFM fo
 | `horizontal_rule` | block | — | — | `***` thematic break — **the scene separator** |
 | `code_block` | block | text* | `language?: string` | fenced/indented code |
 | `hard_break` | inline | — | — | two-space or `\` line break |
-| `image` | inline | — | `src: string` (required), `alt?: string`, `title?: string` | image (parse+serialize only — **no insert UI in v0.1**; round-trips hand-written images losslessly) |
+| `image` | inline | — | `src: string` (required), `alt?: string`, `title?: string`, `prov?: string` | image (round-trips hand-written images losslessly, including the `![alt][ref]`, `![alt][]` and `![alt]` reference forms, whose written source is held under `prov` and the document provenance map of §3.5; inserted by the toolbar, a drop, a paste or the `/picture` slash trigger). The title holds the caption and, when present, the versioned placement suffix of [pictures.md](pictures.md) §2.2.1; the editor treats the title as one opaque string and preserves it byte for byte, including a suffix version it does not decode. **That opacity is a guarantee about the project body, not the exported file:** the editor stores and saves the title exactly as written, while the Markdown export separately decodes the suffix and rewrites the image construct in its own output (pictures.md §2.2.1, §4). |
 | `footnote_reference` | inline | — | `label: string` (required) | GFM footnote marker `[^1]`, `[^note]`; an atom that shows its label (§3.4) |
 | `footnote_definition` | — | block+ | `label: string` (required) | GFM footnote definition `[^1]: text`, only at the document's end (§3.4) |
 | `text` | inline | — | — | text |
@@ -67,7 +67,7 @@ The schema is exactly "what can be expressed in CommonMark + GFM-strike + GFM fo
 | `strong` | — | `**x**` |
 | `strike` | — | `~~x~~` (GFM) |
 | `code` | — | `` `x` `` |
-| `link` | `href: string` (required), `title?: string` | `[text](href "title")` |
+| `link` | `href: string` (required), `title?: string`, `prov?: string` | `[text](href "title")`; `prov` is the editor-only id of a reference-style link's written source (§3.5) |
 
 ### 3.3 mdast handler table (the round-trip contract)
 
@@ -77,14 +77,14 @@ remark-prosemirror maps mdast ↔ PM via per-type handlers against **our** schem
 |---|---|---|---|
 | `paragraph`, `text`, `blockquote` | same-name node | **exact** | lossless |
 | `heading` (depth 1–6) | `heading` | **exact** | depth kept |
-| `list`, `listItem`, `emphasis`, `strong`, `inlineCode`, `link`, `image`, `break`, `thematicBreak`, `code` | §3.1/§3.2 nodes/marks | **exact content** | content lossless; **syntax normalization** per §5 (list marker → `-`, fence → ` ``` `, thematicBreak → `***`) |
+| `list`, `listItem`, `emphasis`, `strong`, `inlineCode`, `link`, `image`, `break`, `thematicBreak`, `code` | §3.1/§3.2 nodes/marks | **exact content** | content lossless; **syntax normalization** per §5 (list marker → `-`, fence → ` ``` `, thematicBreak → `***`). An image's `title` is exact content: a caption, a backslash or a placement suffix — including a version this build does not decode — is preserved byte for byte (pictures.md §2.2.1). |
 | `delete` (GFM) | `strike` | **exact** | `~~x~~` |
 | `footnoteReference` / `footnoteDefinition` (GFM) | `footnote_reference` / `footnote_definition` | **exact content** | content lossless; **syntax normalization** per §3.4 (notes at the end in reading order, numeric labels re-flowed); one `footnote-layout` dialect notice when that changes the bytes |
 | `break` | `hard_break` | exact content | line-break style normalized (two-space) |
 | `html` (raw HTML block/inline) | — | **degrade** | rendered as literal text paragraph; warning `unsupported-node` |
 | `table` (GFM) | — | **degrade** | each row serialized as one paragraph line; warning `lossy-structure` |
 | an inline mark **nested inside the same mark** — `emphasis` in `emphasis`, `strong` in `strong`, `delete` in `delete` | one marked run | **degrade** | the inner run's boundary is lost: the text merges into the surrounding run, so a save re-parses as a *different* document; warning `lossy-structure` |
-| `definition` / `linkReference` / `imageReference` | — | **degrade** | expanded to direct link/image with resolved URL; warning `lossy-attribute` |
+| `definition` / `linkReference` / `imageReference` | direct link/image **plus provenance** (§3.5) | **degrade** | the schema has no node for them, so the target resolves to a direct link/image for display, and the written source (`![a][b]`, `![a][]`, `![a]`, `[t][b]`, and every definition line) is kept in the document provenance map and written back on save while the node is untouched; no warning. Only a reference whose source cannot be kept (multi-line or formatted label text, or a definition nested in a quote or list) expands to a direct link/image with warning `lossy-attribute`. |
 | `listItem` with a GFM `checked` (task item) | `list_item`, checkbox dropped | **degrade** | warning `lossy-attribute`; the item's *content* stays exact per the exact-content row above |
 | `code` with a fence info string that carries a `meta` | `code_block`, info-string meta dropped | **degrade** | warning `lossy-attribute`; the code's *content* stays exact per the exact-content row above |
 | `yaml` | — | **never enters PM** | front matter stripped pre-parse (§5) |
@@ -144,6 +144,18 @@ The condition is a comparison of mdast type names, not a mark comparison, and it
 **Agent edits.** §4's primitives read the inserted text against the notes the document defines (`insertionOf(text, schema, labels)`), so a `[^1]` an agent's rewrite keeps stays a marker; a `[^1]: …` in the text is read as the note's own text (the range of a note's rewrite starts at its label). The body projection spells a marker `[^1]` and a note's label `[^1]: `; neither has a run in §4's map, so an offset on them clamps to the nearest text, as a list marker's does.
 
 **Export** is #271: until it lands, an export reads the body's Markdown as before, so `[^1]` and `[^1]: …` are exported as the text they are.
+
+### 3.5 Source provenance — Markdown the schema cannot hold, kept so a save writes it back
+
+The schema has no node for a link definition and no way to say an image or a link was written as a reference. Expanding them on load and saving direct links rewrote every such body the writer touched and dropped a definition nothing referenced. So the load keeps, from the same mdast parse, **where each reference and each definition was written and its raw spelling**, and a save writes them again while the document still says what the parse captured (`packages/editor/src/source-provenance.ts`, `save-tree.ts`).
+
+- **Where it lives.** One JSON value, `doc.attrs.provenance` (`{ v: 1, refs, defs }`): editor and history state only, never rendered, never part of the visible text or of any body offset. JSON, undo history and the history journal carry it because they carry node attrs. A `prov` id on an `image` node or on a `link` mark ties one reference to its entry; ids are assigned in document order, so a re-parse of the same body gives the same ids.
+- **What an entry holds.** A reference: its form (`full` `![a][b]`, `collapsed` `![a][]`, `shortcut` `![a]`), raw text, identifier, the text and the resolved target. A definition: identifier, raw line, target, the block boundary it stood at, and whether it was written on the line directly after the previous definition.
+- **Positions.** A definition's position is a ProseMirror boundary between two top-level blocks. After every transaction that changed the text, a plugin appends a transaction that moves the boundaries through the mapping (a definition at the end of the document stays at the end), and the history library groups it with the edit, so undo restores the positions with the text. A save writes each definition between the blocks it stood between.
+- **When raw text is reused.** Only while the node still says what the parse captured: an image's `src`, `alt` and `title`; a link run's text, `href` and `title`; and the definition the reference names still exists with the same target. Anything else is dirty and is written as an ordinary direct image or link, so a stale spelling is never written over an edit. A placement edit therefore converts only that placement; the definition stays, and so do the other references that share it.
+- **What is not kept.** A reference whose text carries marks or an image (`[*a* b][x]`), a reference that spans lines, and a definition nested in a quote or a list expand as before and warn `lossy-attribute`. A nested definition is kept and a save writes it at the top level.
+- **A body that is only definitions** loads as the empty document with the definitions in its provenance, and saves byte for byte.
+- **The dialect sniffer and the projection map** render through the same save tree as `serialize`, without the definitions between blocks (a definition belongs to no block), so the three agree on what a save writes for a block.
 
 ## 4. `EditorApi` — the engine-agnostic seam
 
@@ -274,7 +286,7 @@ Rules (all fixture-tested, §11):
 
 **Footnotes are in** (§3.4, #270): the two nodes, the canonical numbering, the chord and the editor bar's button.
 
-**Not in v0.1:** tables/task lists (degrade per §3.3), image insert UI, inline comment/mention syntax (plain text, see §13 D2), editor mention underlining (v0.2, [codex.md](codex.md) §4), apply-then-review suggestion marks (built after v0.1, as an opt-in app setting, default off — library: suggest-changes 0.1.8, §2; integration contract = §15; the all-accepted projection is computed before serialization, §15), find/replace (Tiptap shipped a search-and-replace extension Aug 2026 — cheap v0.2 add, not v0.1 scope), collaborative anything.
+**Not in v0.1:** tables/task lists (degrade per §3.3), image insert UI (planned with B1, pictures.md §5; the schema and the title codec above are ready for it), inline comment/mention syntax (plain text, see §13 D2), editor mention underlining (v0.2, [codex.md](codex.md) §4), apply-then-review suggestion marks (built after v0.1, as an opt-in app setting, default off — library: suggest-changes 0.1.8, §2; integration contract = §15; the all-accepted projection is computed before serialization, §15), find/replace (Tiptap shipped a search-and-replace extension Aug 2026 — cheap v0.2 add, not v0.1 scope), collaborative anything.
 
 ## 11. Runner-up & switch trigger (Lexical)
 

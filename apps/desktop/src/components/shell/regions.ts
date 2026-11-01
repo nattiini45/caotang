@@ -51,11 +51,17 @@ export interface ShellRegions {
   /** The editor, kept mounted while another view is shown so its undo history, caret and scroll survive. */
   readonly editor: ReactNode;
   readonly corkboard: ReactNode;
+  /** The timeline view (timeline.md), a lazy chunk the shell shows inside a loading boundary. */
+  readonly timeline: ReactNode;
+  /** The picture board (pictures.md §7), a lazy chunk the shell shows inside a loading boundary. */
+  readonly pictures: ReactNode;
   /** A media node's own view (a screenplay scene, a storyboard, a dialogue), or its "Open on desktop", or `null`. */
   readonly media: ReactNode;
   readonly agent: ReactNode;
   /** The storage banner, or `null` when it is not shown. */
   readonly storageBanner: ReactNode;
+  /** The picture-aware storage notices (pictures.md §6.5), shown only while the general banner is not. */
+  readonly pictureNotices: ReactNode;
   /** The status line, or `null` when there is no message. */
   readonly status: ReactNode;
   readonly saveState: ReactNode;

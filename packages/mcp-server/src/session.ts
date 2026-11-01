@@ -16,16 +16,21 @@ import { resolve } from 'node:path';
 import type { CommandError } from '@caotang/bus';
 import type { ExportDispatch, ExporterService } from '@caotang/exporter';
 import { withheldState } from '@caotang/context';
-import { briefRefusal, createBriefLedger, createBriefPorts, createProductHarness, metadataFor, type Harness, type RulesProvider, type ToolOutcome } from '@caotang/harness';
+import { briefRefusal, createBriefLedger, createBriefPorts, createProductHarness, metadataFor, type Harness, type RulesProvider, type TimelineProposal, type ToolOutcome } from '@caotang/harness';
 import {
   MCP_VOICE,
   isCodexFileName,
   isDocumentFileName,
   manifestTextAt,
   openFolder,
+  pictureListOf,
   type FolderChangedError,
   type NodeArtifactFs,
+  type TimelineApplied,
+  type TimelineReadOptions,
+  type TimelineWriteResult,
 } from '@caotang/sdk/folder';
+import type { TimelineModel } from '@caotang/timeline';
 import {
   CODEX_DIR,
   createEmptyManifest,
@@ -40,7 +45,18 @@ import {
 
 import { sourceWindow, type SourceWindow } from './attribution.js';
 import { createChangeFeed, type ChangeFeed } from './changes.js';
+import { ROUND_TTL_SECONDS } from './confirm.js';
+import { createTtlMap } from './ttl-map.js';
 import { changeOf } from './uris.js';
+
+/**
+ * One confirmation round, as `check` sees it: the call id its sealed state carries (the same in the question and in the accept, and
+ * different for every request), and whether this is the accept round. A proposal staged for a question is held under that id.
+ */
+export interface ConfirmationRound {
+  readonly callId: string;
+  readonly accepted: boolean;
+}
 
 /**
  * The folder holds a project's files without its `caotang.json`, and `--create` was asked for.
@@ -66,6 +82,25 @@ export class ProjectContentError extends Error {
  * The refusal a write gets when the folder's change stopped it before it began. It is the same whether the refusal is found before the
  * writer is asked (`check`) or after the accept (`callConfirmed`, through tools.ts), so the words a caller reads do not depend on the path.
  */
+
+/**
+ * The picture registry as a read under the read rules sees it (agent-harness §4): `withheldState` leaves out the withheld nodes and
+ * their documents; this leaves out the placements pinned to one, and the pictures placed or used only there.
+ */
+function readablePictures(state: ProjectState, view: ProjectState, hidden: ReadonlySet<string>): ProjectState {
+  if (hidden.size === 0 || (state.manifest.assets ?? []).length === 0) return view;
+  const links = (state.manifest.assetLinks ?? []).filter((link) => {
+    const nodeId = (link.target as { readonly nodeId?: string }).nodeId;
+    return nodeId === undefined || !hidden.has(nodeId);
+  });
+  const linked: ProjectState = { ...view, manifest: { ...view.manifest, assetLinks: links } };
+  const placed = (entry: { readonly links: readonly unknown[]; readonly uses: readonly unknown[] }): boolean => entry.links.length + entry.uses.length > 0;
+  const seen = new Map(pictureListOf(linked).map((entry) => [entry.picture.id, placed(entry)] as const));
+  const held = new Set(pictureListOf(state).filter((entry) => placed(entry) && seen.get(entry.picture.id) !== true).map((entry) => entry.picture.id));
+  if (held.size === 0) return linked;
+  return { ...linked, manifest: { ...linked.manifest, assets: (linked.manifest.assets ?? []).filter((record) => !held.has(record.id)) } };
+}
+
 export function notMadeError(name: string, error: FolderChangedError): CommandError {
   return {
     code: 'io-error',
@@ -110,9 +145,11 @@ export interface ProjectSession {
    * The project as a host may read it outside a tool call: a resource or a prompt (agent-harness §4, Rules). The nodes a read rule
    * withholds from the agent are not in it, so a resource does not list or serve them and a prompt does not assemble them. `mirrors`
    * names the read tools the resource or prompt stands for: a read-deny aimed at `doc.read` alone keeps its nodes from `caotang://doc`
-   * and from every prompt too.
+   * and from every prompt too. `tool` is a read tool registered beside the mapping (`pictures.list`, `pictures.view`): only the rules
+   * aimed at the tools in `mirrors` hold, as they would at the gate. A placement pinned to a withheld node is left out, and so is a
+   * picture placed or used only in withheld parts (its caption and transcription describe them).
    */
-  readable(use: 'resource' | 'prompt', mirrors?: readonly string[]): ProjectState;
+  readable(use: 'resource' | 'prompt' | 'tool', mirrors?: readonly string[]): ProjectState;
   readonly exporter: ExporterService;
   readonly allowWrites: boolean;
   /** Whether this open made the project, rather than finding one. */
@@ -139,17 +176,43 @@ export interface ProjectSession {
    */
   callConfirmed(name: string, callId: string, params: unknown, turnId: string): Promise<ToolOutcome>;
   /**
+   * Runs one confirmed `timeline.edit` on the folder's two-file path (timeline.md §9.2): the folder's checks, this host's own
+   * before-image against the `coherence.json` on disk, the harness call, the per-scene merge, both writes, and a read-back of what
+   * the disk holds. The answer is typed — `persisted`, `conflict`, `partial` or `refused` — and never a bare success, because the
+   * manifest and the coherence file are two saves and the second may fail after the first.
+   */
+  callConfirmedTimeline(name: string, callId: string, params: unknown, turnId: string): Promise<TimelineWriteResult<ToolOutcome>>;
+  /**
+   * Why this session writes nothing more, in full, when a timeline batch was only partly saved: the folder may not hold what the
+   * session's copy has, and a later save would write that copy over it. Undefined until that happens, and undefined again only by a
+   * restart; a read is not stopped.
+   */
+  readonly writtenPartway: string | undefined;
+  /**
    * The checks of one call, with no effect: the refusal the call would get if it ran now, or `undefined` when it would be accepted. The
    * harness checks the call's params, and the exporter checks an export's selection (the gates its compile applies). A folder that
    * changed refuses a write here too. A confirmation asks only for a call that passes, so the dialog never asks for a change that cannot happen.
    */
-  check(name: string, params: unknown): CommandError | undefined;
+  check(name: string, params: unknown, round?: ConfirmationRound): CommandError | undefined;
+  /**
+   * Drops what a confirmation round held for its accept (the staged values of a `timeline.edit`), when the round ends with no accept:
+   * the writer declined or cancelled, the host cannot be asked, or the call was refused. An accept drops it by running.
+   */
+  releaseConfirmation(callId: string): void;
   /**
    * Lists the stored images again, for the exporter. `check` is synchronous and reads the listing held, so a confirmed call lists the
    * images first: a listing that failed once (a folder busy at open, say) is not held against every later compile, and a folder that
    * has since become unreadable refuses the compile before the writer is asked, not after.
    */
   refreshAssets(): Promise<void>;
+  /**
+   * The story timeline of the open project (timeline.md §3), built from the state and the `coherence.json` this session
+   * holds in memory — the same model the app's view builds, so the MCP resources and tool and the browser answer with
+   * identical data. Read-only: writes nothing, logs no row.
+   */
+  timeline(options?: TimelineReadOptions): TimelineModel;
+  /** The timeline as CSV rows in the canonical order of timeline.md §8. Read-only, like {@link timeline}. */
+  timelineCsv(options?: TimelineReadOptions): string;
   /** Writes the project folder from the current state, after any write queued before it. */
   persist(): Promise<void>;
   /**
@@ -279,6 +342,24 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       if (change.updated.length > 0 || change.listChanged) changes.emit(change);
     };
 
+    // A timeline batch is two saves, so one can land and the other not. When that happens the folder and this copy are out of step,
+    // and no later write may paper over it: the whole session stops writing until it is restarted (timeline.md §9.2).
+    let writtenPartway: string | undefined;
+    // `check` runs before the host shows its confirmation. Keep each round's values read there, keyed by the round's call id, so two
+    // open questions (even for identical arguments) cannot replace one another, and an accept cannot silently re-base over an edit
+    // made while it waited. An entry leaves when its round is accepted, refused, declined or cancelled; a round whose host never
+    // answers leaves by the same lifetime as its sealed state.
+    const timelineApprovals = createTtlMap<TimelineProposal>();
+    const releaseTimelineApproval = (callId: string): void => {
+      const held = timelineApprovals.get(callId, now().getTime());
+      if (held !== undefined) timelineApprovals.delete(callId, held);
+    };
+    const takeTimelineApproval = (callId: string): TimelineProposal | undefined => {
+      const held = timelineApprovals.get(callId, now().getTime());
+      if (held !== undefined) timelineApprovals.delete(callId, held);
+      return held;
+    };
+
     return {
       root: folder.root,
       fs,
@@ -286,8 +367,9 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       harness,
       readable: (use, mirrors = []) => {
         const hidden = new Set<string>();
-        for (const tool of [use === 'resource' ? 'mcp.resource' : 'mcp.prompt', ...mirrors]) for (const id of harness.withheld(tool)) hidden.add(id);
-        return withheldState(state, hidden);
+        const base = use === 'resource' ? ['mcp.resource'] : use === 'prompt' ? ['mcp.prompt'] : [];
+        for (const tool of [...base, ...mirrors]) for (const id of harness.withheld(tool)) hidden.add(id);
+        return readablePictures(state, withheldState(state, hidden), hidden);
       },
       exporter,
       allowWrites: options.allowWrites,
@@ -295,6 +377,9 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       notices: folder.notices,
       window,
       changes,
+      get writtenPartway() {
+        return writtenPartway;
+      },
 
       async callDirect(name, callId, params, turnId) {
         if (folder.changed && changesProject(name)) throw folder.stoppedError(false);
@@ -325,14 +410,81 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         return outcome;
       },
 
-      check(name, params) {
+      async callConfirmedTimeline(name, callId, params, turnId) {
+        // Taken before anything can throw or refuse, so the proposal is consumed on every path out of this call.
+        const approved = takeTimelineApproval(callId);
+        if (folder.changed) throw folder.stoppedError(false);
+        await folder.refreshAssets();
+        const turn = externalTurn(turnId);
+        const before = harness.log.length;
+        const result = await folder.applyTimeline(
+          (): TimelineApplied<ToolOutcome> => {
+            let proposal = approved;
+            if (proposal === undefined) {
+              // A direct session caller has no separate check: stage and apply in the same synchronous turn, with no dialog in between.
+              const staged = harness.timelineStage(params as Readonly<Record<string, unknown>>);
+              if (!staged.ok) return { installed: false, outcome: { ok: false, error: staged.error } };
+              proposal = staged.value;
+            }
+            const outcome = window.within('mcp', () =>
+              harness.call({ name, callId, params, proposal }, { turnId: turn, permission: { confirmed: true } }),
+            );
+            // A refusal is the harness's, and the bus applies nothing before it decides: the folder writes nothing for it.
+            return { installed: outcome.ok, outcome };
+          },
+        );
+        harness.endTurn(turn);
+        if (result.status === 'persisted') {
+          // Announced only once the read-back agreed: a host is told what is on disk, never what was meant.
+          const rows = harness.log.entries().slice(before);
+          const change = changeOf(state, rows);
+          if (change.updated.length > 0 || change.listChanged) changes.emit(change);
+        }
+        if (result.status === 'partial') writtenPartway = result.recovery;
+        return result;
+      },
+
+      releaseConfirmation: releaseTimelineApproval,
+
+      check(name, params, round) {
         // A folder that changed stops every write (callConfirmed), so a write is refused here, as the accept would refuse it, and no
         // question is asked for it.
-        if (folder.changed && changesProject(name)) return notMadeError(name, folder.stoppedError(false));
+        if (folder.changed && changesProject(name)) {
+          if (round !== undefined) releaseTimelineApproval(round.callId);
+          return notMadeError(name, folder.stoppedError(false));
+        }
         // An apply whose brief is gone, expired or stale is refused before the host is asked to confirm a text that could not be written, and
         // before the placement checks, so the refusal says the brief is stale and not that the text no longer fits.
         const stale = typeof params === 'object' && params !== null ? briefRefusal(briefs, name, params as Record<string, unknown>, state, harness.withheld(name)) : undefined;
         if (stale !== undefined) return stale;
+        if (name === 'timeline.edit') {
+          // A check with no round stages nothing: there is no confirmation to hold a proposal for.
+          if (round === undefined) {
+            const staged = harness.timelineStage(params as Readonly<Record<string, unknown>>);
+            return staged.ok ? undefined : staged.error;
+          }
+          const at = now().getTime();
+          // A fresh request always stages from the live state. An accept reuses only its own earlier proposal; staging
+          // again here would re-base it over another confirmation accepted while this one waited.
+          if (round.accepted) {
+            if (timelineApprovals.get(round.callId, at) !== undefined) return undefined;
+            // The proposal expires just before the sealed confirmation state (mint comes after this check). An accept in that gap must
+            // not stage afresh from live state: only a fresh round may do that, after its own check has run.
+            return {
+              code: 'revision-conflict',
+              message: 'the timeline edit confirmation is no longer available, so the edit was not made',
+              correctiveHint: 'make the timeline edit again and confirm it within 30 minutes',
+              target: name,
+            };
+          }
+          const staged = harness.timelineStage(params as Readonly<Record<string, unknown>>);
+          if (!staged.ok) {
+            releaseTimelineApproval(round.callId);
+            return staged.error;
+          }
+          timelineApprovals.set(round.callId, staged.value, at + ROUND_TTL_SECONDS * 1000, at);
+          return undefined;
+        }
         // A plan of one step is checked by the tool's own prepare, with no effect (plan.ts), which is the check the accept runs first. A step
         // is deferred only when an earlier step may create what it names, and a plan of one has none, so a refusal here is final.
         const preflight = harness.previewPlan({ steps: [{ tool: name, params, expect: 'the call as the host asked it' }] });
@@ -346,6 +498,8 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       },
 
       refreshAssets: () => folder.refreshAssets(),
+      timeline: (options) => folder.timeline(options),
+      timelineCsv: (options) => folder.timelineCsv(options),
       persist: () => folder.persist(),
       async verifyFolder() {
         await folder.verifyFolder();

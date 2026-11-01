@@ -5,6 +5,7 @@
  * prefix an earlier call of the batch already sent at the model's read multiplier.
  */
 
+import { textOf } from '@caotang/gateway';
 import { describe, expect, it } from 'vitest';
 
 import type { ChatChunk, ChatRequest, Gateway, Usage } from '@caotang/gateway';
@@ -31,7 +32,7 @@ const INTENT = 'Scan the manuscript for continuity problems.';
 
 const isNativePlanner = (req: ChatRequest): boolean => {
   const first = req.messages[0];
-  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && first.content.startsWith(PLANNER_SYSTEM_PREFIX);
+  return (req.tools?.length ?? 0) > 0 && first?.role === 'system' && textOf(first.content).startsWith(PLANNER_SYSTEM_PREFIX);
 };
 const namesOf = (request: ChatRequest | undefined): string[] => (request?.tools ?? []).map((tool) => tool.name);
 
@@ -169,6 +170,7 @@ describe('the turn report’s cache line', () => {
 describe('the batch forecast', () => {
   const preview = (key: string, promptTokens: number): PromptPreview => ({
     payload: [],
+    images: [],
     promptTokens,
     completionTokens: 100,
     layers: [],

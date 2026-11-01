@@ -24,7 +24,7 @@ import { stripPrivateMetadata, type StrippedPart } from './exif.js';
 import { IMAGE_FORMATS, isHeif, isSvg, sniffImage, unsupportedFormatName, type ImageFormat } from './files.js';
 import { sha256Hex } from './hash.js';
 import { LARGE_PHOTO_BYTES, PICTURE_MAX_BYTES, PICTURE_MAX_PIXELS, WORKING_COPY_EDGE } from './limits.js';
-import type { WorkingCopyOf } from './record.js';
+import type { AssetWorkingCopy as WorkingCopyOf } from './model.js';
 
 /** What the host can decode. Every method is optional; an absent one is a browser that cannot. */
 export interface PictureDecoder {

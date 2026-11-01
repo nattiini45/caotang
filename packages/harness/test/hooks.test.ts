@@ -999,7 +999,9 @@ describe('the draft a model stages for a shot tool', () => {
 
   it('has a reader for the staged proposal of every model-backed write tool, so a new one cannot go unread', () => {
     // coherence.review stages a plan (the documents, the cost, the first prompt), which holds no prose the call writes.
-    const writes = [...MODEL_BACKED_TOOLS].filter((name) => name !== 'coherence.review' && TOOL_METADATA.find((meta) => meta.name === name)?.risk.startsWith('write'));
+    // Merge: pictures.transcribe stages its plan too (the pages it writes are generated after approval and read from the draft, below), and
+    // timeline.edit stages a proposal of ops with no prose.
+    const writes = [...MODEL_BACKED_TOOLS].filter((name) => !['coherence.review', 'pictures.transcribe', 'timeline.edit'].includes(name) && TOOL_METADATA.find((meta) => meta.name === name)?.risk.startsWith('write'));
     expect(writes.length).toBeGreaterThan(3);
     for (const tool of writes) {
       expect(Object.keys(STAGED_PROSE), `${tool} has no row in STAGED_PROSE`).toContain(tool);
@@ -1007,6 +1009,12 @@ describe('the draft a model stages for a shot tool', () => {
       expect(proseOf(tool, {}, staged[tool]), `${tool}: the staged prose is not read`).toMatch(/suddenly/i);
     }
     expect(Object.keys(STAGED_PROSE).filter((name) => !writes.includes(name))).toEqual([]);
+  });
+
+  it('reads the pages a transcription generated, and nothing from its plan alone (merge)', () => {
+    const plan = { kind: 'pictures.transcribe', pages: [] };
+    expect(proseOf('pictures.transcribe', {}, { plan, draft: { pages: [{ assetId: 'a_1', text: 'Suddenly it rained.', secondText: 'Then it stopped.' }] } })).toMatch(/suddenly[\s\S]*then it stopped/i);
+    expect(proseOf('pictures.transcribe', {}, plan)).toBe('');
   });
 
   it('fails the run, rather than allowing it, when the staged proposal has a shape the hooks have no reader for', () => {

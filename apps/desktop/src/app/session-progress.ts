@@ -3,10 +3,14 @@
  * (goals-progress A3), and progress is the words of every session that ended today, across the writer's projects, plus
  * the sitting that is open now. Nothing here is stored: the sessions log is the history, and this is a read of it.
  */
+/* lingui-set comment="Interpolated values: count, target, words" */
 
+import { plural, t } from '@lingui/core/macro';
 import { localDayKey } from '@caotang/gateway';
+import { numberFormat } from '@caotang/i18n';
 import { listProjectIds, readSessions, RuntimeStoreStaleError, type RuntimeStore, type SessionRecord } from '@caotang/store';
-import { formatCount } from '../i18n/locale.js';
+
+import { formatterLocale } from '../i18n/format-locale.js';
 
 /** The local calendar day of an ISO instant, or `null` when the instant does not parse. */
 export function localDayOfIso(iso: string): string | null {
@@ -93,11 +97,33 @@ export function targetProgress(words: number, target: number | undefined): Targe
   return { words, target, fraction, met: words >= target };
 }
 
-/** The status-bar line for a progress reading: "412 / 800 words today", or the words alone with no target. */
-export function todayLine(progress: TargetProgress): string {
-  const words = `${formatCount(progress.words)}`;
-  if (progress.target === undefined) return `${words} ${progress.words === 1 ? 'word' : 'words'} today`;
-  return `${words} / ${formatCount(progress.target)} words today`;
+/** The status-bar line for a progress reading: "412 / 800 words today", or the words alone with no target (grouped in the formatter locale). */
+export function todayLine(progress: TargetProgress, locale: string = formatterLocale()): string {
+  const count = numberFormat(locale);
+  const words = progress.words;
+  if (progress.target === undefined) {
+    // The count is grouped for the formatter locale, which can differ from the active UI catalogue.
+    const wordsText = count.format(words);
+    return t`${{ count: wordsText }} ${plural(words, { one: 'word', other: 'words' })} today`;
+  }
+  return t`${{ words: count.format(progress.words) }} / ${{ target: count.format(progress.target) }} words today`;
+}
+
+/**
+ * The target button's whole line: today's count, and the next thing the writer can do or the notice that
+ * today's target is met. One message per state, so no translated sentence is appended to another.
+ */
+export function targetQuickSetLine(progress: TargetProgress, locale: string = formatterLocale()): string {
+  const count = numberFormat(locale);
+  const words = progress.words;
+  const wordsText = count.format(words);
+  if (progress.target === undefined) {
+    return t`${{ count: wordsText }} ${plural(words, { one: 'word', other: 'words' })} today · set a daily target`;
+  }
+  const target = count.format(progress.target);
+  return progress.met
+    ? t`${{ count: wordsText }} / ${{ target }} words today. Today’s target is met.`
+    : t`${{ count: wordsText }} / ${{ target }} words today`;
 }
 
 /**

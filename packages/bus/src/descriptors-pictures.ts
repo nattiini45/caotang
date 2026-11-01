@@ -1,194 +1,706 @@
 /**
- * The picture registry's descriptors — [pictures.md](../../../docs/architecture/pictures.md) §2.4. Their applies are the store's
- * (`packages/store/src/commands-pictures.ts`), reached through the same registry as the rest of the closed set.
+ * The picture registry's descriptors — [pictures.md §2.4](docs/architecture/pictures.md). The applies are the store's
+ * (`packages/store/src/commands-pictures.ts`), reached through the same registry as the rest of the closed set (`registry.ts`).
  *
- * - `asset.import` takes one staged picture through the import pipeline (§6.4) into `assets/` and the registry. Its undo removes
- *   the record it made; the file stays, a harmless orphan the hash reclaims if the same bytes come back.
- * - `asset.importBatch` is the same for several pictures, one command and so one undo group, all or none.
- * - `asset.setMeta` edits a record's caption, alt text, decorative flag, tags and source label, with an `expect` check.
+ * A picture's bytes are never params: the host stages them and the import names the staging id, as `project.importAsset` always has.
+ * What a validate can check from the project alone is checked here (the record or link exists, a target node exists, an `expect` still
+ * holds, a placement is legal, a delete is not blocked by a typed use); what needs the bytes (the format, the size, the hash) is the
+ * apply's, before it writes a file.
  *
- * The bytes are never params (a param is JSON and is copied into the undo group): the host stages them, as it does for the cover.
- * An agent cannot stage bytes, so its import is refused as not-found before anything is written. Validation is pure and total
- * (command-bus §2): the closed key sets, the strings and their limits. Whether a record exists is the apply's to say.
+ * Every command but the sweep is undoable and none is an agent tool yet. The imports are `write-auto`, as the registry's first commands
+ * were: they consume bytes only the writer's host can stage, so an agent's call is refused as not-found before anything is written. The
+ * rest are `write-auto` or `write-confirm` as pictures.md §2.4 sets them.
  */
 
-import { ALT_MAX_CHARS, CAPTION_MAX_CHARS, SOURCE_LABEL_MAX_CHARS, TAGS_MAX, TAG_MAX_CHARS, validTags } from '@caotang/pictures';
+import {
+  ASSET_LINK_ROLES,
+  type ASSET_SOURCE_KINDS,
+  PICTURE_LIMITS,
+  collectUses,
+  deletionBlockers,
+  inlineAssetIds,
+  isAssetId,
+  isRecordFileName,
+  parseAssetFileName,
+  placeLink,
+  reorderLinks,
+  validateAssetLink,
+  validateLinkNotePatch,
+  validateRecordPatch,
+  type AssetLink,
+  type AssetLinkRole,
+  type AssetSource,
+  type AssetTarget,
+  type LinkNotePatch,
+  type PictureUse,
+  type ReadAssetLink,
+  type ReadAssetRecord,
+  type RecordPatch,
+  type UsesSnapshot,
+  type VendorRef,
+} from '@caotang/pictures';
 
-import type {
-  AssetImportBatchParams,
-  AssetImportParams,
-  AssetImportSource,
-  AssetLargePhotos,
-  AssetMetaPatch,
-  AssetSetMetaParams,
-  CommandDescriptor,
-} from './command.js';
-import { ok, type CommandError, type Result } from './result.js';
-import { describe, invalid, isRecord, limitExceeded, requireDeclaredParams, requireNonBlankString, showValue } from './params.js';
+import { panelPictureRefs } from '@caotang/comic';
 
-/** The most pictures one `asset.importBatch` takes, the same as `shot.importImages`. */
+import type { CommandDescriptor, ValidationSnapshot } from './command.js';
+import {
+  invalid,
+  isRecord,
+  limitExceeded,
+  notFound,
+  requireDeclaredParams,
+  requireNonBlankString,
+  requireString,
+  showValue,
+} from './params.js';
+import { err, ok, type CommandError, type Result } from './result.js';
+
+/* ------------------------------------------------------------------ *
+ * Param shapes
+ * ------------------------------------------------------------------ */
+
+/**
+ * What the writer chose for pictures above the size prompt (pictures.md §6.4 step 3, D6), asked once for a batch. `keep` is the name
+ * the first registry commands took and stays accepted beside `keep-originals`; both keep the originals. Absent is keep.
+ */
+export type LargePhotoChoice = 'keep' | 'keep-originals' | 'working-copies';
+
+export const LARGE_PHOTO_CHOICES: readonly LargePhotoChoice[] = ['keep', 'keep-originals', 'working-copies'];
+
+/** The most pictures one `asset.importBatch` takes. */
 export const ASSET_IMPORT_BATCH_MAX = 200;
 
-const ITEM_KEYS = new Set(['stagingId', 'caption', 'alt', 'source']);
-const PATCH_KEYS = ['caption', 'alt', 'decorative', 'tags', 'sourceLabel'] as const;
+/** The most targets one import places a picture at. */
+export const ASSET_IMPORT_LINKS_MAX = 50;
 
-function textField(value: unknown, path: string, max: number): Result<string | undefined, CommandError> {
-  if (value === undefined) return ok(undefined);
-  if (typeof value !== 'string') return invalid(`params.${path} must be a string, got ${describe(value)}`, undefined, path);
-  if (value.length > max) return limitExceeded(`params.${path} is ${value.length} characters, limit ${max}`, `shorten it to ${max} characters`, path);
-  return ok(value);
+/** One staged picture and what to record about it. */
+export type AssetImportItem = {
+  stagingId: string;
+  links?: AssetTarget[];
+  caption?: string;
+  alt?: string;
+  source?: AssetSource;
+};
+
+export type AssetImportParams = AssetImportItem & { largePhotos?: LargePhotoChoice };
+
+export type AssetImportBatchParams = { items: AssetImportItem[]; largePhotos?: LargePhotoChoice };
+
+/** `expect` is the record's current value of each field the patch changes, with `null` for a field that holds nothing. */
+export type AssetSetMetaParams = { assetId: string; patch: RecordPatch; expect?: RecordPatch };
+
+export type AssetSetLinkMetaParams = { linkId: string; patch: LinkNotePatch; expect?: LinkNotePatch };
+
+export type AssetLinkParams = { assetId: string; target: AssetTarget; role?: AssetLinkRole; note?: string };
+
+export type AssetUnlinkParams = { linkId: string };
+
+/** `asset.makeDocumentLevel`: move one orphaned paragraph placement to its document as one undoable gesture. */
+export type AssetMakeDocumentLevelParams = { linkId: string };
+
+/**
+ * `asset.repin` (pictures.md §2.3): re-capture an orphaned or moved paragraph anchor from a selection in the document's
+ * own UTF-16 offsets. The paragraph is the block the selection starts in, exactly as a first capture reads it.
+ */
+export type AssetRepinParams = { linkId: string; selection: { from: number; to: number } };
+
+export type AssetReorderLinksParams = { target: AssetTarget; orderedIds: string[] };
+
+export type AssetDeleteParams = { assetId: string };
+
+/** `asset.sweep` takes no params: the candidates come from the retention inventory, never from the caller. */
+export type AssetSweepParams = Record<string, never>;
+
+/** One rename-by-hash re-link (§6.3): the record and the file its bytes were found under. */
+export type AssetRelinkPair = { assetId: string; file: string };
+
+export type AssetRelinkParams = { pairs: AssetRelinkPair[] };
+
+export type AssetStoreWorkingCopiesParams = { assetIds: string[] };
+
+/** The most renamed pictures one `asset.relink` batch takes. */
+export const ASSET_RELINK_PAIRS_MAX = 200;
+
+/** The most pictures one `asset.storeWorkingCopies` batch takes. */
+export const ASSET_WORKING_COPIES_MAX = 200;
+
+/* ------------------------------------------------------------------ *
+ * What the picture commands read of a snapshot
+ * ------------------------------------------------------------------ */
+
+/**
+ * The picture uses of a project, as `@caotang/pictures` takes them. The store reads the same function on its own state, so the
+ * descriptor's refusal and the apply's agree on what a use is.
+ */
+export function picturesUsesSnapshot(snapshot: ValidationSnapshot): UsesSnapshot {
+  const inline: { assetId: string; nodeId: string }[] = [];
+  for (const [nodeId, document] of snapshot.documents) {
+    // The registry's own reading of an inline image, linear on a body of unclosed `![` (CodeQL js/polynomial-redos).
+    for (const assetId of inlineAssetIds(document.body)) inline.push({ assetId, nodeId });
+  }
+  // A shot's vendor prompt names pictures in `shot.vendorRefs[vendor].references[].assetId` (video-prompt-pack.md §3); a stored
+  // value is read tolerantly, so a malformed entry is skipped rather than thrown on, as the store's own reading does.
+  const vendor: VendorRef[] = [];
+  for (const node of snapshot.manifest.tree) {
+    for (const assetId of vendorRefAssetIds(node.shot)) vendor.push({ assetId, owner: { kind: 'shot', nodeId: node.id } });
+  }
+  const panels = snapshot.manifest.tree.flatMap((node) =>
+    panelPictureRefs(node.comicPage).map((ref) => ({ assetId: ref.assetId, nodeId: node.id, ...(ref.panelId === undefined ? {} : { panelId: ref.panelId }) })),
+  );
+  return {
+    coverAssetId: snapshot.manifest.project?.coverAssetId,
+    nodes: snapshot.manifest.tree.map((node) => ({ id: node.id, shot: node.shot })),
+    codex: (snapshot.manifest.codex ?? []).map((entry) => ({ id: entry.id, visualRefs: entry.visualRefs })),
+    links: snapshot.manifest.assetLinks ?? [],
+    inline,
+    vendor,
+    panels,
+  };
 }
 
-function sourceField(value: unknown, path: string): Result<AssetImportSource | undefined, CommandError> {
-  if (value === undefined) return ok(undefined);
-  if (!isRecord(value)) return invalid(`params.${path} must be {kind, label?}, got ${showValue(value)}`, undefined, path);
+/** The picture ids a shot's vendor prompts reference, skipping anything malformed. */
+function vendorRefAssetIds(shot: unknown): string[] {
+  if (!isRecord(shot)) return [];
+  const vendorRefs = shot['vendorRefs'];
+  if (!isRecord(vendorRefs)) return [];
+  const ids: string[] = [];
+  for (const entry of Object.values(vendorRefs)) {
+    if (!isRecord(entry)) continue;
+    const references = entry['references'];
+    if (!Array.isArray(references)) continue;
+    for (const reference of references) {
+      if (!isRecord(reference)) continue;
+      const assetId = reference['assetId'];
+      if (isAssetId(assetId)) ids.push(assetId);
+    }
+  }
+  return ids;
+}
+
+function recordOf(snapshot: ValidationSnapshot, assetId: string): ReadAssetRecord | undefined {
+  return (snapshot.manifest.assets ?? []).find((record) => record.id === assetId);
+}
+
+function linkOf(snapshot: ValidationSnapshot, linkId: string): AssetLink | ReadAssetLink | undefined {
+  return (snapshot.manifest.assetLinks ?? []).find((link) => link.id === linkId);
+}
+
+/** A use in the words a refusal quotes. */
+export function describePictureUse(snapshot: ValidationSnapshot, use: PictureUse): string {
+  const title = (nodeId: string): string => snapshot.manifest.tree.find((node) => node.id === nodeId)?.title ?? nodeId;
+  switch (use.kind) {
+    case 'cover':
+      return 'the project cover';
+    case 'shot':
+      return `the picture of the shot "${title(use.nodeId)}"`;
+    case 'codex':
+      return `a visual reference of the codex entry "${snapshot.manifest.codex?.find((entry) => entry.id === use.entryId)?.name ?? use.entryId}"`;
+    case 'inline':
+      return `an inline picture in "${title(use.nodeId)}"`;
+    case 'vendor':
+      return 'a prompt reference';
+    case 'comic-panel':
+      return `a comic panel of "${title(use.nodeId)}"`;
+    case 'link':
+      return `a placement (${use.role}) this build does not know how to remove`;
+  }
+}
+
+const withIssues = (issues: readonly { message: string }[]): string => issues.map((issue) => issue.message).join('; ');
+
+/* ------------------------------------------------------------------ *
+ * Shared readers
+ * ------------------------------------------------------------------ */
+
+function readTarget(value: unknown, snapshot: ValidationSnapshot, path: string): Result<AssetTarget, CommandError> {
+  if (!isRecord(value)) return invalid(`${path} must be an object naming where the picture goes, got ${showValue(value)}`, 'use {kind: "project"} or {kind: "node", nodeId}', path);
+  // A target is checked as the link it will become, so the rules live in one place (`validateAssetLink`).
+  const probe = validateAssetLink({ id: 'l_0000000000', assetId: 'a_0000000000', target: value, role: 'reference', order: 10 });
+  if (!probe.ok) return invalid(`${path}: ${withIssues(probe.issues)}`, 'use {kind: "project"} or {kind: "node", nodeId}', path);
+  const target = probe.value.target;
+  if (target.kind !== 'project' && !snapshot.manifest.tree.some((node) => node.id === target.nodeId)) {
+    return notFound(`${path} names the binder item "${target.nodeId}", which does not exist`, 'choose an item from the binder', path);
+  }
+  return ok(target);
+}
+
+/**
+ * The sources an import may record: the bytes are staged by the host, so they are a file the writer chose, a paste, or an image an
+ * MCP tool handed the host. `scan` and `agent` are records' own kinds (a transcription's page, a picture the agent made) and are
+ * never an import's.
+ */
+const IMPORT_SOURCE_KINDS: readonly (typeof ASSET_SOURCE_KINDS)[number][] = ['import', 'paste', 'mcp'];
+
+function readSource(value: unknown, path: string): Result<AssetSource, CommandError> {
+  if (!isRecord(value)) return invalid(`${path} must be an object, got ${showValue(value)}`, 'use {kind, label?}', path);
   for (const key of Object.keys(value)) {
-    if (key !== 'kind' && key !== 'label') return invalid(`params.${path}.${key} is not a key of a source`, 'a source carries only kind and label', `${path}.${key}`);
+    if (!['kind', 'label', 'server', 'tool', 'url'].includes(key)) return invalid(`${path}.${key} is not a field of a picture's source`, 'a source carries kind, label, server, tool and url', `${path}.${key}`);
   }
   const kind = value['kind'];
-  if (kind !== 'import' && kind !== 'paste') {
-    return invalid(`params.${path}.kind must be "import" or "paste", got ${showValue(kind)}`, 'a picture the writer brings is an import or a paste', `${path}.kind`);
+  if (typeof kind !== 'string' || !(IMPORT_SOURCE_KINDS as readonly string[]).includes(kind)) {
+    return invalid(
+      `${path}.kind must be one of ${IMPORT_SOURCE_KINDS.join(', ')}, got ${showValue(kind)}`,
+      'a picture an import brings is a file the writer chose, a paste, or an image an MCP tool returned to the host',
+      `${path}.kind`,
+    );
   }
-  const label = textField(value['label'], `${path}.label`, SOURCE_LABEL_MAX_CHARS);
-  if (!label.ok) return label;
-  return ok({ kind, ...(label.value === undefined ? {} : { label: label.value }) });
+  const out: Record<string, unknown> = { kind };
+  for (const key of ['label', 'server', 'tool', 'url'] as const) {
+    if (value[key] === undefined) continue;
+    const text = requireString(value, key, key === 'url' ? 2000 : PICTURE_LIMITS.label);
+    if (!text.ok) return invalid(`${path}: ${text.error.message}`, text.error.correctiveHint, `${path}.${key}`);
+    out[key] = text.value;
+  }
+  return ok(out as unknown as AssetSource);
 }
 
-function largePhotosField(value: unknown): Result<AssetLargePhotos | undefined, CommandError> {
+function readImportItem(entry: unknown, snapshot: ValidationSnapshot, path: string, keys: readonly string[]): Result<AssetImportItem, CommandError> {
+  if (!isRecord(entry)) return invalid(`${path} must be an object with a stagingId, got ${showValue(entry)}`, undefined, path);
+  for (const key of Object.keys(entry)) {
+    if (!keys.includes(key)) return invalid(`${path}.${key} is not a key of an import`, `an import carries only ${keys.join(', ')}`, `${path}.${key}`);
+  }
+  const stagingId = requireNonBlankString(entry, 'stagingId', { maxChars: 64 });
+  if (!stagingId.ok) return invalid(`${path}: ${stagingId.error.message}`, stagingId.error.correctiveHint, `${path}.stagingId`);
+  const item: AssetImportItem = { stagingId: stagingId.value };
+  if (entry['caption'] !== undefined) {
+    const caption = requireString(entry, 'caption', PICTURE_LIMITS.caption);
+    if (!caption.ok) return caption.error.code === 'limit-exceeded' ? limitExceeded(`${path}: ${caption.error.message}`, caption.error.correctiveHint, `${path}.caption`) : invalid(`${path}: ${caption.error.message}`, caption.error.correctiveHint, `${path}.caption`);
+    item.caption = caption.value;
+  }
+  if (entry['alt'] !== undefined) {
+    const alt = requireString(entry, 'alt', PICTURE_LIMITS.alt);
+    if (!alt.ok) return alt.error.code === 'limit-exceeded' ? limitExceeded(`${path}: ${alt.error.message}`, alt.error.correctiveHint, `${path}.alt`) : invalid(`${path}: ${alt.error.message}`, alt.error.correctiveHint, `${path}.alt`);
+    item.alt = alt.value;
+  }
+  if (entry['source'] !== undefined) {
+    const source = readSource(entry['source'], `${path}.source`);
+    if (!source.ok) return source;
+    item.source = source.value;
+  }
+  if (entry['links'] !== undefined) {
+    const list = entry['links'];
+    if (!Array.isArray(list)) return invalid(`${path}.links must be an array of targets, got ${showValue(list)}`, undefined, `${path}.links`);
+    if (list.length > ASSET_IMPORT_LINKS_MAX) return limitExceeded(`${path}.links has ${list.length} entries, limit ${ASSET_IMPORT_LINKS_MAX}`, undefined, `${path}.links`);
+    const targets: AssetTarget[] = [];
+    for (const [index, raw] of list.entries()) {
+      const target = readTarget(raw, snapshot, `${path}.links[${index}]`);
+      if (!target.ok) return target;
+      targets.push(target.value);
+    }
+    item.links = targets;
+  }
+  return ok(item);
+}
+
+function readLargePhotos(params: Record<string, unknown>): Result<LargePhotoChoice | undefined, CommandError> {
+  const value = params['largePhotos'];
   if (value === undefined) return ok(undefined);
-  if (value !== 'keep' && value !== 'working-copies') {
-    return invalid(`params.largePhotos must be "keep" or "working-copies", got ${showValue(value)}`, 'answer the large-photo question with one of the two', 'largePhotos');
+  if (typeof value !== 'string' || !(LARGE_PHOTO_CHOICES as readonly string[]).includes(value)) {
+    return invalid(`params.largePhotos must be one of ${LARGE_PHOTO_CHOICES.join(', ')}, got ${showValue(value)}`, 'answer the large-photo question once for the whole import', 'largePhotos');
   }
-  return ok(value);
+  return ok(value as LargePhotoChoice);
 }
 
-/** One import's fields, shared by the single import and each batch item. */
-function itemFields(
-  value: Record<string, unknown>,
-  prefix: string,
-): Result<{ stagingId: string; caption?: string; alt?: string; source?: AssetImportSource }, CommandError> {
-  const stagingId = requireNonBlankString(value, 'stagingId', { maxChars: 64 });
-  if (!stagingId.ok) return invalid(`${prefix}${stagingId.error.message}`, stagingId.error.correctiveHint, `${prefix}stagingId`);
-  const caption = textField(value['caption'], `${prefix}caption`, CAPTION_MAX_CHARS);
-  if (!caption.ok) return caption;
-  const alt = textField(value['alt'], `${prefix}alt`, ALT_MAX_CHARS);
-  if (!alt.ok) return alt;
-  const source = sourceField(value['source'], `${prefix}source`);
-  if (!source.ok) return source;
-  return ok({
-    stagingId: stagingId.value,
-    ...(caption.value === undefined ? {} : { caption: caption.value }),
-    ...(alt.value === undefined ? {} : { alt: alt.value }),
-    ...(source.value === undefined ? {} : { source: source.value }),
-  });
-}
+const ITEM_KEYS = ['stagingId', 'links', 'caption', 'alt', 'source'] as const;
 
-export const assetImport: CommandDescriptor<AssetImportParams> = {
+/* ------------------------------------------------------------------ *
+ * The descriptors
+ * ------------------------------------------------------------------ */
+
+const assetImport: CommandDescriptor<AssetImportParams> = {
   mutates: 'project',
+  // The bytes are a file the writer's host staged, which an agent cannot do, so an agent's call is refused as not-found before anything is written.
   agentRisk: 'write-auto',
-  // The undo removes the record the import made (and nothing when the bytes matched a record already there); the file stays.
+  // The undo removes the record and the links this import made; the file stays, so an undone import can be taken again without a second write.
   undo: 'compensable',
   asyncApply: true,
-  validate: (params): Result<AssetImportParams, CommandError> => {
+  validate: (params, snapshot): Result<AssetImportParams, CommandError> => {
     const p = requireDeclaredParams('asset.import', params);
     if (!p.ok) return p;
-    const item = itemFields(p.value, '');
+    const item = readImportItem(p.value, snapshot, 'params', [...ITEM_KEYS, 'largePhotos']);
     if (!item.ok) return item;
-    const largePhotos = largePhotosField(p.value['largePhotos']);
-    if (!largePhotos.ok) return largePhotos;
-    return ok({ ...item.value, ...(largePhotos.value === undefined ? {} : { largePhotos: largePhotos.value }) });
+    const choice = readLargePhotos(p.value);
+    if (!choice.ok) return choice;
+    return ok({ ...item.value, ...(choice.value === undefined ? {} : { largePhotos: choice.value }) });
   },
 };
 
-export const assetImportBatch: CommandDescriptor<AssetImportBatchParams> = {
+const assetImportBatch: CommandDescriptor<AssetImportBatchParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
+  // One entry for the batch: every record and link it made goes in one Undo.
   undo: 'compensable',
   asyncApply: true,
-  validate: (params): Result<AssetImportBatchParams, CommandError> => {
+  validate: (params, snapshot): Result<AssetImportBatchParams, CommandError> => {
     const p = requireDeclaredParams('asset.importBatch', params);
     if (!p.ok) return p;
     const list = p.value['items'];
     if (!Array.isArray(list) || list.length === 0) {
-      return invalid(`params.items must be a non-empty array of {stagingId, caption?, alt?, source?}, got ${showValue(list)}`, 'pass one entry for each picture', 'items');
+      return invalid(`params.items must be a non-empty array of imports, got ${showValue(list)}`, 'pass one entry for each picture', 'items');
     }
     if (list.length > ASSET_IMPORT_BATCH_MAX) {
       return limitExceeded(`params.items has ${list.length} entries, limit ${ASSET_IMPORT_BATCH_MAX}`, `send at most ${ASSET_IMPORT_BATCH_MAX} pictures at once`, 'items');
     }
-    const items: AssetImportBatchParams['items'] = [];
-    const staged = new Set<string>();
+    const items: AssetImportItem[] = [];
+    const seen = new Set<string>();
     for (const [index, entry] of list.entries()) {
-      if (!isRecord(entry)) return invalid(`params.items[${index}] must be an object {stagingId, caption?, alt?, source?}, got ${showValue(entry)}`, undefined, `items[${index}]`);
-      for (const key of Object.keys(entry)) {
-        if (!ITEM_KEYS.has(key)) return invalid(`params.items[${index}].${key} is not a key of an item`, 'an item carries stagingId, caption, alt and source', `items[${index}].${key}`);
-      }
-      const item = itemFields(entry, `items[${index}].`);
+      const item = readImportItem(entry, snapshot, `params.items[${index}]`, ITEM_KEYS);
       if (!item.ok) return item;
-      if (staged.has(item.value.stagingId)) return invalid(`params.items names the staged picture "${item.value.stagingId}" more than once`, 'name each staged picture once', `items[${index}].stagingId`);
-      staged.add(item.value.stagingId);
+      if (seen.has(item.value.stagingId)) {
+        return invalid(`params.items names the staged picture "${item.value.stagingId}" more than once`, 'give each staged picture one entry', `items[${index}].stagingId`);
+      }
+      seen.add(item.value.stagingId);
       items.push(item.value);
     }
-    const largePhotos = largePhotosField(p.value['largePhotos']);
-    if (!largePhotos.ok) return largePhotos;
-    return ok({ items, ...(largePhotos.value === undefined ? {} : { largePhotos: largePhotos.value }) });
+    const choice = readLargePhotos(p.value);
+    if (!choice.ok) return choice;
+    return ok({ items, ...(choice.value === undefined ? {} : { largePhotos: choice.value }) });
   },
 };
 
-/** One patch (or expect) object: the five keys, each absent, `null`, or a value within its limit. */
-function metaPatch(value: unknown, path: 'patch' | 'expect'): Result<AssetMetaPatch, CommandError> {
-  if (!isRecord(value)) return invalid(`params.${path} must be an object, got ${showValue(value)}`, `name at least one of: ${PATCH_KEYS.join(', ')}`, path);
-  const out: AssetMetaPatch = {};
-  for (const key of Object.keys(value)) {
-    if (!(PATCH_KEYS as readonly string[]).includes(key)) return invalid(`params.${path}.${key} is not a picture field`, `the fields are ${PATCH_KEYS.join(', ')}`, `${path}.${key}`);
+/** The fields of a record a patch can name, read off a record the way `expect` states them. */
+function recordFieldValue(record: ReadAssetRecord, key: keyof RecordPatch): unknown {
+  switch (key) {
+    case 'sourceLabel':
+      return record.source?.label ?? null;
+    case 'decorative':
+      return record.decorative ?? null;
+    default:
+      return record[key] ?? null;
   }
-  for (const key of PATCH_KEYS) {
-    const field = value[key];
-    if (field === undefined) continue;
-    if (field === null) {
-      out[key] = null;
-      continue;
-    }
-    if (key === 'decorative') {
-      if (typeof field !== 'boolean') return invalid(`params.${path}.decorative must be true, false or null, got ${describe(field)}`, undefined, `${path}.decorative`);
-      out.decorative = field;
-    } else if (key === 'tags') {
-      if (!validTags(field)) {
-        return invalid(
-          `params.${path}.tags must be at most ${TAGS_MAX} distinct, non-blank tags of at most ${TAG_MAX_CHARS} characters`,
-          'drop the repeated, blank or long tags',
-          `${path}.tags`,
-        );
-      }
-      out.tags = [...field];
-    } else {
-      const max = key === 'caption' ? CAPTION_MAX_CHARS : key === 'alt' ? ALT_MAX_CHARS : SOURCE_LABEL_MAX_CHARS;
-      const text = textField(field, `${path}.${key}`, max);
-      if (!text.ok) return text;
-      out[key] = text.value ?? null;
-    }
-  }
-  return ok(out);
 }
 
-export const assetSetMeta: CommandDescriptor<AssetSetMetaParams> = {
+const sameValue = (a: unknown, b: unknown): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+function conflict(what: string, key: string): Result<never, CommandError> {
+  return err({
+    code: 'revision-conflict',
+    message: `${what} changed since it was read (${key} is no longer what the change expected), so nothing was changed`,
+    target: 'expect',
+    correctiveHint: 'read the picture again and resend the change against what it holds now',
+  });
+}
+
+const assetSetMeta: CommandDescriptor<AssetSetMetaParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
-  undo: 'inverse',
-  validate: (params): Result<AssetSetMetaParams, CommandError> => {
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetSetMetaParams, CommandError> => {
     const p = requireDeclaredParams('asset.setMeta', params);
     if (!p.ok) return p;
     const assetId = requireNonBlankString(p.value, 'assetId', { maxChars: 64 });
     if (!assetId.ok) return assetId;
-    const patch = metaPatch(p.value['patch'], 'patch');
-    if (!patch.ok) return patch;
-    const keys = Object.keys(patch.value);
-    if (keys.length === 0) return invalid('the patch sets nothing', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
-    const expect = metaPatch(p.value['expect'], 'expect');
-    if (!expect.ok) return expect;
-    const expectKeys = Object.keys(expect.value).sort();
-    if (expectKeys.join(',') !== [...keys].sort().join(',')) {
-      return invalid('params.expect must name the same fields as the patch, each with its value now (null for none)', 'read the picture again and send what it holds', 'expect');
+    const patch = validateRecordPatch(p.value['patch']);
+    if (!patch.ok) return invalid(`params.patch: ${withIssues(patch.issues)}`, 'a patch carries caption, alt, decorative, tags and sourceLabel; a link\'s note belongs to asset.setLinkMeta', 'patch');
+    const record = recordOf(snapshot, assetId.value);
+    if (record === undefined) return notFound(`there is no picture "${assetId.value}"`, 'choose a picture from the library', 'assetId');
+    const out: AssetSetMetaParams = { assetId: assetId.value, patch: patch.value };
+    if (p.value['expect'] !== undefined) {
+      const expect = p.value['expect'];
+      if (!isRecord(expect)) return invalid(`params.expect must be an object of the values the patch replaces, got ${showValue(expect)}`, undefined, 'expect');
+      for (const [key, value] of Object.entries(expect)) {
+        if (!(key in patch.value)) return invalid(`params.expect.${key} is not a field this patch changes`, 'expect names only the fields the patch names', `expect.${key}`);
+        if (!sameValue(recordFieldValue(record, key as keyof RecordPatch), value)) return conflict(`the picture "${assetId.value}"`, key);
+      }
+      out.expect = expect as RecordPatch;
     }
-    return ok({ assetId: assetId.value, patch: patch.value, expect: expect.value });
+    return ok(out);
   },
 };
+
+const assetSetLinkMeta: CommandDescriptor<AssetSetLinkMetaParams> = {
+  mutates: 'project',
+  agentRisk: 'write-auto',
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetSetLinkMetaParams, CommandError> => {
+    const p = requireDeclaredParams('asset.setLinkMeta', params);
+    if (!p.ok) return p;
+    const linkId = requireNonBlankString(p.value, 'linkId', { maxChars: 64 });
+    if (!linkId.ok) return linkId;
+    const patch = validateLinkNotePatch(p.value['patch']);
+    if (!patch.ok) return invalid(`params.patch: ${withIssues(patch.issues)}`, 'a link patch carries a note, or null to clear it', 'patch');
+    const link = linkOf(snapshot, linkId.value);
+    if (link === undefined) return notFound(`there is no placement "${linkId.value}"`, 'choose a placement from the picture\'s uses', 'linkId');
+    const out: AssetSetLinkMetaParams = { linkId: linkId.value, patch: patch.value };
+    if (p.value['expect'] !== undefined) {
+      const expect = validateLinkNotePatch(p.value['expect']);
+      if (!expect.ok) return invalid(`params.expect: ${withIssues(expect.issues)}`, 'expect is {note: the note it holds now, or null}', 'expect');
+      if (!sameValue(link.note, expect.value.note)) return conflict(`the placement "${linkId.value}"`, 'note');
+      out.expect = expect.value;
+    }
+    return ok(out);
+  },
+};
+
+const assetLink: CommandDescriptor<AssetLinkParams> = {
+  mutates: 'project',
+  agentRisk: 'write-auto',
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetLinkParams, CommandError> => {
+    const p = requireDeclaredParams('asset.link', params);
+    if (!p.ok) return p;
+    const assetId = requireNonBlankString(p.value, 'assetId', { maxChars: 64 });
+    if (!assetId.ok) return assetId;
+    if (recordOf(snapshot, assetId.value) === undefined) return notFound(`there is no picture "${assetId.value}"`, 'choose a picture from the library', 'assetId');
+    const target = readTarget(p.value['target'], snapshot, 'params.target');
+    if (!target.ok) return target;
+    let role: AssetLinkRole | undefined;
+    if (p.value['role'] !== undefined) {
+      const given = p.value['role'];
+      if (typeof given !== 'string' || !(ASSET_LINK_ROLES as readonly string[]).includes(given)) {
+        return invalid(`params.role must be one of ${ASSET_LINK_ROLES.join(', ')}, got ${showValue(given)}`, undefined, 'role');
+      }
+      role = given as AssetLinkRole;
+    }
+    let note: string | undefined;
+    if (p.value['note'] !== undefined) {
+      const text = requireString(p.value, 'note', PICTURE_LIMITS.note);
+      if (!text.ok) return text;
+      note = text.value;
+    }
+    // The placement is tried on the project's own links, so a refusal here is the one the apply would have made.
+    const tried = placeLink(snapshot.manifest.assetLinks ?? [], {
+      assetId: assetId.value,
+      target: target.value,
+      id: 'l_0000000000',
+      ...(role === undefined ? {} : { role }),
+      ...(note === undefined ? {} : { note }),
+    });
+    if (!tried.ok) return invalid(`params: ${withIssues(tried.issues)}`, 'check where the picture is already placed', 'target');
+    return ok({ assetId: assetId.value, target: target.value, ...(role === undefined ? {} : { role }), ...(note === undefined ? {} : { note }) });
+  },
+};
+
+const assetUnlink: CommandDescriptor<AssetUnlinkParams> = {
+  mutates: 'project',
+  agentRisk: 'write-auto',
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetUnlinkParams, CommandError> => {
+    const p = requireDeclaredParams('asset.unlink', params);
+    if (!p.ok) return p;
+    const linkId = requireNonBlankString(p.value, 'linkId', { maxChars: 64 });
+    if (!linkId.ok) return linkId;
+    if (linkOf(snapshot, linkId.value) === undefined) return notFound(`there is no placement "${linkId.value}"`, 'choose a placement from the picture\'s uses', 'linkId');
+    return ok({ linkId: linkId.value });
+  },
+};
+
+const assetMakeDocumentLevel: CommandDescriptor<AssetMakeDocumentLevelParams> = {
+  mutates: 'project',
+  agentRisk: 'write-auto',
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetMakeDocumentLevelParams, CommandError> => {
+    const p = requireDeclaredParams('asset.makeDocumentLevel', params);
+    if (!p.ok) return p;
+    const linkId = requireNonBlankString(p.value, 'linkId', { maxChars: 64 });
+    if (!linkId.ok) return linkId;
+    const link = linkOf(snapshot, linkId.value);
+    if (link === undefined) return notFound(`there is no placement "${linkId.value}"`, 'choose a placement from the picture\'s uses', 'linkId');
+    const target = link.target as { readonly kind?: unknown; readonly orphaned?: unknown };
+    if (target.kind !== 'paragraph' || target.orphaned !== true) {
+      return invalid('asset.makeDocumentLevel needs a placement whose paragraph is lost', 'choose a placement under Lost their paragraph', 'linkId');
+    }
+    return ok({ linkId: linkId.value });
+  },
+};
+
+const assetReorderLinks: CommandDescriptor<AssetReorderLinksParams> = {
+  mutates: 'project',
+  agentRisk: 'write-auto',
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetReorderLinksParams, CommandError> => {
+    const p = requireDeclaredParams('asset.reorderLinks', params);
+    if (!p.ok) return p;
+    const target = readTarget(p.value['target'], snapshot, 'params.target');
+    if (!target.ok) return target;
+    const list = p.value['orderedIds'];
+    if (!Array.isArray(list) || list.some((id) => typeof id !== 'string')) {
+      return invalid(`params.orderedIds must be an array of placement ids, got ${showValue(list)}`, 'list every placement of the target, in the new order', 'orderedIds');
+    }
+    const orderedIds = list as string[];
+    const tried = reorderLinks(snapshot.manifest.assetLinks ?? [], target.value, orderedIds);
+    if (!tried.ok) return invalid(`params.orderedIds: ${withIssues(tried.issues)}`, 'list every placement of the target exactly once', 'orderedIds');
+    return ok({ target: target.value, orderedIds });
+  },
+};
+
+const assetRepin: CommandDescriptor<AssetRepinParams> = {
+  mutates: 'project',
+  // §2.3's activation action: an orphaned or moved paragraph anchor is re-captured from a selection, in the document's own
+  // UTF-16 offsets. Only the placement's anchor moves; one Undo puts the captured anchor back.
+  agentRisk: 'write-auto',
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetRepinParams, CommandError> => {
+    const p = requireDeclaredParams('asset.repin', params);
+    if (!p.ok) return p;
+    const linkId = requireNonBlankString(p.value, 'linkId', { maxChars: 64 });
+    if (!linkId.ok) return linkId;
+    const link = linkOf(snapshot, linkId.value);
+    if (link === undefined) return notFound(`there is no placement "${linkId.value}"`, 'choose a placement from the picture\'s uses', 'linkId');
+    const target = link.target as { kind?: unknown; nodeId?: unknown };
+    if (target.kind !== 'paragraph') {
+      return invalid(`the placement "${linkId.value}" is not anchored to a paragraph, so there is nothing to re-pin`, 're-pin only a placement a paragraph holds', 'linkId');
+    }
+    const raw = p.value['selection'];
+    if (!isRecord(raw) || typeof raw['from'] !== 'number' || typeof raw['to'] !== 'number') {
+      return invalid(`params.selection must be {from, to} in the document's own offsets, got ${showValue(raw)}`, 'select a paragraph in the document, then re-pin', 'selection');
+    }
+    const from = raw['from'];
+    const to = raw['to'];
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < from) {
+      return invalid(`params.selection is ${showValue(raw)}; its offsets must be whole numbers with from ≥ 0 and to ≥ from`, 'select a paragraph in the document, then re-pin', 'selection');
+    }
+    const document = typeof target.nodeId === 'string' ? snapshot.documents.get(target.nodeId) : undefined;
+    if (document === undefined) return notFound(`the document of the placement "${linkId.value}" is no longer in the project`, 'choose a placement whose document still exists', 'linkId');
+    if (from > document.body.length) {
+      return invalid(`params.selection.from is ${from}, past the end of the document (${document.body.length} characters)`, 'select a paragraph in the document, then re-pin', 'selection.from');
+    }
+    return ok({ linkId: linkId.value, selection: { from, to } });
+  },
+};
+
+const assetDelete: CommandDescriptor<AssetDeleteParams> = {
+  mutates: 'project',
+  // The record and its placements go; the file stays until a sweep. The writer confirms, and the one Undo puts the record and every placement back in order.
+  agentRisk: 'write-confirm',
+  undo: 'compensable',
+  validate: (params, snapshot): Result<AssetDeleteParams, CommandError> => {
+    const p = requireDeclaredParams('asset.delete', params);
+    if (!p.ok) return p;
+    const assetId = requireNonBlankString(p.value, 'assetId', { maxChars: 64 });
+    if (!assetId.ok) return assetId;
+    if (recordOf(snapshot, assetId.value) === undefined) return notFound(`there is no picture "${assetId.value}"`, 'choose a picture from the library', 'assetId');
+    const blockers = deletionBlockers(collectUses(picturesUsesSnapshot(snapshot)).get(assetId.value) ?? []);
+    if (blockers.length > 0) {
+      const named = blockers.map((use) => describePictureUse(snapshot, use));
+      return err({
+        code: 'invalid-params',
+        message: `the picture "${assetId.value}" is still used as ${named.join(', ')}, so it was not deleted`,
+        target: 'assetId',
+        correctiveHint: 'take the picture off those uses first, then delete it',
+        details: { uses: blockers },
+      });
+    }
+    return ok({ assetId: assetId.value });
+  },
+};
+
+const assetSweep: CommandDescriptor<AssetSweepParams> = {
+  mutates: 'project',
+  // The destructive class (pictures.md §2.4, §6.6.1): writer-confirmed, **not undoable**, and no harness row — an agent never
+  // dispatches it. `never` is that sentence in the bus's own vocabulary: no plan and no card approves it for an agent. The apply
+  // refuses whole unless every retention root enumerated, and removes only files no record, no use and no root names.
+  agentRisk: 'never',
+  undo: 'none',
+  asyncApply: true,
+  validate: (params): Result<AssetSweepParams, CommandError> => {
+    const p = requireDeclaredParams('asset.sweep', params);
+    if (!p.ok) return p;
+    return ok({});
+  },
+};
+
+const assetRelink: CommandDescriptor<AssetRelinkParams> = {
+  mutates: 'project',
+  // Load-time "renamed outside Caotang" re-link by hash (§6.3): metadata only, after the bytes are verified to hash to the record's
+  // sha256. One undo puts the old file names back.
+  agentRisk: 'write-auto',
+  undo: 'compensable',
+  asyncApply: true,
+  validate: (params, snapshot): Result<AssetRelinkParams, CommandError> => {
+    const p = requireDeclaredParams('asset.relink', params);
+    if (!p.ok) return p;
+    const list = p.value['pairs'];
+    if (!Array.isArray(list) || list.length === 0) {
+      return invalid(`params.pairs must be a non-empty array of {assetId, file}, got ${showValue(list)}`, 'one pair per renamed picture', 'pairs');
+    }
+    if (list.length > ASSET_RELINK_PAIRS_MAX) {
+      return limitExceeded(`params.pairs has ${list.length} entries, limit ${ASSET_RELINK_PAIRS_MAX}`, `send at most ${ASSET_RELINK_PAIRS_MAX} pairs at once`, 'pairs');
+    }
+    const pairs: AssetRelinkPair[] = [];
+    const seen = new Set<string>();
+    for (const [index, entry] of list.entries()) {
+      if (!isRecord(entry)) return invalid(`params.pairs[${index}] must be an object with assetId and file, got ${showValue(entry)}`, undefined, `pairs[${index}]`);
+      for (const key of Object.keys(entry)) {
+        if (!['assetId', 'file'].includes(key)) return invalid(`params.pairs[${index}].${key} is not a key of a re-link pair`, 'a pair carries only assetId and file', `pairs[${index}].${key}`);
+      }
+      const assetId = requireNonBlankString(entry, 'assetId', { maxChars: 64 });
+      if (!assetId.ok) return invalid(`params.pairs[${index}]: ${assetId.error.message}`, assetId.error.correctiveHint, `pairs[${index}].assetId`);
+      if (seen.has(assetId.value)) return invalid(`params.pairs names the picture "${assetId.value}" more than once`, 'give each renamed picture one pair', `pairs[${index}].assetId`);
+      const file = requireNonBlankString(entry, 'file', { maxChars: 128 });
+      if (!file.ok) return invalid(`params.pairs[${index}]: ${file.error.message}`, file.error.correctiveHint, `pairs[${index}].file`);
+      const record = recordOf(snapshot, assetId.value);
+      if (record === undefined) return notFound(`there is no picture "${assetId.value}"`, 'choose a picture from the library', `pairs[${index}].assetId`);
+      const parsed = parseAssetFileName(file.value);
+      if (parsed === undefined) {
+        return invalid(`params.pairs[${index}].file must be an asset file name (a_XXXXXXXXXX.png, .jpg or .webp), got ${showValue(file.value)}`, undefined, `pairs[${index}].file`);
+      }
+      // The file may carry a different stem: a file renamed outside Caotang keeps whatever picture name it was given, and the
+      // bytes are what the apply verifies (§6.3). Its extension must still be the record MIME's, so the record keeps loading on
+      // reopen (`isRecordFileName`, the same rule both record readers apply). A file another record already names cannot be this
+      // one's new name.
+      if (!isRecordFileName(file.value, record.mime)) {
+        return invalid(`params.pairs[${index}].file "${file.value}" is not a ${record.mime} file, the type the picture "${assetId.value}" was stored as`, 're-link only to a file of the same type', `pairs[${index}].file`);
+      }
+      if (file.value === record.file) return invalid(`the picture "${assetId.value}" already names the file "${file.value}", so there is nothing to re-link`, undefined, `pairs[${index}].file`);
+      if ((snapshot.manifest.assets ?? []).some((other) => other.file === file.value)) {
+        return invalid(`the file "${file.value}" is another picture's file, so it cannot be this one's new name`, 're-link only to a file no record names', `pairs[${index}].file`);
+      }
+      seen.add(assetId.value);
+      pairs.push({ assetId: assetId.value, file: file.value });
+    }
+    return ok({ pairs });
+  },
+};
+
+const assetStoreWorkingCopies: CommandDescriptor<AssetStoreWorkingCopiesParams> = {
+  mutates: 'project',
+  // The bulk working-copy action (§6.4 step 3, §6.5's *Store working copies*): new immutable files are written and every supported
+  // reference is rewritten in one batch, so the writer confirms and one undo puts every reference and record back.
+  agentRisk: 'write-confirm',
+  undo: 'compensable',
+  asyncApply: true,
+  validate: (params, snapshot): Result<AssetStoreWorkingCopiesParams, CommandError> => {
+    const p = requireDeclaredParams('asset.storeWorkingCopies', params);
+    if (!p.ok) return p;
+    const list = p.value['assetIds'];
+    if (!Array.isArray(list) || list.length === 0) {
+      return invalid(`params.assetIds must be a non-empty array of picture ids, got ${showValue(list)}`, 'name the pictures to store as working copies', 'assetIds');
+    }
+    if (list.length > ASSET_WORKING_COPIES_MAX) {
+      return limitExceeded(`params.assetIds has ${list.length} entries, limit ${ASSET_WORKING_COPIES_MAX}`, `send at most ${ASSET_WORKING_COPIES_MAX} pictures at once`, 'assetIds');
+    }
+    const assetIds: string[] = [];
+    const seen = new Set<string>();
+    for (const [index, raw] of list.entries()) {
+      if (typeof raw !== 'string' || !isAssetId(raw)) {
+        return invalid(`params.assetIds[${index}] must be a picture id (a_…), got ${showValue(raw)}`, 'choose pictures from the library', `assetIds[${index}]`);
+      }
+      if (seen.has(raw)) return invalid(`params.assetIds names the picture "${raw}" more than once`, 'name each picture once', `assetIds[${index}]`);
+      const record = recordOf(snapshot, raw);
+      if (record === undefined) return notFound(`there is no picture "${raw}"`, 'choose a picture from the library', `assetIds[${index}]`);
+      if (record.workingCopy !== undefined) {
+        return invalid(`the picture "${raw}" is already stored as a working copy`, 'choose a picture that is still stored as imported', `assetIds[${index}]`);
+      }
+      seen.add(raw);
+      assetIds.push(raw);
+    }
+    return ok({ assetIds });
+  },
+};
+
+export const pictureCommands = {
+  assetImport,
+  assetImportBatch,
+  assetSetMeta,
+  assetSetLinkMeta,
+  assetLink,
+  assetUnlink,
+  assetMakeDocumentLevel,
+  assetRepin,
+  assetReorderLinks,
+  assetDelete,
+  assetSweep,
+  assetRelink,
+  assetStoreWorkingCopies,
+} as const;

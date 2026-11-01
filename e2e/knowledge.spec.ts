@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, countOf, createProject, traceNames, waitForSaved } from './support.js';
+import { binderRow, binderTitle, countOf, createProject, traceNames, waitForSaved, withoutIsolates } from './support.js';
 
 /**
  * Knowledge (coherence.md §4.4): a writer states a fact in the Findings tab, declares in the Inspector that a character knows
@@ -75,9 +75,9 @@ test('a character who knows a fact before the scene that teaches it is reported,
   // Scene A shows Anna knowing it; Scene B is where she learns it. The pickers are native controls, reached by keyboard.
   await page.getByRole('tab', { name: 'Binder' }).click();
   await declare(page, 'Scene A', 'Knows');
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true })).toContainText('Anna: Mara is the heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true }).textContent())).toContain('Anna: Mara is the heir');
   await declare(page, 'Scene B', 'Learns');
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true })).toContainText('Anna: Mara is the heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true }).textContent())).toContain('Anna: Mara is the heir');
   await expect.poll(() => countOf(page, 'coherence.setSceneMeta')).toBe(2);
 
   // The ledger lists where she learns it and where she is shown knowing it, each scene a button.
@@ -88,7 +88,9 @@ test('a character who knows a fact before the scene that teaches it is reported,
   // The scan names the order the writer declared.
   await page.getByRole('button', { name: 'Scan the manuscript' }).click();
   const errors = page.getByTestId('findings-panel').getByRole('region', { name: 'Errors' });
-  await expect(errors).toContainText('Anna knows that "Mara is the heir" in "Scene A", but learns it only in "Scene B"');
+  await expect
+    .poll(async () => withoutIsolates(await errors.textContent()))
+    .toContain('"Anna" knows that "Mara is the heir" in "Scene A", but learns it only in "Scene B"');
   await expect(page.getByTestId('findings-open')).toHaveText('1 open');
 
   // Fixing the order: she learns it in Scene A and is shown knowing it in Scene B.
@@ -142,14 +144,14 @@ test('removing a fact takes its declarations with it, and one undo brings them a
   await page.getByRole('tab', { name: 'Binder' }).click();
   await binderTitle(page, 'Scene A').click();
   await openDeclarations(page);
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true })).toContainText('None declared.');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true }).textContent())).toContain('None declared.');
   expect(await countOf(page, 'coherence.removeKnowledgeFact')).toBe(1);
 
   // One undo puts the fact and both declarations back.
   await page.keyboard.press('Control+z');
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true })).toContainText('Anna: Mara is the rightful heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true }).textContent())).toContain('Anna: Mara is the rightful heir');
   await binderTitle(page, 'Scene B').click();
   await openDeclarations(page);
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true })).toContainText('Anna: Mara is the rightful heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true }).textContent())).toContain('Anna: Mara is the rightful heir');
   expect((await traceNames(page)).filter((name) => name === 'coherence.removeKnowledgeFact')).toHaveLength(1);
 });

@@ -13,6 +13,8 @@
  * (see `CodexMentions.countsIn`).
  */
 
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg } from '@lingui/core/macro';
 import { CODEX_TYPE_ORDER, createMentionIndex, type MentionIndex } from '@caotang/codex';
 import {
   getBody,
@@ -39,20 +41,30 @@ export const TYPE_LABELS: Readonly<Record<string, string>> = {
 /** codex.md §5's four states, in the order §5 lists them. */
 export const POLICY_ORDER: readonly CodexIncludePolicy[] = ['always', 'detected', 'manual', 'never'];
 
-export const POLICY_LABELS: Readonly<Record<CodexIncludePolicy, string>> = {
-  always: 'Always',
-  detected: 'Detected',
-  manual: 'Manual',
-  never: 'Never',
-};
+const POLICY_LABELS = {
+  always: msg`Always`,
+  detected: msg`Detected`,
+  manual: msg`Manual`,
+  never: msg`Never`,
+} satisfies Readonly<Record<CodexIncludePolicy, MessageDescriptor>>;
 
 /** What each state does to a generation call, in the words codex.md §5 uses. */
-export const POLICY_HELP: Readonly<Record<CodexIncludePolicy, string>> = {
-  always: 'Sent with every generation, whether or not it is mentioned.',
-  detected: 'Sent when its name or an alias appears in the text being written.',
-  manual: 'Sent only in the documents it is attached to.',
-  never: 'Never sent. Use it for private notes and spoilers.',
-};
+const POLICY_HELP = {
+  always: msg`Sent with every generation, whether or not it is mentioned.`,
+  detected: msg`Sent when its name or an alias appears in the text being written.`,
+  manual: msg`Sent only in the documents it is attached to.`,
+  never: msg`Never sent. Use it for private notes and spoilers.`,
+} satisfies Readonly<Record<CodexIncludePolicy, MessageDescriptor>>;
+
+/** The label for an include policy, in the current interface language. */
+export function policyLabel(policy: CodexIncludePolicy): string {
+  return i18n._(POLICY_LABELS[policy]);
+}
+
+/** What the policy does to a generation call, in the current interface language. */
+export function policyHelp(policy: CodexIncludePolicy): string {
+  return i18n._(POLICY_HELP[policy]);
+}
 
 /** The search box and the chips. An empty set of types or policies means "all of them". */
 export interface CodexFilter {

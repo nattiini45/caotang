@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Screenplay and storyboard checks — [screenplay.md §4](../../../../docs/architecture/screenplay.md) and
  * [storyboard.md §5](../../../../docs/architecture/storyboard.md): `script.cue-collision`, `script.cue-consistency`
@@ -68,6 +69,11 @@ export function checkCueCollision(input: CheckInput): CheckOutput {
         factGroup: groupKey(cueKey(name), 'cue-unmatched'),
         evidence: [passageAt(scene, element.range.from, element.range.to)],
         message: `The cue "${name}" in "${scene.title}" matches no codex entry`,
+        messageRef: {
+          id: 'coherence.script.cueUnmatched',
+          message: 'The cue "{cue}" in "{sceneTitle}" matches no codex entry',
+          values: { cue: name, sceneTitle: scene.title },
+        },
         expected: 'a codex entry for this character, or an alias that names the cue',
       });
     }
@@ -112,6 +118,11 @@ export function checkCueConsistency(input: CheckInput): CheckOutput {
         factGroup: groupKey(key, 'cue-spelling'),
         evidence: [headEvidence(scene)],
         message: `${listed} are cued as one character; "${scene.title}" cues ${quoteList(own)}`,
+        messageRef: {
+          id: 'coherence.script.cueSpelling',
+          message: '{spellings} are cued as one character; "{sceneTitle}" cues {ownSpellings}',
+          values: { spellings: listed, sceneTitle: scene.title, ownSpellings: quoteList(own) },
+        },
         expected: 'one spelling for each character, with the others kept as aliases',
       });
     }
@@ -157,6 +168,11 @@ export function checkShotCoverage(input: CheckInput): CheckOutput {
       factGroup: groupKey(shot.id, 'duration-missing'),
       evidence: [],
       message: `"${shot.title}" has no duration, so it is left out of the animatic totals`,
+      messageRef: {
+        id: 'coherence.script.durationMissing',
+        message: '"{shotTitle}" has no duration, so it is left out of the animatic totals',
+        values: { shotTitle: shot.title },
+      },
       expected: 'a duration in seconds for the shot',
     });
   }
@@ -199,6 +215,11 @@ export function checkShotCoverage(input: CheckInput): CheckOutput {
           factGroup: groupKey(scene.docId, `uncovered|${slot}#${ordinal}`),
           evidence: [passageAt(scene, element.range.from, element.range.to)],
           message: `The ${kind} at this point in "${scene.title}" is covered by no shot`,
+          messageRef: {
+            id: 'coherence.script.uncovered',
+            message: 'The {kind} at this point in "{sceneTitle}" is covered by no shot',
+            values: { kind, sceneTitle: scene.title },
+          },
           expected: 'a shot whose dialogue coverage includes this line',
         });
       }
@@ -213,6 +234,11 @@ export function checkShotCoverage(input: CheckInput): CheckOutput {
       factGroup: groupKey(shot.id, `anchor-drift|${exact}`),
       evidence: [headEvidence(scene)],
       message: `A dialogue anchor of "${shot.title}" no longer matches the text of "${scene.title}"`,
+      messageRef: {
+        id: 'coherence.script.anchorDrift',
+        message: 'A dialogue anchor of "{shotTitle}" no longer matches the text of "{sceneTitle}"',
+        values: { shotTitle: shot.title, sceneTitle: scene.title },
+      },
       expected: 're-anchor the coverage to the passage it names',
     });
   }

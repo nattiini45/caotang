@@ -12,6 +12,7 @@ import { createAgentPorts, createAgentSession, createContextPort, createHarness,
 import { FRIEND, STORM, clock, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, steps, transcript } from './scripts.js';
+import { textOf } from '@caotang/gateway';
 
 const NOTE = 'Note from the writer, sent while you were working: ';
 
@@ -49,7 +50,7 @@ async function fixture(
 }
 
 const notesIn = (request: ChatRequest | undefined): string[] =>
-  (request?.messages ?? []).filter((message) => message.role === 'user' && message.content.startsWith(NOTE)).map((message) => message.content);
+  (request?.messages ?? []).filter((message) => message.role === 'user' && textOf(message.content).startsWith(NOTE)).map((message) => textOf(message.content));
 
 const READ = steps({ tool: 'binder.read_tree', params: { root: 'manuscript' }, expect: 'the binder is read' });
 
@@ -69,8 +70,8 @@ describe('steering a running turn', () => {
     expect(notesIn(first)).toEqual([]);
     expect(notesIn(second)).toEqual([`${NOTE}Keep Elena out of the answer.`]);
     // The note follows the results the model asked for, so it reads as an answer to them.
-    const results = second?.messages.findIndex((message) => message.role === 'user' && message.content.startsWith('Tool results:')) ?? -1;
-    const noted = second?.messages.findIndex((message) => message.content.startsWith(NOTE)) ?? -1;
+    const results = second?.messages.findIndex((message) => message.role === 'user' && textOf(message.content).startsWith('Tool results:')) ?? -1;
+    const noted = second?.messages.findIndex((message) => textOf(message.content).startsWith(NOTE)) ?? -1;
     expect(noted).toBeGreaterThan(results);
     expect(report.steering).toEqual([{ noteId: 'steer.turn-1.note-1', text: 'Keep Elena out of the answer.', deliveredAtCall: 2 }]);
     expect(f.events.filter((event) => event.type === 'steer')).toEqual([
@@ -167,8 +168,8 @@ describe('a note sent while a card waits', () => {
     expect(report.status).toBe('replied');
     expect(f.seen).toHaveLength(2);
     const second = f.seen[1]?.messages ?? [];
-    const cancelled = second.findIndex((message) => message.role === 'user' && message.content.startsWith('The writer cancelled the plan'));
-    const noted = second.findIndex((message) => message.content === `${NOTE}Skip The Friend.`);
+    const cancelled = second.findIndex((message) => message.role === 'user' && textOf(message.content).startsWith('The writer cancelled the plan'));
+    const noted = second.findIndex((message) => textOf(message.content) === `${NOTE}Skip The Friend.`);
     expect(cancelled).toBeGreaterThan(-1);
     expect(noted).toBeGreaterThan(cancelled);
     expect(report.steering).toEqual([{ noteId: 'steer.turn-1.note-1', text: 'Skip The Friend.', deliveredAtCall: 2 }]);

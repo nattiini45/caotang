@@ -4,19 +4,29 @@
  * Cancel drops it. Nothing has been spent when this shows but the planner's own call.
  */
 
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import type { ReactNode } from 'react';
 
 import type { AgentController, OfferView } from '../app/agent.js';
 
+/* lingui-set comment="Interpolated values: calls, cap" */
+
 export function PlanOfferCard({ agent, view }: { agent: AgentController; view: OfferView }): ReactNode {
   const { offer, unavailable, error } = view;
   const over = offer.estimatedCalls > offer.turnCap;
+  const calls = offer.estimatedCalls;
+  const cap = offer.turnCap;
+  const first = over
+    ? t`Run now drafts in this turn, which may make at most ${{ cap }} model calls, so it would stop short of the end of this plan.`
+    : t`Run now drafts in this turn, which may make at most ${{ cap }} model calls.`;
+  const second = t`Run in background drafts one call at a time while you keep writing, up to ${{ calls }} calls. Nothing is applied until you review the drafts.`;
   return (
-    <section className="plan-card is-live plan-offer" aria-label="Run this plan" data-testid="plan-offer">
+    <section className="plan-card is-live plan-offer" aria-label={t`Run this plan`} data-testid="plan-offer">
       <header className="plan-head">
-        <h3>This plan needs {offer.estimatedCalls} model calls</h3>
+        <h3>{t`This plan needs ${{ calls }} ${plural(calls, { one: 'model call', other: 'model calls' })}`}</h3>
       </header>
-      <ol className="plan-offer-steps" aria-label="Steps">
+      <ol className="plan-offer-steps" aria-label={t`Steps`}>
         {offer.steps.map((step, index) => (
           <li key={`${index}:${step.tool}`}>
             <span className="muted">{step.tool}</span> {step.expect}
@@ -24,11 +34,11 @@ export function PlanOfferCard({ agent, view }: { agent: AgentController; view: O
         ))}
       </ol>
       <p className="plan-offer-calls">
-        Run now drafts in this turn, which may make at most {offer.turnCap} model calls{over ? ', so it would stop short of the end of this plan' : ''}.
-        Run in background drafts one call at a time while you keep writing, up to {offer.estimatedCalls} calls. Nothing is applied until you
-        review the drafts.
+        {first} {second}
       </p>
-      <p className="plan-offer-calls muted">A background run goes on only while this project is open in this tab.</p>
+      <p className="plan-offer-calls muted">
+        <Trans>A background run goes on only while this project is open in this tab.</Trans>
+      </p>
       {unavailable !== null ? (
         <p className="plan-notice is-warn" role="status">
           {unavailable}
@@ -41,15 +51,15 @@ export function PlanOfferCard({ agent, view }: { agent: AgentController; view: O
       ) : null}
       <div className="plan-actions">
         <button type="button" className="button" onClick={() => void agent.answerOffer('now')}>
-          Run now
+          <Trans>Run now</Trans>
         </button>
         {unavailable === null ? (
           <button type="button" className="button is-primary" onClick={() => void agent.answerOffer('background')}>
-            Run in background
+            <Trans>Run in background</Trans>
           </button>
         ) : null}
         <button type="button" className="button" onClick={() => void agent.answerOffer('cancel')}>
-          Cancel
+          <Trans>Cancel</Trans>
         </button>
       </div>
     </section>

@@ -21,7 +21,7 @@ const FOLDER = 'n_SBFOLDER01';
 
 /** A project with one storyboard folder, and the shots the test names, in the order given. */
 function storyboard(shots: readonly { id: string; title: string; stored?: unknown }[]): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Scene 1 — Shots', id: FOLDER, now: NOW });
   for (const shot of shots) {
     addShotNode(state, { parentId: FOLDER, id: shot.id, title: shot.title, stored: shot.stored ?? {}, now: NOW });

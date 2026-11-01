@@ -6,8 +6,13 @@
  * Every field is validated where it is typed, and the store answers the rest. A probe that fails is shown beside the profile
  * it concerns, never as a toast alone (context-assembly §6).
  */
+/* lingui-set comment="Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size" */
 
-import { useEffect, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg, plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { isolate } from '@caotang/i18n';
 import {
   PRESETS,
   isLocalBase,
@@ -21,7 +26,7 @@ import {
   type TaskRole,
   type ThinkingLevel,
 } from '@caotang/gateway';
-import { snapshotBudget, type RuntimeStore, type SnapshotBudget } from '@caotang/store';
+import { pictureStorageReport, snapshotBudget, type RuntimeStore, type SnapshotBudget } from '@caotang/store';
 
 import type { AppServices } from '../app/services.js';
 import type { Durability, ProjectSession } from '../app/session.js';
@@ -38,15 +43,26 @@ import {
 } from '../app/settings.js';
 import { MODERN_DEFAULT_FOR_NEW_USERS, applyInterface, rememberInterface, type Interface } from '../app/interface.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
+import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
+import { sameLanguageSetting } from '../i18n/catalogues.js';
+import { useFormat } from '../i18n/use-format.js';
+import { readListedLanguages, recordListedLanguages } from '../i18n/listed-languages.js';
+import { activeTag } from '../i18n/runtime.js';
+import { guideHref } from '../i18n/guide-links.js';
+import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js';
+import languageStats from '../i18n/locales/stats.json';
+import { timeLabel } from '../app/activity-model.js';
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
+import { capsLine, modelDetails } from '../app/provider-details.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
 import { AgentRulesSettings } from './AgentRulesSettings.js';
 import { MacrosPanel } from './MacrosPanel.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
+import { PictureStorageMeter } from './PictureStorageMeter.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
-import { TIME_OF_DAY, formatCount, formatDateTime, formatUsdPrice } from '../i18n/locale.js';
+import { formatCount, useComposingEnter } from './shared.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -69,16 +85,16 @@ function FormMessage({ message }: { message: { readonly text: string; readonly t
 
 export type SettingsSection = 'providers' | 'context' | 'agent' | 'macros' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
 
-const SECTIONS: readonly { readonly id: SettingsSection; readonly label: string }[] = [
-  { id: 'providers', label: 'Providers' },
-  { id: 'context', label: 'Context' },
-  { id: 'agent', label: 'Agent' },
-  { id: 'macros', label: 'Macros' },
-  { id: 'writing', label: 'Writing' },
-  { id: 'coherence', label: 'Coherence' },
-  { id: 'mcp', label: 'MCP & tools' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'data', label: 'Data' },
+const SECTIONS: readonly { readonly id: SettingsSection; readonly label: MessageDescriptor }[] = [
+  { id: 'providers', label: msg`Providers` },
+  { id: 'context', label: msg`Context` },
+  { id: 'agent', label: msg`Agent` },
+  { id: 'macros', label: msg`Macros` },
+  { id: 'writing', label: msg`Writing` },
+  { id: 'coherence', label: msg`Coherence` },
+  { id: 'mcp', label: msg`MCP & tools` },
+  { id: 'appearance', label: msg`Appearance` },
+  { id: 'data', label: msg`Data` },
 ];
 
 export interface SettingsProps {
@@ -138,22 +154,25 @@ export function Settings({
     >
       <div className="settings-frame">
         <header className="settings-head">
-          <h2 id="settings-title">Settings</h2>
+          <h2 id="settings-title">
+            <Trans>Settings</Trans>
+          </h2>
           <button type="button" className="button is-quiet" onClick={onClose}>
-            Close
+            <Trans>Close</Trans>
           </button>
         </header>
         <div className="settings-layout">
-          <nav className="settings-nav" aria-label="Settings sections">
+          <nav className="settings-nav" aria-label={t`Settings sections`}>
             {SECTIONS.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
+                data-section={entry.id}
                 className={`settings-nav-item${section === entry.id ? ' is-current' : ''}`}
                 aria-current={section === entry.id ? 'page' : undefined}
                 onClick={() => setSection(entry.id)}
               >
-                {entry.label}
+                {i18n._(entry.label)}
               </button>
             ))}
           </nav>
@@ -173,7 +192,7 @@ export function Settings({
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
-            {section === 'appearance' ? <AppearanceSection /> : null}
+            {section === 'appearance' ? <AppearanceSection services={services} /> : null}
             {section === 'data' ? <DataSection services={services} session={session} store={store} storage={storage} /> : null}
           </div>
         </div>
@@ -274,64 +293,27 @@ function fieldDefaults(preset: PresetDef | undefined): Record<string, string> {
   return fields;
 }
 
-/** A listed model's context window and price in one line, for the picker. Empty when the endpoint tells neither. */
-function modelDetails(model: ModelInfo): string {
-  const parts: string[] = [];
-  if (model.contextWindow !== undefined) parts.push(`${formatCount(model.contextWindow)} tokens`);
-  if (model.pricePer1k !== undefined) {
-    const { prompt, completion } = model.pricePer1k;
-    parts.push(`${formatUsdPrice(prompt)} in, ${formatUsdPrice(completion)} out per ${formatCount(1000)} tokens`);
-  }
-  return parts.join(' · ');
-}
-
-/**
- * What a capability row says a model can do, in one muted line (provider-gateway §2's "the table supplies what a
- * listing does not say"). Nothing is invented: a capability the row does not state is simply absent from the line.
- */
-function capsLine(preset: PresetDef, model: string): string {
-  if (model.trim() === '') return '';
-  // A local server's models are whatever the person pulled, so the row is a fallback and not a statement about this model.
-  if (preset.local !== undefined) {
-    const window = modelRowFor(preset, model.trim())?.contextWindow;
-    return `Until the server says more: ${window === undefined ? 'a small' : `${formatCount(window)}-token`} window, no native tools, no image input.`;
-  }
-  const row = modelRowFor(preset, model.trim());
-  if (row === undefined) {
-    return 'Not a documented model for this provider — it is called with conservative defaults (no tools, no thinking level).';
-  }
-  const parts: string[] = [];
-  if (row.contextWindow !== undefined) parts.push(`${formatCount(row.contextWindow)}-token window`);
-  if (row.caps.tools === true) parts.push('native tools');
-  if (row.caps.vision === true) parts.push('image input');
-  if (row.caps.jsonSchema === true) parts.push('JSON-schema replies');
-  else if (row.caps.jsonObject === true) parts.push('JSON-object replies');
-  if (row.caps.effortLevels !== undefined && row.caps.effortLevels.length > 0) {
-    parts.push(`thinking: ${row.caps.effortLevels.join(' / ')}`);
-  }
-  if (row.caps.streamRequired === true) parts.push('thinking always streams');
-  return parts.length === 0 ? 'Text only — no documented capabilities beyond it.' : parts.join(' · ');
-}
-
 /** What the key field's label says, for this preset and this form. */
 function keyHint(preset: PresetDef | undefined, form: FormState, view: ProfileView | undefined, keyNeeded: boolean): string {
   if (preset?.local !== undefined) {
-    return form.id === null ? '(optional — only if you set one on the server)' : '(optional — leave empty to keep the stored key)';
+    return form.id === null
+      ? t`(optional — only if you set one on the server)`
+      : t`(optional — leave empty to keep the stored key)`;
   }
   if (preset?.keyOptional === true) {
-    return form.id === null ? '(optional — this provider answers without one)' : '(optional — leave empty to keep the stored key)';
+    return form.id === null ? t`(optional — this provider answers without one)` : t`(optional — leave empty to keep the stored key)`;
   }
-  if (keyNeeded) return '(required: the endpoint has moved to another address, so the stored key is not sent there)';
+  if (keyNeeded) return t`(required: the endpoint has moved to another address, so the stored key is not sent there)`;
   // A new profile on a preset that is not key-optional needs one — say so, as the optional presets do.
-  if (form.id !== null) return view?.hasKey === true ? '(leave empty to keep the stored key)' : '(required)';
-  return '(required)';
+  if (form.id !== null) return view?.hasKey === true ? t`(leave empty to keep the stored key)` : t`(required)`;
+  return t`(required)`;
 }
 
 /** The task roles' display order and what each one is for (provider-gateway §6). */
-const ROLE_NAMES: readonly { readonly id: TaskRole; readonly label: string; readonly hint: string }[] = [
-  { id: 'chat', label: 'Chat', hint: 'the agent panel' },
-  { id: 'drafting', label: 'Drafting', hint: 'the prompt pack’s generations' },
-  { id: 'background', label: 'Background', hint: 'checks, encoding work and plans sent to the background' },
+const ROLE_NAMES: readonly { readonly id: TaskRole; readonly label: MessageDescriptor; readonly hint: MessageDescriptor }[] = [
+  { id: 'chat', label: msg`Chat`, hint: msg`the agent panel` },
+  { id: 'drafting', label: msg`Drafting`, hint: msg`the prompt pack’s generations` },
+  { id: 'background', label: msg`Background`, hint: msg`checks, encoding work and plans sent to the background` },
 ];
 
 /** A role row as the form holds it: '' fields mean the role's defaults (follow chat; the profile's own model). */
@@ -341,13 +323,13 @@ interface RoleDraft {
   readonly thinking: string;
 }
 
-const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, string>> = {
-  off: 'Off',
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-  xhigh: 'Extra high',
-  max: 'Max',
+const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, MessageDescriptor>> = {
+  off: msg`Off`,
+  low: msg`Low`,
+  medium: msg`Medium`,
+  high: msg`High`,
+  xhigh: msg`Extra high`,
+  max: msg`Max`,
 };
 
 /** The stored routing as the three editable rows carry it: unpinned roles hold an empty draft. */
@@ -378,6 +360,8 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const original = form === null || form.id === null ? undefined : providers.get(form.id);
   const keyNeeded =
     (isGeneric === true || isLocal) && original !== undefined && form !== null && originOf(form.baseUrl) !== originOf(original.baseUrl);
+  // The profile form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving it.
+  const ime = useComposingEnter();
 
   const run = async (work: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -423,6 +407,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     if (form === null) return;
     // A price that does not read is named before anything is saved, so the form keeps what the writer typed.
     const price = priceFromInputs(form.promptPrice, form.completionPrice);
@@ -450,8 +435,11 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
         setMessage(
           outcome.probeError === undefined
-            ? { text: `Saved “${outcome.view.name}”. Use this profile to make it the one the agent calls.`, tone: 'info' }
-            : { text: `Saved “${outcome.view.name}”, but ${outcome.probeError}`, tone: 'error' },
+            ? {
+                text: t`Saved “${{ profile: isolate(outcome.view.name) }}”. Use this profile to make it the one the agent calls.`,
+                tone: 'info',
+              }
+            : { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”, but ${{ problem: outcome.probeError }}`, tone: 'error' },
         );
         return;
       }
@@ -474,40 +462,64 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
       setMessage(
         outcome.probeError === undefined
-          ? { text: `Saved “${outcome.view.name}”.`, tone: 'info' }
-          : { text: `Saved “${outcome.view.name}”, but ${outcome.probeError}`, tone: 'error' },
+          ? { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”.`, tone: 'info' }
+          : { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”, but ${{ problem: outcome.probeError }}`, tone: 'error' },
       );
     });
   };
 
   return (
     <section className="settings-section" aria-labelledby="settings-providers">
-      <h3 id="settings-providers">Providers</h3>
+      <h3 id="settings-providers">
+        <Trans>Providers</Trans>
+      </h3>
       <p className="muted">
-        The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo
-        profile answers only the three demo requests.
+        <Trans>
+          The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo
+          profile answers only the three demo requests.
+        </Trans>
       </p>
 
-      <ul className="profile-list" aria-label="Provider profiles">
+      <ul className="profile-list" aria-label={t`Provider profiles`}>
         {profiles.map((profile) => {
           const card = presetFor(profile.kind === 'mock' ? 'mock' : profile.preset);
           return (
             <li key={profile.id} className={`profile-row${profile.isActive ? ' is-active' : ''}`} data-profile={profile.name}>
               <div className="profile-meta">
                 <span className="profile-name">{profile.name}</span>
-                {profile.isActive ? <span className="badge is-active">Active</span> : null}
+                {profile.isActive ? (
+                  <span className="badge is-active">
+                    <Trans>Active</Trans>
+                  </span>
+                ) : null}
                 <span className="muted">
                   {/* The demo profile's model id is an internal name, so the row says what the profile is and nothing more. */}
-                  {profile.kind === 'mock'
-                    ? 'Demo, no key'
-                    : `${card?.name ?? 'OpenAI-compatible endpoint'} · ${profile.baseUrl} · ${profile.defaultModel}`}
+                  {profile.kind === 'mock' ? (
+                    t`Demo, no key`
+                  ) : (
+                    <>
+                      {card?.name ?? t`OpenAI-compatible endpoint`} · {profile.baseUrl} · {profile.defaultModel}
+                    </>
+                  )}
                 </span>
-                {card?.cors === 'blocked' ? <span className="badge">Desktop app or hosted only</span> : null}
+                {card?.cors === 'blocked' ? (
+                  <span className="badge">
+                    <Trans>Desktop app or hosted only</Trans>
+                  </span>
+                ) : null}
                 {/* Tied to the profile as it resolves: shown only while its address is this computer's. */}
-                {card?.local !== undefined && isLocalBase(profile.baseUrl) ? <span className="badge">Your text stays on this computer</span> : null}
+                {card?.local !== undefined && isLocalBase(profile.baseUrl) ? (
+                  <span className="badge">
+                    <Trans>Your text stays on this computer</Trans>
+                  </span>
+                ) : null}
                 {profile.responseFormat !== undefined ? (
                   <span className="muted">
-                    {profile.responseFormat.supportsJsonObject ? 'Structured output accepted' : 'Structured output not accepted'}
+                    {profile.responseFormat.supportsJsonObject ? (
+                      <Trans>Structured output accepted</Trans>
+                    ) : (
+                      <Trans>Structured output not accepted</Trans>
+                    )}
                   </span>
                 ) : null}
               </div>
@@ -520,33 +532,42 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     onClick={() =>
                       void run(async () => {
                         const outcome = await providers.activate(profile.id);
-                        setMessage({ text: `“${profile.name}” is now the active profile. ${outcome.note ?? ''}`.trim(), tone: 'info' });
+                        setMessage({
+                          text:
+                            outcome.note === undefined
+                              ? t`“${{ profile: isolate(profile.name) }}” is now the active profile.`
+                              : t`“${{ profile: isolate(profile.name) }}” is now the active profile. ${{ note: outcome.note }}`,
+                          tone: 'info',
+                        });
                         void services.settings.update({ provider: { activeProfileId: profile.id } });
                       })
                     }
                   >
-                    Use this profile
+                    <Trans>Use this profile</Trans>
                   </button>
                 ) : null}
                 <button type="button" className="button is-quiet" disabled={busy} onClick={() => setForm(formFor(profile))}>
-                  Edit
+                  <Trans>Edit</Trans>
                 </button>
                 <button
                   type="button"
                   className="button is-quiet is-danger"
                   disabled={busy}
-                  aria-label={`Remove ${profile.name}`}
+                  aria-label={t`Remove ${{ profile: profile.name }}`}
                   onClick={() =>
                     void run(async () => {
                       await providers.remove(profile.id);
                       setForm(null);
-                      setMessage({ text: `Removed “${profile.name}”, and its key from this browser.`, tone: 'info' });
+                      setMessage({
+                        text: t`Removed “${{ profile: isolate(profile.name) }}”, and its key from this browser.`,
+                        tone: 'info',
+                      });
                       const now = providers.active();
                       if (now !== undefined) void services.settings.update({ provider: { activeProfileId: now.id } });
                     })
                   }
                 >
-                  Remove
+                  <Trans>Remove</Trans>
                 </button>
               </div>
             </li>
@@ -556,22 +577,29 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
 
       {form === null ? (
         <button type="button" className="button" disabled={busy} onClick={() => setForm({ ...BLANK })}>
-          Add a provider
+          <Trans>Add a provider</Trans>
         </button>
       ) : (
-        <form className="profile-form" onSubmit={save} aria-label={form.id === null ? 'New provider' : 'Edit provider'}>
+        <form
+          className="profile-form"
+          onKeyDown={ime.noteKey}
+          onSubmit={save}
+          aria-label={form.id === null ? t`New provider` : t`Edit provider`}
+        >
           <label>
-            <span>Provider</span>
+            <span>
+              <Trans>Provider</Trans>
+            </span>
             {/* The first control is the preset: it fixes the route, the fields and the model catalogue (provider-gateway §2).
                 A saved profile's preset is fixed for its life — it is the record, not a preference. A preset whose API does
                 not answer a browser stays listed, disabled, with its honest label (provider-gateway §9). */}
             <select value={form.preset} disabled={form.id !== null} onChange={(event) => choosePreset(event.target.value)}>
               {PRESETS.filter((entry) => entry.local === undefined && (entry.id !== 'mock' || form.preset === 'mock')).map((entry) => (
                 <option key={entry.id} value={entry.id} disabled={entry.cors === 'blocked'}>
-                  {entry.cors === 'blocked' ? `${entry.name} — Desktop app or hosted only` : entry.name}
+                  {entry.cors === 'blocked' ? t`${{ provider: entry.name }} — Desktop app or hosted only` : entry.name}
                 </option>
               ))}
-              <optgroup label="On this computer">
+              <optgroup label={t`On this computer`}>
                 {PRESETS.filter((entry) => entry.local !== undefined).map((entry) => (
                   <option key={entry.id} value={entry.id}>
                     {entry.name}
@@ -581,12 +609,18 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
             </select>
           </label>
           {preset !== undefined && preset.cors === 'blocked' ? (
-            <p className="field-help">Desktop app or hosted only{preset.corsNote === undefined ? '' : ` — ${preset.corsNote}`}</p>
+            <p className="field-help">
+              {preset.corsNote === undefined
+                ? t`Desktop app or hosted only`
+                : t`Desktop app or hosted only — ${{ note: preset.corsNote }}`}
+            </p>
           ) : preset?.corsNote !== undefined ? (
             <p className="field-help">{preset.corsNote}</p>
           ) : null}
           <label>
-            <span>Name</span>
+            <span>
+              <Trans>Name</Trans>
+            </span>
             <input
               type="text"
               value={form.name}
@@ -610,17 +644,16 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
               </label>
             ) : (
               <label key={field.key}>
-                <span>
-                  {field.label}
-                  {field.required === true ? '' : ' (optional)'}
-                </span>
+                <span>{field.required === true ? field.label : t`${{ field: field.label }} (optional)`}</span>
                 <input type="text" value={form.fields[field.key] ?? ''} onChange={(event) => setField(field.key, event.target.value)} />
               </label>
             ),
           )}
           {isGeneric === true ? (
             <label>
-              <span>Endpoint (the base URL, ending in /v1)</span>
+              <span>
+                <Trans>Endpoint (the base URL, ending in /v1)</Trans>
+              </span>
               <input
                 type="url"
                 placeholder="https://openrouter.ai/api/v1"
@@ -631,7 +664,9 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           ) : preset?.local !== undefined ? (
             <>
               <label>
-                <span>Server address (on this computer, ending in /v1)</span>
+                <span>
+                  <Trans>Server address (on this computer, ending in /v1)</Trans>
+                </span>
                 <input
                   type="url"
                   placeholder={preset.baseUrl}
@@ -643,24 +678,32 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 {preset.local.setup}{' '}
                 {preset.docsUrl === undefined ? null : (
                   <a href={preset.docsUrl} target="_blank" rel="noopener noreferrer">
-                    {preset.local.product} documentation
+                    {t`${{ product: preset.local.product }} documentation`}
                   </a>
                 )}
               </p>
               <p className="field-help">
                 {/* Said before the first request: Chrome and Edge ask for this permission themselves, in words that do not mention a model. */}
-                The first time, Chrome and Edge ask whether this site may connect to apps on your device. Choose Allow; if you decline,
-                requests are blocked until you allow them in the site settings. Safari is unverified.
+                <Trans>
+                  The first time, Chrome and Edge ask whether this site may connect to apps on your device. Choose Allow; if you decline,
+                  requests are blocked until you allow them in the site settings. Safari is unverified.
+                </Trans>
               </p>
-              {isLocalBase(form.baseUrl) ? <p className="field-help">Your text stays on this computer.</p> : null}
+              {isLocalBase(form.baseUrl) ? (
+                <p className="field-help">
+                  <Trans>Your text stays on this computer.</Trans>
+                </p>
+              ) : null}
             </>
           ) : preset !== undefined && preset.id !== 'mock' && preset.baseUrl !== '' ? (
             <p className="field-help">
-              Endpoint: <code>{preset.baseUrlFor?.(form.fields) ?? preset.baseUrl}</code>
+              <Trans>Endpoint:</Trans> <code>{preset.baseUrlFor?.(form.fields) ?? preset.baseUrl}</code>
             </p>
           ) : null}
           <label>
-            <span>Model</span>
+            <span>
+              <Trans>Model</Trans>
+            </span>
             <input
               type="text"
               list="provider-models"
@@ -682,13 +725,17 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
               </datalist>
               {capsLine(preset, form.model) !== '' ? <p className="field-help">{capsLine(preset, form.model)}</p> : null}
               {preset.noModelsRoute === true ? (
-                <p className="field-help">This provider documents no model list — its table below is the catalogue.</p>
+                <p className="field-help">
+                  <Trans>This provider documents no model list — its table below is the catalogue.</Trans>
+                </p>
               ) : null}
             </>
           ) : null}
           {isMock !== true ? (
             <label>
-              <span>API key {keyHint(preset, form, original, keyNeeded)}</span>
+              <span>
+                <Trans>API key</Trans> {keyHint(preset, form, original, keyNeeded)}
+              </span>
               <input
                 type="password"
                 autoComplete="off"
@@ -699,36 +746,39 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           ) : null}
           {isGeneric === true ? (
             <fieldset className="price-fields">
-              <legend>Extra request headers (optional)</legend>
+              <legend>
+                <Trans>Extra request headers (optional)</Trans>
+              </legend>
               <p className="field-help">
-                Sent with every request, and sealed with the key — they are never shown again.
-                {form.id !== null ? ' Leave this list untouched to keep the stored set; empty it again to clear it.' : ''}
+                {form.id === null
+                  ? t`Sent with every request, and sealed with the key — they are never shown again.`
+                  : t`Sent with every request, and sealed with the key — they are never shown again. Leave this list untouched to keep the stored set; empty it again to clear it.`}
               </p>
               {form.headers.map((header, index) => (
                 <div className="header-row" key={index}>
                   <input
-                    aria-label={`Header ${index + 1} name`}
-                    placeholder="x-my-header"
+                    aria-label={t`Header ${{ number: index + 1 }} name`}
+                    placeholder={t`x-my-header`}
                     value={header.name}
                     onChange={(event) => setHeader(index, { name: event.target.value })}
                   />
                   <input
-                    aria-label={`Header ${index + 1} value`}
+                    aria-label={t`Header ${{ number: index + 1 }} value`}
                     type="password"
                     autoComplete="off"
-                    placeholder="the header’s value"
+                    placeholder={t`the header’s value`}
                     value={header.value}
                     onChange={(event) => setHeader(index, { value: event.target.value })}
                   />
                   <button
                     type="button"
                     className="button is-quiet"
-                    aria-label={`Remove header ${index + 1}`}
+                    aria-label={t`Remove header ${{ number: index + 1 }}`}
                     onClick={() =>
                       setForm({ ...form, headersTouched: true, headers: form.headers.filter((_, i) => i !== index) })
                     }
                   >
-                    Remove
+                    <Trans>Remove</Trans>
                   </button>
                 </div>
               ))}
@@ -737,22 +787,28 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 className="button is-quiet"
                 onClick={() => setForm({ ...form, headersTouched: true, headers: [...form.headers, { name: '', value: '' }] })}
               >
-                Add a header
+                <Trans>Add a header</Trans>
               </button>
             </fieldset>
           ) : null}
           {isMock !== true ? (
             <fieldset className="price-fields">
               <legend>
-                Price per 1,000 tokens, in dollars (optional: fill both to see the cost of a step). A saved price stays until you type a new
-                one, so clearing these fields does not remove it.
+                <Trans>
+                  Price per 1,000 tokens, in dollars (optional: fill both to see the cost of a step). A saved price stays until you type a
+                  new one, so clearing these fields does not remove it.
+                </Trans>
               </legend>
               <label>
-                <span>Prompt</span>
+                <span>
+                  <Trans>Prompt</Trans>
+                </span>
                 <input type="number" min={0} step="any" value={form.promptPrice} onChange={(event) => setForm({ ...form, promptPrice: event.target.value })} />
               </label>
               <label>
-                <span>Reply</span>
+                <span>
+                  <Trans>Reply</Trans>
+                </span>
                 <input type="number" min={0} step="any" value={form.completionPrice} onChange={(event) => setForm({ ...form, completionPrice: event.target.value })} />
               </label>
             </fieldset>
@@ -780,10 +836,10 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           ) : null}
           <div className="profile-form-actions">
             <button type="submit" className="button is-primary" disabled={busy}>
-              Save profile
+              <Trans>Save profile</Trans>
             </button>
             <button type="button" className="button is-quiet" onClick={() => setForm(null)}>
-              Cancel
+              <Trans>Cancel</Trans>
             </button>
           </div>
         </form>
@@ -793,24 +849,39 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         <section
           className="models"
           aria-label={
-            presetFor(models.preset)?.noModelsRoute === true ? `Models documented for ${models.profile}` : `Models listed by ${models.profile}`
+            presetFor(models.preset)?.noModelsRoute === true
+              ? t`Models documented for ${{ profile: models.profile }}`
+              : t`Models listed by ${{ profile: models.profile }}`
           }
         >
           <h4>
-            {presetFor(models.preset)?.noModelsRoute === true ? `Models documented for ${models.profile}` : `Models listed by ${models.profile}`}
+            {presetFor(models.preset)?.noModelsRoute === true
+              ? t`Models documented for ${{ profile: models.profile }}`
+              : t`Models listed by ${{ profile: models.profile }}`}
           </h4>
           {presetFor(models.preset)?.noModelsRoute === true ? (
-            <p className="muted">This provider documents no model list — these are the models its table knows.</p>
+            <p className="muted">
+              <Trans>This provider documents no model list — these are the models its table knows.</Trans>
+            </p>
           ) : null}
-          {models.list.length === 0 ? <p className="muted">The endpoint listed no models.</p> : null}
+          {models.list.length === 0 ? (
+            <p className="muted">
+              <Trans>The endpoint listed no models.</Trans>
+            </p>
+          ) : null}
           <ul>
             {models.list.slice(0, 40).map((model) => (
               <li key={model.id}>
                 <code>{model.id}</code>
                 {modelDetails(model) === '' ? null : <span className="muted"> · {modelDetails(model)}</span>}
                 {form !== null ? (
-                  <button type="button" className="button is-quiet" aria-label={`Use ${model.id} as the model`} onClick={() => setForm({ ...form, model: model.id })}>
-                    Use
+                  <button
+                    type="button"
+                    className="button is-quiet"
+                    aria-label={t`Use ${{ model: model.id }} as the model`}
+                    onClick={() => setForm({ ...form, model: model.id })}
+                  >
+                    <Trans>Use</Trans>
                   </button>
                 ) : null}
               </li>
@@ -824,7 +895,11 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       <RolesPanel services={services} models={models} onSaved={(text) => setMessage({ text, tone: 'info' })} />
       <UsagePanel services={services} />
       <RequestLogPanel services={services} />
-      {active === undefined ? <p className="status-line is-error">No provider is active, so the agent cannot run.</p> : null}
+      {active === undefined ? (
+        <p className="status-line is-error">
+          <Trans>No provider is active, so the agent cannot run.</Trans>
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -840,9 +915,12 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
   const profiles = providers.list();
   const [drafts, setDrafts] = useState<Record<TaskRole, RoleDraft>>(() => roleDraftsFor(providers.roleSettings));
   const [message, setMessage] = useState<string | null>(null);
+  // The role rows save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const ref = (draft: RoleDraft): RoleRef | undefined => {
       const profile = profiles.find((entry) => entry.id === draft.profileId);
       if (profile === undefined) return undefined;
@@ -864,19 +942,24 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
     providers.applyRoleSettings(roles === null ? undefined : roles);
     void services.settings.update({ provider: { roles } }).then((error) => {
       if (error !== null) setMessage(error);
-      else onSaved('Saved the task roles.');
+      else onSaved(t`Saved the task roles.`);
     });
   };
 
   return (
     <section aria-labelledby="settings-roles">
-      <h4 id="settings-roles">Task roles</h4>
+      <h4 id="settings-roles">
+        <Trans>Task roles</Trans>
+      </h4>
       <p className="muted">
-        Each kind of call can run on its own profile, model and thinking level. Drafting and background follow the chat choice
-        unless they are pinned; chat with no pin is the active profile.
+        <Trans>
+          Each kind of call can run on its own profile, model and thinking level. Drafting and background follow the chat choice unless
+          they are pinned; chat with no pin is the active profile.
+        </Trans>
       </p>
-      <form className="role-rows" onSubmit={save}>
+      <form className="role-rows" onKeyDown={ime.noteKey} onSubmit={save}>
         {ROLE_NAMES.map(({ id, label, hint }) => {
+          const labelText = i18n._(label);
           const draft = drafts[id];
           const pinned = profiles.find((entry) => entry.id === draft.profileId);
           const preset = presetFor(pinned?.kind === 'mock' ? 'mock' : pinned?.preset);
@@ -885,14 +968,14 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
           return (
             <div className="role-row" key={id}>
               <span className="role-title">
-                {label} <span className="muted">· {hint}</span>
+                {labelText} <span className="muted">· {i18n._(hint)}</span>
               </span>
               <select
-                aria-label={`${label} profile`}
+                aria-label={t`${{ role: labelText }} profile`}
                 value={pinned?.id ?? ''}
                 onChange={(event) => setDrafts({ ...drafts, [id]: { profileId: event.target.value, model: '', thinking: '' } })}
               >
-                <option value="">{id === 'chat' ? 'Active profile' : 'Follow chat'}</option>
+                <option value="">{id === 'chat' ? t`Active profile` : t`Follow chat`}</option>
                 {profiles.map((profile) => (
                   <option key={profile.id} value={profile.id}>
                     {profile.name}
@@ -902,7 +985,7 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
               {pinned !== undefined ? (
                 <>
                   <input
-                    aria-label={`${label} model`}
+                    aria-label={t`${{ role: labelText }} model`}
                     list={`role-models-${id}`}
                     placeholder={pinned.defaultModel}
                     value={draft.model}
@@ -924,14 +1007,14 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
                       no control (provider-gateway §3 — a level the row does not list is never sent). */}
                   {levels.length > 0 ? (
                     <select
-                      aria-label={`${label} thinking level`}
+                      aria-label={t`${{ role: labelText }} thinking level`}
                       value={levels.includes(draft.thinking as ThinkingLevel) ? draft.thinking : ''}
                       onChange={(event) => setDrafts({ ...drafts, [id]: { ...draft, thinking: event.target.value } })}
                     >
-                      <option value="">Provider default</option>
+                      <option value="">{t`Provider default`}</option>
                       {levels.map((level) => (
                         <option key={level} value={level}>
-                          {ROLE_LEVEL_NAMES[level]}
+                          {i18n._(ROLE_LEVEL_NAMES[level])}
                         </option>
                       ))}
                     </select>
@@ -943,7 +1026,7 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
         })}
         <div className="profile-form-actions">
           <button type="submit" className="button">
-            Save task roles
+            <Trans>Save task roles</Trans>
           </button>
         </div>
       </form>
@@ -957,9 +1040,16 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
 }
 
 /** A task role as the usage table names it (provider-gateway §6: cost is visible per role). */
-const ROLE_LABELS: Readonly<Record<TaskRole, string>> = { chat: 'Chat', drafting: 'Drafting', background: 'Background' };
+const ROLE_LABELS: Readonly<Record<TaskRole, MessageDescriptor>> = {
+  chat: msg`Chat`,
+  drafting: msg`Drafting`,
+  background: msg`Background`,
+};
 
 function UsagePanel({ services }: { services: AppServices }): ReactNode {
+  // The counts are estimates and a mounted panel must follow a language switch, so they are formatted through
+  // the live formatter rather than a number written when the panel opened (§4.2).
+  const format = useFormat();
   const rows = services.providers.ledger.dayRows();
   const names = new Map(services.providers.list().map((profile) => [profile.id, profile.name]));
   const totals = rows.reduce(
@@ -970,39 +1060,60 @@ function UsagePanel({ services }: { services: AppServices }): ReactNode {
     }),
     { prompt: 0, completion: 0, requests: 0 },
   );
+  const requestsTotal = totals.requests;
   return (
     <section className="usage" aria-labelledby="settings-usage">
-      <h4 id="settings-usage">Usage on this device</h4>
+      <h4 id="settings-usage">
+        <Trans>Usage on this device</Trans>
+      </h4>
       {rows.length === 0 ? (
-        <p className="muted">No requests yet. Usage is counted by day, per profile, model and role, and stays in this browser.</p>
+        <p className="muted">
+          <Trans>No requests yet. Usage is counted by day, per profile, model and role, and stays in this browser.</Trans>
+        </p>
       ) : (
         <>
           <p className="muted">
-            {totals.requests} {totals.requests === 1 ? 'request' : 'requests'}, about {totals.prompt} tokens in and {totals.completion} out.
+            {t`${plural(requestsTotal, { one: '# request', other: '# requests' })}, about ${{ prompt: format.number(totals.prompt) }} tokens in and ${{ completion: format.number(totals.completion) }} out.`}
           </p>
           <table className="usage-table">
-            <caption className="visually-hidden">Usage by day, profile, model and role</caption>
+            <caption className="visually-hidden">
+              <Trans>Usage by day, profile, model and role</Trans>
+            </caption>
             <thead>
               <tr>
-                <th scope="col">Day</th>
-                <th scope="col">Profile</th>
-                <th scope="col">Model</th>
-                <th scope="col">Role</th>
-                <th scope="col">Requests</th>
-                <th scope="col">Tokens in</th>
-                <th scope="col">Tokens out</th>
+                <th scope="col">
+                  <Trans>Day</Trans>
+                </th>
+                <th scope="col">
+                  <Trans>Profile</Trans>
+                </th>
+                <th scope="col">
+                  <Trans>Model</Trans>
+                </th>
+                <th scope="col">
+                  <Trans>Role</Trans>
+                </th>
+                <th scope="col">
+                  <Trans>Requests</Trans>
+                </th>
+                <th scope="col">
+                  <Trans>Tokens in</Trans>
+                </th>
+                <th scope="col">
+                  <Trans>Tokens out</Trans>
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={`${row.date}:${row.profileId}:${row.model}:${row.role}`}>
                   <td>{row.date}</td>
-                  <td>{names.get(row.profileId) ?? 'Removed profile'}</td>
+                  <td>{names.get(row.profileId) ?? t`Removed profile`}</td>
                   <td>{row.model}</td>
-                  <td>{ROLE_LABELS[row.role]}</td>
-                  <td>{row.requests}</td>
-                  <td>{row.promptTokens}</td>
-                  <td>{row.completionTokens}</td>
+                  <td>{i18n._(ROLE_LABELS[row.role])}</td>
+                  <td>{format.number(row.requests)}</td>
+                  <td>{format.number(row.promptTokens)}</td>
+                  <td>{format.number(row.completionTokens)}</td>
                 </tr>
               ))}
             </tbody>
@@ -1016,33 +1127,58 @@ function UsagePanel({ services }: { services: AppServices }): ReactNode {
 function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
   const entries: RequestLogEntry[] = services.providers.requests.entries().slice().reverse();
   const names = new Map(services.providers.list().map((profile) => [profile.id, profile.name]));
+  const entryCount = entries.length;
   return (
     <section className="request-log" aria-labelledby="settings-requests">
-      <h4 id="settings-requests">Request log</h4>
+      <h4 id="settings-requests">
+        <Trans>Request log</Trans>
+      </h4>
       <p className="muted">
-        {entries.length === 0 ? 'Requests, retries included.' : `The last ${entries.length} requests, retries included.`} Nothing here holds a key or a message.
+        {entries.length === 0
+          ? t`Requests, retries included. Nothing here holds a key or a message.`
+          : t`The last ${plural(entryCount, { one: '# request', other: '# requests' })}, retries included. Nothing here holds a key or a message.`}
       </p>
       {entries.length === 0 ? (
-        <p className="muted">No request has been sent yet.</p>
+        <p className="muted">
+          <Trans>No request has been sent yet.</Trans>
+        </p>
       ) : (
         <table className="request-table" data-testid="request-log">
-          <caption className="visually-hidden">Requests, newest first</caption>
+          <caption className="visually-hidden">
+            <Trans>Requests, newest first</Trans>
+          </caption>
           <thead>
             <tr>
-              <th scope="col">Time</th>
-              <th scope="col">Profile</th>
-              <th scope="col">Attempt</th>
-              <th scope="col">Outcome</th>
-              <th scope="col">Status</th>
-              <th scope="col">Max tokens</th>
-              <th scope="col">Address</th>
-              <th scope="col">Note</th>
+              <th scope="col">
+                <Trans>Time</Trans>
+              </th>
+              <th scope="col">
+                <Trans>Profile</Trans>
+              </th>
+              <th scope="col">
+                <Trans>Attempt</Trans>
+              </th>
+              <th scope="col">
+                <Trans>Outcome</Trans>
+              </th>
+              <th scope="col">
+                <Trans>Status</Trans>
+              </th>
+              <th scope="col">
+                <Trans>Max tokens</Trans>
+              </th>
+              <th scope="col">
+                <Trans>Address</Trans>
+              </th>
+              <th scope="col">
+                <Trans>Note</Trans>
+              </th>
             </tr>
           </thead>
           <tbody>
             {entries.map((entry, index) => (
               <tr key={`${entry.at}:${index}`} data-outcome={entry.outcome}>
-                <td>{formatDateTime(entry.at, TIME_OF_DAY)}</td>
+                <td>{timeLabel(entry.at)}</td>
                 <td>{names.get(entry.profileId) ?? entry.profileId}</td>
                 <td>{entry.attempt}</td>
                 <td>{entry.outcome}</td>
@@ -1073,20 +1209,26 @@ function AgentSection({ services, session }: { services: AppServices; session: P
   const change = (next: boolean): void => {
     setLoadEvery(next);
     void services.settings.update({ agent: { loadEveryTool: next } }).then((error) => {
-      setMessage(error ?? 'Saved. It applies to the agent’s next request.');
+      setMessage(error ?? t`Saved. It applies to the agent’s next request.`);
     });
   };
 
   return (
     <section className="settings-section" aria-labelledby="settings-agent">
-      <h3 id="settings-agent">Agent</h3>
+      <h3 id="settings-agent">
+        <Trans>Agent</Trans>
+      </h3>
       <p className="settings-note">
-        The agent starts each request with a short list of tools and finds the others with a search when a task needs them. Some models
-        search poorly. Turn this on to give such a model every tool on every request, at the cost of a longer prompt each time.
+        <Trans>
+          The agent starts each request with a short list of tools and finds the others with a search when a task needs them. Some models
+          search poorly. Turn this on to give such a model every tool on every request, at the cost of a longer prompt each time.
+        </Trans>
       </p>
       <label className="settings-check">
         <input type="checkbox" checked={loadEvery} data-testid="agent-load-every-tool" onChange={(event) => change(event.target.checked)} />
-        <span>Load every tool on every request</span>
+        <Trans>
+          <span>Load every tool on every request</span>
+        </Trans>
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
       <p className="settings-note">
@@ -1124,34 +1266,45 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
   const [hideRails, setHideRails] = useState(current.editor.focusModeHideRails);
   const [agentEditMode, setAgentEditMode] = useState<AgentEditMode>(current.editor.agentEditMode);
   const [message, setMessage] = useState<string | null>(null);
+  // The writing settings save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const words = Number(target);
     const ms = Number(debounce);
     if (!Number.isFinite(words) || words < 0 || words > TARGET_MAX_WORDS || !Number.isInteger(words)) {
-      setMessage(`The daily target is a whole number of words from 0 to ${formatCount(TARGET_MAX_WORDS)}; 0 means no target.`);
+      setMessage(t`The daily target is a whole number of words from 0 to ${{ max: formatCount(TARGET_MAX_WORDS) }}; 0 means no target.`);
       return;
     }
     if (!Number.isFinite(ms) || ms < DEBOUNCE_MIN_MS || ms > DEBOUNCE_MAX_MS || !Number.isInteger(ms)) {
-      setMessage(`The save delay is a whole number of milliseconds from ${DEBOUNCE_MIN_MS} to ${DEBOUNCE_MAX_MS}.`);
+      setMessage(t`The save delay is a whole number of milliseconds from ${{ min: DEBOUNCE_MIN_MS }} to ${{ max: DEBOUNCE_MAX_MS }}.`);
       return;
     }
     void services.settings.update({ session: { dailyTargetWords: words }, editor: { autosaveDebounceMs: ms, focusModeHideRails: hideRails, agentEditMode } }).then((error) => {
-      setMessage(error ?? 'Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open.');
+      setMessage(error ?? t`Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open.`);
     });
   };
 
   return (
     <section className="settings-section" aria-labelledby="settings-writing">
-      <h3 id="settings-writing">Writing</h3>
-      <form className="settings-form" noValidate onSubmit={save}>
+      <h3 id="settings-writing">
+        <Trans>Writing</Trans>
+      </h3>
+      <form className="settings-form" noValidate onKeyDown={ime.noteKey} onSubmit={save}>
         <label>
-          <span>Daily target, in words (0 for none)</span>
+          <span>
+            <Trans>Daily target, in words (0 for none)</Trans>
+          </span>
           <input type="number" min={0} max={TARGET_MAX_WORDS} step={1} value={target} onChange={(event) => setTarget(event.target.value)} />
         </label>
         <label>
-          <span>Save after typing stops, in milliseconds ({DEBOUNCE_MIN_MS}–{DEBOUNCE_MAX_MS})</span>
+          <span>
+            <Trans>
+              Save after typing stops, in milliseconds ({DEBOUNCE_MIN_MS}–{DEBOUNCE_MAX_MS})
+            </Trans>
+          </span>
           <input
             type="number"
             min={DEBOUNCE_MIN_MS}
@@ -1163,7 +1316,9 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
         </label>
         <label className="settings-check">
           <input type="checkbox" checked={hideRails} onChange={(event) => setHideRails(event.target.checked)} />
-          <span>In focus mode, hide the binder and the inspector</span>
+          <span>
+            <Trans>In focus mode, hide the binder and the inspector</Trans>
+          </span>
         </label>
         <label>
           <span>When you apply an agent edit</span>
@@ -1183,7 +1338,7 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
           the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.
         </p>
         <button type="submit" className="button is-primary">
-          Save writing settings
+          <Trans>Save writing settings</Trans>
         </button>
       </form>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
@@ -1195,13 +1350,59 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
  * Appearance
  * ------------------------------------------------------------------ */
 
-function AppearanceSection(): ReactNode {
+function AppearanceSection({ services }: { readonly services: AppServices }): ReactNode {
+  // A completion percentage follows the interface language while this section stays mounted.
+  const format = useFormat();
   const [theme, setTheme] = useState<Theme>(() => activeTheme());
-  const choose = (next: Theme): void => {
+  const chooseTheme = (next: Theme): void => {
     applyTheme(next);
     rememberTheme(next);
     setTheme(next);
   };
+
+  // The stored preference, the catalogue revision (a switch changes the native name of System), and the
+  // status line a switch leaves behind. The radio inputs stay mounted across all three, so focus does not
+  // move from the row the writer picked.
+  const settings = useSyncExternalStore(services.settings.subscribe, services.settings.current);
+  const revision = useSyncExternalStore(subscribeLanguage, languageRevision);
+  const [status, setStatus] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'loading' }
+    | { readonly kind: 'notice'; readonly tone: 'info' | 'error'; readonly message: string }
+  >({ kind: 'idle' });
+  const choices = useMemo(
+    () =>
+      languageChoices({
+        setting: settings.interfaceLanguage,
+        navigatorLanguages: typeof navigator === 'undefined' ? [] : navigator.languages,
+        stats: languageStats as InterfaceLanguageStats,
+        exposeDeveloperLanguages: developerLanguageExposure(),
+        previouslyListed: readListedLanguages(),
+      }),
+    [settings.interfaceLanguage, revision],
+  );
+  useEffect(() => {
+    recordListedLanguages(choices.filter((choice) => !choice.pseudo && choice.setting !== 'system').map((choice) => choice.tag));
+  }, [choices]);
+  // A stored tag this build does not ship falls back to English at start-up; the System row then shows
+  // the effective choice instead of leaving every row unticked.
+  const selected = choices.some((choice) => sameLanguageSetting(choice.setting, settings.interfaceLanguage))
+    ? settings.interfaceLanguage
+    : 'system';
+
+  const chooseLanguage = (setting: string): void => {
+    setStatus({ kind: 'loading' });
+    void switchInterfaceLanguage(setting, services.settings).then((result) => {
+      // A superseded request must not overwrite the newer one's status line.
+      if (result.status === 'superseded') return;
+      if (result.status === 'switched') {
+        setStatus({ kind: 'idle' });
+        return;
+      }
+      setStatus({ kind: 'notice', tone: result.status === 'failed' ? 'error' : 'info', message: result.message });
+    });
+  };
+
   // The interface on the page now (app/interface.ts puts it there as data-shell).
   const [shell, setShell] = useState<Interface>(() => (document.documentElement.dataset['shell'] === 'modern' ? 'modern' : 'classic'));
   const chooseShell = (next: Interface): void => {
@@ -1212,31 +1413,82 @@ function AppearanceSection(): ReactNode {
   };
   return (
     <section className="settings-section" aria-labelledby="settings-appearance">
-      <h3 id="settings-appearance">Appearance</h3>
+      <h3 id="settings-appearance">
+        <Trans>Appearance</Trans>
+      </h3>
       <fieldset className="settings-radios">
-        <legend>Theme</legend>
+        <legend>
+          <Trans>Theme</Trans>
+        </legend>
         <label className="check">
-          <input type="radio" name="theme" checked={theme === 'light'} onChange={() => choose('light')} /> Light
+          <input type="radio" name="theme" checked={theme === 'light'} onChange={() => chooseTheme('light')} /> <Trans>Light</Trans>
         </label>
         <label className="check">
-          <input type="radio" name="theme" checked={theme === 'dark'} onChange={() => choose('dark')} /> Dark
-        </label>
-      </fieldset>
-      <p className="muted">The choice is kept in this browser. Until you choose, the page follows the system.</p>
-      <fieldset className="settings-radios">
-        <legend>Interface</legend>
-        <label className="check">
-          <input type="radio" name="shell" checked={shell === 'classic'} onChange={() => chooseShell('classic')} /> Classic
-        </label>
-        <label className="check">
-          <input type="radio" name="shell" checked={shell === 'modern'} onChange={() => chooseShell('modern')} /> {MODERN_DEFAULT_FOR_NEW_USERS ? 'Modern' : 'Modern (Preview)'}
+          <input type="radio" name="theme" checked={theme === 'dark'} onChange={() => chooseTheme('dark')} /> <Trans>Dark</Trans>
         </label>
       </fieldset>
       <p className="muted">
-        Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask
-        for it.{MODERN_DEFAULT_FOR_NEW_USERS ? '' : ' Modern is a preview and is still being built, so for now it looks almost the same as Classic.'} The
-        choice is kept in this browser and applies at once.
+        <Trans>The choice is kept in this browser. Until you choose, the page follows the system.</Trans>
       </p>
+      <fieldset className="settings-radios">
+        <legend>{t`Interface`}</legend>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'classic'} onChange={() => chooseShell('classic')} /> <Trans>Classic</Trans>
+        </label>
+        <label className="check">
+          <input type="radio" name="shell" checked={shell === 'modern'} onChange={() => chooseShell('modern')} />{' '}
+          {MODERN_DEFAULT_FOR_NEW_USERS ? t`Modern` : t`Modern (Preview)`}
+        </label>
+      </fieldset>
+      <p className="muted">
+        {MODERN_DEFAULT_FOR_NEW_USERS
+          ? t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. The choice is kept in this browser and applies at once.`
+          : t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built, so for now it looks almost the same as Classic. The choice is kept in this browser and applies at once.`}
+      </p>
+
+      <fieldset className="settings-radios" data-testid="interface-language">
+        <legend>{t`Interface language`}</legend>
+        {choices.map((choice) => (
+          <label className="check" key={choice.setting}>
+            <input
+              type="radio"
+              name="interface-language"
+              value={choice.setting}
+              checked={sameLanguageSetting(selected, choice.setting)}
+              onChange={() => chooseLanguage(choice.setting)}
+            />
+            {choice.setting === 'system' ? (
+              <>
+                {t`Follow the system`} — {choice.nativeName}
+              </>
+            ) : (
+              choice.nativeName
+            )}
+            {choice.completion === null ? null : (
+              <span className="muted">
+                {' '}
+                {format.number(choice.completion / 100, { style: 'percent', maximumFractionDigits: 1 })}
+              </span>
+            )}
+            {choice.preview ? <span className="muted">{` — ${t`Preview, partly English`}`}</span> : null}
+            {choice.tag === 'de' ? <span className="muted">{` — ${t`Machine-assisted translation; not reviewed by a native speaker`}`}</span> : null}
+          </label>
+        ))}
+      </fieldset>
+      <p className="muted">
+        {t`The interface language changes straight away. The manuscript stays in its own language.`}
+      </p>
+      <p className="muted">
+        <a href={guideHref(activeTag(), 'settings')} target="_blank" rel="noopener noreferrer">
+          <Trans>Read the user guide</Trans>
+        </a>
+      </p>
+      {status.kind === 'loading' ? <p role="status">{t`Changing the interface language…`}</p> : null}
+      {status.kind === 'notice' ? (
+        <p className={`form-message is-${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
+          {status.message}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -1265,6 +1517,8 @@ function DataSection({
   const current = services.settings.current();
   const [cap, setCap] = useState(String(current.retention.checkpointCap));
   const [days, setDays] = useState(String(current.retention.checkpointDays));
+  // The limits save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   // With a project open, its session holds the browser's answer. From the projects screen the browser is asked again.
   useEffect(() => {
@@ -1306,49 +1560,71 @@ function DataSection({
     void session.trimSnapshots().then(
       () => {
         bumpBudget();
-        setMessage('Trimmed to the limits. The count below is what is left.');
+        setMessage(t`Trimmed to the limits. The count below is what is left.`);
       },
-      (error: unknown) => setMessage(`The trim did not finish: ${error instanceof Error ? error.message : String(error)}`),
+      (error: unknown) =>
+        setMessage(t`The trim did not finish: ${{ error: error instanceof Error ? error.message : String(error) }}`),
     );
   };
 
   const saveLimits = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const nextCap = Number(cap);
     const nextDays = Number(days);
     if (!Number.isInteger(nextCap) || nextCap < 1 || nextCap > CHECKPOINT_CAP_MAX) {
-      setMessage(`The checkpoint limit is a whole number from 1 to ${formatCount(CHECKPOINT_CAP_MAX)}.`);
+      setMessage(t`The checkpoint limit is a whole number from 1 to ${{ max: formatCount(CHECKPOINT_CAP_MAX) }}.`);
       return;
     }
     if (!Number.isInteger(nextDays) || nextDays < 1 || nextDays > CHECKPOINT_DAYS_MAX) {
-      setMessage(`The retention is a whole number of days from 1 to ${CHECKPOINT_DAYS_MAX}.`);
+      setMessage(t`The retention is a whole number of days from 1 to ${{ max: CHECKPOINT_DAYS_MAX }}.`);
       return;
     }
     void services.settings.update({ retention: { checkpointCap: nextCap, checkpointDays: nextDays } }).then((error) => {
-      setMessage(error ?? 'Saved. The limits apply to the projects you open from now on, and to the next trim.');
+      setMessage(error ?? t`Saved. The limits apply to the projects you open from now on, and to the next trim.`);
     });
   };
 
+  // Counted lines take bare names: an ICU plural selector written as a member expression would reach the
+  // catalogue as a positional `{0}` instead of `{count, plural, …}`.
+  const keptCount = budget?.count ?? 0;
+  const keptDocuments = budget?.documents ?? 0;
+  const retention = session?.retentionLimits() ?? { checkpointCap: 0, checkpointDays: 0 };
+  const checkpointCap = retention.checkpointCap;
+  const checkpointDays = retention.checkpointDays;
+
   return (
     <section className="settings-section" aria-labelledby="settings-data">
-      <h3 id="settings-data">Data</h3>
+      <h3 id="settings-data">
+        <Trans>Data</Trans>
+      </h3>
 
       <section className="storage-row" aria-labelledby="settings-storage">
-        <h4 id="settings-storage">Storage</h4>
-        <p data-testid="storage-status">{durability === null ? 'Checking this browser’s storage…' : durabilitySentence(durability)}</p>
+        <h4 id="settings-storage">
+          <Trans>Storage</Trans>
+        </h4>
+        <p data-testid="storage-status">
+          {durability === null ? t`Checking this browser’s storage…` : durabilitySentence(durability)}
+        </p>
         {durability !== null && usageSentence(durability) !== null ? <p className="muted">{usageSentence(durability)}</p> : null}
         <p className="muted" data-testid="storage-location">
-          Storage location: this browser (read-only in the browser app).
+          <Trans>Storage location: this browser (read-only in the browser app).</Trans>
         </p>
       </section>
 
+      {session === null ? null : <PictureStorageMeter report={pictureStorageReport(session.state)} durability={durability} />}
+
       <section aria-labelledby="settings-checkpoints">
-        <h4 id="settings-checkpoints">Checkpoints</h4>
+        <h4 id="settings-checkpoints">
+          <Trans>Checkpoints</Trans>
+        </h4>
         {session === null ? (
-          <p className="muted">Open a project to see its checkpoints.</p>
+          <p className="muted">
+            <Trans>Open a project to see its checkpoints.</Trans>
+          </p>
         ) : budgetError !== null ? (
           <p className="muted" role="alert">
-            The checkpoints could not be counted: {budgetError}{' '}
+            {t`The checkpoints could not be counted: ${{ error: budgetError }}`}{' '}
             <button
               type="button"
               className="button is-quiet"
@@ -1357,49 +1633,62 @@ function DataSection({
                 bumpBudget();
               }}
             >
-              Try again
+              <Trans>Try again</Trans>
             </button>
           </p>
         ) : budget === null ? (
-          <p className="muted">Counting the checkpoints…</p>
+          <p className="muted">
+            <Trans>Counting the checkpoints…</Trans>
+          </p>
         ) : (
           <dl className="budget" data-testid="snapshot-budget">
-            <dt>Kept</dt>
+            <dt>
+              <Trans>Kept</Trans>
+            </dt>
             <dd>
-              {budget.count} {budget.count === 1 ? 'checkpoint' : 'checkpoints'} across {budget.documents}{' '}
-              {budget.documents === 1 ? 'document' : 'documents'}
+              {t`${plural(keptCount, { one: '# checkpoint', other: '# checkpoints' })} across ${plural(keptDocuments, { one: '# document', other: '# documents' })}`}
             </dd>
-            <dt>Size</dt>
-            <dd>about {formatBytes(budget.estimatedBytes)}</dd>
-            <dt>Limit</dt>
+            <dt>
+              <Trans>Size</Trans>
+            </dt>
+            <dd>{t`about ${{ size: formatBytes(budget.estimatedBytes) }}`}</dd>
+            <dt>
+              <Trans>Limit</Trans>
+            </dt>
             <dd>
-              {session.retentionLimits().checkpointCap} checkpoints, kept {session.retentionLimits().checkpointDays} days
+              {t`${plural(checkpointCap, { one: '# checkpoint', other: '# checkpoints' })}, kept ${plural(checkpointDays, { one: '# day', other: '# days' })}`}
             </dd>
           </dl>
         )}
         {session !== null ? (
           <button type="button" className="button" onClick={trim}>
-            Trim to the limits now
+            <Trans>Trim to the limits now</Trans>
           </button>
         ) : null}
-        <form className="settings-form" onSubmit={saveLimits}>
+        <form className="settings-form" onKeyDown={ime.noteKey} onSubmit={saveLimits}>
           <label>
-            <span>Checkpoints kept per project</span>
+            <span>
+              <Trans>Checkpoints kept per project</Trans>
+            </span>
             <input type="number" min={1} max={CHECKPOINT_CAP_MAX} value={cap} onChange={(event) => setCap(event.target.value)} />
           </label>
           <label>
-            <span>Days a checkpoint is kept</span>
+            <span>
+              <Trans>Days a checkpoint is kept</Trans>
+            </span>
             <input type="number" min={1} max={CHECKPOINT_DAYS_MAX} value={days} onChange={(event) => setDays(event.target.value)} />
           </label>
           <button type="submit" className="button">
-            Save the limits
+            <Trans>Save the limits</Trans>
           </button>
         </form>
       </section>
 
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
       <p className="muted">
-        The demo profile is named “{DEMO_PROFILE_NAME}”. A bundle export is the copy to keep: browser storage can be cleared.
+        <Trans>
+          The demo profile is named “{DEMO_PROFILE_NAME}”. A bundle export is the copy to keep: browser storage can be cleared.
+        </Trans>
       </p>
     </section>
   );

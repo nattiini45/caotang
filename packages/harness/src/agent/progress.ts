@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * The task list of a turn (agent-harness §8): what the writer asks while waiting, answered from the events the loop already
  * emits. `reduceTaskList` folds one turn's events into a short checklist, with one item in progress at a time, and
@@ -7,6 +8,8 @@
  * pure function of the event stream (an eval can assert it), and cannot claim work that did not run. It is never sent to the
  * model. Nothing here touches the DOM.
  */
+
+import type { MessageRef } from '@caotang/i18n';
 
 import { isToolName, type ToolName } from '../metadata.js';
 import type { CallParams } from '../types.js';
@@ -21,16 +24,24 @@ import { DEFAULT_MAX_MODEL_CALLS, type AgentEvent, type TurnPhase } from './even
 export interface TaskPhrase {
   readonly content: string;
   readonly activeForm: string;
+  /** I7: the same two lines as message references, so the app may render them in another language. */
+  readonly contentRef?: MessageRef;
+  readonly activeFormRef?: MessageRef;
 }
 
 export type TaskPhraseFn = (params: CallParams) => TaskPhrase;
 
 const TARGET_CHARS = 40;
 
-/** A document or entry name as an item quotes it, cut so a long title cannot fill the header. */
-function quoted(name: string): string {
+/** A document or entry name, cut so a long title cannot fill the header. The ref carries the cut name as its value. */
+function clipped(name: string): string {
   const trimmed = name.trim();
-  return `“${trimmed.length > TARGET_CHARS ? `${trimmed.slice(0, TARGET_CHARS - 1).trimEnd()}…` : trimmed}”`;
+  return trimmed.length > TARGET_CHARS ? `${trimmed.slice(0, TARGET_CHARS - 1).trimEnd()}…` : trimmed;
+}
+
+/** A document or entry name as an item quotes it in English. */
+function quoted(name: string): string {
+  return `“${clipped(name)}”`;
 }
 
 function textOf(params: CallParams, key: string): string | undefined {
@@ -47,15 +58,16 @@ function counted(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-const phrase = (content: string, activeForm: string): TaskPhrase => ({ content, activeForm });
+const phrase = (content: string, activeForm: string, contentRef?: MessageRef, activeFormRef?: MessageRef): TaskPhrase => ({
+  content,
+  activeForm,
+  ...(contentRef === undefined ? {} : { contentRef }),
+  ...(activeFormRef === undefined ? {} : { activeFormRef }),
+});
 
-/** "Draft “X”" / "Drafting “X”", or the bare verb when the call names no target. */
-function aboutDoc(verb: string, ing: string, bare: string, bareIng: string): TaskPhraseFn {
-  return (params) => {
-    const doc = textOf(params, 'doc');
-    return doc === undefined ? phrase(bare, bareIng) : phrase(`${verb} ${quoted(doc)}`, `${ing} ${quoted(doc)}`);
-  };
-}
+// Literal references at the call site keep every fixed phrase visible to catalogue extraction.
+const plain = (content: MessageRef, activeForm: MessageRef): TaskPhrase =>
+  phrase(content.message, activeForm.message, content, activeForm);
 
 /**
  * One phrase per registry tool, including the extension rows. Keyed by `ToolName`, so a row added to the registry without
@@ -63,114 +75,406 @@ function aboutDoc(verb: string, ing: string, bare: string, bareIng: string): Tas
  * is fixed wording plus the call's own params: a tool's description is never used (descriptions of external tools are untrusted).
  */
 export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
-  'project.overview': () => phrase('Read the project overview', 'Reading the project overview'),
-  'binder.read_tree': () => phrase('Read the binder', 'Reading the binder'),
-  'doc.read': aboutDoc('Read', 'Reading', 'Read a document', 'Reading a document'),
+  'project.overview': () => plain({ id: 'harness.progress.projectOverview.content', message: 'Read the project overview' }, { id: 'harness.progress.projectOverview.active', message: 'Reading the project overview' }),
+  'binder.read_tree': () => plain({ id: 'harness.progress.binderReadTree.content', message: 'Read the binder' }, { id: 'harness.progress.binderReadTree.active', message: 'Reading the binder' }),
+  'doc.read': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.docRead.bare.content', message: 'Read a document' },
+      { id: 'harness.progress.docRead.bare.active', message: 'Reading a document' },
+    );
+    return phrase(`Read ${quoted(doc)}`, `Reading ${quoted(doc)}`,
+      { id: 'harness.progress.docRead.content', message: 'Read “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.docRead.active', message: 'Reading “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
   'notes.read': (params) => {
     const doc = textOf(params, 'doc');
-    return doc === undefined ? phrase('Read notes', 'Reading notes') : phrase(`Read the notes of ${quoted(doc)}`, `Reading the notes of ${quoted(doc)}`);
+    return doc === undefined
+      ? plain({ id: 'harness.progress.notesRead.bare.content', message: 'Read notes' }, { id: 'harness.progress.notesRead.bare.active', message: 'Reading notes' })
+      : phrase(
+          `Read the notes of ${quoted(doc)}`,
+          `Reading the notes of ${quoted(doc)}`,
+          { id: 'harness.progress.notesRead.content', message: 'Read the notes of “{doc}”', values: { doc: clipped(doc) } },
+          { id: 'harness.progress.notesRead.active', message: 'Reading the notes of “{doc}”', values: { doc: clipped(doc) } },
+        );
   },
   'meta.set': (params) => {
     const targets = listOf(params, 'targets');
     const only = targets.length === 1 && typeof targets[0] === 'string' ? targets[0] : undefined;
-    if (only !== undefined) return phrase(`Update ${quoted(only)}`, `Updating ${quoted(only)}`);
-    const what = counted(targets.length, 'document', 'documents');
-    return targets.length === 0 ? phrase('Update document details', 'Updating document details') : phrase(`Update ${what}`, `Updating ${what}`);
+    if (only !== undefined) {
+      return phrase(
+        `Update ${quoted(only)}`,
+        `Updating ${quoted(only)}`,
+        { id: 'harness.progress.metaSet.one', message: 'Update “{target}”', values: { target: clipped(only) } },
+        { id: 'harness.progress.metaSet.one.active', message: 'Updating “{target}”', values: { target: clipped(only) } },
+      );
+    }
+    if (targets.length === 0) return plain({ id: 'harness.progress.metaSet.none.content', message: 'Update document details' }, { id: 'harness.progress.metaSet.none.active', message: 'Updating document details' });
+    return phrase(
+      `Update ${counted(targets.length, 'document', 'documents')}`,
+      `Updating ${counted(targets.length, 'document', 'documents')}`,
+      {
+        id: 'harness.progress.metaSet.content',
+        message: 'Update {count, plural, one {# document} other {# documents}}',
+        values: { count: targets.length },
+      },
+      {
+        id: 'harness.progress.metaSet.active',
+        message: 'Updating {count, plural, one {# document} other {# documents}}',
+        values: { count: targets.length },
+      },
+    );
   },
   'notes.append': (params) => {
     const doc = textOf(params, 'doc');
     return doc === undefined
-      ? phrase('Add to the notes', 'Adding to the notes')
-      : phrase(`Add to the notes of ${quoted(doc)}`, `Adding to the notes of ${quoted(doc)}`);
+      ? plain({ id: 'harness.progress.notesAppend.bare.content', message: 'Add to the notes' }, { id: 'harness.progress.notesAppend.bare.active', message: 'Adding to the notes' })
+      : phrase(
+          `Add to the notes of ${quoted(doc)}`,
+          `Adding to the notes of ${quoted(doc)}`,
+          { id: 'harness.progress.notesAppend.content', message: 'Add to the notes of “{doc}”', values: { doc: clipped(doc) } },
+          { id: 'harness.progress.notesAppend.active', message: 'Adding to the notes of “{doc}”', values: { doc: clipped(doc) } },
+        );
   },
   'synopsis.fill': (params) => {
     const docs = listOf(params, 'docs');
     const only = docs.length === 1 && typeof docs[0] === 'string' ? docs[0] : undefined;
-    if (only !== undefined) return phrase(`Fill the synopsis of ${quoted(only)}`, `Filling the synopsis of ${quoted(only)}`);
-    const what = counted(docs.length, 'synopsis', 'synopses');
-    return docs.length === 0 ? phrase('Fill synopses', 'Filling synopses') : phrase(`Fill ${what}`, `Filling ${what}`);
+    if (only !== undefined) {
+      return phrase(
+        `Fill the synopsis of ${quoted(only)}`,
+        `Filling the synopsis of ${quoted(only)}`,
+        { id: 'harness.progress.synopsisFill.one', message: 'Fill the synopsis of “{doc}”', values: { doc: clipped(only) } },
+        { id: 'harness.progress.synopsisFill.one.active', message: 'Filling the synopsis of “{doc}”', values: { doc: clipped(only) } },
+      );
+    }
+    if (docs.length === 0) return plain({ id: 'harness.progress.synopsisFill.none.content', message: 'Fill synopses' }, { id: 'harness.progress.synopsisFill.none.active', message: 'Filling synopses' });
+    return phrase(
+      `Fill ${counted(docs.length, 'synopsis', 'synopses')}`,
+      `Filling ${counted(docs.length, 'synopsis', 'synopses')}`,
+      {
+        id: 'harness.progress.synopsisFill.content',
+        message: 'Fill {count, plural, one {# synopsis} other {# synopses}}',
+        values: { count: docs.length },
+      },
+      {
+        id: 'harness.progress.synopsisFill.active',
+        message: 'Filling {count, plural, one {# synopsis} other {# synopses}}',
+        values: { count: docs.length },
+      },
+    );
   },
-  'scene.draft': aboutDoc('Draft', 'Drafting', 'Draft a scene', 'Drafting a scene'),
+  'scene.draft': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.sceneDraft.bare.content', message: 'Draft a scene' },
+      { id: 'harness.progress.sceneDraft.bare.active', message: 'Drafting a scene' },
+    );
+    return phrase(`Draft ${quoted(doc)}`, `Drafting ${quoted(doc)}`,
+      { id: 'harness.progress.sceneDraft.content', message: 'Draft “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.sceneDraft.active', message: 'Drafting “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
   'binder.restructure': (params) => {
     const changes = listOf(params, 'ops').length;
-    if (changes === 0) return phrase('Restructure the binder', 'Restructuring the binder');
+    if (changes === 0) return plain({ id: 'harness.progress.binderRestructure.none.content', message: 'Restructure the binder' }, { id: 'harness.progress.binderRestructure.none.active', message: 'Restructuring the binder' });
     const what = counted(changes, 'change', 'changes');
-    return phrase(`Restructure the binder (${what})`, `Restructuring the binder (${what})`);
+    return phrase(
+      `Restructure the binder (${what})`,
+      `Restructuring the binder (${what})`,
+      {
+        id: 'harness.progress.binderRestructure.content',
+        message: 'Restructure the binder ({count, plural, one {# change} other {# changes}})',
+        values: { count: changes },
+      },
+      {
+        id: 'harness.progress.binderRestructure.active',
+        message: 'Restructuring the binder ({count, plural, one {# change} other {# changes}})',
+        values: { count: changes },
+      },
+    );
   },
-  'continuity.scan': () => phrase('Scan for continuity problems', 'Scanning for continuity problems'),
+  'continuity.scan': () => plain({ id: 'harness.progress.continuityScan.content', message: 'Scan for continuity problems' }, { id: 'harness.progress.continuityScan.active', message: 'Scanning for continuity problems' }),
   'export.compile': (params) => {
     const format = textOf(params, 'format');
-    return format === undefined ? phrase('Compile an export', 'Compiling an export') : phrase(`Compile a ${format} export`, `Compiling a ${format} export`);
+    return format === undefined
+      ? plain({ id: 'harness.progress.exportCompile.none.content', message: 'Compile an export' }, { id: 'harness.progress.exportCompile.none.active', message: 'Compiling an export' })
+      : phrase(
+          `Compile a ${format} export`,
+          `Compiling a ${format} export`,
+          { id: 'harness.progress.exportCompile.content', message: 'Compile a {format} export', values: { format } },
+          { id: 'harness.progress.exportCompile.active', message: 'Compiling a {format} export', values: { format } },
+        );
   },
   'codex.read': (params) => {
     const query = textOf(params, 'query');
-    return query === undefined ? phrase('Read the codex', 'Reading the codex') : phrase(`Look up ${quoted(query)} in the codex`, `Looking up ${quoted(query)} in the codex`);
+    return query === undefined
+      ? plain({ id: 'harness.progress.codexRead.bare.content', message: 'Read the codex' }, { id: 'harness.progress.codexRead.bare.active', message: 'Reading the codex' })
+      : phrase(
+          `Look up ${quoted(query)} in the codex`,
+          `Looking up ${quoted(query)} in the codex`,
+          { id: 'harness.progress.codexRead.content', message: 'Look up “{query}” in the codex', values: { query: clipped(query) } },
+          { id: 'harness.progress.codexRead.active', message: 'Looking up “{query}” in the codex', values: { query: clipped(query) } },
+        );
   },
   'codex.write': (params) => {
     const entries = listOf(params, 'entries').length;
-    if (entries === 0) return phrase('Write codex entries', 'Writing codex entries');
-    const what = counted(entries, 'codex entry', 'codex entries');
-    return phrase(`Write ${what}`, `Writing ${what}`);
+    if (entries === 0) return plain({ id: 'harness.progress.codexWrite.none.content', message: 'Write codex entries' }, { id: 'harness.progress.codexWrite.none.active', message: 'Writing codex entries' });
+    return phrase(
+      `Write ${counted(entries, 'codex entry', 'codex entries')}`,
+      `Writing ${counted(entries, 'codex entry', 'codex entries')}`,
+      {
+        id: 'harness.progress.codexWrite.content',
+        message: 'Write {count, plural, one {# codex entry} other {# codex entries}}',
+        values: { count: entries },
+      },
+      {
+        id: 'harness.progress.codexWrite.active',
+        message: 'Writing {count, plural, one {# codex entry} other {# codex entries}}',
+        values: { count: entries },
+      },
+    );
   },
-  'agent.plan': () => phrase('Plan', 'Planning'),
+  'agent.plan': () => plain({ id: 'harness.progress.agentPlan.content', message: 'Plan' }, { id: 'harness.progress.agentPlan.active', message: 'Planning' }),
   'doc.import': (params) => {
     const title = textOf(params, 'title');
-    return title === undefined ? phrase('Import a document', 'Importing a document') : phrase(`Import ${quoted(title)}`, `Importing ${quoted(title)}`);
+    return title === undefined
+      ? plain({ id: 'harness.progress.docImport.bare.content', message: 'Import a document' }, { id: 'harness.progress.docImport.bare.active', message: 'Importing a document' })
+      : phrase(
+          `Import ${quoted(title)}`,
+          `Importing ${quoted(title)}`,
+          { id: 'harness.progress.docImport.content', message: 'Import “{title}”', values: { title: clipped(title) } },
+          { id: 'harness.progress.docImport.active', message: 'Importing “{title}”', values: { title: clipped(title) } },
+        );
   },
   'codex.import': (params) => {
     const entries = listOf(params, 'entries').length;
-    if (entries === 0) return phrase('Import codex entries', 'Importing codex entries');
-    const what = counted(entries, 'codex entry', 'codex entries');
-    return phrase(`Import ${what}`, `Importing ${what}`);
+    if (entries === 0) return plain({ id: 'harness.progress.codexImport.none.content', message: 'Import codex entries' }, { id: 'harness.progress.codexImport.none.active', message: 'Importing codex entries' });
+    return phrase(
+      `Import ${counted(entries, 'codex entry', 'codex entries')}`,
+      `Importing ${counted(entries, 'codex entry', 'codex entries')}`,
+      {
+        id: 'harness.progress.codexImport.content',
+        message: 'Import {count, plural, one {# codex entry} other {# codex entries}}',
+        values: { count: entries },
+      },
+      {
+        id: 'harness.progress.codexImport.active',
+        message: 'Importing {count, plural, one {# codex entry} other {# codex entries}}',
+        values: { count: entries },
+      },
+    );
   },
-  'coherence.scan': () => phrase('Scan for coherence problems', 'Scanning for coherence problems'),
-  'coherence.review': () => phrase('Review the story for coherence', 'Reviewing the story for coherence'),
-  'coherence.setFindingStatus': () => phrase('Update a finding', 'Updating a finding'),
-  'tool.search': () => phrase('Search for tools', 'Searching for tools'),
-  'shots.derive': () => phrase('Derive shots', 'Deriving shots'),
-  'shots.annotate': () => phrase('Annotate shots', 'Annotating shots'),
-  'prompt.draft': () => phrase('Draft video prompts', 'Drafting video prompts'),
-  'prompt.variant': () => phrase('Draft a prompt variant', 'Drafting a prompt variant'),
-  'dialogue.draft': aboutDoc('Draft dialogue in', 'Drafting dialogue in', 'Draft dialogue', 'Drafting dialogue'),
-  'dialogue.table': aboutDoc('Export the dialogue table of', 'Exporting the dialogue table of', 'Export a dialogue table', 'Exporting a dialogue table'),
+  'coherence.scan': () => plain({ id: 'harness.progress.coherenceScan.content', message: 'Scan for coherence problems' }, { id: 'harness.progress.coherenceScan.active', message: 'Scanning for coherence problems' }),
+  'coherence.review': () => plain({ id: 'harness.progress.coherenceReview.content', message: 'Review the story for coherence' }, { id: 'harness.progress.coherenceReview.active', message: 'Reviewing the story for coherence' }),
+  'coherence.setFindingStatus': () => plain({ id: 'harness.progress.setFindingStatus.content', message: 'Update a finding' }, { id: 'harness.progress.setFindingStatus.active', message: 'Updating a finding' }),
+  'tool.search': () => plain({ id: 'harness.progress.toolSearch.content', message: 'Search for tools' }, { id: 'harness.progress.toolSearch.active', message: 'Searching for tools' }),
+  'shots.derive': () => plain({ id: 'harness.progress.shotsDerive.content', message: 'Derive shots' }, { id: 'harness.progress.shotsDerive.active', message: 'Deriving shots' }),
+  'shots.annotate': () => plain({ id: 'harness.progress.shotsAnnotate.content', message: 'Annotate shots' }, { id: 'harness.progress.shotsAnnotate.active', message: 'Annotating shots' }),
+  'prompt.draft': () => plain({ id: 'harness.progress.promptDraft.content', message: 'Draft video prompts' }, { id: 'harness.progress.promptDraft.active', message: 'Drafting video prompts' }),
+  'prompt.variant': () => plain({ id: 'harness.progress.promptVariant.content', message: 'Draft a prompt variant' }, { id: 'harness.progress.promptVariant.active', message: 'Drafting a prompt variant' }),
+  'dialogue.draft': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.dialogueDraft.bare.content', message: 'Draft dialogue' },
+      { id: 'harness.progress.dialogueDraft.bare.active', message: 'Drafting dialogue' },
+    );
+    return phrase(`Draft dialogue in ${quoted(doc)}`, `Drafting dialogue in ${quoted(doc)}`,
+      { id: 'harness.progress.dialogueDraft.content', message: 'Draft dialogue in “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.dialogueDraft.active', message: 'Drafting dialogue in “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'dialogue.table': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.dialogueTable.bare.content', message: 'Export a dialogue table' },
+      { id: 'harness.progress.dialogueTable.bare.active', message: 'Exporting a dialogue table' },
+    );
+    return phrase(`Export the dialogue table of ${quoted(doc)}`, `Exporting the dialogue table of ${quoted(doc)}`,
+      { id: 'harness.progress.dialogueTable.content', message: 'Export the dialogue table of “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.dialogueTable.active', message: 'Exporting the dialogue table of “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
   'skill.load': (params) => {
     const name = textOf(params, 'name');
-    return name === undefined ? phrase('Read a skill', 'Reading a skill') : phrase(`Read the skill ${quoted(name)}`, `Reading the skill ${quoted(name)}`);
+    return name === undefined
+      ? plain({ id: 'harness.progress.skillLoad.bare.content', message: 'Read a skill' }, { id: 'harness.progress.skillLoad.bare.active', message: 'Reading a skill' })
+      : phrase(
+          `Read the skill ${quoted(name)}`,
+          `Reading the skill ${quoted(name)}`,
+          { id: 'harness.progress.skillLoad.content', message: 'Read the skill “{name}”', values: { name: clipped(name) } },
+          { id: 'harness.progress.skillLoad.active', message: 'Reading the skill “{name}”', values: { name: clipped(name) } },
+        );
   },
   'memory.read': (params) => {
     const slug = textOf(params, 'slug');
-    return slug === undefined ? phrase('Read the memory notes', 'Reading the memory notes') : phrase(`Read the memory note ${quoted(slug)}`, `Reading the memory note ${quoted(slug)}`);
+    return slug === undefined
+      ? plain({ id: 'harness.progress.memoryRead.bare.content', message: 'Read the memory notes' }, { id: 'harness.progress.memoryRead.bare.active', message: 'Reading the memory notes' })
+      : phrase(
+          `Read the memory note ${quoted(slug)}`,
+          `Reading the memory note ${quoted(slug)}`,
+          { id: 'harness.progress.memoryRead.content', message: 'Read the memory note “{slug}”', values: { slug: clipped(slug) } },
+          { id: 'harness.progress.memoryRead.active', message: 'Reading the memory note “{slug}”', values: { slug: clipped(slug) } },
+        );
   },
   'memory.write': (params) => {
     const title = textOf(params, 'title');
-    return title === undefined ? phrase('Save a memory note', 'Saving a memory note') : phrase(`Save the memory note ${quoted(title)}`, `Saving the memory note ${quoted(title)}`);
+    return title === undefined
+      ? plain({ id: 'harness.progress.memoryWrite.bare.content', message: 'Save a memory note' }, { id: 'harness.progress.memoryWrite.bare.active', message: 'Saving a memory note' })
+      : phrase(
+          `Save the memory note ${quoted(title)}`,
+          `Saving the memory note ${quoted(title)}`,
+          { id: 'harness.progress.memoryWrite.content', message: 'Save the memory note “{title}”', values: { title: clipped(title) } },
+          { id: 'harness.progress.memoryWrite.active', message: 'Saving the memory note “{title}”', values: { title: clipped(title) } },
+        );
   },
-  'instructions.propose': () => phrase('Change CAOTANG.md', 'Changing CAOTANG.md'),
+  'instructions.propose': () =>
+    plain({ id: 'harness.progress.instructionsPropose.content', message: 'Change CAOTANG.md' }, { id: 'harness.progress.instructionsPropose.active', message: 'Changing CAOTANG.md' }),
   'agent.delegate': (params) => {
     const agent = textOf(params, 'agent');
-    return agent === undefined ? phrase('Hand work to a helper agent', 'Handing work to a helper agent') : phrase(`Hand work to the ${agent} agent`, `Handing work to the ${agent} agent`);
+    return agent === undefined
+      ? plain({ id: 'harness.progress.agentDelegate.bare.content', message: 'Hand work to a helper agent' }, { id: 'harness.progress.agentDelegate.bare.active', message: 'Handing work to a helper agent' })
+      : phrase(
+          `Hand work to the ${agent} agent`,
+          `Handing work to the ${agent} agent`,
+          { id: 'harness.progress.agentDelegate.content', message: 'Hand work to the {agent} agent', values: { agent } },
+          { id: 'harness.progress.agentDelegate.active', message: 'Handing work to the {agent} agent', values: { agent } },
+        );
   },
-  // The host-model pairs never run in a turn of the app; the phrases keep the table total.
-  'scene.brief': aboutDoc('Brief a draft of', 'Briefing a draft of', 'Brief a draft', 'Briefing a draft'),
-  'scene.apply': aboutDoc('Write the drafted text into', 'Writing the drafted text into', 'Write a drafted text', 'Writing a drafted text'),
-  'dialogue.brief': aboutDoc('Brief dialogue in', 'Briefing dialogue in', 'Brief dialogue', 'Briefing dialogue'),
-  'dialogue.apply': aboutDoc('Write the drafted dialogue into', 'Writing the drafted dialogue into', 'Write drafted dialogue', 'Writing drafted dialogue'),
-  'notes.replace': aboutDoc('Rewrite the notes of', 'Rewriting the notes of', 'Rewrite notes', 'Rewriting notes'),
-  'synopsis.set': aboutDoc('Set the synopsis of', 'Setting the synopsis of', 'Set a synopsis', 'Setting a synopsis'),
+  'notes.replace': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.notesReplace.bare.content', message: 'Rewrite notes' },
+      { id: 'harness.progress.notesReplace.bare.active', message: 'Rewriting notes' },
+    );
+    return phrase(`Rewrite the notes of ${quoted(doc)}`, `Rewriting the notes of ${quoted(doc)}`,
+      { id: 'harness.progress.notesReplace.content', message: 'Rewrite the notes of “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.notesReplace.active', message: 'Rewriting the notes of “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'synopsis.set': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.synopsisSet.bare.content', message: 'Set a synopsis' },
+      { id: 'harness.progress.synopsisSet.bare.active', message: 'Setting a synopsis' },
+    );
+    return phrase(`Set the synopsis of ${quoted(doc)}`, `Setting the synopsis of ${quoted(doc)}`,
+      { id: 'harness.progress.synopsisSet.content', message: 'Set the synopsis of “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.synopsisSet.active', message: 'Setting the synopsis of “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  // The host-model pairs (main) never run in a turn of the app; the phrases keep the table total.
+  'scene.brief': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.sceneBrief.bare.content', message: 'Brief a draft' },
+      { id: 'harness.progress.sceneBrief.bare.active', message: 'Briefing a draft' },
+    );
+    return phrase(`Brief a draft of ${quoted(doc)}`, `Briefing a draft of ${quoted(doc)}`,
+      { id: 'harness.progress.sceneBrief.content', message: 'Brief a draft of “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.sceneBrief.active', message: 'Briefing a draft of “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'scene.apply': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.sceneApply.bare.content', message: 'Write a drafted text' },
+      { id: 'harness.progress.sceneApply.bare.active', message: 'Writing a drafted text' },
+    );
+    return phrase(`Write the drafted text into ${quoted(doc)}`, `Writing the drafted text into ${quoted(doc)}`,
+      { id: 'harness.progress.sceneApply.content', message: 'Write the drafted text into “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.sceneApply.active', message: 'Writing the drafted text into “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'dialogue.brief': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.dialogueBrief.bare.content', message: 'Brief dialogue' },
+      { id: 'harness.progress.dialogueBrief.bare.active', message: 'Briefing dialogue' },
+    );
+    return phrase(`Brief dialogue in ${quoted(doc)}`, `Briefing dialogue in ${quoted(doc)}`,
+      { id: 'harness.progress.dialogueBrief.content', message: 'Brief dialogue in “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.dialogueBrief.active', message: 'Briefing dialogue in “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
+  'dialogue.apply': (params) => {
+    const doc = textOf(params, 'doc');
+    if (doc === undefined) return plain(
+      { id: 'harness.progress.dialogueApply.bare.content', message: 'Write drafted dialogue' },
+      { id: 'harness.progress.dialogueApply.bare.active', message: 'Writing drafted dialogue' },
+    );
+    return phrase(`Write the drafted dialogue into ${quoted(doc)}`, `Writing the drafted dialogue into ${quoted(doc)}`,
+      { id: 'harness.progress.dialogueApply.content', message: 'Write the drafted dialogue into “{doc}”', values: { doc: clipped(doc) } },
+      { id: 'harness.progress.dialogueApply.active', message: 'Writing the drafted dialogue into “{doc}”', values: { doc: clipped(doc) } },
+    );
+  },
   'vocabulary.upsert': (params) => {
     const name = textOf(params, 'name');
     const kind = textOf(params, 'kind') ?? 'status';
     return name === undefined
-      ? phrase(`Change the ${kind} vocabulary`, `Changing the ${kind} vocabulary`)
-      : phrase(`Add or change the ${kind} ${quoted(name)}`, `Adding or changing the ${kind} ${quoted(name)}`);
+      ? phrase(
+          `Change the ${kind} vocabulary`,
+          `Changing the ${kind} vocabulary`,
+          { id: 'harness.progress.vocabularyUpsert.kind', message: 'Change the {kind} vocabulary', values: { kind } },
+          { id: 'harness.progress.vocabularyUpsert.kind.active', message: 'Changing the {kind} vocabulary', values: { kind } },
+        )
+      : phrase(
+          `Add or change the ${kind} ${quoted(name)}`,
+          `Adding or changing the ${kind} ${quoted(name)}`,
+          {
+            id: 'harness.progress.vocabularyUpsert.content',
+            message: 'Add or change the {kind} “{name}”',
+            values: { kind, name: clipped(name) },
+          },
+          {
+            id: 'harness.progress.vocabularyUpsert.active',
+            message: 'Adding or changing the {kind} “{name}”',
+            values: { kind, name: clipped(name) },
+          },
+        );
   },
   'filter.save': (params) => {
     const name = textOf(params, 'name');
-    return name === undefined ? phrase('Save a filter', 'Saving a filter') : phrase(`Save the filter ${quoted(name)}`, `Saving the filter ${quoted(name)}`);
+    return name === undefined
+      ? plain({ id: 'harness.progress.filterSave.bare.content', message: 'Save a filter' }, { id: 'harness.progress.filterSave.bare.active', message: 'Saving a filter' })
+      : phrase(
+          `Save the filter ${quoted(name)}`,
+          `Saving the filter ${quoted(name)}`,
+          { id: 'harness.progress.filterSave.content', message: 'Save the filter “{name}”', values: { name: clipped(name) } },
+          { id: 'harness.progress.filterSave.active', message: 'Saving the filter “{name}”', values: { name: clipped(name) } },
+        );
   },
   'goal.save': (params) => {
     const node = textOf(params, 'node');
-    return node === undefined ? phrase('Set a goal', 'Setting a goal') : phrase(`Set a goal for ${quoted(node)}`, `Setting a goal for ${quoted(node)}`);
+    return node === undefined
+      ? plain({ id: 'harness.progress.goalSave.bare.content', message: 'Set a goal' }, { id: 'harness.progress.goalSave.bare.active', message: 'Setting a goal' })
+      : phrase(
+          `Set a goal for ${quoted(node)}`,
+          `Setting a goal for ${quoted(node)}`,
+          { id: 'harness.progress.goalSave.content', message: 'Set a goal for “{node}”', values: { node: clipped(node) } },
+          { id: 'harness.progress.goalSave.active', message: 'Setting a goal for “{node}”', values: { node: clipped(node) } },
+        );
+  },
+  'timeline.read': () => plain({ id: 'harness.progress.timelineRead.content', message: 'Read the timeline' }, { id: 'harness.progress.timelineRead.active', message: 'Reading the timeline' }),
+  'pictures.list': () => plain({ id: 'harness.progress.picturesList.content', message: 'List the pictures' }, { id: 'harness.progress.picturesList.active', message: 'Listing the pictures' }),
+  'pictures.view': () => plain({ id: 'harness.progress.picturesView.content', message: 'Look at the pictures' }, { id: 'harness.progress.picturesView.active', message: 'Looking at the pictures' }),
+  'pictures.annotate': () => plain({ id: 'harness.progress.picturesAnnotate.content', message: 'Update the picture details' }, { id: 'harness.progress.picturesAnnotate.active', message: 'Updating the picture details' }),
+  'pictures.attach': () => plain({ id: 'harness.progress.picturesAttach.content', message: 'Change the picture placements' }, { id: 'harness.progress.picturesAttach.active', message: 'Changing the picture placements' }),
+  'pictures.import': () => plain({ id: 'harness.progress.picturesImport.content', message: 'Import the staged picture' }, { id: 'harness.progress.picturesImport.active', message: 'Importing the staged picture' }),
+  'pictures.place': () => plain({ id: 'harness.progress.picturesPlace.content', message: 'Place the picture in the document' }, { id: 'harness.progress.picturesPlace.active', message: 'Placing the picture in the document' }),
+  'pictures.transcribe': () => plain({ id: 'harness.progress.picturesTranscribe.content', message: 'Transcribe the handwritten pages' }, { id: 'harness.progress.picturesTranscribe.active', message: 'Transcribing the handwritten pages' }),
+  'comic.derive': () => plain({ id: 'harness.progress.comicDerive.content', message: 'Derive comic pages from the script' }, { id: 'harness.progress.comicDerive.active', message: 'Deriving comic pages from the script' }),
+  'comic.letter': () => plain({ id: 'harness.progress.comicLetter.content', message: 'Letter the comic page' }, { id: 'harness.progress.comicLetter.active', message: 'Lettering the comic page' }),
+  'comic.scriptFromPages': () => plain({ id: 'harness.progress.comicScriptFromPages.content', message: 'Write a comic script from the pages' }, { id: 'harness.progress.comicScriptFromPages.active', message: 'Writing a comic script from the pages' }),
+  'timeline.edit': (params) => {
+    const ops = listOf(params, 'ops').length;
+    if (ops === 0) return plain({ id: 'harness.progress.timelineEdit.bare.content', message: 'Edit the timeline' }, { id: 'harness.progress.timelineEdit.bare.active', message: 'Editing the timeline' });
+    return phrase(
+      `Edit the timeline (${counted(ops, 'change', 'changes')})`,
+      `Editing the timeline (${counted(ops, 'change', 'changes')})`,
+      { id: 'harness.progress.timelineEdit.content', message: 'Edit the timeline ({count, plural, one {# change} other {# changes}})', values: { count: ops } },
+      { id: 'harness.progress.timelineEdit.active', message: 'Editing the timeline ({count, plural, one {# change} other {# changes}})', values: { count: ops } },
+    );
   },
 };
 
@@ -232,6 +536,9 @@ export interface TaskItem {
   readonly content: string;
   /** The present-tense line the header shows while the item runs, e.g. "Drafting “The Landing”". */
   readonly activeForm: string;
+  /** I7: the item's two lines as message references; absent only on a caller-made list the fold did not build. */
+  readonly contentRef?: MessageRef;
+  readonly activeFormRef?: MessageRef;
   readonly state: TaskState;
   readonly tool?: string;
   /** The status card's call id, once the item has run. Links the item to its card. */
@@ -256,7 +563,12 @@ interface Track {
   /** The scene whose draft is streaming, before its card is shown. */
   readonly drafting: string | null;
   /** The card waiting for the writer, if any. */
-  readonly awaiting: { readonly kind: 'plan' | 'confirm'; readonly steps: number; readonly content: string } | null;
+  readonly awaiting: {
+    readonly kind: 'plan' | 'confirm';
+    readonly steps: number;
+    readonly content: string;
+    readonly contentRef?: MessageRef;
+  } | null;
 }
 
 export interface TaskList {
@@ -359,9 +671,27 @@ function readsItem(list: TaskList, key: string, items: readonly TaskItem[]): rea
           : 'done';
   const content = ids.length > 1 ? `Read the project (${ids.length} reads)` : 'Read the project';
   const activeForm = ids.length > 1 ? `Reading the project (${ids.length} reads)` : 'Reading the project';
+  const contentRef: MessageRef =
+    ids.length > 1
+      ? {
+          id: 'harness.progress.reads.content',
+          message: 'Read the project ({count, plural, one {# read} other {# reads}})',
+          values: { count: ids.length },
+        }
+      : { id: 'harness.progress.reads.one.content', message: 'Read the project' };
+  const activeFormRef: MessageRef =
+    ids.length > 1
+      ? {
+          id: 'harness.progress.reads.active',
+          message: 'Reading the project ({count, plural, one {# read} other {# reads}})',
+          values: { count: ids.length },
+        }
+      : { id: 'harness.progress.reads.one.active', message: 'Reading the project' };
   const exists = items.some((item) => item.key === key);
-  const base: TaskItem = { key, content, activeForm, state };
-  return exists ? replaceItem(items, key, (item) => ({ ...item, content, activeForm, state })) : [...items, base];
+  const base: TaskItem = { key, content, activeForm, contentRef, activeFormRef, state };
+  return exists
+    ? replaceItem(items, key, (item) => ({ ...item, content, activeForm, contentRef, activeFormRef, state }))
+    : [...items, base];
 }
 
 /** What a status card moves its item to. `pending-approval` leaves the item as the plan card put it. */
@@ -410,10 +740,12 @@ function onCard(list: TaskList, card: StatusCard, nameOf?: NameOf): TaskList {
 function onPlan(list: TaskList, card: PlanCardView, nameOf?: NameOf): TaskList {
   const { track } = list;
   const pending = card.steps.filter((step) => step.status !== 'done');
+  const awaitingLine = phraseFor(pending[0]?.tool ?? card.steps[0]?.tool ?? 'agent.plan', pending[0]?.params ?? {}, nameOf);
   const awaiting: Track['awaiting'] = {
     kind: card.kind,
     steps: pending.length,
-    content: phraseFor(pending[0]?.tool ?? card.steps[0]?.tool ?? 'agent.plan', pending[0]?.params ?? {}, nameOf).content,
+    content: awaitingLine.content,
+    ...(awaitingLine.contentRef === undefined ? {} : { contentRef: awaitingLine.contentRef }),
   };
 
   if (card.kind === 'confirm') {
@@ -501,12 +833,25 @@ function finish(list: TaskList, promote: boolean): TaskList {
     if (next !== -1) items = items.map((item, index) => (index === next ? { ...item, state: 'in_progress' } : item));
   }
   const asking = list.phase === 'planning' || list.phase === 'retrying';
+  const contentRef: MessageRef = { id: 'harness.progress.plan.content', message: 'Plan' };
   if (asking && !items.some((item) => item.key === PLAN_KEY)) {
-    items = [{ key: PLAN_KEY, content: 'Plan', activeForm: 'Planning', state: 'in_progress' }, ...items];
+    items = [{ key: PLAN_KEY, content: 'Plan', activeForm: 'Planning', contentRef, state: 'in_progress' }, ...items];
   }
   const busy = items.some(running);
   const activeForm = list.track.drafting !== null ? `Drafting ${quoted(list.track.drafting)}` : list.phase === 'retrying' ? 'Trying again' : 'Planning';
-  items = items.map((item) => (item.key === PLAN_KEY ? { ...item, activeForm, state: asking && !busy ? 'in_progress' : 'done' } : item));
+  const activeFormRef: MessageRef =
+    list.track.drafting !== null
+      ? {
+          id: 'harness.progress.plan.drafting',
+          message: 'Drafting “{scene}”',
+          values: { scene: clipped(list.track.drafting) },
+        }
+      : list.phase === 'retrying'
+        ? { id: 'harness.progress.plan.retrying', message: 'Trying again' }
+        : { id: 'harness.progress.plan.active', message: 'Planning' };
+  items = items.map((item) =>
+    item.key === PLAN_KEY ? { ...item, contentRef, activeForm, activeFormRef, state: asking && !busy ? 'in_progress' : 'done' } : item,
+  );
   const last = items.map(running).lastIndexOf(true);
   items = items.map((item, index) => (running(item) && index !== last ? { ...item, state: 'pending' } : item));
   return { ...list, items };
@@ -562,6 +907,32 @@ export function headerLineOf(list: TaskList): string | null {
   if (active === undefined) return null;
   const steps = list.items.filter((item) => item.state !== 'skipped');
   return `Step ${steps.indexOf(active) + 1} of ${steps.length} · ${active.activeForm}`;
+}
+
+// The app renders nested phrases before the frame; headless callers keep the original English values.
+export function headerRefOf(list: TaskList, render?: (ref: MessageRef) => string): MessageRef | null {
+  if (list.phase === 'idle' || isSettled(list.phase)) return null;
+  const { awaiting } = list.track;
+  if (list.phase === 'awaiting-approval' && awaiting !== null) {
+    return awaiting.kind === 'plan'
+      ? {
+          id: 'harness.progress.header.waitingPlan',
+          message: 'Waiting for you · Plan, {count, plural, one {# step} other {# steps}}',
+          values: { count: awaiting.steps },
+        }
+      : {
+          id: 'harness.progress.header.waitingConfirm', message: 'Waiting for you · {content}',
+          values: { content: render !== undefined && awaiting.contentRef !== undefined ? render(awaiting.contentRef) : awaiting.content },
+        };
+  }
+  const active = list.items.find((item) => item.state === 'in_progress');
+  if (active === undefined) return null;
+  const steps = list.items.filter((item) => item.state !== 'skipped');
+  return {
+    id: 'harness.progress.header.step',
+    message: 'Step {step} of {total} · {activeForm}',
+    values: { step: steps.indexOf(active) + 1, total: steps.length, activeForm: render !== undefined && active.activeFormRef !== undefined ? render(active.activeFormRef) : active.activeForm },
+  };
 }
 
 /** How close a turn is to its model-call bound: `limit` at the bound, `near` one call short of it (the last two calls). */

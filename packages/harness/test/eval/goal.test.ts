@@ -6,6 +6,7 @@
  * that iteration's steps, then a plain reply if the turn goes back to it.
  */
 
+import { textOf } from '@caotang/gateway';
 import { describe, expect, it } from 'vitest';
 
 import type { ChatRequest, Gateway } from '@caotang/gateway';
@@ -43,7 +44,7 @@ function iterationOf(req: ChatRequest): number {
 
 const repliesSoFar = (req: ChatRequest): number => req.messages.filter((message) => message.role === 'assistant').length;
 
-const isNativePlanner = (req: ChatRequest): boolean => (req.tools?.length ?? 0) > 0 && (req.messages[0]?.content ?? '').startsWith(PLANNER_SYSTEM_PREFIX);
+const isNativePlanner = (req: ChatRequest): boolean => (req.tools?.length ?? 0) > 0 && textOf(req.messages[0]?.content ?? '').startsWith(PLANNER_SYSTEM_PREFIX);
 
 /** The planner on either wire: iteration n's calls, then a plain reply when the turn comes back to the model (a refusal, a result). */
 function planner(wire: Wire, plan: (iteration: number) => readonly Call[]): MockScript[] {

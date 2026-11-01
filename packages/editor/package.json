@@ -14,6 +14,7 @@
   "dependencies": {
     "@handlewithcare/prosemirror-suggest-changes": "0.1.8",
     "@handlewithcare/remark-prosemirror": "0.1.5",
+    "@caotang/pictures": "workspace:*",
     "@caotang/store": "workspace:*",
     "@tiptap/core": "3.31.4",
     "@tiptap/extension-blockquote": "3.31.4",

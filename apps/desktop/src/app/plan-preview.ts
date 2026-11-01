@@ -6,8 +6,17 @@
  * touches the DOM, and every id in the preview is named by its title, never shown raw.
  */
 
-import { refusalSentence } from '@caotang/harness';
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg, t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
+import { costLineRef, refusalSentence } from '@caotang/harness';
+import type { ComicPreview, StepCost, TimelineCard, TimelineCardRow, TimelineDeltaFinding } from '@caotang/harness';
+import type { MessageRef } from '@caotang/i18n';
+
+import { renderRef } from '../i18n/render-ref.js';
 import { nodeById, type ProjectState } from '@caotang/store';
+
+/* lingui-set comment="Interpolated values: parent, title" */
 
 /** One synopsis a batch writes: the document, whether the synopsis is new or replaces one, the text and its word count. */
 export interface SynopsisPreviewRow {
@@ -89,6 +98,9 @@ export type StepPreviewView =
   | { readonly kind: 'codex'; readonly entries: readonly CodexPreviewEntry[] }
   | { readonly kind: 'tree'; readonly lines: readonly string[]; readonly rows: readonly TreePreviewRow[] }
   | ReviewPreviewView
+  | TranscriptionPreviewView
+  | ComicPreview
+  | TimelineCard
   | InkPreviewView
   | ShotsPreviewView;
 
@@ -122,50 +134,115 @@ export interface ReviewPreviewView {
   readonly prompt: string;
 }
 
-/** The name a node takes when the project no longer holds it, so a preview never shows an id. */
-const MISSING_NODE = 'a document that is no longer in the project';
+export interface TranscriptionPreviewPage {
+  readonly assetId: string;
+  readonly title: string;
+  readonly file: string;
+  readonly width?: number;
+  readonly height?: number;
+}
 
-/** The `from` a new entry's field shows: a create has no earlier value (codex.md §7, "create = full proposed content"). */
-export const NEW_ENTRY_FROM = '(new entry)';
+export interface TranscriptionRouteView {
+  readonly label: string;
+  readonly model: string;
+}
+
+/** The approved request schedule, routes and page thumbnails of `pictures.transcribe`. */
+export interface TranscriptionPreviewView {
+  readonly kind: 'transcription';
+  readonly into: 'new-document' | 'searchable';
+  readonly language: string;
+  readonly secondRead?: { readonly profileId: string; readonly model?: string };
+  readonly pages: readonly TranscriptionPreviewPage[];
+  readonly batchSizes: readonly number[];
+  readonly warnings: readonly string[];
+  readonly requests: number;
+  readonly maxRequests: number;
+  readonly promptTokens: number;
+  readonly outputTokens: number;
+  readonly routes: { readonly primary: TranscriptionRouteView; readonly second?: TranscriptionRouteView };
+  readonly routeCosts: { readonly primary?: StepCost; readonly second?: StepCost };
+}
+
+/** The name a node takes when the project no longer holds it, so a preview never shows an id. */
+const MISSING_NODE: MessageDescriptor = msg`a document that is no longer in the project`;
+
+/**
+ * The `from` a create's field carries (codex.md §7, "create = full proposed content"). It marks a field that has no earlier
+ * value and is never rendered: the card shows a create's fields as "label: value", so the marker is data, not copy.
+ */
+export const NEW_ENTRY_FROM = 'new-entry';
 
 /** The writer's word for each codex field a write can name (codex.md §2). The preview's field names are internal, so they are mapped here. */
-const FIELD_LABELS: Readonly<Record<string, string>> = {
-  name: 'Name',
-  type: 'Type',
-  description: 'Description',
-  aliases: 'Also known as',
-  includePolicy: 'Included in drafting',
-  caseSensitive: 'Match case',
-  exclude: 'Ignore matches in',
-  visualRefs: 'Visual references',
+const FIELD_LABELS: Readonly<Record<string, MessageDescriptor>> = {
+  name: msg`Name`,
+  type: msg`Type`,
+  description: msg`Description`,
+  aliases: msg`Also known as`,
+  includePolicy: msg`Included in drafting`,
+  caseSensitive: msg`Match case`,
+  exclude: msg`Ignore matches in`,
+  visualRefs: msg`Visual references`,
 };
+
+/** A field's writer-facing label, or the internal name for one with no label. */
+function fieldLabel(field: string): string {
+  const label = FIELD_LABELS[field];
+  return label === undefined ? field : i18n._(label);
+}
 
 /** The fields a create carries whole, in the order the card lists them. */
 const CREATE_FIELDS = ['type', 'description', 'aliases', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs'] as const;
 
 /** The name a picture takes when the project no longer holds its file, so the card names it rather than showing its id. */
-const MISSING_PICTURE = 'a picture that is no longer in the project';
+const MISSING_PICTURE: MessageDescriptor = msg`a picture that is no longer in the project`;
 
 /** The writer's words for each include policy (codex.md §2): when the entry is put into a drafting call. */
-const POLICY_WORDS: Readonly<Record<string, string>> = {
-  always: 'Always, in every drafting call',
-  detected: 'When its name or an alias appears in the text',
-  manual: 'Only when attached to the scene',
-  never: 'Never',
+const POLICY_WORDS: Readonly<Record<string, MessageDescriptor>> = {
+  always: msg`Always, in every drafting call`,
+  detected: msg`When its name or an alias appears in the text`,
+  manual: msg`Only when attached to the scene`,
+  never: msg`Never`,
 };
 
-/** The flag the codex diff carries for an always-include entry (`ALWAYS_INCLUDE_FLAG` in the harness), in the writer's words. */
-const ALWAYS_FLAG = 'always-include affects every generation call';
+/**
+ * The flag the codex diff carries for an always-include entry (`ALWAYS_INCLUDE_FLAG` in the harness) — its data token, never
+ * translated; the harness is free to extend the sentence after `always-include`.
+ */
+function isAlwaysFlag(flag: string): boolean {
+  return flag.startsWith('always-include');
+}
 
-const CHANGE_WORDS: Readonly<Record<string, string>> = {
-  created: 'Created',
-  moved: 'Moved',
-  renamed: 'Renamed',
-  'moved and renamed': 'Moved and renamed',
+const CHANGE_WORDS: Readonly<Record<string, MessageDescriptor>> = {
+  created: msg`Created`,
+  moved: msg`Moved`,
+  renamed: msg`Renamed`,
+  both: msg`Moved and renamed`,
 };
+
+/** A restructure change in the writer's words: a move and a rename together are one change of their own. */
+function changeWordsOf(change: string): string {
+  const key = change.startsWith('moved') && change.includes('renamed') ? 'both' : change;
+  const word = CHANGE_WORDS[key];
+  return word === undefined ? change : i18n._(word);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function transcriptionRouteOf(value: unknown): TranscriptionRouteView | undefined {
+  if (!isRecord(value) || typeof value['label'] !== 'string' || typeof value['model'] !== 'string') return undefined;
+  return { label: value['label'], model: value['model'] };
+}
+
+function transcriptionCostOf(value: unknown): StepCost | undefined {
+  if (!isRecord(value)) return undefined;
+  const promptUsd = value['promptUsd'];
+  const completionUsd = value['completionUsd'];
+  const totalUsd = value['totalUsd'];
+  if (typeof promptUsd !== 'number' || typeof completionUsd !== 'number' || typeof totalUsd !== 'number') return undefined;
+  return { promptUsd, completionUsd, totalUsd, ...(value['includesThinking'] === true ? { includesThinking: true as const } : {}) };
 }
 
 function textsOf(value: unknown): string[] {
@@ -173,25 +250,28 @@ function textsOf(value: unknown): string[] {
 }
 
 function titleOf(state: ProjectState, id: string): string {
-  return nodeById(state, id)?.title ?? MISSING_NODE;
+  return nodeById(state, id)?.title ?? i18n._(MISSING_NODE);
 }
 
 /** A place in the tree as the restructure preview names it: the node's title, and the title of the node it sits in. */
 function placeOf(slot: Record<string, unknown>): string {
   const title = typeof slot['title'] === 'string' ? slot['title'] : '';
   const parent = typeof slot['parentTitle'] === 'string' ? slot['parentTitle'] : null;
-  return parent === null ? title : `${title}, in ${parent}`;
+  return parent === null ? title : t`${{ title: isolate(title) }}, in ${{ parent: isolate(parent) }}`;
 }
 
 function flagWords(flag: string): string {
-  return flag === ALWAYS_FLAG ? 'Always included: this entry goes into every drafting call' : flag;
+  return isAlwaysFlag(flag) ? t`Always included: this entry goes into every drafting call` : flag;
 }
 
 /** A codex value in the words the card shows: yes or no, the list joined, the policy named in words, and "(none)" for nothing. */
 function plainOf(field: string, value: unknown): string {
-  if (field === 'includePolicy' && typeof value === 'string') return POLICY_WORDS[value] ?? value;
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (Array.isArray(value)) return value.length === 0 ? '(none)' : value.map((item) => String(item)).join(', ');
+  if (field === 'includePolicy' && typeof value === 'string') {
+    const policy = POLICY_WORDS[value];
+    return policy === undefined ? value : i18n._(policy);
+  }
+  if (typeof value === 'boolean') return value ? t`Yes` : t`No`;
+  if (Array.isArray(value)) return value.length === 0 ? t`(none)` : value.map((item) => String(item)).join(', ');
   if (value === null || value === undefined || value === '') return '(none)';
   return String(value);
 }
@@ -212,7 +292,7 @@ function valueOfJson(text: string): unknown {
 function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, string>): string {
   if (field !== 'visualRefs') return plainOf(field, value);
   const ids = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-  return ids.length === 0 ? '(none)' : ids.map((id) => names.get(id) ?? MISSING_PICTURE).join(', ');
+  return ids.length === 0 ? '(none)' : ids.map((id) => names.get(id) ?? i18n._(MISSING_PICTURE)).join(', ');
 }
 
 /**
@@ -221,7 +301,7 @@ function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, strin
  */
 function createChangesOf(entry: Record<string, unknown>, names: ReadonlyMap<string, string>): CodexPreviewChange[] {
   return CREATE_FIELDS.filter((field) => entry[field] !== undefined || field === 'visualRefs').map((field) => ({
-    field: FIELD_LABELS[field] ?? field,
+    field: fieldLabel(field),
     from: NEW_ENTRY_FROM,
     to: wordsOf(field, entry[field], names),
   }));
@@ -233,7 +313,7 @@ function updateChangesOf(changes: unknown, names: ReadonlyMap<string, string>): 
   return changes.filter(isRecord).map((change) => {
     const field = String(change['field'] ?? '');
     return {
-      field: FIELD_LABELS[field] ?? field,
+      field: fieldLabel(field),
       from: wordsOf(field, valueOfJson(String(change['from'] ?? 'null')), names),
       to: wordsOf(field, valueOfJson(String(change['to'] ?? 'null')), names),
     };
@@ -377,6 +457,49 @@ export function stepPreviewOf(
       warnings: textsOf(preview['warnings']),
     };
   }
+  if (tool === 'pictures.transcribe' && Array.isArray(preview['pages']) && isRecord(preview['estimate'])) {
+    const estimate = preview['estimate'];
+    const rawRoutes = isRecord(preview['routes']) ? preview['routes'] : {};
+    const primary = transcriptionRouteOf(rawRoutes['primary']);
+    if (primary === undefined) return undefined;
+    const second = transcriptionRouteOf(rawRoutes['second']);
+    const rawCosts = isRecord(preview['routeCosts']) ? preview['routeCosts'] : {};
+    const primaryCost = transcriptionCostOf(rawCosts['primary']);
+    const secondCost = transcriptionCostOf(rawCosts['second']);
+    const rawSecond = isRecord(preview['secondRead']) ? preview['secondRead'] : undefined;
+    const into = preview['into'];
+    if (into !== 'new-document' && into !== 'searchable') return undefined;
+    return {
+      kind: 'transcription',
+      into,
+      language: typeof preview['language'] === 'string' ? preview['language'] : 'en',
+      ...(rawSecond !== undefined && typeof rawSecond['profileId'] === 'string'
+        ? { secondRead: { profileId: rawSecond['profileId'], ...(typeof rawSecond['model'] === 'string' ? { model: rawSecond['model'] } : {}) } }
+        : {}),
+      pages: preview['pages'].filter(isRecord).map((page) => {
+        const assetId = typeof page['assetId'] === 'string' ? page['assetId'] : '';
+        const file = typeof page['file'] === 'string' ? page['file'] : (pictureNames.get(assetId) ?? assetId);
+        return {
+          assetId,
+          title: typeof page['caption'] === 'string' && page['caption'].trim() !== '' ? page['caption'] : file,
+          file,
+          ...(typeof page['width'] === 'number' ? { width: page['width'] } : {}),
+          ...(typeof page['height'] === 'number' ? { height: page['height'] } : {}),
+        };
+      }),
+      batchSizes: Array.isArray(preview['batchSizes']) ? preview['batchSizes'].filter((size): size is number => typeof size === 'number') : [],
+      warnings: textsOf(preview['warnings']),
+      requests: typeof estimate['requests'] === 'number' ? estimate['requests'] : 0,
+      maxRequests: typeof estimate['maxRequests'] === 'number' ? estimate['maxRequests'] : 0,
+      promptTokens: typeof estimate['promptTokens'] === 'number' ? estimate['promptTokens'] : 0,
+      outputTokens: typeof estimate['outputTokens'] === 'number' ? estimate['outputTokens'] : 0,
+      routes: { primary, ...(second === undefined ? {} : { second }) },
+      routeCosts: {
+        ...(primaryCost === undefined ? {} : { primary: primaryCost }),
+        ...(secondCost === undefined ? {} : { second: secondCost }),
+      },
+    };
+  }
   if (tool === 'coherence.review' && Array.isArray(preview['documents']) && isRecord(preview['estimate'])) {
     const estimate = preview['estimate'];
     const documents = preview['documents'].filter(isRecord).map(
@@ -408,6 +531,32 @@ export function stepPreviewOf(
     );
     return { kind: 'shots', folder: preview['folder'], shots, lines: textsOf(preview['lines']), notes: textsOf(preview['notes']) };
   }
+  if (tool === 'timeline.edit' && preview['kind'] === 'timeline-edit' && Array.isArray(preview['rows']) && isRecord(preview['findingsDelta'])) {
+    const delta = preview['findingsDelta'];
+    const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+    const count = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0);
+    const findings = (value: unknown): TimelineDeltaFinding[] =>
+      Array.isArray(value) ? value.filter(isRecord).map((finding) => ({ checkId: text(finding['checkId']), severity: text(finding['severity']), message: text(finding['message']) })) : [];
+    const rows = preview['rows'].filter(isRecord).map((row): TimelineCardRow => ({ node: text(row['node']), part: text(row['part']), field: text(row['field']), before: text(row['before']), after: text(row['after']) }));
+    const resolved = findings(delta['resolved']);
+    const added = findings(delta['added']);
+    const omitted = count(preview['omittedRows']);
+    return {
+      kind: 'timeline-edit',
+      rows,
+      ...(omitted > 0 ? { omittedRows: omitted } : {}),
+      findingsDelta: {
+        resolved,
+        added,
+        resolvedCount: Math.max(count(delta['resolvedCount']), resolved.length),
+        addedCount: Math.max(count(delta['addedCount']), added.length),
+      },
+    };
+  }  const comicKind = tool === 'comic.derive' ? 'comic-derive' : tool === 'comic.letter' ? 'comic-letter' : tool === 'comic.scriptFromPages' ? 'comic-script-from-pages' : undefined;
+  if (comicKind !== undefined && preview['kind'] === comicKind) {
+    // The native tool builds this closed, JSON-safe shape from the current project; writer content is rendered as text below.
+    return preview as unknown as ComicPreview;
+  }
   if (tool === 'binder.restructure' && Array.isArray(preview['tree'])) {
     const rows = preview['tree'].filter(isRecord).map((node): TreePreviewRow => {
       const after = isRecord(node['after']) ? node['after'] : {};
@@ -415,8 +564,8 @@ export function stepPreviewOf(
       const change = typeof node['change'] === 'string' ? node['change'] : '';
       return {
         title: typeof after['title'] === 'string' ? after['title'] : '',
-        change: CHANGE_WORDS[change] ?? change,
-        from: before === undefined ? 'Not in the project yet' : placeOf(before),
+        change: changeWordsOf(change),
+        from: before === undefined ? t`Not in the project yet` : placeOf(before),
         to: placeOf(after),
       };
     });
@@ -431,10 +580,23 @@ export function stepPreviewOf(
  * row, since the writer looks at Approve to see what is stopping the plan.
  */
 export function refusalReasonOf(
-  steps: readonly { readonly status: string; readonly error?: { readonly message: string; readonly correctiveHint?: string } }[],
+  steps: readonly {
+    readonly status: string;
+    readonly error?: {
+      readonly message: string;
+      readonly messageRef?: MessageRef;
+      readonly correctiveHint?: string;
+      readonly correctiveHintRef?: MessageRef;
+    };
+  }[],
 ): string | undefined {
   const refused = steps.find((step) => step.status === 'refused' && step.error !== undefined)?.error;
-  return refused === undefined ? undefined : refusalSentence(refused.message, refused.correctiveHint);
+  if (refused === undefined) return undefined;
+  // I7: a bus refusal carries the same sentence as a ref; the English is the fallback for an old or
+  // untranslated id, never a raw ICU template.
+  const message = refused.messageRef === undefined ? refused.message : renderRef(refused.messageRef);
+  const hint = refused.correctiveHintRef === undefined ? refused.correctiveHint : renderRef(refused.correctiveHintRef);
+  return refusalSentence(message, hint);
 }
 
 /**
@@ -442,7 +604,7 @@ export function refusalReasonOf(
  * for an amount too small to show.
  */
 export function formatUsd(value: number): string {
-  if (value < 0.0001) return 'under $0.0001';
+  if (value < 0.0001) return t`under $0.0001`;
   return value < 1 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
 }
 
@@ -450,9 +612,10 @@ export function formatUsd(value: number): string {
 export function costLineOf(
   cost: { readonly promptUsd: number; readonly completionUsd: number; readonly totalUsd: number; readonly includesThinking?: true } | undefined,
 ): string | undefined {
-  if (cost === undefined) return undefined;
-  const reply = `reply ${formatUsd(cost.completionUsd)}${cost.includesThinking === true ? ' including thinking' : ''}`;
-  return `About ${formatUsd(cost.totalUsd)} (prompt ${formatUsd(cost.promptUsd)}, ${reply}).`;
+  // I7: the line is the harness ref, rendered through the active catalogue or compiled English. Its
+  // English is byte-identical to the sentence this function wrote before the ref existed.
+  const ref = costLineRef(cost);
+  return ref === undefined ? undefined : renderRef(ref);
 }
 
 /**

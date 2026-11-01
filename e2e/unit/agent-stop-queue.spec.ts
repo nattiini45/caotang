@@ -6,7 +6,7 @@ import { createMockProvider, isDraftCall, isPlannerCall, userTextOf, type MockSc
 import type { GhostPreview } from '../../packages/editor/src/tiptap/index.js';
 
 import { ProjectSession } from '../../apps/desktop/src/app/session.js';
-import { AgentController, QUEUE_PAUSED, type AgentSnapshot } from '../../apps/desktop/src/app/agent.js';
+import { AgentController, queuePausedText, type AgentSnapshot } from '../../apps/desktop/src/app/agent.js';
 import type { ProviderService } from '../../apps/desktop/src/app/providers.js';
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
 
@@ -51,6 +51,11 @@ async function until(predicate: () => boolean, label: string, ms = 4000): Promis
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${label}`);
     await sleep(5);
   }
+}
+
+/** Waits until the running turn has reached its planner request: `busy` is true earlier, while the harness loads. */
+async function untilPlanning(controller: AgentController): Promise<void> {
+  await until(() => controller.snapshot().turns.at(-1)?.phase === 'planning', 'the turn to start planning');
 }
 
 /** A door a test holds shut, and opens when it wants the turn behind it to go on. */
@@ -148,6 +153,8 @@ test('Stop ends a turn that is planning, as the writer’s, and the controller i
   const running = controller.submit('Think about it.');
   await until(() => controller.snapshot().busy && reached.isOpen(), 'the turn to ask the model');
   expect(controller.snapshot().stoppable).toBe(true);
+  // A turn is busy while its harness still loads; the stop is "during planning" only once the planner has been asked.
+  await untilPlanning(controller);
   controller.stop();
   expect(controller.snapshot().stopping).toBe(true);
   expect(controller.snapshot().announcement).toBe('Stopping the turn.');
@@ -330,6 +337,31 @@ test('a note reaches the running turn’s next request, and a note sent while a 
   await session.close();
 });
 
+test('a note written while the turn’s harness is still loading is held, and the first request reads it', async () => {
+  const requests: string[] = [];
+  const noted: MockScript = {
+    match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Look at it.'),
+    respond: (req) => {
+      requests.push(userTextOf(req));
+      return { content: JSON.stringify({ reply: 'Looked.' }) };
+    },
+  };
+  const { session, controller } = await open([noted]);
+
+  const running = controller.submit('Look at it.');
+  expect(controller.snapshot().busy).toBe(true);
+  expect(controller.snapshot().turns).toHaveLength(0);
+  expect(controller.steer('Mind the ending.')).toBe('sent');
+  expect(controller.snapshot().notes).toEqual([expect.objectContaining({ text: 'Mind the ending.', lands: 'next-model-call' })]);
+  const report = await running;
+
+  expect(report?.steering).toEqual([expect.objectContaining({ text: 'Mind the ending.', deliveredAtCall: 1 })]);
+  expect(requests[0]).toContain('Note from the writer, sent while you were working: Mind the ending.');
+  expect(controller.snapshot().notes).toEqual([]);
+  expect(controller.snapshot().queue).toEqual([]);
+  await session.close();
+});
+
 test('the queue pauses after a turn that stops on a question, and Run the queue resumes it', async () => {
   // A planner that fails like a provider does, so the turn ends failed with an ask-back.
   const failing: MockScript = { match: planner('Fail first.'), respond: () => ({ content: '', error: { kind: 'network' } }) };
@@ -345,7 +377,7 @@ test('the queue pauses after a turn that stops on a question, and Run the queue 
   expect(report?.askBack).toBeDefined();
   const paused = controller.snapshot();
   expect(paused.queuePaused).toBe(true);
-  expect(paused.announcement).toBe(QUEUE_PAUSED);
+  expect(paused.announcement).toBe(queuePausedText());
   expect(paused.queue.map((entry) => entry.intent)).toEqual(['After the failure.']);
   expect(paused.turns).toHaveLength(1);
 

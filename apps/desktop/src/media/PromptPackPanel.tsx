@@ -6,6 +6,10 @@
  * generation happens in the writer's own tool, with the writer's own account (video-prompt-pack.md §1).
  */
 
+import { accessibleText } from '../i18n/accessible-text.js';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import { useState, type ReactNode } from 'react';
 
 import type { TreeNode } from '@caotang/store';
@@ -19,6 +23,8 @@ import { PACK_ARTIFACTS, PACK_TEMPLATES, exportPackOf, packPreviewOf, type PackP
 import { fieldKeyOf, type PromptFieldKey } from './prompt-edit-model.js';
 import type { MediaPorts } from './ports.js';
 
+
+/* lingui-set comment="The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers." */
 export interface PromptPackPanelProps {
   readonly session: ProjectSession;
   /** The storyboard folder whose shots the pack covers. */
@@ -32,6 +38,7 @@ export interface PromptPackPanelProps {
 }
 
 export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPanelProps): ReactNode {
+  useLingui();
   useSession(session);
   // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
   const assets = useAssetRecords(ports?.assets, session.assetsVersion());
@@ -40,7 +47,7 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
   const preview = packPreviewOf(session.state, folder.id, templateId, assets);
 
   if (preview === null) {
-    return <p className="muted">No target model is selected, so there is no pack to show.</p>;
+    return <p className="muted"><Trans>No target model is selected, so there is no pack to show.</Trans></p>;
   }
 
   const exportArtifact = (artifact: PackArtifact): void => {
@@ -49,22 +56,26 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
     const label = PACK_ARTIFACTS.find((item) => item.artifact === artifact)?.label ?? 'pack';
     if (!outcome.ok) {
       const errors = outcome.issues.filter((issue) => issue.severity === 'error').length;
-      setMessage(`The ${label} was not written. ${errors === 1 ? 'One row is an error' : `${errors} rows are errors`}, and the fix is in the list below.`);
+      setMessage(t`The ${label} was not written. ${plural(errors, { one: 'One row is an error', other: '# rows are errors' })}, and the fix is in the list below.`);
       return;
     }
     const mime = PACK_ARTIFACTS.find((item) => item.artifact === artifact)?.mime ?? 'text/plain';
     downloadBytes(new TextEncoder().encode(outcome.text), outcome.fileName, mime);
     // A record the pack could not read is left out of the file, and the file must say so, not only the checks list.
     const unread = preview.issues.filter((issue) => issue.code === 'unreadable-record' && issue.severity === 'warning').length;
+    const fileName = outcome.fileName;
+    const vendor = preview.template.displayName;
+    const written = t`The ${label} is written as ${fileName}. Attach any listed reference files in ${vendor} yourself.`;
     const left =
       unread === 0
         ? ''
-        : ` ${unread === 1 ? 'One stored record' : `${unread} stored records`} could not be read, so ${unread === 1 ? 'it is' : 'they are'} not in the file. ` +
-          'The checks list says which.';
-    setMessage(`The ${label} is written as ${outcome.fileName}. Attach any listed reference files in ${preview.template.displayName} yourself.${left}`);
+        : ` ${plural(unread, { one: 'One stored record could not be read, so it is not in the file.', other: '# stored records could not be read, so they are not in the file.' })} ${t`The checks list says which.`}`;
+    setMessage(`${written}${left}`);
   };
 
   const total = preview.rows.length + preview.missing.length;
+  const rowCount = preview.rows.length;
+  const vendor = preview.template.displayName;
   const rowShotIds = new Set(preview.rows.map((row) => row.shotId));
   const panelIssues = preview.issues.filter((issue) => issue.shotId === undefined || !rowShotIds.has(issue.shotId));
 
@@ -72,8 +83,8 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
     <div className="pp-panel">
       <div className="pp-controls">
         <label className="pp-target">
-          <span>Target model</span>
-          <select aria-label="Target model" value={preview.template.id} onChange={(event) => setTemplateId(event.target.value)}>
+          <span><Trans>Target model</Trans></span>
+          <select aria-label={t`Target model`} value={preview.template.id} onChange={(event) => setTemplateId(event.target.value)}>
             {PACK_TEMPLATES.map((template) => (
               <option key={template.id} value={template.id}>
                 {template.displayName}
@@ -82,7 +93,7 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
           </select>
         </label>
         <p className="muted">
-          {preview.rows.length} of {total === 1 ? '1 shot' : `${total} shots`} have a prompt for {preview.template.displayName}.
+          {t`${rowCount} of ${plural(total, { one: '# shot', other: '# shots' })} have a prompt for ${vendor}.`}
         </p>
       </div>
 
@@ -107,7 +118,7 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
       </div>
       {preview.canExport ? null : (
         <p className="field-note" role="note">
-          Export is held while a row is an error, so no file is written from a prompt the vendor would refuse.
+          <Trans>Export is held while a row is an error, so no file is written from a prompt the vendor would refuse.</Trans>
         </p>
       )}
       {message === null ? null : (
@@ -117,8 +128,8 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
       )}
 
       {panelIssues.length === 0 ? null : (
-        <section className="pp-checks" aria-label="Checks for this pack">
-          <h3 className="field-label">Checks</h3>
+        <section className="pp-checks" aria-label={t`Checks for this pack`}>
+          <h3 className="field-label"><Trans>Checks</Trans></h3>
           <ul className="findings">
             {panelIssues.map((issue) => (
               <IssueRow key={`${issue.code}:${issue.field}:${issue.message}`} issue={issue} onFix={onFix} />
@@ -129,10 +140,10 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
 
       {preview.rows.length === 0 ? (
         <p className="muted">
-          No shot in this storyboard has a prompt for {preview.template.displayName} yet. Write a shot&apos;s prompt in its fields on the board, then come back here to export.
+          {t`No shot in this storyboard has a prompt for ${vendor} yet. Write a shot's prompt in its fields on the board, then come back here to export.`}
         </p>
       ) : (
-        <ol className="pp-shots" aria-label={`Prompts for ${preview.template.displayName}`}>
+        <ol className="pp-shots" aria-label={accessibleText(t`Prompts for ${vendor}`)}>
           {preview.rows.map((row) => (
             <ShotPromptRow key={row.shotId} row={row} preview={preview} onFix={onFix} />
           ))}
@@ -143,24 +154,26 @@ export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPan
 }
 
 function ShotPromptRow({ row, preview, onFix }: { readonly row: PackShotRow; readonly preview: PackPreview; readonly onFix?: PromptPackPanelProps['onFix'] }): ReactNode {
-  const spec = [row.mode, row.durationSec === null ? '' : `${row.durationSec} s`, row.aspect].filter((part) => part !== '').join(' · ');
+  useLingui();
+  const seconds = row.durationSec;
+  const spec = [row.mode, seconds === null ? '' : t`${seconds} s`, row.aspect].filter((part) => part !== '').join(' · ');
   return (
     <li className="pp-shot" data-shot-id={row.shotId}>
       <header className="pp-shot-head">
-        <span className="chip sb-number" aria-label={`Shot number ${row.number}`}>
+        <span className="chip sb-number" aria-label={accessibleText(t`Shot number ${{ number: row.number }}`)}>
           {row.number}
         </span>
         <span className="sb-spec">{spec}</span>
-        {row.bestTake ? <span className="badge">Best take kept</span> : null}
+        {row.bestTake ? <span className="badge"><Trans>Best take kept</Trans></span> : null}
       </header>
-      <p className="pp-prompt">{row.prompt === '' ? 'The prompt is empty.' : row.prompt}</p>
+      <p className="pp-prompt">{row.prompt === '' ? t`The prompt is empty.` : row.prompt}</p>
       {row.negative === '' ? null : (
         <p className="pp-note">
-          <span className="field-label">Negative prompt</span> {row.negative}
+          <span className="field-label"><Trans>Negative prompt</Trans></span> {row.negative}
         </p>
       )}
       {row.audio.length === 0 ? null : (
-        <ul className="pp-audio" aria-label="Audio cues">
+        <ul className="pp-audio" aria-label={t`Audio cues`}>
           {row.audio.map((cue) => (
             <li key={cue}>{cue}</li>
           ))}
@@ -168,11 +181,11 @@ function ShotPromptRow({ row, preview, onFix }: { readonly row: PackShotRow; rea
       )}
       {row.references.length === 0 ? null : (
         <p className="pp-note">
-          <span className="field-label">Attach</span> {row.references.join(', ')}
+          <span className="field-label"><Trans>Attach</Trans></span> {row.references.join(', ')}
         </p>
       )}
       {row.consistency.length === 0 ? null : (
-        <ul className="pp-audio" aria-label={`Consistency of shot ${row.number}`}>
+        <ul className="pp-audio" aria-label={accessibleText(t`Consistency of shot ${{ number: row.number }}`)}>
           {row.consistency.map((line) => (
             <li key={line}>{line}</li>
           ))}
@@ -186,7 +199,7 @@ function ShotPromptRow({ row, preview, onFix }: { readonly row: PackShotRow; rea
         </ul>
       )}
       <details className="pp-mapped">
-        <summary>The fields {preview.template.displayName} receives</summary>
+        <summary>{t`The fields ${{ vendor: preview.template.displayName }} receives`}</summary>
         <pre>{JSON.stringify(row.mapped, null, 2)}</pre>
       </details>
     </li>
@@ -198,17 +211,18 @@ function ShotPromptRow({ row, preview, onFix }: { readonly row: PackShotRow; rea
  * so the writer goes straight to what the message asks them to change.
  */
 function IssueRow({ issue, onFix }: { readonly issue: PanelIssue; readonly onFix?: PromptPackPanelProps['onFix'] }): ReactNode {
+  useLingui();
   const key = issue.field === undefined ? undefined : fieldKeyOf(issue.field);
   const shotId = issue.shotId;
   const link = onFix !== undefined && key !== undefined && shotId !== undefined;
   return (
     <li className={`pp-issue is-${issue.severity}`}>
-      <span className={`badge ${issue.severity === 'error' ? 'is-error' : 'is-warn'}`}>{issue.severity === 'error' ? 'Error' : 'Warning'}</span> {issue.message}
+      <span className={`badge ${issue.severity === 'error' ? 'is-error' : 'is-warn'}`}>{issue.severity === 'error' ? t`Error` : t`Warning`}</span> {issue.message}
       {link ? (
         <>
           {' '}
           <button type="button" className="button is-quiet" onClick={() => onFix(shotId, key, issue.vendor)}>
-            Fix on the board
+            <Trans>Fix on the board</Trans>
           </button>
         </>
       ) : null}

@@ -503,6 +503,26 @@ export const instructionsProposeResult = param.object(
   ['file', 'characters', 'digest'],
 );
 
+/*
+ * The PR's timeline, picture and comic rows (merge of main's result schemas). Declared open with no keys yet: each tool's own
+ * module shapes its data, and a key is allowed until its spec lists it (`RESULT_CLOSED` leaves them out). Listing their keys is
+ * the open checklist item for these rows.
+ */
+const openResult = (what: string) => param.object(what, {}, []);
+
+export const timelineReadResult = openResult('The timeline: scenes in story order per part, the part zones and the unscheduled shelf.');
+export const timelineEditResult = openResult('What the timeline batch changed, with the read-back of the changed scenes.');
+export const picturesListResult = openResult('The pictures, with their records, placements and uses.');
+export const picturesViewResult = openResult('The pictures sent as image blocks, and their captions, alt text and transcriptions.');
+export const picturesAnnotateResult = openResult('The pictures and placements whose metadata changed.');
+export const picturesAttachResult = openResult('The placements made and removed.');
+export const picturesImportResult = openResult('The picture saved, and where it was placed.');
+export const picturesPlaceResult = openResult('The placement made in the document.');
+export const picturesTranscribeResult = openResult('The reviewed transcription, and where it went.');
+export const comicDeriveResult = openResult('The comic pages made from the script.');
+export const comicLetterResult = openResult('The lettering placed on the page.');
+export const comicScriptFromPagesResult = openResult('The script written from the pages.');
+
 /* ------------------------------------------------------------------ *
  * The table
  * ------------------------------------------------------------------ */
@@ -551,6 +571,18 @@ export const RESULT_SPECS = {
   'goal.save': goalSaveResult,
   'memory.write': memoryWriteResult,
   'instructions.propose': instructionsProposeResult,
+  'timeline.read': timelineReadResult,
+  'timeline.edit': timelineEditResult,
+  'pictures.list': picturesListResult,
+  'pictures.view': picturesViewResult,
+  'pictures.annotate': picturesAnnotateResult,
+  'pictures.attach': picturesAttachResult,
+  'pictures.import': picturesImportResult,
+  'pictures.place': picturesPlaceResult,
+  'pictures.transcribe': picturesTranscribeResult,
+  'comic.derive': comicDeriveResult,
+  'comic.letter': comicLetterResult,
+  'comic.scriptFromPages': comicScriptFromPagesResult,
 } satisfies Record<CallableToolName, ObjectSpec>;
 
 /** The rows whose result spec is complete, so a key it does not list is refused. The checklist of open rows is every name not here. */

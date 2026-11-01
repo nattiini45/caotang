@@ -33,6 +33,14 @@ export const FINDING_TYPE_LABELS: Readonly<Record<string, string>> = {
   'speaker-differs': 'Speaker spelled differently',
   'speaker-screenplay-only': 'Only the screenplay has this speaker',
   'speaker-dialogue-only': 'Only the dialogue has this speaker',
+  balloon: 'Balloon over the word limit',
+  panel: 'Panel over the word limit',
+  emDash: 'Em dash in the lettering',
+  esszettBecomesSS: 'ß lettered as SS',
+  unletteredLine: 'Script line without a balloon',
+  staleAnchor: 'Balloon’s script text changed',
+  brokenBalloon: 'Balloon missing from its panel',
+  staleDocument: 'Lettered from another script',
 };
 
 /** A finding's type in the writer's words: its row, or the key itself with its dashes as spaces and a capital first letter. */

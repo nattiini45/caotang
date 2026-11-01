@@ -15,6 +15,7 @@ import { ProjectSession } from '../../apps/desktop/src/app/session.js';
 import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from '../../apps/desktop/src/components/activity-window.js';
 
 import { IDS, project } from './fixtures.js';
+import { withoutIsolates } from '../support.js';
 
 /**
  * The session is the app's own, and it reads the window and the document to know when the tab is
@@ -91,7 +92,7 @@ test('an undo group still names its own row after the log has grown behind it', 
     session.dispatch('doc.write', { docId: IDS.sceneB, body: 'two' });
     const [older, newer] = session.undo.groups().map((group) => group.id);
     // The writer's own typing is named by the scene it is in, in the writer's words.
-    expect(session.undoLabel()).toBe('your typing in “Scene B”');
+    expect(withoutIsolates(session.undoLabel())).toBe('your typing in “Scene B”');
     const summary = session.log.entriesForGroup(newer!).at(-1)?.summary;
 
     // A long sitting puts thousands of rows in the log, and the undo groups stay on the stack.
@@ -99,7 +100,7 @@ test('an undo group still names its own row after the log has grown behind it', 
     expect(session.undo.groups()).toHaveLength(2);
 
     // The groups still name their own rows: the log keeps every row of the tab.
-    expect(session.undoLabel()).toBe('your typing in “Scene B”');
+    expect(withoutIsolates(session.undoLabel())).toBe('your typing in “Scene B”');
     expect(session.laterChangesAfter(older!)).toEqual([summary]);
   } finally {
     await session.close();

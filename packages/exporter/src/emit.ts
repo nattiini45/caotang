@@ -34,7 +34,7 @@
 import { ArtifactNotFoundError, EXPORTS_DIR, type ArtifactFs } from '@caotang/store';
 import { ExportNotReadyError } from './errors.js';
 import { suffixName } from './template.js';
-import { isBinaryFormat, type CompileLogEntry, type ExportFormat } from './types.js';
+import type { CompileLogEntry, ExportFormat } from './types.js';
 
 /** `exports/compile-log.json`, the append-only record of every compile (§2 stage 4). */
 export const COMPILE_LOG_FILE = 'compile-log.json';
@@ -62,13 +62,24 @@ export interface EmitFailure {
 /**
  * What a file's render gives back: its contents, or its contents with notes that belong in the compile log row. A render can learn
  * a note only by running (the EPUB cover's size is read from the cover, and the cover is read then), and the row is written after
- * the renders, so a note returned here reaches it.
+ * the renders, so a note returned here reaches it. A render may also **skip** its file — a Markdown copy whose picture the
+ * project does not hold writes no file — with the notes that say so; the reservation stays freed by an undo as usual.
  */
-export type RenderedContents = Uint8Array | string | { readonly contents: Uint8Array | string; readonly notes: readonly string[] };
+export type RenderedContents =
+  | Uint8Array
+  | string
+  | { readonly contents: Uint8Array | string; readonly notes: readonly string[] }
+  | { readonly skip: true; readonly notes: readonly string[] };
 
-/** A render's contents and notes, with the notes empty when the render returned contents alone. */
+/** Whether a render skipped its file rather than producing contents. */
+export function isSkippedRendered(rendered: RenderedContents): rendered is { readonly skip: true; readonly notes: readonly string[] } {
+  return typeof rendered === 'object' && !(rendered instanceof Uint8Array) && 'skip' in rendered;
+}
+
+/** A render's contents and notes, with the notes empty when the render returned contents alone. Callers check {@link isSkippedRendered} first. */
 export function splitRendered(rendered: RenderedContents): { readonly contents: Uint8Array | string; readonly notes: readonly string[] } {
   if (typeof rendered === 'string' || rendered instanceof Uint8Array) return { contents: rendered, notes: [] };
+  if ('skip' in rendered) throw new Error('a skipped render has no contents; check isSkippedRendered first');
   return rendered;
 }
 
@@ -130,11 +141,18 @@ export function createEmitter(options: EmitterOptions): Emitter {
   let primed = false;
 
   const listing = (async () => {
-    for (const name of await artifacts.listFiles(EXPORTS_DIR)) reserved.add(`${EXPORTS_DIR}/${name}`);
-    if (bytes?.listFiles !== undefined) {
-      for (const name of await bytes.listFiles(EXPORTS_DIR)) reserved.add(`${EXPORTS_DIR}/${name}`);
-    }
+    await reserveDir(EXPORTS_DIR);
+    // A compile's files can sit one level down (`exports/<name>.assets/<picture>` for a Markdown copy), so the
+    // subfolders' files are reserved too, or a second compile could take a name the folder already holds.
+    for (const dir of await artifacts.listDirs(EXPORTS_DIR)) await reserveDir(`${EXPORTS_DIR}/${dir}`);
     primed = true;
+
+    async function reserveDir(dir: string): Promise<void> {
+      for (const name of await artifacts.listFiles(dir)) reserved.add(`${dir}/${name}`);
+      if (bytes?.listFiles !== undefined) {
+        for (const name of await bytes.listFiles(dir)) reserved.add(`${dir}/${name}`);
+      }
+    }
   })();
 
   // The queue starts behind the listing, so no write can run before the folder has
@@ -162,7 +180,13 @@ export function createEmitter(options: EmitterOptions): Emitter {
       try {
         const rendered: { readonly file: PublishedFile; readonly contents: Uint8Array | string }[] = [];
         for (const file of job.files) {
-          const out = splitRendered(await file.render());
+          const raw = await file.render();
+          // A skipped file (a picture the project does not hold) is not written and not listed in the log row's outputs.
+          if (isSkippedRendered(raw)) {
+            notes.push(...raw.notes);
+            continue;
+          }
+          const out = splitRendered(raw);
           notes.push(...out.notes);
           rendered.push({ file, contents: out.contents });
         }
@@ -249,10 +273,14 @@ export function createEmitter(options: EmitterOptions): Emitter {
   };
 
   async function writeArtifact(path: string, format: ExportFormat, contents: Uint8Array | string): Promise<void> {
-    await artifacts.ensureDir(EXPORTS_DIR);
-    if (isBinaryFormat(format)) {
+    // The file's own folder is made, so a compile that writes `exports/<name>.assets/<picture>` can place it there.
+    const slash = path.lastIndexOf('/');
+    if (slash > 0) await artifacts.ensureDir(path.slice(0, slash));
+    // Whether the path is a byte file is a property of the path, not of the compile's format: a Markdown compile
+    // writes picture bytes beside its text (pictures.md §4).
+    if (isBinaryPath(path)) {
       if (bytes === undefined) throw new Error(`no byte binding is attached, so ${path} cannot be written`);
-      if (typeof contents === 'string') throw new Error(`${format} rendered as text, which is a renderer defect`);
+      if (typeof contents === 'string') throw new Error(`${path} rendered as text, which is a renderer defect`);
       await bytes.writeBytes(path, contents);
       return;
     }
@@ -261,11 +289,22 @@ export function createEmitter(options: EmitterOptions): Emitter {
   }
 
   async function removeArtifact(path: string): Promise<void> {
+    // A path a compile reserved but never wrote (a skipped picture) removes nothing; that is not a failure.
     if (isBinaryPath(path)) {
-      if (bytes !== undefined) await bytes.removeBytes(path);
+      if (bytes !== undefined) {
+        try {
+          await bytes.removeBytes(path);
+        } catch (error) {
+          if (!(error instanceof ArtifactNotFoundError)) throw error;
+        }
+      }
       return;
     }
-    await artifacts.remove(path);
+    try {
+      await artifacts.remove(path);
+    } catch (error) {
+      if (!(error instanceof ArtifactNotFoundError)) throw error;
+    }
   }
 
   /**
@@ -290,9 +329,12 @@ export function createEmitter(options: EmitterOptions): Emitter {
   }
 }
 
-/** A path whose artifact lives in the byte store: the extension of a binary format (DOCX, EPUB and the screenplay PDF). */
+/**
+ * A path whose artifact lives in the byte store: the extension of a binary format (DOCX, EPUB, XLSX, the PDFs, the comic CBZ) or of a
+ * picture a Markdown copy carries (pictures.md §4: `png|jpe?g|webp` join both classifiers).
+ */
 function isBinaryPath(path: string): boolean {
-  return /\.(docx|epub|xlsx|pdf)$/i.test(path);
+  return /\.(docx|epub|xlsx|pdf|cbz|png|jpe?g|webp)$/i.test(path);
 }
 
 function messageOf(error: unknown): string {

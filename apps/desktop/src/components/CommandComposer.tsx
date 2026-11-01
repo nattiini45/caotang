@@ -7,11 +7,14 @@
  * The list never opens while an IME composition is in progress, and the full-width `／` is text, not a trigger.
  */
 
+import { plural, t } from '@lingui/core/macro';
 import { useId, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { matchCommands, menuQuery, type BuiltinCommand } from '@caotang/harness';
 
 import { radioStep } from './radio-keys.js';
 import { isImeEnter } from '../app/ime.js';
+
+/* lingui-set comment="Interpolated values: commandCount (how many commands match what is typed)" */
 
 export interface CommandComposerProps {
   readonly value: string;
@@ -75,13 +78,14 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
     }
   };
 
+  const commandCount = matches.length;
   return (
     <div className="command-composer">
       <input
         ref={inputRef}
         type="text"
         role="combobox"
-        aria-label="Intent"
+        aria-label={t`Intent`}
         aria-autocomplete="list"
         aria-expanded={visible}
         aria-controls={visible ? listId : undefined}
@@ -100,7 +104,7 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
       />
       {visible ? (
         <>
-          <ul id={listId} role="listbox" aria-label="Commands" className="command-menu" data-testid="command-menu">
+          <ul id={listId} role="listbox" aria-label={t`Commands`} className="command-menu" data-testid="command-menu">
             {matches.map((command) => (
               // Mouse down must not take the focus from the box; the click completes the command.
               <li
@@ -122,7 +126,7 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
       ) : null}
       {/* The count is announced when the list opens or narrows; the region is always there so a screen reader hears the change. */}
       <span className="visually-hidden" role="status">
-        {visible ? (matches.length === 1 ? '1 command' : `${matches.length} commands`) : ''}
+        {visible ? plural(commandCount, { one: '# command', other: '# commands' }) : ''}
       </span>
     </div>
   );

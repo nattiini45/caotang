@@ -1,6 +1,15 @@
+import { delimiter, resolve } from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
 
 import { classicPin } from './e2e/classic-pin.js';
+
+// Playwright's Babel pipeline does not run the Lingui macro transform, and the pure-model specs import app
+// modules that use `t`/`msg`. Run the same macro through babel-plugin-macros for those files, and import the
+// English fallback before they evaluate. The scope names the app source as well as e2e/unit because three
+// browser specs import macro-free app modules; the transform leaves those modules unchanged.
+process.env['PW_TEST_SOURCE_TRANSFORM'] = resolve('e2e/playwright-lingui-plugin.cjs');
+process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'] = [resolve('e2e/unit'), resolve('apps/desktop/src')].join(delimiter);
 
 // One port for the dev server and the suite. CAOTANG_E2E_PORT gives a parallel checkout its
 // own server; with it set, an existing server is never reused, because on a shared machine
@@ -50,7 +59,9 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     // The browser's languages are pinned, so the formatter locale (i18n.md §4.1, D3) and every date and count the specs read
-    // are en-US on any machine (i18n.md §8.3).
+    // are en-US on any machine (i18n.md §8.3). A new project's language also defaults to the app locale (packages/store
+    // project-identity), so a de-DE machine would otherwise hand the specs German labels while they assert English. Every
+    // project inherits this, production-preview included, and a spec that wants another locale overrides it with test.use.
     locale: 'en-US',
     trace: 'on-first-retry',
     // Every context starts on Classic (e2e/classic-pin.ts, modern-interface.md §3.4); a spec that checks the default opts out.

@@ -94,7 +94,8 @@ async function scanWithUnnamedEntry(page: Page, name: string): Promise<void> {
 test('a quick check that is on reports a codex entry the manuscript never names', async ({ page }) => {
   await scanWithUnnamedEntry(page, 'Control Book');
   await expect(page.getByTestId('findings-open')).toHaveText('1 open');
-  await expect(page.locator('.findings')).toContainText('"Mirela" is never named in the scanned manuscript');
+  // The codex name is writer content and is isolated once (I7); the marks sit between the quotes and the name.
+  await expect(page.locator('.findings')).toContainText(/Mirela.*is never named in the scanned manuscript/);
 });
 
 test('a quick check turned off in Settings does not run, and the Findings tab says what a scan covers', async ({ page }) => {

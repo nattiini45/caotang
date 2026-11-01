@@ -13,13 +13,14 @@ import {
   dialogueContainerChoices,
   dayLabel,
   inheritedStoryPart,
-  STORY_PART_CHOICES,
+  storyPartChoices,
   modeLabel,
   sceneMetaOf,
   severitySections,
 } from '../../apps/desktop/src/app/findings-model.js';
 import { addDocument, type CodexEntry, type ProjectState } from '../../packages/store/src/index.js';
 import { IDS, project } from './fixtures.js';
+import { withoutIsolates } from '../support.js';
 
 const NOW = '2026-10-08T09:00:00.000Z';
 
@@ -256,7 +257,14 @@ test.describe('the scene declarations model (coherence.md §5.2, §8)', () => {
   });
 
   test('a point of view is offered characters first, then the rest by name', () => {
-    expect(povCandidates([abbey, zed, ada]).map((entry) => entry.name)).toEqual(['Ada', 'Zed', 'Abbey']);
+    expect(povCandidates([abbey, zed, ada], 'en').map((entry) => entry.name)).toEqual(['Ada', 'Zed', 'Abbey']);
+  });
+
+  test('a point of view list sorts by the project language, not the interface’s (i18n.md §4.3, D9)', () => {
+    const åland = { ...ada, id: 'c_AALAND0001', name: 'Åland' };
+    const zebra = { ...ada, id: 'c_ZEBRA00001', name: 'Zebra' };
+    expect(povCandidates([åland, zebra], 'sv').map((entry) => entry.name)).toEqual(['Zebra', 'Åland']);
+    expect(povCandidates([åland, zebra], 'en').map((entry) => entry.name)).toEqual(['Åland', 'Zebra']);
   });
 
   test('a scene may only follow another document, never itself and never a folder', () => {
@@ -288,10 +296,11 @@ test.describe('the scene declarations model (coherence.md §5.2, §8)', () => {
     expect(inheritedStoryPart(state, file, IDS.deep)).toEqual({ part: 'epilogue', folderTitle: 'Chapter 1' });
     expect(inheritedStoryPart(state, file, IDS.sceneD)).toBeUndefined();
     expect(inheritedStoryPart(state, undefined, IDS.sceneA)).toBeUndefined();
-    expect(STORY_PART_CHOICES.map((choice) => choice.label)).toEqual(['Main story', 'Prologue', 'Epilogue']);
-    expect(dayLabel(-14)).toBe('Day \u221214');
-    expect(dayLabel(0)).toBe('Day 0');
-    expect(dayLabel(12)).toBe('Day 12');
+    expect(storyPartChoices().map((choice) => choice.label)).toEqual(['Main story', 'Prologue', 'Epilogue']);
+    // The number is isolated like every interpolated value (i18n.md §5.3); the sign is U+2212, never a hyphen.
+    expect(withoutIsolates(dayLabel(-14))).toBe('Day \u221214');
+    expect(withoutIsolates(dayLabel(0))).toBe('Day 0');
+    expect(withoutIsolates(dayLabel(12))).toBe('Day 12');
   });
 
   test('timeline modes read in words, and linear is the default', () => {

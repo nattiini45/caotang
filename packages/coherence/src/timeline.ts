@@ -8,7 +8,10 @@
  * never appear here.
  */
 
-import type { TimelineMode } from './model.js';
+import { STORY_PARTS, type DeclaredStoryPart } from '@caotang/bus';
+
+import type { SceneMeta, TimelineMode } from './model.js';
+import { effectiveStoryPart, type EffectiveStoryPart } from './scene-meta.js';
 
 /** The four timeline checks a mode can exempt. */
 export type TimelineCheck = 'timeline.order-drift' | 'timeline.window' | 'timeline.overlap' | 'timeline.gap';
@@ -60,4 +63,64 @@ export function windowsOverlap(a: DayWindow, b: DayWindow): boolean {
 /** True when `inner` lies entirely inside `outer` (§5.1 `timeline.window`). */
 export function windowInside(inner: DayWindow, outer: DayWindow): boolean {
   return inner.start >= outer.start && inner.end <= outer.end;
+}
+
+
+/** The tree as the part rule reads it: ids and parents only, so a `TreeNode[]` and a test fixture both fit. */
+export interface PartTreeNode {
+  readonly id: string;
+  readonly parentId: string | null;
+}
+
+function declaredPart(meta: { readonly storyPart?: unknown } | undefined): DeclaredStoryPart | undefined {
+  const part = meta?.storyPart;
+  return typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part) ? (part as DeclaredStoryPart) : undefined;
+}
+
+/**
+ * The effective story part of every node ([timeline.md §2.3](../../../docs/architecture/timeline.md), coherence.md §5.2.2), by the
+ * one inheritance rule (`effectiveStoryPart` in `scene-meta.ts`): the node's own declaration, else the nearest ancestor's, else
+ * `main`. Pure and computed on read: nothing is written into a child, a part is never inferred from days, binder position, title or
+ * content, and a folder's change re-parts its children for free. A cycle in a damaged tree stops the walk.
+ */
+export function effectiveStoryParts(
+  tree: readonly PartTreeNode[],
+  sceneMeta: Readonly<Record<string, { readonly storyPart?: unknown; readonly mainStory?: unknown } | undefined>>,
+): Map<string, EffectiveStoryPart> {
+  const parents = new Map<string, string | null>();
+  for (const node of tree) parents.set(node.id, node.parentId);
+  const metaOf = (id: string): SceneMeta | undefined => {
+    const part = declaredPart(sceneMeta[id]);
+    if (part !== undefined) return { storyPart: part };
+    // timeline.md §2.3: the additive main-story mark, read only where no part is declared.
+    return (sceneMeta[id] as { readonly mainStory?: unknown } | undefined)?.mainStory === true ? { mainStory: true } : undefined;
+  };
+  const resolved = new Map<string, EffectiveStoryPart>();
+  for (const node of tree) {
+    // The ancestors, nearest last, as `effectiveStoryPart` reads them.
+    const ancestors: (SceneMeta | undefined)[] = [];
+    const seen = new Set<string>([node.id]);
+    let cursor = parents.get(node.id);
+    while (cursor !== null && cursor !== undefined && !seen.has(cursor)) {
+      seen.add(cursor);
+      ancestors.unshift(metaOf(cursor));
+      cursor = parents.get(cursor);
+    }
+    resolved.set(node.id, effectiveStoryPart(metaOf(node.id), ancestors));
+  }
+  return resolved;
+}
+
+/** One node's effective part. For many nodes, {@link effectiveStoryParts} walks the tree once. */
+export function storyPartOf(
+  tree: readonly PartTreeNode[],
+  sceneMeta: Readonly<Record<string, { readonly storyPart?: unknown; readonly mainStory?: unknown } | undefined>>,
+  nodeId: string,
+): EffectiveStoryPart {
+  return effectiveStoryParts(tree, sceneMeta).get(nodeId) ?? declaredPart(sceneMeta[nodeId]) ?? 'main';
+}
+
+/** The meta a scene carries, for callers that hold a `SceneMeta` and want its own declaration (not the effective part). */
+export function declaredStoryPart(meta: SceneMeta | undefined): DeclaredStoryPart | undefined {
+  return declaredPart(meta);
 }

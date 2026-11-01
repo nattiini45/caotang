@@ -1,0 +1,10 @@
+.card {
+  margin-left: 4px;
+  text-align: right;
+}
+
+@media (min-width: 10px) {
+  .card {
+    padding-right: 2px;
+  }
+}

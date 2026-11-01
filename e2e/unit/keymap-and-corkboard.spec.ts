@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { chordKey, keyFacts, resolveKey, shortcutLabel, type KeyFacts } from '../../apps/desktop/src/app/keymap.js';
+import { chordKey, isImeEnter, keyFacts, resolveKey, shortcutLabel, type KeyFacts } from '../../apps/desktop/src/app/keymap.js';
 import {
   cardsOf,
   planCardDrop,
@@ -12,7 +12,7 @@ import {
 import { IDS, project } from './fixtures.js';
 
 function keys(key: string, mods: Partial<Omit<KeyFacts, 'key'>> = {}): KeyFacts {
-  return { key, code: '', altGraph: false, ctrl: false, meta: false, shift: false, alt: false, ...mods };
+  return { key, code: '', altGraph: false, ctrl: false, meta: false, shift: false, alt: false, composing: false, ...mods };
 }
 
 const BINDER = { inTextField: false, inBinder: true };
@@ -72,6 +72,14 @@ test.describe('the keyboard map', () => {
     expect(resolveKey(keys('ArrowDown'), ELSEWHERE)).toBeNull();
   });
 
+  test('in a right-to-left interface the binder and card arrows read in reading order, and Up and Down are unchanged', () => {
+    const rtl = { ...BINDER, rtl: true };
+    expect(resolveKey(keys('ArrowRight'), rtl)).toBe('move-left');
+    expect(resolveKey(keys('ArrowLeft'), rtl)).toBe('move-right');
+    expect(resolveKey(keys('ArrowUp'), rtl)).toBe('move-up');
+    expect(resolveKey(keys('ArrowDown'), rtl)).toBe('move-down');
+  });
+
   test('a modifier that is not part of the map means nothing, rather than something close to it', () => {
     expect(resolveKey(keys('n', { ctrl: true, alt: true }), ELSEWHERE)).toBeNull();
     expect(resolveKey(keys('F2', { ctrl: true }), BINDER)).toBeNull();
@@ -92,6 +100,59 @@ test.describe('the keyboard map', () => {
     // Anywhere else Ctrl+Enter keeps its meaning: a line break in a field, open-in-editor outside one.
     expect(resolveKey(keys('Enter', { ctrl: true }), TYPING)).toBeNull();
     expect(resolveKey(keys('Enter', { ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+  });
+
+  test('the composing fact is isComposing, or the older Windows keyCode 229', () => {
+    expect(isImeEnter({ isComposing: true })).toBe(true);
+    expect(isImeEnter({ keyCode: 229 })).toBe(true);
+    expect(isImeEnter({ isComposing: true, keyCode: 13 })).toBe(true);
+    expect(isImeEnter({ isComposing: false, keyCode: 13 })).toBe(false);
+    expect(isImeEnter({})).toBe(false);
+  });
+
+  test('an Enter that commits an IME candidate is never an app action', () => {
+    // Send, steer and open: every Enter chord in the map yields while the candidate window owns the key.
+    expect(resolveKey(keys('Enter', { composing: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { ctrl: true, composing: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { meta: true, composing: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { ctrl: true, composing: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('Enter', { ctrl: true, composing: true }), BINDER)).toBeNull();
+    // A card's Enter selects it, so the same Enter while composing must not.
+    expect(resolveKey(keys('Enter', { composing: true }), CARD)).toBeNull();
+    // Not composing, the same keys keep their meaning.
+    expect(resolveKey(keys('Enter'), AGENT_INTENT)).toBe('agent-send');
+    expect(resolveKey(keys('Enter', { ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+    expect(resolveKey(keys('Enter'), CARD)).toBe('select-card');
+  });
+
+  test('a shortcut on a layout that prints another script resolves through the physical key', () => {
+    // ui-modules §2.5 (#189): the printed character is not the Latin letter the chord names, so `code` names it.
+    expect(resolveKey(keys('т', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');
+    expect(resolveKey(keys('я', { code: 'KeyZ', ctrl: true }), TYPING)).toBeNull();
+    expect(resolveKey(keys('ש', { code: 'KeyF', ctrl: true, shift: true }), ELSEWHERE)).toBe('focus-mode');
+    expect(resolveKey(keys('ب', { code: 'KeyF', ctrl: true, alt: true }), ELSEWHERE)).toBe('focus-filter');
+    expect(resolveKey(keys('ν', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');
+  });
+
+  test('a shortcut follows the printed ASCII character, not the physical key: AZERTY Z is undo, QWERTZ Z is undo', () => {
+    // AZERTY prints `z` on the physical `KeyW`; the shortcut stays with the character the writer sees.
+    expect(resolveKey(keys('z', { code: 'KeyW', ctrl: true }), ELSEWHERE)).toBe('undo');
+    // QWERTZ swaps Y and Z; `z` is still undo.
+    expect(resolveKey(keys('z', { code: 'KeyY', ctrl: true }), ELSEWHERE)).toBe('undo');
+    // A named key is never remapped through its code, even were a code to look like a letter.
+    expect(resolveKey(keys('Enter', { code: 'NumpadEnter', ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+    expect(resolveKey(keys('F10', { code: 'KeyF', shift: true }), CARD)).toBe('open-menu');
+  });
+
+  test('a key typed with AltGraph is a character, never a chord, even though Windows reports Ctrl+Alt', () => {
+    // German AltGr+Q is `@`; Hungarian AltGr+F is `[`. Both arrive as Ctrl+Alt and must do nothing.
+    expect(resolveKey(keys('@', { code: 'KeyQ', ctrl: true, alt: true, altGraph: true }), TYPING)).toBeNull();
+    expect(resolveKey(keys('[', { code: 'KeyF', ctrl: true, alt: true, altGraph: true }), TYPING)).toBeNull();
+    // The AltGraph fact wins before the chord, even when the printed key is the chord's own letter.
+    expect(resolveKey(keys('f', { code: 'KeyF', ctrl: true, alt: true, altGraph: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('n', { code: 'KeyN', ctrl: true, altGraph: true }), ELSEWHERE)).toBeNull();
+    // Ctrl+Alt without AltGraph keeps the documented filter chord.
+    expect(resolveKey(keys('f', { code: 'KeyF', ctrl: true, alt: true }), ELSEWHERE)).toBe('focus-filter');
   });
 
   test('while an input method composes, no key is a shortcut: the Enter that confirms a candidate does not send (#188)', () => {

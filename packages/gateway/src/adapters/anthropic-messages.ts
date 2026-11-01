@@ -24,6 +24,7 @@
  */
 
 import type { SseEvent } from '../sse.js';
+import { assertValidMessage, base64Of, textOf } from '../parts.js';
 import type {
   ChatMessage,
   Usage,
@@ -65,7 +66,7 @@ function splitSystem(messages: readonly ChatMessage[]): { system?: string; rest:
   const parts: string[] = [];
   const rest: ChatMessage[] = [];
   for (const m of messages) {
-    if (m.role === 'system') parts.push(m.content);
+    if (m.role === 'system') parts.push(textOf(m.content));
     else rest.push(m);
   }
   return { system: parts.length > 0 ? parts.join('\n\n') : undefined, rest };
@@ -80,7 +81,8 @@ function assistantContent(m: ChatMessage): unknown[] {
     if (block.raw !== undefined && typeof block.raw === 'object') blocks.push(block.raw);
     else if (block.text !== '') blocks.push({ type: 'thinking', thinking: block.text, signature: '' });
   }
-  if (m.content !== '') blocks.push({ type: 'text', text: m.content });
+  const text = textOf(m.content);
+  if (text !== '') blocks.push({ type: 'text', text });
   for (const call of m.toolCalls ?? []) {
     let input: unknown;
     try {
@@ -95,15 +97,21 @@ function assistantContent(m: ChatMessage): unknown[] {
 
 function messageContent(m: ChatMessage, mark?: CacheMark): unknown {
   if (m.role === 'assistant') return assistantContent(m);
-  if (mark !== undefined && m.role === 'user') {
+  if (mark !== undefined && m.role === 'user' && typeof m.content === 'string') {
     // The cached user message goes as text blocks, one per part, so the breakpoint can sit at the end of the stable prefix.
     return partsOf(m).map((part, index) => ({ type: 'text', text: part.text, ...(index === mark.at ? { cache_control: mark.control } : {}) }));
   }
   if (m.role === 'tool') {
     // A tool result rides inside a user message on this route.
-    return [{ type: 'tool_result', tool_use_id: m.toolCallId, content: m.content, ...(m.isError ? { is_error: true } : {}) }];
+    return [{ type: 'tool_result', tool_use_id: m.toolCallId, content: textOf(m.content), ...(m.isError ? { is_error: true } : {}) }];
   }
-  return m.content;
+  if (typeof m.content === 'string') return m.content;
+  // A user message's part array becomes the route's content blocks: text, then base64 image sources.
+  return m.content.map((part) =>
+    part.type === 'text'
+      ? { type: 'text', text: part.text }
+      : { type: 'image', source: { type: 'base64', media_type: part.mime, data: base64Of(part.bytes) } },
+  );
 }
 
 /** Merges consecutive same-role messages: the route requires alternating roles. */
@@ -146,12 +154,13 @@ function userMark(rest: readonly ChatMessage[], cache: CacheSettings | undefined
   for (let index = 0; index < rest.length; index += 1) {
     const message = rest[index] as ChatMessage;
     const parts = partsOf(message);
-    const at = message.role === 'user' ? boundaryIndex(parts) : -1;
+    // A message with image parts is never a cache prefix: only a string user message can carry the breakpoint.
+    const at = message.role === 'user' && typeof message.content === 'string' ? boundaryIndex(parts) : -1;
     if (at >= 0) {
       chars += parts.slice(0, at + 1).reduce((sum, part) => sum + part.text.length, 0);
       return tokensOf(chars) >= cache.minTokens ? { index, mark: { at, control: controlOf(cache) } } : undefined;
     }
-    chars += message.content.length;
+    chars += textOf(message.content).length;
   }
   return undefined;
 }
@@ -164,6 +173,7 @@ function wireMessages(req: BodyInput['req'], cache?: CacheSettings, before = 0):
   if (hint !== undefined) messages.push({ role: 'user', content: hint });
   const marked = userMark(rest, cache, before + (system?.length ?? 0) + (hint?.length ?? 0));
   for (const [index, m] of rest.entries()) {
+    assertValidMessage(m, 'anthropic-messages');
     const content = messageContent(m, marked?.index === index ? marked.mark : undefined);
     // A completely empty assistant turn has no wire form; drop it rather than send `content: []`.
     if (m.role === 'assistant' && Array.isArray(content) && content.length === 0) continue;

@@ -9,6 +9,7 @@
  * the delete being confirmed, the export dialog, the theme, the status line). Project and view state live in the
  * session, and every change to them is a dispatch.
  */
+/* lingui-set comment="Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words" */
 
 import {
   useCallback,
@@ -20,16 +21,17 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
-import type { ProjectState, RuntimeStore } from '@caotang/store';
+import { plural, select, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { isolate } from '@caotang/i18n';
+import { pictureStorageReport, type ProjectState, type RuntimeStore, type SweepCandidate } from '@caotang/store';
 
-import { activityMarkdown } from '../app/activity-model.js';
-import { AgentController, type SubmitOptions } from '../app/agent.js';
+import type { AgentController, SubmitOptions } from '../app/agent.js';
 import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
-import { keyFacts, resolveKey } from '../app/keymap.js';
+import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
 import { shellActions } from '../app/shell-actions.js';
-import { isImeEnter } from '../app/ime.js';
 import { narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
   exportBundle,
@@ -50,24 +52,28 @@ import type { ProjectSession, SaveState } from '../app/session.js';
 import { crossedTarget, localDayOfIso, targetProgress, wordsWrittenToday } from '../app/session-progress.js';
 import { focusBinderFilter } from './BinderFilters.js';
 import { dismissBannerForVisit, durabilitySentence, isBannerDismissedForVisit } from '../app/storage.js';
+import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notices.js';
+import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
+import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
-import { AgentPanel } from './AgentPanel.js';
 import { RecurringTasks } from '../app/recurring-tasks.js';
 import { Binder, type CenterMode } from './Binder.js';
 import { CodexPanel } from './CodexPanel.js';
-import { ActivityPanel } from './ActivityPanel.js';
-import { TracePanel } from './TracePanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
+import type { PictureFocusRequest } from '../media/picture-board-model.js';
 import type { SourceRoute } from '../media/element-menu.js';
 
 import { Corkboard } from './Corkboard.js';
+import { LazyBoundary, lazyView } from './lazy-view.js';
+import type { TimelineFocusRequest } from '../app/timeline-model.js';
+import { clearTray, pendingRows } from '../app/timeline-tray.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
-import { FindingsPanel } from './FindingsPanel.js';
 import { BinderFooter } from './BinderFooter.js';
+import { whenAgent } from '../app/agent-registry.js';
 import { openFindingCount } from '../app/findings-model.js';
-import { ExportDialog, type ExportSelection } from './ExportDialog.js';
+import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
 import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
@@ -76,6 +82,7 @@ import { VocabularyEditor } from './VocabularyEditor.js';
 import { ImportPreviewHost } from '../import-preview/ImportPreviewHost.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 import { StaleTabNotice } from './StaleTabNotice.js';
 import {
   clearSelection,
@@ -87,19 +94,20 @@ import {
   selectNode,
   setExpanded,
 } from './actions.js';
-import {
-  ChoiceDialog,
-  ConfirmDialog,
-  ReportContext,
-  formatCount,
-  useSession,
-  wordsLabel,
-  type MenuAnchor,
-  type StatusMessage,
-} from './shared.js';
+import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { ClassicShell, railTabId } from './shell/ClassicShell.js';
 import type { RailTab, ShellRegions } from './shell/regions.js';
+
+/** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
+const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
+const TimelineView = lazyView(() => import('./timeline/TimelineView.js').then((module) => ({ default: module.TimelineView })));
+const AgentPanel = lazyView(() => import('./AgentPanel.js').then((module) => ({ default: module.AgentPanel })));
+const ExportDialog = lazyView(() => import('./ExportDialog.js').then((module) => ({ default: module.ExportDialog })));
+// The Findings and Activity tabs carry the coherence review and the agent's turn reports, which the first screen does not read.
+const FindingsPanel = lazyView(() => import('./FindingsPanel.js').then((module) => ({ default: module.FindingsPanel })));
+const ActivityPanel = lazyView(() => import('./ActivityPanel.js').then((module) => ({ default: module.ActivityPanel })));
+const TracePanel = lazyView(() => import('./TracePanel.js').then((module) => ({ default: module.TracePanel })));
 
 /**
  * The one title in rename mode, and where it is shown. The binder and the corkboard can both
@@ -138,8 +146,24 @@ export function Workspace({
 }: WorkspaceProps): ReactNode {
   useSession(session);
   const { state, view } = session;
+  // The printed-key layout behind the shortcut labels the toolbar shows (keymap.ts; the same subscription as EditorPane).
+  const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const [rail, setRail] = useState<RailTab>('binder');
-  const [center, setCenter] = useState<CenterMode>('editor');
+  const [center, setCenterNow] = useState<CenterMode>('editor');
+  /** Where the writer asked to go while proposed timeline changes were waiting, until they have answered the question that asks. */
+  const [leaving, setLeaving] = useState<CenterMode | 'home' | null>(null);
+  // Reads `center` itself (not a ref), so the setter can be passed to a view built during render (react-hooks/refs).
+  const setCenter = useCallback(
+    (next: CenterMode): void => {
+      if (center === 'timeline' && next !== 'timeline' && pendingRows(session.projectId) > 0) setLeaving(next);
+      else setCenterNow(next);
+    },
+    [session, center],
+  );
+  const [timelineFocus, setTimelineFocus] = useState<TimelineFocusRequest | null>(null);
+  const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);
+  const [findingsFocus, setFindingsFocus] = useState<{ readonly factGroup: string; readonly serial: number } | null>(null);
+  const focusSerial = useRef(0);
   // The narrow layout (ui-modules §1): which panel is open over the centre, and the toolbar's overflow menu. View state only; a wide
   // window never reads it.
   const narrow = useNarrow();
@@ -170,6 +194,8 @@ export function Workspace({
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissedForVisit());
   const [explainStorage, setExplainStorage] = useState(false);
+  /** The unused picture files a sweep would remove, offered before an export, until the writer has answered. */
+  const [sweepOffer, setSweepOffer] = useState<readonly SweepCandidate[] | null>(null);
   const [storedToday, setStoredToday] = useState(0);
   /** A save to the folder that the folder's state stopped, with the reason, until the writer has answered the question it asks. */
   const [folderOffer, setFolderOffer] = useState<FolderOffer | null>(null);
@@ -177,28 +203,48 @@ export function Workspace({
   const [notEmptyFolder, setNotEmptyFolder] = useState<string | null>(null);
   // One agent controller per open project: its turns, its pending decision and its ghost belong to this session.
   // The budgets are read at each turn, so a change in Settings › Context applies to the next one (context-assembly §3).
-  const agent = useMemo(
-    () =>
-      new AgentController(
+  // The controller is its own download (the agent loop, the tool table and the task queue): the editor and the rails are drawn without
+  // it, and it is made as soon as this project is open, so a queued background task resumes and a draft has somewhere to land.
+  const [agent, setAgent] = useState<AgentController | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let made: AgentController | null = null;
+    void import('../app/agent.js').then(({ AgentController: Controller }) => {
+      const controller = new Controller(
         session,
         services.providers,
         () => contextConfigOf(services.settings.current().context),
         () => services.settings.current().agent.loadEveryTool,
         {},
         () => services.settings.current().agent,
-      ),
-    [session, services.providers, services.settings],
+      );
+      if (alive) {
+        made = controller;
+        controller.attach();
+        setAgent(controller);
+      }
+    });
+    return () => {
+      alive = false;
+      made?.detach();
+      setAgent(null);
+    };
+  }, [session, services.providers, services.settings]);
+  /** Starts a turn for intent once the controller has loaded: the request waits for it, so a click before the download is not lost. */
+  const submitToAgent = useCallback(
+    (intent: string, options?: SubmitOptions): void => {
+      void whenAgent(session).then((controller) => controller.submit(intent, options));
+    },
+    [session],
   );
-  useEffect(() => {
-    agent.attach();
-    return () => agent.detach();
-  }, [agent]);
   // The project's recurring tasks (agent-harness.md §12): looked at as the project opens and every minute while the tab is visible.
+  // They run through the agent, so they start once its controller has loaded.
   const recurring = useMemo(
-    () => new RecurringTasks({ session, agent, enabledChecks: () => services.settings.current().coherence.enabledChecks }),
+    () => (agent === null ? null : new RecurringTasks({ session, agent, enabledChecks: () => services.settings.current().coherence.enabledChecks })),
     [session, agent, services.settings],
   );
   useEffect(() => {
+    if (recurring === null) return;
     void recurring.attach();
     return () => recurring.detach();
   }, [recurring]);
@@ -223,7 +269,17 @@ export function Workspace({
   const hideRails = focusMode && settingsNow.editor.focusModeHideRails;
   const openPanel = narrow && !hideRails ? panel : null;
   const durability = session.durability();
-  const showStorageBanner = durability.persisted === false && !bannerDismissed;
+  const pictureStorage = pictureStorageReport(state);
+  const pictureFacts: EvictionFacts = {
+    persisted: durability.persisted,
+    folderAttached: session.assetsInFolder(),
+    pictureCount: pictureStorage.recordCount,
+    pictureBytes: pictureStorage.totalBytes,
+  };
+  // A project with pictures and no folder gets the picture-aware banner (PictureNotices) in place of the general one.
+  const showStorageBanner = durability.persisted === false && !bannerDismissed && !evictionVariantApplies(pictureFacts);
+  // A whole sentence used as a value in the banner's message; a name keeps it out of a positional `{0}`.
+  const storageSentence = durabilitySentence(durability);
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
 
   const report = useCallback((next: StatusMessage) => setMessage(next), []);
@@ -237,8 +293,8 @@ export function Workspace({
         report({
           text:
             failure === 'too-large'
-              ? 'The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it.'
-              : 'This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it.',
+              ? t`The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it.`
+              : t`This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it.`,
           tone: 'info',
         });
       }
@@ -257,9 +313,9 @@ export function Workspace({
     if (on && !settingsNow.editor.focusModeHideRails) {
       // The wording, with the setting's place a link that opens it.
       report({
-        text: 'Focus mode is on. The binder and inspector stay open, as set in ',
+        text: t`Focus mode is on. The binder and inspector stay open, as set in `,
         tone: 'info',
-        link: { label: 'Settings › Writing', after: '.', onClick: () => setSettingsSection('writing') },
+        link: { label: t`Settings › Writing`, after: '.', onClick: () => setSettingsSection('writing') },
       });
     }
   };
@@ -281,7 +337,7 @@ export function Workspace({
     const previous = metRecord.current;
     const crossed = crossedTarget(previous, { met: target.met, day });
     metRecord.current = { met: target.met, day: crossed ? day : previous.day };
-    if (crossed) report({ text: 'Today’s target is met.', tone: 'info' });
+    if (crossed) report({ text: t`Today’s target is met.`, tone: 'info' });
   }, [target.met, report]);
   const selected = liveSelection(state, view.selection);
   const selectedNode = selected === null ? undefined : nodeById(state, selected);
@@ -308,7 +364,7 @@ export function Workspace({
   const showSceneSection = (sceneId: string): void => {
     const [section, ...above] = enclosingFolders(state, sceneId);
     if (section === undefined) {
-      report({ text: 'This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it.', tone: 'info' });
+      report({ text: t`This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it.`, tone: 'info' });
       return;
     }
     if (hideRails) setFocusMode(false);
@@ -321,8 +377,11 @@ export function Workspace({
       const row = document.querySelector<HTMLElement>(`.binder-tree [data-node-id="${CSS.escape(section.id)}"]`);
       if (row !== null) row.focus();
       // A missing row is a filter that hides it, unless the folder went in the frame since the key (an agent's delete).
-      else if (nodeById(session.state, section.id) === undefined) report({ text: `"${section.title}" is no longer in the binder.`, tone: 'info' });
-      else report({ text: `The binder filter hides "${section.title}". Clear the filter to see it.`, tone: 'info' });
+      else {
+        const title = section.title;
+        if (nodeById(session.state, section.id) === undefined) report({ text: t`"${title}" is no longer in the binder.`, tone: 'info' });
+        else report({ text: t`The binder filter hides "${title}". Clear the filter to see it.`, tone: 'info' });
+      }
     });
   };
 
@@ -338,7 +397,7 @@ export function Workspace({
     requestAnimationFrame(() => {
       const field = document.querySelector<HTMLElement>('#inspector-synopsis');
       if (field !== null) field.focus();
-      else report({ text: 'The scene’s synopsis is not showing, so the chord could not open it.', tone: 'info' });
+      else report({ text: t`The scene’s synopsis is not showing, so the chord could not open it.`, tone: 'info' });
     });
   };
 
@@ -351,13 +410,13 @@ export function Workspace({
   // In the narrow layout a storyboard and a dialogue container say "Open on desktop" in place of their view (ui-modules §1).
   const desktopOnly = narrow && mediaNode !== undefined ? narrowMediaFeature(mediaKindOf(mediaNode)) : null;
   const mediaView =
-    mediaNode !== undefined && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard') ? (
+    mediaNode !== undefined && center !== 'timeline' && center !== 'pictures' && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard') ? (
       desktopOnly !== null ? (
         <OpenOnDesktop
           feature={desktopOnly}
           actions={
             <button type="button" className="button" onClick={() => setPanel('rail')}>
-              Open the binder
+              <Trans>Open the binder</Trans>
             </button>
           }
         />
@@ -373,7 +432,7 @@ export function Workspace({
           // written inline because `runAgentIntent` is declared below this view, and the view is built here.
           onAgentIntent: (intent) => {
             setAgentOpen(true);
-            void agent.submit(intent);
+            submitToAgent(intent);
           },
           onSourceRoute: (route, scene) => sceneRoutes[route](scene.id),
         })
@@ -414,7 +473,7 @@ export function Workspace({
     void session.undoLast().then((done) => {
       if (done) return;
       const detail = session.undoErrorMessage();
-      report(detail ? { text: detail, tone: 'error' } : { text: 'There is nothing to undo.', tone: 'info' });
+      report(detail ? { text: detail, tone: 'error' } : { text: t`There is nothing to undo.`, tone: 'info' });
     });
   };
 
@@ -441,7 +500,37 @@ export function Workspace({
       setPanel(null);
       if (offset !== undefined) setReveal({ docId, from: offset, to: offset });
     },
-    [session],
+    [session, setCenter],
+  );
+
+  /** "Open in Findings" from the timeline: the Findings rail opens on the fact group, which the panel scrolls to and focuses. */
+  const openInFindings = useCallback((factGroup: string): void => {
+    setRail('findings');
+    focusSerial.current += 1;
+    setFindingsFocus({ factGroup, serial: focusSerial.current });
+  }, []);
+
+  /** "Show on timeline" from a finding: the timeline replaces the centre and moves to the scenes the finding cites. */
+  const showOnTimeline = useCallback((docIds: readonly string[], findingId: string): void => {
+    setCenter('timeline');
+    focusSerial.current += 1;
+    setTimelineFocus({ docIds, findingId, serial: focusSerial.current });
+  }, [setCenter]);
+
+  /** "Open on the board" from the Inspector's picture strip: the picture board replaces the centre with that picture's details open. */
+  const openPictureBoard = useCallback((assetId: string): void => {
+    setCenter('pictures');
+    focusSerial.current += 1;
+    setPictureFocus({ assetId, serial: focusSerial.current });
+  }, [setCenter]);
+
+  /** A placement's "Go to it" on the board: the binder item is selected, and a document opens in the editor. */
+  const openPictureNode = useCallback(
+    (nodeId: string): void => {
+      selectNode(session, nodeId);
+      setCenter(nodeById(session.state, nodeId)?.type === 'document' ? 'editor' : 'corkboard');
+    },
+    [session, setCenter],
   );
 
   /** An empty state's next step (ui-modules §0.3): the agent panel opens, and the controller runs the request through its usual path. */
@@ -449,9 +538,9 @@ export function Workspace({
     (intent: string, options?: SubmitOptions): void => {
       setAgentOpen(true);
       setPanel(null);
-      void agent.submit(intent, options);
+      submitToAgent(intent, options);
     },
-    [agent],
+    [submitToAgent],
   );
 
   /** A mention chip's click: the codex tab shows the entry (codex.md §8). */
@@ -561,7 +650,7 @@ export function Workspace({
   // still being drafted: it runs only while the project is open in this tab.
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent): void => {
-      if (session.saveState() === 'saved' && !agent.tasksWorking()) return;
+      if (session.saveState() === 'saved' && !(agent?.tasksWorking() ?? false)) return;
       event.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
@@ -584,7 +673,7 @@ export function Workspace({
   const confirmDelete = (): void => {
     if (askingDelete === null) return;
     const id = askingDelete;
-    const title = doomed?.title ?? 'the item';
+    const title = doomed?.title ?? t`the item`;
     const place = deletePlace.current;
     deletePlace.current = null;
     const outcome = deleteNode(session, id);
@@ -597,31 +686,53 @@ export function Workspace({
     if (selected !== null && nodeById(session.state, selected) === undefined) clearSelection(session);
     setRenaming(null);
     if (place !== null) focusAfterDelete(place);
-    report({ text: `Deleted “${title}”. Ctrl+Z restores it right after.`, tone: 'info' });
+    report({ text: t`Deleted “${{ title: isolate(title) }}”. Ctrl+Z restores it right after.`, tone: 'info' });
   };
 
-  const exportNow = (): void => {
+  const exportWith = (before: string | null): void => {
     void (async () => {
       try {
         const bundle = await exportBundle(store, session);
         downloadBytes(bundle.bytes, bundle.filename);
-        report({ text: [`Exported ${bundle.filename}.`, ...bundle.notices].join(' '), tone: 'info' });
+        report({ text: [...(before === null ? [] : [before]), t`Exported ${{ file: bundle.filename }}.`, ...bundle.notices].join(' '), tone: 'info' });
       } catch (error) {
-        report({ text: `The bundle could not be made: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The bundle could not be made: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
+  const exportNow = (): void => exportWith(null);
+
+  /**
+   * *Export bundle* from the toolbar and the picture notices: the unused picture files are offered for a sweep first (pictures.md §6.5),
+   * and the export goes straight ahead when there are none, or when the sweep cannot be checked. The save indicator's and the stale
+   * tab's exports are rescues and never ask anything.
+   */
+  const exportBundleOffering = (): void => {
+    void sweepOfferBeforeExport(session).then((candidates) => {
+      if (candidates === null) exportNow();
+      else setSweepOffer(candidates);
+    });
+  };
+  const exportAfterSweep = (): void => {
+    setSweepOffer(null);
+    void sweepBeforeExport(session).then((swept) => {
+      if (swept.proceed) exportWith(swept.text);
+      else report({ text: swept.text, tone: 'error' });
+    });
+  };
 
   /** The activity log and the agent's turns as one Markdown file (agent-harness §5, command-bus §8). */
-  const exportActivity = (): void => {
+  const exportActivity = async (): Promise<void> => {
+    const { activityMarkdown } = await import('../app/activity-model.js');
     const markdown = activityMarkdown({
       title: state.manifest.project.name,
       entries: session.log.entries(),
-      turns: agent.snapshot().turns,
+      turns: agent?.snapshot().turns ?? [],
     });
-    const name = `${state.manifest.project.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'project'}-activity.md`;
+    const stem = state.manifest.project.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+    const name = `${stem === '' ? 'project' : stem}${'-activity' + '.md'}`;
     downloadBytes(new TextEncoder().encode(markdown), name, 'text/markdown');
-    report({ text: `Exported the activity log as ${name}.`, tone: 'info' });
+    report({ text: t`Exported the activity log as ${{ file: name }}.`, tone: 'info' });
   };
 
   /**
@@ -653,10 +764,15 @@ export function Workspace({
         setFolderOffer(null);
         // From here on the session's exports are written into this folder too (exports.ts).
         await session.attachFolder(folder);
-        const kept = outcome.backup === undefined ? '' : ` What it replaced is kept in ${outcome.backup}.`;
-        report({ text: `Saved the project to the folder “${folder.name}”.${kept} Exports go there from now on.`, tone: 'info' });
+        report({
+          text:
+            outcome.backup === undefined
+              ? t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. Exports go there from now on.`
+              : t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. What it replaced is kept in ${{ backup: outcome.backup }}. Exports go there from now on.`,
+          tone: 'info',
+        });
       } catch (error) {
-        report({ text: `The folder could not be saved: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
@@ -681,7 +797,7 @@ export function Workspace({
         if (folder === null) return;
         writeFolder(folder, {});
       } catch (error) {
-        report({ text: `The folder could not be saved: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
@@ -704,7 +820,7 @@ export function Workspace({
         }
         writeFolder(folder, {});
       } catch (error) {
-        report({ text: `The folder could not be saved: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
@@ -726,19 +842,19 @@ export function Workspace({
     setTheme(next);
   };
 
-  const leave = (): void => {
+  const leaveNow = (): void => {
     void (async () => {
       await session.settle();
       if (session.saveState() === 'conflict') {
         report({
-          text: 'This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab.',
+          text: t`This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab.`,
           tone: 'error',
         });
         return;
       }
       if (session.saveState() === 'failed') {
         report({
-          text: 'Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.',
+          text: t`Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.`,
           tone: 'error',
         });
         return;
@@ -751,9 +867,21 @@ export function Workspace({
     })();
   };
 
+  /** Leaving the project with proposed timeline changes asks first (timeline.md §4.4). */
+  const leave = (): void => {
+    if (pendingRows(session.projectId) > 0) setLeaving('home');
+    else leaveNow();
+  };
+  const confirmLeaving = (): void => {
+    const next = leaving;
+    clearTray(session.projectId);
+    setLeaving(null);
+    if (next === 'home') leaveNow();
+    else if (next !== null) setCenterNow(next);
+  };
   // The shell actions (modern-interface.md §4.2): Classic's toolbar and its narrow More menu both render from this one list.
   const actions = shellActions(
-    { undoLabel, focusMode, theme, folderPicker: folderAccessSupported() },
+    { undoLabel, focusMode, theme, folderPicker: folderAccessSupported(), keyboardLayout },
     {
       projects: leave,
       details: () => openDialog({ kind: 'project' }),
@@ -762,7 +890,7 @@ export function Workspace({
       skills: () => openDialog({ kind: 'skills' }),
       instructions: () => openDialog({ kind: 'agent-instructions' }),
       compile: () => setExporting(true),
-      bundle: exportNow,
+      bundle: exportBundleOffering,
       folder: saveToFolder,
       settings: () => setSettingsSection('providers'),
       theme: toggleTheme,
@@ -818,12 +946,17 @@ export function Workspace({
           setPanel(null);
         }}
         onOpenDocument={openDocument}
+        focusGroup={findingsFocus}
+        onGroupFocused={() => setFindingsFocus(null)}
+        onShowOnTimeline={showOnTimeline}
       />
     ),
     findingsBadge: openFindingCount(session.coherenceFile()),
-    activity: <ActivityPanel session={session} onExport={() => exportActivity()} />,
+    activity: <ActivityPanel session={session} onExport={() => void exportActivity()} />,
     trace: <TracePanel services={services} projectName={state.manifest.project.name} />,
-    inspector: <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} />,
+    inspector: (
+      <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} onOpenPicture={openPictureBoard} />
+    ),
     editor: (
       <EditorPane
         session={session}
@@ -853,48 +986,67 @@ export function Workspace({
         onAskDelete={askDelete}
       />
     ),
-    media: mediaView,
-    agent: (
-      <AgentPanel
+    timeline: (
+      <TimelineView
         session={session}
-        agent={agent}
-        recurring={recurring}
-        startIntent={startIntent}
-        open={agentOpen}
-        onToggle={() => setAgentOpen((on) => !on)}
-        sample={sample}
+        onOpenDocument={openDocument}
+        onOpenFindings={openInFindings}
+        focusRequest={timelineFocus}
+        onFocusHandled={() => setTimelineFocus(null)}
       />
     ),
+    pictures: (
+      <PictureBoard session={session} focus={pictureFocus} onFocusHandled={() => setPictureFocus(null)} onOpenNode={openPictureNode} />
+    ),
+    media: mediaView,
+    // The agent arrives with its lazy chunk; until it exists the boundary shows nothing.
+    agent:
+      agent === null || recurring === null ? null : (
+        <AgentPanel
+          session={session}
+          agent={agent}
+          recurring={recurring}
+          startIntent={startIntent}
+          open={agentOpen}
+          onToggle={() => setAgentOpen((on) => !on)}
+          sample={sample}
+        />
+      ),
     // A status region is a div: ARIA does not allow the role on an aside.
     storageBanner: showStorageBanner ? (
-      <div className="storage-banner" role="status" aria-label="Browser storage" data-testid="storage-banner">
+      <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
         <div>
           {narrow ? (
             <p>
-              Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
-              storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book&rsquo;s only
-              home. Export a backup often and keep it somewhere else.
+              <Trans>
+                Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
+                storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book’s only home.
+                Export a backup often and keep it somewhere else.
+              </Trans>
             </p>
           ) : (
             <p>
-              Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
-              can open anywhere.
+              <Trans>
+                Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
+                can open anywhere.
+              </Trans>
             </p>
           )}
           {explainStorage ? (
             <p className="muted">
-              Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
-              the browser has not granted it here. {durabilitySentence(durability)} A bundle is the copy that does not depend on the
-              browser.
+              <Trans>
+                Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
+                the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser.
+              </Trans>
             </p>
           ) : null}
         </div>
         <div className="storage-banner-actions">
-          <button type="button" className="button" onClick={exportNow}>
-            Export a backup
+          <button type="button" className="button" onClick={exportBundleOffering}>
+            <Trans>Export a backup</Trans>
           </button>
           <button type="button" className="button is-quiet" aria-expanded={explainStorage} onClick={() => setExplainStorage((on) => !on)}>
-            Learn why
+            <Trans>Learn why</Trans>
           </button>
           <button
             type="button"
@@ -904,11 +1056,19 @@ export function Workspace({
               setBannerDismissed(true);
             }}
           >
-            Dismiss
+            <Trans>Dismiss</Trans>
           </button>
         </div>
       </div>
     ) : null,
+    pictureNotices: (
+      <PictureNotices
+        projectId={session.projectId}
+        facts={pictureFacts}
+        onExport={exportBundleOffering}
+        {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
+      />
+    ),
     status: message ? (
       <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
         <span>
@@ -923,7 +1083,7 @@ export function Workspace({
           ) : null}
         </span>
         <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
-          Dismiss
+          <Trans>Dismiss</Trans>
         </button>
       </div>
     ) : null,
@@ -936,8 +1096,8 @@ export function Workspace({
       <ClassicShell regions={regions}>
         <ConfirmDialog
           open={doomed !== undefined}
-          title={doomed ? `Delete “${doomed.title}”?` : 'Delete?'}
-          confirmLabel="Delete"
+          title={doomed ? t`Delete “${{ title: isolate(doomed.title) }}”?` : t`Delete?`}
+          confirmLabel={t`Delete`}
           onCancel={() => setAskingDelete(null)}
           onConfirm={confirmDelete}
         >
@@ -946,8 +1106,22 @@ export function Workspace({
           ) : null}
         </ConfirmDialog>
 
+        <ConfirmDialog
+          open={leaving !== null}
+          title={t`Leave with proposed timeline changes?`}
+          confirmLabel={t`Discard the changes and leave`}
+          onCancel={() => setLeaving(null)}
+          onConfirm={confirmLeaving}
+        >
+          <Trans>The timeline has proposed changes that are not applied. Nothing has been written to the project. Cancel keeps them in the tray; leaving discards them.</Trans>
+        </ConfirmDialog>
+
+        <ExportSweepOffer candidates={sweepOffer} onSweepThenExport={exportAfterSweep} onExport={() => { setSweepOffer(null); exportNow(); }} onCancel={() => setSweepOffer(null)} />
+
         {exporting ? (
-          <ExportDialog session={session} selection={exportSelection} onClose={() => setExporting(false)} />
+          <LazyBoundary label={t`the export dialog`}>
+            <ExportDialog session={session} selection={exportSelection} onClose={() => setExporting(false)} />
+          </LazyBoundary>
         ) : null}
         <ProjectPanel session={session} />
         <SkillsPanel session={session} />
@@ -958,8 +1132,8 @@ export function Workspace({
 
         <ConfirmDialog
           open={folderOffer !== null && !folderQuestion(folderOffer).newFolder}
-          title={folderOffer ? folderQuestion(folderOffer).title : 'Save to the folder?'}
-          confirmLabel={folderOffer ? folderQuestion(folderOffer).confirm : 'Save'}
+          title={folderOffer ? folderQuestion(folderOffer).title : t`Save to the folder?`}
+          confirmLabel={folderOffer ? folderQuestion(folderOffer).confirm : t`Save`}
           onCancel={() => setFolderOffer(null)}
           onConfirm={answerFolderQuestion}
         >
@@ -968,10 +1142,10 @@ export function Workspace({
         {/* The questions that can be answered with a new folder: changed documents, another project, and an earlier save of this one. */}
         <ChoiceDialog
           open={folderOffer !== null && folderQuestion(folderOffer).newFolder}
-          title={folderOffer ? folderQuestion(folderOffer).title : 'Save to the folder?'}
+          title={folderOffer ? folderQuestion(folderOffer).title : t`Save to the folder?`}
           choices={[
-            { label: 'Save as a new folder…', onChoose: saveAsNewFolder },
-            { label: folderOffer ? folderQuestion(folderOffer).confirm : 'Save', onChoose: answerFolderQuestion, danger: true },
+            { label: t`Save as a new folder…`, onChoose: saveAsNewFolder },
+            { label: folderOffer ? folderQuestion(folderOffer).confirm : t`Save`, onChoose: answerFolderQuestion, danger: true },
           ]}
           onCancel={() => setFolderOffer(null)}
         >
@@ -980,7 +1154,7 @@ export function Workspace({
         <ChoiceDialog
           open={notEmptyFolder !== null}
           title={notEmptyQuestion(notEmptyFolder ?? '').title}
-          choices={[{ label: 'Choose another folder…', onChoose: saveAsNewFolder }]}
+          choices={[{ label: t`Choose another folder…`, onChoose: saveAsNewFolder }]}
           onCancel={() => setNotEmptyFolder(null)}
         >
           {notEmptyQuestion(notEmptyFolder ?? '').body}
@@ -998,7 +1172,7 @@ export function Workspace({
             initialSection={settingsSection}
             onClose={() => setSettingsSection(null)}
             onOpenAgent={() => setAgentOpen(true)}
-            onProvidersChanged={() => agent.refresh()}
+            onProvidersChanged={() => agent?.refresh()}
           />
         ) : null}
       </ClassicShell>
@@ -1008,13 +1182,17 @@ export function Workspace({
 
 function DeleteSummary({ descendants, documents, words }: { descendants: number; documents: number; words: number }): ReactNode {
   if (descendants === 0) {
-    return <p>This removes the item and its {wordsLabel(words)} from the project. You can undo it right after with Ctrl+Z.</p>;
+    return (
+      <p>
+        {t`This removes the item and its ${plural(words, { one: '# word', other: '# words' })} from the project. You can undo it right after with Ctrl+Z.`}
+      </p>
+    );
   }
-  const docs = documents > 0 ? `, and ${wordsLabel(words)} across ${documents} ${documents === 1 ? 'document' : 'documents'}` : '';
   return (
     <p>
-      This removes the item, the {formatCount(descendants)} {descendants === 1 ? 'item' : 'items'} inside it{docs}. You can
-      undo it right after with Ctrl+Z.
+      {documents > 0
+        ? t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it, and ${plural(words, { one: '# word', other: '# words' })} across ${plural(documents, { one: '# document', other: '# documents' })}. You can undo it right after with Ctrl+Z.`
+        : t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it. You can undo it right after with Ctrl+Z.`}
     </p>
   );
 }
@@ -1032,7 +1210,7 @@ function SaveIndicator({ state, onExport }: { state: SaveState; onExport: () => 
         <>
           {' '}
           <button type="button" className="button is-quiet" onClick={onExport}>
-            Export a backup
+            <Trans>Export a backup</Trans>
           </button>
         </>
       ) : null}
@@ -1064,38 +1242,63 @@ interface FolderOffer {
 function changedFilesList(files: readonly FolderFileChange[], previews: readonly FolderFilePreview[], omittedPreviews: number): ReactNode {
   if (files.length === 0) return null;
   const MAX_VISIBLE_FOLDER_FILE_LABELS = 12;
-  const change = { changed: 'changed', removed: 'removed', added: 'added' } as const;
+  const hiddenLabels = files.length - MAX_VISIBLE_FOLDER_FILE_LABELS;
   return (
     <ul>
       {files.slice(0, MAX_VISIBLE_FOLDER_FILE_LABELS).map((file, index) => {
+        const kind = file.change;
         const filePreviews = previews.filter((item) => item.label === file.label && item.change === file.change);
+        const count = filePreviews.length;
         return (
           <li key={index}>
-            <div>{file.label}: {change[file.change]}</div>
-            {filePreviews.map((preview, previewIndex) => (
-              <section
-                className="folder-file-preview"
-                key={preview.path}
-                role="region"
-                aria-label={`Changes for ${file.label}${filePreviews.length > 1 ? `, file ${previewIndex + 1} of ${filePreviews.length}` : ''}`}
-              >
-                <p className="field-note">{filePreviews.length > 1 ? `File ${previewIndex + 1} of ${filePreviews.length} · ` : ''}− In the folder · + In this tab</p>
-                <pre className="folder-diff">
-                  {preview.lines.map((line, lineIndex) => {
-                    const marker = line.kind === 'folder' ? '− ' : line.kind === 'tab' ? '+ ' : line.kind === 'context' ? '  ' : '… ';
-                    return <span className={`folder-diff-line is-${line.kind}`} key={lineIndex}>{marker}{line.text || ' '}{'\n'}</span>;
-                  })}
-                </pre>
-              </section>
-            ))}
+            <div>
+              {t`${{ file: isolate(file.label) }}: ${select(kind, {
+                changed: 'changed',
+                removed: 'removed',
+                added: 'added',
+                other: 'changed',
+              })}`}
+            </div>
+            {filePreviews.map((preview, previewIndex) => {
+              const position = previewIndex + 1;
+              return (
+                <section
+                  className="folder-file-preview"
+                  key={preview.path}
+                  role="region"
+                  aria-label={accessibleText(
+                    count > 1
+                      ? t`Changes for ${{ file: isolate(file.label) }}, file ${{ position }} of ${{ count }}`
+                      : t`Changes for ${{ file: isolate(file.label) }}`,
+                  )}
+                >
+                  <p className="field-note">
+                    {count > 1 ? t`File ${{ position }} of ${{ count }} · − In the folder · + In this tab` : t`− In the folder · + In this tab`}
+                  </p>
+                  <pre className="folder-diff">
+                    {preview.lines.map((line, lineIndex) => {
+                      const marker = line.kind === 'folder' ? '− ' : line.kind === 'tab' ? '+ ' : line.kind === 'context' ? '  ' : '… ';
+                      return <span className={`folder-diff-line is-${line.kind}`} key={lineIndex}>{marker}{line.text || ' '}{'\n'}</span>;
+                    })}
+                  </pre>
+                </section>
+              );
+            })}
           </li>
         );
       })}
       {files.length > MAX_VISIBLE_FOLDER_FILE_LABELS ? (
-        <li className="field-note">{files.length - MAX_VISIBLE_FOLDER_FILE_LABELS} more changed file labels are not shown.</li>
+        <li className="field-note">
+          {plural(hiddenLabels, { one: '# more changed file label is not shown.', other: '# more changed file labels are not shown.' })}
+        </li>
       ) : null}
       {omittedPreviews > 0 ? (
-        <li className="field-note">Detailed comparisons for {omittedPreviews} more file{omittedPreviews === 1 ? '' : 's'} are not shown to keep the question manageable.</li>
+        <li className="field-note">
+          {plural(omittedPreviews, {
+            one: 'Detailed comparisons for # more file are not shown to keep the question manageable.',
+            other: 'Detailed comparisons for # more files are not shown to keep the question manageable.',
+          })}
+        </li>
       ) : null}
     </ul>
   );
@@ -1119,114 +1322,141 @@ function folderQuestion({
 } {
   if (reason === 'files') {
     return {
-      title: 'Some documents in this folder changed since Caotang last saved them',
+      title: t`Some documents in this folder changed since Caotang last saved them`,
       body: (
         <>
           {partial ? (
             <p>
-              Another program changed these files in the folder while Caotang was saving, so the save stopped part way. The files before
-              them were saved, and these were not:
+              <Trans>
+                Another program changed these files in the folder while Caotang was saving, so the save stopped part way. The files before
+                them were saved, and these were not:
+              </Trans>
             </p>
           ) : null}
           {after ? (
             <p>
-              Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds
-              that program&rsquo;s version of them:
+              <Trans>
+                Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds
+                that program’s version of them:
+              </Trans>
             </p>
           ) : null}
           {changedFilesList(files, previews, omittedPreviews)}
           <p>
-            Saving writes this tab&rsquo;s version over them. The folder&rsquo;s version is kept first, in <code>.caotang-backup</code> in
-            the folder, so if you need anything from it, copy it from there.
+            <Trans>
+              Saving writes this tab’s version over them. The folder’s version is kept first, in <code>.caotang-backup</code> in the folder,
+              so if you need anything from it, copy it from there.
+            </Trans>
           </p>
         </>
       ),
-      confirm: 'Save over them',
+      confirm: t`Save over them`,
       newFolder: true,
     };
   }
   if (reason === 'locked') {
     return {
-      title: 'Another program may be using this folder',
+      title: t`Another program may be using this folder`,
       body: after ? (
         <p>
-          A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read
-          the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again
-          anyway?
+          <Trans>
+            A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read
+            the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again
+            anyway?
+          </Trans>
         </p>
       ) : (
         <p>
-          A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite
-          what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?
+          <Trans>
+            A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite
+            what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?
+          </Trans>
         </p>
       ),
-      confirm: 'Save anyway',
+      confirm: t`Save anyway`,
       newFolder: false,
     };
   }
   if (reason === 'changed' && removed) {
     return {
-      title: 'This folder’s caotang.json was removed',
+      title: t`This folder’s caotang.json was removed`,
       body: (
         <>
           <p>
-            Another program removed <code>caotang.json</code> from this folder after Caotang last loaded or saved it, so nothing was written.
+            <Trans>
+              Another program removed <code>caotang.json</code> from this folder after Caotang last loaded or saved it, so nothing was
+              written.
+            </Trans>
           </p>
           <p>
-            Saving here writes <code>caotang.json</code> back into the folder from this tab, with the project as this tab holds it.
+            <Trans>
+              Saving here writes <code>caotang.json</code> back into the folder from this tab, with the project as this tab holds it.
+            </Trans>
           </p>
           {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
-      confirm: 'Write it back',
+      confirm: t`Write it back`,
       newFolder: false,
     };
   }
   if (reason === 'changed') {
     return {
-      title: 'This folder changed since Caotang last saved it',
+      title: t`This folder changed since Caotang last saved it`,
       body: (
         <>
           <p>
-            <code>caotang.json</code> in this folder was changed by another program{' '}
-            {after ? 'while Caotang was saving it, so the folder now holds that program’s version.' : 'after Caotang last loaded or saved it, so nothing was written.'}
+            {after ? (
+              <Trans>
+                <code>caotang.json</code> in this folder was changed by another program while Caotang was saving it, so the folder now holds
+                that program’s version.
+              </Trans>
+            ) : (
+              <Trans>
+                <code>caotang.json</code> in this folder was changed by another program after Caotang last loaded or saved it, so nothing
+                was written.
+              </Trans>
+            )}
           </p>
           <p>
-            To see the folder&rsquo;s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here
-            writes <code>caotang.json</code> from this tab, and an older one that is there is kept as a backup.
+            <Trans>
+              To see the folder’s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here writes <code>caotang.json</code> from this tab, and an older one that is there is kept as a backup.
+            </Trans>
           </p>
           {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
-      confirm: 'Save over it',
+      confirm: t`Save over it`,
       newFolder: false,
     };
   }
   if (reason === 'earlier') {
     return {
-      title: 'This folder holds an earlier save of this project',
+      title: t`This folder holds an earlier save of this project`,
       body: (
         <p>
-          Caotang has no record of what this folder held when this project was last saved there, so it can&rsquo;t tell which documents
-          changed since. Saving writes this tab&rsquo;s version over the folder&rsquo;s documents. The folder&rsquo;s version of each
-          one it replaces is kept in <code>.caotang-backup</code> in the folder, and an older <code>caotang.json</code> is kept as a backup
-          of its own, so if you need anything from it, copy it from there.
+          <Trans>
+            Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed
+            since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in <code>.caotang-backup</code> in the folder, and an older <code>caotang.json</code> is kept as a backup of its own, so if you need anything from it, copy it from there.
+          </Trans>
         </p>
       ),
-      confirm: 'Save over it',
+      confirm: t`Save over it`,
       newFolder: true,
     };
   }
   return {
-    title: 'This folder already holds another project',
+    title: t`This folder already holds another project`,
     body: (
       <p>
-        Saving here replaces that project&rsquo;s <code>caotang.json</code> and any of its documents that share an id with this one.
-        Caotang keeps a backup of that <code>caotang.json</code>, and copies each document it replaces to <code>.caotang-backup</code> in the
-        folder.
+        <Trans>
+          Saving here replaces that project’s <code>caotang.json</code> and any of its documents that share an id with this one. Caotang
+          keeps a backup of that <code>caotang.json</code>, and copies each document it replaces to <code>.caotang-backup</code> in the
+          folder.
+        </Trans>
       </p>
     ),
-    confirm: 'Save over it',
+    confirm: t`Save over it`,
     newFolder: true,
   };
 }
@@ -1236,12 +1466,16 @@ function folderQuestion({
  * nothing yet, so no file of another project or program is written over.
  */
 function notEmptyQuestion(name: string): { readonly title: string; readonly body: ReactNode } {
+  // Isolated once, and named, so the catalogue holds `{folderName}` rather than a positional `{0}`.
+  const folderName = isolate(name);
   return {
-    title: 'That folder is not empty',
+    title: t`That folder is not empty`,
     body: (
       <p>
-        The folder &ldquo;{name}&rdquo; already has files in it, so nothing was saved there. A new folder for this project must be empty.
-        Choose another folder, or make an empty one in the folder picker.
+        <Trans>
+          The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty.
+          Choose another folder, or make an empty one in the folder picker.
+        </Trans>
       </p>
     ),
   };

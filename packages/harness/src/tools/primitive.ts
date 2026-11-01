@@ -50,9 +50,15 @@ export const NEVER_EXPOSED = [
   'project.importAsset',
   'shot.importImage',
   'shot.importImages',
-  // The picture registry's imports take bytes the host staged (pictures.md §2.4); the agent's pictures arrive through its own tools (§8).
+  // The picture imports take a file the writer chose; `pictures.import` will map onto `asset.import` under its own tool name (pictures.md §8.1), never as a primitive. A picture's delete waits on the writer's confirmation of the uses it lists.
   'asset.import',
   'asset.importBatch',
+  'asset.delete',
+  // The sweep is the destructive class (pictures.md §6.6.1): its descriptor is `agentRisk: 'never'`, so no plan and no card
+  // approves it for an agent, and the writer runs it from the board.
+  'asset.sweep',
+  // The calendar and lens are the writer's display choice (timeline.md §3.8); no primitive or tool stands for it.
+  'project.setCalendar',
   'mcp.invoke',
   // A resource is read when the writer picks it, so no tool stands for the read (extensibility §4 rule 8).
   'mcp.readResource',
@@ -81,10 +87,11 @@ export type NeverExposed = (typeof NEVER_EXPOSED)[number];
 export type ExposablePrimitive = Exclude<CommandName, NeverExposed>;
 
 /**
- * The first wave (issue #56, owner decision) and the two rows issue #71 names, `memory.write` and `instructions.propose`. A tool joins the
- * allowlist by an owner decision, never by being exposable.
+/**
+ * The first wave (issue #56, owner decision), the two rows issue #71 names, `memory.write` and `instructions.propose`, and `timeline.edit`
+ * (timeline.md §5.1, D5; docs/decisions.md). A tool joins the allowlist by an owner decision, never by being exposable.
  */
-export const PRIMITIVE_TOOL_NAMES = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save', 'memory.write', 'instructions.propose'] as const;
+export const PRIMITIVE_TOOL_NAMES = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save', 'memory.write', 'instructions.propose', 'timeline.edit'] as const;
 
 export type PrimitiveToolName = (typeof PRIMITIVE_TOOL_NAMES)[number];
 

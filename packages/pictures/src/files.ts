@@ -34,7 +34,7 @@ const EXR_SIGNATURE = [0x76, 0x2f, 0x31, 0x01];
 const FTYP = [0x66, 0x74, 0x79, 0x70];
 
 /** The ISO-BMFF brands an iPhone's HEIC or HEIF photo carries in its `ftyp` box. */
-const HEIF_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1']);
+const HEIF_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'hevm', 'hevs', 'mif1', 'msf1', 'heif']);
 
 function startsWith(bytes: Uint8Array, signature: readonly number[], offset = 0): boolean {
   return signature.every((byte, index) => bytes[offset + index] === byte);
@@ -77,14 +77,18 @@ export function unsupportedFormatName(bytes: Uint8Array): string | undefined {
   return undefined;
 }
 
-export function assetFileName(assetId: string, format: ImageFormat): string {
-  return `${assetId}.${IMAGE_FORMATS[format].extension}`;
+/** The file name of a picture, from its format or its MIME type (`a_….jpg` for `jpeg` and `image/jpeg` alike). */
+export function assetFileName(assetId: string, format: ImageFormat | PictureMime): string {
+  const known = format in IMAGE_FORMATS ? (format as ImageFormat) : (formatOfMime(format) ?? 'png');
+  return `${assetId}.${IMAGE_FORMATS[known].extension}`;
 }
 
-/** An asset id and the format its file name carries. */
+/** An asset id and the format its file name carries, with that format's MIME type and stored extension. */
 export interface AssetName {
   readonly assetId: string;
   readonly format: ImageFormat;
+  readonly mime: PictureMime;
+  readonly extension: 'png' | 'jpg' | 'webp';
 }
 
 /** The asset a file name names, or `undefined` for a name that is not `a_XXXXXXXXXX.<png|jpg|webp>`. */
@@ -95,7 +99,7 @@ export function parseAssetFileName(fileName: string): AssetName | undefined {
   const extension = match[2];
   if (assetId === undefined || extension === undefined || !isAssetId(assetId)) return undefined;
   const format = EXTENSION_FORMATS[extension];
-  return format === undefined ? undefined : { assetId, format };
+  return format === undefined ? undefined : { assetId, format, ...IMAGE_FORMATS[format] };
 }
 
 /** The format a MIME type names, or `undefined` for one the store does not keep. */

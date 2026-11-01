@@ -9,6 +9,9 @@
  * and which row is being renamed, dragged or hovered (ephemeral UI state).
  */
 
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { useLingui } from '@lingui/react';
 import {
   useRef,
   useState,
@@ -18,6 +21,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
+import { defaultTitleOf, isolate } from '@caotang/i18n';
 import { isStructuralFolder, type ProjectState, type TreeNode } from '@caotang/store';
 
 import {
@@ -42,6 +46,8 @@ import {
   type DropRefusal,
   type DropZone,
 } from '../app/binder-model.js';
+import { accessibleText } from '../i18n/accessible-text.js';
+import { uiIsRtl } from '../i18n/direction.js';
 import { EMPTY_STATE_INTENTS } from '../app/empty-intents.js';
 import { filterResultFor, furnitureFor } from '../app/furniture-store.js';
 import { keyFacts, resolveKey } from '../app/keymap.js';
@@ -67,7 +73,9 @@ import {
   setStatus,
 } from './actions.js';
 
-export type CenterMode = 'editor' | 'corkboard';
+
+/* lingui-set comment="The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number." */
+export type CenterMode = 'editor' | 'corkboard' | 'timeline' | 'pictures';
 
 export interface BinderProps {
   readonly session: ProjectSession;
@@ -94,6 +102,7 @@ type Picker =
   | { readonly kind: 'label'; readonly nodeId: string; readonly anchor: MenuAnchor };
 
 export function Binder(props: BinderProps): ReactNode {
+  useLingui();
   const { session, renaming, onRename, onAskDelete, onShowCenter, onOpened, onFocusSynopsis, onAgentIntent } = props;
   useSession(session);
   const narrow = useNarrow();
@@ -138,7 +147,8 @@ export function Binder(props: BinderProps): ReactNode {
    * once. A named create (the empty state's "Chapter 1") skips the rename, because the
    * name is already the one it wants.
    */
-  const create = (parentId: string, type: 'folder' | 'document', title = 'Untitled'): void => {
+  const create = (parentId: string, type: 'folder' | 'document', named?: string): void => {
+    const title = named ?? defaultTitleOf('document', session.state.manifest.project.language);
     const refused = type === 'document' ? newDocumentRefusalText(parentId) : undefined;
     if (refused !== undefined) {
       report({ text: refused, tone: 'error' });
@@ -152,17 +162,21 @@ export function Binder(props: BinderProps): ReactNode {
     }
     if (id === undefined) return;
     choose(id);
-    if (title === 'Untitled') onRename(id);
+    if (named === undefined) onRename(id);
   };
 
   /** A media node (screenplay, dialogue and storyboard; media-track.md): the bus checks the kind and the parent, and the new node is renamed like any other. */
   const createMedia = (parentId: string, spec: MediaCreateSpec): void => {
-    const outcome = session.dispatch('binder.create', {
-      parentId,
-      type: spec.type,
-      title: spec.title,
-      ...(spec.kind === undefined ? {} : { kind: spec.kind }),
-    });
+    // A comic book is made with its first page, so the page view has something to show (comics.md §3.2).
+    const outcome =
+      spec.kind === 'comic'
+        ? session.dispatch('comic.createBook', { parentId, title: spec.title, pages: 1 })
+        : session.dispatch('binder.create', {
+            parentId,
+            type: spec.type,
+            title: spec.title,
+            ...(spec.kind === undefined ? {} : { kind: spec.kind }),
+          });
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });
       return;
@@ -236,7 +250,7 @@ export function Binder(props: BinderProps): ReactNode {
     if (event.ctrlKey || event.metaKey) return;
     const action = resolveKey(
       { ...keyFacts(event), ctrl: false, meta: false, composing: isImeEnter(event) },
-      { inTextField: false, inBinder: true },
+      { inTextField: false, inBinder: true, rtl: uiIsRtl() },
     );
     if (action === null) return;
     const index = rows.findIndex((row) => row.node.id === selected);
@@ -353,13 +367,13 @@ export function Binder(props: BinderProps): ReactNode {
         })),
         {
           key: 'status-none',
-          label: 'No status',
+          label: t`No status`,
           checked: node.status === null,
           separatorBefore: true,
           onSelect: () => apply(setStatus(session, node.id, null)),
         },
         // "+ Add" opens the vocabulary editor (ui-modules §2.2).
-        { key: 'status-add', label: '+ Add status…', separatorBefore: true, onSelect: () => openDialog({ kind: 'vocabulary', term: 'status' }) },
+        { key: 'status-add', label: t`+ Add status…`, separatorBefore: true, onSelect: () => openDialog({ kind: 'vocabulary', term: 'status' }) },
       ];
     }
     if (open.kind === 'label') {
@@ -367,7 +381,7 @@ export function Binder(props: BinderProps): ReactNode {
       // "+ Add" opens the vocabulary editor (ui-modules §2.2). With no label yet, it is the only entry.
       const addLabel: MenuItem = {
         key: 'label-add',
-        label: '+ Add label…',
+        label: t`+ Add label…`,
         separatorBefore: labels.length > 0,
         onSelect: () => openDialog({ kind: 'vocabulary', term: 'label' }),
       };
@@ -381,7 +395,7 @@ export function Binder(props: BinderProps): ReactNode {
         })),
         {
           key: 'label-none',
-          label: 'No label',
+          label: t`No label`,
           checked: node.label === null,
           separatorBefore: true,
           onSelect: () => apply(setLabel(session, node.id, null)),
@@ -402,7 +416,7 @@ export function Binder(props: BinderProps): ReactNode {
     if (node.type === 'document') {
       items.push({
         key: 'open',
-        label: 'Open in editor',
+        label: t`Open in editor`,
         onSelect: () => {
           session.dispatch('view.setActiveDoc', { docId: node.id });
           onShowCenter('editor');
@@ -413,26 +427,26 @@ export function Binder(props: BinderProps): ReactNode {
     if (isContainer(node)) {
       // The manuscript takes chapters only, so a document there would be refused: the menu offers it on a chapter or research.
       if (node.id !== 'manuscript') {
-        items.push({ key: 'new-document', label: 'New document here', onSelect: () => create(node.id, 'document') });
+        items.push({ key: 'new-document', label: t`New document here`, onSelect: () => create(node.id, 'document') });
       }
       // Folders nest (project-format §2): a section takes a chapter or a part, a part takes a chapter, and a folder made inside a
       // chapter turns that chapter into a part. A storyboard holds shots only, so it offers no folder.
       if (isSection || isStructuralFolder(node)) {
-        items.push({ key: 'new-folder', label: 'New folder here', onSelect: () => create(node.id, 'folder') });
+        items.push({ key: 'new-folder', label: t`New folder here`, onSelect: () => create(node.id, 'folder') });
       }
     }
     // The media kinds a folder or a storyboard earns (media/create-menu.ts). A section gets the same entries as a folder.
-    items.push(...mediaCreateItems(node, createMedia));
+    items.push(...mediaCreateItems(node, createMedia, session.state.manifest.project.language));
     if (!isSection) {
       items.push({
         key: 'synopsis',
-        label: 'Edit synopsis',
+        label: t`Edit synopsis`,
         onSelect: () => {
           choose(node.id);
           onFocusSynopsis();
         },
       });
-      items.push({ key: 'rename', label: 'Rename', onSelect: () => onRename(node.id) });
+      items.push({ key: 'rename', label: t`Rename`, onSelect: () => onRename(node.id) });
     }
     // How far the agent may go here (agent-harness §4, Rules): one project rule, kept in the project's file. A section is not a place the
     // writer restricts as a whole, but its folders are, so the manuscript and research roots offer it too.
@@ -459,14 +473,14 @@ export function Binder(props: BinderProps): ReactNode {
     if (isMovable(node)) {
       // The keyboard's moves, as menu entries, so a writer who does not use Alt+arrow still reorders (ui-modules §0.4).
       items.push(
-        { key: 'move-up', label: 'Move up', onSelect: () => keyboardMove(node.id, 'up') },
-        { key: 'move-down', label: 'Move down', onSelect: () => keyboardMove(node.id, 'down') },
-        { key: 'move-out', label: 'Move out of folder', onSelect: () => keyboardMove(node.id, 'out') },
-        { key: 'move-in', label: 'Move into folder above', onSelect: () => keyboardMove(node.id, 'in') },
+        { key: 'move-up', label: t`Move up`, onSelect: () => keyboardMove(node.id, 'up') },
+        { key: 'move-down', label: t`Move down`, onSelect: () => keyboardMove(node.id, 'down') },
+        { key: 'move-out', label: t`Move out of folder`, onSelect: () => keyboardMove(node.id, 'out') },
+        { key: 'move-in', label: t`Move into folder above`, onSelect: () => keyboardMove(node.id, 'in') },
       );
       items.push({
         key: 'delete',
-        label: 'Delete…',
+        label: t`Delete…`,
         danger: true,
         separatorBefore: true,
         onSelect: () => onAskDelete(node.id),
@@ -521,33 +535,33 @@ export function Binder(props: BinderProps): ReactNode {
 
   return (
     <div className="binder">
-      <div className="binder-toolbar" role="toolbar" aria-label="Binder actions">
+      <div className="binder-toolbar" role="toolbar" aria-label={t`Binder actions`}>
         <button type="button" className="button" onClick={() => create(parentForNew, 'document')} aria-keyshortcuts="Control+N">
-          New document
+          <Trans>New document</Trans>
         </button>
         <button type="button" className="button" onClick={() => create(parentForNewFolder, 'folder')}>
-          New folder
+          <Trans>New folder</Trans>
         </button>
       </div>
       <ScriptImportActions session={session} />
       <BinderFilterBar session={session} />
       {filtered !== null && filtered.matchCount === 0 ? (
         <EmptyState
-          title="No scenes match"
+          title={t`No scenes match`}
           actions={
             <button type="button" className="button is-quiet" onClick={() => furniture.clearFilter()}>
               Clear filter
             </button>
           }
         >
-          Nothing in the binder matches this filter. Clear it to see the whole binder.
+          <Trans>Nothing in the binder matches this filter. Clear it to see the whole binder.</Trans>
         </EmptyState>
       ) : null}
 
       <div
         ref={treeRef}
         role="tree"
-        aria-label="Binder"
+        aria-label={t`Binder`}
         className="binder-tree"
         onKeyDown={onKeyDown}
         onDragLeave={(event) => {
@@ -602,7 +616,7 @@ export function Binder(props: BinderProps): ReactNode {
 
       {manuscriptEmpty ? (
         <EmptyState
-          title="The manuscript is empty"
+          title={t`The manuscript is empty`}
           actions={
             <>
               <button type="button" className="button is-primary" onClick={() => create('manuscript', 'folder', 'Chapter 1')}>
@@ -614,27 +628,27 @@ export function Binder(props: BinderProps): ReactNode {
             </>
           }
         >
-          Chapters hold scenes. Start with one, then add scenes to it from the corkboard or here.
+          <Trans>Chapters hold scenes. Start with one, then add scenes to it from the corkboard or here.</Trans>
         </EmptyState>
       ) : null}
 
       {researchEmpty ? (
         <EmptyState
-          title="Research is empty"
+          title={t`Research is empty`}
           actions={
             <button type="button" className="button" onClick={() => create('research', 'document')}>
               New research note
             </button>
           }
         >
-          Research holds notes that stay out of the manuscript. Start with one note, written first.
+          <Trans>Research holds notes that stay out of the manuscript. Start with one note, written first.</Trans>
         </EmptyState>
       ) : null}
 
       {picker && openPickerNode ? (
         <Menu
           label={
-            picker.kind === 'status' ? 'Status' : picker.kind === 'label' ? 'Label' : `Actions for ${openPickerNode.title}`
+            picker.kind === 'status' ? t`Status` : picker.kind === 'label' ? t`Label` : t`Actions for ${{ title: isolate(openPickerNode.title) }}`
           }
           anchor={picker.anchor}
           items={pickerItems(picker)}
@@ -651,7 +665,7 @@ function sameHover(a: Hover | null, b: Hover): boolean {
 
 /** "1 item" or "3 items" — the count a folder or section shows beside its name. */
 function itemsLabel(count: number): string {
-  return count === 1 ? '1 item' : `${count} items`;
+  return plural(count, { one: '# item', other: '# items' });
 }
 
 interface RowViewProps {
@@ -685,12 +699,18 @@ interface RowViewProps {
  * row carries its status chip, label chip, word count, and the synopsis tooltip.
  */
 function BinderRowView(props: RowViewProps): ReactNode {
+  useLingui();
   const { row, state, selected, renaming, hover } = props;
   const node = row.node;
   const vocabStatus = node.status === null ? undefined : state.manifest.vocabulary.statuses.find((s) => s.id === node.status);
   const vocabLabel = node.label === null ? undefined : state.manifest.vocabulary.labels.find((l) => l.id === node.label);
   const tooltip = synopsisPreview(node.synopsis);
+  const statusName = vocabStatus?.name ?? (node.status === null ? t`none` : node.status);
+  const labelName = vocabLabel?.name ?? node.label ?? '';
   const dropClass = hover ? ` is-drop-${hover.zone}${hover.refusal ? ' is-refused' : ''}` : '';
+  // Writer content reads in the project's direction, independent of the UI (i18n.md §5.4).
+  const contentLang = state.manifest.project.language;
+  const content = { lang: contentLang, dir: 'auto' as const };
 
   if (row.kind === 'section') {
     return (
@@ -708,7 +728,9 @@ function BinderRowView(props: RowViewProps): ReactNode {
         onDragOver={props.onDragOver}
         onDrop={props.onDrop}
       >
-        <span className="row-title">{node.title}</span>
+        <span className="row-title" {...content}>
+          {node.title}
+        </span>
         <span className="row-meta">
           {props.agentAccess === null ? null : (
             <span className="row-agent" data-agent-access={props.agentAccess}>
@@ -759,13 +781,13 @@ function BinderRowView(props: RowViewProps): ReactNode {
           type="button"
           tabIndex={-1}
           className="row-toggle"
-          aria-label={`${row.expanded ? 'Collapse' : 'Expand'} ${node.title}`}
+          aria-label={accessibleText(row.expanded ? t`Collapse ${{ title: isolate(node.title) }}` : t`Expand ${{ title: isolate(node.title) }}`)}
           onClick={(event) => {
             event.stopPropagation();
             props.onToggle();
           }}
         >
-          <span aria-hidden="true">{row.expanded ? '▾' : '▸'}</span>
+          <span aria-hidden="true" className={row.expanded ? undefined : 'icon-mirror'}>{row.expanded ? '▾' : '▸'}</span>
         </button>
       ) : (
         <span className="row-toggle-gap" aria-hidden="true" />
@@ -774,13 +796,15 @@ function BinderRowView(props: RowViewProps): ReactNode {
       {renaming && movable ? (
         <InlineText
           initial={node.title}
-          label={`Rename ${node.title}`}
+          label={accessibleText(t`Rename ${{ title: isolate(node.title) }}`)}
           className="row-rename"
           onCommit={props.onRenameCommit}
           onCancel={props.onRenameCancel}
         />
       ) : (
-        <span className="row-title">{node.title}</span>
+        <span className="row-title" {...content}>
+          {node.title}
+        </span>
       )}
 
       <span className="row-meta">
@@ -790,12 +814,12 @@ function BinderRowView(props: RowViewProps): ReactNode {
           tabIndex={-1}
           className={`chip chip-status${vocabStatus ? '' : ' is-bare'}`}
           aria-haspopup="menu"
-          aria-label={`Status of ${node.title}: ${vocabStatus?.name ?? (node.status ?? 'none')}. Change status`}
-          title={vocabStatus?.name ?? (node.status === null ? 'No status' : 'Unknown status')}
+          aria-label={accessibleText(t`Status of ${{ title: isolate(node.title) }}: ${{ status: isolate(statusName) }}. Change status`)}
+          title={vocabStatus?.name ?? (node.status === null ? t`No status` : t`Unknown status`)}
           onClick={props.onStatusPicker}
         >
           <span className="chip-dot" style={{ background: vocabStatus?.color ?? 'var(--dot-empty)' }} aria-hidden="true" />
-          {vocabStatus ? vocabStatus.name : node.status === null ? null : 'Unknown status'}
+          {vocabStatus ? vocabStatus.name : node.status === null ? null : t`Unknown status`}
         </button>
         {node.label !== null ? (
           <button
@@ -803,10 +827,10 @@ function BinderRowView(props: RowViewProps): ReactNode {
             tabIndex={-1}
             className="chip chip-label"
             aria-haspopup="menu"
-            aria-label={`Label of ${node.title}: ${vocabLabel?.name ?? node.label}. Change label`}
+            aria-label={accessibleText(t`Label of ${{ title: isolate(node.title) }}: ${{ label: isolate(labelName) }}. Change label`)}
             onClick={props.onLabelPicker}
           >
-            {vocabLabel?.name ?? 'Unknown label'}
+            {vocabLabel?.name ?? t`Unknown label`}
           </button>
         ) : null}
         {props.agentAccess === null ? null : (

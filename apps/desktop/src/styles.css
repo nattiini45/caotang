@@ -297,7 +297,7 @@ button.chip {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   background: var(--panel);
 }
 
@@ -352,7 +352,7 @@ button.chip {
   min-height: 0;
   overflow-y: auto;
   padding: var(--space-6) var(--space-6) 28px;
-  border-left: 1px solid var(--line);
+  border-inline-start: 1px solid var(--line);
   background: var(--panel);
 }
 
@@ -363,7 +363,7 @@ button.chip {
 
 .status-line {
   position: fixed;
-  left: 50%;
+  inset-inline-start: 50%;
   bottom: 16px;
   transform: translateX(-50%);
   max-width: min(680px, calc(100vw - 32px));
@@ -451,7 +451,7 @@ button.chip {
 
 .row.is-section {
   margin-top: var(--space-5);
-  padding-left: var(--space-4);
+  padding-inline-start: var(--space-4);
   cursor: default;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -560,8 +560,8 @@ button.chip {
 .row.is-drop-after::after {
   content: '';
   position: absolute;
-  left: 8px;
-  right: 8px;
+  inset-inline-start: 8px;
+  inset-inline-end: 8px;
   height: 2px;
   background: var(--accent);
 }
@@ -601,14 +601,14 @@ button.chip {
   font-size: var(--text-md);
   padding: 5px var(--space-5);
   border: none;
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   background: var(--raised);
   color: var(--ink-soft);
   cursor: pointer;
 }
 
 .segmented-item:last-child {
-  border-right: none;
+  border-inline-end: none;
 }
 
 .segmented-item[aria-checked='true'] {
@@ -699,6 +699,24 @@ button.chip {
 }
 
 /* The surface. These are the rules the editor's own stylesheet would have carried. */
+/* Scripts that need more room between lines than the Latin default carry it through the project's content language (i18n.md §5.4). */
+.ProseMirror:lang(ar),
+.ProseMirror:lang(fa),
+.ProseMirror:lang(ur) {
+  line-height: 1.95;
+}
+
+.ProseMirror:lang(he) {
+  line-height: 1.75;
+}
+
+.ProseMirror:lang(ja),
+.ProseMirror:lang(zh),
+.ProseMirror:lang(ko),
+.ProseMirror:lang(hi) {
+  line-height: 1.85;
+}
+
 .ProseMirror {
   position: relative;
   flex: 1;
@@ -733,8 +751,8 @@ button.chip {
 
 .ProseMirror blockquote {
   margin: 0 0 0.9em;
-  padding-left: 1em;
-  border-left: 2px solid var(--line-strong);
+  padding-inline-start: 1em;
+  border-inline-start: 2px solid var(--line-strong);
   color: var(--ink-soft);
 }
 
@@ -776,6 +794,162 @@ button.chip {
   font-style: italic;
 }
 
+/* Inline pictures (pictures.md §2.2). A picture alone in its paragraph is a figure with a caption; one inside a sentence stays on the line. */
+.editor-toolbar {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-family: var(--ui, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.caotang-picture {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  vertical-align: bottom;
+}
+
+figure.caotang-picture {
+  display: block;
+  margin: 0.4em 0 0.9em;
+  text-align: center;
+}
+
+figure.caotang-picture[data-size='half'] .caotang-picture-media img {
+  max-width: 50%;
+}
+
+.caotang-picture[data-size='inline'] .caotang-picture-media img {
+  max-height: 1.4em;
+  vertical-align: middle;
+}
+
+.caotang-picture-media {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.caotang-picture-media img {
+  display: inline-block;
+  max-width: 100%;
+  height: auto;
+}
+
+.caotang-picture[data-decorative='true'] .caotang-picture-media img {
+  opacity: 0.85;
+}
+
+.caotang-picture figcaption {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+
+.caotang-picture-edit {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.caotang-picture:hover .caotang-picture-edit,
+.caotang-picture:focus-within .caotang-picture-edit,
+.caotang-picture.ProseMirror-selectednode .caotang-picture-edit {
+  opacity: 1;
+}
+
+.caotang-image-placeholder[data-state] {
+  display: inline-block;
+  padding: 10px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  font-size: 0.9em;
+}
+
+.caotang-image-placeholder[data-state='missing'] {
+  color: var(--ink-soft);
+}
+
+.caotang-picture-popover,
+.caotang-slash-menu {
+  z-index: 40;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  color: var(--ink);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 18%);
+  font-family: var(--ui, system-ui, sans-serif);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.caotang-picture-popover {
+  display: grid;
+  gap: 8px;
+  width: min(320px, calc(100vw - 16px));
+  padding: 12px;
+}
+
+.caotang-picture-field {
+  display: grid;
+  gap: 3px;
+}
+
+.caotang-picture-field:has(input[type='checkbox']) {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.caotang-picture-field:has(input[type='checkbox']) > span {
+  order: 2;
+}
+
+.caotang-picture-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.caotang-slash-menu {
+  min-width: 240px;
+  padding: 4px;
+}
+
+.caotang-slash-item {
+  display: grid;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.caotang-slash-item[aria-selected='true'] {
+  background: var(--panel);
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.caotang-slash-title {
+  font-weight: 600;
+}
+
+.caotang-slash-hint {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
 /* Footnotes (editor-engine §3.4): a marker is a raised number; the notes are the scene's tail, under a short rule, each led by
    its number. */
 .caotang-footnote-ref {
@@ -788,7 +962,7 @@ button.chip {
 
 .ProseMirror .caotang-footnote {
   position: relative;
-  padding-left: 2.2em;
+  padding-inline-start: 2.2em;
   font-size: 0.9em;
   color: var(--ink-soft);
 }
@@ -802,7 +976,7 @@ button.chip {
 .ProseMirror .caotang-footnote::before {
   content: attr(data-footnote) '.';
   position: absolute;
-  left: 0;
+  inset-inline-start: 0;
   font-family: var(--ui);
   color: var(--muted);
 }
@@ -878,7 +1052,7 @@ button.chip {
 /* The empty-document hint (editor-engine §10's Placeholder), shown only while the document is empty. */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  float: left;
+  float: inline-start;
   height: 0;
   color: var(--muted);
   font-style: italic;
@@ -898,7 +1072,7 @@ button.chip {
 }
 
 .editor-status .editor-save {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* The load banner (editor-engine §3.3 and §5): said once per load, dismissible, and calm. */
@@ -910,7 +1084,7 @@ button.chip {
   margin: 0 0 var(--space-6);
   padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--warn);
+  border-inline-start: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
   font-family: var(--ui);
@@ -925,7 +1099,7 @@ button.chip {
 
 .load-banner ul {
   margin: 0 0 var(--space-2);
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1001,7 +1175,7 @@ button.chip {
 }
 
 .codex-group-count {
-  margin-left: var(--space-2);
+  margin-inline-start: var(--space-2);
   font-weight: 400;
 }
 
@@ -1026,7 +1200,7 @@ button.chip {
   color: var(--ink);
   font: inherit;
   font-size: 13.5px;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1134,7 +1308,8 @@ button.chip {
  * The export dialog (exporter.md §2, §5)
  * ------------------------------------------------------------------ */
 
-dialog.export-dialog {
+dialog.export-dialog,
+dialog.transcription-review-dialog {
   width: min(520px, calc(100vw - 32px));
   /* The dialog is taller than a short window: it scrolls, so Compile and the refusal beside it stay reachable. */
   max-height: calc(100vh - 32px);
@@ -1147,7 +1322,8 @@ dialog.export-dialog {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
 }
 
-dialog.export-dialog::backdrop {
+dialog.export-dialog::backdrop,
+dialog.transcription-review-dialog::backdrop {
   background: rgba(20, 19, 17, 0.35);
 }
 
@@ -1291,7 +1467,7 @@ dialog.export-dialog::backdrop {
 }
 
 .export-preview-break {
-  padding-left: 14px;
+  padding-inline-start: 14px;
   color: var(--muted);
 }
 
@@ -1304,7 +1480,7 @@ dialog.export-dialog::backdrop {
 
 .export-preview-views .export-option-help {
   display: inline;
-  margin-left: var(--space-3);
+  margin-inline-start: var(--space-3);
 }
 
 /* The Proof is the file's own text: its line breaks and spaces are kept, and a long line wraps inside the region. */
@@ -1362,7 +1538,7 @@ dialog.export-dialog::backdrop {
 }
 
 .activity-row.is-agent {
-  border-left: 3px solid var(--accent);
+  border-inline-start: 3px solid var(--accent);
 }
 
 .activity-head {
@@ -1452,9 +1628,24 @@ dialog.export-dialog::backdrop {
   color: var(--muted);
 }
 
+/* The reading direction as a sign, for transforms that follow it: 1 left to right, -1 right to left. */
+:root {
+  --dir: 1;
+}
+
+:root[dir='rtl'] {
+  --dir: -1;
+}
+
+/* An icon that points along the reading direction opts in with this class; the default is no flip (i18n.md §5.2). */
+.icon-mirror {
+  display: inline-block;
+  transform: scaleX(var(--dir));
+}
+
 .crumbs li + li::before {
   content: '›';
-  margin-right: var(--space-3);
+  margin-inline-end: var(--space-3);
 }
 
 .corkboard-controls {
@@ -1598,7 +1789,7 @@ dialog.export-dialog::backdrop {
   display: inline-flex;
   color: var(--accent, currentColor);
   vertical-align: middle;
-  margin-right: var(--space-2);
+  margin-inline-end: var(--space-2);
 }
 
 .session-ring.is-met {
@@ -1875,7 +2066,7 @@ dialog.export-dialog::backdrop {
   color: var(--ink);
   font: inherit;
   font-size: var(--text-lg);
-  text-align: left;
+  text-align: start;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1909,7 +2100,7 @@ dialog.export-dialog::backdrop {
   color: var(--ink);
   font: inherit;
   font-size: var(--text-lg);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1920,20 +2111,20 @@ dialog.export-dialog::backdrop {
 }
 
 .menu-item.is-checked {
-  padding-left: 26px;
+  padding-inline-start: 26px;
   position: relative;
 }
 
 .menu-item.is-checked::before {
   content: '✓';
   position: absolute;
-  left: 9px;
+  inset-inline-start: 9px;
 }
 
 /* An item's own key, at the end of its row. */
 .menu-key {
-  float: right;
-  margin-left: 18px;
+  float: inline-end;
+  margin-inline-start: 18px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -2200,7 +2391,7 @@ dialog.confirm:has(.folder-file-preview) {
 .first-run {
   padding: 14px var(--space-6);
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--accent);
+  border-inline-start: 3px solid var(--accent);
   border-radius: var(--radius);
   background: var(--raised);
 }
@@ -2268,13 +2459,13 @@ dialog.confirm:has(.folder-file-preview) {
   flex-direction: column;
   gap: var(--space-1);
   padding: 10px var(--space-4);
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   background: var(--panel);
 }
 
 .settings-nav-item {
   font: inherit;
-  text-align: left;
+  text-align: start;
   padding: 7px 10px;
   border: none;
   border-radius: var(--radius-sm);
@@ -2445,7 +2636,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .models ul {
   margin: var(--space-2) 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   columns: 2;
 }
 
@@ -2461,7 +2652,7 @@ dialog.confirm:has(.folder-file-preview) {
 .usage-table td,
 .request-table th,
 .request-table td {
-  text-align: left;
+  text-align: start;
   padding: 5px var(--space-4) 5px 0;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
@@ -2584,8 +2775,8 @@ dialog.confirm:has(.folder-file-preview) {
 .command-menu {
   position: absolute;
   top: calc(100% + 2px);
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   z-index: 20;
   margin: 0;
   padding: var(--space-2);
@@ -2650,7 +2841,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .agent-command-note ul {
   margin: 0 0 var(--space-3);
-  padding-left: 18px;
+  padding-inline-start: 18px;
   display: grid;
   gap: var(--space-1);
   color: var(--ink-soft);
@@ -2663,7 +2854,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 /* Stop sits in the header while a turn runs, at the end of the line. */
 .agent-stop {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* Notes sent to a running turn, and the queue of messages typed behind it (agent-harness §8, "Stop and steer"). */
@@ -2803,7 +2994,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .agent-task-errors {
   margin: var(--space-1) 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .agent-task-actions {
@@ -2815,7 +3006,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .plan-offer-steps {
   margin: var(--space-3) 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
   font-size: var(--text-md);
 }
 
@@ -2918,7 +3109,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .task-state {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: var(--text-xs);
   color: var(--muted);
 }
@@ -2944,7 +3135,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .task-reason {
   flex-basis: 100%;
-  padding-left: calc(1.2em + 8px);
+  padding-inline-start: calc(1.2em + 8px);
   color: var(--danger);
 }
 
@@ -2973,23 +3164,23 @@ dialog.confirm:has(.folder-file-preview) {
 .status-card {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--dot-empty);
+  border-inline-start: 3px solid var(--dot-empty);
   border-radius: var(--radius-sm);
   font-size: var(--text-md);
 }
 
 .status-card.is-running {
-  border-left-color: var(--accent);
+  border-inline-start-color: var(--accent);
 }
 
 .status-card.is-done {
-  border-left-color: var(--accent);
+  border-inline-start-color: var(--accent);
   opacity: 0.85;
 }
 
 .status-card.is-failed,
 .status-card.is-cancelled {
-  border-left-color: var(--danger);
+  border-inline-start-color: var(--danger);
   color: var(--ink-soft);
 }
 
@@ -3065,7 +3256,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .delegation-trace ol {
   margin: var(--space-2) 0 0;
-  padding-left: 20px;
+  padding-inline-start: 20px;
 }
 
 .status-pill {
@@ -3154,7 +3345,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .plan-step-controls {
-  margin-left: auto;
+  margin-inline-start: auto;
   display: flex;
   gap: var(--space-1);
 }
@@ -3242,6 +3433,24 @@ dialog.confirm:has(.folder-file-preview) {
   white-space: pre-wrap;
 }
 
+.timeline-plan-rows {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.timeline-plan-rows th,
+.timeline-plan-rows td {
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+
+.timeline-plan-heading {
+  margin: 8px 0 2px;
+  font-size: 12.5px;
+}
+
 /* A notes rewrite, old to new: an added run is underlined and a removed one is struck, so the difference does not rest on colour. */
 .notes-diff ins {
   color: var(--accent);
@@ -3299,13 +3508,13 @@ dialog.confirm:has(.folder-file-preview) {
 .context-reasons,
 .context-dropped {
   margin: var(--space-2) 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .askback {
   margin: var(--space-4) 0;
   padding: var(--space-4) 10px;
-  border-left: 3px solid var(--warn);
+  border-inline-start: 3px solid var(--warn);
   border-radius: var(--radius-sm);
   background: var(--raised);
   font-size: var(--text-md);
@@ -3322,7 +3531,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .askback-options {
   margin: var(--space-2) 0 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .findings {
@@ -3337,7 +3546,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .findings ul {
   margin: 0;
-  padding-left: 18px;
+  padding-inline-start: 18px;
 }
 
 .checkpoint-row {
@@ -3400,7 +3609,7 @@ dialog.confirm:has(.folder-file-preview) {
   margin: var(--space-5) 24px 0;
   padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--warn);
+  border-inline-start: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
   font-size: var(--text-lg);
@@ -3487,16 +3696,21 @@ dialog.confirm:has(.folder-file-preview) {
   .workspace .rail.is-drawer {
     top: 0;
     bottom: 0;
-    left: 0;
+    inset-inline-start: 0;
     width: min(88vw, 360px);
     padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
-    border-right: 1px solid var(--line);
+    border-inline-end: 1px solid var(--line);
     transform: translateX(-100%);
   }
 
+  /* The drawer sits at the inline start, so in a right-to-left interface it slides in from the right. */
+  [dir='rtl'] .workspace .rail.is-drawer {
+    transform: translateX(100%);
+  }
+
   .workspace .sheet {
-    left: 0;
-    right: 0;
+    inset-inline-start: 0;
+    inset-inline-end: 0;
     bottom: 0;
     max-height: 80vh;
     max-height: 80dvh;
@@ -3515,7 +3729,7 @@ dialog.confirm:has(.folder-file-preview) {
 
   .workspace .sheet .inspector {
     flex: 1 1 auto;
-    border-left: none;
+    border-inline-start: none;
     overflow-y: auto;
   }
 
@@ -3649,7 +3863,7 @@ dialog.confirm:has(.folder-file-preview) {
   dialog.settings .settings-nav {
     flex-direction: row;
     flex-wrap: wrap;
-    border-right: none;
+    border-inline-end: none;
     border-bottom: 1px solid var(--line);
   }
 
@@ -3730,8 +3944,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-mode legend {
-  float: left;
-  margin-right: var(--space-4);
+  float: inline-start;
+  margin-inline-end: 8px;
   padding: 0;
   color: var(--muted);
 }
@@ -3761,7 +3975,7 @@ dialog.confirm:has(.folder-file-preview) {
 .turn-menu-panel {
   position: absolute;
   z-index: 5;
-  right: 0;
+  inset-inline-end: 0;
   top: 100%;
   display: grid;
   gap: var(--space-1);
@@ -3778,7 +3992,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: grid;
   gap: var(--space-1);
   justify-items: start;
-  text-align: left;
+  text-align: start;
   height: auto;
   padding: var(--space-3) var(--space-4);
 }
@@ -3821,7 +4035,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .badge.is-auto {
-  margin-left: var(--space-3);
+  margin-inline-start: var(--space-3);
 }
 
 .held-plan {
@@ -3838,7 +4052,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .held-plan ol {
   margin: 0 0 var(--space-4);
-  padding-left: 20px;
+  padding-inline-start: 20px;
   font-size: var(--text-md);
 }
 
@@ -3897,7 +4111,7 @@ dialog.confirm:has(.folder-file-preview) {
   width: 100%;
   padding: var(--space-3) var(--space-4);
   font: inherit;
-  text-align: left;
+  text-align: start;
   background: none;
   border: none;
   color: var(--ink);
@@ -3913,17 +4127,17 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .trace-row {
-  border-left: 3px solid var(--line-strong);
+  border-inline-start: 3px solid var(--line-strong);
   border-radius: 3px;
   background: var(--panel);
 }
 
 .trace-row.is-call {
-  border-left-color: var(--accent);
+  border-inline-start-color: var(--accent);
 }
 
 .trace-row.is-tool {
-  border-left-color: var(--warn);
+  border-inline-start-color: var(--warn);
 }
 
 .trace-row summary {

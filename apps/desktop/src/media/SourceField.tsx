@@ -9,6 +9,7 @@
 import { Fragment, useRef, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 
 import type { Segment } from './source-decor.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 
 export interface SourceFieldProps {
   /** The input's accessible name, which the views and their tests find it by. */
@@ -61,7 +62,7 @@ export function SourceField({
       <textarea
         ref={inputRef}
         className={`src-input ${inputClassName}`}
-        aria-label={label}
+        aria-label={accessibleText(label)}
         aria-keyshortcuts={keyShortcuts}
         value={value}
         rows={rows}

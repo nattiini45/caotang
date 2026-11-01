@@ -405,7 +405,7 @@ describe('the gate\'s own lists are held against the spec, not against themselve
     // pick is the only way to it, and no tool is written over it. `codex.importBatch`, the writer's batch import from the app, is the
     // same: no tool and no compound apply issues it, so the agent's import stays `codex.import` with its cap of 20. `binder.importTree`, the import
     // preview's commit, is the same: the agent imports one document at a time through doc.import.
-    expect([...inheritable].sort()).toEqual(['binder.importTree', 'codex.importBatch', 'editor.insert', 'editor.replaceRange', 'hook.delete', 'hook.save', 'macro.delete', 'macro.save', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
+    expect([...inheritable].sort()).toEqual(['asset.sweep', 'binder.importTree', 'codex.importBatch', 'editor.insert', 'editor.replaceRange', 'hook.delete', 'hook.save', 'macro.delete', 'macro.save', 'mcp.readResource', 'project.setCalendar', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
     for (const name of inheritable) {
       expect(granted(name, 'agent', { inheritedGrant: 'write-confirm' }).via, name).toBe('inherited');
     }
@@ -438,6 +438,8 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'skill.write',
       'skill.delete',
       'skill.setEnabled',
+      'project.setCalendar',
+      'asset.sweep',
       'memory.forget',
       'macro.save',
       'macro.delete',

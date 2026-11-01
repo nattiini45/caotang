@@ -3,16 +3,15 @@
  * coherence file and the project, so what the panels say is testable without a page. No React here.
  */
 
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg, plural, t } from '@lingui/core/macro';
 import {
-  DETERMINISTIC_CHECK_LABELS,
   DISMISSAL_REASONS,
-  MODE_CROSS_LINK_COPY,
-  RUN_KIND_LABELS,
   STORY_PARTS,
   TIMELINE_MODES,
+  effectiveStoryPart,
   findingTypeLabel,
   locateQuote,
-  tooltipFor,
   type CoherenceFile,
   type CoherenceRun,
   type DeterministicCheckId,
@@ -21,30 +20,101 @@ import {
   type FindingStatus,
   type SceneMeta,
   type ScopeSpec,
-  type StoryPart,
+  type EffectiveStoryPart,
 } from '@caotang/coherence';
+import { dateTimeFormat, isolate, numberFormat, type MessageRef } from '@caotang/i18n';
 import { captureTextAnchor } from '@caotang/storyboard';
 import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caotang/store';
 
+import { formatterLocale } from '../i18n/format-locale.js';
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { childrenOf } from './binder-model.js';
 import { containersOf } from './coherence-facts.js';
-import { formatCount, formatDateTime, namesCollator } from '../i18n/locale.js';
+import { findingFixInstruction, findingFixIntent } from './model-prompts.js';
+import { namesCollator } from '../i18n/locale.js';
 
 /** The severity sections, most severe first (coherence.md §5.3: the severity the check or the category gives). */
 export const SEVERITY_SECTIONS: readonly { readonly severity: FindingSeverity; readonly label: string }[] = [
-  { severity: 'error', label: 'Errors' },
-  { severity: 'warning', label: 'Warnings' },
-  { severity: 'info', label: 'Notes' },
+  { severity: 'error', get label() { return t`Errors`; } },
+  { severity: 'warning', get label() { return t`Warnings`; } },
+  { severity: 'info', get label() { return t`Notes`; } },
 ];
+
+/* lingui-set comment="Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon." */
+
+const CHECK_LABELS: Readonly<Record<DeterministicCheckId, MessageDescriptor>> = {
+  'codex.alias-collisions': msg`Two codex entries share a name or alias`,
+  'codex.never-mentioned': msg`A codex entry is never named in the manuscript`,
+  'timeline.order-drift': msg`Scenes run out of chronological order`,
+  'timeline.relation': msg`A scene is placed before a scene it must follow`,
+  'timeline.window': msg`A scene falls outside its folder’s declared days`,
+  'timeline.overlap': msg`Sibling scenes overlap in time`,
+  'pov.coverage': msg`A declared point of view is never named in its scene`,
+  'presence.expected': msg`A character expected in a scene is never named there`,
+  'script.cue-collision': msg`A screenplay character cue matches no codex entry`,
+  'script.cue-consistency': msg`One screenplay character is cued with two spellings`,
+  'script.shot-coverage': msg`Storyboard shots miss dialogue, a duration or an anchor`,
+  'branch.loose-end': msg`A dialogue branch runs out without an ending`,
+  'branch.dead-end': msg`A dialogue knot can never be reached`,
+  'dialogue.speaker-unknown': msg`A dialogue speaker matches no codex entry`,
+  'timeline.gap': msg`A scene is days after the scene before it`,
+  'plot.unresolved-thread': msg`A thread’s declared payoff is not in the manuscript`,
+  'knowledge.leak': msg`A character knows something before they learn it`,
+  'medium.speaker-parity': msg`The screenplay and its dialogue name different speakers`,
+  'comic.balloon-density': msg`A balloon or panel carries more words than the lettering guidance`,
+  'comic.em-dash': msg`A balloon uses an em dash instead of a double dash`,
+  'comic.caps-policy': msg`A ß in a caps book will be lettered as SS`,
+  'comic.balloon-coverage': msg`A script line has no balloon, or a balloon no longer matches its script line`,
+};
+
+const TYPE_LABELS: Readonly<Record<string, MessageDescriptor>> = {
+  'alias-collision': msg`Shared name`,
+  'never-mentioned': msg`Never named`,
+  'order-drift': msg`Out of order`,
+  'strand-order-drift': msg`Out of order in its strand`,
+  'after-violated': msg`Placed before a scene it follows`,
+  'outside-span': msg`Outside the folder’s days`,
+  'sibling-overlap': msg`Overlapping scenes`,
+  'time-gap': msg`A gap in time`,
+  'knows-before-learns': msg`Knows before learning`,
+  'never-learns': msg`Never learns it`,
+  'pov-unresolved': msg`Unknown point of view`,
+  'pov-not-named': msg`Point of view not named`,
+  'expected-absent': msg`Expected character missing`,
+  'cue-unmatched': msg`Cue matches no codex entry`,
+  'cue-spelling': msg`Cue spelled two ways`,
+  'duration-missing': msg`Shot without a duration`,
+  uncovered: msg`Not covered by a shot`,
+  'anchor-drift': msg`Shot anchor moved`,
+  'loose-end': msg`Loose end`,
+  unreachable: msg`Unreachable knot`,
+  'unresolved-speaker': msg`Unknown speaker`,
+  'ambiguous-speaker': msg`Speaker matches two entries`,
+  'speaker-differs': msg`Speaker spelled differently`,
+  'speaker-screenplay-only': msg`Only the screenplay has this speaker`,
+  'speaker-dialogue-only': msg`Only the dialogue has this speaker`,
+  unletteredLine: msg`Script line without a balloon`,
+  staleAnchor: msg`Balloon’s script text changed`,
+  brokenBalloon: msg`Balloon missing from its panel`,
+  staleDocument: msg`Lettered from another script`,
+};
+
+const REASON_LABELS: Readonly<Record<(typeof DISMISSAL_REASONS)[number]['id'], MessageDescriptor>> = {
+  flashback: msg`Flashback`,
+  'in-world-lie': msg`In-world lie`,
+  'unreliable-narrator': msg`Unreliable narrator`,
+  intentional: msg`Intentional`,
+  'false-positive': msg`False positive`,
+};
 
 /** The status filter the tab offers. `open` is the default: a dismissed or fixed finding is history until someone asks for it. */
 export type FindingFilter = 'open' | 'dismissed' | 'fixed' | 'all';
 
 export const FILTER_LABELS: Readonly<Record<FindingFilter, string>> = {
-  open: 'Open',
-  dismissed: 'Dismissed',
-  fixed: 'Marked fixed',
-  all: 'All',
+  get open() { return t`Open`; },
+  get dismissed() { return t`Dismissed`; },
+  get fixed() { return t`Marked fixed`; },
+  get all() { return t`All`; },
 };
 
 /** One quoted passage of a finding, with the document it is in and the body-projection offsets the editor reveals. */
@@ -56,6 +126,17 @@ export interface QuoteView {
   readonly to: number;
 }
 
+/**
+ * The sentence a finding card shows (i18n.md §3.4, I7): a deterministic finding's reference in the
+ * current interface language with its writer titles isolated once; a model-authored finding has no
+ * reference, so the English it was stored with stays as written across a later locale switch.
+ */
+export function findingMessageText(finding: { readonly message: string; readonly messageRef?: MessageRef }): string {
+  return finding.messageRef === undefined
+    ? finding.message
+    : renderRef(finding.messageRef, { userValues: titleValues(finding.messageRef) });
+}
+
 /** One finding as the card shows it. */
 export interface FindingView {
   readonly id: string;
@@ -65,6 +146,8 @@ export interface FindingView {
   readonly severity: FindingSeverity;
   readonly status: FindingStatus;
   readonly message: string;
+  /** I7: the deterministic check's reference, when the finding has one. A model-authored finding has none. */
+  readonly messageRef?: MessageRef;
   readonly expected: string | undefined;
   readonly note: string | undefined;
   readonly dismissedReason: string | undefined;
@@ -128,6 +211,8 @@ export interface FindingGroupView {
   readonly factGroup: string;
   readonly severity: FindingSeverity;
   readonly heading: string;
+  /** I7: the heading's reference when the first finding has one, so the group card can render it in the UI language. */
+  readonly headingRef?: MessageRef;
   readonly findings: readonly FindingView[];
 }
 
@@ -141,7 +226,7 @@ export interface SeveritySection {
 
 /** The title of a document, or a plain fallback when the document is gone (a dangling quote is shown, never hidden). */
 export function docTitleOf(state: ProjectState, docId: string): string {
-  return state.manifest.tree.find((node) => node.id === docId)?.title ?? 'a document that is no longer in the project';
+  return state.manifest.tree.find((node) => node.id === docId)?.title ?? t`a document that is no longer in the project`;
 }
 
 /**
@@ -183,7 +268,8 @@ export function groupsByFact(findings: readonly FindingView[], severity: Finding
   return [...groups.entries()].map(([factGroup, members]) => ({
     factGroup,
     severity,
-    heading: members[0]?.message || members[0]?.typeLabel || 'Finding',
+    heading: members[0]?.message || members[0]?.typeLabel || t`Finding`,
+    headingRef: members[0]?.messageRef,
     findings: members,
   }));
 }
@@ -194,13 +280,15 @@ function statusOf(filter: Exclude<FindingFilter, 'all'>): FindingStatus {
 
 function viewOf(state: ProjectState, order: ReadonlyMap<string, number>, finding: Finding): FindingView {
   const primary = primaryQuoteOf(order, finding.evidence);
+  const typeMessage = Object.hasOwn(TYPE_LABELS, finding.type) ? TYPE_LABELS[finding.type] : undefined;
   return {
     id: finding.id,
     type: finding.type,
-    typeLabel: findingTypeLabel(finding.type),
+    typeLabel: typeMessage === undefined ? findingTypeLabel(finding.type) : i18n._(typeMessage),
     severity: finding.severity,
     status: finding.status,
     message: finding.message,
+    messageRef: finding.messageRef,
     expected: finding.expected,
     note: finding.note,
     dismissedReason: finding.dismissedReason,
@@ -250,32 +338,36 @@ export function rerunScopeOf(run: CoherenceRun): ScopeSpec | undefined {
 }
 
 /** Newest first: the history reads the way the writer looks for a recent run. */
-export function runViewsOf(file: CoherenceFile | undefined, docTitle: (docId: string) => string): RunView[] {
+export function runViewsOf(file: CoherenceFile | undefined, docTitle: (docId: string) => string, locale: string = formatterLocale()): RunView[] {
   if (file === undefined) return [];
-  return [...file.runs].reverse().map((run) => runViewOf(run, docTitle));
+  return [...file.runs].reverse().map((run) => runViewOf(run, docTitle, locale));
 }
 
-/** A run's time in words for the writer: a day and a clock time, in the formatter locale (D3). An unreadable stamp shows as it is. */
-export function runTimeLabel(at: string): string {
+/** A run's time in words for the writer: a day and a clock time, in the formatter locale (i18n.md §4.1, D3). An unreadable stamp shows as it is. */
+export function runTimeLabel(at: string, locale: string = formatterLocale()): string {
   const stamp = Date.parse(at);
   if (Number.isNaN(stamp)) return at;
-  return formatDateTime(new Date(stamp), { dateStyle: 'medium', timeStyle: 'short' });
+  return dateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(stamp));
 }
 
-function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string): RunView {
+function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string, locale: string): RunView {
   const docs = run.scope.docIds;
+  const documents = docs.length;
   const scopeLabel =
     docs.length === 0
-      ? 'no documents'
+      ? t`no documents`
       : docs.length === 1
-        ? `"${docTitle(docs[0] ?? '')}"`
-        : `${docs.length} documents`;
+        ? `"${isolate(docTitle(docs[0] ?? ''))}"`
+        : plural(documents, { one: '# document', other: '# documents' });
   const checkLabels = run.checkIds.map(checkLabelForRun);
+  const count = numberFormat(locale);
+  const prompt = run.tokens === undefined ? '' : count.format(run.tokens.promptTokens);
+  const completion = run.tokens === undefined ? '' : count.format(run.tokens.completionTokens);
   return {
     id: run.id,
-    at: runTimeLabel(run.at),
-    kind: RUN_KIND_LABELS[run.kind],
-    status: run.status,
+    at: runTimeLabel(run.at, locale),
+    kind: run.kind === 'deterministic' ? t`Quick scan` : t`Model review`,
+    status: run.status === 'complete' ? t`complete` : run.status === 'partial' ? t`partial` : t`discarded`,
     scopeLabel,
     findingCount: run.findingsUpserted.length,
     checkLabels,
@@ -284,21 +376,33 @@ function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string): RunV
     tokenLine:
       run.tokens === undefined
         ? undefined
-        : `${formatCount(run.tokens.promptTokens)} tokens in, ${formatCount(run.tokens.completionTokens)} out${run.model === undefined ? '' : ` (${run.model})`}`,
+        : run.model === undefined
+          ? t`${{ prompt }} tokens in, ${{ completion }} out`
+          : t`${{ prompt }} tokens in, ${{ completion }} out (${{ model: isolate(run.model) }})`,
   };
 }
 
 /** A run's check id in words: a deterministic check by its label, a model category as "Model: <category>". */
-function checkLabelForRun(id: string): string {
-  if (id.startsWith('llm:')) return `Model: ${id.slice('llm:'.length).replace(/-/g, ' ')}`;
-  return id in DETERMINISTIC_CHECK_LABELS ? DETERMINISTIC_CHECK_LABELS[id as DeterministicCheckId] : id;
+export function checkLabelForRun(id: string): string {
+  if (id.startsWith('llm:')) {
+    const category = id.slice('llm:'.length);
+    switch (category) {
+      case 'timeline-plot': return t`Model: timeline plot`;
+      case 'characterization': return t`Model: characterization`;
+      case 'world-building': return t`Model: world building`;
+      case 'factual': return t`Model: factual`;
+      case 'narrative-style': return t`Model: narrative style`;
+      default: return t`Model: ${{ category: isolate(category.replace(/-/g, ' ')) }}`;
+    }
+  }
+  return Object.hasOwn(CHECK_LABELS, id) ? checkLabelOf(id as DeterministicCheckId) : id;
 }
 
 /** The scopes the Findings tab offers (coherence.md §6.2): this document, what changed since the last pass, the whole manuscript. */
 export const SCOPE_CHOICES: readonly { readonly id: 'doc' | 'changed' | 'full'; readonly label: string }[] = [
-  { id: 'doc', label: 'This document' },
-  { id: 'changed', label: 'Changed since the last scan' },
-  { id: 'full', label: 'Whole manuscript' },
+  { id: 'doc', get label() { return t`This document`; } },
+  { id: 'changed', get label() { return t`Changed since the last scan`; } },
+  { id: 'full', get label() { return t`Whole manuscript`; } },
 ];
 
 /**
@@ -318,15 +422,15 @@ export function scopeFor(choice: 'doc' | 'changed' | 'full', currentDocId: strin
  */
 export function scanCoverageLine(enabled: readonly DeterministicCheckId[]): string {
   if (enabled.length === 0) {
-    return 'Every quick check is off in Settings, so this tab’s scan runs nothing. Turn checks on in Settings.';
+    return t`Every quick check is off in Settings, so this tab’s scan runs nothing. Turn checks on in Settings.`;
   }
-  const labels = enabled.map((id) => DETERMINISTIC_CHECK_LABELS[id]);
-  return `The Findings tab’s quick scan checks for: ${labels.join('; ')}. It does not read the story for plot or character problems; the model review does that.`;
+  const checks = enabled.map(checkLabelOf).join('; ');
+  return t`The Findings tab’s quick scan checks for: ${{ checks }}. It does not read the story for plot or character problems; the model review does that.`;
 }
 
 /** The plain-words name of one check, for the Settings section. */
 export function checkLabelOf(id: DeterministicCheckId): string {
-  return DETERMINISTIC_CHECK_LABELS[id];
+  return i18n._(CHECK_LABELS[id]);
 }
 
 /** One reason on the dismissal picker: its label, its tooltip where the spec gives one, and whether it cross-links to the mode picker. */
@@ -339,7 +443,8 @@ export interface ReasonView {
 
 /** A dismissal reason in the picker's words, as a card shows it. A reason the picker does not hold is shown as written. */
 export function dismissalLabelOf(reason: string): string {
-  return DISMISSAL_REASONS.find((candidate) => candidate.id === reason)?.label ?? reason;
+  const known = DISMISSAL_REASONS.find((candidate) => candidate.id === reason);
+  return known === undefined ? reason : i18n._(REASON_LABELS[known.id]);
 }
 
 /**
@@ -361,9 +466,9 @@ export function nextOpenFindingId(sections: readonly SeveritySection[], findingI
 export function dismissalReasons(): ReasonView[] {
   return DISMISSAL_REASONS.map((reason) => ({
     id: reason.id,
-    label: reason.label,
-    tooltip: tooltipFor(reason.id),
-    crossLink: reason.modeCrossLink ? MODE_CROSS_LINK_COPY : undefined,
+    label: dismissalLabelOf(reason.id),
+    tooltip: reason.id === 'in-world-lie' ? t`In-story deception between characters.` : reason.id === 'unreliable-narrator' ? t`Narration-level deception.` : undefined,
+    crossLink: reason.modeCrossLink ? t`Declare this as a scene mode instead.` : undefined,
   }));
 }
 
@@ -376,45 +481,6 @@ export const NOTE_LIMIT = 500;
  */
 export function sceneMetaOf(file: CoherenceFile | undefined, docId: string): SceneMeta {
   return file?.sceneMeta[docId] ?? {};
-}
-
-/** §5.2.2: the part select's choices, the main story first. The main story is stored as no part, so its value is empty. */
-export const STORY_PART_CHOICES: readonly { readonly value: '' | StoryPart; readonly label: string }[] = [
-  { value: '', label: 'Main story' },
-  ...STORY_PARTS.map((part) => ({ value: part, label: storyPartLabel(part) })),
-];
-
-/** A part as the writer reads it: `Prologue`, `Epilogue`. */
-export function storyPartLabel(part: StoryPart): string {
-  return part === 'prologue' ? 'Prologue' : 'Epilogue';
-}
-
-/**
- * §5.2.2: the part the nearest folder above a node declares, with that folder's title. It is what covers the node while the node
- * declares no part of its own. `undefined` when no folder above declares one.
- */
-export function inheritedStoryPart(
-  state: ProjectState,
-  file: CoherenceFile | undefined,
-  nodeId: string,
-): { readonly part: StoryPart; readonly folderTitle: string } | undefined {
-  const byId = new Map(state.manifest.tree.map((node) => [node.id, node] as const));
-  const seen = new Set<string>([nodeId]);
-  let parentId = byId.get(nodeId)?.parentId ?? null;
-  while (parentId !== null && !seen.has(parentId)) {
-    seen.add(parentId);
-    const parent = byId.get(parentId);
-    if (parent === undefined) return undefined;
-    const part = parent.type === 'folder' ? file?.sceneMeta[parent.id]?.storyPart : undefined;
-    if (part !== undefined) return { part, folderTitle: parent.title || parent.id };
-    parentId = parent.parentId;
-  }
-  return undefined;
-}
-
-/** §5.2.2: a day as the writer reads it, with a true minus sign before day 0: `Day 12`, `Day −14`. */
-export function dayLabel(day: number): string {
-  return day < 0 ? `Day \u2212${-day}` : `Day ${day}`;
 }
 
 /**
@@ -450,8 +516,89 @@ export const MODE_OPTIONS: readonly string[] = TIMELINE_MODES;
 
 /** A readable name for a timeline mode, for the picker. */
 export function modeLabel(mode: string | undefined): string {
-  if (mode === undefined || mode === 'linear') return 'Linear (the default)';
-  return mode.replace(/-/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+  switch (mode) {
+    case undefined:
+    case 'linear': return t`Linear (the default)`;
+    case 'flashback': return t`Flashback`;
+    case 'flash-forward': return t`Flash forward`;
+    case 'parallel': return t`Parallel`;
+    case 'frame': return t`Frame`;
+    case 'dream': return t`Dream`;
+    case 'mythic': return t`Mythic`;
+    case 'backstory': return t`Backstory`;
+    case 'simultaneous': return t`Simultaneous`;
+    case 'circular': return t`Circular`;
+    case 'time-skip': return t`Time skip`;
+    default: return mode.replace(/-/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+  }
+}
+
+/** A story part as the writer reads it: Prologue, Epilogue, or Main story (coherence.md §5.2.2). */
+export function storyPartLabel(part: EffectiveStoryPart): string {
+  switch (part) {
+    case 'prologue': return t`Prologue`;
+    case 'epilogue': return t`Epilogue`;
+    default: return t`Main story`;
+  }
+}
+
+/**
+ * The part a node would be in with no declaration of its own: its folders' nearest declaration, else the main story. The
+ * Inspector names it beside "Inherit" so a writer sees what clearing the declaration returns to.
+ */
+export function inheritedStoryPartOf(state: ProjectState, file: CoherenceFile | undefined, nodeId: string): EffectiveStoryPart {
+  // The folders above the node, nearest last, as `effectiveStoryPart` reads them; the node's own declaration is left out.
+  const byId = new Map(state.manifest.tree.map((node) => [node.id, node] as const));
+  const ancestors: (SceneMeta | undefined)[] = [];
+  const seen = new Set<string>([nodeId]);
+  let parentId = byId.get(nodeId)?.parentId ?? null;
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (parent === undefined) break;
+    ancestors.unshift(file?.sceneMeta[parent.id]);
+    parentId = parent.parentId;
+  }
+  return effectiveStoryPart(undefined, ancestors);
+}
+
+/**
+ * The Inspector's story-part choices (coherence.md §5.2.2): the main story (the empty value, no declaration) and the parts
+ * a node can declare. The explicit main-story mark is the Agenda's (`mainStory`); here "Main story" clears the declaration.
+ */
+export function storyPartChoices(): readonly { readonly value: '' | (typeof STORY_PARTS)[number]; readonly label: string }[] {
+  return [{ value: '', label: storyPartLabel('main') }, ...STORY_PARTS.map((part) => ({ value: part, label: storyPartLabel(part) }))];
+}
+
+/**
+ * §5.2.2: what the nearest folder above a node declares, with that folder's title: a part, or the main-story mark (`'main'`).
+ * It is what covers the node while the node declares nothing of its own. `undefined` when no folder above declares anything.
+ */
+export function inheritedStoryPart(
+  state: ProjectState,
+  file: CoherenceFile | undefined,
+  nodeId: string,
+): { readonly part: EffectiveStoryPart; readonly folderTitle: string } | undefined {
+  const byId = new Map(state.manifest.tree.map((node) => [node.id, node] as const));
+  const seen = new Set<string>([nodeId]);
+  let parentId = byId.get(nodeId)?.parentId ?? null;
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (parent === undefined) return undefined;
+    const meta = parent.type === 'folder' ? file?.sceneMeta[parent.id] : undefined;
+    const part: EffectiveStoryPart | undefined = meta?.storyPart ?? (meta?.mainStory === true ? 'main' : undefined);
+    if (part !== undefined) return { part, folderTitle: parent.title || parent.id };
+    parentId = parent.parentId;
+  }
+  return undefined;
+}
+
+/** The writer's reading of a day number: a true minus sign, grouped for the formatter locale, as in "Day −14" (coherence.md §8). */
+export function dayLabel(day: number): string {
+  const magnitude = numberFormat(formatterLocale()).format(Math.abs(day));
+  const value = day < 0 ? `−${magnitude}` : magnitude;
+  return t`Day ${{ day: isolate(value) }}`;
 }
 
 /** The turn a "Fix with agent" starts: its intent for the panel, and the plan the harness checks and cards (agent-harness §2). */
@@ -468,25 +615,25 @@ export interface FixPlan {
  */
 export function fixPlanFor(state: ProjectState, file: CoherenceFile | undefined, findingId: string): FixPlan | string {
   const finding = file?.findings.find((candidate) => candidate.id === findingId);
-  if (finding === undefined) return 'That finding is no longer in the findings file, so there is nothing to fix. Open the Findings tab again.';
+  if (finding === undefined) return t`That finding is no longer in the findings file, so there is nothing to fix. Open the Findings tab again.`;
   const evidence = primaryQuoteOf(binderOrderOf(state), finding.evidence);
-  if (evidence === undefined) return 'This finding quotes no passage, so there is no text to fix. Fix it in the codex or the scene notes.';
+  if (evidence === undefined) return t`This finding quotes no passage, so there is no text to fix. Fix it in the codex or the scene notes.`;
   // The same predicate the Fix button is gated on (`fixable`), so a fix that reaches this function without the button is refused too.
   if (!isDraftableScene(state, evidence.docId)) {
     return state.manifest.tree.find((node) => node.id === evidence.docId)?.type === 'dialogue'
-      ? 'Fix with agent drafts prose and screenplay scenes, not dialogue. Edit this passage in the dialogue’s Ink text.'
-      : 'Fix with agent drafts prose and screenplay scenes. Edit this passage by hand.';
+      ? t`Fix with agent drafts prose and screenplay scenes, not dialogue. Edit this passage in the dialogue’s Ink text.`
+      : t`Fix with agent drafts prose and screenplay scenes. Edit this passage by hand.`;
   }
   const body = getBody(state, evidence.docId);
   const located = locateQuote(body, evidence.quote, evidence.from, evidence.to);
   if (located === undefined) {
-    return 'The passage this finding quotes has changed, so it is not where the finding says. Run the scan again to find it.';
+    return t`The passage this finding quotes has changed, so it is not where the finding says. Run the scan again to find it.`;
   }
   const anchor = captureTextAnchor(body, located.from, located.to, getRevision(state, evidence.docId));
-  if (anchor === undefined) return 'The passage is too long to rewrite in one step. Select the part to change in the editor, then ask the agent for it.';
+  if (anchor === undefined) return t`The passage is too long to rewrite in one step. Select the part to change in the editor, then ask the agent for it.`;
   const title = state.manifest.tree.find((node) => node.id === evidence.docId)?.title ?? evidence.docId;
   return {
-    intent: `Fix the passage in “${title}” that a coherence finding names`,
+    intent: findingFixIntent(title),
     plan: {
       steps: [
         {
@@ -495,9 +642,9 @@ export function fixPlanFor(state: ProjectState, file: CoherenceFile | undefined,
             doc: evidence.docId,
             mode: 'rewrite_selection',
             selection: { ...anchor },
-            instruction: `Rewrite this passage so it no longer conflicts with the rest of the story. The problem: ${finding.message}`,
+            instruction: findingFixInstruction(finding.message),
           },
-          expect: 'the passage no longer conflicts with the rest of the story',
+          expect: t`the passage no longer conflicts with the rest of the story`,
         },
       ],
     },

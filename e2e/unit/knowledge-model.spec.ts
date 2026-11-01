@@ -4,6 +4,7 @@ import { emptyCoherenceFile, type CoherenceFile, type KnowledgeFact } from '../.
 import { binderScenes, characterCandidates, knowledgeRows, pairWords } from '../../apps/desktop/src/app/knowledge-model.js';
 import type { CodexEntry } from '../../packages/store/src/index.js';
 import { IDS, project } from './fixtures.js';
+import { withoutIsolates } from '../support.js';
 
 const NOW = '2026-10-08T09:00:00.000Z';
 const ANNA = 'c_ANNA000001';
@@ -75,12 +76,18 @@ test.describe('the Knowledge list model (coherence.md §4.4, §8)', () => {
 
   test('offers the characters by name and leaves the other kinds of entry out', () => {
     const entries = [entry(BEN, 'ben'), entry('c_PLACE00001', 'The Lighthouse', 'location'), entry(ANNA, 'Anna')];
-    expect(characterCandidates(entries).map((candidate) => candidate.name)).toEqual(['Anna', 'ben']);
+    expect(characterCandidates(entries, 'en').map((candidate) => candidate.name)).toEqual(['Anna', 'ben']);
+  });
+
+  test('sorts the characters by the project language, not the interface’s (i18n.md §4.3, D9)', () => {
+    const entries = [entry('c_AALAND0001', 'Åland'), entry('c_ZEBRA00001', 'Zebra')];
+    expect(characterCandidates(entries, 'sv').map((candidate) => candidate.name)).toEqual(['Zebra', 'Åland']);
+    expect(characterCandidates(entries, 'en').map((candidate) => candidate.name)).toEqual(['Åland', 'Zebra']);
   });
 
   test('reads a declared pair as the character and the fact, each by name', () => {
     const entries = [entry(ANNA, 'Anna')];
-    expect(pairWords({ entryId: ANNA, factId: HEIR }, entries, [fact])).toBe('Anna: Mara is the heir');
-    expect(pairWords({ entryId: BEN, factId: 'k_GONE000001' }, entries, [fact])).toBe('a character that is gone: a fact that is gone');
+    expect(withoutIsolates(pairWords({ entryId: ANNA, factId: HEIR }, entries, [fact]))).toBe('Anna: Mara is the heir');
+    expect(withoutIsolates(pairWords({ entryId: BEN, factId: 'k_GONE000001' }, entries, [fact]))).toBe('a character that is gone: a fact that is gone');
   });
 });

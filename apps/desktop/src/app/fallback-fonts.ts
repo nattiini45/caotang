@@ -22,7 +22,7 @@
  * contact sheet's title, page label or a number chip holds text outside Latin script; without it that text is the Regular with a stroke.
  */
 
-import { checkFontBytes, withCommon, type CommonFontLoader, type FontLoader } from '@caotang/pdf-fonts';
+import { checkFontBytes, withCommon, type CommonFontLoader, type ComicLetteringFontLoader, type FontLoader } from '@caotang/pdf-fonts';
 
 /**
  * The font file at a URL. A body that does not start as a font file does (an HTML page from a dev server's fallback, a service
@@ -92,4 +92,34 @@ export const loadHebrewFontOverHttp: FontLoader = async () => {
 export const loadDevanagariFontOverHttp: FontLoader = async () => {
   const { default: url } = await import('@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf?url');
   return fetchBytes(url);
+};
+
+/**
+ * The comic PDF's lettering faces, one file each from `@caotang/font-comic-lettering` (Comic Neue for balloons and captions, Bangers for sound
+ * effects). The face is the key the lettering model names, and each import is dynamic and sits inside its case, so a comic PDF fetches only the
+ * faces its pages set, and nothing is fetched before a comic is exported.
+ */
+export const loadComicLetteringFontOverHttp: ComicLetteringFontLoader = async (face) => {
+  switch (face) {
+    case 'regular': {
+      const { default: url } = await import('@caotang/font-comic-lettering/ComicNeue-Regular.woff?url');
+      return fetchBytes(url);
+    }
+    case 'italic': {
+      const { default: url } = await import('@caotang/font-comic-lettering/ComicNeue-Italic.woff?url');
+      return fetchBytes(url);
+    }
+    case 'bold': {
+      const { default: url } = await import('@caotang/font-comic-lettering/ComicNeue-Bold.woff?url');
+      return fetchBytes(url);
+    }
+    case 'bold-italic': {
+      const { default: url } = await import('@caotang/font-comic-lettering/ComicNeue-BoldItalic.woff?url');
+      return fetchBytes(url);
+    }
+    case 'sfx': {
+      const { default: url } = await import('@caotang/font-comic-lettering/Bangers-Regular.woff?url');
+      return fetchBytes(url);
+    }
+  }
 };

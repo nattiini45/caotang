@@ -65,6 +65,9 @@ describe('the resource list', () => {
       'caotang://project',
       'caotang://binder',
       'caotang://codex',
+      'caotang://timeline',
+      'caotang://timeline.csv',
+      'caotang://assets',
       ...BINDER_ORDER.map((id) => `caotang://doc/${id}`),
       // `always` first, then type in enum order, then name: the character before the bird.
       `caotang://codex/${ELENA}`,
@@ -96,6 +99,7 @@ describe('the resource list', () => {
   it('lists the templates a host completes against', async () => {
     const { resourceTemplates } = await client.listResourceTemplates();
     expect(resourceTemplates.map((template) => template.uriTemplate).sort()).toEqual([
+      'caotang://asset/{id}',
       'caotang://codex/{id}',
       'caotang://doc/{id}',
       'caotang://notes/{id}',
@@ -276,7 +280,7 @@ describe('what a log row changes', () => {
         summary: command,
       });
       expect(changeOf(state, [row('notes.append', LANDING)])).toEqual({
-        updated: ['caotang://binder', notesUri(LANDING), 'caotang://project'].sort(),
+        updated: ['caotang://assets', 'caotang://binder', notesUri(LANDING), 'caotang://project', 'caotang://timeline', 'caotang://timeline.csv'].sort(),
         listChanged: false,
       });
       expect(changeOf(state, [row('doc.write', STORM)]).updated).toContain(docUri(STORM));
@@ -285,6 +289,8 @@ describe('what a log row changes', () => {
       const codex = changeOf(state, [row('codex.upsert')]);
       expect(codex.listChanged).toBe(true);
       expect(codex.updated).toEqual(expect.arrayContaining(['caotang://codex', `caotang://codex/${ELENA}`, `caotang://codex/${KESTREL}`]));
+      // A declaration that touches only coherence.json still refreshes the timeline, and nothing else.
+      expect(changeOf(state, [row('coherence.setSceneMeta', STORM)])).toEqual({ updated: ['caotang://timeline', 'caotang://timeline.csv'], listChanged: false });
       expect(changeOf(state, [row('view.setScroll', STORM), row('export.compile')])).toEqual({ updated: [], listChanged: false });
       // A folder has no body of its own.
       expect(changeOf(state, [row('doc.write', CHAPTER_ONE)]).updated).not.toContain(docUri(CHAPTER_ONE));

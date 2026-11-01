@@ -1,5 +1,6 @@
 /** A screenplay scene derived into a storyboard folder and its shots: the model proposes them, one card approves them, and the folder and shots are what was proposed. */
 
+import { textOf } from '@caotang/gateway';
 import type { ChatRequest } from '@caotang/gateway';
 import type { MockScript } from '@caotang/gateway/mock';
 import { addDocument, type ProjectState } from '@caotang/store';
@@ -23,7 +24,7 @@ const DERIVE_REPLY = JSON.stringify({
 
 /** The derive call: the drafting call whose role asks for a shot plan. */
 const derive: MockScript = {
-  match: (req: ChatRequest) => (req.messages[0]?.content ?? '').includes('Plan the shots of the screenplay scene below'),
+  match: (req: ChatRequest) => textOf(req.messages[0]?.content ?? '').includes('Plan the shots of the screenplay scene below'),
   respond: () => ({ content: DERIVE_REPLY }),
 };
 

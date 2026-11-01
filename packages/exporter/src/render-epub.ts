@@ -37,9 +37,10 @@
  */
 
 import type { ZipOptions } from 'fflate/browser';
-import { hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
+import { contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, type ProseBlock, type Run } from './prose.js';
 import type { FlatBlock } from './types.js';
+import type { FigurePack, ResolvedFigure } from './figures.js';
 import { stripXmlIllegal } from './xml-text.js';
 
 /** The MIME type an EPUB is served as, and the first entry of the container. */
@@ -110,6 +111,10 @@ export async function renderEpub(input: EpubInput): Promise<Uint8Array> {
   // An image is already compressed, so it is stored rather than deflated: the archive is no smaller for the effort.
   if (input.cover !== undefined) {
     files[coverPath(input.cover)] = [input.cover.bytes, { level: 0, mtime }];
+  }
+  // The figures' payloads ride at OEBPS/images/ (pictures.md §4: `OEBPS/images/<file>` manifest items).
+  for (const image of input.figures?.images ?? []) {
+    files[`OEBPS/images/${image.name}`] = [image.bytes, { level: 0, mtime }];
   }
   for (const section of sections) {
     files[`OEBPS/${section.file}`] = [strToU8(sectionXhtml(input, section)), { level: 9, mtime }];
@@ -217,6 +222,10 @@ function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: b
       `    <item id="cover-image" href="cover.${escapeXml(input.cover.extension)}" media-type="${escapeXml(input.cover.mime)}" properties="cover-image"/>`,
     );
   }
+  // Every embedded figure is a manifest item (pictures.md §4). The id is positional, so a file name never has to be a valid XML id.
+  (input.figures?.images ?? []).forEach((image, index) => {
+    manifest.push(`    <item id="image-${index + 1}" href="images/${escapeXml(image.name)}" media-type="${escapeXml(image.mime)}"/>`);
+  });
   const spine: string[] = [];
   if (titlePage) {
     manifest.push(`    <item id="titlepage" href="${TITLE_PAGE_FILE}" media-type="application/xhtml+xml"/>`);
@@ -272,9 +281,11 @@ function navXhtml(input: EpubInput, sections: readonly Section[]): string {
       if (node.children.length === 0) return [`${pad}<li>${link}</li>`];
       return [`${pad}<li>${link}`, `${pad}  <ol>`, ...items(node.children, `${pad}    `), `${pad}  </ol>`, `${pad}</li>`];
     });
-  return xhtmlPage(input, 'Contents', [
+  // The contents heading this recipe writes, over the project language's word (i18n.md §7.1).
+  const heading = contentsHeading(input);
+  return xhtmlPage(input, heading, [
     '<nav epub:type="toc" id="toc">',
-    '  <h1>Contents</h1>',
+    `  <h1>${escapeXml(heading)}</h1>`,
     '  <ol>',
     ...items(navTree(sections), '    '),
     '  </ol>',
@@ -328,7 +339,7 @@ function sectionXhtml(input: EpubInput, section: Section): string {
       case 'scene': {
         const title = block.docId === section.headedBy ? undefined : sectionTitle(block);
         if (title !== undefined) body.push(`  <h2>${escapeXml(title)}</h2>`);
-        for (const prose of parseProse(block.body)) body.push(...indent(proseXhtml(prose, input.template.separator.plain)));
+        for (const prose of parseProse(block.body)) body.push(...indent(proseXhtml(prose, input.template.separator.plain, input.figures)));
         break;
       }
       case 'separator':
@@ -347,7 +358,7 @@ function indent(lines: readonly string[]): string[] {
 }
 
 /** One prose block as XHTML lines. Every line here is a complete element, so the output is well-formed by construction. */
-function proseXhtml(block: ProseBlock, separator: string): string[] {
+function proseXhtml(block: ProseBlock, separator: string, figures: FigurePack | undefined): string[] {
   switch (block.kind) {
     case 'paragraph': {
       const inner = runsXhtml(block.runs);
@@ -359,13 +370,15 @@ function proseXhtml(block: ProseBlock, separator: string): string[] {
     }
     case 'break':
       return [`<p class="scene-break">${escapeXml(separator)}</p>`];
+    case 'figure':
+      return figureXhtml(block, figures);
     case 'quote':
-      return ['<blockquote>', ...block.blocks.flatMap((inner) => proseXhtml(inner, separator)).map((line) => `  ${line}`), '</blockquote>'];
+      return ['<blockquote>', ...block.blocks.flatMap((inner) => proseXhtml(inner, separator, figures)).map((line) => `  ${line}`), '</blockquote>'];
     case 'list': {
       const tag = block.ordered ? 'ol' : 'ul';
       const items = block.items.flatMap((item) => [
         '<li>',
-        ...item.flatMap((inner) => proseXhtml(inner, separator)).map((line) => `  ${line}`),
+        ...item.flatMap((inner) => proseXhtml(inner, separator, figures)).map((line) => `  ${line}`),
         '</li>',
       ]);
       return [`<${tag}>`, ...items.map((line) => `  ${line}`), `</${tag}>`];
@@ -373,6 +386,24 @@ function proseXhtml(block: ProseBlock, separator: string): string[] {
     case 'code':
       return [`<pre><code>${escapeXml(block.text)}</code></pre>`];
   }
+}
+
+/**
+ * A figure as `<figure><img alt/><figcaption>` (pictures.md §4). The image sits at
+ * `../images/<file>` from a chapter file; a decorative picture writes `alt=""`; a placement whose
+ * file is missing, or whose payload the host could not prepare, degrades to its caption as a
+ * paragraph — never a broken embed.
+ */
+function figureXhtml(block: Extract<ProseBlock, { kind: 'figure' }>, figures: FigurePack | undefined): string[] {
+  const figure: ResolvedFigure | undefined = figures?.figures.get(block.image.url);
+  if (figure === undefined || figure.image === undefined) {
+    const text = figure !== undefined && figure.caption !== '' ? figure.caption : block.image.alt;
+    return text === '' ? [] : [`<p>${escapeXml(text)}</p>`];
+  }
+  const alt = figure.decorative ? '' : figure.alt;
+  const img = `<img src="../images/${escapeXml(figure.image.name)}" alt="${escapeXml(alt)}"/>`;
+  const caption = figure.caption === '' ? '' : `<figcaption>${escapeXml(figure.caption)}</figcaption>`;
+  return [`<figure>${img}${caption}</figure>`];
 }
 
 function runsXhtml(runs: readonly Run[]): string {

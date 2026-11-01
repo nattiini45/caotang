@@ -55,7 +55,7 @@ const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x0
 
 /** A project with one chapter and one scene, so the project has a body of its own. */
 function manuscript(title: string): ProjectState {
-  const state = createProjectState(createEmptyManifest(title, NOW));
+  const state = createProjectState(createEmptyManifest(title, NOW, { locale: 'en-US' }));
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', id: 'n_CH100000AA', now: NOW });
   addDocument(state, { parentId: 'n_CH100000AA', title: 'The Landing', id: 'n_SCA0000001', body: 'The boat came in with the tide.', now: NOW });
   return state;
@@ -142,7 +142,7 @@ const THEIRS = Uint8Array.from([1, 2, 3]);
 
 /** A project whose one shot names `image`. */
 function shotProject(image: string): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Shots', id: BOARD, now: NOW });
   addShotNode(state, { parentId: BOARD, id: SHOT, title: 'Wide', stored: { shotSize: 'WS', durationSec: 4, image }, now: NOW });
   return state;

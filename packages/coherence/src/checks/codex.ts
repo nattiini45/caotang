@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Codex-level deterministic checks — [coherence.md §5.1](../../../../docs/architecture/coherence.md):
  * `codex.alias-collisions` and `codex.never-mentioned`.
@@ -50,6 +51,11 @@ export function checkAliasCollisions(input: CheckInput): CheckOutput {
           factGroup: groupKey(pairKey(a.id, b.id), `alias:${key}`),
           evidence: [],
           message: `"${labelOf(a)}" and "${labelOf(b)}" both answer to "${surface}"`,
+          messageRef: {
+            id: 'coherence.codex.aliasCollision',
+            message: '"{firstEntry}" and "{secondEntry}" both answer to "{name}"',
+            values: { firstEntry: labelOf(a), secondEntry: labelOf(b), name: surface },
+          },
           expected: 'each name and alias identifies one codex entry',
         });
       }
@@ -90,6 +96,11 @@ export function checkNeverMentioned(input: CheckInput): CheckOutput {
       factGroup: groupKey(entry.id, 'never-mentioned'),
       evidence: [],
       message: `"${labelOf(entry)}" is never named in the scanned manuscript`,
+      messageRef: {
+        id: 'coherence.codex.neverMentioned',
+        message: '"{entry}" is never named in the scanned manuscript',
+        values: { entry: labelOf(entry) },
+      },
       expected: 'check its spelling and aliases, or set its policy to manual or never',
     });
   }

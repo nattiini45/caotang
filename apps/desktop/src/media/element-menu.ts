@@ -10,23 +10,46 @@
  * way typing does, through the autosave. Nothing here touches the store, the session or the DOM.
  */
 
-import { chordKey } from '../app/keymap.js';
+import { t } from '@lingui/core/macro';
+import { chordKey, printedKeyLabel, shortcutNames, type KeyboardLayoutMap } from '../app/keymap.js';
 import { LINE_ELEMENT_TYPES, convertLine, lineElementAt, type LineConversion, type LineElementType } from './engines.js';
 
+
+/* lingui-set comment="Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element." */
 /** The menu's name, which its tests find it by. */
-export const ELEMENT_MENU_LABEL = 'Element of this line';
+export function elementMenuLabel(): string {
+  return t`Element of this line`;
+}
 
 /** The words each entry shows. */
 export const ELEMENT_LABEL: Readonly<Record<LineElementType, string>> = {
-  scene_heading: 'Scene heading',
-  action: 'Action',
-  character: 'Character',
-  parenthetical: 'Parenthetical',
-  dialogue: 'Dialogue',
-  transition: 'Transition',
-  centered: 'Centered',
-  note: 'Note',
-  page_break: 'Page break',
+  get scene_heading() {
+    return t`Scene heading`;
+  },
+  get action() {
+    return t`Action`;
+  },
+  get character() {
+    return t`Character`;
+  },
+  get parenthetical() {
+    return t`Parenthetical`;
+  },
+  get dialogue() {
+    return t`Dialogue`;
+  },
+  get transition() {
+    return t`Transition`;
+  },
+  get centered() {
+    return t`Centered`;
+  },
+  get note() {
+    return t`Note`;
+  },
+  get page_break() {
+    return t`Page break`;
+  },
 };
 
 /** One entry: an element, the key that chooses it in the open menu, whether the line is it, and the edit, or `null` when it cannot be. */
@@ -82,14 +105,22 @@ export function chordPlatform(source: { readonly userAgentData?: { readonly plat
   return named.toLowerCase().startsWith('mac') ? 'mac' : 'other';
 }
 
+function chordModifierLabel(platform: ChordPlatform): string {
+  const names = shortcutNames();
+  return platform === 'mac' ? `Cmd+${names.alt}` : `${names.ctrl}+${names.shift}`;
+}
+
 /** The chord of an element as the writer reads it: "Ctrl+Shift+3", or "Cmd+Alt+3" on a Mac. */
-export function chordLabel(type: LineElementType, platform: ChordPlatform): string {
-  return `${CHORD_FAMILY[platform].label}+${LINE_ELEMENT_TYPES.indexOf(type) + 1}`;
+export function chordLabel(type: LineElementType, platform: ChordPlatform, layout?: KeyboardLayoutMap | null): string {
+  const digit = String(LINE_ELEMENT_TYPES.indexOf(type) + 1);
+  return `${chordModifierLabel(platform)}+${printedKeyLabel(digit, layout)}`;
 }
 
 /** The whole family as the writer reads it: "Ctrl+Shift+1 to 9". */
-export function chordRange(platform: ChordPlatform): string {
-  return `${CHORD_FAMILY[platform].label}+1 to ${LINE_ELEMENT_TYPES.length}`;
+export function chordRange(platform: ChordPlatform, layout?: KeyboardLayoutMap | null): string {
+  const label = chordModifierLabel(platform);
+  const last = LINE_ELEMENT_TYPES.length;
+  return t`${label}+${{ first: printedKeyLabel('1', layout) }} to ${{ last: printedKeyLabel(String(last), layout) }}`;
 }
 
 /** The chord of an element as `aria-keyshortcuts` spells it. */
@@ -99,6 +130,7 @@ export function chordAria(type: LineElementType, platform: ChordPlatform): strin
 
 /** The parts of a key event the chord reads. A DOM `KeyboardEvent` has all of them. */
 export interface ChordEvent {
+  readonly key: string;
   readonly code: string;
   readonly ctrlKey: boolean;
   readonly metaKey: boolean;
@@ -163,7 +195,7 @@ export function routeChord(event: RouteChordEvent, platform: ChordPlatform): Sou
 
 /** A route's chord as the writer reads it: "Ctrl+Shift+S", or "Cmd+Alt+S" on a Mac. */
 export function routeLabel(route: SourceRoute, platform: ChordPlatform): string {
-  return `${CHORD_FAMILY[platform].label}+${ROUTE_KEY[route].toUpperCase()}`;
+  return `${chordModifierLabel(platform)}+${printedKeyLabel(ROUTE_KEY[route])}`;
 }
 
 /** A route's chord as `aria-keyshortcuts` spells it. */
@@ -173,7 +205,9 @@ export function routeAria(route: SourceRoute, platform: ChordPlatform): string {
 
 /**
  * Whether a key opens the menu: Ctrl+E, or Cmd+E on macOS, with no other modifier. The key is read as the app's chords read it
- * (`chordKey`), so the physical E opens it on a non-Latin layout too.
+ * (`chordKey`), so the printed ASCII letter wins and the physical E opens it on a non-Latin layout too (Ctrl+У on a Russian
+ * keyboard). A key held down, a key pressed while an input method composes, and AltGraph (which a layout types characters
+ * with) are never the menu chord.
  */
 export function opensElementMenu(event: {
   readonly key: string;
@@ -182,6 +216,11 @@ export function opensElementMenu(event: {
   readonly metaKey: boolean;
   readonly altKey: boolean;
   readonly shiftKey: boolean;
+  readonly repeat?: boolean;
+  readonly isComposing?: boolean;
+  getModifierState?(key: string): boolean;
 }): boolean {
+  if (event.repeat === true || event.isComposing === true) return false;
+  if (event.getModifierState?.('AltGraph') === true) return false;
   return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && chordKey(event.key, event.code ?? '') === 'e';
 }

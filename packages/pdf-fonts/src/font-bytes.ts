@@ -4,8 +4,13 @@
  * loader's bytes go through {@link checkFontBytes}, and a WOFF file is unpacked by {@link sfntFromWoff} before fontkit reads it.
  */
 
+import type { ComicLetteringFace } from './font-files.js';
+
 /** Reads the fallback font's bytes: WOFF 1.0 or a bare TrueType/OpenType file. */
 export type FontLoader = () => Promise<Uint8Array>;
+
+/** Reads one face of the comic lettering (vendor/comic-lettering): the face a balloon is set in, by key. */
+export type ComicLetteringFontLoader = (face: ComicLetteringFace) => Promise<Uint8Array>;
 
 /**
  * A {@link FontLoader} for the full font that also holds the loader of its common file: the same font cut to the characters of

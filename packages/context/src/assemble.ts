@@ -26,6 +26,7 @@
 import type { DetectionDoc, DetectionResult } from '@caotang/codex';
 import { isDialogueNodeType } from '@caotang/dialogue';
 import type { ChatMessage } from '@caotang/gateway';
+import { promptTokensOf } from '@caotang/gateway';
 import { getBody, type CodexEntry, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { charsAt, cheapestKept, cutOne, fitBlock, fitReserved, protectedCount, renderBlock, tokensAt, type Block } from './block.js';
@@ -410,7 +411,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
     { role: 'system', content: system },
     { role: 'user', content: user, parts: marked.map((part) => ({ text: part.text, ...(part.cacheBoundary === true ? { cacheBoundary: true } : {}) })) },
   ];
-  const promptTokens = tokensForChars(messages.reduce((sum, message) => sum + message.content.length, 0));
+  const promptTokens = promptTokensOf(messages);
 
   const byLayer = perLayer(() => 0);
   const layers: LayerReport[] = LAYER_IDS.map((id) => {

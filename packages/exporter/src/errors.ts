@@ -39,6 +39,13 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'dialogue-xlsx': 'the dialogue table',
   'shot-list-xlsx': 'the shot list',
   'contact-sheet-pdf': 'the contact sheet',
+  'comic-pdf': 'the comic PDF',
+  cbz: 'the comic CBZ',
+  'comic-epub': 'the comic EPUB',
+  'timeline-csv': 'the timeline table',
+  'timeline-xlsx': 'the timeline table',
+  'timeline-svg': 'the timeline SVG',
+  'timeline-pdf': 'the timeline PDF',
   promptpack: 'the prompt pack',
 };
 
@@ -63,6 +70,22 @@ export class MediaRefusedError extends ApplyRefusal {
   }
 }
 
+/**
+ * A CBZ or a comic EPUB asked of a host with no canvas to draw the pages on: the command line, the SDK and the MCP server (comics.md §5, D12).
+ * The refusal is the spec's sentence, said before anything is reserved, so nothing is written and there is nothing to undo; it is never a
+ * cover-only or empty file. The comic PDF is the format those hosts write.
+ */
+export class ComicRasterUnavailableError extends ApplyRefusal {
+  constructor() {
+    super(
+      refusal('invalid-params', 'Comic EPUB and CBZ are made in the app. Open the project in Caotang and export there. Nothing was compiled or written.', {
+        target: 'format',
+        correctiveHint: 'open the project in Caotang and export the CBZ or comic EPUB there, or compile the comic as comic-pdf, which this host can write',
+      }),
+    );
+    this.name = 'ComicRasterUnavailableError';
+  }
+}
 /** A binary format asked of the bus with no byte binding to hold the artifact. */
 export class ExportUnavailableError extends ApplyRefusal {
   constructor(format: ExportFormat) {

@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Cross-medium checks — [coherence.md §5.1](../../../../docs/architecture/coherence.md): `medium.speaker-parity`.
  *
@@ -161,6 +162,28 @@ export function checkSpeakerParity(input: CheckInput): CheckOutput {
         factGroup: group(`differs:${s.key}~${d.key}`),
         evidence: [cue(s)],
         message: `The screenplay scene "${scene.title}" cues "${s.name}", but its linked dialogue says "${d.name}"; ${codexVerdict(s, d, entryName)}. ${SCOPE_SENTENCE}`,
+        messageRef:
+          s.entryId !== undefined && d.entryId !== undefined
+            ? {
+                id: 'coherence.medium.speakerDiffersTwoEntries',
+                message:
+                  'The screenplay scene "{sceneTitle}" cues "{screenplayName}", but its linked dialogue says "{dialogueName}"; the codex has them as two characters, "{screenplayEntry}" and "{dialogueEntry}". Only speakers are compared, not lines or meaning.',
+                values: {
+                  sceneTitle: scene.title,
+                  screenplayName: s.name,
+                  dialogueName: d.name,
+                  screenplayEntry: entryName(s.entryId),
+                  dialogueEntry: entryName(d.entryId),
+                },
+              }
+            : {
+                id: s.entryId !== undefined ? 'coherence.medium.speakerDiffersScreenplayOnly' : 'coherence.medium.speakerDiffersDialogueOnly',
+                message:
+                  s.entryId !== undefined
+                    ? 'The screenplay scene "{sceneTitle}" cues "{screenplayName}", but its linked dialogue says "{dialogueName}"; the codex knows only the screenplay\'s spelling. Only speakers are compared, not lines or meaning.'
+                    : 'The screenplay scene "{sceneTitle}" cues "{screenplayName}", but its linked dialogue says "{dialogueName}"; the codex knows only the dialogue\'s spelling. Only speakers are compared, not lines or meaning.',
+                values: { sceneTitle: scene.title, screenplayName: s.name, dialogueName: d.name },
+              },
         expected: 'one spelling for the character in both media, or an alias in the codex that names both',
       });
     }
@@ -172,6 +195,12 @@ export function checkSpeakerParity(input: CheckInput): CheckOutput {
         factGroup: group(`screenplay-only:${s.key}`),
         evidence: [cue(s)],
         message: `The screenplay scene "${scene.title}" cues "${s.name}", but its linked dialogue has no speaker by that name. ${SCOPE_SENTENCE}`,
+        messageRef: {
+          id: 'coherence.medium.speakerScreenplayOnly',
+          message:
+            'The screenplay scene "{sceneTitle}" cues "{screenplayName}", but its linked dialogue has no speaker by that name. Only speakers are compared, not lines or meaning.',
+          values: { sceneTitle: scene.title, screenplayName: s.name },
+        },
         expected: 'the same cast in both media, or a dismissal saying the branch changes it on purpose',
       });
     }
@@ -183,6 +212,12 @@ export function checkSpeakerParity(input: CheckInput): CheckOutput {
         factGroup: group(`dialogue-only:${d.key}`),
         evidence: [headEvidence(scene)],
         message: `The dialogue linked to the screenplay scene "${scene.title}" has a speaker "${d.name}" that the scene does not cue. ${SCOPE_SENTENCE}`,
+        messageRef: {
+          id: 'coherence.medium.speakerDialogueOnly',
+          message:
+            'The dialogue linked to the screenplay scene "{sceneTitle}" has a speaker "{dialogueName}" that the scene does not cue. Only speakers are compared, not lines or meaning.',
+          values: { sceneTitle: scene.title, dialogueName: d.name },
+        },
         expected: 'the same cast in both media, or a dismissal saying the branch changes it on purpose',
       });
     }

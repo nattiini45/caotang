@@ -54,7 +54,7 @@ export { createProductHarness, type ProductHarnessOptions } from './product.js';
 export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';
 // The Ink compiler loads on demand (dialogue ink-loader.ts); a Node host awaits this before it opens a project, so every dialogue tool and check can compile.
 export { loadInkCompiler } from '@caotang/dialogue';
-export { gatewayCoherenceModel, reviewContextOf } from './coherence-review-context.js';
+export { gatewayCoherenceModel, reviewContextOf, withReviewLanguages } from './coherence-review-context.js';
 export {
   askBackFor,
   parsePlan,
@@ -107,10 +107,9 @@ export {
   type MacroRisk,
   type MacroTool,
 } from './macro.js';
+export { continuityTask, sceneTask } from './agent/scene-task.js';
 export {
-  continuityTask,
   createAgentSession,
-  sceneTask,
   synopsisInstruction,
   type AgentSession,
   type AgentSessionOptions,
@@ -120,6 +119,8 @@ export {
   type StageOnlyResult,
   type SteerReceipt,
   type SubmitOptions,
+  type TranscriptionGenerationInput,
+  type TranscriptionRouteInfo,
   type TurnOptions,
 } from './agent/loop.js';
 // Slash commands (agent-harness §2): the composer's line, read and resolved without a model.
@@ -297,16 +298,73 @@ export { createAgentPorts, draftModeRefusal, previewFor, codexReadPort, sceneDra
 export { codexInOrder, readBody, readCodexEntry, readNotes, type BodyRead, type NotesRead } from './resource-reads.js';
 export { ANY_NODE, CONTAINER, DOCUMENT, childrenOf, descendantsOf, resolveNode } from './resolve.js';
 export { CONTINUITY_MAX_DOCS } from './tools/ports.js';
+// The timeline model every host reads through (one path: the tool, the SDK, the MCP resources) and the shape of `timeline.read`'s answer (timeline.md §5.1, §9.2).
 export {
+  TIMELINE_AXES,
+  TIMELINE_FINDINGS_MODES,
+  TIMELINE_LANE_KEYS,
+  coherenceFileOf,
+  timelineModelFor,
+  timelineReadDataOf,
+  type TimelineReadData,
+  type TimelineReadOptions,
+} from './tools/timeline-read.js';
+// The plan card of `timeline.edit`: its rows and the cap on what a card lists.
+export { TIMELINE_CARD_FINDINGS_MAX, TIMELINE_CARD_ROWS_MAX, type TimelineCard, type TimelineCardRow, type TimelineProposal } from './tools/timeline-edit.js';
+export type { DeltaFinding as TimelineDeltaFinding } from './tools/timeline-what-if.js';
+// The host side of `pictures.view`: its async ports and the transient image outbox the agent loop drains.
+export { createPictureOutbox, picturePorts, type PictureOutbox, type PictureViewHost, type ViewedPicture } from './tools/pictures.js';
+// The complete before/after data the three comic tools put on their plan cards.
+export type {
+  ComicDerivePagePreview,
+  ComicDerivePreview,
+  ComicLetterPreview,
+  ComicNodeRef,
+  ComicPreview,
+  ComicScriptCoveragePreview,
+  ComicScriptFromPagesPreview,
+} from './tools/comics.js';
+export {
+  reviewPagesOf,
+  stageTranscriptionPlan,
+  transcriptionPort,
+  transcriptionPreview,
+  type PictureTranscriptionGeneration,
+  type PictureTranscriptionGenerationPage,
+  type PictureTranscriptionHost,
+  type PictureTranscriptionPlan,
+  type PictureTranscriptionProposal,
+  type PictureTranscriptionReviewedPage,
+  type PictureTranscriptionReviewPage,
+  type PictureTranscriptionReviewResult,
+  type TranscriptionPreview,
+  type TranscriptionSecondRead,
+} from './tools/transcription.js';
+export {
+  buildTranscriptionPrompt,
+  compareTranscriptionReads,
+  fallbackAttemptsOf,
+  parseTranscriptionReply,
+  planTranscriptionBatches,
+  TRANSCRIPTION_PAGES_PER_REQUEST,
+  TRANSCRIPTION_TEMPERATURE,
+  type TranscriptionDisagreement,
+  type TranscriptionRequestBatch,
+} from './tools/transcription-model.js';
+export {
+  appendLanguageLine,
   createContextPort,
   dropLinesOf,
+  languageDirective,
   forecastReads,
   mergePreviews,
+  withLanguages,
   withRole,
   type AssembledCall,
   type ContextPort,
   type ContextPortOptions,
   type ContextRequest,
+  type LanguagePolicy,
 } from './agent/context.js';
 // What a turn read from the provider's prompt cache, and the planner calls that missed it (agent-harness §5, "Prompt cache").
 export { CACHE_MISS_CAUSES, CacheWatch, missCause, stableToolOrder, type CacheMiss, type TurnCacheUse } from './agent/cache-watch.js';
@@ -330,6 +388,7 @@ export {
   stagedOf,
   type CardItem,
   type DelegationView,
+  costLineRef,
   type EditableSteps,
   type PlanCardView,
   type PlanEdit,
@@ -347,6 +406,7 @@ export {
   emptyTaskList,
   firstSentence,
   headerLineOf,
+  headerRefOf,
   phraseFor,
   reduceTaskList,
   type NameOf,
@@ -458,6 +518,7 @@ export {
 export { importScanSentence, modelResult, outsideSources, scanForInjection, scanImport, turnNonce, UNTRUSTED_RULE, type ImportHit, type InjectionHit } from './agent/untrusted.js';
 export { QUOTE_MIN_WORDS, quotedProjectText, wordsOfText } from './agent/egress-check.js';
 export {
+  complete,
   draftScene,
   fillSynopses,
   GenerationStopped,

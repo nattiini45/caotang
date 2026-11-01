@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * The cards the agent panel shows, as data: the status card of each tool call (agent-harness §8),
  * the plan card a multi-step turn asks the user to approve (§2), and the edits a user can make to
@@ -9,6 +10,7 @@
 
 import type { CommandError, Result } from '@caotang/bus';
 import { err, ok } from '@caotang/bus';
+import type { MessageRef } from '@caotang/i18n';
 
 import type { HookRun } from '../hooks.js';
 import type { PlanPreflight, PlanStep } from '../plan.js';
@@ -19,6 +21,7 @@ import { DEFAULT_MAX_OUTPUT_TOKENS, type ModelLimits, type PromptPreview } from 
 import type { ThinkingLevel } from '@caotang/gateway';
 import type { ApprovalCaution, WireProgress } from '@caotang/mcp-client';
 import type { ReviewPlan } from '@caotang/coherence';
+import type { PictureTranscriptionPlan } from '../tools/transcription.js';
 import type { TraceEntry } from './events.js';
 
 /* ------------------------------------------------------------------ *
@@ -224,8 +227,13 @@ export const MODEL_BACKED_TOOLS: ReadonlySet<string> = new Set([
   'prompt.variant',
   // The review's plan is staged before its card (no model call, coherence.md §7 tool 16): an edit to its params re-plans it.
   'coherence.review',
+  // The transcription's schedule and route costs are staged before its card; generation and page review follow approval (pictures.md §8.4).
+  'pictures.transcribe',
   // The container's Ink is drafted before its card, and checked by the dialogue module (dialogue-narrative.md §7).
   'dialogue.draft',
+  // The batch's ops and the values they are checked against are staged before its card, with no model call (timeline.md §5.1): an edit to its params
+  // stages it again, and the approval holds the batch to the staged values, so a scene that changed since refuses it whole.
+  'timeline.edit',
 ]);
 
 /** The step's params as one list of lowercased strings, at any depth. A reference is a string, so this finds every name a step names. */
@@ -407,6 +415,34 @@ export type StepCost = NonNullable<PromptPreview['cost']> & {
 };
 
 /**
+ * A dollar amount for a plan card: four decimals under a dollar, where a single step's cost sits, two above it, and a floor
+ * word for an amount too small to show. Kept beside the reference below so the English and the id cannot drift.
+ */
+export function formatUsd(value: number): string {
+  if (value < 0.0001) return 'under $0.0001';
+  return value < 1 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+}
+
+/**
+ * The plan-card cost estimate as a message reference (I7): the same sentence {@link formatUsd} and the
+ * card already render, with each amount as a value so a translation may reorder them. Undefined when
+ * the profile has no price, as the English line is.
+ */
+export function costLineRef(cost: StepCost | undefined): MessageRef | undefined {
+  if (cost === undefined) return undefined;
+  const total = formatUsd(cost.totalUsd);
+  const prompt = formatUsd(cost.promptUsd);
+  const reply = formatUsd(cost.completionUsd);
+  return cost.includesThinking === true
+    ? {
+        id: 'harness.plan.costThinking',
+        message: 'About {total} (prompt {prompt}, reply {reply} including thinking).',
+        values: { total, prompt, reply },
+      }
+    : { id: 'harness.plan.cost', message: 'About {total} (prompt {prompt}, reply {reply}).', values: { total, prompt, reply } };
+}
+
+/**
  * What a coherence review's plan is estimated to cost at the active model's price (coherence.md §5.3: the card shows the cost
  * "before running"; context-assembly §5 gives the same rule for a prompt). The prompt side is the plan's own token estimate. The
  * reply side is the output cap of each call the plan makes, which the plan does not estimate, so the card shows the bound the
@@ -443,6 +479,57 @@ export function reviewCostAt(
   thinking?: ThinkingLevel,
 ): StepCost | undefined {
   return reviewCostOf(plan, gateway.modelLimits(profileId, model, thinking));
+}
+
+export interface TranscriptionCosts {
+  readonly primary?: StepCost;
+  readonly second?: StepCost;
+  /** The whole figure only when every selected route has a price; an unpriced second route never disappears into a partial total. */
+  readonly total?: StepCost;
+}
+
+function transcriptionRouteCost(plan: PictureTranscriptionPlan, model: ModelLimits): StepCost | undefined {
+  const price = model.pricePer1k;
+  if (price === undefined) return undefined;
+  const reads = plan.secondRead === undefined ? 1 : 2;
+  const requests = plan.estimate.requests / reads;
+  const promptTokens = plan.estimate.promptTokens / reads;
+  const replyTokens = plan.estimate.outputTokens / reads + requests * (model.thinkingTokens ?? 0);
+  const promptUsd = (promptTokens / 1000) * price.prompt;
+  const completionUsd = (replyTokens / 1000) * price.completion;
+  return {
+    promptUsd,
+    completionUsd,
+    totalUsd: promptUsd + completionUsd,
+    ...((model.thinkingTokens ?? 0) > 0 ? { includesThinking: true as const } : {}),
+  };
+}
+
+/** Both explicitly selected transcription routes priced separately, before generation (pictures.md §8.4 step 1). */
+export function transcriptionCostAt(
+  plan: PictureTranscriptionPlan,
+  gateway: ReviewLimitsSource,
+  profileId?: string,
+  model?: string,
+  thinking?: ThinkingLevel,
+): TranscriptionCosts {
+  const primary = transcriptionRouteCost(plan, gateway.modelLimits(profileId, model, thinking));
+  const second = plan.secondRead === undefined
+    ? undefined
+    : transcriptionRouteCost(plan, gateway.modelLimits(plan.secondRead.profileId, plan.secondRead.model));
+  if (primary === undefined || (plan.secondRead !== undefined && second === undefined)) return { ...(primary === undefined ? {} : { primary }), ...(second === undefined ? {} : { second }) };
+  const promptUsd = primary.promptUsd + (second?.promptUsd ?? 0);
+  const completionUsd = primary.completionUsd + (second?.completionUsd ?? 0);
+  return {
+    primary,
+    ...(second === undefined ? {} : { second }),
+    total: {
+      promptUsd,
+      completionUsd,
+      totalUsd: promptUsd + completionUsd,
+      ...(primary.includesThinking === true || second?.includesThinking === true ? { includesThinking: true as const } : {}),
+    },
+  };
 }
 
 /** What a staged proposal shows a card: whether the provider cut it, the prompt behind it, and the step's cost when it has one. */

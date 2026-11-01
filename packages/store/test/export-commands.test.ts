@@ -156,7 +156,8 @@ describe('registration — the two names are implemented only with an exporter',
     // The hooks add two more (`hook.save`, `hook.delete`): 45 + 2 = 47.
     // The picture registry adds one (`asset.setMeta`; the two imports need the asset port): 47 + 1 + 2 (`script.setShowMeta`, `script.setEpisodeMeta`) = 50.
     // The writer's codex batch import adds one (`codex.importBatch`): 50 + 1 = 51.
-    expect(implemented).toHaveLength(51);
+    // `timeline.apply` and the calendar setting add two: 53. The eight picture commands beyond `asset.setMeta` that need no asset port add eight: 61. The seven comic commands make 68.
+    expect(implemented).toHaveLength(68);
   });
 
   it('implements both names once an exporter is injected, and nothing else changes', () => {
@@ -164,8 +165,8 @@ describe('registration — the two names are implemented only with an exporter',
     expect(typeof registry['export.compile'].apply).toBe('function');
     expect(typeof registry['export.compileSelection'].apply).toBe('function');
     const implemented = Object.values(registry).filter((entry) => entry.apply !== undefined);
-    // The exporter adds exactly the two export applies to the fifty-one above (51 + 2).
-    expect(implemented).toHaveLength(53);
+    // The exporter adds exactly the two export applies to the sixty-eight above (68 + 2).
+    expect(implemented).toHaveLength(70);
     // The descriptors are the bus's own, unchanged: the store adds an apply, never a rule.
     expect(registry['export.compile'].descriptor).toBe(COMMAND_REGISTRY['export.compile'].descriptor);
   });

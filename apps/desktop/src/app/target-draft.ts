@@ -3,19 +3,25 @@
  * where 0 means no target. It is the rule the Settings field states (ui-modules §5.2), read here too, so the two cannot disagree.
  */
 
+import { numberFormat } from '@caotang/i18n';
+import { t } from '@lingui/core/macro';
+
+import { formatterLocale } from '../i18n/format-locale.js';
 import { TARGET_MAX_WORDS } from './settings.js';
-import { formatCount } from '../i18n/locale.js';
+
+/* lingui-set comment="Interpolated values: max" */
 
 export type TargetDraft = { readonly ok: true; readonly words: number } | { readonly ok: false; readonly message: string };
 
 /** What the quick-set's field says about the typed target: the words to save, or the sentence that says why they cannot be saved. */
-export function targetDraftOf(text: string): TargetDraft {
+export function targetDraftOf(text: string, locale: string = formatterLocale()): TargetDraft {
   const trimmed = text.trim();
   const words = Number(trimmed);
   if (trimmed === '' || !Number.isInteger(words) || words < 0 || words > TARGET_MAX_WORDS) {
+    const max = numberFormat(locale).format(TARGET_MAX_WORDS);
     return {
       ok: false,
-      message: `The daily target is a whole number of words from 0 to ${formatCount(TARGET_MAX_WORDS)}; 0 means no target.`,
+      message: t`The daily target is a whole number of words from 0 to ${{ max }}; 0 means no target.`,
     };
   }
   return { ok: true, words };

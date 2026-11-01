@@ -54,7 +54,6 @@ export {
 export interface StoredAsset extends AssetName {
   readonly fileName: string;
   readonly path: string;
-  readonly mime: string;
 }
 
 /** Every asset file in `assets/`, sorted by id. Files that do not match the name pattern are not assets. */
@@ -115,7 +114,7 @@ export async function importImage(
 
   await fs.ensureDir(ASSETS_DIR);
   await fs.writeBytesAtomic(path, bytes);
-  return ok({ assetId, format, fileName, path, mime: IMAGE_FORMATS[format].mime, bytes: bytes.length });
+  return ok({ assetId, format, fileName, path, mime: IMAGE_FORMATS[format].mime, extension: IMAGE_FORMATS[format].extension, bytes: bytes.length });
 }
 
 /** An image read back from `assets/`, with the format its bytes actually are. */

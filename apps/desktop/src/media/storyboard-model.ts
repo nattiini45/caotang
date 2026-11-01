@@ -7,6 +7,8 @@
  * anything. The App's bus applies the command, and the view shows the refusal when it turns one away.
  */
 
+import { defaultTitleOf, isolate } from '@caotang/i18n';
+import { t } from '@lingui/core/macro';
 import { nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 
 import {
@@ -30,8 +32,11 @@ import {
   type StoryboardRefusal,
   type StoryboardResult,
 } from './engines.js';
+import { storyboardDeriveIntent } from '../app/model-prompts.js';
 import { mediaKindOf } from './route.js';
 
+
+/* lingui-set comment="Storyboard board text and refusals. Interpolated values: sceneTitle is a scene title the writer wrote; shotId and folderId are ids; field and the quoted value come from the shot record; count is a number." */
 /** One card of the board: what the writer reads off it, and what an edit starts from. */
 export interface ShotCard {
   readonly id: string;
@@ -94,7 +99,7 @@ export function shotsFolderOf(state: ProjectState, scene: TreeNode): TreeNode | 
 
 /** The request a scene's derive action sends the agent: the shots derived from the scene's script (storyboard.md §4). */
 export function deriveIntentOf(scene: TreeNode): string {
-  return `Derive the shots for the scene "${scene.title}" from its script.`;
+  return storyboardDeriveIntent(scene.title);
 }
 
 /**
@@ -126,15 +131,20 @@ export interface EmptyBoardCopy {
 export function emptyBoardCopyOf(options: { readonly editable: boolean; readonly canDerive: boolean; readonly scene: TreeNode | undefined }): EmptyBoardCopy {
   if (!options.editable) {
     return {
-      title: 'No shots in this storyboard yet',
-      body: 'Shots are made by the storyboard tools, which this build does not register yet. The cards appear here once the folder holds shots.',
+      title: t`No shots in this storyboard yet`,
+      body: t`Shots are made by the storyboard tools, which this build does not register yet. The cards appear here once the folder holds shots.`,
     };
   }
-  const where = options.scene === undefined ? '' : ` Derived shots go in a new folder, “${options.scene.title} — Shots”, not on this board.`;
-  const pointer = options.canDerive && options.scene === undefined ? ' To derive a scene’s shots, open the scene.' : '';
+  const sceneTitle = options.scene === undefined ? '' : isolate(options.scene.title);
+  const body =
+    options.scene !== undefined
+      ? t`Add the first shot with the button below. Each card takes an image and the camera fields. Derived shots go in a new folder, “${sceneTitle} — Shots”, not on this board.`
+      : options.canDerive
+        ? t`Add the first shot with the button below. Each card takes an image and the camera fields. To derive a scene’s shots, open the scene.`
+        : t`Add the first shot with the button below. Each card takes an image and the camera fields.`;
   return {
-    title: "No shots — derive from the scene's script, or draw/import a frame.",
-    body: `Add the first shot with the button below. Each card takes an image and the camera fields.${where}${pointer}`,
+    title: t`No shots — derive from the scene's script, or draw/import a frame.`,
+    body,
   };
 }
 
@@ -163,12 +173,15 @@ export function shotCardsOf(state: ProjectState, folderId: string): readonly Sho
       lens: meta.lens ?? '',
       transition: meta.transition ?? '',
       status: {
-        name: status?.name ?? (node.status === null ? 'No status' : 'Unknown status'),
+        name: status?.name ?? (node.status === null ? t`No status` : t`Unknown status`),
         color: status?.color ?? null,
       },
       label: label?.name ?? null,
       coverage: meta.dialogue?.length ?? 0,
-      unknown: Object.entries(read.unknownValues).map(([field, value]) => `${field} "${String(value)}" is not in the v1 list`),
+      unknown: Object.entries(read.unknownValues).map(([field, value]) => {
+        const shown = String(value);
+        return t`${field} "${shown}" is not in the v1 list`;
+      }),
       notices: read.notices,
       meta,
       raw,
@@ -193,10 +206,10 @@ function refused(code: string, message: string): { readonly ok: false; readonly 
  */
 export function moveShotCommand(state: ProjectState, shotId: string, toIndex: number): StoryboardResult<ShotCommand> {
   const folder = folderOfShot(state, shotId);
-  if (folder === undefined) return refused('not-a-shot', `no shot "${shotId}" in a storyboard folder`);
+  if (folder === undefined) return refused('not-a-shot', t`no shot "${shotId}" in a storyboard folder`);
   const count = shotsIn(state, folder.id).length;
   if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex >= count) {
-    return refused('out-of-range', `A shot moves to a position from 1 to ${count} in its storyboard`);
+    return refused('out-of-range', t`A shot moves to a position from 1 to ${count} in its storyboard`);
   }
   return planMoveShot(state, shotId, { folderId: folder.id, index: toIndex });
 }
@@ -213,10 +226,10 @@ export interface NewShotParams {
  * command, and the bus takes a `shot` type now, so this plans that create. The bus checks the parent again; this checks
  * only that the folder is a storyboard, so the writer is told in the storyboard's words before anything is dispatched.
  */
-export function newShotParams(state: ProjectState, folderId: string, title = 'New shot'): StoryboardResult<NewShotParams> {
+export function newShotParams(state: ProjectState, folderId: string, title = defaultTitleOf('shot', state.manifest.project.language)): StoryboardResult<NewShotParams> {
   const folder = nodeById(state, folderId);
   if (folder === undefined || !isStoryboardFolder(folder)) {
-    return refused('not-a-storyboard', `"${folderId}" is not a storyboard folder, and a shot lives in one`);
+    return refused('not-a-storyboard', t`"${folderId}" is not a storyboard folder, and a shot lives in one`);
   }
   return { ok: true, value: { parentId: folder.id, type: 'shot', title } };
 }
@@ -261,7 +274,7 @@ export function draftAfterStoredChange(draft: ShotDraft, synced: ShotDraft, stor
  */
 export function shotEditCommand(state: ProjectState, shotId: string, draft: ShotDraft): StoryboardResult<ShotCommand> {
   const node = nodeById(state, shotId);
-  if (node === undefined || !isShotNode(node)) return refused('not-a-shot', `no shot "${shotId}" to edit`);
+  if (node === undefined || !isShotNode(node)) return refused('not-a-shot', t`no shot "${shotId}" to edit`);
   const raw = shotFieldOf(node);
   const base: Record<string, unknown> = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
 
@@ -273,7 +286,7 @@ export function shotEditCommand(state: ProjectState, shotId: string, draft: Shot
         continue;
       }
       const seconds = Number(text);
-      if (!Number.isFinite(seconds) || seconds < 0) return refused('duration-invalid', 'The duration is a number of seconds, at least zero');
+      if (!Number.isFinite(seconds) || seconds < 0) return refused('duration-invalid', t`The duration is a number of seconds, at least zero`);
       base.durationSec = seconds;
       continue;
     }

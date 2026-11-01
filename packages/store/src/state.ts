@@ -17,11 +17,13 @@
 import { FIXED_ROOT_IDS, type Manifest, type NodeType, type TreeNode } from './manifest.js';
 import type { CoherenceState } from './coherence-state.js';
 import { newId } from '@caotang/ids';
+import { RENORMALIZE_THRESHOLD as BUS_RENORMALIZE_THRESHOLD, renormalizeTreeSiblings, siblingOrderInTree } from '@caotang/bus';
 import { nextSiblingOrder } from './create.js';
 import { countBody, WORD_RULE_VERSION, wordRuleInUse } from './word-count.js';
 import { isBodyType } from './paths.js';
 import type { SkillFile } from '@caotang/skills';
 
+import { refuseReferenceToRemoval } from './asset-removals.js';
 import { cloneAgentFiles, emptyAgentFiles, type AgentFiles } from './agent-files.js';
 
 export interface DocumentRecord {
@@ -302,6 +304,8 @@ export function setBody(
   const record = state.documents.get(id);
   if (!record) throw new Error(`no document record for "${id}"`);
   if (record.body === body) return;
+  // A sweep removing a picture file right now holds it against new references (asset-removals.ts).
+  refuseReferenceToRemoval(state, record.body, body);
   record.body = body;
   record.revision += 1;
   recordBodyCount(state, id, body, options.now);
@@ -352,8 +356,10 @@ export function addDocument(state: ProjectState, options: AddDocumentOptions): T
     updatedAt: created,
   };
 
-  state.manifest.tree.push(node);
   const body = options.body ?? '';
+  // Checked before the node is added, so a refused document leaves nothing behind (asset-removals.ts).
+  refuseReferenceToRemoval(state, '', body);
+  state.manifest.tree.push(node);
   state.documents.set(id, { id, body, revision: 0 });
   // A document born with a body has a count. Recording it here is what keeps
   // `wordCounts` a map over *the documents the tree holds* rather than a map
@@ -536,16 +542,14 @@ export function moveNode(
  * explicitly rather than as a side effect of a move.
  */
 export function renormalizeSiblings(state: ProjectState, parentId: string | null): void {
-  const siblings = state.manifest.tree
-    .filter((n) => n.parentId === parentId)
-    .sort((a, b) => a.order - b.order);
-  siblings.forEach((node, i) => {
-    node.order = (i + 1) * 10;
-  });
+  renormalizeTreeSiblings(state.manifest.tree, parentId);
 }
 
-/** project-format §2: *"Renormalize … only when a sibling exceeds order `1_000_000`"*. */
-export const RENORMALIZE_THRESHOLD = 1_000_000;
+/**
+ * project-format §2: *"Renormalize … only when a sibling exceeds order `1_000_000`"*.
+ * The algorithm lives in the bus (`siblingOrderInTree`), where the timeline batch's projection reads it too, so a projected move and a real one cannot disagree.
+ */
+export const RENORMALIZE_THRESHOLD = BUS_RENORMALIZE_THRESHOLD;
 
 /**
  * A node's position among its siblings — the value `binder.move`'s `index` is in.
@@ -596,33 +600,5 @@ export function siblingOrderAt(
   index: number,
   movingId?: string,
 ): number {
-  const ordered = (): TreeNode[] =>
-    state.manifest.tree
-      .filter((n) => n.parentId === parentId && n.id !== movingId)
-      .sort((a, b) => a.order - b.order);
-
-  let siblings = ordered();
-  if (siblings.length === 0) return 10;
-
-  if (index >= siblings.length) {
-    const last = siblings[siblings.length - 1]!;
-    if (last.order < RENORMALIZE_THRESHOLD) return last.order + 10;
-    renormalizeSiblings(state, parentId);
-    siblings = ordered();
-    return siblings[siblings.length - 1]!.order + 10;
-  }
-
-  const gap = (list: TreeNode[]): { low: number; high: number } => ({
-    low: index === 0 ? 0 : list[index - 1]!.order,
-    high: list[index]!.order,
-  });
-
-  const first = gap(siblings);
-  if (first.high - first.low >= 2) {
-    return first.low + Math.floor((first.high - first.low) / 2);
-  }
-  renormalizeSiblings(state, parentId);
-  siblings = ordered();
-  const compacted = gap(siblings);
-  return compacted.low + Math.floor((compacted.high - compacted.low) / 2);
+  return siblingOrderInTree(state.manifest.tree, parentId, index, movingId);
 }

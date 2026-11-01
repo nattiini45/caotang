@@ -70,7 +70,7 @@ describe('binder.create takes the two AV script kinds', () => {
   it('refuses show on a document and av-script on a folder, naming what each type takes', () => {
     const doc = refused(run('binder.create', { parentId: SHOW, type: 'document', title: 'X', kind: 'show' }));
     expect(doc.target).toBe('kind');
-    expect(doc.correctiveHint).toBe('a document takes "screenplay" or "av-script", or no kind at all');
+    expect(doc.correctiveHint).toBe('a document takes "screenplay" or "av-script" or "comic-script", or no kind at all');
     const folder = refused(run('binder.create', { parentId: SHOW, type: 'folder', title: 'X', kind: 'av-script' }));
     expect(folder.correctiveHint).toBe('a folder takes "storyboard" or "show", or no kind at all');
   });

@@ -6,8 +6,8 @@ Thank you for helping. This page covers setting up, the checks a change must pas
 
 You need:
 
-- **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.12 or later in the 22 line, 24, or 26 and later. CI tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
-- **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically. With Node 22.12.0, first update Corepack to 0.34.3 (`npm install --global corepack@0.34.3`); the bundled Corepack 0.29.4 cannot verify pnpm's current signing key.
+- **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.19 or later in the 22 line, 24, or 26 and later. CI tests the 22.19.0 floor and Node 24; Node 26 is allowed but not covered.
+- **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically. On Node 22, first update Corepack to 0.34.3 (`npm install --global corepack@0.34.3`); Node 22.12's bundled Corepack 0.29.4 could not verify pnpm's current signing key.
 - **A Chromium-based browser** to run the end-to-end tests locally and to try folder saves. Firefox and WebKit are optional locally; CI gates pull requests in all three engines and also runs Firefox/WebKit nightly.
 
 Then:
@@ -30,7 +30,7 @@ pnpm exec playwright install firefox webkit # optional, for the nightly cross-br
 CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit
 ```
 
-These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.12.0 and 24; the Node 22.12 leg verifies the pinned pnpm tarball's SHA-512 before installing it directly, while Node 24 uses Corepack. Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
+These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.19.0 and 24; the Node 22.19 leg verifies the pinned pnpm tarball's SHA-512 before installing it directly, while Node 24 uses Corepack. Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
 
 CI on a pull request from a fork runs with a read-only token (`permissions: contents: read`), so a workflow run cannot change the repository. If this is your first contribution, a maintainer approves your pull request's first CI run before it starts; this is a repository setting, and it only means the checks wait a little.
 
@@ -43,6 +43,18 @@ If your change adds or upgrades a dependency, regenerate the licence notices wit
 After `pnpm build`, run `node tools/check-bundle-size.mjs`. It prints every JS chunk (raw and gzip) and fails when a chunk is over 500 kB and not on its allow-list, when an allow-listed chunk is over its own cap (fontkit, one library that loads only for CJK and emoji text in a PDF, may reach 750 kB), when the first load (the entry and what `index.html` preloads with it) is over its gzip budget, or when all JS is over its ceiling. CI runs it right after the build. Vite's own 500 kB warning is turned down to the highest cap, so this script is the gate.
 
 The numbers are in one object, `BUDGET`, at the top of `tools/check-bundle-size.mjs`. A heavy library that only some writers use (the MCP SDK, the Ink compiler, docx, fontkit) is loaded where it is used, not in the first paint. Code that compiles Ink needs the compiler loaded first: a Node entry awaits `loadInkCompiler()` before it opens a project, the vitest setup file (`test/setup-ink-compiler.ts`) does it for tests, and `compileInk` throws `InkCompilerNotLoaded` until it has. If your change makes the build grow past a number, load the new code on use if you can. If it cannot be, raise the number in the same change: build, run the script, put the new size plus about 5% in `BUDGET`, and say why in the commit. An allow-list entry is debt, and the script fails once its chunk is back under 500 kB, so remove the entry then.
+
+### Translation guards
+
+`pnpm verify` runs three repository guards, and each has a deliberately failing fixture under `test/fixtures/i18n-guards/`:
+
+- `tools/check-ui-strings.mjs` counts unwrapped user-facing strings in `apps/desktop/src` against `tools/ui-strings-baseline.json`. A new file starts at zero; a rename leaves a stale entry plus a zero-allowance path. When a file's count goes down, lower the baseline with `node tools/check-ui-strings.mjs --write` and commit it. Do not convert by adding an allowance for a new path.
+- `tools/check-translations.mjs` runs `lingui extract` and compares the result, compiles every message, checks placeholder parity and translator hygiene, and writes `apps/desktop/src/i18n/locales/stats.json`. After changing a catalogue, run `--write-stats`. Extraction rewrites `POT-Creation-Date`; the guard normalises that one header. Missing translations do not fail.
+- `tools/logical-css.mjs` fails on a physical direction declaration outside `tools/logical-css-allowlist.json`. The allowlist is per declaration context, never per file: a new physical rule needs an explicit allowlist edit in the same PR if it is genuinely physical (the editor's ruler, a page preview, a scrubber), and `--write` only lowers entries.
+
+See [i18n.md §8.2](docs/architecture/i18n.md#82-ci-checks-all-in-pnpm-verify) for the contract.
+
+To add or improve an interface language, follow [TRANSLATING.md](TRANSLATING.md); `node tools/translation-report.mjs` prints completion and credits.
 
 ### PDF validation
 

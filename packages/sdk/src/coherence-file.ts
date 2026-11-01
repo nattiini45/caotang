@@ -101,6 +101,13 @@ export interface CoherenceHold {
    * Call it on the session's queue, after any project save in flight.
    */
   save(): Promise<void>;
+  /**
+   * `disk` with this host's own delta since its baseline put onto it, by {@link mergeServerDelta}'s rules, and nothing else: the
+   * runs it recorded and the findings it made or fixed. A writer that must start from another program's file — the timeline's
+   * two-file save, whose `coherence.json` holds scene declarations the app also edits — starts here, so its own unsaved findings
+   * are not lost when the disk copy wins.
+   */
+  mergeInto(disk: CoherenceFile): CoherenceFile;
 }
 
 export interface HoldOptions {
@@ -145,6 +152,10 @@ export function holdCoherence(options: HoldOptions): CoherenceHold {
   };
 
   return {
+    mergeInto(disk) {
+      const mine = state.coherence as CoherenceFile | undefined;
+      return mine === undefined ? structuredClone(disk) : mergeServerDelta(disk, base, mine);
+    },
     async save() {
       if (!allowWrites || stopped || !load.writable) return;
       const mine = state.coherence as CoherenceFile | undefined;

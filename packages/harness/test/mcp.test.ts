@@ -105,8 +105,20 @@ describe('every tool, through the mapping', () => {
     // coherence.setFindingStatus is a write-auto tool restricted to `fixed` (coherence.md §7 tool 17).
     // Its description carries the same automatic-application sentence the other write-auto tools do.
     // shots.annotate is the storyboard module's write-auto tool (storyboard.md §4). synopsis.set, filter.save and goal.save are
-    // the allowlisted bus primitives that apply at once (agent-harness §3).
-    expect(autos.map((meta) => meta.name).sort()).toEqual(['coherence.setFindingStatus', 'filter.save', 'goal.save', 'meta.set', 'notes.append', 'shots.annotate', 'synopsis.set']);
+    // the allowlisted bus primitives that apply at once (agent-harness §3). pictures.annotate and pictures.attach are the
+    // picture registry's two write-auto rows (pictures.md §8.1).
+    expect(autos.map((meta) => meta.name).sort()).toEqual([
+      'coherence.setFindingStatus',
+      'comic.letter',
+      'filter.save',
+      'goal.save',
+      'meta.set',
+      'notes.append',
+      'pictures.annotate',
+      'pictures.attach',
+      'shots.annotate',
+      'synopsis.set',
+    ]);
     for (const meta of autos) {
       const exposure = mcpExposure(meta);
       if (!exposure.exposed) throw new Error(`${meta.name} should be exposed`);

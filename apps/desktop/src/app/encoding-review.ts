@@ -15,6 +15,8 @@
  * the writer's Convert is still the only thing that changes a file.
  */
 
+import { select, t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import {
   decodeStrict,
   detectEncoding,
@@ -25,8 +27,13 @@ import {
   type ProjectState,
 } from '@caotang/store';
 import { bodyStemOf, CODEX_DIR, DOCS_DIR } from '@caotang/store';
-import type { ProviderGateway, TaskRole } from '@caotang/gateway';
+import { textOf, type ProviderGateway, type TaskRole } from '@caotang/gateway';
 
+import { encodingFromReply, encodingSystemPrompt, encodingUserPrompt } from './model-prompts.js';
+
+export { encodingFromReply } from './model-prompts.js';
+
+/* lingui-set comment="Encoding conversion results. Interpolated values: name is a document title, codex entry name or file path of the writer's project; from and named are text encoding names; why and reason are failure messages; backup is a file path." */
 /** The folder a converted file's original bytes are kept in, inside the project. */
 export const ENCODING_BACKUP_DIR = '.caotang-backup';
 
@@ -89,22 +96,21 @@ export async function applyEncodingDecisions(
     try {
       bytes = await fs.readBytes(issue.path);
     } catch (error) {
-      failed.push({ path: issue.path, reason: `its file could not be read — ${reasonOf(error)}` });
+      const why = reasonOf(error);
+      failed.push({ path: issue.path, reason: t`its file could not be read — ${why}` });
       continue;
     }
     const encoding = encodingForConversion(issue, decision, bytes);
     if (encoding === undefined) {
-      failed.push({ path: issue.path, reason: 'Caotang could not tell which encoding to read it with' });
+      failed.push({ path: issue.path, reason: t`Caotang could not tell which encoding to read it with` });
       continue;
     }
     let text: string;
     try {
       text = decodeStrict(bytes, encoding);
     } catch {
-      failed.push({
-        path: issue.path,
-        reason: `its bytes do not decode as ${encoding === 'utf-8' ? 'UTF-8' : encodingName(encoding)}`,
-      });
+      const named = encoding === 'utf-8' ? 'UTF-8' : encodingName(encoding);
+      failed.push({ path: issue.path, reason: t`its bytes do not decode as ${named}` });
       continue;
     }
     const backup = encodingBackupPath(issue.path);
@@ -112,16 +118,15 @@ export async function applyEncodingDecisions(
       await fs.ensureDir(ENCODING_BACKUP_DIR);
       await fs.writeBytesAtomic(backup, bytes);
     } catch (error) {
-      failed.push({ path: issue.path, reason: `its backup copy could not be written — ${reasonOf(error)}` });
+      const why = reasonOf(error);
+      failed.push({ path: issue.path, reason: t`its backup copy could not be written — ${why}` });
       continue;
     }
     try {
       await fs.writeAtomic(issue.path, text);
     } catch (error) {
-      failed.push({
-        path: issue.path,
-        reason: `its converted text could not be written — ${reasonOf(error)}. Its original bytes are kept at ${backup}`,
-      });
+      const why = reasonOf(error);
+      failed.push({ path: issue.path, reason: t`its converted text could not be written — ${why}. Its original bytes are kept at ${backup}` });
       continue;
     }
     converted.push({ path: issue.path, encoding });
@@ -134,20 +139,20 @@ export async function applyEncodingDecisions(
  * name — both resolved from the state the project re-read after the conversion — and a file the
  * layout does not name by its path, which is all there is to call it.
  */
-function encodingFileLabel(path: string, state: ProjectState): string {
+function encodingFileOf(path: string, state: ProjectState): { readonly kind: 'document' | 'codex' | 'file'; readonly name: string } {
   const slash = path.indexOf('/');
   const dir = slash < 0 ? '' : path.slice(0, slash);
   const name = slash < 0 ? path : path.slice(slash + 1);
   const stem = bodyStemOf(name);
   if (dir === DOCS_DIR) {
     const node = state.manifest.tree.find((entry) => entry.id === stem);
-    if (node !== undefined && node.title !== '') return `the document “${node.title}”`;
+    if (node !== undefined && node.title !== '') return { kind: 'document', name: node.title };
   }
   if (dir === CODEX_DIR) {
     const entry = (state.manifest.codex ?? []).find((candidate) => candidate.id === stem);
-    if (entry !== undefined && entry.name !== '') return `the codex entry “${entry.name}”`;
+    if (entry !== undefined && entry.name !== '') return { kind: 'codex', name: entry.name };
   }
-  return `the file “${path}”`;
+  return { kind: 'file', name: path };
 }
 
 /**
@@ -159,12 +164,20 @@ function encodingFileLabel(path: string, state: ProjectState): string {
 export function encodingResultLines(result: EncodingConversionResult, state: ProjectState): string[] {
   const lines: string[] = [];
   for (const { path, encoding } of result.converted) {
+    const { kind, name: shown } = encodingFileOf(path, state);
+    const name = isolate(shown);
+    const from = encoding === 'utf-8' ? 'UTF-8' : encodingName(encoding);
+    const backup = encodingBackupPath(path);
     lines.push(
-      `The text of ${encodingFileLabel(path, state)} was converted from ${encoding === 'utf-8' ? 'UTF-8' : encodingName(encoding)} and opens with the project. Its original bytes are kept at “${encodingBackupPath(path)}”.`,
+      t`The text of ${select(kind, { document: `the document “${name}”`, codex: `the codex entry “${name}”`, other: `the file “${name}”` })} was converted from ${from} and opens with the project. Its original bytes are kept at “${backup}”.`,
     );
   }
   for (const { path, reason } of result.failed) {
-    lines.push(`${encodingFileLabel(path, state)} could not be converted: ${reason}. The file is left as it was.`);
+    const { kind, name: shown } = encodingFileOf(path, state);
+    const name = isolate(shown);
+    lines.push(
+      t`${select(kind, { document: `The document “${name}”`, codex: `The codex entry “${name}”`, other: `The file “${name}”` })} could not be converted: ${reason}. The file is left as it was.`,
+    );
   }
   return lines;
 }
@@ -190,28 +203,6 @@ export interface EncodingAskerSource {
 export interface EncodingAsker {
   readonly profileName: string;
   ask(input: { readonly excerpt: string; readonly candidates: readonly DecodableEncoding[] }): Promise<DecodableEncoding | undefined>;
-}
-
-/** The other names a reply may call a candidate by, beside its own. */
-const ENCODING_ALIASES: Readonly<Record<string, readonly string[]>> = {
-  'windows-1252': ['windows-1252', 'win-1252', 'cp1252', '1252'],
-  'iso-8859-15': ['iso-8859-15', 'iso8859-15', 'iso 8859-15', 'latin-9', 'latin9'],
-  gb18030: ['gb18030', 'gbk', 'gb2312', 'gb-18030'],
-  big5: ['big5', 'big-5', 'big 5'],
-  shift_jis: ['shift_jis', 'shift-jis', 'shift jis', 'sjis'],
-  'euc-kr': ['euc-kr', 'euckr', 'euc kr', 'ks_c_5601'],
-  'utf-16le': ['utf-16le', 'utf-16 le', 'utf-16 little-endian', 'utf-16 little endian'],
-  'utf-16be': ['utf-16be', 'utf-16 be', 'utf-16 big-endian', 'utf-16 big endian'],
-};
-
-/** The candidate a model's reply names, matched case-insensitively by name or alias, or undefined. */
-export function encodingFromReply(reply: string, candidates: readonly DecodableEncoding[]): DecodableEncoding | undefined {
-  const said = reply.toLowerCase();
-  for (const encoding of candidates) {
-    const names = ENCODING_ALIASES[encoding] ?? [encoding];
-    if (names.some((name) => said.includes(name))) return encoding;
-  }
-  return undefined;
 }
 
 /**
@@ -240,18 +231,11 @@ export function encodingAskerFor(providers: EncodingAskerSource): EncodingAsker 
         model,
         temperature: 0,
         messages: [
-          {
-            role: 'system',
-            content:
-              'You identify the character encoding of a text file from a decoded excerpt. Answer with the exact name of one of the listed encodings and nothing else.',
-          },
-          {
-            role: 'user',
-            content: `A file from a writing project is not UTF-8. Decoded one way, its start reads:\n\n${excerpt.slice(0, ASK_EXCERPT_CHARS)}\n\nWhich of these encodings was it most likely saved in? Answer with one of: ${candidates.join(', ')}.`,
-          },
+          { role: 'system', content: encodingSystemPrompt() },
+          { role: 'user', content: encodingUserPrompt(excerpt.slice(0, ASK_EXCERPT_CHARS), candidates) },
         ],
       });
-      return encodingFromReply(reply.content, candidates);
+      return encodingFromReply(textOf(reply.content), candidates);
     },
   };
 }

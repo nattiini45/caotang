@@ -8,11 +8,13 @@
  *    newer format is `newer` and is never overwritten.
  *  - **Per item.** A finding, run, rule or declaration that fails its field
  *    contract is dropped and named in a notice. One bad item never blocks the load.
- *  - **Per field.** An unknown timeline mode reads as `linear` (§5.2.1). An
+ *  - **Per field.** An unknown timeline mode reads as `linear` (§5.2.1), and an unknown story part is ignored so the
+ *    scene inherits (§5.2.2). An
  *    unknown top-level key is dropped on the next save, with a notice (§6).
  */
 
 import { isDayOffset } from '@caotang/bus';
+import type { MessageRef } from '@caotang/i18n';
 
 import { isCoherenceId } from './ids.js';
 import {
@@ -82,14 +84,14 @@ export type ParseOutcome =
 type Obj = Record<string, unknown>;
 
 const FINDING_KEYS = [
-  'id', 'runId', 'class', 'checkId', 'type', 'severity', 'status', 'factGroup', 'message', 'expected',
+  'id', 'runId', 'class', 'checkId', 'type', 'severity', 'status', 'factGroup', 'message', 'messageRef', 'expected',
   'evidence', 'reasoning', 'modelMeta', 'createdAt', 'updatedAt', 'dismissedReason', 'note', 'supersededBy',
   'redetections', 'createdByRunId', 'touchedAt',
 ] as const;
 const RUN_KEYS = [
   'id', 'at', 'kind', 'checkIds', 'scope', 'findingsUpserted', 'tokens', 'model', 'status', 'notes',
 ] as const;
-const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows', 'dialogueContainer', 'storyPart'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows', 'dialogueContainer', 'storyPart', 'mainStory'] as const;
 const KNOWLEDGE_LINK_KEYS = ['entryId', 'factId'] as const;
 const KNOWLEDGE_KEYS = ['id', 'text', 'ruleId', 'entryId', 'createdAt', 'updatedAt'] as const;
 const THREAD_KEYS = ['id', 'payoff', 'note'] as const;
@@ -169,6 +171,29 @@ function readRedetections(raw: unknown): Read<Redetection[] | undefined> {
   return good(out);
 }
 
+/**
+ * §3's additive `messageRef` (I7). An old file has none, which is not a problem: the app renders
+ * `message` as written. A malformed ref is dropped with the same tolerance as any other bad field;
+ * the English `message` beside it is still there, so the finding is kept, not lost.
+ */
+export function readMessageRef(raw: unknown): Read<MessageRef> {
+  if (!isRecord(raw)) return bad('messageRef is not an object');
+  if (!isNonEmptyString(raw.id)) return bad('messageRef.id is empty');
+  if (typeof raw.message !== 'string' || raw.message.trim() === '') return bad('messageRef.message is empty');
+  const extra = Object.keys(raw).filter((key) => !['id', 'values', 'message'].includes(key));
+  if (extra.length > 0) return bad(`messageRef has a field this version does not know ("${extra[0]}")`);
+  if (raw.values === undefined) return good({ id: raw.id, message: raw.message });
+  if (!isRecord(raw.values)) return bad('messageRef.values is not an object');
+  const values: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(raw.values)) {
+    if (typeof value !== 'string' && !(typeof value === 'number' && Number.isFinite(value))) {
+      return bad(`messageRef.values.${key} is not a string or a finite number`);
+    }
+    values[key] = value;
+  }
+  return good({ id: raw.id, message: raw.message, values });
+}
+
 function readModelMeta(raw: unknown): Read<ModelMeta | undefined> {
   if (raw === undefined) return good(undefined);
   if (!isRecord(raw) || typeof raw.model !== 'string' || !isNonNegInt(raw.promptTokens) || !isNonNegInt(raw.completionTokens)) {
@@ -199,6 +224,10 @@ export function readFinding(raw: unknown): Read<Finding> {
   if (!(FINDING_STATUSES as readonly unknown[]).includes(raw.status)) return bad('finding.status is not known');
   if (!isNonEmptyString(raw.factGroup)) return bad('finding.factGroup is empty');
   if (typeof raw.message !== 'string') return bad('finding.message is not a string');
+  // I7 tolerance: a ref this version cannot read is ignored, never a reason to lose the finding and
+  // its English `message`. Model-authored prose never retranslates, so an llm finding's ref is ignored.
+  const messageRef =
+    raw.messageRef === undefined || raw.class === 'llm' ? undefined : readMessageRef(raw.messageRef);
   if (raw.expected !== undefined && typeof raw.expected !== 'string') return bad('finding.expected is not a string');
   const evidence = readEvidenceList(raw.evidence, 2);
   if (!evidence.ok) return bad(evidence.reason);
@@ -235,6 +264,7 @@ export function readFinding(raw: unknown): Read<Finding> {
     createdAt: raw.createdAt as string,
     updatedAt: raw.updatedAt as string,
   };
+  if (messageRef !== undefined && messageRef.ok) finding.messageRef = messageRef.value;
   if (raw.expected !== undefined) finding.expected = raw.expected as string;
   if (raw.reasoning !== undefined) finding.reasoning = raw.reasoning as string;
   if (modelMeta.value !== undefined) finding.modelMeta = modelMeta.value;
@@ -408,7 +438,15 @@ export function readSceneMeta(
   if (raw.storyPart !== undefined) {
     const part = raw.storyPart;
     if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) meta.storyPart = part as StoryPart;
+    // A file written while `main` was a part value (the PR's interim model) carries the same meaning as the main-story mark.
+    else if (part === 'main') meta.mainStory = true;
     else parts.add(typeof part === 'string' ? part : JSON.stringify(part) ?? String(part));
+  }
+  // timeline.md §2.3: the additive main-story mark. Only `true` is a declaration; a node's own part wins over it.
+  if (raw.mainStory !== undefined) {
+    if (raw.mainStory === true) {
+      if (meta.storyPart === undefined) meta.mainStory = true;
+    } else if (raw.mainStory !== false) dropped('mainStory');
   }
   return meta;
 }

@@ -213,15 +213,25 @@ test.describe('the element menu lists the elements and marks the line’s own', 
   });
 
   test('Ctrl+E and Cmd+E open it, and no other chord does', () => {
-    const key = (over: Partial<{ key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }>) =>
-      opensElementMenu({ key: 'e', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...over });
+    const key = (over: Partial<ChordEvent> = {}): boolean =>
+      opensElementMenu({ key: 'e', code: 'KeyE', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, repeat: false, ...over });
+    // The ordinary chord, on the printed letter and on the physical key the layout types it with.
     expect(key({ ctrlKey: true })).toBe(true);
     expect(key({ metaKey: true })).toBe(true);
     expect(key({ ctrlKey: true, key: 'E' })).toBe(true);
+    expect(key({ ctrlKey: true, code: 'KeyE' })).toBe(true);
     expect(key({})).toBe(false);
     expect(key({ ctrlKey: true, shiftKey: true })).toBe(false);
     expect(key({ ctrlKey: true, altKey: true })).toBe(false);
-    expect(key({ ctrlKey: true, key: 'r' })).toBe(false);
+    expect(key({ ctrlKey: true, key: 'r', code: 'KeyR' })).toBe(false);
+    // ui-modules §2.5: a layout that prints another script is read through the physical key, so Ctrl+У (KeyE) opens it.
+    expect(key({ key: 'у', code: 'KeyE', ctrlKey: true })).toBe(true);
+    // A key typed with AltGraph is a character, a key held down is one press, and a composing key belongs to the input method.
+    expect(key({ ctrlKey: true, altKey: true, getModifierState: (name) => name === 'AltGraph' })).toBe(false);
+    // The AltGraph fact alone refuses it: no Alt flag is present, so only the guard can be what says no.
+    expect(key({ ctrlKey: true, getModifierState: (name) => name === 'AltGraph' })).toBe(false);
+    expect(key({ ctrlKey: true, repeat: true })).toBe(false);
+    expect(key({ ctrlKey: true, isComposing: true })).toBe(false);
     // On a Russian layout the physical E types у, and still opens it; on a Latin layout the key wins over the physical key.
     expect(opensElementMenu({ key: 'у', code: 'KeyE', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })).toBe(true);
     expect(opensElementMenu({ key: 'r', code: 'KeyE', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })).toBe(false);
@@ -230,6 +240,7 @@ test.describe('the element menu lists the elements and marks the line’s own', 
 
 test.describe('the element chords', () => {
   const press = (over: Partial<ChordEvent> = {}): ChordEvent => ({
+    key: '3',
     code: 'Digit3',
     ctrlKey: false,
     metaKey: false,

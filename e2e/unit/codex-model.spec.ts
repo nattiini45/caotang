@@ -33,17 +33,35 @@ function entry(overrides: Partial<CodexEntry> & { id: string; name: string }): C
 }
 
 test('entries are grouped by type in the codex order, each group in alphabetical order, and an unknown type comes last', () => {
-  const groups = groupByType([
-    entry({ id: 'c_0000000001', name: 'zed', type: 'location' }),
-    entry({ id: 'c_0000000002', name: 'Bruno', type: 'character' }),
-    entry({ id: 'c_0000000003', name: 'anna', type: 'character' }),
-    entry({ id: 'c_0000000004', name: 'Mystery', type: 'mystery' }),
-    entry({ id: 'c_0000000005', name: 'Keep', type: 'lore' }),
-  ]);
+  const groups = groupByType(
+    [
+      entry({ id: 'c_0000000001', name: 'zed', type: 'location' }),
+      entry({ id: 'c_0000000002', name: 'Bruno', type: 'character' }),
+      entry({ id: 'c_0000000003', name: 'anna', type: 'character' }),
+      entry({ id: 'c_0000000004', name: 'Mystery', type: 'mystery' }),
+      entry({ id: 'c_0000000005', name: 'Keep', type: 'lore' }),
+    ],
+    'en',
+  );
 
   expect(groups.map((group) => group.type)).toEqual(['character', 'location', 'lore', 'mystery']);
   expect(groups[0]?.entries.map((item) => item.name)).toEqual(['anna', 'Bruno']);
   expect(groups[3]?.label).toBe('mystery');
+});
+
+test('a group sorts by the project language, not the interface’s, so a Swedish novel sorts å after z', () => {
+  const names = (language: string): readonly string[] =>
+    groupByType(
+      [
+        entry({ id: 'c_0000000001', name: 'Åland' }),
+        entry({ id: 'c_0000000002', name: 'Zebra' }),
+        entry({ id: 'c_0000000003', name: 'Öre' }),
+      ],
+      language,
+    )[0]?.entries.map((item) => item.name) ?? [];
+
+  expect(names('sv')).toEqual(['Zebra', 'Åland', 'Öre']);
+  expect(names('en')).toEqual(['Åland', 'Öre', 'Zebra']);
 });
 
 test('the search reads names, aliases and descriptions without regard to case, and the chips narrow the list', () => {

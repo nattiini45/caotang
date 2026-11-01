@@ -94,6 +94,7 @@ import { deleteOrphanNote, insertFootnote } from './footnotes.js';
 import type { FootnoteNoteDeletion, FootnoteOrphan, FootnoteWords } from './footnotes.js';
 import { footnoteTail } from '../footnotes.js';
 import { createGhostPreview } from './ghost.js';
+import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
 import type { GhostCallbacks, GhostPreview } from './ghost.js';
 import {
   HISTORY_JOURNAL_VERSION,
@@ -105,6 +106,8 @@ import {
   schemaSignature,
 } from './history-journal.js';
 import type { HistoryJournal, HistoryPort } from './history-journal.js';
+import { createPictureController } from './pictures.js';
+import type { PicturesPort } from './pictures.js';
 import type { SuggestionLayer } from './suggestions.js';
 import { insertedSpans, reachesScope, replacedSpans, shrinkSpan, unionSpan } from './undo-scope.js';
 import type { Span } from './undo-scope.js';
@@ -130,6 +133,13 @@ export interface TiptapMountOptions extends EditorMountOptions {
   autosave?: Autosave;
   /** §8's Apply, Retry and Discard handlers. */
   ghost?: GhostCallbacks;
+  /** The editor's own words; the app passes its translated set, and the package's English defaults fill any it leaves out. */
+  labels?: Partial<EditorLabels>;
+  /**
+   * Shows the project's pictures and stores new ones (`pictures.ts`). With it the editor has the slash menu, takes picture files from
+   * a drop or a paste, and has {@link TiptapEditorInstance.choosePictures}. Without it a picture is an `<img>` and nothing inserts one.
+   */
+  pictures?: PicturesPort;
   /**
    * §7: Lane 1's history across a reload. The app hands in the journal it kept for the document and is told when the history changes. The
    * journal rebuilds the user's undo only if it replays to the body the editor opened with (`history-journal.ts`).
@@ -309,6 +319,13 @@ export interface TiptapEditorInstance extends ReviewableEditorInstance {
    * caller asks once per write. It answers after teardown with what the editor held.
    */
   historyJournal(): HistoryJournal | null;
+  /**
+   * Opens the file chooser and inserts the pictures chosen at the caret, as one undoable edit. Resolves with how many went in, and
+   * with 0 when the writer cancelled or the mount has no picture port.
+   */
+  choosePictures(): Promise<number>;
+  /** Stores the files as pictures and inserts them at the caret, as one undoable edit. Resolves with how many went in. */
+  insertPictures(files: readonly File[]): Promise<number>;
   /**
    * #270, Lane 1: a footnote at the caret, with an empty note at the end of the document, and the caret
    * in the note — what Ctrl+Shift+6 does. `false` when the caret is where a footnote cannot go (inside a
@@ -533,16 +550,23 @@ const createInstance = (
   // reach. `undo-scope.ts` explains why an agent apply is checked against it.
   let scope: Span | null = null;
 
+  const pictures = opts.pictures === undefined ? null : createPictureController(opts.pictures);
   const footnoteOptions = {
     ...(opts.onFootnoteOrphaned !== undefined ? { onFootnoteOrphaned: opts.onFootnoteOrphaned } : {}),
     ...(opts.footnoteWords !== undefined ? { footnoteWords: opts.footnoteWords } : {}),
   };
   const editor = new Editor({
     element: focusEl,
-    extensions:
-      layer === null
-        ? caotangExtensions({ role: 'focus', placeholder: opts.placeholder, ...footnoteOptions })
-        : layer.extensions({ role: 'focus', placeholder: opts.placeholder, ...footnoteOptions }),
+    extensions: (() => {
+      const options = {
+        role: 'focus' as const,
+        placeholder: opts.placeholder,
+        ...(opts.labels === undefined ? {} : { labels: opts.labels }),
+        ...(pictures === null ? {} : { pictures }),
+        ...footnoteOptions,
+      };
+      return layer === null ? caotangExtensions(options) : layer.extensions(options);
+    })(),
     content: loaded.doc.toJSON(),
     editable: opts.readOnly !== true,
     injectCSS: opts.injectCSS ?? true,
@@ -846,7 +870,7 @@ const createInstance = (
     announceHistory();
   }
 
-  const ghost = createGhostPreview(ghostEl, opts.ghost);
+  const ghost = createGhostPreview(ghostEl, opts.ghost, { ...DEFAULT_EDITOR_LABELS, ...opts.labels });
 
   // §9's indicator: the store announces each change to a document's save state. Another
   // document's change is not this editor's to report, so it is filtered here, and the
@@ -871,7 +895,13 @@ const createInstance = (
   /** Puts a parsed body in the place of the whole document: `setContent`'s last step, and the fallback of `showAgentEdit`. */
   const landReplacement = (next: ParseResult, setOpts?: SetContentOptions): void => {
     const replacement = editor.schema.nodeFromJSON(next.doc.toJSON());
-    const tr = markLane(editor.state.tr.replaceWith(0, editor.state.doc.content.size, replacement.content), setOpts);
+    // The replacement's source provenance replaces the old one in the same transaction (source-provenance.ts).
+    const tr = markLane(
+      editor.state.tr
+        .replaceWith(0, editor.state.doc.content.size, replacement.content)
+        .setDocAttribute('provenance', replacement.attrs['provenance']),
+      setOpts,
+    );
     // The replacement puts the store's body in the editor, so the user's unsaved edits, if
     // any were discarded, are no longer unsaved. Cleared before the commit, because a user
     // replacement is itself an edit and the update event must be the one that sets the flag.
@@ -880,7 +910,6 @@ const createInstance = (
     noteLoad(next);
   };
 
-  // --- §15: the review marks and the calls that resolve them --------------------------
   // --- §15: the review marks and the calls that resolve them (the lazily loaded layer's) ----
   const desk = layer?.createReview({
     editor,
@@ -1037,6 +1066,12 @@ const createInstance = (
     },
 
     historyJournal: readJournal,
+
+    choosePictures: (): Promise<number> =>
+      destroyed || pictures === null ? Promise.resolve(0) : pictures.choose(editor.view),
+
+    insertPictures: (files: readonly File[]): Promise<number> =>
+      destroyed || pictures === null ? Promise.resolve(0) : pictures.insertFiles(editor.view, files, 'choose'),
 
     insertFootnote: (): boolean => {
       if (destroyed || !editor.isEditable) return false;

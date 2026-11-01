@@ -155,12 +155,50 @@ export interface ReasoningBlock {
   raw?: unknown;
 }
 
+/** The image formats an image part may carry. Anything else is refused at validation, before any request. */
+export type ImageMime = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+
+/** A text content part, the array form of a plain string content. */
+export interface TextPart {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+/**
+ * An image content part. The bytes travel on the wire and nowhere else: they are never logged,
+ * never persisted and never quoted in an error. `hash` (sha-256, hex), `size` and `mime` are the
+ * record that survives in history metadata, previews and summaries in place of the bytes.
+ */
+export interface ImagePart {
+  readonly type: 'image';
+  readonly mime: ImageMime;
+  /** The image bytes. Transient: approved for the one request that carries them, nothing else. */
+  readonly bytes: Uint8Array;
+  /** sha-256 of `bytes`, as 64 lowercase hex characters. */
+  readonly hash: string;
+  /** `bytes.length`, recorded alongside the hash so a part is checkable without its bytes. */
+  readonly size: number;
+  /** An optional caption shown beside the image placeholder in previews. */
+  readonly caption?: string;
+}
+
+/** One discriminated content part of a message. */
+export type ContentPart = TextPart | ImagePart;
+
+/**
+ * A message's content: a plain string, or an array of parts when the message carries images.
+ * String contents are byte-for-byte unchanged on every wire route; only the array form maps
+ * onto a route's block shapes (provider-gateway §3).
+ */
+export type MessageContent = string | readonly ContentPart[];
+
 /**
  * One ordered piece of a message's text (provider-gateway §3, "Prompt caching"). A part marked `cacheBoundary` says that
  * everything up to and including it is a prefix worth caching: the adapters that cache place a breakpoint there, and the
- * ones that do not join the parts and ignore the mark.
+ * ones that do not join the parts and ignore the mark. (Main's `ContentPart`; renamed in the merge because the PR's image
+ * parts took that name.)
  */
-export interface ContentPart {
+export interface CachePart {
   readonly text: string;
   /** Everything up to and including this part is a prefix worth caching. When several parts are marked, the last one is the boundary. */
   readonly cacheBoundary?: boolean;
@@ -168,10 +206,13 @@ export interface ContentPart {
 
 export interface ChatMessage {
   role: ChatRole;
-  /** Always set. When `parts` are given it is their texts joined with a blank line, and an adapter that ignores parts sends it. */
-  content: string;
-  /** Optional ordered parts of `content`; adapters that cache place breakpoints from their marks. Absent means `content` is one part. */
-  parts?: readonly ContentPart[];
+  /**
+   * A plain string, or text and image parts (provider-gateway §3). When `parts` are given, `content` is a string: their texts
+   * joined with a blank line, which an adapter that ignores parts sends.
+   */
+  content: MessageContent;
+  /** Optional ordered cache parts of a string `content`; adapters that cache place breakpoints from their marks. Absent means `content` is one part. */
+  parts?: readonly CachePart[];
   /** assistant only: the calls it asked for. May accompany empty content on a tools-only reply. */
   toolCalls?: readonly ToolCall[];
   /** tool role only: the call this message answers. */

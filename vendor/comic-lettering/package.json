@@ -1,0 +1,28 @@
+{
+  "name": "@caotang/font-comic-lettering",
+  "version": "2.3.0",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "Comic Neue 2.003 (Regular, Italic, Bold, Bold Italic) and Bangers 2.100 as TrueType WOFF files: the dialogue and sound-effect faces of the comic lettering",
+  "repository": "https://github.com/google/fonts/tree/main/ofl/comicneue",
+  "exports": {
+    "./ComicNeue-Regular.woff": "./ComicNeue-Regular.woff",
+    "./ComicNeue-Italic.woff": "./ComicNeue-Italic.woff",
+    "./ComicNeue-Bold.woff": "./ComicNeue-Bold.woff",
+    "./ComicNeue-BoldItalic.woff": "./ComicNeue-BoldItalic.woff",
+    "./Bangers-Regular.woff": "./Bangers-Regular.woff",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "ComicNeue-Regular.woff",
+    "ComicNeue-Italic.woff",
+    "ComicNeue-Bold.woff",
+    "ComicNeue-BoldItalic.woff",
+    "Bangers-Regular.woff",
+    "LICENSE-ComicNeue.txt",
+    "LICENSE-Bangers.txt",
+    "README.md",
+    "SHA256SUMS",
+    "build.py"
+  ]
+}

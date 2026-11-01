@@ -6,7 +6,12 @@
  * request: Caotang shows no modal for it. Every call is guarded, because a browser may have no storage manager (a private
  * window, a test host), and then the answer is "not known", which the banner treats as not granted.
  */
+/* lingui-set comment="Interpolated values: size, total, used" */
 
+import { t } from '@lingui/core/macro';
+import { numberFormat } from '@caotang/i18n';
+
+import { formatterLocale } from '../i18n/format-locale.js';
 import type { Durability } from './session.js';
 
 /** The part of `navigator.storage` the app uses. A test supplies its own. */
@@ -75,11 +80,11 @@ async function estimateOf(host: StorageHost): Promise<{ usage: number | null; qu
 
 /** The one sentence Settings shows for the storage row (ui-modules §5.3, rule 2), in the words the spec gives. */
 export function durabilitySentence(durability: Durability): string {
-  if (durability.persisted === true) return 'Browser storage: persistent ✓';
+  if (durability.persisted === true) return t`Browser storage: persistent ✓`;
   if (durability.persisted === false) {
-    return 'Browser storage: persistence not granted — the browser may evict this project under storage pressure.';
+    return t`Browser storage: persistence not granted — the browser may evict this project under storage pressure.`;
   }
-  return 'Browser storage: the browser has not said whether it keeps this project.';
+  return t`Browser storage: the browser has not said whether it keeps this project.`;
 }
 
 /** The usage line Settings shows under it, when the browser gave an estimate. */
@@ -87,12 +92,13 @@ export function usageSentence(durability: Durability): string | null {
   if (durability.usage === null || durability.quota === null || durability.quota <= 0) return null;
   const used = formatBytes(durability.usage);
   const total = formatBytes(durability.quota);
-  return `Using about ${used} of about ${total} this browser allows for this site.`;
+  return t`Using about ${{ used }} of about ${{ total }} this browser allows for this site.`;
 }
 
 /** Bytes as a figure a writer reads: one decimal place in megabytes or gigabytes, never a bare number. */
 export function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.max(0, Math.round(bytes / 1024))} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  const oneDecimal = numberFormat(formatterLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  if (bytes < 1024 * 1024) return t`${{ size: numberFormat(formatterLocale()).format(Math.max(0, Math.round(bytes / 1024))) }} KB`;
+  if (bytes < 1024 * 1024 * 1024) return t`${{ size: oneDecimal.format(bytes / (1024 * 1024)) }} MB`;
+  return t`${{ size: oneDecimal.format(bytes / (1024 * 1024 * 1024)) }} GB`;
 }

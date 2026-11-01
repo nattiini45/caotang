@@ -27,7 +27,7 @@
 .target-quick-set {
   position: absolute;
   bottom: calc(100% + 0.4rem);
-  left: 0;
+  inset-inline-start: 0;
   z-index: 10;
   display: grid;
   gap: 0.5rem;

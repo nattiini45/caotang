@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "The picture registry's pure parts — the AssetRecord shape and its load rules, usesOf, the assets/ file names, sniffing, image sizes, the lossless GPS strip and the hash (pictures.md)",
+  "description": "The picture registry's pure parts — the record and link model, their readers and validators, uses, the dedup and backfill plan, paragraph anchors, the assets/ file names, sniffing, image sizes, the lossless GPS strip and the hash (pictures.md). No DOM, store or codec dependency.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

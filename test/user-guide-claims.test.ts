@@ -27,7 +27,7 @@ describe('the user guide matches what the app does', () => {
     // the book it was copied from (integrity-model `folderProjectRoute` 'original'); any other project is asked about.
     const lifecycle = read('apps/desktop/src/app/lifecycle.ts');
     expect(lifecycle).toMatch(/if \(taken\.has\(originalId\)\)/);
-    expect(lifecycle).toMatch(/if \(route === 'original'\) throw new Error\(COPY_CANNOT_SAVE_INTO_FOLDER\)/);
+    expect(lifecycle).toMatch(/if \(route === 'original'\) throw new Error\(copyCannotSaveIntoFolder\(\)\)/);
     expect(read('apps/desktop/src/app/integrity-model.ts')).toMatch(/facts\.copiedFrom !== null && facts\.folderId === facts\.copiedFrom \? 'original' : 'other'/);
     expect(guide).toMatch(/A second copy of a book, opened from that book's folder, still cannot be saved into it\./);
     expect(guide).toMatch(/A folder whose project this browser does not keep opens as its project, and saving writes back to the folder\./);
@@ -69,7 +69,7 @@ describe('the user guide matches what the app does', () => {
   });
 
   it('lists the stop a tab shows when Caotang was updated in another tab, with what to do', () => {
-    expect(read('apps/desktop/src/components/StaleTabNotice.tsx')).toMatch(/'Caotang was updated in another tab'/);
+    expect(read('apps/desktop/src/components/StaleTabNotice.tsx')).toMatch(/<Trans>Caotang was updated in another tab<\/Trans>/);
     const wrong = guide.slice(guide.indexOf('## When something seems wrong'));
     expect(wrong).toMatch(/\*\*Caotang was updated in another tab\.\*\*[^\n]*Export a backup[^\n]*then reload this tab/);
   });
@@ -126,14 +126,16 @@ describe('the user guide’s reviewed claims match the code', () => {
     const shell = read('apps/desktop/src/components/shell/ClassicShell.tsx');
     for (const label of ['Binder', 'Inspector', 'More']) {
       expect(section).toContain(`**${label}**`);
-      expect(shell.split('\n').some((row) => row.trim() === label)).toBe(true);
+      // The label is a catalogue message (i18n.md): the shell renders it as `<Trans>…</Trans>`, or as plain text before it was localised.
+      expect(shell.split('\n').some((row) => [label, `<Trans>${label}</Trans>`].includes(row.trim()))).toBe(true);
     }
     // The More menu's entries, each a label in the shell actions the menu renders from (modern-interface.md §4.2).
     const actions = read('apps/desktop/src/app/shell-actions.ts');
     expect(shell).toContain('items={classicMenu(actions)}');
     for (const label of ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', 'Save to folder', 'Settings']) {
       expect(section).toContain(`**${label}**`);
-      expect(actions).toContain(`'${label}'`);
+      // Each label is a catalogue message (t`…`) in the shell actions, or a plain string literal.
+      expect(actions.includes(`t\`${label}\``) || actions.includes(`'${label}'`)).toBe(true);
     }
     expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
     expect(section).toContain('**Actions for …**');
@@ -154,8 +156,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(guide).toContain('The status line says so when you turn focus on, and its **Settings › Writing** opens that setting.');
     // The wording, with "Settings › Writing" a link to the section.
     const workspace = read('apps/desktop/src/components/Workspace.tsx');
-    expect(workspace).toContain("text: 'Focus mode is on. The binder and inspector stay open, as set in '");
-    expect(workspace).toContain("link: { label: 'Settings › Writing', after: '.', onClick: () => setSettingsSection('writing') }");
+    // The words are still in the source, inside the message macro that extracts them.
+    expect(workspace).toContain('text: t`Focus mode is on. The binder and inspector stay open, as set in `');
+    expect(workspace).toContain("link: { label: t`Settings › Writing`, after: '.', onClick: () => setSettingsSection('writing') }");
   });
 
   it('says History’s Today includes the open sitting, as the status line does', () => {
@@ -216,7 +219,7 @@ describe('the user guide’s reviewed claims match the code', () => {
   it('says a large scope asks on the status line at more than 20 documents, and Scan it anyway runs the scope that asked', () => {
     expect(guide).toContain('A scope of more than 20 documents asks first: the status line asks, and the panel shows **Scan it anyway**. **Scan it anyway** runs the scope that asked');
     const panel = read('apps/desktop/src/components/FindingsPanel.tsx');
-    expect(panel).toContain("report({ text: APPROVAL_SENTENCE, tone: 'info' });");
+    expect(panel).toContain("report({ text: t`This scope covers more than ${{ limit: SCAN_DOC_GUARD }} documents. Split it, or press “Scan it anyway” to scan all of it.`, tone: 'info' });");
     expect(panel).toContain('const scope = approved && pendingScope !== null ? pendingScope : scopeFor(scopeChoice, currentDocId);');
     expect(read('packages/coherence/src/model.ts')).toContain('export const SCAN_DOC_GUARD = 20;');
   });
@@ -228,7 +231,7 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('says a visual reference card names a picture no longer in the project', () => {
     expect(guide).toContain('says so when a picture is no longer in the project');
-    expect(read('apps/desktop/src/app/plan-preview.ts')).toContain("'a picture that is no longer in the project'");
+    expect(read('apps/desktop/src/app/plan-preview.ts')).toContain('msg`a picture that is no longer in the project`');
   });
 
   it('says a manual codex entry is sent in the documents under the folder it is attached to', () => {
@@ -303,7 +306,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const fonts = read('apps/desktop/src/app/fallback-fonts.ts');
     expect(fonts).toContain("await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold.woff?url')");
     expect(fonts).toContain("await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold-common.woff?url')");
-    expect(read('apps/desktop/src/app/session.ts')).toContain('loadBoldFallbackFont: loadCjkBoldFontOverHttp,');
+    expect(read('apps/desktop/src/app/lazy-exporter.ts')).toContain('loadBoldFallbackFont: loadCjkBoldFontOverHttp,');
     // The docs no longer say the Bold is not built.
     expect(read('docs/architecture/storyboard.md')).not.toMatch(/real Bold weight of Noto Sans Mono CJK SC is not built/);
     expect(read('packages/pdf-fonts/src/embolden.ts')).not.toMatch(/it is not built/);
@@ -341,16 +344,16 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The recipe controls, in the words the export dialog shows.
     const dialog = read('apps/desktop/src/components/ExportDialog.tsx');
     expect(pdfSection).toContain('**Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them.');
-    expect(dialog).toContain('<span className="export-option-label">Scene numbers</span>');
+    expect(dialog).toContain('<span className="export-option-label"><Trans>Scene numbers</Trans></span>');
     expect(read('packages/screenplay/src/paginate.ts')).toContain("opts.sceneNumbers ?? 'off'");
     expect(dialog).toContain("sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',");
     expect(read('packages/exporter/src/media.ts')).toContain("sceneNumbers: request.sceneNumbers ?? 'off',");
-    expect(dialog).toContain("left: 'Left margin',");
-    expect(dialog).toContain("right: 'Right margin',");
-    expect(dialog).toContain("both: 'Both margins',");
+    expect(dialog).toContain('return t`Left margin`;');
+    expect(dialog).toContain('return t`Right margin`;');
+    expect(dialog).toContain('return t`Both margins`;');
     expect(dialog).toContain("...(shown.sceneNumbers === 'off' ? {} : { sceneNumbers: shown.sceneNumbers }),");
     expect(pdfSection).toContain('You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.');
-    expect(dialog).toContain('<span className="export-option-label">(MORE) and (CONT’D) where a speech crosses a page</span>');
+    expect(dialog).toContain('<span className="export-option-label"><Trans>(MORE) and (CONT’D) where a speech crosses a page</Trans></span>');
   });
 
   it('says the screenplay PDF prints emoji in Noto Emoji, two columns each, whole, loaded only when needed', () => {
@@ -377,7 +380,7 @@ describe('the user guide’s reviewed claims match the code', () => {
   it('says how the engine target and the locale change the dialogue exports, in the names the compile writes', () => {
     expect(guide).toContain("A container set to **Yarn string table (CSV)** goes into a Yarn Spinner strings file, `<name> (dialogue, Yarn).csv`, with Yarn's columns and `line:` ids.");
     expect(guide).toContain('A container with no locale uses the project\'s language. A container with its own locale puts it in the Ink story\'s file name, such as `Tavern.de.ink.json`.');
-    expect(read('apps/desktop/src/components/InspectorDialogue.tsx')).toContain("'yarn-csv': 'Yarn string table (CSV)'");
+    expect(read('apps/desktop/src/components/InspectorDialogue.tsx')).toMatch(/get 'yarn-csv'\(\) \{\s*return t`Yarn string table \(CSV\)`;/);
     const media = read('packages/exporter/src/media.ts');
     expect(media).toContain('name: `${request.base} (dialogue, Yarn).csv`');
     expect(media).toContain('`${fileStem(title)}.${locale}.ink.json`');
@@ -420,7 +423,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const view = read('apps/desktop/src/media/ScreenplayView.tsx');
     const menu = read('apps/desktop/src/media/element-menu.ts');
     // The button's visible word, and the chord the view opens the menu on.
-    expect(view).toMatch(/>\s*Element\s*<\/button>/);
+    expect(view).toMatch(/<Trans>Element<\/Trans>\s*<\/button>/);
     // The key is read as the app's chords read it: the printed letter, or the physical key on a non-Latin layout.
     expect(menu).toMatch(/chordKey\(event\.key, event\.code \?\? ''\) === 'e'/);
     // The chord the menu accepts: Ctrl+E, or Cmd+E on a Mac — both modifiers are read from the event.
@@ -428,7 +431,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const screenplay = guide.slice(guide.indexOf('## Writing a screenplay'), guide.indexOf('## Writing dialogue'));
     expect(screenplay).toContain('**Element**, above the text, or Ctrl+E (Cmd+E on a Mac), opens the element menu for the line the caret is on.');
     // Each entry the guide names is a label of the menu, and the guide names every one, in the menu's order.
-    const labels = [...menu.matchAll(/^ {2}[a-z_]+: '([^']+)',$/gm)].map((match) => match[1] ?? '');
+    const labels = [...menu.matchAll(/^ {2}get [a-z_]+\(\) \{\n {4}return t`([^`]+)`;/gm)].map((match) => match[1] ?? '');
     expect(labels).toHaveLength(9);
     expect(screenplay).toContain(`It lists ${labels.slice(0, -1).map((label) => `**${label}**`).join(', ')} and **${labels.at(-1)}**,`);
     // The keyboard table's one Mac note covers every Ctrl row, because the keymap's command() reads Ctrl or Cmd
@@ -457,8 +460,8 @@ describe('the user guide’s reviewed claims match the code', () => {
     // key first; only one character outside ASCII falls back to the physical KeyX or DigitN.
     expect(keymap).toMatch(/if \(key\.charCodeAt\(0\) < 0x80\) return key\.toLowerCase\(\);/);
     expect(keymap).toMatch(/\/\^\(\?:Key\(\[A-Z\]\)\|Digit\(\[0-9\]\)\)\$\/\.exec\(code\)/);
-    // A Ctrl+Alt chord is never AltGr.
-    expect(keymap).toMatch(/if \(facts\.altGraph && cmd && facts\.alt\) return null;/);
+    // AltGr never makes a chord: any key pressed with AltGraph is the character it types.
+    expect(keymap).toMatch(/if \(facts\.altGraph\) return null;/);
     const keyboard = guide.slice(guide.indexOf('## Keyboard'));
     expect(keyboard).toContain('The letter in a shortcut is the letter printed on the key, so on a German or French keyboard Ctrl+Z is the key labelled Z.');
     expect(keyboard).toContain('a shortcut uses the key where that letter sits on an English keyboard');
@@ -467,9 +470,9 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('names the agent panel’s Stop, queue and note controls, and their keys, as the panel and the keymap have them', () => {
     const keymap = read('apps/desktop/src/app/keymap.ts');
-    expect(keymap).toMatch(/case 'agent-send':\s+return 'Enter';/);
-    expect(keymap).toMatch(/case 'agent-steer':\s+return 'Ctrl\+Enter';/);
-    expect(keymap).toMatch(/case 'agent-stop':\s+return 'Esc';/);
+    expect(keymap).toContain("'agent-send': [[], { named: 'enter' }]");
+    expect(keymap).toContain("'agent-steer': [['ctrl'], { named: 'enter' }]");
+    expect(keymap).toContain("'agent-stop': [[], { named: 'escape' }]");
     expect(guide).toContain('**Enter** queues what you type as the next turn, and **Ctrl+Enter** (Cmd+Enter on a Mac) sends it to the turn that is running as a note');
     expect(guide).toContain('**Stop**, in the header while a turn runs, ends the turn; so does **Esc** with the Intent box empty. With text in the box, Esc leaves the turn alone.');
     expect(guide).toContain('| Esc | Close a menu or a dialog. A menu returns focus to the control that opened it. In the agent panel, with the Intent box empty, stop the running turn. |');
@@ -478,13 +481,13 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The controls the guide names are the buttons and headings the panel shows.
     const panel = read('apps/desktop/src/components/AgentPanel.tsx');
     const queue = read('apps/desktop/src/components/AgentQueue.tsx');
-    expect(panel).toContain("{snapshot.stopping ? 'Stopping…' : 'Stop'}");
+    expect(panel).toContain('{snapshot.stopping ? t`Stopping…` : t`Stop`}');
     for (const label of ['Send with Cancel', 'Queue as next turn', 'Run the queue', 'Steer now', 'Queued messages']) {
       expect(queue).toContain(label);
       expect(guide).toContain(`**${label}**`);
     }
     // The queue's pause sentence is the controller's, and the guide names the choice it offers.
-    expect(read('apps/desktop/src/app/agent.ts')).toContain("'The last turn stopped on a question. Answer it or choose Run the queue.'");
+    expect(read('apps/desktop/src/app/agent.ts')).toContain('t`The last turn stopped on a question. Answer it or choose Run the queue.`');
     expect(guide).toContain('answer the question or choose **Run the queue**');
     expect(changelog).toContain('**Stop** (or **Esc**, with the Intent box empty) ends a running turn');
   });
@@ -500,7 +503,8 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('names the Agent setting in the words the section shows, and says it is off by default', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
-    expect(section).toContain("{ id: 'agent', label: 'Agent' }");
+    // The English name is still in the source, as the message the section's button renders.
+    expect(section).toContain("{ id: 'agent', label: msg`Agent` }");
     expect(section).toContain('<span>Load every tool on every request</span>');
     expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
@@ -511,9 +515,9 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('names the Interface setting and its default in the words Settings shows', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
-    expect(section).toContain('<legend>Interface</legend>');
-    expect(section).toContain("onChange={() => chooseShell('classic')} /> Classic");
-    expect(section).toContain("{MODERN_DEFAULT_FOR_NEW_USERS ? 'Modern' : 'Modern (Preview)'}");
+    expect(section).toContain('<legend>{t`Interface`}</legend>');
+    expect(section).toContain("onChange={() => chooseShell('classic')} /> <Trans>Classic</Trans>");
+    expect(section).toContain('{MODERN_DEFAULT_FOR_NEW_USERS ? t`Modern` : t`Modern (Preview)`}');
     // While the parity gate is closed every writer starts in Classic, which is what the guide and the changelog say.
     const resolver = read('apps/desktop/src/app/interface.ts');
     expect(resolver).toContain('export const MODERN_DEFAULT_FOR_NEW_USERS = false;');
@@ -528,9 +532,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     const panel = read('apps/desktop/src/components/AgentPanel.tsx');
     const settings = read('apps/desktop/src/components/AgentModeSettings.tsx');
     const modes = read('packages/harness/src/agent/mode.ts');
-    expect(panel).toContain('<legend>Mode</legend>');
+    expect(panel).toContain('<legend><Trans>Mode</Trans></legend>');
     expect(panel).toContain('Switch to Ask and run this plan');
-    expect(panel).toContain('Plan, not run');
+    expect(panel).toContain('t`Plan, not run`');
     expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Auto-approved');
     expect(settings).toContain('<span>Turn Auto mode off</span>');
     for (const label of ["'plan-only': 'Plan only'", "ask: 'Ask'", "'accept-edits': 'Accept edits'", "auto: 'Auto'"]) expect(modes).toContain(label);
@@ -574,7 +578,7 @@ describe('the user guide’s reviewed claims match the code', () => {
       expect(changelog.slice(changelog.indexOf('**Slash commands in the agent panel.**'), changelog.indexOf('**Agent instructions and memory.**'))).toContain(`\`/${name}\``);
     }
     // The words the guide names are the words the panel shows.
-    expect(read('apps/desktop/src/components/CommandComposer.tsx')).toContain('aria-label="Commands"');
+    expect(read('apps/desktop/src/components/CommandComposer.tsx')).toContain('aria-label={t`Commands`}');
     expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Dismiss');
     expect(read('docs/decisions.md')).toContain('Slash commands in the agent panel are a closed set of built-ins');
   });
@@ -584,7 +588,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const panel = read('apps/desktop/src/components/MacrosPanel.tsx');
     for (const label of ['Run…', 'Show the card', 'Edit', 'Delete', 'This project has no macros yet.']) expect(panel).toContain(label);
     expect(read('apps/desktop/src/components/SaveAsMacro.tsx')).toContain('Save as macro…');
-    expect(read('apps/desktop/src/components/Settings.tsx')).toContain("{ id: 'macros', label: 'Macros' }");
+    expect(read('apps/desktop/src/components/Settings.tsx')).toContain('{ id: \'macros\', label: msg`Macros` }');
     const section = guide.slice(guide.indexOf('## Macros'), guide.indexOf('## Export'));
     for (const label of ['**Save as macro…**', '**Run…**', '**Show the card**', '**Edit**', '**Delete**']) expect(section).toContain(label);
     expect(section).toContain(`A macro can hold at most ${MACRO_STEPS_MAX} steps, a project at most ${MACROS_MAX} macros, and a description at most ${MACRO_DESCRIPTION_MAX} characters`);

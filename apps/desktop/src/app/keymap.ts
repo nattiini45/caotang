@@ -1,3 +1,4 @@
+import { t } from '@lingui/core/macro';
 /**
  * The keyboard map — ui-modules §2.5, plus the two app-wide chords the shell needs.
  *
@@ -8,6 +9,9 @@
  * Ctrl+Z inside the editor is the editor's own undo (editor-engine §7's lane 1), so
  * the app-wide undo chord yields to any field, and so do the bare keys (F2, Delete,
  * arrows) that would otherwise eat a keystroke a writer meant as text.
+ *
+ * The same rule covers an input method's candidate window (ui-modules §2.5): the Enter that commits a candidate is the
+ * writer's text, not an app action, so a composing Enter resolves to nothing at all.
  */
 
 export type KeyAction =
@@ -54,6 +58,13 @@ export interface KeyFacts {
   readonly composing?: boolean;
 }
 
+/**
+ * The IME guard every Enter-handling site asks first (ui-modules §2.5, i18n §7.3). It lives in `ime.ts`; it is re-exported here
+ * so a key handler imports the keymap and the guard from one place. It reads the DOM event or a React event (its
+ * `nativeEvent`), so `isImeEnter(event)` and `isImeEnter(event.nativeEvent)` agree.
+ */
+export { isImeEnter, type CompositionFacts } from './ime.js';
+
 export interface KeyContext {
   /** True when the focus is in a text field (textarea, input, contenteditable). */
   readonly inTextField: boolean;
@@ -67,6 +78,13 @@ export interface KeyContext {
   readonly agentIntentEmpty?: boolean;
   /** True when the focus is in the agent's Intent box, where Enter sends or queues and Ctrl+Enter steers. */
   readonly inAgentIntent?: boolean;
+  /** True when the interface reads right to left, so Left and Right name the previous and the next place, not a screen side (i18n.md §5.5). */
+  readonly rtl?: boolean;
+}
+
+/** Left and Right swapped, every other key as it is: the arrow that means "next" in a right-to-left interface. */
+export function mirrorArrow(key: string): string {
+  return key === 'ArrowLeft' ? 'ArrowRight' : key === 'ArrowRight' ? 'ArrowLeft' : key;
 }
 
 /** The parts of a DOM or React keyboard event that `keyFacts` reads. */
@@ -113,6 +131,15 @@ function command(facts: KeyFacts): boolean {
 }
 
 /**
+ * The letter or digit a shortcut outside the map reads from a key event (the screenplay's element menu, the comic page's
+ * B and T, the timeline's filter). It is {@link chordKey}, so there is one layout rule for every chord (ui-modules §2.5): a
+ * printed ASCII character wins, a character in another script reads through the physical key, and a named key keeps its name.
+ */
+export function layoutLetter(key: string, code: string): string {
+  return chordKey(key, code);
+}
+
+/**
  * The action a keystroke asks for, or `null` when it means nothing to the app.
  *
  * Order matters in one place: the chords (which carry the command modifier) are
@@ -123,8 +150,10 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   if (facts.composing === true) return null;
   const cmd = command(facts);
   const key = chordKey(facts.key, facts.code);
-  // AltGr types a layout's characters (`@`, `{`, `€` on German) and Windows reports it as Ctrl+Alt, so it is never a Ctrl+Alt chord.
-  if (facts.altGraph && cmd && facts.alt) return null;
+  // ui-modules §2.5: AltGraph types a character (German AltGr+Q is "@", Hungarian AltGr+F is "["), and Windows reports
+  // AltGr as Ctrl+Alt. Such a key is never a shortcut and the app must not cancel it, so it is refused before any chord.
+  // Ctrl+Alt without the AltGraph fact keeps its documented meaning (`Ctrl+Alt+F` focuses the filter, below).
+  if (facts.altGraph) return null;
 
   if (cmd && !facts.alt && key === 'n' && !facts.shift) return 'new-document';
   if (cmd && !facts.alt && key === 'z' && !facts.shift) return context.inTextField ? null : 'undo';
@@ -147,7 +176,7 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   // ui-modules §2.5 and §3.2: Alt+arrow moves the focused node. Up and Down change its place among its siblings, and Left
   // and Right take it out of its folder or into the folder before it. A corkboard card has one parent, so only the order applies.
   if (facts.alt && !command(facts) && !facts.shift && (context.inBinder || context.inCorkboard === true)) {
-    switch (key) {
+    switch (context.rtl === true ? mirrorArrow(key) : key) {
       case 'ArrowUp':
         return 'reorder-up';
       case 'ArrowDown':
@@ -172,7 +201,7 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   if (key === 'Delete') return context.inBinder || context.inCorkboard === true ? 'delete' : null;
   if (!context.inBinder) return null;
 
-  switch (key) {
+  switch (context.rtl === true ? mirrorArrow(key) : key) {
     case 'ArrowUp':
       return 'move-up';
     case 'ArrowDown':
@@ -186,47 +215,178 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   }
 }
 
-/** The shortcut labels a control shows, in the platform's own modifier name. */
-export function shortcutLabel(action: KeyAction): string {
-  switch (action) {
-    case 'new-document':
-      return 'Ctrl+N';
-    case 'rename':
-      return 'F2';
-    case 'delete':
-      return 'Delete';
-    case 'open-in-editor':
-      return 'Ctrl+Enter';
-    case 'focus-mode':
-      return 'Ctrl+Shift+F';
-    case 'focus-filter':
-      return 'Ctrl+Alt+F';
-    case 'reorder-up':
-      return 'Alt+Up';
-    case 'reorder-down':
-      return 'Alt+Down';
-    case 'reparent-out':
-      return 'Alt+Left';
-    case 'reparent-in':
-      return 'Alt+Right';
-    case 'select-card':
-      return 'Enter or Space';
-    case 'open-menu':
-      return 'Shift+F10';
-    case 'agent-send':
-      return 'Enter';
-    case 'agent-steer':
-      return 'Ctrl+Enter';
-    case 'agent-stop':
-      return 'Esc';
-    case 'undo':
-      return 'Ctrl+Z';
-    case 'escape':
-      return 'Esc';
-    case 'move-up':
-    case 'move-down':
-    case 'move-left':
-    case 'move-right':
-      return 'Arrow keys';
-  }
+
+/** Names of the keys a shortcut label spells out, in the interface language (i18n.md §7.2). */
+export interface ShortcutNames {
+  readonly ctrl: string;
+  readonly shift: string;
+  readonly alt: string;
+  readonly enter: string;
+  readonly escape: string;
+  readonly delete: string;
+  readonly up: string;
+  readonly down: string;
+  readonly left: string;
+  readonly right: string;
 }
+
+/**
+ * The key names in the active catalogue. German Windows keyboards print "Strg", "Umschalt", "Eingabe" and "Entf" on
+ * these caps, so a label that said "Ctrl+Enter" would name a key the writer cannot find. The context keeps "Delete" the
+ * key apart from "Delete" the command, which a translation words differently.
+ */
+export function shortcutNames(): ShortcutNames {
+  return {
+    ctrl: t({ message: 'Ctrl', context: 'keyboard key' }),
+    shift: t({ message: 'Shift', context: 'keyboard key' }),
+    alt: t({ message: 'Alt', context: 'keyboard key' }),
+    enter: t({ message: 'Enter', context: 'keyboard key' }),
+    escape: t({ message: 'Esc', context: 'keyboard key' }),
+    delete: t({ message: 'Delete', context: 'keyboard key' }),
+    up: t({ message: 'Up', context: 'keyboard key' }),
+    down: t({ message: 'Down', context: 'keyboard key' }),
+    left: t({ message: 'Left', context: 'keyboard key' }),
+    right: t({ message: 'Right', context: 'keyboard key' }),
+  };
+}
+
+/**
+ * What `navigator.keyboard.getLayoutMap()` resolves to: the character each physical key prints with no modifier held,
+ * keyed by `KeyboardEvent.code`. Chromium's `KeyboardLayoutMap` is a read-only map; only these two members are read.
+ */
+export interface KeyboardLayoutMap {
+  get(code: string): string | undefined;
+  values(): Iterable<string>;
+}
+
+/**
+ * The letter or digit a label names, as the cap in front of the writer prints it.
+ *
+ * This follows `layoutLetter` rather than guessing: a Latin letter that some key prints is that letter (AZERTY's Z, on the
+ * physical `KeyW`, labels "Z"). When no key prints it, the shortcut is on the physical key the map falls back to, so the
+ * label is what that key prints: on a Russian layout `Ctrl+Z` is the key printing "Я". With no layout map (Firefox,
+ * Safari, an insecure origin, a rejected call) the letter itself is the label, which is correct for every Latin layout.
+ */
+export function printedKeyLabel(key: string, layout?: KeyboardLayoutMap | null): string {
+  const upper = key.toUpperCase();
+  if (layout === undefined || layout === null || !/^[A-Za-z0-9]$/.test(key)) return upper;
+  const lower = key.toLowerCase();
+  for (const printed of layout.values()) {
+    if (printed.toLowerCase() === lower) return upper;
+  }
+  const printed = layout.get(/^[0-9]$/.test(key) ? `Digit${key}` : `Key${upper}`);
+  if (printed === undefined || [...printed].length !== 1 || /^[A-Za-z0-9]$/.test(printed) || printed.trim() === '') return upper;
+  const cased = printed.toUpperCase();
+  return [...cased].length === 1 ? cased : printed;
+}
+
+type Modifier = 'ctrl' | 'shift' | 'alt';
+type NamedKey = Exclude<keyof ShortcutNames, Modifier>;
+type Chord = readonly [modifiers: readonly Modifier[], key: { readonly named: NamedKey } | { readonly printed: string } | string];
+
+const CHORDS: Partial<Record<KeyAction, Chord>> = {
+  'new-document': [['ctrl'], { printed: 'n' }],
+  rename: [[], 'F2'],
+  delete: [[], { named: 'delete' }],
+  'open-in-editor': [['ctrl'], { named: 'enter' }],
+  'focus-mode': [['ctrl', 'shift'], { printed: 'f' }],
+  'focus-filter': [['ctrl', 'alt'], { printed: 'f' }],
+  'reorder-up': [['alt'], { named: 'up' }],
+  'reorder-down': [['alt'], { named: 'down' }],
+  'reparent-out': [['alt'], { named: 'left' }],
+  'reparent-in': [['alt'], { named: 'right' }],
+  'open-menu': [['shift'], 'F10'],
+  'agent-send': [[], { named: 'enter' }],
+  'agent-steer': [['ctrl'], { named: 'enter' }],
+  'agent-stop': [[], { named: 'escape' }],
+  undo: [['ctrl'], { printed: 'z' }],
+  escape: [[], { named: 'escape' }],
+};
+
+/**
+ * The shortcut labels a control shows, in the interface language's own key names. `layout` is the optional printed-key
+ * source (see {@link keyboardLayoutStore}); without it the label is the Latin letter, exactly as before.
+ */
+export function shortcutLabel(action: KeyAction, layout?: KeyboardLayoutMap | null): string {
+  const chord = CHORDS[action];
+  if (chord === undefined) {
+    switch (action) {
+      case 'select-card':
+        return t`Enter or Space`;
+      default:
+        return t`Arrow keys`;
+    }
+  }
+  const names = shortcutNames();
+  const [modifiers, key] = chord;
+  const spelled = typeof key === 'string' ? key : 'named' in key ? names[key.named] : printedKeyLabel(key.printed, layout);
+  return [...modifiers.map((modifier) => names[modifier]), spelled].join('+');
+}
+
+/** The part of `navigator.keyboard` this module reads. Chromium only; every member may be absent or throw. */
+export interface KeyboardSource {
+  getLayoutMap?: () => Promise<KeyboardLayoutMap>;
+  addEventListener?: (type: 'layoutchange', listener: () => void) => void;
+  removeEventListener?: (type: 'layoutchange', listener: () => void) => void;
+}
+
+/**
+ * The current keyboard layout, shaped for `useSyncExternalStore(store.subscribe, store.snapshot)`.
+ *
+ * Mount-safe: nothing is read until the first subscriber, a read that fails leaves the snapshot `null` (labels keep the
+ * Latin letters), a read that resolves after the last unsubscribe is dropped, and the layout is read again on
+ * `layoutchange` so a writer switching input language sees the labels follow.
+ */
+export interface KeyboardLayoutStore {
+  snapshot(): KeyboardLayoutMap | null;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createKeyboardLayoutStore(source: () => KeyboardSource | undefined): KeyboardLayoutStore {
+  let layout: KeyboardLayoutMap | null = null;
+  let generation = 0;
+  const listeners = new Set<() => void>();
+
+  const refresh = (): void => {
+    const keyboard = source();
+    if (keyboard?.getLayoutMap === undefined) return;
+    const requested = generation;
+    let pending: Promise<KeyboardLayoutMap>;
+    try {
+      pending = keyboard.getLayoutMap();
+    } catch {
+      return;
+    }
+    pending.then(
+      (map) => {
+        if (requested !== generation) return;
+        layout = map;
+        for (const listener of [...listeners]) listener();
+      },
+      () => undefined,
+    );
+  };
+
+  return {
+    snapshot: () => layout,
+    subscribe(listener) {
+      listeners.add(listener);
+      if (listeners.size === 1) {
+        source()?.addEventListener?.('layoutchange', refresh);
+        refresh();
+      } else if (layout !== null) {
+        queueMicrotask(listener);
+      }
+      return () => {
+        if (!listeners.delete(listener) || listeners.size > 0) return;
+        generation += 1;
+        source()?.removeEventListener?.('layoutchange', refresh);
+      };
+    },
+  };
+}
+
+/** The store over the browser's own `navigator.keyboard`; an empty one wherever that does not exist. */
+export const keyboardLayoutStore: KeyboardLayoutStore = createKeyboardLayoutStore(() =>
+  typeof navigator === 'undefined' ? undefined : (navigator as { keyboard?: KeyboardSource }).keyboard,
+);

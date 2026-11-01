@@ -6,7 +6,12 @@
  */
 
 import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { accessibleText } from '../i18n/accessible-text.js';
+import { inlineKey, uiIsRtl } from '../i18n/direction.js';
 import type { TreeNode } from '@caotang/store';
+import { cardAssetOf, linksOf } from '@caotang/pictures';
 
 import {
   childrenOf,
@@ -30,6 +35,11 @@ import {
   type ZoomLevel,
 } from '../app/corkboard-model.js';
 import type { ProjectSession } from '../app/session.js';
+import { altOf, dragKindOf, PICTURE_DRAG_TYPE } from '../media/picture-board-model.js';
+import { placePicture, removePlacement } from '../media/picture-actions.js';
+import { usePictureImage, usePictureImporter } from '../media/picture-hooks.js';
+import '../media/pictures.css';
+import { CardPictureDialog } from './CardPictureDialog.js';
 import { SynopsisField } from './SynopsisField.js';
 import { ZoomControl } from './ZoomControl.js';
 import { createNode, createdNodeId, explain, moveNode, renameNode, selectNode } from './actions.js';
@@ -44,6 +54,8 @@ import {
   type MenuAnchor,
   type MenuItem,
 } from './shared.js';
+
+/* lingui-set comment="Interpolated values: scope, title" */
 
 export interface CorkboardProps {
   readonly session: ProjectSession;
@@ -81,6 +93,10 @@ export function Corkboard(props: CorkboardProps): ReactNode {
     readonly items: readonly MenuItem[];
   } | null>(null);
   const boardRef = useRef<HTMLOListElement>(null);
+  const importer = usePictureImporter(session);
+  /** The card a picture is being dragged over, and the card whose picture dialog is open. */
+  const [pictureHover, setPictureHover] = useState<string | null>(null);
+  const [pictureFor, setPictureFor] = useState<string | null>(null);
   /** The card that holds the roving focus, so one card at a time is in the tab order (ui-modules §0.4). */
   const [focusId, setFocusId] = useState<string | null>(null);
   const rovingId = cards.some((card) => card.id === focusId) ? focusId : (cards[0]?.id ?? null);
@@ -126,6 +142,29 @@ export function Corkboard(props: CorkboardProps): ReactNode {
     setTimeout(() => focusCard(nodeId), 0);
   };
 
+  /** Makes a picture the card picture of a binder item: one `asset.link`, which also demotes the earlier card picture. */
+  const setCardPicture = (nodeId: string, assetId: string): boolean => {
+    if (cardAssetOf(state.manifest.assetLinks ?? [], nodeId) === assetId) return true;
+    return placePicture(session, report, assetId, { kind: 'node', nodeId }, true);
+  };
+
+  /** Pictures dropped from the desktop are imported onto the card, and the first becomes its card picture. */
+  const importForCard = async (nodeId: string, files: readonly File[]): Promise<void> => {
+    const done = await importer.importFiles(files, { links: [{ kind: 'node', nodeId }] });
+    const first = done.status === 'imported' ? done.assetIds[0] : undefined;
+    if (first !== undefined) setCardPicture(nodeId, first);
+  };
+
+  const dropPicture = (event: DragEvent<HTMLElement>, nodeId: string): void => {
+    const assetId = event.dataTransfer.getData(PICTURE_DRAG_TYPE);
+    if (assetId !== '') {
+      setCardPicture(nodeId, assetId);
+      return;
+    }
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) void importForCard(nodeId, files);
+  };
+
   const focusCard = (nodeId: string): void => {
     const card = boardRef.current?.querySelector<HTMLElement>(`article[data-node-id="${CSS.escape(nodeId)}"]`);
     card?.focus();
@@ -138,11 +177,12 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   const cardMenuItems = (node: TreeNode): MenuItem[] => {
     if (!isMovable(node)) return [];
     const items: MenuItem[] = [
-      { key: 'rename', label: 'Rename', onSelect: () => onRename(node.id) },
-      { key: 'move-up', label: 'Move up', onSelect: () => keyboardReorder(node.id, 'up') },
-      { key: 'move-down', label: 'Move down', onSelect: () => keyboardReorder(node.id, 'down') },
+      { key: 'rename', label: t`Rename`, onSelect: () => onRename(node.id) },
+      { key: 'card-picture', label: t`Card picture…`, onSelect: () => setPictureFor(node.id) },
+      { key: 'move-up', label: t`Move up`, onSelect: () => keyboardReorder(node.id, 'up') },
+      { key: 'move-down', label: t`Move down`, onSelect: () => keyboardReorder(node.id, 'down') },
     ];
-    items.push({ key: 'delete', label: 'Delete…', danger: true, separatorBefore: true, onSelect: () => onAskDelete(node.id) });
+    items.push({ key: 'delete', label: t`Delete…`, danger: true, separatorBefore: true, onSelect: () => onAskDelete(node.id) });
     return items;
   };
 
@@ -155,7 +195,7 @@ export function Corkboard(props: CorkboardProps): ReactNode {
     if (event.target !== event.currentTarget) return;
     const action = resolveKey(
       { ...keyFacts(event), composing: isImeEnter(event) },
-      { inTextField: false, inBinder: false, inCorkboard: true },
+      { inTextField: false, inBinder: false, inCorkboard: true, rtl: uiIsRtl() },
     );
     if (action === 'reorder-up' || action === 'reorder-down') {
       event.preventDefault();
@@ -184,11 +224,12 @@ export function Corkboard(props: CorkboardProps): ReactNode {
       const items = cardMenuItems(node);
       if (items.length === 0) return;
       const rect = event.currentTarget.getBoundingClientRect();
-      setCardMenu({ label: `Actions for ${node.title}`, anchor: { x: rect.left + 24, y: rect.top + 24 }, items });
+      setCardMenu({ label: t`Actions for ${{ title: accessibleText(node.title) }}`, anchor: { x: rect.left + 24, y: rect.top + 24 }, items });
       return;
     }
     if (event.altKey || event.ctrlKey || event.metaKey) return;
-    const step = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : 0;
+    const arrow = inlineKey(event.key);
+    const step = arrow === 'ArrowLeft' || arrow === 'ArrowUp' ? -1 : arrow === 'ArrowRight' || arrow === 'ArrowDown' ? 1 : 0;
     if (step === 0) return;
     event.preventDefault();
     const cardIds = cards.map((card) => card.id);
@@ -214,6 +255,14 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   };
 
   const onCardDragOver = (event: DragEvent<HTMLElement>, cardId: string): void => {
+    // A picture (one dragged from the board, or files from the desktop) is the card's picture, not a card to reorder.
+    const kind = dragging === null ? dragKindOf(event.dataTransfer.types) : null;
+    if (kind !== null) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = kind === 'files' ? 'copy' : 'link';
+      setPictureHover(cardId);
+      return;
+    }
     const hit = planFor(event, { cardId });
     if (!hit) return;
     if (hit.plan.ok) {
@@ -225,6 +274,12 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   };
 
   const onDropPlan = (event: DragEvent<HTMLElement>, target: { cardId: string } | 'board'): void => {
+    if (dragging === null && target !== 'board' && dragKindOf(event.dataTransfer.types) !== null) {
+      event.preventDefault();
+      setPictureHover(null);
+      dropPicture(event, target.cardId);
+      return;
+    }
     const hit = planFor(event, target);
     const moving = dragging;
     setHover(null);
@@ -253,7 +308,7 @@ export function Corkboard(props: CorkboardProps): ReactNode {
       }}
     >
       <header className="corkboard-head">
-        <nav aria-label="Corkboard scope">
+        <nav aria-label={t`Corkboard scope`}>
           <ol className="crumbs">
             {path.map((name, index) => (
               <li key={`${index}-${name}`}>{name}</li>
@@ -263,28 +318,30 @@ export function Corkboard(props: CorkboardProps): ReactNode {
         <div className="corkboard-controls">
           <ZoomControl zoom={zoom} onZoom={onZoom} />
           <button type="button" className="button is-primary" onClick={create}>
-            New card
+            <Trans>New card</Trans>
           </button>
         </div>
       </header>
 
       {cards.length === 0 ? (
         <EmptyState
-          title="No cards yet"
+          title={t`No cards yet`}
           actions={
             <button type="button" className="button is-primary" onClick={create}>
-              New card
+              <Trans>New card</Trans>
             </button>
           }
         >
-          Drag scenes in from the binder, or create one. Each card holds a scene’s synopsis, and the order here is the
-          order in the manuscript.
+          <Trans>
+            Drag scenes in from the binder, or create one. Each card holds a scene’s synopsis, and the order here is the order in the
+            manuscript.
+          </Trans>
         </EmptyState>
       ) : (
         <ol
           ref={boardRef}
           className={`cards zoom-${zoom}`}
-          aria-label={`Cards in ${scope.title}`}
+          aria-label={t`Cards in ${{ scope: accessibleText(scope.title) }}`}
           onDragOver={(event) => {
             // Empty space below the cards appends to the scope.
             if (event.target !== event.currentTarget) return;
@@ -314,6 +371,8 @@ export function Corkboard(props: CorkboardProps): ReactNode {
                   renaming={renaming === node.id && isMovable(node)}
                   dropZone={cardHover ? cardHover.zone : null}
                   dropRefused={cardHover !== null && cardHover.refusal !== null}
+                  pictureDrop={pictureHover === node.id}
+                  onPictureLeave={() => setPictureHover((now) => (now === node.id ? null : now))}
                   onRenameStart={() => onRename(node.id)}
                   onRenameCommit={(text) => commitRename(node, text)}
                   onRenameCancel={() => onRename(null)}
@@ -343,17 +402,61 @@ export function Corkboard(props: CorkboardProps): ReactNode {
 
       {menuAt ? (
         <Menu
-          label={`Cards in ${scope.title}`}
+          label={t`Cards in ${{ scope: accessibleText(scope.title) }}`}
           anchor={menuAt}
-          items={[{ key: 'new-card', label: 'New card', onSelect: create }]}
+          items={[{ key: 'new-card', label: t`New card`, onSelect: create }]}
           onClose={() => setMenuAt(null)}
         />
       ) : null}
       {cardMenu !== null ? (
         <Menu label={cardMenu.label} anchor={cardMenu.anchor} items={cardMenu.items} onClose={() => setCardMenu(null)} />
       ) : null}
+      <CardPictureDialog
+        session={session}
+        nodeId={pictureFor}
+        title={cards.find((card) => card.id === pictureFor)?.title ?? ''}
+        currentAssetId={pictureFor === null ? undefined : cardAssetOf(state.manifest.assetLinks ?? [], pictureFor)}
+        busy={importer.busy}
+        onUse={(assetId) => {
+          if (pictureFor !== null && setCardPicture(pictureFor, assetId)) setPictureFor(null);
+        }}
+        onChooseFiles={(files) => {
+          const nodeId = pictureFor;
+          setPictureFor(null);
+          if (nodeId !== null) void importForCard(nodeId, files);
+        }}
+        onTakeOff={() => {
+          if (pictureFor === null) return;
+          const link = linksOf(state.manifest.assetLinks ?? [], { kind: 'node', nodeId: pictureFor }).find((candidate) => candidate.role === 'card');
+          if (link !== undefined && removePlacement(session, report, link.id)) setPictureFor(null);
+        }}
+        onClose={() => {
+          const nodeId = pictureFor;
+          setPictureFor(null);
+          if (nodeId !== null) requestAnimationFrame(() => focusCard(nodeId));
+        }}
+      />
+      {importer.dialog}
     </div>
   );
+}
+
+/** The picture a binder item's card carries (M and L). Read lazily, and released with the card. */
+function CardPicture({ session, nodeId }: { readonly session: ProjectSession; readonly nodeId: string }): ReactNode {
+  const manifest = session.state.manifest;
+  const assetId = cardAssetOf(manifest.assetLinks ?? [], nodeId);
+  const record = assetId === undefined ? undefined : (manifest.assets ?? []).find((candidate) => candidate.id === assetId);
+  const image = usePictureImage(session, record, record !== undefined, session.assetsVersion());
+  if (record === undefined) return null;
+  if (image.url !== null) return <img className="card-picture" src={image.url} alt={altOf(record)} draggable={false} />;
+  if (image.state === 'missing' || image.state === 'error') {
+    return (
+      <div className="card-picture-missing" role="img" aria-label={t`The card picture is missing from the project`}>
+        <Trans>Picture file missing</Trans>
+      </div>
+    );
+  }
+  return <div className="card-picture" aria-hidden="true" />;
 }
 
 function sameHover(a: Hover | null, b: Hover): boolean {
@@ -372,6 +475,9 @@ interface CardProps {
   readonly renaming: boolean;
   readonly dropZone: DropZone | null;
   readonly dropRefused: boolean;
+  /** A picture is being dragged over the card. */
+  readonly pictureDrop: boolean;
+  readonly onPictureLeave: () => void;
   readonly onRenameStart: () => void;
   readonly onRenameCommit: (text: string) => void;
   readonly onRenameCancel: () => void;
@@ -391,10 +497,12 @@ function Card(props: CardProps): ReactNode {
   // Small cards are title only (ui-modules §3.2): no synopsis, no status and no footer count.
   const titleOnly = zoom === 'S';
   const dropClass = dropZone ? ` is-drop-${dropZone}${props.dropRefused ? ' is-refused' : ''}` : '';
+  // Writer content reads in the project's direction, independent of the UI (i18n.md §5.4).
+  const contentLang = state.manifest.project.language;
 
   return (
     <article
-      className={`card${selected ? ' is-selected' : ''}${dropClass}`}
+      className={`card${selected ? ' is-selected' : ''}${dropClass}${props.pictureDrop ? ' is-picture-drop' : ''}`}
       data-node-id={node.id}
       data-type={node.type}
       aria-label={node.title}
@@ -403,6 +511,7 @@ function Card(props: CardProps): ReactNode {
       onKeyDown={props.onCardKey}
       onClick={() => selectNode(session, node.id)}
       onDragOver={props.onDragOver}
+      onDragLeave={props.onPictureLeave}
       onDrop={props.onDrop}
     >
       <header className="card-head">
@@ -410,7 +519,7 @@ function Card(props: CardProps): ReactNode {
           className="card-grip"
           draggable={isMovable(node) && !renaming}
           role="img"
-          aria-label={`Drag ${node.title} to reorder`}
+          aria-label={t`Drag ${{ title: accessibleText(node.title) }} to reorder`}
           onDragStart={props.onGripStart}
           onDragEnd={props.onGripEnd}
         >
@@ -419,7 +528,7 @@ function Card(props: CardProps): ReactNode {
         {renaming ? (
           <InlineText
             initial={node.title}
-            label={`Rename ${node.title}`}
+            label={t`Rename ${{ title: accessibleText(node.title) }}`}
             className="card-rename"
             onCommit={props.onRenameCommit}
             onCancel={props.onRenameCancel}
@@ -427,6 +536,8 @@ function Card(props: CardProps): ReactNode {
         ) : (
           <h3
             className="card-title"
+            lang={contentLang}
+            dir="auto"
             onDoubleClick={(event) => {
               if (!isMovable(node)) return;
               event.stopPropagation();
@@ -438,12 +549,14 @@ function Card(props: CardProps): ReactNode {
         )}
         {titleOnly ? null : (
           // Every node carries a status, folders included (ui-modules §3.1).
-          <span className="chip chip-status" title="Status">
+          <span className="chip chip-status" title={t`Status`}>
             <span className="chip-dot" style={{ background: status?.color ?? 'var(--dot-empty)' }} aria-hidden="true" />
-            {status?.name ?? (node.status === null ? 'No status' : 'Unknown status')}
+            {status?.name ?? (node.status === null ? t`No status` : t`Unknown status`)}
           </span>
         )}
       </header>
+
+      {titleOnly ? null : <CardPicture session={session} nodeId={node.id} />}
 
       {titleOnly ? null : <SynopsisField session={session} nodeId={node.id} variant="card" />}
 
@@ -461,7 +574,7 @@ function Card(props: CardProps): ReactNode {
       {titleOnly ? null : (
         <footer className="card-foot">
           {isContainerCard ? (
-            <span>{childCount === 1 ? '1 item' : `${formatCount(childCount)} items`}</span>
+            <span>{childCount === 1 ? t`1 item` : t`${{ count: formatCount(childCount) }} items`}</span>
           ) : (
             <span>{wordsLabel(wordCountOf(state, node.id))}</span>
           )}

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { createProject, projectIdOf, trace, waitForSaved } from './support.js';
+import { createProject, projectIdOf, trace, waitForSaved, withoutIsolates } from './support.js';
 
 /**
  * The smoke tests of the app shell. The wiring they asserted (the store
@@ -75,7 +75,7 @@ test('the Undo button names the writer’s own typing by its scene, with no revi
   await waitForSaved(page);
 
   // The writer's typing is the newest undo group. Its label is the writer's words; the log keeps its own sentence.
-  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toHaveAttribute('title', 'Undo: your typing in “Sitting”');
+  expect(withoutIsolates(await page.getByRole('button', { name: 'Undo', exact: true }).getAttribute('title'))).toBe('Undo: your typing in “Sitting”');
 });
 
 test('the Focus button leaves focus mode with a click, so the mode is not left to the chord alone', async ({ page }) => {

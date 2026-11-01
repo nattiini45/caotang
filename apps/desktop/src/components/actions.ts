@@ -12,6 +12,7 @@ import type { ProjectState } from '@caotang/store';
 
 import { nodeById, type DropPlan } from '../app/binder-model.js';
 import type { ProjectSession } from '../app/session.js';
+import { defaultTitleOf } from '@caotang/i18n';
 
 export type Outcome = Result<ExecutionOutcome, CommandError>;
 
@@ -47,12 +48,12 @@ export function setExpanded(session: ProjectSession, nodeId: string, expanded: b
   session.dispatch('view.setExpanded', { nodeId, expanded });
 }
 
-/** A new node. `Untitled` is the spec's default (ui-modules §2.2); the caller may name it when the empty state already knows the name. */
+/** A new node. Its default title is the project language's "Untitled" (ui-modules §2.2, i18n.md §7.1); the caller may name it when the empty state already knows the name. */
 export function createNode(
   session: ProjectSession,
   parentId: string,
   type: 'folder' | 'document',
-  title = 'Untitled',
+  title = defaultTitleOf('document', session.state.manifest.project.language),
 ): Outcome {
   return session.dispatch('binder.create', { parentId, type, title });
 }

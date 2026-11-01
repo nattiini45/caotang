@@ -9,7 +9,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { FolderChangedError, openProject, type ProjectSession } from '../src/index.js';
+import { FolderChangedError, ROUND_TTL_SECONDS, openProject, type ProjectSession } from '../src/index.js';
 
 import { HAND_WRITTEN_DOC, HAND_WRITTEN_DOC_NAME, LANDING, LANDING_BODY, connectClient, folderBytes, removeDir, seedProject, startFixture, tempDir } from './support.js';
 
@@ -18,10 +18,10 @@ const DOC_PATH = `docs/${LANDING}.md`;
 const MARKER = 'A line another program wrote while the server was running.\n';
 
 /** A session over a seeded folder, with writes allowed. The caller closes it, and removes the folder. */
-async function openSeeded(label: string): Promise<{ root: string; session: ProjectSession }> {
+async function openSeeded(label: string, now?: () => Date): Promise<{ root: string; session: ProjectSession }> {
   const root = tempDir(label);
   await seedProject(root, 'Guarded Book');
-  return { root, session: await openProject({ root, allowWrites: true }) };
+  return { root, session: await openProject({ root, allowWrites: true, ...(now === undefined ? {} : { now }) }) };
 }
 
 describe('a save refuses to overwrite a document another program edited', () => {
@@ -344,6 +344,132 @@ describe('the refusal says what changed in words, and a change made during a sav
       await expect(refused).rejects.toBeInstanceOf(FolderChangedError);
       await expect(refused).rejects.toThrow('because another program changed caotang.json after this server saved it.');
       await expect(refused).rejects.toThrow('The change was saved, and then another program changed caotang.json, so the folder may not hold it.');
+    } finally {
+      await session.close();
+      removeDir(root);
+    }
+  });
+});
+
+describe('a confirmed timeline batch holds the values its check read', () => {
+  it('refuses a scene changed while the confirmation waited, and writes nothing', async () => {
+    const { root, session } = await openSeeded('guard-timeline-approval');
+    try {
+      const params = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 9 } }], label: 'Date the landing' };
+      expect(session.check('timeline.edit', params, { callId: 'call-stale-timeline', accepted: false })).toBeUndefined();
+      const coherence = session.state.coherence;
+      if (coherence === undefined) throw new Error('the seeded project has no coherence file');
+      coherence.sceneMeta = { ...coherence.sceneMeta, [LANDING]: { dayOffset: 7 } };
+      const record = coherence.sceneMeta[LANDING];
+      // Keep the folder and session at the same new value, so the staged harness guard, not the disk merge, is what answers.
+      writeFileSync(join(root, 'coherence.json'), JSON.stringify(coherence));
+      const before = folderBytes(root);
+
+      const result = await session.callConfirmedTimeline('timeline.edit', 'call-stale-timeline', params, 'turn-stale-timeline');
+      expect(result.status).toBe('refused');
+      if (result.status === 'refused') expect(result.outcome.ok ? undefined : result.outcome.error.code).toBe('revision-conflict');
+      expect(record?.dayOffset).toBe(7);
+      expect(folderBytes(root)).toEqual(before);
+    } finally {
+      await session.close();
+      removeDir(root);
+    }
+  });
+
+  it('keeps two open approvals apart and refuses the older one after a conflicting approval lands', async () => {
+    const { root, session } = await openSeeded('guard-two-timeline-approvals');
+    try {
+      const first = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 9 } }], label: 'First date' };
+      const second = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 11 } }], label: 'Second date' };
+      expect(session.check('timeline.edit', first, { callId: 'call-first-timeline', accepted: false })).toBeUndefined();
+      expect(session.check('timeline.edit', second, { callId: 'call-second-timeline', accepted: false })).toBeUndefined();
+      const landed = await session.callConfirmedTimeline('timeline.edit', 'call-first-timeline', first, 'turn-first-timeline');
+      expect(landed.status).toBe('persisted');
+
+      // The accept round must reuse the second dialog's original proposal, not stage again over the first write.
+      expect(session.check('timeline.edit', second, { callId: 'call-second-timeline', accepted: true })).toBeUndefined();
+      const stale = await session.callConfirmedTimeline('timeline.edit', 'call-second-timeline', second, 'turn-second-timeline');
+      expect(stale.status).toBe('refused');
+      if (stale.status === 'refused') expect(stale.outcome.ok ? undefined : stale.outcome.error.code).toBe('revision-conflict');
+      expect(session.state.coherence?.sceneMeta[LANDING]?.dayOffset).toBe(9);
+
+      // A genuinely new request stages from what is now on disk, so the writer can choose the new value deliberately.
+      expect(session.check('timeline.edit', second, { callId: 'call-fresh-timeline', accepted: false })).toBeUndefined();
+      const fresh = await session.callConfirmedTimeline('timeline.edit', 'call-fresh-timeline', second, 'turn-fresh-timeline');
+      expect(fresh.status).toBe('persisted');
+      expect(session.state.coherence?.sceneMeta[LANDING]?.dayOffset).toBe(11);
+    } finally {
+      await session.close();
+      removeDir(root);
+    }
+  });
+
+  it('keeps two open approvals of identical arguments apart, each by its own round', async () => {
+    const { root, session } = await openSeeded('guard-identical-timeline-approvals');
+    try {
+      const params = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 9 } }], label: 'Same date' };
+      expect(session.check('timeline.edit', params, { callId: 'call-a', accepted: false })).toBeUndefined();
+      expect(session.check('timeline.edit', params, { callId: 'call-b', accepted: false })).toBeUndefined();
+      const landed = await session.callConfirmedTimeline('timeline.edit', 'call-a', params, 'turn-a');
+      expect(landed.status).toBe('persisted');
+
+      // The second round still holds the proposal it staged before the first landed, so it is refused as stale rather than re-based.
+      expect(session.check('timeline.edit', params, { callId: 'call-b', accepted: true })).toBeUndefined();
+      const stale = await session.callConfirmedTimeline('timeline.edit', 'call-b', params, 'turn-b');
+      expect(stale.status).toBe('refused');
+      if (stale.status === 'refused') expect(stale.outcome.ok ? undefined : stale.outcome.error.code).toBe('revision-conflict');
+    } finally {
+      await session.close();
+      removeDir(root);
+    }
+  });
+
+  it('drops a staged proposal when its round ends with no accept, so a later accept stages afresh', async () => {
+    const { root, session } = await openSeeded('guard-released-timeline-approval');
+    try {
+      const params = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 9 } }], label: 'Released date' };
+      const other = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 11 } }], label: 'Other date' };
+      expect(session.check('timeline.edit', params, { callId: 'call-released', accepted: false })).toBeUndefined();
+      session.releaseConfirmation('call-released');
+
+      // Another round lands first. A proposal still held would now be refused as stale; a released one leaves nothing to be stale.
+      expect(session.check('timeline.edit', other, { callId: 'call-other', accepted: false })).toBeUndefined();
+      expect((await session.callConfirmedTimeline('timeline.edit', 'call-other', other, 'turn-other')).status).toBe('persisted');
+      const afterRelease = await session.callConfirmedTimeline('timeline.edit', 'call-released', params, 'turn-released');
+      expect(afterRelease.status).toBe('persisted');
+      expect(session.state.coherence?.sceneMeta[LANDING]?.dayOffset).toBe(9);
+    } finally {
+      await session.close();
+      removeDir(root);
+    }
+  });
+
+  it('drops the proposal of a round whose check is refused, and one nobody answered after the round lifetime', async () => {
+    let clock = Date.parse('2030-01-01T00:00:00Z');
+    const { root, session } = await openSeeded('guard-timeline-approval-lifetime', () => new Date(clock));
+    try {
+      const params = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 9 } }], label: 'Lifetime date' };
+      const other = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 11 } }], label: 'Other date' };
+      const invalid = { ops: [{ op: 'bogus' }] };
+      const silent = { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 13 } }], label: 'Silent date' };
+      const land = async (id: string, batch: typeof other): Promise<void> => {
+        expect(session.check('timeline.edit', batch, { callId: id, accepted: false })).toBeUndefined();
+        expect((await session.callConfirmedTimeline('timeline.edit', id, batch, `turn-${id}`)).status).toBe('persisted');
+      };
+
+      // A refused check on a round drops what that round held. A proposal still held would be refused as stale after the write below.
+      expect(session.check('timeline.edit', params, { callId: 'call-refused', accepted: false })).toBeUndefined();
+      expect(session.check('timeline.edit', invalid, { callId: 'call-refused', accepted: false })).toBeDefined();
+      await land('call-lander-1', other);
+      expect((await session.callConfirmedTimeline('timeline.edit', 'call-refused', params, 'turn-refused')).status).toBe('persisted');
+
+      // A round nobody answered is dropped after the round lifetime, with no further call for it.
+      expect(session.check('timeline.edit', silent, { callId: 'call-silent', accepted: false })).toBeUndefined();
+      clock += (ROUND_TTL_SECONDS + 1) * 1000;
+      await land('call-lander-2', other);
+      // The confirmation accept must refuse an expired proposal, never re-stage it from the state another round just changed.
+      expect(session.check('timeline.edit', silent, { callId: 'call-silent', accepted: true })).toMatchObject({ code: 'revision-conflict' });
+      expect((await session.callConfirmedTimeline('timeline.edit', 'call-silent', silent, 'turn-silent')).status).toBe('persisted');
     } finally {
       await session.close();
       removeDir(root);

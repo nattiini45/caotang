@@ -20,7 +20,7 @@ import {
   type ExecutionOutcome,
   type UndoStore,
 } from '@caotang/bus';
-import { jpegHasGps, jpegOrientation, sha256Hex } from '@caotang/pictures';
+import { displaySizeOf, jpegHasGps, jpegOrientation, sha256Hex } from '@caotang/pictures';
 
 import {
   addDocument,
@@ -128,12 +128,24 @@ describe('asset.import — one picture into assets/ and the registry', () => {
         bytes: stored.length,
         width: 4032,
         height: 3024,
+        // Merge (decision 2): the encoded size as main records it, plus the Orientation beside it, so a layout can turn it.
+        orientation: 6,
         caption: 'The ferry',
         alt: 'A ferry at dawn',
         source: { kind: 'import', label: 'IMG_0001.jpg' },
         createdAt: NOW.toISOString(),
       },
     ]);
+    // A phone photo stored on its side is laid out portrait.
+    expect(displaySizeOf(b.state.manifest.assets![0]!)).toEqual({ width: 3024, height: 4032 });
+  });
+
+  it('records no orientation for an upright picture, so its record is what main wrote', async () => {
+    const b = bus();
+    okValue(await importOne(b, png({ width: 300, height: 200 })));
+    const record = b.state.manifest.assets![0]!;
+    expect(record).not.toHaveProperty('orientation');
+    expect(displaySizeOf(record)).toEqual({ width: 300, height: 200 });
   });
 
   it('writes one file for the same bytes imported twice, and returns the first id', async () => {
@@ -296,14 +308,17 @@ describe('assets[] in caotang.json (pictures.md §2.1, D4)', () => {
     expect(serializeManifest(loaded)).toBe(text);
   });
 
-  it('drops a record that cannot be read, with a warning, and keeps the rest', async () => {
+  it('keeps a record that cannot be read out of the list, with a warning, and keeps the rest', async () => {
     const b = bus();
     okValue(await importOne(b, PHOTO));
     const raw = JSON.parse(serializeManifest(b.state.manifest)) as Record<string, unknown>;
     (raw['assets'] as unknown[]).push({ id: 'not-an-id' });
     const report = validateManifest(raw);
     expect(report.manifest?.assets).toHaveLength(1);
-    expect(report.warnings.some((warning) => warning.path === 'assets[1]')).toBe(true);
+    // Merge (decision 3): the PR's tolerant read names the field that failed (`assets[1].id`, …) rather than the whole entry, and keeps
+    // the unreadable entry aside so the next save writes it back instead of losing it.
+    expect(report.warnings.some((warning) => warning.path.startsWith('assets[1]'))).toBe(true);
+    expect(report.manifest?.unreadableAssets).toEqual([{ id: 'not-an-id' }]);
   });
 
   it('writes no assets key for a project without records', () => {
@@ -326,11 +341,16 @@ describe('the open backfills a record for every used file (pictures.md §6.2)', 
     state.manifest.codex = [{ id: 'c_MARA000001', name: 'Mara', aliases: [], type: 'character', description: '', includePolicy: 'detected', caseSensitive: false, exclude: [], attachments: [], keywords: [], visualRefs: ['a_REF0000001', 'a_M1SS1NG001'], origin: 'manual', sources: [] }];
     const doc = state.documents.get('n_LANDING001');
     if (doc !== undefined) doc.body = 'The ferry.\n\n![The ferry](../assets/a_1N11NE0001.png "Dawn")';
-    const added = await backfillAssetRecords(state, { list: () => [...files.keys()], read: (path) => Promise.resolve(files.get(path)) }, { now: () => NOW.getTime() });
-    expect(added.map((record) => record.id).sort()).toEqual(['a_1N11NE0001', 'a_C0VER00001', 'a_REF0000001', 'a_SH0T000001']);
+    // The PR's backfill port (pictures.md §6.2): a listing of file names under assets/ with its authority, and readBytes by path.
+    const port = {
+      list: () => Promise.resolve({ authoritative: true, files: [...files.keys()].map((path) => path.slice('assets/'.length)) }),
+      readBytes: (path: string) => Promise.resolve(files.get(path)),
+    };
+    const added = await backfillAssetRecords(state, port, NOW);
+    expect([...added.created].sort()).toEqual(['a_1N11NE0001', 'a_C0VER00001', 'a_REF0000001', 'a_SH0T000001']);
     const cover = state.manifest.assets?.find((record) => record.id === 'a_C0VER00001');
     expect(cover).toMatchObject({ file: 'a_C0VER00001.png', mime: 'image/png', width: 600, height: 900, sha256: await sha256Hex(files.get('assets/a_C0VER00001.png')!) });
     // A second open adds nothing.
-    expect(await backfillAssetRecords(state, { list: () => [...files.keys()], read: (path) => Promise.resolve(files.get(path)) })).toEqual([]);
+    expect((await backfillAssetRecords(state, port, NOW)).created).toEqual([]);
   });
 });

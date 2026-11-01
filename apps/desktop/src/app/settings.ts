@@ -13,13 +13,17 @@
  *   own section (ui-modules §5.2). **Context budgets** are here too (the `context` record), and the assembler honours the
  *   layers they name: the codex, the story so far and the continuity tail (context-assembly §3).
  */
+/* lingui-set comment="Interpolated values: caps, total" */
 
+import { t } from '@lingui/core/macro';
 import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT, type DeterministicCheckId } from '@caotang/coherence';
 import type { ThinkingLevel } from '@caotang/gateway';
 import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
+import { numberFormat } from '@caotang/i18n';
 import { DEFAULT_RETENTION, parseRules, resolveRetentionConfig, type PermissionRule, type RetentionConfig } from '@caotang/store';
 import { EMPTY_MCP_SETTINGS, loadMcpSettings, type McpSettings } from '@caotang/mcp-client';
-import { formatCount } from '../i18n/locale.js';
+
+import { formatterLocale } from '../i18n/format-locale.js';
 
 /** The scopes a review or a scan can start with (coherence.md §6.2): one document, what changed since the last pass, the whole manuscript. */
 export const REVIEW_SCOPES = ['doc', 'changed', 'full'] as const;
@@ -184,6 +188,13 @@ export interface RoleSettings {
 }
 
 export interface AppSettings {
+  /**
+   * The interface language (§3.1): `'system'` or a catalogue tag. App-level, beside the other settings
+   * in `app-db`, and never part of a project. Whether the tag is available in this build is the
+   * loader's question; a stored tag this build does not ship falls back with a notice instead of
+   * changing what the record means.
+   */
+  readonly interfaceLanguage: string;
   readonly provider: {
     /** The active profile's id, mirrored from the profile store. `null` when no profile exists yet. */
     readonly activeProfileId: string | null;
@@ -236,6 +247,7 @@ export const AGENT_EDIT_MODES = ['ghost', 'suggestions'] as const;
 export type AgentEditMode = (typeof AGENT_EDIT_MODES)[number];
 
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
+  interfaceLanguage: 'system',
   provider: Object.freeze({ activeProfileId: null }),
   editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true, agentEditMode: 'ghost' as AgentEditMode }),
   session: Object.freeze({}),
@@ -250,6 +262,8 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
 
 /** A patch: any field may be given, and the rest keep their values. A `dailyTargetWords` of 0 clears the target. */
 export interface SettingsPatch {
+  /** `'system'` or a catalogue tag. The switcher publishes this only after a successful activation. */
+  readonly interfaceLanguage?: string;
   /**
    * `roles` replaces the whole routing record: a role set to `'follow'` follows 'chat' again, and `null` (or an
    * empty record) clears every assignment, so each role follows the chat/active choice.
@@ -294,6 +308,23 @@ export function mcpLoadWarnings(raw: unknown, now: string = new Date().toISOStri
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The interface-language preference as it loads. `'system'` stays; a language tag is kept in its
+ * canonical case and ordering; anything that is not a tag reads as `'system'`, so a hand-edited
+ * record cannot make the app ask `Intl` for nonsense. A canonical tag this build does not ship is
+ * left intact: the runtime falls back on load and says so, and a later build that ships it can use it.
+ */
+export function normalizeInterfaceLanguage(value: unknown): string {
+  if (typeof value !== 'string') return 'system';
+  const text = value.trim();
+  if (text === 'system' || text === '') return 'system';
+  try {
+    return Intl.getCanonicalLocales(text)[0] ?? 'system';
+  } catch {
+    return 'system';
+  }
 }
 
 /** A whole number within `[min, max]`, or the fallback. */
@@ -369,6 +400,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
   const roles = normalizeRoleSettings(provider['roles']);
 
   return {
+    interfaceLanguage: normalizeInterfaceLanguage(source['interfaceLanguage']),
     provider: {
       activeProfileId: typeof provider['activeProfileId'] === 'string' ? provider['activeProfileId'] : null,
       ...(roles === undefined ? {} : { roles }),
@@ -422,18 +454,21 @@ export function contextConfigOf(context: ContextSettings): ContextConfig {
 
 /**
  * The Context section's warn line (ui-modules §5.2): when the total is below the layer caps the writer set, together, the total
- * cuts a layer before that layer reaches its own cap. Undefined when no total is set, or the total covers the caps.
+ * cuts a layer before that layer reaches its own cap. Undefined when no total is set, or the total covers the caps. The two
+ * figures are grouped in the formatter locale (i18n.md §4.2).
  */
-export function contextWarningOf(context: ContextSettings): string | undefined {
+export function contextWarningOf(context: ContextSettings, locale: string = formatterLocale()): string | undefined {
   if (context.totalBudgetTokens === undefined) return undefined;
   const caps = Object.values(context.layerBudgets).reduce<number>((sum, value) => sum + (value ?? 0), 0);
   if (caps === 0 || context.totalBudgetTokens >= caps) return undefined;
-  return `The total (${formatCount(context.totalBudgetTokens)} tokens) is below the layer caps together (${formatCount(caps)} tokens), so a layer can be cut before it reaches its own cap.`;
+  const count = numberFormat(locale);
+  return t`The total (${{ total: count.format(context.totalBudgetTokens) }} tokens) is below the layer caps together (${{ caps: count.format(caps) }} tokens), so a layer can be cut before it reaches its own cap.`;
 }
 
 /** Applies a patch to settings and normalises the result, so a patch cannot leave the record outside its clamps. */
 export function applyPatch(current: AppSettings, patch: SettingsPatch): AppSettings {
   const next: Record<string, unknown> = {
+    interfaceLanguage: patch.interfaceLanguage ?? current.interfaceLanguage,
     provider: { ...current.provider, ...(patch.provider ?? {}) },
     editor: { ...current.editor, ...(patch.editor ?? {}) },
     session: {

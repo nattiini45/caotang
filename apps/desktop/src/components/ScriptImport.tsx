@@ -10,6 +10,9 @@
  */
 
 import { useRef, useState, type ReactNode } from 'react';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { isolate } from '@caotang/i18n';
 
 import { compileInk, mintImportIds, planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
 import { importScanSentence, scanImport } from '@caotang/harness';
@@ -23,6 +26,8 @@ import { importLineIdsSentence } from '../media/ink-model.js';
 import { useReport, useSession } from './shared.js';
 import { FdxImportDialog, seedFlagged } from './FdxImportDialog.js';
 import { TweeImportDialog } from './TweeImportDialog.js';
+
+/* lingui-set comment="Interpolated values: choices, count, entries, file, name, scenes, sections, stripped" */
 
 /** What `screenplay.import` hands back (screenplay.md §2.2): the counts it made, and the notices it raised. */
 interface ScriptImportResult {
@@ -75,9 +80,14 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
       return;
     }
     const result = outcome.value.result as ScriptImportResult;
+    const scenes = result.scenes;
+    const sections = result.folders;
     const entries = result.codexEntries ?? 0;
-    const withCodex = entries === 0 ? '' : `, with ${entries === 1 ? '1 codex entry' : `${entries} codex entries`},`;
-    const made = `Imported ${countOf(result.scenes, 'scene')} and ${countOf(result.folders, 'section')}${withCodex} from ${fileName}.`;
+    const name = isolate(fileName);
+    const made =
+      entries === 0
+        ? t`Imported ${plural(scenes, { one: '# scene', other: '# scenes' })} and ${plural(sections, { one: '# section', other: '# sections' })} from ${{ file: name }}.`
+        : t`Imported ${plural(scenes, { one: '# scene', other: '# scenes' })} and ${plural(sections, { one: '# section', other: '# sections' })}, with ${plural(entries, { one: '# codex entry', other: '# codex entries' })}, from ${{ file: name }}.`;
     report({ text: [made, ...result.notices, ...scan].join(' '), tone: 'info' });
   };
 
@@ -86,7 +96,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     // An FDX file is XML, so its byte-order mark and declaration say how it is encoded (UTF-16 included); a Fountain file is UTF-8.
     const read = isFdx ? await readXmlFileText(new Uint8Array(await file.arrayBuffer())) : { text: await file.text() };
     if ('problem' in read) {
-      report({ text: `${file.name} could not be read: ${read.problem}.`, tone: 'error' });
+      report({ text: t`${{ file: isolate(file.name) }} could not be read: ${{ problem: read.problem }}.`, tone: 'error' });
       return;
     }
     const { text } = read;
@@ -113,7 +123,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     await requestInkCompiler();
     const plan = planInkImport(text);
     if (plan.containers.length === 0) {
-      report({ text: `${file.name} has no knot to import. An Ink story makes one container for each knot.`, tone: 'error' });
+      report({ text: t`${{ file: isolate(file.name) }} has no knot to import. An Ink story makes one container for each knot.`, tone: 'error' });
       return;
     }
     // The ids are minted here, before the one dispatch, so one undo takes the containers and their ids together (dialogue-narrative.md A3).
@@ -125,13 +135,18 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
       report({ text: explain(outcome.error), tone: 'error' });
       return;
     }
-    const made = `Imported ${countOf(plan.containers.length, 'dialogue container')} from ${file.name}.`;
+    const containers = plan.containers.length;
+    const made = t`Imported ${plural(containers, { one: '# dialogue container', other: '# dialogue containers' })} from ${{ file: isolate(file.name) }}.`;
     // The text above the first knot is the story's entry, and the planner keeps it out of the containers (import-ink.ts): say so.
     const above = plan.preamble.split('\n').filter((line) => line.trim() !== '').length;
     const left =
       above === 0
         ? []
-        : [`${countOf(above, 'line')} above the first knot ${above === 1 ? 'was' : 'were'} not imported. Copy ${above === 1 ? 'it' : 'them'} by hand if you need ${above === 1 ? 'it' : 'them'}.`];
+        : [
+            above === 1
+              ? t`${{ count: above }} line above the first knot was not imported. Copy it by hand if you need it.`
+              : t`${{ count: above }} lines above the first knot were not imported. Copy them by hand if you need them.`,
+          ];
     const ids = minted === null ? [] : [importLineIdsSentence(minted)];
     report({ text: [made, ...plan.notes, ...left, ...ids, ...scanSentenceOf(file.name, text)].join(' '), tone: 'info' });
   };
@@ -140,7 +155,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     const text = await file.text();
     const plan = planTweeImport(text);
     if (plan.container === null) {
-      report({ text: `${file.name} has no passage to import. A Twee story makes one knot for each passage.`, tone: 'error' });
+      report({ text: t`${{ file: isolate(file.name) }} has no passage to import. A Twee story makes one knot for each passage.`, tone: 'error' });
       return;
     }
     setPendingTwee({ fileName: file.name, plan, scan: scanSentenceOf(file.name, text) });
@@ -159,31 +174,34 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
       return;
     }
     const { report: made } = plan;
-    const text = `Imported ${fileName} as one dialogue container: ${countOf(made.passages, 'knot')}, ${countOf(made.choices, 'choice')}, ${made.strippedMacros} logic ${made.strippedMacros === 1 ? 'block' : 'blocks'} stripped.`;
+    const stripped = made.strippedMacros;
+    const passages = made.passages;
+    const choices = made.choices;
+    const text = t`Imported ${{ file: isolate(fileName) }} as one dialogue container: ${plural(passages, { one: '# knot', other: '# knots' })}, ${plural(choices, { one: '# choice', other: '# choices' })}, ${plural(stripped, { one: '# logic block', other: '# logic blocks' })} stripped.`;
     report({ text: [text, ...scan].join(' '), tone: 'info' });
   };
 
   return (
-    <div className="script-import" role="group" aria-label="Import a script, an Ink story or a Twee story">
+    <div className="script-import" role="group" aria-label={t`Import a script, an Ink story or a Twee story`}>
       <button type="button" className="button is-quiet" onClick={() => scriptFile.current?.click()}>
-        Import script
+        <Trans>Import script</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => inkFile.current?.click()}>
-        Import Ink
+        <Trans>Import Ink</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={() => tweeFile.current?.click()}>
-        Import Twee
+        <Trans>Import Twee</Trans>
       </button>
       <label className="script-import-ids">
         <input type="checkbox" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
-        Add line ids to the imported containers (one time)
+        <Trans>Add line ids to the imported containers (one time)</Trans>
       </label>
       <input
         ref={scriptFile}
         type="file"
         hidden
         accept=".fountain,.fdx"
-        aria-label="Script file"
+        aria-label={t`Script file`}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
@@ -195,7 +213,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
         type="file"
         hidden
         accept=".ink"
-        aria-label="Ink file"
+        aria-label={t`Ink file`}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
@@ -207,7 +225,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
         type="file"
         hidden
         accept=".twee,.tw"
-        aria-label="Twee file"
+        aria-label={t`Twee file`}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = '';
@@ -230,8 +248,4 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
       />
     </div>
   );
-}
-
-function countOf(count: number, noun: string): string {
-  return `${count} ${count === 1 ? noun : `${noun}s`}`;
 }

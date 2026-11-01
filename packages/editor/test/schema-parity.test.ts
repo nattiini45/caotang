@@ -120,6 +120,13 @@ const shapeOf = (node: PmNode): unknown =>
     node.children.map(shapeOf),
   ].filter((part) => part !== null && part !== undefined);
 
+/**
+ * Attrs the product carries for the editor's own state (source-provenance.ts) and the audit's transcription of §3 does not. They are
+ * never Markdown syntax, so the audit's preflight has nothing to say about them; a test below asserts they exist, so this list cannot
+ * name an attr that is not there.
+ */
+const EDITOR_ONLY_ATTRS: ReadonlySet<string> = new Set(['doc.provenance', 'image.prov', 'link.prov']);
+
 /** Build the product's schema again with node specs changed, for the control. */
 const rebuild = (mutate: (nodes: Record<string, NodeSpec>) => void): Schema => {
   const nodes: Record<string, NodeSpec> = {};
@@ -142,6 +149,10 @@ const rebuild = (mutate: (nodes: Record<string, NodeSpec>) => void): Schema => {
  */
 const differences = (a: Schema, b: Schema): string[] => {
   const out: string[] = [];
+  const attrNames = (spec: { attrs?: object | undefined }, owner: string): string[] =>
+    Object.keys(spec.attrs ?? {})
+      .filter((name) => !EDITOR_ONLY_ATTRS.has(`${owner}.${name}`))
+      .sort();
   const names = [...new Set([...Object.keys(a.nodes), ...Object.keys(b.nodes)])].sort();
   for (const name of names) {
     const left = a.nodes[name];
@@ -155,8 +166,8 @@ const differences = (a: Schema, b: Schema): string[] => {
         `${name}: content ${JSON.stringify((right.spec.content ?? '').trim())} vs ${JSON.stringify((left.spec.content ?? '').trim())}`,
       );
     }
-    const leftAttrs = Object.keys(left.spec.attrs ?? {}).sort();
-    const rightAttrs = Object.keys(right.spec.attrs ?? {}).sort();
+    const leftAttrs = attrNames(left.spec, name);
+    const rightAttrs = attrNames(right.spec, name);
     if (leftAttrs.join(',') !== rightAttrs.join(',')) {
       out.push(`${name}: attrs [${leftAttrs.join(',')}] vs [${rightAttrs.join(',')}]`);
     }
@@ -169,8 +180,8 @@ const differences = (a: Schema, b: Schema): string[] => {
       out.push(`mark ${name}: present in only one schema`);
       continue;
     }
-    const leftAttrs = Object.keys(left.spec.attrs ?? {}).sort();
-    const rightAttrs = Object.keys(right.spec.attrs ?? {}).sort();
+    const leftAttrs = attrNames(left.spec, name);
+    const rightAttrs = attrNames(right.spec, name);
     if (leftAttrs.join(',') !== rightAttrs.join(',')) {
       out.push(`mark ${name}: attrs [${leftAttrs.join(',')}] vs [${rightAttrs.join(',')}]`);
     }
@@ -183,6 +194,14 @@ describe('the product schema and the audit schema', () => {
     expect(caotangSchema).not.toBe(auditSchema);
     expect(caotangSchema.nodes.paragraph).not.toBe(auditSchema.nodes.paragraph);
     expect(caotangSchema.spec).not.toBe(auditSchema.spec);
+  });
+
+  it('carry the editor-only attrs the comparison leaves out, and the audit does not', () => {
+    expect(caotangSchema.nodes.doc!.spec.attrs).toHaveProperty('provenance');
+    expect(caotangSchema.nodes.image!.spec.attrs).toHaveProperty('prov');
+    expect(caotangSchema.marks.link!.spec.attrs).toHaveProperty('prov');
+    expect(auditSchema.nodes.doc!.spec.attrs ?? {}).not.toHaveProperty('provenance');
+    expect(auditSchema.nodes.image!.spec.attrs).not.toHaveProperty('prov');
   });
 
   it('agree on node names, mark names, attr names and content expressions', () => {

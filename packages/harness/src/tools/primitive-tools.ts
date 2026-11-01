@@ -34,6 +34,7 @@ import { resolveNode, DOCUMENT, TARGET, type NodeFilter } from '../resolve.js';
 import { param } from '../schema.js';
 import type { CallParams, PrepareContext } from '../types.js';
 import { primitiveTool, type PrimitiveTool } from './primitive.js';
+import { timelineEdit } from './timeline-edit.js';
 
 const KEYWORD_LIST_MAX = FILTER_LIST_MAX;
 
@@ -316,5 +317,5 @@ const instructionsPropose = primitiveTool({
 });
 
 /** Every primitive exposed as a tool, in registry order. A name is added here by an owner decision (docs/decisions.md). */
-export const PRIMITIVE_TOOLS: readonly PrimitiveTool[] = [notesReplace, synopsisSet, vocabularyUpsert, filterSave, goalSave, memoryWrite, instructionsPropose];
+export const PRIMITIVE_TOOLS: readonly PrimitiveTool[] = [notesReplace, synopsisSet, vocabularyUpsert, filterSave, goalSave, memoryWrite, instructionsPropose, timelineEdit];
 

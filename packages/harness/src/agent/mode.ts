@@ -3,7 +3,7 @@
  *
  * - `plan-only` runs reads and refuses every write before it is drafted. The planner's steps are kept so the writer can run them later.
  * - `ask` is the default: every card is the writer's.
- * - `accept-edits` approves the cards of native text and field edits (`ACCEPT_EDITS_TOOLS`) as shown.
+ * - `accept-edits` approves, as shown, the cards whose every write step is a native tool on the approved list (`ACCEPT_EDITS_TOOLS`).
  * - `auto` approves any card of native tools as shown, inside the turn's budgets.
  *
  * A mode answers a card; it never reaches the bus gate. An external write, a card the preflight refuses, a stale or cut draft, a
@@ -16,6 +16,7 @@
  */
 
 import { canonicalJson } from '../util.js';
+import { PICTURE_ACCEPT_EDITS_TOOLS } from '../tools/pictures.js';
 
 export const PERMISSION_MODES = ['plan-only', 'ask', 'accept-edits', 'auto'] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
@@ -35,10 +36,13 @@ export const MODE_LABELS: Readonly<Record<PermissionMode, string>> = Object.free
 });
 
 /**
- * The write tools `accept-edits` approves: native tools that change the text or the fields of documents the writer named. Anything
- * that restructures the binder, imports, exports, reviews or reaches outside the project is not here and stays a card the writer decides.
+ * The write tools `accept-edits` approves: native tools that change only the project's own data through the bus and undo in the
+ * card's one group (agent-harness §4). A binder restructure, a project or folder import, an export, a review or a write outside
+ * the project is not here and stays a card the writer decides. The write-confirm rows are not here either: `pictures.place`,
+ * `pictures.transcribe`, `comic.derive`, `comic.scriptFromPages` and `timeline.edit` need the approved plan, so they ask under
+ * Accept edits and are approved under Auto.
  */
-export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = new Set([
+export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = /* @__PURE__ */ new Set([
   'scene.draft',
   'synopsis.fill',
   'synopsis.set',
@@ -50,6 +54,12 @@ export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = new Set([
   'prompt.draft',
   'shots.derive',
   'shots.annotate',
+  ...PICTURE_ACCEPT_EDITS_TOOLS,
+  // The comic write-auto rows (comics.md §3.2); derive and scriptFromPages stay confirm-class.
+  'comic.createBook',
+  'comic.setPage',
+  'comic.setScript',
+  'comic.letter',
 ]);
 
 /**

@@ -12,6 +12,7 @@
  * `CAOTANG_UPDATE_GOLDEN=1` authors them again; review the diff like a golden.
  */
 
+import { textOf } from '@caotang/gateway';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -152,7 +153,7 @@ describe('a prompt change breaks the replay, with a diff that names it', () => {
         gateway.complete(
           {
             ...request,
-            messages: request.messages.map((message, index) => (index === 0 && message.role === 'system' ? { ...message, content: message.content.replace('Tools:', 'Tooling:') } : message)),
+            messages: request.messages.map((message, index) => (index === 0 && message.role === 'system' ? { ...message, content: textOf(message.content).replace('Tools:', 'Tooling:') } : message)),
           },
           signal,
         ),

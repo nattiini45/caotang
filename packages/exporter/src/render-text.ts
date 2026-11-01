@@ -6,21 +6,36 @@
  * is what lets a test pin the whole output rather than a sample of it.
  *
  * - **Markdown** keeps each scene body as the author wrote it, because the body *is*
- *   Markdown. A heading is one `#` more than its folder's depth, because the title
+ *   Markdown, except the image construct, whose destination and title the export
+ *   rewrites (pictures.md §4). A heading is one `#` more than its folder's depth, because the title
  *   page holds the `#`: a chapter of a book without parts is `##`, and in a book with
  *   parts a part is `##` and its chapters `###`. The contents list is an anchor list
  *   after the title page (§2's TOC policy, default on), a chapter indented under its part.
  * - **Plain text** reduces each body through the shared prose model, so emphasis
- *   markers are gone and a thematic break is the `* * *` the plain family uses.
+ *   markers are gone and a thematic break is the `* * *` the plain family uses. A
+ *   figure is the `[Picture: caption]` line unless the recipe drops pictures.
  *   Chapters are uppercase lines, `CHAPTER 1. THE LANDING`, a part is its label in
  *   capitals (`PART ONE`), and there is no contents list (§3: "TXT = none").
  */
 
 import { anchorOf } from './template.js';
-import { chapterHeadings, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
+import { chapterHeadings, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, plainProse } from './prose.js';
+import { rewriteMarkdownImages, type MarkdownPicturesMode } from './markdown-pictures.js';
 
-export function renderMarkdown(input: RenderInput): string {
+/**
+ * The Markdown a body exports as: the writer's own bytes, with only the image constructs rewritten
+ * (pictures.md §4). With no `pictures` mode set — a direct renderer call without figures — the
+ * body is written exactly as it stands.
+ */
+function bodyOf(input: RenderInput, body: string, notes: string[]): string {
+  const stripped = body.replace(/^\n+/, '').trimEnd();
+  const mode = input.pictures;
+  if (mode === undefined || mode === 'placeholder') return stripped;
+  return rewriteMarkdownImages(stripped, mode as MarkdownPicturesMode, input.assetsDir, input.figures, notes);
+}
+
+export function renderMarkdown(input: RenderInput, notes: string[] = []): string {
   const lines: string[] = [];
   const headings = chapterHeadings(input);
   let contentsWritten = false;
@@ -28,7 +43,7 @@ export function renderMarkdown(input: RenderInput): string {
   const writeContents = (): void => {
     if (contentsWritten || !input.toc || headings.length === 0) return;
     contentsWritten = true;
-    lines.push('**Contents**', '');
+    lines.push(`**${contentsHeading(input)}**`, '');
     for (const heading of headings) {
       lines.push(`${'  '.repeat(Math.max(0, heading.level - 1))}- [${heading.label}](#${anchorOf(heading.label)})`);
     }
@@ -61,8 +76,9 @@ export function renderMarkdown(input: RenderInput): string {
         if (section !== undefined) lines.push(`${hashes(depth + 2)} ${section}`, '');
         // The body *is* Markdown, so it is written as the author wrote it. Only the blank lines that would leave a gap
         // under the heading are dropped and the file's own trailing newlines are trimmed; the leading indentation of the
-        // first line is kept, because it is what makes an indented code block a code block.
-        lines.push(block.body.replace(/^\n+/, '').trimEnd(), '');
+        // first line is kept, because it is what makes an indented code block a code block. The one thing the export
+        // rewrites is the image construct (pictures.md §4): its destination and its title.
+        lines.push(bodyOf(input, block.body, notes), '');
         break;
       }
       case 'separator':
@@ -105,7 +121,9 @@ export function renderText(input: RenderInput): string {
       case 'scene': {
         const section = sectionTitle(block);
         if (section !== undefined) lines.push(section.toUpperCase(), '');
-        const text = plainProse(parseProse(block.body), separator).trim();
+        // A figure is the `[Picture: caption]` line unless the recipe drops pictures (pictures.md §4).
+        const pictures = input.pictures === 'drop' ? 'drop' : 'placeholder';
+        const text = plainProse(parseProse(block.body), separator, pictures).trim();
         if (text !== '') lines.push(text, '');
         break;
       }

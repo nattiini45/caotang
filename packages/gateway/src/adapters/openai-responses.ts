@@ -15,6 +15,7 @@
  */
 
 import type { SseEvent } from '../sse.js';
+import { assertValidMessage, dataUrlOf, imagePartsOf, textOf } from '../parts.js';
 import type {
   ModelInfo,
   ReasoningBlock,
@@ -96,12 +97,13 @@ function wireInput(req: BodyInput['req'], cache?: CacheSettings): { instructions
   let boundaryPlaced = false;
 
   for (const m of req.messages) {
+    assertValidMessage(m, 'openai-responses');
     if (m.role === 'system') {
-      if (explicit === undefined) instructions.push(m.content);
+      if (explicit === undefined) instructions.push(textOf(m.content));
       continue;
     }
     if (m.role === 'tool') {
-      input.push({ type: 'function_call_output', call_id: m.toolCallId, output: m.content });
+      input.push({ type: 'function_call_output', call_id: m.toolCallId, output: textOf(m.content) });
       continue;
     }
     if (m.role === 'assistant') {
@@ -112,14 +114,15 @@ function wireInput(req: BodyInput['req'], cache?: CacheSettings): { instructions
       input.push({
         type: 'message',
         role: 'assistant',
-        content: [{ type: 'output_text', text: m.content }],
+        content: [{ type: 'output_text', text: textOf(m.content) }],
       });
       for (const call of m.toolCalls ?? []) {
         input.push({ type: 'function_call', call_id: call.id, name: call.name, arguments: call.argumentsJson });
       }
       continue;
     }
-    const parts = explicit === undefined || boundaryPlaced ? [] : partsOf(m);
+    // Only a string user message can carry the cache breakpoint; one with image parts goes as its own blocks.
+    const parts = explicit === undefined || boundaryPlaced || typeof m.content !== 'string' ? [] : partsOf(m);
     const at = boundaryIndex(parts);
     if (explicit !== undefined && at >= 0) {
       boundaryPlaced = true;
@@ -134,9 +137,18 @@ function wireInput(req: BodyInput['req'], cache?: CacheSettings): { instructions
         })),
       });
     } else {
-      input.push({ role: 'user', content: [{ type: 'input_text', text: m.content }] });
+      // A user message's part array becomes the route's input blocks (input_text + input_image);
+      // a string, or a text-only array, stays its input_text.
+      const images = imagePartsOf(m.content);
+      const content =
+        typeof m.content === 'string' || images.length === 0
+          ? [{ type: 'input_text', text: textOf(m.content) }]
+          : m.content.map((part) =>
+              part.type === 'text' ? { type: 'input_text', text: part.text } : { type: 'input_image', image_url: dataUrlOf(part) },
+            );
+      input.push({ role: 'user', content });
     }
-    prefixChars += m.content.length;
+    prefixChars += textOf(m.content).length;
   }
   // An automatic row keeps `instructions`, with the hint after the system text rather than before it.
   if (hint !== undefined && cache !== undefined && explicit === undefined) instructions.push(hint);

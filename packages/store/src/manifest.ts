@@ -8,7 +8,7 @@
 
 import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 
-import type { AssetRecord } from '@caotang/pictures';
+import type { AssetRecord, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
 
 import type { PermissionRule } from './agent-rules.js';
 
@@ -67,6 +67,25 @@ export interface ExportRecipeOptions {
   paperFrames?: boolean;
   /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3). Absent = the format's default: off for the screenplay PDF, on for the contact sheet. */
   colourEmoji?: boolean;
+  /** The comic PDF carries its bleed (comics.md §5). Absent = on. A comic's reading direction is its book's, never a recipe's. */
+  bleed?: boolean;
+  /** The comic PDF draws crop marks outside the bleed (comics.md §5). Absent = off. */
+  cropMarks?: boolean;
+  /** The contents heading this recipe writes, over the project language's word (i18n.md §7.1). Absent = the language's own. */
+  contentsLabel?: string;
+  /**
+   * How the prose exports treat the pictures placed in the bodies (pictures.md §4): Markdown reads `copy` (default),
+   * `link` or `drop`; plain text reads `placeholder` (default) or `drop`.
+   */
+  pictures?: 'copy' | 'link' | 'drop' | 'placeholder';
+  /** The EPUB's image long edge in pixels (pictures.md §4). Absent = 1600, never upscaled. */
+  epubImageMaxPx?: number;
+  /** Keep WebP pictures as WebP in the EPUB (Apple Books only). Absent = off. Only `epub` reads it. */
+  epubKeepWebp?: boolean;
+  /** Keep the pictures' private metadata in the exports. Absent = stripped on export. */
+  keepPictureMetadata?: boolean;
+  /** The timeline PDF draws each scene's pictures as thumbnails (timeline.md §9.1). Absent = off. Only `timeline-pdf` reads it. */
+  timelinePictures?: boolean;
 }
 
 /**
@@ -123,6 +142,13 @@ export interface TreeNode {
   shot?: Record<string, unknown>;
   /** A dialogue container's metadata (dialogue-narrative.md §2.1): speaker, locBaseline, engineTarget, autoLineIds. */
   dialogue?: Record<string, unknown>;
+  /**
+   * A comic folder's book settings (comics.md §2). The store carries it as an object and does not read its fields:
+   * `@caotang/comic` owns the vocabulary, loads it tolerantly and validates it on a write.
+   */
+  comic?: Record<string, unknown>;
+  /** A comic page's stored value: its size, layout and panels (comics.md §2), carried unread like {@link TreeNode.comic}. */
+  comicPage?: Record<string, unknown>;
   /**
    * A show folder's settings (av-script.md §2): feed title, description, default speaker, speech rate, cue vocabulary and
    * the feed's channel fields. The store carries it as an object and does not read its fields: `@caotang/script` does.
@@ -232,6 +258,18 @@ export interface ProjectGoal {
   updatedAt: string;
 }
 
+/**
+ * The timeline's lens setting (timeline.md §3.8): which lens names the story's days, and the project's own calendar when it has one.
+ * The calendar is kept as the JSON the writer's editor saved, because its schema belongs to `@caotang/timeline`, which sits above
+ * the store; a definition from a newer build is therefore kept as it is and used only by a build that can read it.
+ */
+export interface ProjectTimelineSettings {
+  /** `day` is the built-in lens; `calendar` is the project's calendar. Absent means the calendar when there is one, else the day lens. */
+  lens?: 'day' | 'calendar';
+  /** A version-1 calendar definition (`CalendarDefinition`), or the definition of a later version. */
+  calendar?: Record<string, unknown>;
+}
+
 export interface Manifest {
   app: typeof APP_ID;
   formatVersion: number;
@@ -268,10 +306,19 @@ export interface Manifest {
    * is read from a file. Any other key under `agent` is kept as read and written back, so a newer build's key survives this build's save.
    */
   agent?: { rules?: PermissionRule[]; hooks?: ProjectHook[]; [other: string]: unknown };
+  /** additive in v1 (timeline.md §3.8): the lens and the custom calendar. Absent = the built-in day lens. */
+  timeline?: ProjectTimelineSettings;
   /**
-   * additive in v1 (pictures.md §2.1, D4): the picture registry, one record per file in `assets/` with its hash, size, caption, alt
-   * and tags. Absent = no records yet; the open back-fills one for every used file (§6.2). The cover, `shot.image` and `visualRefs`
-   * keep their own pointers and are read as uses of a record. A record whose file is missing is kept, never dropped.
+   * additive in v1 (pictures.md §2.1): one record per picture file. Absent = no records yet; a used file with no record is given one by the
+   * backfill. A record from a newer build keeps the fields this build does not know.
    */
-  assets?: AssetRecord[];
+  assets?: ReadAssetRecord[];
+  /** additive in v1 (pictures.md §2.1): where a picture is placed, with one gap-ordered list per target. Absent = no links. */
+  assetLinks?: ReadAssetLink[];
+  /**
+   * Entries of assets[] or assetLinks[] that could not be read, exactly as they were stored. Never a manifest key: the serializer writes
+   * them back into their own array, so a record this build cannot read survives a save (pictures.md §2.1 load rules).
+   */
+  unreadableAssets?: unknown[];
+  unreadableAssetLinks?: unknown[];
 }

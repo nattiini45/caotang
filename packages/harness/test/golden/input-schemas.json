@@ -520,7 +520,14 @@
           "dialogue-xlsx",
           "shot-list-xlsx",
           "pdf",
-          "contact-sheet-pdf"
+          "contact-sheet-pdf",
+          "comic-pdf",
+          "timeline-csv",
+          "timeline-xlsx",
+          "timeline-svg",
+          "timeline-pdf",
+          "cbz",
+          "comic-epub"
         ],
         "description": "The output format."
       },
@@ -963,7 +970,11 @@
             "timeline.gap",
             "plot.unresolved-thread",
             "knowledge.leak",
-            "medium.speaker-parity"
+            "medium.speaker-parity",
+            "comic.balloon-density",
+            "comic.em-dash",
+            "comic.caps-policy",
+            "comic.balloon-coverage"
           ],
           "description": "A deterministic check id."
         },
@@ -1433,6 +1444,615 @@
     "required": [
       "agent",
       "brief"
+    ],
+    "additionalProperties": false
+  },
+  "timeline.read": {
+    "type": "object",
+    "description": "Which part of the timeline to read, and how to arrange it. Every parameter is optional.",
+    "properties": {
+      "axis": {
+        "type": "string",
+        "enum": [
+          "story",
+          "narrative",
+          "braid"
+        ],
+        "description": "The axis to read: 'story' (default), 'narrative' (reading order) or 'braid' (both)."
+      },
+      "groupBy": {
+        "type": "string",
+        "enum": [
+          "none",
+          "pov",
+          "character",
+          "mode",
+          "folder",
+          "location",
+          "thread"
+        ],
+        "description": "The lanes to read: 'none' (default, one row per scene), 'pov', 'character', 'mode', 'folder', 'location' or 'thread'."
+      },
+      "scope": {
+        "type": "string",
+        "description": "A folder or document: a title, or an id. Only the scenes under it are read. Leave it out for the whole manuscript.",
+        "minLength": 1
+      },
+      "findings": {
+        "type": "string",
+        "enum": [
+          "open",
+          "none"
+        ],
+        "description": "'open' (default) attaches the open findings to their scenes; 'none' leaves them out."
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "pictures.list": {
+    "type": "object",
+    "description": "Which pictures to list.",
+    "properties": {
+      "target": {
+        "type": "string",
+        "description": "Only pictures placed at this document or folder (a title or an id, a paragraph of it counting), or \"project\" for the project as a whole.",
+        "minLength": 1
+      },
+      "tag": {
+        "type": "string",
+        "description": "Only pictures carrying this tag.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "limit": {
+        "type": "integer",
+        "description": "At most this many pictures, default 25.",
+        "minimum": 1,
+        "maximum": 100
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "pictures.view": {
+    "type": "object",
+    "description": "The pictures to look at.",
+    "properties": {
+      "assetIds": {
+        "type": "array",
+        "description": "One to 4 picture ids (a_…).",
+        "items": {
+          "type": "string",
+          "description": "One picture id.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "minItems": 1,
+        "maxItems": 4,
+        "uniqueItems": true
+      },
+      "maxPx": {
+        "type": "integer",
+        "description": "The longest side to send, in pixels, at most 1568. Default 1568. Smaller is cheaper and shows less detail.",
+        "minimum": 64,
+        "maximum": 1568
+      }
+    },
+    "required": [
+      "assetIds"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.annotate": {
+    "type": "object",
+    "description": "The pictures or placements to describe, and what to set on each.",
+    "properties": {
+      "items": {
+        "type": "array",
+        "description": "One entry per picture or placement. At most 50 per call.",
+        "items": {
+          "type": "object",
+          "description": "One picture (a_ id) or one placement (l_ id), and the fields to change. A field left out stays as it is.",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "A picture id (a_…), or a placement id (l_…) for a note.",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "caption": {
+              "type": "string",
+              "description": "The caption, at most 2000 characters. An empty string clears it. Pictures only.",
+              "maxLength": 2000
+            },
+            "alt": {
+              "type": "string",
+              "description": "The alt text, at most 500 characters: what the picture shows, for a reader who cannot see it. An empty string clears it. Pictures only.",
+              "maxLength": 500
+            },
+            "decorative": {
+              "type": "boolean",
+              "description": "True marks the picture as decoration with no alt text to read; false clears the mark. Pictures only."
+            },
+            "tags": {
+              "type": "array",
+              "description": "The picture’s tags, replacing its current ones, at most 32. An empty list clears them. Pictures only.",
+              "items": {
+                "type": "string",
+                "description": "One tag.",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "maxItems": 32
+            },
+            "note": {
+              "type": "string",
+              "description": "A placement’s note, at most 2000 characters. An empty string clears it. Placements only.",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "maxItems": 50
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.attach": {
+    "type": "object",
+    "description": "The placements to make and the placements to remove.",
+    "properties": {
+      "attach": {
+        "type": "array",
+        "description": "Placements to make, at most 50.",
+        "items": {
+          "type": "object",
+          "description": "One picture, and where it goes.",
+          "properties": {
+            "assetId": {
+              "type": "string",
+              "description": "The picture id (a_…).",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "to": {
+              "description": "Where the picture goes: the project, a binder item, or one paragraph of a document.",
+              "oneOf": [
+                {
+                  "type": "object",
+                  "description": "The project as a whole.",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "project"
+                      ],
+                      "description": "the operation, always \"project\""
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "description": "One binder item.",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "node"
+                      ],
+                      "description": "the operation, always \"node\""
+                    },
+                    "doc": {
+                      "type": "string",
+                      "description": "The document or folder: a title, or an id. An ambiguous title lists its candidates.",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "doc"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "description": "One paragraph of a document, named by a quote from it.",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "paragraph"
+                      ],
+                      "description": "the operation, always \"paragraph\""
+                    },
+                    "doc": {
+                      "type": "string",
+                      "description": "The document: a title, or an id.",
+                      "minLength": 1
+                    },
+                    "anchor": {
+                      "type": "string",
+                      "description": "A short quote from the paragraph, at most 200 characters, exactly as the document reads. It must fit one paragraph only.",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "doc",
+                    "anchor"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "reference",
+                "card",
+                "source"
+              ],
+              "description": "What the placement is. A card is the one picture a binder item shows on its card. Default reference."
+            },
+            "note": {
+              "type": "string",
+              "description": "A note about this placement, at most 2000 characters.",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "assetId",
+            "to"
+          ],
+          "additionalProperties": false
+        },
+        "maxItems": 50
+      },
+      "detach": {
+        "type": "array",
+        "description": "Placement ids (l_…) to remove, at most 50. The picture stays in the library.",
+        "items": {
+          "type": "string",
+          "description": "One placement id.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "maxItems": 50
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "pictures.import": {
+    "type": "object",
+    "description": "The staged picture to save, and what to record about it.",
+    "properties": {
+      "stagingId": {
+        "type": "string",
+        "description": "The staging id the app gave the picture, from a drop, a paste or a tool result. It cannot be made up, and it can be used once.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "links": {
+        "type": "array",
+        "description": "Where to place the picture once it is saved, at most 50.",
+        "items": {
+          "description": "One placement: the project, a binder item, or one paragraph of a document.",
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "The project as a whole.",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "project"
+                  ],
+                  "description": "the operation, always \"project\""
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "One binder item.",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "node"
+                  ],
+                  "description": "the operation, always \"node\""
+                },
+                "doc": {
+                  "type": "string",
+                  "description": "The document or folder: a title, or an id. An ambiguous title lists its candidates.",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "kind",
+                "doc"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "One paragraph of a document, named by a quote from it.",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "paragraph"
+                  ],
+                  "description": "the operation, always \"paragraph\""
+                },
+                "doc": {
+                  "type": "string",
+                  "description": "The document: a title, or an id.",
+                  "minLength": 1
+                },
+                "anchor": {
+                  "type": "string",
+                  "description": "A short quote from the paragraph, at most 200 characters, exactly as the document reads. It must fit one paragraph only.",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "kind",
+                "doc",
+                "anchor"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "maxItems": 50
+      },
+      "caption": {
+        "type": "string",
+        "description": "The caption, at most 2000 characters.",
+        "maxLength": 2000
+      },
+      "alt": {
+        "type": "string",
+        "description": "The alt text, at most 500 characters.",
+        "maxLength": 500
+      },
+      "source": {
+        "type": "object",
+        "description": "Where the picture came from.",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "import",
+              "paste",
+              "mcp",
+              "scan",
+              "agent"
+            ],
+            "description": "How it arrived."
+          },
+          "label": {
+            "type": "string",
+            "description": "A short label, at most 200 characters.",
+            "maxLength": 200
+          },
+          "server": {
+            "type": "string",
+            "description": "The tool server that returned it, for kind mcp.",
+            "maxLength": 200
+          },
+          "tool": {
+            "type": "string",
+            "description": "The tool that returned it, for kind mcp.",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "stagingId"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.place": {
+    "type": "object",
+    "description": "The picture, the document and the paragraph it goes beside.",
+    "properties": {
+      "assetId": {
+        "type": "string",
+        "description": "The picture id (a_…).",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "doc": {
+        "type": "string",
+        "description": "The prose document: a title, or an id.",
+        "minLength": 1
+      },
+      "anchor": {
+        "type": "string",
+        "description": "A short quote from the paragraph the picture goes beside, at most 200 characters, exactly as the document reads. It must fit one paragraph only.",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "position": {
+        "type": "string",
+        "enum": [
+          "before",
+          "after"
+        ],
+        "description": "Before or after that paragraph. Default after.",
+        "default": "after"
+      },
+      "size": {
+        "type": "string",
+        "enum": [
+          "full",
+          "half",
+          "inline"
+        ],
+        "description": "How large it prints. Default full."
+      },
+      "revision": {
+        "type": "integer",
+        "description": "The revision of the document you read the quote from, when you have one. The call is refused if the document has moved on.",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "assetId",
+      "doc",
+      "anchor"
+    ],
+    "additionalProperties": false
+  },
+  "pictures.transcribe": {
+    "type": "object",
+    "description": "The handwritten pages to transcribe, and where the reviewed text goes.",
+    "properties": {
+      "assetIds": {
+        "type": "array",
+        "description": "One to 100 picture ids (a_…), each page named once.",
+        "items": {
+          "type": "string",
+          "description": "One picture id.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "minItems": 1,
+        "maxItems": 100,
+        "uniqueItems": true
+      },
+      "into": {
+        "type": "string",
+        "enum": [
+          "new-document",
+          "searchable"
+        ],
+        "description": "Where the reviewed pages go once approved: a new Research document, or searchable text on the picture records.",
+        "default": "new-document"
+      },
+      "language": {
+        "type": "string",
+        "description": "The language of the handwriting, overriding the project language. A hint only: the transcription never corrects the text to match it.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "secondRead": {
+        "type": "object",
+        "description": "A second read on another vision route, to highlight the word-level disagreements for review. Omit it for one read. The agent loop checks this route’s vision capability and runs it as its own pinned, budgeted model call; nothing is merged automatically.",
+        "properties": {
+          "profileId": {
+            "type": "string",
+            "description": "The provider profile the second read runs on.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "model": {
+            "type": "string",
+            "description": "A model on that profile. Omit for the profile’s default.",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "profileId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "assetIds"
+    ],
+    "additionalProperties": false
+  },
+  "comic.derive": {
+    "type": "object",
+    "description": "The comic book to derive, and the script to derive from.",
+    "properties": {
+      "book": {
+        "type": "string",
+        "description": "The comic book: a folder title, or its id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "script": {
+        "type": "string",
+        "description": "The comic script to derive the pages from: a document title, or its id. Default: the script the book links. A book with no link gets this one linked, when no other book holds it.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "book"
+    ],
+    "additionalProperties": false
+  },
+  "comic.letter": {
+    "type": "object",
+    "description": "The comic book and the page of it to letter from the book’s linked script.",
+    "properties": {
+      "book": {
+        "type": "string",
+        "description": "The comic book: a folder title, or its id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "page": {
+        "type": "string",
+        "description": "The page to letter: its title, or its id, among the book’s pages. An ambiguous title lists its candidates.",
+        "minLength": 1
+      },
+      "panel": {
+        "type": "integer",
+        "description": "Letter only this panel of the script page, counted from 1. Default: every panel of the page.",
+        "minimum": 1
+      },
+      "line": {
+        "type": "integer",
+        "description": "Letter only this lettering line of that panel, counted from 1. Needs panel.",
+        "minimum": 1
+      }
+    },
+    "required": [
+      "book",
+      "page"
+    ],
+    "additionalProperties": false
+  },
+  "comic.scriptFromPages": {
+    "type": "object",
+    "description": "The comic book whose pages to write the script from.",
+    "properties": {
+      "book": {
+        "type": "string",
+        "description": "The comic book: a folder title, or its id. An ambiguous title lists its candidates.",
+        "minLength": 1
+      }
+    },
+    "required": [
+      "book"
     ],
     "additionalProperties": false
   },
@@ -2015,6 +2635,222 @@
     },
     "required": [
       "text"
+    ],
+    "additionalProperties": false
+  },
+  "timeline.edit": {
+    "type": "object",
+    "description": "The timeline edits, applied together or not at all.",
+    "properties": {
+      "ops": {
+        "type": "array",
+        "description": "The edits, in order, at most 200. Each is read against the project as the edits before it leave it.",
+        "items": {
+          "description": "One timeline edit.",
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "Change the timing declarations of one scene or folder.",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "meta"
+                  ],
+                  "description": "the operation, always \"meta\""
+                },
+                "nodeId": {
+                  "type": "string",
+                  "description": "The scene or folder: the nodeId timeline.read returned, or its exact title.",
+                  "minLength": 1
+                },
+                "patch": {
+                  "type": "object",
+                  "description": "The scene fields to change. Give at least one.",
+                  "properties": {
+                    "dayOffset": {
+                      "type": "integer",
+                      "description": "The scene’s day as a whole number from day 0, negative before it.",
+                      "minimum": -10000000,
+                      "maximum": 10000000
+                    },
+                    "durationDays": {
+                      "type": "integer",
+                      "description": "How many days the scene spans, zero or more.",
+                      "minimum": 0
+                    },
+                    "timelineMode": {
+                      "type": "string",
+                      "enum": [
+                        "linear",
+                        "flashback",
+                        "flash-forward",
+                        "parallel",
+                        "frame",
+                        "dream",
+                        "mythic",
+                        "backstory",
+                        "simultaneous",
+                        "circular",
+                        "time-skip"
+                      ],
+                      "description": "How the scene sits in time. \"linear\" is the ordinary case and clears any other mode."
+                    },
+                    "pov": {
+                      "type": "string",
+                      "description": "The point-of-view character: a codex entry id or its exact name.",
+                      "minLength": 1
+                    },
+                    "storyPart": {
+                      "type": "string",
+                      "enum": [
+                        "prologue",
+                        "epilogue"
+                      ],
+                      "description": "The part of the story the scene or folder is in. A folder’s part holds for what is inside it, unless a scene names its own."
+                    },
+                    "mainStory": {
+                      "type": "boolean",
+                      "description": "true puts the scene or folder in the main story even inside a prologue or epilogue folder, replacing a part of its own; false clears that mark."
+                    },
+                    "after_add": {
+                      "type": "array",
+                      "description": "Scenes this one must come after: a title or an id each. They are added to the scene’s existing \"after\" list.",
+                      "items": {
+                        "type": "string",
+                        "description": "A scene.",
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "maxItems": 50
+                    },
+                    "after_remove": {
+                      "type": "array",
+                      "description": "Scenes to take off this scene’s \"after\" list: a title or an id each.",
+                      "items": {
+                        "type": "string",
+                        "description": "A scene.",
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "maxItems": 50
+                    },
+                    "clear": {
+                      "type": "array",
+                      "description": "Fields to remove from the scene, so it has no value of its own: dayOffset (undated), durationDays, pov, storyPart or mainStory (it inherits again).",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "dayOffset",
+                          "durationDays",
+                          "pov",
+                          "storyPart",
+                          "mainStory"
+                        ],
+                        "description": "A field."
+                      },
+                      "minItems": 1,
+                      "maxItems": 5,
+                      "uniqueItems": true
+                    }
+                  },
+                  "required": [],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "op",
+                "nodeId",
+                "patch"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "Move a scene or folder to a place in the binder. Moving one never moves another.",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "move"
+                  ],
+                  "description": "the operation, always \"move\""
+                },
+                "nodeId": {
+                  "type": "string",
+                  "description": "The scene or folder to move: an id, or its exact title.",
+                  "minLength": 1
+                },
+                "newParentId": {
+                  "type": "string",
+                  "description": "The folder to move it into, or \"manuscript\": an id, or its exact title.",
+                  "minLength": 1
+                },
+                "index": {
+                  "type": "integer",
+                  "description": "Its position among the new parent’s other children, counted from 0 without the moved node.",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "op",
+                "nodeId",
+                "newParentId",
+                "index"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "description": "Move the days of many dated scenes by the same amount, as one edit. Every scene named needs a day.",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "shift"
+                  ],
+                  "description": "the operation, always \"shift\""
+                },
+                "delta": {
+                  "type": "integer",
+                  "description": "Days to add to each day, negative for earlier. Not zero.",
+                  "minimum": -20000000,
+                  "maximum": 20000000
+                },
+                "nodeIds": {
+                  "type": "array",
+                  "description": "The dated scenes to move: an id or an exact title each.",
+                  "items": {
+                    "type": "string",
+                    "description": "A scene.",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "maxItems": 5000,
+                  "uniqueItems": true
+                }
+              },
+              "required": [
+                "op",
+                "delta",
+                "nodeIds"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "minItems": 1,
+        "maxItems": 200
+      },
+      "label": {
+        "type": "string",
+        "description": "A short name for the batch, shown on the card and in the activity list, at most 200 characters.",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "required": [
+      "ops"
     ],
     "additionalProperties": false
   }

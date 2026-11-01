@@ -3,6 +3,7 @@
  * and the total-budget pass that never drops it. The prompt bytes for a project with no instructions are pinned by the other goldens.
  */
 import { describe, expect, it } from 'vitest';
+import { textOf } from '@caotang/gateway';
 
 import { parseAgentFiles, serializeMemoryFile } from '@caotang/store';
 
@@ -33,7 +34,7 @@ function layer(assembled: AssembledPrompt, id: LayerId) {
   return report;
 }
 
-const userOf = (assembled: AssembledPrompt): string => assembled.messages[1]?.content ?? '';
+const userOf = (assembled: AssembledPrompt): string => textOf(assembled.messages[1]?.content ?? '');
 
 /** A file of `lines` numbered lines of about fifty characters, so its token size is easy to work out. */
 const numbered = (lines: number): string =>

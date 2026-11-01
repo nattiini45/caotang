@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@12.9.1+sha512.06b055fff5cd20dc12781de173ced3310ce0951bf2ec620211a16045d5444d5c93a663210764ef29a653a610459ba0368f0e74f84d80c54723cf95aae7bc0d6d",
   "engines": {
-    "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
+    "node": "^22.19.0 || ^24.0.0 || >=26.0.0"
   },
   "scripts": {
     "dev": "pnpm --filter @caotang/desktop dev",
@@ -20,10 +20,16 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@lingui/cli": "6.10.1",
+    "@lingui/conf": "6.10.1",
+    "@lingui/core": "6.10.1",
+    "@lingui/format-po": "6.10.1",
+    "@lingui/vite-plugin": "6.10.1",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.4",
     "@vitejs/plugin-react": "^6.1.1",
     "axe-core": "4.10.3",
+    "babel-plugin-macros": "^3.1.0",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",

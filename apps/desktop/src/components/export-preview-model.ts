@@ -3,9 +3,12 @@
  * the counts a compile will log. Pure, so the listing and its cap are tested without a page.
  */
 
+import { plural, t } from '@lingui/core/macro';
 import { countBody } from '@caotang/store';
 import type { FlatBlock } from '@caotang/exporter';
 import { formatCount } from '../i18n/locale.js';
+
+/* lingui-set comment="The export dialog's count sentences. Interpolated values: chapters, scenes, sections, lines, shots, words, pages and panels are counts grouped for the formatter locale." */
 
 /** The scenes the list shows. A longer book says how many it holds, and the counts above the list are never capped. */
 export const PREVIEW_SCENE_CAP = 300;
@@ -85,26 +88,49 @@ export interface CompileCounts {
  * table its lines and containers, a shot list or a prompt pack its shots, and an Ink story its containers. A prose format
  * counts chapters, scenes and words, as it always has. The counts are the compile's own, so the sentence says what was written.
  */
-export function holdsOf(counts: CompileCounts): string {
+export function holdsOf(counts: CompileCounts, comicPanels?: number): string {
+  // Each count is grouped for the formatter locale and picks its noun's form from the same number, inside one message.
+  const sceneCount = counts.sceneCount;
+  const sectionCount = counts.chapterCount;
+  const chapterCount = counts.chapterCount;
+  const lineCount = counts.blockCount;
+  const shotCount = counts.blockCount;
+  const wordCount = counts.wordCount;
+  const scenes = formatCount(sceneCount);
+  const sections = formatCount(sectionCount);
+  const chapters = formatCount(chapterCount);
+  const lines = formatCount(lineCount);
+  const shots = formatCount(shotCount);
+  const words = formatCount(wordCount);
   switch (counts.format) {
     case 'fountain':
     case 'fdx':
     case 'pdf':
-      return `${countPhrase(counts.sceneCount, 'scene')} in ${countPhrase(counts.chapterCount, 'section')}, ${countPhrase(counts.wordCount, 'word')}`;
+      return t`${scenes} ${plural(sceneCount, { one: 'scene', other: 'scenes' })} in ${sections} ${plural(sectionCount, { one: 'section', other: 'sections' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
     case 'ink-json':
-      return countPhrase(counts.sceneCount, 'container');
+      return t`${scenes} ${plural(sceneCount, { one: 'container', other: 'containers' })}`;
     case 'dialogue-csv':
     case 'dialogue-xlsx':
-      return `${countPhrase(counts.blockCount, 'line')} in ${countPhrase(counts.sceneCount, 'container')}, ${countPhrase(counts.wordCount, 'word')}`;
+      return t`${lines} ${plural(lineCount, { one: 'line', other: 'lines' })} in ${scenes} ${plural(sceneCount, { one: 'container', other: 'containers' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
     case 'shot-list-csv':
     case 'shot-list-xlsx':
     case 'promptpack':
     case 'contact-sheet-pdf':
-      return countPhrase(counts.blockCount, 'shot');
+      return t`${shots} ${plural(shotCount, { one: 'shot', other: 'shots' })}`;
+    case 'comic-pdf':
+    case 'cbz':
+    case 'comic-epub': {
+      // A comic compile counts pages in `blockCount`; its chapter, scene and word counts are always zero and are never said.
+      const pageCount = counts.blockCount;
+      const pages = formatCount(pageCount);
+      if (comicPanels === undefined) return t`${pages} ${plural(pageCount, { one: 'page', other: 'pages' })}`;
+      const panels = formatCount(comicPanels);
+      return t`${pages} ${plural(pageCount, { one: 'page', other: 'pages' })}, ${panels} ${plural(comicPanels, { one: 'panel', other: 'panels' })}`;
+    }
     case 'coherence-md':
     case 'coherence-json':
-      return 'the coherence report';
+      return t`the coherence report`;
     default:
-      return `${countPhrase(counts.chapterCount, 'chapter')}, ${countPhrase(counts.sceneCount, 'scene')}, ${countPhrase(counts.wordCount, 'word')}`;
+      return t`${chapters} ${plural(chapterCount, { one: 'chapter', other: 'chapters' })}, ${scenes} ${plural(sceneCount, { one: 'scene', other: 'scenes' })}, ${words} ${plural(wordCount, { one: 'word', other: 'words' })}`;
   }
 }

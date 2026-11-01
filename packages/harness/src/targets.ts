@@ -155,6 +155,70 @@ const synopsisSet: TargetsFn = (params, state) => {
   return node.ok ? ok({ reads: [], writes: [node.value.id] }) : node;
 };
 
+/** A title-or-id reference to a document or folder, resolved as the tools resolve it; absent or blank, nothing. */
+function refList(state: ProjectState, refs: readonly string[], at: string): Result<string[], CommandError> {
+  return resolveAll(state, refs.filter((ref) => ref.trim() !== ''), TARGET, 'document or folder', at);
+}
+
+/**
+ * The binder items a picture placement target names (`{ kind: 'node' | 'paragraph', doc }`, tools/pictures.ts); the project
+ * kind names none.
+ */
+function placementRefs(value: unknown): string[] {
+  if (typeof value !== 'object' || value === null) return [];
+  const fields = value as Record<string, unknown>;
+  return (fields['kind'] === 'node' || fields['kind'] === 'paragraph') && typeof fields['doc'] === 'string' ? [fields['doc']] : [];
+}
+
+const records = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null) : [];
+
+/** The scenes and folders a timeline batch dates or moves (tools/timeline-edit.ts), and the folders a move puts them in. */
+const timelineEdit: TargetsFn = (params, state) => {
+  const refs: string[] = [];
+  for (const op of records(params['ops'])) {
+    if (typeof op['nodeId'] === 'string') refs.push(op['nodeId']);
+    if (typeof op['newParentId'] === 'string' && op['newParentId'] !== 'root') refs.push(op['newParentId']);
+    refs.push(...strings(op['nodeIds']));
+  }
+  const ids = refList(state, refs, 'ops');
+  return ids.ok ? ok({ reads: [], writes: [...new Set(ids.value)] }) : ids;
+};
+
+/** A timeline read scoped to a folder or document reads it; unscoped, it reads the story, and leaves the withheld nodes out itself (timeline-read.ts). */
+const timelineRead: TargetsFn = (params, state) => {
+  const ids = refList(state, strings([params['scope']]), 'params.scope');
+  return ids.ok ? ok({ reads: ids.value, writes: [] }) : ids;
+};
+
+/** `pictures.list` narrowed to a binder item reads it; `project` or no target reads none. */
+const picturesList: TargetsFn = (params, state) => {
+  const target = typeof params['target'] === 'string' && params['target'] !== 'project' ? [params['target']] : [];
+  const ids = refList(state, target, 'params.target');
+  return ids.ok ? ok({ reads: ids.value, writes: [] }) : ids;
+};
+
+/** `pictures.attach` writes the items its new placements name (a detach names placement ids only). */
+const picturesAttach: TargetsFn = (params, state) => {
+  const ids = refList(state, records(params['attach']).flatMap((item) => placementRefs(item['to'])), 'attach');
+  return ids.ok ? ok({ reads: [], writes: ids.value }) : ids;
+};
+
+/** `pictures.import` writes the items its links place the new picture at. */
+const picturesImport: TargetsFn = (params, state) => {
+  const ids = refList(state, (Array.isArray(params['links']) ? params['links'] : []).flatMap((link) => placementRefs(link)), 'links');
+  return ids.ok ? ok({ reads: [], writes: ids.value }) : ids;
+};
+
+/** A comic tool works on one comic book folder (comics.md §3.2); `comic.letter` names a page of it too. */
+function comicBook(access: 'writes' | 'both'): TargetsFn {
+  return (params, state) => {
+    const ids = refList(state, strings([params['book']]), 'params.book');
+    if (!ids.ok) return ids;
+    return ok({ reads: access === 'both' ? ids.value : [], writes: ids.value });
+  };
+}
+
 export const TOOL_TARGETS: Readonly<Record<ToolName, ToolTargets>> = {
   'project.overview': 'project',
   'binder.read_tree': readTree,
@@ -187,6 +251,19 @@ export const TOOL_TARGETS: Readonly<Record<ToolName, ToolTargets>> = {
   'memory.write': 'project',
   'instructions.propose': 'project',
   'agent.delegate': docList('scope', 'reads'),
+  // The PR's timeline, picture and comic rows. A picture id (a_…) or placement id (l_…) is not a binder node, so a call that
+  // names only those is a 'project' row.
+  'timeline.read': timelineRead,
+  'pictures.list': picturesList,
+  'pictures.view': 'project',
+  'pictures.annotate': 'project',
+  'pictures.attach': picturesAttach,
+  'pictures.import': picturesImport,
+  'pictures.place': oneDoc('writes'),
+  'pictures.transcribe': 'project',
+  'comic.derive': comicBook('writes'),
+  'comic.letter': comicBook('writes'),
+  'comic.scriptFromPages': comicBook('both'),
   'scene.brief': oneDoc('reads'),
   'scene.apply': oneDoc('both'),
   'dialogue.brief': oneContainer('reads'),
@@ -196,4 +273,5 @@ export const TOOL_TARGETS: Readonly<Record<ToolName, ToolTargets>> = {
   'vocabulary.upsert': 'project',
   'filter.save': 'project',
   'goal.save': goalSave,
+  'timeline.edit': timelineEdit,
 };

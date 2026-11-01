@@ -42,6 +42,7 @@ import type { Transaction } from '@tiptap/pm/state';
 import type { GhostController } from '../seam.js';
 import { markLane } from '../lanes.js';
 import { caotangExtensions } from './extensions.js';
+import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
 
 /** §8's three buttons, as the caller's handlers. Each is optional. */
 export interface GhostCallbacks {
@@ -90,15 +91,19 @@ export interface GhostPreview extends GhostController {
  * editor pane. The element is hidden until the first append, so an empty ghost
  * takes no room below the focus document.
  */
-export const createGhostPreview = (element: HTMLElement, callbacks: GhostCallbacks = {}): GhostPreview => {
+export const createGhostPreview = (
+  element: HTMLElement,
+  callbacks: GhostCallbacks = {},
+  labels: EditorLabels = DEFAULT_EDITOR_LABELS,
+): GhostPreview => {
   const editor = new Editor({
     element,
-    extensions: caotangExtensions({ role: 'ghost' }),
+    extensions: caotangExtensions({ role: 'ghost', labels }),
     content: { type: 'doc', content: [{ type: 'paragraph' }] },
     editable: false,
     injectCSS: false,
     editorProps: {
-      attributes: { 'aria-readonly': 'true', 'aria-label': 'Agent preview' },
+      attributes: { 'aria-readonly': 'true', 'aria-label': labels.ghostRegion },
     },
   });
   let streamed = '';
@@ -127,7 +132,7 @@ export const createGhostPreview = (element: HTMLElement, callbacks: GhostCallbac
     note.textContent =
       stopped === null
         ? ''
-        : `The stream stopped before it finished (${stopped}). The text above is partial; Retry or Discard.`;
+        : labels.ghostStopped(stopped);
   };
   sync();
 

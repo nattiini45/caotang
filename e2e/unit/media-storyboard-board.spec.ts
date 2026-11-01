@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { withoutIsolates } from '../support.js';
 
 import { ENUM_OPTIONS, derivableSceneOf, deriveIntentOf, emptyBoardCopyOf, shotCardsOf, shotsFolderOf } from '../../apps/desktop/src/media/storyboard-model.js';
 import { missingPictureLabelOf, shownListingOf } from '../../apps/desktop/src/media/shot-image-model.js';
@@ -20,7 +21,7 @@ const THIRD = 'n_SCENE00003';
 
 /** Two screenplay scenes, and a storyboard folder named for the first only, beside them. */
 function project(): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addDocument(state, { parentId: 'manuscript', title: 'Scene 1', body: 'INT. HOUSE - DAY\n', kind: 'screenplay', now: NOW, id: SCENE });
   addStoryboardFolder(state, { parentId: 'manuscript', title: 'Scene 1 — Shots', id: FOLDER, now: NOW });
   addDocument(state, { parentId: 'manuscript', title: 'Scene 2', body: 'INT. BARN - NIGHT\n', kind: 'screenplay', now: NOW, id: UNDERIVED });
@@ -204,7 +205,7 @@ test.describe('the empty board’s words', () => {
   test('a board that offers a derive says the shots go in a new folder named for the scene, not on this board', () => {
     const state = project();
     const copy = emptyBoardCopyOf({ editable: true, canDerive: true, scene: nodeOf(state, UNDERIVED) });
-    expect(copy.body).toContain('Derived shots go in a new folder, “Scene 2 — Shots”, not on this board.');
+    expect(withoutIsolates(copy.body)).toContain('Derived shots go in a new folder, “Scene 2 — Shots”, not on this board.');
     expect(copy.body).not.toContain('open the scene');
   });
 

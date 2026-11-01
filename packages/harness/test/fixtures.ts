@@ -171,6 +171,19 @@ export function run(harness: Harness, name: string, params: unknown, options: Ru
   );
 }
 
+/** One async-port call under one turn, with the same identity and permission context as {@link run}. */
+export function runAsync(harness: Harness, name: string, params: unknown, options: RunOptions = {}) {
+  return harness.callAsync(
+    { name, callId: options.callId ?? callId(name), params },
+    {
+      turnId: options.turnId ?? `turn-${callSeq}`,
+      ...(options.permission === undefined ? {} : { permission: options.permission }),
+      ...(options.source === undefined ? {} : { source: options.source }),
+      ...(options.agentPath === undefined ? {} : { agentPath: options.agentPath }),
+    },
+  );
+}
+
 /** The value of a successful call. Fails the test, with the refusal printed, for anything else. */
 export function valueOf(outcome: ToolOutcome) {
   if (!outcome.ok) throw new Error(`expected success, got refusal: ${outcome.error.code}: ${outcome.error.message}`);

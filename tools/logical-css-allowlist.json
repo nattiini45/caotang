@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "file": "components/shared.tsx",
+      "context": "style={{…}}",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "media/DialogueView.tsx",
+      "context": "CSSProperties",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-edges",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-dual .sp-character",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-dual .sp-dialogue",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-dual .sp-parenthetical",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-scene-link",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-transition",
+      "property": "text-align=right",
+      "count": 1
+    },
+    {
+      "file": "media/ScreenplayPreview.tsx",
+      "context": "CSSProperties",
+      "property": "marginLeft",
+      "count": 1
+    },
+    {
+      "file": "media/ScreenplayPreview.tsx",
+      "context": "CSSProperties",
+      "property": "paddingLeft",
+      "count": 1
+    }
+  ]
+}

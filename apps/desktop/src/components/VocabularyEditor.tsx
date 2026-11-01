@@ -8,17 +8,23 @@
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { select, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { isolate } from '@caotang/i18n';
+import { accessibleText } from '../i18n/accessible-text.js';
 
 import type { VocabularyKind } from '@caotang/bus';
 
+import { isImeEnter } from '../app/keymap.js';
 import { explain, removeTerm, saveTerm } from './actions.js';
 import { useReturnFocus } from './dialog-focus.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport } from './shared.js';
 import type { ProjectSession } from '../app/session.js';
-import { isImeEnter } from '../app/ime.js';
 import './project-dialogs.css';
+
+/* lingui-set comment="Interpolated values: name" */
 
 /** The vocabulary editor, rendered only while its request is open. */
 export function VocabularyEditor({ session }: { session: ProjectSession }): ReactNode {
@@ -26,11 +32,6 @@ export function VocabularyEditor({ session }: { session: ProjectSession }): Reac
   if (request === null || request.kind !== 'vocabulary') return null;
   return <VocabularyEditorDialog session={session} initial={request.term} />;
 }
-
-const KIND_LABEL: Readonly<Record<VocabularyKind, { readonly singular: string; readonly plural: string }>> = {
-  status: { singular: 'status', plural: 'Statuses' },
-  label: { singular: 'label', plural: 'Labels' },
-};
 
 function VocabularyEditorDialog({ session, initial }: { session: ProjectSession; initial: VocabularyKind }): ReactNode {
   const report = useReport();
@@ -47,7 +48,6 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
   }, []);
 
   const terms = kind === 'status' ? session.state.manifest.vocabulary.statuses : session.state.manifest.vocabulary.labels;
-  const word = KIND_LABEL[kind].singular;
 
   /** Closes the editor, and hands focus back to the control it opened from. */
   const close = (): void => {
@@ -58,14 +58,14 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
   const add = (): void => {
     const name = draftName.trim();
     if (name === '') {
-      setRefusal(`Give the ${word} a name.`);
+      setRefusal(t`Give the ${select(kind, { status: 'status', label: 'label', other: 'status' })} a name.`);
       return;
     }
     const outcome = saveTerm(session, kind, { name, color: draftColor });
     if (outcome.ok) {
       setDraftName('');
       setRefusal(null);
-      report({ text: `Added the ${word} “${name}”.`, tone: 'info' });
+      report({ text: t`Added the ${select(kind, { status: 'status', label: 'label', other: 'status' })} “${{ name: isolate(name) }}”.`, tone: 'info' });
     } else {
       setRefusal(explain(outcome.error));
     }
@@ -82,9 +82,9 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
       }}
     >
       <div className="project-dialog-body">
-        <h2 id="vocabulary-dialog-title">Statuses and labels</h2>
+        <h2 id="vocabulary-dialog-title"><Trans>Statuses and labels</Trans></h2>
 
-        <div className="vocabulary-tabs" role="group" aria-label="Which list to edit">
+        <div className="vocabulary-tabs" role="group" aria-label={t`Which list to edit`}>
           {(['status', 'label'] as const).map((choice) => (
             <button
               key={choice}
@@ -96,13 +96,15 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
                 setRefusal(null);
               }}
             >
-              {KIND_LABEL[choice].plural}
+              {choice === 'status' ? <Trans>Statuses</Trans> : <Trans>Labels</Trans>}
             </button>
           ))}
         </div>
 
         {terms.length === 0 ? (
-          <p className="project-dialog-help">No {KIND_LABEL[kind].plural.toLowerCase()} yet. Add the first one below.</p>
+          <p className="project-dialog-help">
+            {kind === 'status' ? <Trans>No statuses yet. Add the first one below.</Trans> : <Trans>No labels yet. Add the first one below.</Trans>}
+          </p>
         ) : (
           <ul className="vocabulary-list">
             {terms.map((term) => (
@@ -121,12 +123,12 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
 
         <div className="vocabulary-add">
           <label className="project-dialog-field">
-            <span className="field-label">New {word}</span>
+            <span className="field-label">{t`New ${select(kind, { status: 'status', label: 'label', other: 'status' })}`}</span>
             <input
               type="text"
               value={draftName}
               maxLength={40}
-              placeholder={kind === 'status' ? 'For example, Second pass' : 'For example, Act 2'}
+              placeholder={kind === 'status' ? t`For example, Second pass` : t`For example, Act 2`}
               onChange={(event) => setDraftName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !isImeEnter(event)) add();
@@ -134,11 +136,11 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
             />
           </label>
           <label className="vocabulary-colour">
-            <span className="field-label">Colour</span>
+            <span className="field-label"><Trans>Colour</Trans></span>
             <input type="color" value={draftColor} onChange={(event) => setDraftColor(event.target.value)} />
           </label>
           <button type="button" className="button is-primary" onClick={add}>
-            Add {word}
+            {t`Add ${select(kind, { status: 'status', label: 'label', other: 'status' })}`}
           </button>
         </div>
 
@@ -150,7 +152,7 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
 
         <div className="confirm-actions">
           <button type="button" className="button is-primary" onClick={close}>
-            Done
+            <Trans>Done</Trans>
           </button>
         </div>
       </div>
@@ -189,7 +191,7 @@ function TermRow({
     const outcome = saveTerm(session, kind, { id, name: draftName.value, color: draftColor.value });
     if (outcome.ok) {
       onRefusal(null);
-      report({ text: `Saved the ${KIND_LABEL[kind].singular} “${draftName.value.trim()}”.`, tone: 'info' });
+      report({ text: t`Saved the ${select(kind, { status: 'status', label: 'label', other: 'status' })} “${{ name: isolate(draftName.value.trim()) }}”.`, tone: 'info' });
     } else {
       onRefusal(explain(outcome.error));
     }
@@ -199,7 +201,7 @@ function TermRow({
     const outcome = removeTerm(session, kind, id);
     if (outcome.ok) {
       onRefusal(null);
-      report({ text: `Removed the ${KIND_LABEL[kind].singular} “${name}”. Undo puts it back.`, tone: 'info' });
+      report({ text: t`Removed the ${select(kind, { status: 'status', label: 'label', other: 'status' })} “${{ name: isolate(name) }}”. Undo puts it back.`, tone: 'info' });
     } else {
       onRefusal(explain(outcome.error));
     }
@@ -209,13 +211,13 @@ function TermRow({
     <li className="vocabulary-row">
       <input
         type="color"
-        aria-label={`Colour of ${name}`}
+        aria-label={t`Colour of ${{ name: accessibleText(name) }}`}
         value={draftColor.value}
         onChange={(event) => draftColor.change(event.target.value)}
       />
       <input
         type="text"
-        aria-label={`Name of ${name}`}
+        aria-label={t`Name of ${{ name: accessibleText(name) }}`}
         value={draftName.value}
         maxLength={40}
         onChange={(event) => draftName.change(event.target.value)}
@@ -224,10 +226,10 @@ function TermRow({
         }}
       />
       <button type="button" className="button" disabled={!changed} onClick={save}>
-        Save
+        <Trans>Save</Trans>
       </button>
       <button type="button" className="button is-quiet" onClick={remove}>
-        Remove
+        <Trans>Remove</Trans>
       </button>
     </li>
   );

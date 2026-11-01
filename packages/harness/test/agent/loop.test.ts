@@ -20,6 +20,7 @@ import { evaluate, type Scenario, type ScenarioRun } from '../../src/agent/eval.
 import { CHAPTER_TWO, checkedHarness, FRIEND, LANDING, LANDING_BODY, makeState, OPENED, STORM } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, prose, steps, transcript } from './scripts.js';
+import { textOf } from '@caotang/gateway';
 
 const scenario = (name: string, intent: string, scripts: readonly MockScript[], extra: Partial<Scenario> = {}): Scenario => ({
   name,
@@ -546,7 +547,7 @@ describe('the bound on model calls covers every draft (command-bus §5, context-
     );
     expect(run.report.modelCalls).toBe(8);
     expect(run.requests.filter((request) => isDraftCall(request))).toHaveLength(0);
-    expect(run.requests.at(-1)?.messages.map((message) => message.content).join('\n')).toContain('split the rest into another turn');
+    expect(run.requests.at(-1)?.messages.map((message) => textOf(message.content)).join('\n')).toContain('split the rest into another turn');
   });
 
   it('a split that fits the bound is applied, and the calls the turn makes stay within it', async () => {
@@ -872,7 +873,7 @@ describe('the prompt a card shows, and the budgets it is held to (context-assemb
         { project: withScenes(18), expect: { status: 'replied', summaryIncludes: ['split'] } },
       ),
     );
-    const retry = run.requests.at(-1)?.messages.map((message) => message.content).join('\n') ?? '';
+    const retry = run.requests.at(-1)?.messages.map((message) => textOf(message.content)).join('\n') ?? '';
     expect(retry).toContain('split it into runs of at most 20 documents');
     expect(run.requests.filter((request) => isDraftCall(request))).toHaveLength(0);
   });
@@ -1058,7 +1059,7 @@ describe('a step the turn cannot ground is refused back to the model, not thrown
     const report = await session.submit(intent);
     expect(report.status).toBe('applied');
     expect(report.askBack).toBeUndefined();
-    expect(sent.some((request) => request.messages.some((message) => message.content.includes('was refused: rewrite_selection needs a selection with text (refused by the assembly)')))).toBe(true);
+    expect(sent.some((request) => request.messages.some((message) => textOf(message.content).includes('was refused: rewrite_selection needs a selection with text (refused by the assembly)')))).toBe(true);
   });
 });
 
@@ -1109,7 +1110,7 @@ function cutGateway(intent: string, replies: readonly PlannerReply[], seen: Chat
 }
 
 /** The last user message a request carries: what the model reads before it replies. */
-const lastUserOf = (req: ChatRequest | undefined): string => [...(req?.messages ?? [])].reverse().find((message) => message.role === 'user')?.content ?? '';
+const lastUserOf = (req: ChatRequest | undefined): string => textOf([...(req?.messages ?? [])].reverse().find((message) => message.role === 'user')?.content ?? '');
 
 describe('a planner reply the provider cut (issue #97)', () => {
   const intent = 'Label The Friend act-2.';

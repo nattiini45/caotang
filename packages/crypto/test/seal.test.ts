@@ -15,6 +15,28 @@ import {
 const ctx: FileContext = { projectId: 'p_ONE', pathHash: 'a'.repeat(52), version: 3 };
 const text = new TextEncoder().encode('The ferry was late, as always.');
 
+/**
+ * The budget for the two exhaustive seal fixtures below — explicit, per-test, and never
+ * `vitest.config.ts`'s default.
+ *
+ * **Why 5 000 ms was never their budget.** Neither fixture measures wall clock. One proves every
+ * one of the 285 bytes of a sealed value is authenticated (285 opens); the other proves 500 seals
+ * draw 500 nonces. Each iteration is four asynchronous WebCrypto calls — an HKDF import and
+ * derive, an AES-GCM import, then the encrypt or decrypt — so 3 144 calls run between the two
+ * fixtures, and that cost is the subject matter, not an accident.
+ *
+ * **Measured, both directions.** Alone on one development machine they ran **98 ms** and
+ * **128 ms**. Under the full suite's worker pool they ran **3 313 ms** and **5 052 ms**; the
+ * second is a timeout, and the same file passed in 167 ms on an idle run of the same suite. The
+ * spread is the machine, not the claim.
+ *
+ * **30 000 ms clears every figure recorded (max 5 052 ms) with headroom, and still fails a
+ * hang.** Raising the config default instead would move every other test's budget in the repo to
+ * accommodate two fixtures, which is the option the timeout decision in
+ * `packages/editor/test/dialect.test.ts` explicitly rules out and its guard rejects.
+ */
+const EXHAUSTIVE_SEAL_TIMEOUT = 30_000;
+
 describe('seal and open a file', () => {
   it('round-trips text, empty content and every byte value', async () => {
     const key = generateProjectKey();
@@ -55,7 +77,7 @@ describe('seal and open a file', () => {
       altered[i] = (altered[i] ?? 0) ^ 1;
       await expect(openFile(key, ctx, altered), `byte ${i}`).rejects.toBeInstanceOf(Error);
     }
-  });
+  }, EXHAUSTIVE_SEAL_TIMEOUT);
 
   it('refuses a truncated value and an unknown format tag', async () => {
     const key = generateProjectKey();
@@ -71,7 +93,7 @@ describe('seal and open a file', () => {
     const nonces = new Set<string>();
     for (let i = 0; i < 500; i++) nonces.add(Buffer.from((await sealFile(key, ctx, text)).subarray(1, 13)).toString('hex'));
     expect(nonces.size).toBe(500);
-  });
+  }, EXHAUSTIVE_SEAL_TIMEOUT);
 
   it('refuses a NUL in the project id or path hash, which could shift a field boundary', async () => {
     const key = generateProjectKey();

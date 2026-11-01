@@ -117,17 +117,17 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.18 `pictures` 🧭
 - **Responsibility:** one picture registry with hashes and dedup, links from the project, a folder, a document or a paragraph, inline pictures in prose carried into EPUB, Word and Markdown, the import pipeline (HEIC, pixel budget, GPS strip), vision input for the agent, MCP pictures in both directions, and handwriting transcription.
-- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store. Built: `assets[]`, `packages/pictures` (the record, `usesOf`, the import pipeline with the GPS strip and the hash), `asset.import`, `asset.importBatch`, `asset.setMeta` and the open's backfill (#152). The rest is specified, not built.
+- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store, the retention inventory a sweep must read. A host capability gate (browser canvas; Node's WebP→PNG path only) refuses a picture operation a host cannot run. Built (the registry, the import pipeline with the GPS strip and the hash, and the open's backfill since #152), including the guarded sweep and reviewed transcription; HEIC decoding remains unavailable.
 - **Spec:** [architecture/pictures.md](architecture/pictures.md).
 
 ### 2.19 `timeline` 🧭
-- **Responsibility:** an interactive view of the story on story time, reading order or both, where every edit gesture is a proposal the writer approves and applies as one undoable `timeline.apply`; prologues before day 0 and epilogues after long time jumps as declared parts; timeline exports, agent tools and an MCP resource from one pure layout package.
-- **Owns:** `packages/timeline` (layout, calendar lens, medium adapters), the proposed-changes tray (view state). Scene timing stays in `coherence.json` `sceneMeta`. Specified, not built.
+- **Responsibility:** an interactive view of the story on story time, reading order or both, where every edit gesture is a proposal the writer approves and applies as one undoable `timeline.apply`; prologues, the main story and epilogues as declared parts (§5.2.2); both axes in the project language's direction while the data stays in logical order; timeline exports, agent tools and an MCP resource from one pure layout package, with confirmed MCP writes reporting typed persisted, conflict or partial outcomes.
+- **Owns:** `packages/timeline` (layout, calendar lens, medium adapters), the proposed-changes tray (view state). Scene timing stays in `coherence.json` `sceneMeta`. Built across the desktop, exports, agent, SDK and MCP surfaces.
 - **Spec:** [architecture/timeline.md](architecture/timeline.md); the coherence-model change is [architecture/coherence.md](architecture/coherence.md) §5.2.2.
 
 ### 2.20 `i18n` 🧭
 - **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
-- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type; built, #192), the desktop formatter locale in `apps/desktop/src/i18n/locale.ts` (built), the desktop catalogs under `apps/desktop/src/i18n/` and the interface-language app setting (specified, not built).
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop formatter locale in `apps/desktop/src/i18n/locale.ts` (the one place the app decides its locales), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The contracts, formatter accessor, live switcher, surface strings, `MessageRef`s and RTL mirroring are built; English and a production-loadable, machine-assisted German catalogue and guide ship. German and RTL still need native-reader review, and their review status remains explicit.
 - **Spec:** [architecture/i18n.md](architecture/i18n.md).
 
 ### 2.21 `script` 🧭
@@ -166,14 +166,17 @@ CodexEntry     { id, name, aliases[], type, description (md), includePolicy: alw
                  sources?: EntrySource[], createdAt, updatedAt }   // codex.md §2
 CoherenceFinding{ id, runId, class: deterministic|llm, checkId, type, severity, status: open|dismissed|fixed,
                  factGroup, evidence: Evidence[1-2], reasoning?, modelMeta?, dismissedReason?, supersededBy? }  // coherence.md §3
-SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent?, storyPart? }   // coherence.md §5.2, §5.2.2 (writer-declared; days may be negative)
+SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent?, storyPart?: prologue|epilogue, mainStory?: true }   // coherence.md §5.2, §5.2.2 (writer-declared; days may be negative)
 ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2
-AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (built: packages/pictures)
-AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
-TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
-MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (type in @caotang/i18n; not yet emitted)
+AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1
+AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1
+ComicBook      { readingDirection, letteringFace, capsTransform, esszett, pageSize, scriptDocId? }                       // comics.md §2
+ComicPage      { size, layout?, panels: Panel[] }                                                                       // comics.md §2
+Panel          { id, rect, assetId?, crop?, border?, balloons: Balloon[] }                                              // comics.md §2
+TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3
+MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (I7)
 ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2
 ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned
 ScriptTotals   { seconds, timedCount, untimed[] }                                                                 // av-script.md §4, the AnimaticTotals shape
@@ -216,6 +219,6 @@ Caotang covers games, video, film and audio as well as prose. The full inventory
 | **Storyboarding & shot planning** | scene → shot breakdown: frame, camera, action, dialogue covered, duration; shot list exports | `shot` node kind, corkboard variant with image fields, `inspector` | [storyboard.md](architecture/storyboard.md) |
 | **AI video prompt packs** | per-shot prompt packs for several video models. **Caotang writes prompts; it does not render video** — generation stays in the writer's own tool with their own account | `context-assembly`, `codex`, `exporter` (vendor templates), harness tools | [video-prompt-pack.md](architecture/video-prompt-pack.md) |
 | **Plot coherence & continuity** | deterministic checks (structure + codex, no model call) and model-judged findings (evidence-cited reports, never silent edits) | `coherence` module over `codex` + `context-assembly` | [coherence.md](architecture/coherence.md) |
-| **Comics** 🧭 | comic books, pages, panels and balloons; comic scripts (full script or Marvel method); lettering rules; comic PDF, CBZ and fixed-layout EPUB. Specified, not built | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
+| **Comics** | comic books, pages, panels and balloons; comic scripts (full script or Marvel method) linked explicitly by `scriptDocId`; lettering rules; comic PDF, CBZ and fixed-layout EPUB. The CBZ and the comic EPUB are made in the browser only; the PDF is written by both hosts. Built; target-reader and visual acceptance remain manual checks | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
 | **AV scripts** 🧭 | podcasts, radio and audio drama, and narrated video: one linear timed script with segments, speakers, audio cues and per-line durations; VO script, show notes, transcript, teleprompter, chapters and feed exports. Built in part: the model, parser and totals; the view and exports are specified, not built | `av-script` document kind, `show` folder kind, `exporter` | [av-script.md](architecture/av-script.md) |
 | **One story, many outputs** | a single narrative source compiled to prose, screenplay, game dialogue, storyboard, prompt pack and report targets — media targets are **export recipes**, not separate apps | the `exporter` contract and per-kind renderers | [media-track.md](architecture/media-track.md) §1 |

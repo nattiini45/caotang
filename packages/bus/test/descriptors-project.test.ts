@@ -103,13 +103,36 @@ describe('project.setMetadata', () => {
     expect(out).toEqual({ ok: true, value: { patch: { author: null, isbn: null } } });
   });
 
-  it('refuses a language tag that is not BCP-47, and names the field', () => {
+  it('refuses text that is not a language tag at all, and names the field', () => {
     const out = check(projectCommands.projectSetMetadata.validate, { patch: { language: 'english please' } });
     expect(out).toMatchObject({ ok: false, code: 'invalid-params', target: 'patch.language' });
   });
 
   it('refuses a language cleared to null: the language is required and always has a value', () => {
     expect(check(projectCommands.projectSetMetadata.validate, { patch: { language: null } })).toMatchObject({ ok: false });
+  });
+
+  it('accepts the tags a writer uses, including a script, a region and a private-use subtag, and stores the canonical form', () => {
+    for (const language of ['en', 'de', 'en-GB', 'zh-Hant-TW', 'pt-BR', 'en-x-foo']) {
+      const out = check(projectCommands.projectSetMetadata.validate, { patch: { language } });
+      expect(out, language).toEqual({ ok: true, value: { patch: { language } } });
+    }
+    const lower = check(projectCommands.projectSetMetadata.validate, { patch: { language: 'en-gb' } });
+    expect(lower).toEqual({ ok: true, value: { patch: { language: 'en-GB' } } });
+    const reordered = check(projectCommands.projectSetMetadata.validate, { patch: { language: 'sl-rozaj-biske' } });
+    expect(reordered).toEqual({ ok: true, value: { patch: { language: 'sl-biske-rozaj' } } });
+    const grandfathered = check(projectCommands.projectSetMetadata.validate, { patch: { language: 'art-lojban' } });
+    expect(grandfathered).toEqual({ ok: true, value: { patch: { language: 'jbo' } } });
+  });
+
+  it('refuses a tag Intl cannot read, so an unreadable tag is never written and never reaches a collator', () => {
+    // The old pattern (2–3 letters, then 1–8 alphanumerics) accepted `en-a`, `en-1` and `en-GB-oed`; Intl rejects all three.
+    // An irregular grandfathered tag and a private-use-only tag are the other two shapes the docs name; a private-use subtag
+    // (`en-x-foo`) is readable and is accepted above.
+    for (const language of ['en-a', 'en-1', 'en-abc', 'en-GB-oed', 'i-klingon', 'x-private']) {
+      const out = check(projectCommands.projectSetMetadata.validate, { patch: { language } });
+      expect(out, language).toMatchObject({ ok: false, code: 'invalid-params', target: 'patch.language' });
+    }
   });
 
   it('refuses an ISBN with a bad check digit, naming the field', () => {

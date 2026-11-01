@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Structural validation and the deterministic findings — [dialogue-narrative.md §2.3 and §5](../../../docs/architecture/dialogue-narrative.md).
  *
@@ -13,6 +14,7 @@
  */
 
 import type { Evidence, FindingSeverity } from '@caotang/coherence';
+import type { MessageRef } from '@caotang/i18n';
 import type { CodexEntry } from '@caotang/store';
 
 import { compileInk, type InkCompileResult, type InkMessage } from './compile.js';
@@ -39,6 +41,8 @@ export interface DialogueFinding {
   /** One or two passages; a passage quotes the Ink line it names. */
   readonly evidence: readonly Evidence[];
   readonly message: string;
+  /** I7: the same line as a stable id, values and English template. */
+  readonly messageRef?: MessageRef;
   readonly expected?: string;
 }
 
@@ -130,6 +134,11 @@ export function validateContainer(docId: string, body: string, options: Validate
       factGroup: groupKey(node.id, 'loose-end'),
       evidence: [withDoc(quoteOf(physical, body))],
       message: `The flow in ${labelOf(node)} runs out at line ${warning.line}: add a divert, a choice, or -> END.`,
+      messageRef: {
+        id: 'coherence.branch.looseEnd',
+        message: 'The flow in {where} runs out at line {line}: add a divert, a choice, or -> END.',
+        values: { where: labelOf(node), line: warning.line },
+      },
       expected: 'every path ends in a divert, a choice or END',
     });
   }
@@ -145,6 +154,11 @@ export function validateContainer(docId: string, body: string, options: Validate
       factGroup: groupKey(node.id, 'unreachable'),
       evidence: [withDoc(quoteOf(header, body))],
       message: `"${node.id}" is never diverted to, so no path in the story reaches it.`,
+      messageRef: {
+        id: 'coherence.branch.deadEnd',
+        message: '"{knot}" is never diverted to, so no path in the story reaches it.',
+        values: { knot: node.id },
+      },
       expected: 'a divert or choice that names it',
     });
   }
@@ -174,6 +188,17 @@ export function validateContainer(docId: string, body: string, options: Validate
         message: ambiguous
           ? `"${entry.name}" matches more than one codex character. Name the character exactly, or merge the entries.`
           : `"${entry.name}" matches no codex character. Add a character entry, or correct the cue.`,
+        messageRef: ambiguous
+          ? {
+              id: 'coherence.dialogue.ambiguousSpeaker',
+              message: '"{speaker}" matches more than one codex character. Name the character exactly, or merge the entries.',
+              values: { speaker: entry.name },
+            }
+          : {
+              id: 'coherence.dialogue.unknownSpeaker',
+              message: '"{speaker}" matches no codex character. Add a character entry, or correct the cue.',
+              values: { speaker: entry.name },
+            },
         expected: 'a codex character named or aliased as the cue',
       });
     }

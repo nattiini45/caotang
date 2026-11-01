@@ -3,6 +3,7 @@
  * and the replay that answers by key and fails with a diff. The golden tasks run the same code over real turns.
  */
 
+import { textOf } from '@caotang/gateway';
 import { describe, expect, it } from 'vitest';
 
 import type { ChatRequest } from '@caotang/gateway';
@@ -144,7 +145,7 @@ describe('replayScript', () => {
 
   async function ask(script: MockScript, req: ChatRequest): Promise<string> {
     const gateway = await scriptedGateway([script]);
-    return (await gateway.completeOnce(req)).content;
+    return textOf((await gateway.completeOnce(req)).content);
   }
 
   it('answers a request with the response recorded under its key, whatever the model or temperature', async () => {

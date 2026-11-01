@@ -2,7 +2,13 @@
  * The decisions the data-safety paths make, as pure functions of what they are told. The editor, the folder save and the
  * demo run call these, and the model tests read them without a browser, so each rule is pinned where it is decided.
  */
+/* lingui-set comment="Interpolated values: fieldCount, fields, name, times, unsaid" */
 
+import { plural, t } from '@lingui/core/macro';
+import { isolate, listFormat, type MessageRef } from '@caotang/i18n';
+
+import { formatterLocale } from '../i18n/format-locale.js';
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import type { SaveState, WrittenBody } from './session.js';
 
 /**
@@ -48,14 +54,14 @@ export function saveStateWords(
   state: SaveState,
   cause: StopCause = stopCause(),
 ): { readonly text: string; readonly offersBackup: boolean } {
-  if (state === 'saved') return { text: 'All changes saved in this browser', offersBackup: false };
-  if (state === 'saving') return { text: 'Saving…', offersBackup: false };
+  if (state === 'saved') return { text: t`All changes saved in this browser`, offersBackup: false };
+  if (state === 'saving') return { text: t`Saving…`, offersBackup: false };
   if (state === 'conflict' && cause === 'updated') {
-    return { text: 'Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab.', offersBackup: false };
+    return { text: t`Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab.`, offersBackup: false };
   }
-  if (state === 'conflict') return { text: 'Another tab has newer text', offersBackup: false };
+  if (state === 'conflict') return { text: t`Another tab has newer text`, offersBackup: false };
   return {
-    text: 'Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change.',
+    text: t`Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change.`,
     offersBackup: true,
   };
 }
@@ -211,6 +217,8 @@ export function sentenceOf(text: string): string {
 export interface OpenNotice {
   /** The notice as a whole sentence in the writer's words (`LoadNotice.say`), or none when it cannot be put that way. */
   readonly say?: string;
+  /** I7: the same sentence as a reference. A notice without one reads its `say` exactly as written. */
+  readonly messageRef?: MessageRef;
 }
 
 /**
@@ -221,14 +229,16 @@ export function openNoticeLines(notices: readonly OpenNotice[]): string[] {
   const lines: string[] = [];
   let unsaid = 0;
   for (const notice of notices) {
-    if (notice.say === undefined) unsaid += 1;
-    else if (!lines.includes(notice.say)) lines.push(notice.say);
+    const sentence =
+      notice.messageRef === undefined
+        ? notice.say
+        : renderRef(notice.messageRef, { userValues: titleValues(notice.messageRef) });
+    if (sentence === undefined) unsaid += 1;
+    else if (!lines.includes(sentence)) lines.push(sentence);
   }
   if (unsaid > 0) {
     lines.push(
-      unsaid === 1
-        ? 'Caotang also noted one smaller thing in the project’s files as it opened them.'
-        : `Caotang also noted ${unsaid} smaller things in the project’s files as it opened them.`,
+      t`Caotang also noted ${plural(unsaid, { one: 'one smaller thing', other: '# smaller things' })} in the project’s files as it opened them.`,
     );
   }
   return lines;
@@ -240,12 +250,16 @@ export function openNoticeLines(notices: readonly OpenNotice[]): string[] {
  */
 export function droppedFieldsSentence(names: readonly string[]): string | null {
   if (names.length === 0) return null;
+  const fieldCount = names.length;
   const counts = new Map<string, number>();
   for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
-  const words = [...counts].map(([name, times]) => (times === 1 ? `“${name}”` : `“${name}” ${times} times`));
-  const listed = words.length <= 1 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
-  const single = names.length === 1;
-  return single
-    ? `The file has a field Caotang keeps but does not use: ${listed}. It is dropped on the next save.`
-    : `The file has ${names.length} fields Caotang keeps but does not use: ${listed}. They are dropped on the next save.`;
+  const words = [...counts].map(([name, times]) =>
+    times === 1
+      ? t`“${{ name: isolate(name) }}”`
+      : t`“${{ name: isolate(name) }}” ${plural(times, { one: '# time', other: '# times' })}`,
+  );
+  const listed = listFormat(formatterLocale()).format(words);
+  return names.length === 1
+    ? t`The file has a field Caotang keeps but does not use: ${{ fields: listed }}. It is dropped on the next save.`
+    : t`The file has ${plural(fieldCount, { one: '# field', other: '# fields' })} Caotang keeps but does not use: ${{ fields: listed }}. They are dropped on the next save.`;
 }

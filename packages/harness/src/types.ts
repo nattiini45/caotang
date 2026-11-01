@@ -20,6 +20,7 @@
 import type {
   ActivityAffected,
   ActivityEntry,
+  AgentRisk,
   CommandError,
   CommandName,
   CommandProvenance,
@@ -67,6 +68,12 @@ export interface PreparedCommand {
    * the caller's params, so a model cannot name the origin it is stamped with.
    */
   readonly provenance?: CommandProvenance;
+  /**
+   * The grant the tool gives the command, for a `never`-class primitive the tool composes (command-bus §4): `pictures.place`
+   * runs `editor.insert` under it. Like `provenance` it is the tool's own code and never a caller's param, and the tool's own gate
+   * (a plan's approval or a confirm card) has already answered before the command is dispatched.
+   */
+  readonly inherit?: AgentRisk;
 }
 
 export interface PreparedCall {
@@ -105,6 +112,12 @@ export interface PrepareContext {
    */
   readonly writes?: boolean;
   /**
+   * What the agent loop staged for this call before its card was shown (the same value a port finds in `PortContext.proposal`). A tool
+   * whose guards are read when it is proposed, and must be held to at the approval, finds them here instead of reading the project again.
+   * Never a caller's param: an external caller's proposal is dropped before it reaches a tool.
+   */
+  readonly proposal?: unknown;
+  /**
    * The binder nodes a read-deny keeps from this tool (agent-harness §4, "Rules"). A tool that lists or summarises the project leaves
    * them out and says how many; absent, nothing is withheld.
    */
@@ -125,6 +138,11 @@ export interface PortContext {
    * the model emitted directly never carries the grant.
    */
   readonly dispatchInherited: (name: CommandName, params: CallParams) => Result<ExecutionOutcome, CommandError>;
+  /**
+   * Dispatches one command whose apply awaits the host (`asyncApply`: `asset.import` writes a file), under the same turn and permission
+   * as the call. An async port is the one caller that may wait for it; a synchronous port has nothing to await.
+   */
+  readonly dispatchAsync: (name: CommandName, params: CallParams) => Promise<Result<ExecutionOutcome, CommandError>>;
   /**
    * What the agent loop staged for this call before it ran: a generated draft, a set of synopses.
    * Absent for a call that staged nothing. It is data the loop built, never something the model
@@ -193,6 +211,12 @@ export type PortToolName =
   | 'skill.load'
   // Delegation (agent-harness §2): answered by the agent loop; the port (tools/delegate.ts) is what a caller outside a turn gets.
   | 'agent.delegate'
+  // The picture tools that need the host (pictures.md §8.1): `pictures.view` reads stored bytes and asks the host whether the model
+  // sees images, and `pictures.import` consumes a staging id and awaits the file write. Both are async ports, wired where the host supplies them.
+  | 'pictures.view'
+  | 'pictures.import'
+  // Model-backed handwriting transcription (pictures.md §8.4): the loop supplies the generated proposal, the host reviews it.
+  | 'pictures.transcribe'
   // The host-model pairs (agent-harness §3, "External-only rows"), wired only where a brief ledger is supplied: the MCP server.
   | 'scene.brief'
   | 'scene.apply'

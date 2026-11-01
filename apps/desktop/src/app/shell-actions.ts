@@ -6,9 +6,13 @@
  *
  * Pure on purpose: the shell turns an action into a button or a menu item, and this module decides what the actions are, in what
  * order, with which words, and where each surface puts them, so a test can hold every surface against the list without a browser.
+ * The words are the interface language's (i18n.md): each label is a catalogue message, read when the list is built.
  */
+/* lingui-set comment="The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord." */
 
-import { shortcutLabel, type KeyAction } from './keymap.js';
+import { t } from '@lingui/core/macro';
+
+import { shortcutLabel, type KeyAction, type KeyboardLayoutMap } from './keymap.js';
 import type { Theme } from './theme.js';
 
 /** Every shell action, in the order the surfaces list them. */
@@ -49,6 +53,8 @@ export interface ShellAction {
   readonly group: ShellActionGroup;
   /** Whether the action exists in the narrow layout (below 960 px), where Classic lists it in the More menu. */
   readonly narrow: boolean;
+  /** A test id a toolbar button carries, for the one action the end-to-end tests reach by it (Settings: `open-settings`). */
+  readonly testId?: string;
   readonly run: () => void;
 }
 
@@ -60,6 +66,8 @@ export interface ShellActionFacts {
   readonly theme: Theme;
   /** Whether the browser has a folder picker (`folderAccessSupported`): Save to folder exists only where it does. */
   readonly folderPicker: boolean;
+  /** The keyboard's layout, so a chord is named by the keys printed on it (keymap.ts); absent names the US keys. */
+  readonly keyboardLayout?: KeyboardLayoutMap | null;
 }
 
 /** One handler per action. A record, so an action added to the list without a handler does not compile. */
@@ -68,11 +76,11 @@ export type ShellActionHandlers = Readonly<Record<ShellActionId, () => void>>;
 /** The list, in order. Save to folder is left out where the browser has no folder picker. */
 export function shellActions(facts: ShellActionFacts, run: ShellActionHandlers): readonly ShellAction[] {
   const actions: ShellAction[] = [
-    { id: 'projects', label: 'Projects', disabled: false, group: 'project', narrow: true, run: run.projects },
+    { id: 'projects', label: t`Projects`, disabled: false, group: 'project', narrow: true, run: run.projects },
     {
       id: 'details',
-      label: 'Project details',
-      hint: 'Project details: title, author, language, ISBN and cover',
+      label: t`Project details`,
+      hint: t`Project details: title, author, language, ISBN and cover`,
       disabled: false,
       group: 'project',
       narrow: true,
@@ -80,8 +88,8 @@ export function shellActions(facts: ShellActionFacts, run: ShellActionHandlers):
     },
     {
       id: 'undo',
-      label: 'Undo',
-      hint: facts.undoLabel === null ? 'Nothing to undo' : `Undo: ${facts.undoLabel}`,
+      label: t`Undo`,
+      hint: facts.undoLabel === null ? t`Nothing to undo` : t`Undo: ${{ label: facts.undoLabel }}`,
       disabled: facts.undoLabel === null,
       shortcut: 'undo',
       group: 'writing',
@@ -90,9 +98,9 @@ export function shellActions(facts: ShellActionFacts, run: ShellActionHandlers):
     },
     {
       id: 'focus',
-      label: facts.focusMode ? 'Leave focus mode' : 'Focus mode',
-      toolbarLabel: 'Focus',
-      hint: `Focus mode (${shortcutLabel('focus-mode')})`,
+      label: facts.focusMode ? t`Leave focus mode` : t`Focus mode`,
+      toolbarLabel: t`Focus`,
+      hint: t`Focus mode (${{ shortcut: shortcutLabel('focus-mode', facts.keyboardLayout) }})`,
       pressed: facts.focusMode,
       disabled: false,
       shortcut: 'focus-mode',
@@ -102,8 +110,8 @@ export function shellActions(facts: ShellActionFacts, run: ShellActionHandlers):
     },
     {
       id: 'skills',
-      label: 'Skills',
-      hint: 'Reusable writing instructions for the agent',
+      label: t`Skills`,
+      hint: t`Reusable writing instructions for the agent`,
       disabled: false,
       group: 'agent',
       narrow: true,
@@ -111,22 +119,22 @@ export function shellActions(facts: ShellActionFacts, run: ShellActionHandlers):
     },
     {
       id: 'instructions',
-      label: 'Instructions',
-      hint: 'CAOTANG.md, your standing instructions, and the notes the agent keeps',
+      label: t`Instructions`,
+      hint: t`CAOTANG.md, your standing instructions, and the notes the agent keeps`,
       disabled: false,
       group: 'agent',
       narrow: true,
       run: run.instructions,
     },
-    { id: 'compile', label: 'Compile…', disabled: false, group: 'output', narrow: true, run: run.compile },
-    { id: 'bundle', label: 'Export bundle', disabled: false, group: 'output', narrow: true, run: run.bundle },
-    { id: 'folder', label: 'Save to folder', disabled: false, group: 'output', narrow: true, run: run.folder },
-    { id: 'settings', label: 'Settings', disabled: false, group: 'app', narrow: true, run: run.settings },
+    { id: 'compile', label: t`Compile…`, disabled: false, group: 'output', narrow: true, run: run.compile },
+    { id: 'bundle', label: t`Export bundle`, disabled: false, group: 'output', narrow: true, run: run.bundle },
+    { id: 'folder', label: t`Save to folder`, disabled: false, group: 'output', narrow: true, run: run.folder },
+    { id: 'settings', label: t`Settings`, disabled: false, group: 'app', narrow: true, testId: 'open-settings', run: run.settings },
     {
       id: 'theme',
-      label: facts.theme === 'dark' ? 'Light theme' : 'Dark theme',
-      ariaLabel: facts.theme === 'dark' ? 'Light theme' : 'Dark theme',
-      hint: facts.theme === 'dark' ? 'Use the light theme' : 'Use the dark theme',
+      label: facts.theme === 'dark' ? t`Light theme` : t`Dark theme`,
+      ariaLabel: facts.theme === 'dark' ? t`Light theme` : t`Dark theme`,
+      hint: facts.theme === 'dark' ? t`Use the light theme` : t`Use the dark theme`,
       disabled: false,
       group: 'app',
       narrow: true,

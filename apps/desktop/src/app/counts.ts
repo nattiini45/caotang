@@ -1,0 +1,28 @@
+/**
+ * Counts and word labels as a panel shows them — [i18n.md §4.2](docs/architecture/i18n.md), decision D3.
+ *
+ * They live in the app's model layer rather than inside `components/shared.tsx` so a model test can pin their output
+ * without a React render; `shared.tsx` re-exports them, which is where the panels import them from. The number is
+ * grouped by the formatter locale (the app's accessor, `i18n/format-locale.ts`), and the noun is an ICU plural (I5).
+ */
+/* lingui-set comment="Interpolated values: count, n" */
+
+import { plural, t } from '@lingui/core/macro';
+import { formatterLocale } from '../i18n/format-locale.js';
+import { formatCount as formatCountIn } from '../i18n/locale.js';
+
+/** A count, grouped the way the formatter locale groups numbers (`locale.ts` formats it). */
+export function formatCount(n: number, locale: string = formatterLocale()): string {
+  return formatCountIn(n, locale);
+}
+
+export function wordsLabel(n: number, locale: string = formatterLocale()): string {
+  // The count is grouped for the formatter locale, which can differ from the active UI catalogue.
+  const count = formatCount(n, locale);
+  return t`${{ count }} ${plural(n, { one: 'word', other: 'words' })}`;
+}
+
+/** A document count as a value in a sentence: "1 document", "3 documents". */
+export function documentsLabel(n: number): string {
+  return t`${plural(n, { one: '# document', other: '# documents' })}`;
+}

@@ -8,7 +8,8 @@
 
 import { tokensForChars } from '@caotang/codex';
 
-import type { CachePolicy, ChatMessage, ChatRequest, ContentPart, ModelCaps } from '../types.js';
+import type { CachePart, CachePolicy, ChatMessage, ChatRequest, ModelCaps } from '../types.js';
+import { textOf } from '../parts.js';
 
 /** What one call's adapter is told about caching. Absent on `BodyInput` means "send no cache field". */
 export interface CacheSettings {
@@ -38,7 +39,7 @@ export function cacheSettingsFor(policy: CachePolicy, caps: ModelCaps, profileId
   if (policy.mode !== 'auto') return undefined;
   const style = caps.cache;
   if (style !== 'explicit' && style !== 'automatic') return undefined;
-  const system = req.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+  const system = req.messages.filter((m) => m.role === 'system').map((m) => textOf(m.content)).join('\n\n');
   return {
     style,
     ttl: policy.ttl ?? '5m',
@@ -48,13 +49,14 @@ export function cacheSettingsFor(policy: CachePolicy, caps: ModelCaps, profileId
 }
 
 /** A message's parts: its own, or its content as one unmarked part. Empty parts are dropped (an empty block cannot be cached). */
-export function partsOf(message: ChatMessage): readonly ContentPart[] {
-  const parts = message.parts !== undefined && message.parts.length > 0 ? message.parts : [{ text: message.content }];
+export function partsOf(message: ChatMessage): readonly CachePart[] {
+  // A message with image parts carries no cache parts; its text is one unmarked part (the images are never cached as text).
+  const parts = message.parts !== undefined && message.parts.length > 0 ? message.parts : [{ text: textOf(message.content) }];
   return parts.filter((part) => part.text !== '');
 }
 
 /** The index of the last part marked as a boundary, or -1. */
-export function boundaryIndex(parts: readonly ContentPart[]): number {
+export function boundaryIndex(parts: readonly CachePart[]): number {
   for (let index = parts.length - 1; index >= 0; index -= 1) if (parts[index]?.cacheBoundary === true) return index;
   return -1;
 }

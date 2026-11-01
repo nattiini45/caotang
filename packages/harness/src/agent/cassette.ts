@@ -21,7 +21,7 @@
 
 import { createHash } from 'node:crypto';
 
-import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, redact, type ChatRequest, type Gateway } from '@caotang/gateway';
+import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, redact, textOf, type ChatRequest, type Gateway } from '@caotang/gateway';
 import { createMockProvider, type MockResponse, type MockScript } from '@caotang/gateway/mock';
 
 import { canonicalJson } from '../util.js';
@@ -105,7 +105,8 @@ export function canonicalRequest(request: ChatRequest): CanonicalRequest {
   };
   const messages = request.messages.map((message): CanonicalMessage => ({
     role: message.role,
-    content: message.content,
+    // Merge: a part array (the PR's image parts) is canonicalised as its text, with each image as its placeholder (never its bytes).
+    content: textOf(message.content),
     ...(message.toolCalls === undefined || message.toolCalls.length === 0
       ? {}
       : { toolCalls: message.toolCalls.map((call) => ({ id: named(call.id), name: call.name, argumentsJson: call.argumentsJson })) }),

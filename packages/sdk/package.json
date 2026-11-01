@@ -19,7 +19,9 @@
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
-    "@caotang/store": "workspace:*"
+    "@caotang/pictures": "workspace:*",
+    "@caotang/store": "workspace:*",
+    "@caotang/timeline": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

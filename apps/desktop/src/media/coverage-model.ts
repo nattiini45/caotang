@@ -6,6 +6,7 @@
  * never stored as the raw offsets of a view. A selection the body cannot place exactly is refused, rather than guessed at.
  */
 
+import { t } from '@lingui/core/macro';
 import { getBody, getRevision, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 
 import {
@@ -21,6 +22,8 @@ import {
   type TextAnchor,
 } from './engines.js';
 
+
+/* lingui-set comment="Shot coverage refusals. Interpolated values: shotId is a shot's id; places is a count." */
 /** A document the picker can cover text in: a screenplay scene, or a prose document. */
 export interface ScriptChoice {
   readonly id: string;
@@ -56,16 +59,17 @@ type Captured = { readonly ok: true; readonly anchor: TextAnchor } | { readonly 
  */
 export function captureSelection(state: ProjectState, docId: string, selected: SelectedText): Captured {
   const node = nodeById(state, docId);
-  if (node === undefined || node.type !== 'document') return { ok: false, message: 'that document is no longer in the project' };
-  if (selected.text.trim() === '') return { ok: false, message: 'select the words the shot covers in the text above, then cover them' };
+  if (node === undefined || node.type !== 'document') return { ok: false, message: t`that document is no longer in the project` };
+  if (selected.text.trim() === '') return { ok: false, message: t`select the words the shot covers in the text above, then cover them` };
   const body = getBody(state, docId);
   const revision = getRevision(state, docId);
   const lines = lineFeedsOf(body);
   const located = locateQuote(lines.text, selected.text.replace(/\r\n?/g, '\n'));
   if (located.status === 'many') {
-    return { ok: false, message: `that text appears more than once in the document (${located.count} places); select a longer passage` };
+    const places = located.count;
+    return { ok: false, message: t`that text appears more than once in the document (${places} places); select a longer passage` };
   }
-  if (located.status === 'none') return { ok: false, message: 'the selected text could not be found in the stored text, so select it again' };
+  if (located.status === 'none') return { ok: false, message: t`the selected text could not be found in the stored text, so select it again` };
   return anchorOf(body, lines.starts[located.from] ?? body.length, lines.ends[located.to - 1] ?? body.length, revision);
 }
 
@@ -87,7 +91,7 @@ function lineFeedsOf(body: string): { readonly text: string; readonly starts: re
 
 function anchorOf(body: string, from: number, to: number, revision: number): Captured {
   const anchor = captureTextAnchor(body, from, to, revision);
-  if (anchor === undefined) return { ok: false, message: 'the selection is longer than the 2000 characters a coverage can hold, so cover a shorter passage' };
+  if (anchor === undefined) return { ok: false, message: t`the selection is longer than the 2000 characters a coverage can hold, so cover a shorter passage` };
   return { ok: true, anchor };
 }
 
@@ -106,7 +110,7 @@ export function coverageRowsOf(state: ProjectState, shotId: string): CoverageRow
   return entries.map((entry: DialogueCoverage, index) => ({
     index,
     docId: entry.docId,
-    title: nodeById(state, entry.docId)?.title ?? 'A document that is no longer in the project',
+    title: nodeById(state, entry.docId)?.title ?? t`A document that is no longer in the project`,
     text: entry.anchor.exact,
   }));
 }
@@ -127,7 +131,7 @@ function rewriteCoverage(
   next: (current: readonly DialogueCoverage[]) => readonly DialogueCoverage[],
 ): StoryboardResult<ShotCommand> {
   const node = nodeById(state, shotId);
-  if (node === undefined || !isShotNode(node)) return { ok: false, refusal: { code: 'not-a-shot', message: `no shot "${shotId}" to cover` } };
+  if (node === undefined || !isShotNode(node)) return { ok: false, refusal: { code: 'not-a-shot', message: t`no shot "${shotId}" to cover` } };
   const raw = shotFieldOf(node);
   const base: Record<string, unknown> = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
   const current = readShotMeta(raw).meta.dialogue ?? [];

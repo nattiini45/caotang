@@ -1614,9 +1614,14 @@ describe('the bus/store split these applies depend on', () => {
     // The picture registry adds three names: `asset.setMeta` has an apply of the store's own, and `asset.import` and
     // `asset.importBatch` register only with the asset port, like the cover import: 58 + 3 = 61 names, and the AV script's two settings add two names with store applies: 58 + 3 + 2 = 63 names, 47 + 1 + 2 = 50 implemented.
     // The writer's codex batch import adds `codex.importBatch`, with an apply of the store's own: 63 + 1 = 64 names, 50 + 1 = 51 implemented.
-    // The import preview's commit adds `binder.importTree`, which registers only with the asset port: 64 + 1 = 65 names, 51 implemented.
-    expect(Object.keys(registry)).toHaveLength(65);
-    expect(implemented).toHaveLength(51);
+    // `timeline.apply` (the timeline batch) and the calendar setting have applies of the store's own: 66 names, 53 implemented.
+    // The rest of the picture registry adds eleven names: the eight that touch only the manifest (`asset.transcribe`, `asset.setLinkMeta`,
+    // `asset.link`, `asset.unlink`, `asset.makeDocumentLevel`, `asset.repin`, `asset.reorderLinks`, `asset.delete`) have applies of the
+    // store's own, and `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies` register only with the host's asset port: 77 names, 61 implemented.
+    // The seven comic commands need no port: 84 names, 68 implemented.
+    // The import preview's commit adds `binder.importTree`, which registers only with the asset port: 85 names, 68 implemented.
+    expect(Object.keys(registry)).toHaveLength(85);
+    expect(implemented).toHaveLength(68);
   });
 });
 

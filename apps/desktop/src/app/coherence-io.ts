@@ -23,6 +23,8 @@
  * program changed is not replaced: the save fails with the file named, and the browser's copy is still saved.
  */
 
+import { t } from '@lingui/core/macro';
+
 import {
   COHERENCE_FILE,
   loadCoherence,
@@ -48,6 +50,8 @@ import {
 import { activeAppDb, type AppDb } from './app-db.js';
 import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
 import { CoherenceFolderError, type CoherencePort, type ProjectSession } from './session.js';
+
+/* lingui-set comment="Interpolated values: error" */
 
 /** The app-database key the findings file used before the store had a home for it. Read once, when the store has no set. */
 export function legacyCoherenceKey(projectId: string): string {
@@ -128,9 +132,8 @@ async function openMirror(
       await writeProjectState(store, state, { now: new Date() });
     } else {
       readable = false;
-      notice =
-        `The findings file could not be read from this browser: ${messageOf(error)}. The findings are shown empty, and nothing is saved ` +
-        'over the stored file until the project is opened again.';
+      const errorText = messageOf(error);
+      notice = t`The findings file could not be read from this browser: ${{ error: errorText }}. The findings are shown empty, and nothing is saved over the stored file until the project is opened again.`;
     }
   }
   if (readable && Object.keys(stored).length === 0 && db !== null) {
@@ -187,13 +190,15 @@ async function readFolderCopy(root: DirectoryHandleLike): Promise<FolderCopy> {
 async function saveToFolder(copy: FolderCopy, file: CoherenceFile): Promise<void> {
   if ((await digestOfFile(copy.fs, COHERENCE_FILE)) !== copy.digest) {
     throw new CoherenceFolderError(
-      'coherence.json in the project folder was changed by another program since Caotang last read or saved it, so it was not replaced. The findings in this browser are kept; open the folder again from Projects to use the folder’s.',
+      t`coherence.json in the project folder was changed by another program since Caotang last read or saved it, so it was not replaced. The findings in this browser are kept; open the folder again from Projects to use the folder’s.`,
     );
   }
   await saveCoherence(copy.fs, copy.load, file);
   copy.digest = await digestOfBytes(new TextEncoder().encode(serializeCoherenceFile(file)));
   if ((await digestOfFile(copy.fs, COHERENCE_FILE)) !== copy.digest) {
-    throw new CoherenceFolderError('coherence.json in the project folder was changed by another program while Caotang was saving it, so the folder holds that program’s version.');
+    throw new CoherenceFolderError(
+      t`coherence.json in the project folder was changed by another program while Caotang was saving it, so the folder holds that program’s version.`,
+    );
   }
 }
 
@@ -216,7 +221,8 @@ export async function attachCoherence(session: ProjectSession, store: RuntimeSto
       if (folderTarget.load.status !== 'absent') load = folderTarget.load;
     } catch (error) {
       // The folder stays out of the saves for this session; the browser's copy is what is shown and saved.
-      notices.push(`${messageOf(error)} Findings are kept in this browser.`);
+      const errorText = messageOf(error);
+      notices.push(t`${{ error: errorText }} Findings are kept in this browser.`);
     }
   }
 

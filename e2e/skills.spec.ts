@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeRequest } from './endpoint.js';
-import { createProject, waitForSaved } from './support.js';
+import { createProject, waitForSaved, loose } from './support.js';
 
 /**
  * Skills (extensibility.md §10): a project's reusable writing instructions for the agent. A folder is imported, read in full and approved
@@ -98,14 +98,14 @@ test('a skill is imported, read, approved and listed, and the agent is told of i
     // Read it: every file, as it is, in plain text, with the scripts named and not run.
     panel = await openSkills(page);
     await panel.getByRole('button', { name: /Read and approve/ }).click();
-    await expect(panel.getByRole('heading', { name: 'Read “close-third”' })).toBeVisible();
+    await expect(panel.getByRole('heading', { name: loose('Read “close-third”') })).toBeVisible();
     await expect(panel.getByRole('note').filter({ hasText: 'Caotang reads the instructions and does not run them' })).toBeVisible();
     await expect(panel.getByRole('note').filter({ hasText: 'cannot read them in this build' })).toBeVisible();
     await expect(panel.getByLabel('Text of Instructions')).toContainText(STYLE);
     await expect(panel.getByLabel('Text of references/voice.md')).toContainText('Never leave the room.');
     await expect(panel.getByLabel('Text of scripts/check.sh')).toContainText('not run by Caotang');
     await panel.getByRole('button', { name: 'Approve this skill' }).click();
-    await expect(page.getByText('Approved “close-third”. The agent can use it now.')).toBeVisible();
+    await expect(page.getByText(loose('Approved “close-third”. The agent can use it now.'))).toBeVisible();
     await expect(panel.locator('[data-skill="close-third"]')).toContainText('Approved. The agent is told about it.');
     await panel.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByTestId('agent-skills-note')).toHaveCount(0);

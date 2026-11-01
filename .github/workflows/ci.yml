@@ -2,7 +2,7 @@
 #
 # What runs, and on which Node:
 #   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
-#     on Node 22.12.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium E2E,
+#     on Node 22.19.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium E2E,
 #     and the called Firefox/WebKit workflow; it passes only when all three gates succeed.
 #   - `e2e (chromium)` runs on Node 24 in parallel with the matrix and Firefox/WebKit's four shards. The cross-browser
 #     workflow merges the sharded reports and also runs nightly/on demand.
@@ -28,9 +28,9 @@
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
 #     change the repository. First-time contributors' runs wait for a maintainer's approval (a repository setting).
-#   - CI uses the exact pnpm release and integrity in the packageManager field. Node 22.12.0's bundled Corepack 0.29.4 cannot
-#     verify pnpm 12.9.1's current signing key, and an updated Corepack left an incomplete cache on the hosted runner. That
-#     matrix leg installs the pinned pnpm tarball only after checking its SHA-512 against packageManager; Node 24 uses Corepack.
+#   - CI uses the exact pnpm release and integrity in the packageManager field. The Node 22 leg tests the 22 floor, 22.19.0 since Lingui 6
+#     (#322); Node 22.12.0's bundled Corepack 0.29.4 could not verify pnpm 12.9.1's current signing key, and an updated Corepack
+#     left an incomplete cache on the hosted runner, so that leg still installs the pinned pnpm tarball only after checking its SHA-512 against packageManager; Node 24 uses Corepack.
 #     The lockfile format depends on the pnpm major.
 name: ci
 
@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.12.0', '24']
+        node: ['22.19.0', '24']
     steps:
       - uses: actions/checkout@v7
 
@@ -62,8 +62,8 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Install pinned pnpm for Node 22.12.0
-        if: matrix.node == '22.12.0'
+      - name: Install pinned pnpm for Node 22.19.0
+        if: matrix.node == '22.19.0'
         run: |
           spec="$(node -p "require('./package.json').packageManager")"
           version="${spec#pnpm@}"
@@ -78,7 +78,7 @@ jobs:
           echo "$RUNNER_TEMP/pnpm/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Enable corepack (pnpm from packageManager)
-        if: matrix.node != '22.12.0'
+        if: matrix.node != '22.19.0'
         run: corepack enable
 
       - name: Install (frozen lockfile, strict engines)
@@ -131,7 +131,9 @@ jobs:
   e2e:
     name: e2e (chromium)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # About 2,000 tests on two workers now take close to 30 minutes on their own (the timeline, pictures and comic specs), so
+    # the limit leaves room for retries instead of cancelling a run that is still passing.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 

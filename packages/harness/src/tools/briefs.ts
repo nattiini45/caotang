@@ -15,6 +15,7 @@
 
 import { ok, textDigest, type CommandError, type Result } from '@caotang/bus';
 import type { AssembledPrompt, SelectionSpan } from '@caotang/context';
+import { textOf } from '@caotang/gateway';
 import { resolveContainer } from '@caotang/dialogue';
 import type { TextAnchor } from '@caotang/editor';
 import { newId, type RandomBytes } from '@caotang/ids';
@@ -23,7 +24,7 @@ import { getBody, getRevision, nodeById, type ProjectState } from '@caotang/stor
 import { dialogueDraftPort, placement, sceneDraftPort, sceneDraftPreflight } from '../agent/ports.js';
 import { dialogueRole, sceneRole, wordsOf } from '../agent/drafting.js';
 import { createContextPort } from '../agent/context.js';
-import { sceneTask, spanOf } from '../agent/loop.js';
+import { sceneTask, spanOf } from '../agent/scene-task.js';
 import { failure, refusal } from '../errors.js';
 import { DOCUMENT, resolveNode, withoutWithheld } from '../resolve.js';
 import type { CallParams, PortContext, PortToolName, ToolPort, ToolValue } from '../types.js';
@@ -279,7 +280,7 @@ function sceneBriefPort({ ledger }: BriefPortOptions): ToolPort {
       field: 'text',
       title: node.value.title,
       record,
-      messages: call.messages,
+      messages: call.messages.map((message) => ({ ...message, content: textOf(message.content) })),
       dropped: droppedFor(call.prompt),
       applyWith,
       reply: `Write the text the system message asks for. Then call scene.apply with applyWith and text set to your reply, with nothing in it but the text. A reply over ${BRIEF_REPLY_MAX_CHARS} characters is refused, never cut.`,
@@ -322,7 +323,7 @@ function dialogueBriefPort({ ledger }: BriefPortOptions): ToolPort {
       field: 'ink',
       title: container.node.title,
       record,
-      messages: call.messages,
+      messages: call.messages.map((message) => ({ ...message, content: textOf(message.content) })),
       dropped: droppedFor(call.prompt),
       applyWith,
       reply: `Write the Ink the system message asks for. Then call dialogue.apply with applyWith and ink set to your reply, with nothing in it but the Ink: no commentary and no code fence. The Ink is compile-checked, and a compile error is refused with nothing written, so read the error, write the Ink again and apply it with the same briefId. A reply over ${BRIEF_REPLY_MAX_CHARS} characters is refused, never cut.`,

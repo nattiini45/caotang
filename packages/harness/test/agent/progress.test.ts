@@ -360,7 +360,10 @@ describe('the phrase table', () => {
   });
 
   it('words a call from its own params', () => {
-    expect(phraseFor('scene.draft', { doc: 'The Landing' })).toEqual({ content: 'Draft “The Landing”', activeForm: 'Drafting “The Landing”' });
+    expect(phraseFor('scene.draft', { doc: 'The Landing' })).toMatchObject({
+      content: 'Draft “The Landing”',
+      activeForm: 'Drafting “The Landing”',
+    });
     expect(phraseFor('synopsis.fill', { docs: ['a', 'b', 'c'] }).content).toBe('Fill 3 synopses');
     expect(phraseFor('binder.restructure', { ops: [{}, {}, {}, {}, {}] }).content).toBe('Restructure the binder (5 changes)');
     expect(phraseFor('binder.restructure', { ops: [{}] }).content).toBe('Restructure the binder (1 change)');

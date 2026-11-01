@@ -13,6 +13,7 @@ import type { MockResponse, MockScript } from '@caotang/gateway/mock';
 import { childTools, createAgentPorts, createAgentSession, createContextPort, DELEGATE_NOTICE, PLANNER_SYSTEM_PREFIX, READER } from '../../src/index.js';
 import { makeHarness, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
+import { textOf } from '@caotang/gateway';
 
 const INTENT = 'Who knows about the lamp?';
 const repliesOf = (req: ChatRequest): number => req.messages.filter((message) => message.role === 'assistant').length;
@@ -28,7 +29,7 @@ describe('a delegation on the native wire', () => {
     const delegate = call('call_planner_1', 'agent.delegate', { agent: 'reader', brief: 'Who knows the lamp failed?', scope: ['The Storm'] });
     const scripts: MockScript[] = [
       {
-        match: (req) => (req.tools?.length ?? 0) > 0 && req.messages[0]?.content.startsWith(PLANNER_SYSTEM_PREFIX) === true,
+        match: (req) => (req.tools?.length ?? 0) > 0 && textOf(req.messages[0]?.content ?? '').startsWith(PLANNER_SYSTEM_PREFIX) === true,
         respond: (req) => (repliesOf(req) === 0 ? delegate : { content: 'Only the keeper knows.' }),
       },
       subagentScript((req) => (repliesOf(req) === 0 ? call('call_child_1', 'doc.read', { doc: 'The Storm' }) : { content: 'The keeper alone knows the lamp failed.' })),
@@ -63,7 +64,7 @@ describe('a delegation on the native wire', () => {
     // The planner's call is answered by its id, with the notice first and the notes as data.
     const planner = seen.filter((request) => request.agentPath === undefined);
     const answered = planner.at(-1)?.messages.find((message) => message.role === 'tool' && message.toolCallId === 'call_planner_1');
-    const body = JSON.parse(answered?.content ?? '{}') as { ok?: boolean; data?: { notice?: string; summary?: string; status?: string } };
+    const body = JSON.parse(textOf(answered?.content ?? '{}')) as { ok?: boolean; data?: { notice?: string; summary?: string; status?: string } };
     expect(body.ok).toBe(true);
     expect(body.data?.notice).toBe(DELEGATE_NOTICE);
     expect(body.data?.summary).toBe('The keeper alone knows the lamp failed.');

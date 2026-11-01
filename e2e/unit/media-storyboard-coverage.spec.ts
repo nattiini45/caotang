@@ -16,7 +16,7 @@ const SCENE_TEXT = 'ELENA: "We leave at dawn."\n\nThe ferry waits.';
 
 /** A project with a screenplay scene, a prose document, a dialogue container, and a storyboard holding one shot. */
 function project(sceneBody = SCENE_TEXT): ProjectState {
-  const state = createProjectState(createEmptyManifest('Film', NOW));
+  const state = createProjectState(createEmptyManifest('Film', NOW, { locale: 'en-US' }));
   addDocument(state, { parentId: 'manuscript', title: 'Scene 1', body: sceneBody, kind: 'screenplay', now: NOW, id: SCENE });
   addDocument(state, { parentId: 'manuscript', title: 'Chapter text', body: 'The ferry was late.', now: NOW, id: PROSE });
   addDocument(state, { parentId: 'manuscript', title: 'Dialogue', body: '=== start ===\n', kind: 'branching', type: 'dialogue', now: NOW, id: DIALOGUE });

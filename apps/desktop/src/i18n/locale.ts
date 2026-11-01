@@ -21,6 +21,11 @@ import {
 
 let setting: UiLocaleSetting = 'system';
 let pinned: string | undefined;
+/**
+ * The catalogue the runtime actually activated (`language.ts`, through `format-locale.ts`). Once one is active it is the
+ * interface language, whatever the setting resolves to: a catalogue that is still loading, or failed to, never decides it.
+ */
+let activated: string | undefined;
 let resolved: { readonly ui: string; readonly format: string } | undefined;
 
 /** The browser's languages, most preferred first. Empty where there is no `navigator` (a bare Node host). */
@@ -41,7 +46,7 @@ if (typeof events.addEventListener === 'function') {
 function current(): { readonly ui: string; readonly format: string } {
   if (resolved === undefined) {
     const languages = systemLanguages();
-    const ui = resolveUiLocale(setting, languages, SHIPPED_UI_LOCALES);
+    const ui = activated ?? resolveUiLocale(setting, languages, SHIPPED_UI_LOCALES);
     resolved = { ui, format: pinned ?? formatLocale(ui, languages) };
   }
   return resolved;
@@ -63,15 +68,43 @@ export function setInterfaceLanguage(next: UiLocaleSetting): void {
   resolved = undefined;
 }
 
+/**
+ * Records the catalogue tag the runtime activated (I4). Called only after a successful load and `i18n.activate`, so the
+ * interface and formatter locales follow the catalogue that is on screen; `undefined` returns the decision to the setting.
+ */
+export function setActivatedInterfaceLocale(tag: string | undefined): void {
+  activated = tag;
+  resolved = undefined;
+}
+
+/** The browser's languages, most preferred first, for callers that resolve a setting themselves (the language switcher). */
+export function systemLanguageList(): readonly string[] {
+  return systemLanguages();
+}
+
+/**
+ * The formatter locale for an explicit list of system languages, under the interface language that is active now. Tests and
+ * the switcher pass their own list; every other caller wants {@link appFormatLocale}, which also honours a pinned locale.
+ */
+export function formatLocaleFor(languages: readonly string[]): string {
+  return formatLocale(interfaceLocale(), languages);
+}
+
 /** Pins the formatter locale (unit specs, so a count or a date reads the same on every machine); `undefined` unpins it. */
 export function pinFormatLocale(tag: string | undefined): void {
   pinned = tag;
   resolved = undefined;
 }
 
-/** A count as the interface shows it, grouped in the formatter locale: "12,000" in English. */
-export function formatCount(value: number, options?: Intl.NumberFormatOptions): string {
-  return numberFormat(appFormatLocale(), options).format(value);
+/**
+ * A count as the interface shows it, grouped in the formatter locale: "12,000" in English. A model that takes a `locale` argument
+ * (so a test can pin it) passes it first; every other caller passes options, or nothing.
+ */
+export function formatCount(value: number, options?: Intl.NumberFormatOptions): string;
+export function formatCount(value: number, locale: string, options?: Intl.NumberFormatOptions): string;
+export function formatCount(value: number, localeOrOptions?: string | Intl.NumberFormatOptions, options?: Intl.NumberFormatOptions): string {
+  const locale = typeof localeOrOptions === 'string' ? localeOrOptions : appFormatLocale();
+  return numberFormat(locale, typeof localeOrOptions === 'string' ? options : localeOrOptions).format(value);
 }
 
 /**

@@ -32,7 +32,9 @@
  * A session that a stale write has stopped saves nothing to a folder either.
  */
 
+import { t } from '@lingui/core/macro';
 import { COHERENCE_FILE, serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
+import { collatorFor, isolate } from '@caotang/i18n';
 import { TASKS_FILE } from '@caotang/tasks';
 import {
   ArtifactNotFoundError,
@@ -95,6 +97,7 @@ import {
 import { newId } from '@caotang/ids';
 import type { McpClient } from '@caotang/mcp-client';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import { attachCoherence } from './coherence-io.js';
 import { interfaceCollator } from '../i18n/locale.js';
 import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
@@ -127,6 +130,7 @@ import {
 import { sampleProjectState } from './demo.js';
 import { dropHistoryOf } from './history-store.js';
 import { SkillReviews, dropReviewsOf } from './skill-reviews.js';
+import { forgetPictureNotices } from './picture-notices.js';
 import { dropTasksOf } from './task-store.js';
 import { dropTaskRunsOf } from './task-runs.js';
 import { openTasksHome } from './tasks-io.js';
@@ -135,6 +139,8 @@ import { copyState, shadowOf, type Shadow } from './persistence-plan.js';
 import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } from './project-lease.js';
 import { ProjectSession, type FolderBaseline, type SessionCoherence } from './session.js';
 import { ProjectAssets, coverFileHeld, folderPictures, forgetBrowserAssets } from './project-assets.js';
+
+/* lingui-set comment="Interpolated values: count, path, reason" */
 
 /**
  * What the settings say a session starts with: the autosave debounce and the checkpoint limits (ui-modules §5.1). The app
@@ -270,6 +276,15 @@ export interface ProjectSummary {
   readonly name: string;
   readonly documents: number;
   readonly words: number;
+}
+
+/**
+ * The projects screen's order (i18n.md §4.3): by name in the formatter locale, then by id so the order is total and stable.
+ * The list mixes projects written in different languages, so there is no one project language to sort by; these are UI rows,
+ * and they sort with the interface.
+ */
+export function projectOrder(a: ProjectSummary, b: ProjectSummary, locale: string = formatterLocale()): number {
+  return collatorFor(locale).compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 }
 
 export interface Opened {
@@ -411,7 +426,7 @@ export function orderProjects<T extends { readonly name: string; readonly id: st
 
 /** A new project: the three fixed roots and nothing else (ui-modules §2.4 — the empty state carries the next step). */
 export async function createProject(store: RuntimeStore, name: string): Promise<ProjectSession> {
-  const title = name.trim() === '' ? 'Untitled project' : name.trim();
+  const title = name.trim() === '' ? t`Untitled project` : name.trim();
   const state = createProjectState(createEmptyManifest(title));
   const session = await sessionFor(store, state, null, await leaseFor(state.manifest.project.id));
   await session.settle();
@@ -474,8 +489,8 @@ export function imageDropNotice(session: ProjectSession): string[] {
   if (dropped === 0) return [];
   return [
     dropped === 1
-      ? 'A shot lost its picture because the file is not in the project. The storyboard names it.'
-      : `${dropped} shots lost their pictures because the files are not in the project. The storyboard names them.`,
+      ? t`A shot lost its picture because the file is not in the project. The storyboard names it.`
+      : t`${{ count: dropped }} shots lost their pictures because the files are not in the project. The storyboard names them.`,
   ];
 }
 
@@ -508,6 +523,8 @@ export async function removeProject(store: RuntimeStore, projectId: string): Pro
     await dropTasksOf(projectId);
     // And the run history of its recurring tasks (task-runs.ts).
     await dropTaskRunsOf(projectId);
+    // And what the writer answered about keeping its pictures safe (picture-notices.ts).
+    await forgetPictureNotices(projectId);
   } finally {
     lease.release();
   }
@@ -602,7 +619,7 @@ async function bundleOf(
   const cover = state.manifest.project.coverAssetId;
   if (cover && !(await coverFileHeld(assets, cover))) {
     notices.push(
-      'the cover image is not available in this browser, so the bundle has no cover. A project kept in a folder has its cover there: open that folder, or choose the cover again in the project panel',
+      t`the cover image is not available in this browser, so the bundle has no cover. A project kept in a folder has its cover there: open that folder, or choose the cover again in the project panel`,
     );
   }
   // The findings file and the recurring tasks ride beside caotang.json (coherence.md §3, agent-harness.md §12), and the images in assets/.
@@ -623,11 +640,11 @@ async function bundleOf(
   // copy holds would be a lie, and it would hide the hazard: a save of that copy writes the empty text over
   // the author's file.
   for (const path of exported.omitted) {
-    omissions.push(`“${path}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text`);
+    omissions.push(t`“${{ path: isolate(path) }}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text`);
   }
   for (const path of exported.emptied) {
     omissions.push(
-      `“${path}” is not UTF-8 text, so this copy holds an empty file in its place instead of its text; the file it was opened from still holds its text, and a save of this copy over it would write that empty text over it`,
+      t`“${{ path: isolate(path) }}” is not UTF-8 text, so this copy holds an empty file in its place instead of its text; the file it was opened from still holds its text, and a save of this copy over it would write that empty text over it`,
     );
   }
   notices.push(...omissions);
@@ -779,7 +796,7 @@ function droppedFieldsOf(notices: readonly LoadNotice[]): string[] {
 /** The open's sentence for a folder its exports cannot be written to: they are kept in this browser, and the reason follows as a sentence. */
 function exportsKeptHere(error: unknown): string {
   const reason = error instanceof Error ? error.message : String(error);
-  return `Exports are kept in this browser, not in the folder. ${sentenceOf(reason)}`;
+  return t`Exports are kept in this browser, not in the folder. ${{ reason: sentenceOf(reason) }}`;
 }
 
 /**
@@ -1061,7 +1078,7 @@ async function finishFolderOpen(
   let baselineText = onDisk ?? '';
   if (loaded.notices.some((notice) => (BACKFILLABLE_FIELDS as readonly string[]).includes(notice.path))) {
     if (await fs.exists(MCP_LOCK_FILE)) {
-      notices.push('The details Caotang made for this project as it opened were not saved to the folder, because another program, such as the Caotang MCP server, may be using it. The next open may make another set.');
+      notices.push(t`The details Caotang made for this project as it opened were not saved to the folder, because another program, such as the Caotang MCP server, may be using it. The next open may make another set.`);
     } else {
       const report = emptyReport();
       try {
@@ -1071,7 +1088,7 @@ async function finishFolderOpen(
         baselineText = (await readManifestText(fs)) ?? '';
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
-        notices.push(`The details Caotang made for this project as it opened could not be saved to the folder, so the next open may make another set. ${sentenceOf(reason)}`);
+        notices.push(t`The details Caotang made for this project as it opened could not be saved to the folder, so the next open may make another set. ${{ reason: sentenceOf(reason) }}`);
       }
       digests = await digestsAfterWrite(fs, digests, report);
     }
@@ -1254,7 +1271,7 @@ async function restoreBrowserCopy(
   const opened: { session: ProjectSession | null } = { session: null };
   await step(async () => {
     if ((await listProjectIds(store)).includes(projectId)) await removeProject(store, projectId);
-    const restored = await importBundle(store, bytes, 'this browser’s copy');
+    const restored = await importBundle(store, bytes, t`this browser’s copy`);
     // A bundle this browser itself exported should never pause on encodings — a declined file rides the bundle as the
     // UTF-8 text the load kept for it. If one ever does, leaving every file is the safe answer: nothing is converted.
     const settled = restored.kind === 'encoding' ? await completeEncodingReview(store, restored.encoding, []) : restored;
@@ -1401,7 +1418,7 @@ export async function completeRecovery(
         issues: offer.encodingIssues,
         fs: recovery.fs,
         resume: { kind: 'recovery', sessions: recovery.sessions, folder: recovery.folder },
-        cancelNote: 'The recovery was written, and the project’s files are as it left them. The project was not opened.',
+        cancelNote: t`The recovery was written, and the project’s files are as it left them. The project was not opened.`,
       },
     };
   }
@@ -1520,7 +1537,7 @@ export type FolderFileChange = ProjectFileChange;
  * not hold described, so no node id and no file name reaches the writer. The wording is the store's, which the MCP server shares.
  */
 export function folderChanges(drift: FolderDrift, state: ProjectState, heldTitles: ReadonlyMap<string, string>): FolderFileChange[] {
-  return projectFileChanges(drift, state, heldTitles, 'this copy');
+  return projectFileChanges(drift, state, heldTitles, t`this copy`);
 }
 
 /** A changed project file whose path remains internal, so equal display labels cannot mix their previews. */
@@ -1673,8 +1690,10 @@ function withFolderOverwriteSnapshot<T extends Extract<FolderSaveOutcome, { read
 }
 
 /** What a copy opened from a folder says when it is asked to save into that folder: a copy of the book, not the book. */
-const COPY_CANNOT_SAVE_INTO_FOLDER =
-  'This copy cannot be saved into that folder. It is a second copy of the book the folder holds, and saving it there would change the folder’s book into this copy. Nothing was written. Save this copy to a new folder, or export a backup.';
+/** What a copy opened from a folder says when it is asked to save into that folder: a copy of the book, not the book. */
+function copyCannotSaveIntoFolder(): string {
+  return t`This copy cannot be saved into that folder. It is a second copy of the book the folder holds, and saving it there would change the folder’s book into this copy. Nothing was written. Save this copy to a new folder, or export a backup.`;
+}
 
 /**
  * Write the project's current state into a folder as an artifact (project-format §4), when the folder still holds the copy this
@@ -1701,7 +1720,7 @@ export async function saveFolder(
     ownId: session.state.manifest.project.id,
     copiedFrom: session.copiedFrom() ?? (await copiedFromOf(session.projectId)),
   });
-  if (route === 'original') throw new Error(COPY_CANNOT_SAVE_INTO_FOLDER);
+  if (route === 'original') throw new Error(copyCannotSaveIntoFolder());
   // The copy this session holds is a baseline only for the folder it was taken from (`FolderBaseline`). A folder holding this project's own
   // earlier save, which this session holds no copy of (after a reload), is compared with the copy kept for it across the reload. Any other
   // folder is compared with nothing.

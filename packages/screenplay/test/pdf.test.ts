@@ -17,6 +17,7 @@ import {
   writePdf,
 } from '../src/index.js';
 import { WIN_ANSI_EXTRA } from '../src/winansi.js';
+import { CP1252_HIGH, cp1252Char } from './fixtures/cp1252.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
 import { LOADERS } from './fixtures/fonts.js';
 
@@ -166,10 +167,10 @@ describe('pdfString — WinAnsi and the literal-string escapes', () => {
 
   // PDF 1.7 Annex D.2: WinAnsiEncoding is Windows-1252, whose 0x80–0x9F block holds 27 characters and leaves five codes empty.
   it('encodes all 27 characters Windows-1252 holds at 0x80 to 0x9F, and none of its five empty codes', () => {
-    const cp1252 = new TextDecoder('windows-1252');
+    expect(CP1252_HIGH).toHaveLength(32);
     let held = 0;
     for (let byte = 0x80; byte <= 0x9f; byte++) {
-      const ch = cp1252.decode(new Uint8Array([byte]));
+      const ch = cp1252Char(byte);
       const code = ch.codePointAt(0) ?? 0;
       if (code === byte) {
         // An empty code decodes to the C1 control of the same number, which WinAnsi cannot encode.

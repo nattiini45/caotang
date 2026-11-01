@@ -7,7 +7,7 @@
 
 import { createHash } from 'node:crypto';
 
-import { emptyCoherenceFile, serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
+import { emptyCoherenceFile, serializeCoherenceFile, type CoherenceFile, type SceneMeta } from '@caotang/coherence';
 import {
   MemoryArtifactFs,
   addDocument,
@@ -57,6 +57,8 @@ export interface SeedOptions {
   readonly newline?: '\n' | '\r\n';
   /** Scenes that declare Elena as expected. Default: both prose scenes. */
   readonly expecting?: readonly string[];
+  /** Declarations merged over the scene's own (a day, a story part), as a writer's `coherence.json` holds them. */
+  readonly declare?: Readonly<Record<string, SceneMeta>>;
 }
 
 /** A folder with two prose scenes, a screenplay and a dialogue container, and a `coherence.json` that expects Elena in the prose scenes. */
@@ -74,6 +76,7 @@ export async function seedProject(options: SeedOptions = {}): Promise<Seeded> {
 
   const file = emptyCoherenceFile();
   for (const id of options.expecting ?? [HARBOUR, SHORE]) file.sceneMeta[id] = { expectedPresent: [ELENA] };
+  for (const [id, meta] of Object.entries(options.declare ?? {})) file.sceneMeta[id] = { ...file.sceneMeta[id], ...meta };
   fs.putFile('coherence.json', serializeCoherenceFile(file));
   return { fs, state };
 }

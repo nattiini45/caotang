@@ -24,7 +24,7 @@ const browsers = read('.github/workflows/e2e-browsers.yml');
 describe('the required pull-request CI gate', () => {
   it('keeps the stable verify status behind both Node versions and all browser jobs', () => {
     const verify = jobBlock(ci, 'verify');
-    expect(ci).toContain("node: ['22.12.0', '24']");
+    expect(ci).toContain("node: ['22.19.0', '24']");
     expect(verify).toContain('needs: [verify_matrix, e2e, e2e_browsers, visual]');
     expect(verify).toContain('if: always()');
     for (const result of ['MATRIX_RESULT', 'CHROMIUM_RESULT', 'CROSS_BROWSER_RESULT', 'VISUAL_RESULT']) {

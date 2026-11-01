@@ -158,6 +158,28 @@ export const FOOTPRINT_CLASS: Readonly<Record<CommandName, 'content' | 'move' | 
   'hook.save': 'global',
   'hook.delete': 'global',
   'codex.importBatch': 'global',
+  // The timeline batch, the calendar setting, the rest of the picture registry and the comic track touch more than one node's
+  // content or the manifest itself, so their footprint is global until this file states one.
+  'timeline.apply': 'global',
+  'project.setCalendar': 'global',
+  'asset.transcribe': 'global',
+  'asset.setLinkMeta': 'global',
+  'asset.link': 'global',
+  'asset.unlink': 'global',
+  'asset.makeDocumentLevel': 'global',
+  'asset.repin': 'global',
+  'asset.reorderLinks': 'global',
+  'asset.delete': 'global',
+  'asset.sweep': 'global',
+  'asset.relink': 'global',
+  'asset.storeWorkingCopies': 'global',
+  'comic.createBook': 'global',
+  'comic.setBook': 'global',
+  'comic.setPage': 'global',
+  'comic.setScript': 'global',
+  'comic.scriptFromPages': 'global',
+  'comic.derive': 'global',
+  'comic.letter': 'global',
   'binder.importTree': 'global',
 };
 

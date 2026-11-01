@@ -184,8 +184,13 @@ async function compileRows(fs: ArtifactFs): Promise<unknown[]> {
   return parsed;
 }
 
+/**
+ * The paths the export store holds as bytes rather than text. The prose formats' figures and the contact sheet's
+ * pictures are published beside their document (a Markdown export's `.assets/` folder), so the picture extensions
+ * are here too: a picture read back through the text store would come back as nothing.
+ */
 function isBinaryPath(path: string): boolean {
-  return /\.(docx|epub|xlsx|pdf)$/i.test(path);
+  return /\.(docx|epub|xlsx|pdf|cbz|png|jpe?g|webp)$/i.test(path);
 }
 
 /** The basenames of the paths directly inside `dir`. */

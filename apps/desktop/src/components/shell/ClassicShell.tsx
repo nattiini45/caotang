@@ -7,12 +7,17 @@
  * It arranges the regions `Workspace` built and renders the toolbar and the More menu from the shell actions; the state, the
  * handlers and the dialogs stay in `Workspace`, which passes the dialogs as children so they sit where they always have.
  */
+/* lingui-set comment="The workspace shell: its toolbar, panels and centre views. count is a number of open findings." */
 
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 
 import { togglePanel } from '../../app/narrow-model.js';
 import { classicMenu, classicToolbarSlot, type ShellAction } from '../../app/shell-actions.js';
+import { inlineKey } from '../../i18n/direction.js';
 import type { CenterMode } from '../Binder.js';
+import { LazyBoundary } from '../lazy-view.js';
 import { OpenOnDesktop } from '../narrow.js';
 import { Menu } from '../shared.js';
 import type { RailTab, ShellRegions } from './regions.js';
@@ -20,7 +25,7 @@ import type { RailTab, ShellRegions } from './regions.js';
 /** The rail's tabs in the order the arrow keys walk them (WAI-ARIA tabs). */
 const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'trace', 'findings'];
 /** The centre views, in the order the arrow keys walk the radio group. */
-const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard'];
+const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard', 'timeline', 'pictures'];
 
 /** The id of a rail tab, which its tabpanel names itself by (`aria-labelledby`). */
 export function railTabId(tab: RailTab): string {
@@ -29,11 +34,13 @@ export function railTabId(tab: RailTab): string {
 
 /**
  * The item an arrow, Home or End key moves to from `current`, or `null` for any other key. Arrows wrap at both ends, as the
- * WAI-ARIA tab and radio patterns have them, and Home and End go to the first and last item.
+ * WAI-ARIA tab and radio patterns have them, and Home and End go to the first and last item. Left and right follow the reading
+ * direction (`inlineKey`), so in a right-to-left interface the right arrow walks back.
  */
-function keyStep<T>(items: readonly T[], current: T, key: string): T | null {
+function keyStep<T>(items: readonly T[], current: T, pressed: string): T | null {
   const at = items.indexOf(current);
   if (at === -1) return null;
+  const key = inlineKey(pressed);
   if (key === 'ArrowRight' || key === 'ArrowDown') return items[(at + 1) % items.length] ?? null;
   if (key === 'ArrowLeft' || key === 'ArrowUp') return items[(at - 1 + items.length) % items.length] ?? null;
   if (key === 'Home') return items[0] ?? null;
@@ -83,7 +90,7 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
                 aria-controls="narrow-rail"
                 onClick={() => setPanel(togglePanel(openPanel, 'rail'))}
               >
-                Binder
+                <Trans>Binder</Trans>
               </button>
             )
           ) : (
@@ -118,11 +125,11 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
                 aria-controls="narrow-sheet"
                 onClick={() => setPanel(togglePanel(openPanel, 'inspector'))}
               >
-                Inspector
+                <Trans>Inspector</Trans>
               </button>
             )}
             <button type="button" className="button" aria-haspopup="menu" aria-expanded={overflow !== null} onClick={view.openOverflow}>
-              More
+              <Trans>More</Trans>
             </button>
           </div>
         ) : (
@@ -139,23 +146,25 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
         <nav
           id="narrow-rail"
           className={`rail${narrow ? ' is-drawer' : ''}${openPanel === 'rail' ? ' is-open' : ''}`}
-          aria-label="Project panels"
+          aria-label={t`Project panels`}
           onKeyDown={narrow ? onPanelKey : undefined}
         >
           {narrow ? (
             <div className="panel-head">
-              <span className="panel-title">Project panels</span>
-              <button type="button" className="button" aria-label="Close panels" onClick={() => setPanel(null)}>
-                Close
+              <span className="panel-title">
+                <Trans>Project panels</Trans>
+              </span>
+              <button type="button" className="button" aria-label={t`Close panels`} onClick={() => setPanel(null)}>
+                <Trans>Close</Trans>
               </button>
             </div>
           ) : null}
-          <div role="tablist" aria-label="Panels" className="rail-tabs" onKeyDown={onRailTabKey}>
-            <RailTabButton tab="binder" current={rail} label="Binder" onSelect={setRail} />
-            <RailTabButton tab="codex" current={rail} label="Codex" onSelect={setRail} />
-            <RailTabButton tab="activity" current={rail} label="Activity" onSelect={setRail} />
-            <RailTabButton tab="trace" current={rail} label="Trace" onSelect={setRail} />
-            <RailTabButton tab="findings" current={rail} label="Findings" badge={regions.findingsBadge} onSelect={setRail} />
+          <div role="tablist" aria-label={t`Panels`} className="rail-tabs" onKeyDown={onRailTabKey}>
+            <RailTabButton tab="binder" current={rail} label={t`Binder`} onSelect={setRail} />
+            <RailTabButton tab="codex" current={rail} label={t`Codex`} onSelect={setRail} />
+            <RailTabButton tab="activity" current={rail} label={t`Activity`} onSelect={setRail} />
+            <RailTabButton tab="trace" current={rail} label={t`Trace`} onSelect={setRail} />
+            <RailTabButton tab="findings" current={rail} label={t`Findings`} badge={regions.findingsBadge} onSelect={setRail} />
           </div>
           <div role="tabpanel" id="rail-panel" aria-labelledby={railTabId(rail)} className="rail-panel">
             {rail === 'binder'
@@ -163,16 +172,16 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
               : rail === 'codex'
                 ? regions.codex
                 : rail === 'findings'
-                  ? regions.findings
+                  ? <LazyBoundary label={t`Findings`}>{regions.findings}</LazyBoundary>
                   : rail === 'trace'
-                    ? regions.trace
-                    : regions.activity}
+                    ? <LazyBoundary label={t`Trace`}>{regions.trace}</LazyBoundary>
+                    : <LazyBoundary label={t`Activity`}>{regions.activity}</LazyBoundary>}
           </div>
         </nav>
       )}
 
       <main className="center" inert={openPanel !== null}>
-        <div role="radiogroup" aria-label="Centre view" className="center-switch" onKeyDown={onCenterKey}>
+        <div role="radiogroup" aria-label={t`Centre view`} className="center-switch" onKeyDown={onCenterKey}>
           <button
             type="button"
             id="center-editor"
@@ -182,7 +191,7 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
             className="segmented-item"
             onClick={() => setCenter('editor')}
           >
-            Editor
+            <Trans>Editor</Trans>
           </button>
           <button
             type="button"
@@ -193,10 +202,34 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
             className="segmented-item"
             onClick={() => setCenter('corkboard')}
           >
-            Corkboard
+            <Trans>Corkboard</Trans>
+          </button>
+          <button
+            type="button"
+            id="center-timeline"
+            role="radio"
+            aria-checked={center === 'timeline'}
+            tabIndex={center === 'timeline' ? 0 : -1}
+            className="segmented-item"
+            onClick={() => setCenter('timeline')}
+          >
+            <Trans>Timeline</Trans>
+          </button>
+          <button
+            type="button"
+            id="center-pictures"
+            role="radio"
+            aria-checked={center === 'pictures'}
+            tabIndex={center === 'pictures' ? 0 : -1}
+            className="segmented-item"
+            onClick={() => setCenter('pictures')}
+          >
+            <Trans>Pictures</Trans>
           </button>
         </div>
         {regions.storageBanner}
+        {/* The picture-aware notices take the general banner's place, never sit beside it. */}
+        {regions.storageBanner === null ? regions.pictureNotices : null}
         {regions.media}
         {/* Kept mounted while the corkboard is shown, so the editor keeps its undo history and its place. */}
         {regions.editor}
@@ -205,21 +238,25 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
             feature="corkboard"
             actions={
               <button type="button" className="button" onClick={() => setCenter('editor')}>
-                Back to the editor
+                <Trans>Back to the editor</Trans>
               </button>
             }
           />
         ) : null}
         {center === 'corkboard' && regions.media === null && !narrow ? regions.corkboard : null}
-        {hideRails ? null : regions.agent}
+        {center === 'pictures' ? <LazyBoundary label={t`the pictures`}>{regions.pictures}</LazyBoundary> : null}
+        {center === 'timeline' ? <LazyBoundary label={t`the timeline`}>{regions.timeline}</LazyBoundary> : null}
+        {hideRails ? null : <LazyBoundary label={t`the agent`}>{regions.agent}</LazyBoundary>}
       </main>
 
       {hideRails ? null : narrow ? (
         <div id="narrow-sheet" className={`sheet${openPanel === 'inspector' ? ' is-open' : ''}`} onKeyDown={onPanelKey}>
           <div className="panel-head">
-            <span className="panel-title">Inspector</span>
-            <button type="button" id="narrow-close-inspector" className="button" aria-label="Close inspector" onClick={() => setPanel(null)}>
-              Close
+            <span className="panel-title">
+              <Trans>Inspector</Trans>
+            </span>
+            <button type="button" id="narrow-close-inspector" className="button" aria-label={t`Close inspector`} onClick={() => setPanel(null)}>
+              <Trans>Close</Trans>
             </button>
           </div>
           {regions.inspector}
@@ -228,7 +265,7 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
         regions.inspector
       )}
       {openPanel === null ? null : <div className="scrim" data-testid="panel-scrim" aria-hidden="true" onClick={() => setPanel(null)} />}
-      {overflow === null ? null : <Menu label="More" anchor={overflow} items={classicMenu(actions)} onClose={view.closeOverflow} />}
+      {overflow === null ? null : <Menu label={t`More`} anchor={overflow} items={classicMenu(actions)} onClose={view.closeOverflow} />}
 
       {regions.status}
 
@@ -250,6 +287,7 @@ function ToolbarButton({ action, quiet = false }: { action: ShellAction; quiet?:
       aria-pressed={action.pressed}
       aria-label={action.ariaLabel}
       title={action.hint}
+      data-testid={action.testId}
       onClick={action.run}
     >
       {action.toolbarLabel ?? action.label}
@@ -288,7 +326,7 @@ function RailTabButton({
     >
       {label}
       {badge > 0 ? (
-        <span className="rail-badge" aria-label={`${badge} open`} data-testid={`${tab}-badge`}>
+        <span className="rail-badge" aria-label={t`${plural(badge, { one: '# open', other: '# open' })}`} data-testid={`${tab}-badge`}>
           {badge}
         </span>
       ) : null}

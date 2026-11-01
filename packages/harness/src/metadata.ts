@@ -8,6 +8,8 @@ import { TOOL_TARGETS, type ToolTargets } from './targets.js';
 import { SUBAGENT_BLURBS } from './tools/delegate.js';
 import { PRIMITIVE_TOOLS } from './tools/primitive-tools.js';
 import { PRIMITIVE_TOOL_NAMES } from './tools/primitive.js';
+import { PICTURE_TOOL_METADATA, PICTURE_TOOL_NAMES } from './tools/pictures.js';
+import { COMIC_TOOL_METADATA, COMIC_TOOL_NAMES } from './tools/comics.js';
 import { BRIEF_REPLY_MAX_CHARS } from './tools/ports.js';
 
 /**
@@ -89,6 +91,12 @@ export const TOOL_NAMES = [
   'memory.read',
   // Delegation to a built-in helper agent (agent-harness §2).
   'agent.delegate',
+  // The story timeline's read (timeline.md §5.1); its write, `timeline.edit`, is one of the primitives below.
+  'timeline.read',
+  // The picture registry's native tools (pictures.md §8.1), each a deferred extension row.
+  ...PICTURE_TOOL_NAMES,
+  // The comic script/page workflow tools (comics.md §3.2), each a deferred extension row.
+  ...COMIC_TOOL_NAMES,
   // The host-model pairs, served to the MCP server only (agent-harness §3, "External-only rows").
   'scene.brief',
   'scene.apply',
@@ -392,6 +400,24 @@ const ROWS: readonly ToolRow[] = [
     load: 'deferred',
     keywords: ['delegate', 'agent', 'subagent', 'helper', 'research', 'reader', 'summarise', 'long'],
   },
+  // The story timeline's read (timeline.md §5.1): the model the view and the MCP resources use, scoped and cut at whole scenes under its cap. A read,
+  // so it is auto; deferred like the other extension rows, and loaded by `tool.search` on "timeline", "day", "chronology" and the like.
+  {
+    name: 'timeline.read',
+    risk: 'read',
+    undoable: false,
+    response_token_cap: 8000,
+    descriptionVersion: 1,
+    description:
+      "Read the story's timeline: the scenes in story order per part (prologue, main story, epilogue) with their day, duration, mode, point of view, folder, reading index and open findings, the part zones with their day spans and fold labels, and the unscheduled shelf with its after-chains. Parameters: axis 'story' (default), 'narrative' or 'braid'; groupBy 'none' (default), 'pov', 'character', 'mode', 'folder', 'location' or 'thread'; scope, a folder or document, for only the scenes under it; findings 'open' (default) or 'none'. A long answer is cut at whole scenes and says how many were left out; narrow scope to read them. Use the nodeId of a scene it returns when proposing a change with timeline.edit. Read-only: it changes nothing.",
+    surface: 'extension',
+    load: 'deferred',
+    keywords: ['timeline', 'day', 'chronology', 'schedule', 'prologue', 'epilogue', 'story part', 'when'],
+  },
+  // The picture registry's seven rows (pictures.md §8.1), declared beside their definitions and ports.
+  ...PICTURE_TOOL_METADATA,
+  // The comic script/page workflow's three rows (comics.md §3.2), declared beside their native definitions.
+  ...COMIC_TOOL_METADATA,
   // The host-model pairs (agent-harness §3, "External-only rows"). An outside host has a model and Caotang has the context and the
   // validators, so a brief returns what the in-app tool would send its model, and an apply runs the host's reply through the in-app
   // port. The server lists them (the briefs always, the applies with --allow-writes); the in-app agent never sees them.

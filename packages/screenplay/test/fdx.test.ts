@@ -52,26 +52,38 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
 
   it('reads a file whose closing tags are missing in linear time', () => {
     const truncated = (count: number): string => '<Paragraph Type="Action">'.repeat(count);
-    // Best of five runs per size. Four times the input takes a linear scan about four times as long and a quadratic one
-    // sixteen times, so a ratio bound of 8 separates them with room for a slow runner; at a few milliseconds a doubling
-    // was within a pause's noise of its bound.
-    const timed = (count: number): number => {
-      const source = truncated(count);
-      let best = Number.POSITIVE_INFINITY;
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const started = performance.now();
-        expect(parseFdxParagraphs(source)).toEqual([]);
-        best = Math.min(best, performance.now() - started);
-      }
-      return best;
+    // Eight times the input takes a linear scan about eight times as long and a quadratic one sixty-four times. The bound
+    // of 24 sits far from both, so a GC pause or a slow shared runner (a fourfold input of 50 000 once measured 9.99
+    // against a bound of 8) does not fail it, while quadratic behaviour still lands well over it. The small size is
+    // 100 000 because below that a run is a few milliseconds and JIT tiering and GC dominate the measurement. Each round
+    // takes the best of three runs per size, the two sizes interleaved so a slow stretch of the runner hits both; up to
+    // three rounds are measured and the best ratio counts, since noise only ever slows a round, while a quadratic scan
+    // fails every round.
+    const small = truncated(100_000);
+    const large = truncated(800_000);
+    const once = (source: string): number => {
+      const started = performance.now();
+      expect(parseFdxParagraphs(source)).toEqual([]);
+      return performance.now() - started;
     };
     parseFdxParagraphs(truncated(1000));
-    const small = timed(50_000);
-    const large = timed(200_000);
-    const ratio = large / small;
-    expect(ratio, `${Math.round(large)} ms for 200 000 paragraphs against ${Math.round(small)} ms for 50 000`).toBeLessThan(8);
-    expect(large, `200 000 paragraphs took ${Math.round(large)} ms`).toBeLessThan(2000);
-  }, 30_000);
+    const rounds: { small: number; large: number; ratio: number }[] = [];
+    for (let round = 0; round < 3; round += 1) {
+      let bestSmall = Number.POSITIVE_INFINITY;
+      let bestLarge = Number.POSITIVE_INFINITY;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        bestSmall = Math.min(bestSmall, once(small));
+        bestLarge = Math.min(bestLarge, once(large));
+      }
+      const ratio = bestLarge / Math.max(bestSmall, 0.05);
+      rounds.push({ small: bestSmall, large: bestLarge, ratio });
+      if (ratio < 24) break;
+    }
+    const best = rounds.reduce((a, b) => (b.ratio < a.ratio ? b : a));
+    const described = rounds.map((r) => `${Math.round(r.large)} ms / ${Math.round(r.small)} ms = ${r.ratio.toFixed(1)}`).join('; ');
+    expect(best.ratio, `800 000 against 100 000 paragraphs: ${described}`).toBeLessThan(24);
+    expect(best.large, `800 000 paragraphs took ${Math.round(best.large)} ms`).toBeLessThan(8000);
+  }, 60_000);
 });
 
 describe('importFdx — the characters a numeric reference may name', () => {

@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
+import { CALENDAR_JSON_MAX_CHARS, CHAR_LIMIT_MAX, CRITERIA_KEYS, EPUB_IMAGE_MAX_PX_MAX, EPUB_IMAGE_MAX_PX_MIN, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, PICTURE_MODES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -42,7 +42,7 @@ import type {
   GoalMetricParam,
 } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
-import { readAssetRecord, unknownRecordKeys } from '@caotang/pictures';
+import { readAssetLinks, readAssetRecords, validateLinkSet } from '@caotang/pictures';
 import { parseRules } from './agent-rules.js';
 import { bodyNamesOf, isBodyType } from './paths.js';
 import { isJsonNumber, jsonValueProblem } from './json-value.js';
@@ -118,6 +118,18 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/**
+ * Why a stored calendar cannot be kept, or `undefined` when it can. The store checks what any JSON holds (an object, a version number,
+ * plain data, a bounded size) and leaves the calendar's own rules to `@caotang/timeline`, which sits above it.
+ */
+function calendarProblem(calendar: unknown): string | undefined {
+  if (!isRecord(calendar)) return 'expected a calendar object';
+  if (typeof calendar['version'] !== 'number' || !Number.isSafeInteger(calendar['version'])) return 'expected a calendar with a whole-number version';
+  if (jsonValueProblem(calendar) !== undefined) return 'the calendar holds a value JSON cannot write';
+  if (JSON.stringify(calendar).length > CALENDAR_JSON_MAX_CHARS) return `the calendar is longer than ${CALENDAR_JSON_MAX_CHARS.toLocaleString('en-US')} characters`;
+  return undefined;
+}
+
 function isFixedRootId(id: unknown): boolean {
   return typeof id === 'string' && (FIXED_ROOT_IDS as readonly string[]).includes(id);
 }
@@ -163,8 +175,20 @@ function isRecipeOptions(v: unknown): boolean {
     (o['continued'] === undefined || typeof o['continued'] === 'boolean') &&
     (o['pageSize'] === undefined || o['pageSize'] === 'A4' || o['pageSize'] === 'Letter') &&
     (o['scriptFont'] === undefined || isScriptFont(o['scriptFont'])) &&
+    (o['colourEmoji'] === undefined || typeof o['colourEmoji'] === 'boolean') &&
     (o['paperFrames'] === undefined || typeof o['paperFrames'] === 'boolean') &&
-    (o['colourEmoji'] === undefined || typeof o['colourEmoji'] === 'boolean')
+    (o['bleed'] === undefined || typeof o['bleed'] === 'boolean') &&
+    (o['cropMarks'] === undefined || typeof o['cropMarks'] === 'boolean') &&
+    (o['contentsLabel'] === undefined || typeof o['contentsLabel'] === 'string') &&
+    (o['pictures'] === undefined || (typeof o['pictures'] === 'string' && (PICTURE_MODES as readonly string[]).includes(o['pictures']))) &&
+    (o['epubImageMaxPx'] === undefined ||
+      (typeof o['epubImageMaxPx'] === 'number' &&
+        Number.isSafeInteger(o['epubImageMaxPx']) &&
+        o['epubImageMaxPx'] >= EPUB_IMAGE_MAX_PX_MIN &&
+        o['epubImageMaxPx'] <= EPUB_IMAGE_MAX_PX_MAX)) &&
+    (o['epubKeepWebp'] === undefined || typeof o['epubKeepWebp'] === 'boolean') &&
+    (o['keepPictureMetadata'] === undefined || typeof o['keepPictureMetadata'] === 'boolean') &&
+    (o['timelinePictures'] === undefined || typeof o['timelinePictures'] === 'boolean')
   );
 }
 
@@ -391,6 +415,38 @@ function validateFields(
     warn('disabledSkills', 'expected a list of skill names; dropped, and every skill is on');
     delete (source as unknown as Record<string, unknown>)['disabledSkills'];
   }
+  // timeline.md §3.8: the lens choice and the custom calendar. Anything malformed is dropped with a warning and the day lens is used, so a
+  // bad setting never blocks a project from opening. A definition of a later version is kept whole: this build cannot read it, and the
+  // timeline falls back to the day lens, but the next save must not delete a calendar a newer build wrote.
+  const timeline = (source as unknown as Record<string, unknown>)['timeline'];
+  if (timeline !== undefined) {
+    if (!isRecord(timeline)) {
+      warn('timeline', 'expected an object with a lens and a calendar; dropped, and the timeline uses the day lens');
+      delete (source as unknown as Record<string, unknown>)['timeline'];
+    } else {
+      for (const name of Object.keys(timeline)) {
+        if (name !== 'lens' && name !== 'calendar') {
+          warn(`timeline.${name}`, 'unknown field; dropped on next save');
+          delete timeline[name];
+        }
+      }
+      const lens = timeline['lens'];
+      if (lens !== undefined && lens !== 'day' && lens !== 'calendar') {
+        warn('timeline.lens', 'expected "day" or "calendar"; dropped, and the timeline uses the calendar when there is one');
+        delete timeline['lens'];
+      }
+      const calendar = timeline['calendar'];
+      if (calendar !== undefined) {
+        const reason = calendarProblem(calendar);
+        if (reason !== undefined) {
+          warn('timeline.calendar', `${reason}; dropped, and the timeline uses the day lens`);
+          delete timeline['calendar'];
+          if (timeline['lens'] === 'calendar') delete timeline['lens'];
+        }
+      }
+      if (Object.keys(timeline).length === 0) delete (source as unknown as Record<string, unknown>)['timeline'];
+    }
+  }
   const recipes = (source as unknown as Record<string, unknown>)['recipes'];
   if (recipes !== undefined) {
     if (!Array.isArray(recipes)) {
@@ -403,7 +459,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji, bleed, cropMarks, contentsLabel, pictures, epubImageMaxPx, epubKeepWebp, keepPictureMetadata, timelinePictures); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;
@@ -599,7 +655,7 @@ function validateFields(
         warn(`${at}.style`, `unknown scene style "${node.style}"; kept as-is, and exports render the scene as normal`);
       }
     }
-    for (const key of ['shot', 'dialogue', 'showMeta', 'episodeMeta'] as const) {
+    for (const key of ['shot', 'dialogue', 'comic', 'comicPage', 'showMeta', 'episodeMeta'] as const) {
       const value = node[key];
       if (value === undefined) continue;
       if (!isRecord(value)) {
@@ -650,7 +706,7 @@ function validateFields(
   validateGoals(source, nodeIds, warn);
   validateMacros(source, warn);
   validateAgent(source, nodeIds, warn);
-  validateAssetRecords(source, warn);
+  validatePictures(source, nodeIds, warn);
 
   // Step 3 — derived (rebuildable; absence is not an error)
   if (source.derived !== undefined && !isRecord(source.derived)) {
@@ -1249,6 +1305,48 @@ function validateHooks(agent: Record<string, unknown>, warn: (path: string, mess
 }
 
 /**
+ * Step 3's `assets[]` and `assetLinks[]` — [pictures.md §2.1](docs/architecture/pictures.md).
+ *
+ * Nothing here refuses a project and nothing here deletes a picture entry. A record or link that cannot be read is
+ * moved to `unreadableAssets` / `unreadableAssetLinks` exactly as stored, and the serializer writes it back in its own
+ * array, so a build that does not understand an entry never destroys it. A link that names a picture or a binder
+ * item that is not there is kept and named: the item may come back with an undo, and the picture's file may be
+ * mid-restore.
+ */
+function validatePictures(
+  source: Record<string, unknown>,
+  nodeIds: ReadonlySet<string>,
+  warn: (path: string, message: string) => void,
+): void {
+  const keep = (key: 'unreadableAssets' | 'unreadableAssetLinks', unreadable: readonly unknown[]): void => {
+    const earlier = Array.isArray(source[key]) ? (source[key] as unknown[]) : [];
+    if (earlier.length + unreadable.length > 0) source[key] = [...earlier, ...unreadable];
+  };
+
+  let assetIds: ReadonlySet<string> | undefined;
+  if (source['assets'] !== undefined) {
+    const read = readAssetRecords(source['assets']);
+    for (const notice of read.notices) warn(notice.path, notice.message);
+    source['assets'] = [...read.records];
+    keep('unreadableAssets', read.unreadable);
+    assetIds = new Set(read.records.map((record) => record.id));
+  }
+  if (source['assetLinks'] !== undefined) {
+    const read = readAssetLinks(source['assetLinks']);
+    for (const notice of read.notices) warn(notice.path, notice.message);
+    source['assetLinks'] = [...read.links];
+    keep('unreadableAssetLinks', read.unreadable);
+    // The reader already names a repeated id and a second card; the rest are the dangling references it cannot see.
+    const context = assetIds === undefined ? { nodeIds } : { nodeIds, assetIds };
+    for (const issue of validateLinkSet(read.links, context)) {
+      if (issue.code === 'unknown-asset' || issue.code === 'unknown-node' || issue.code === 'card-target') {
+        warn(issue.path, `${issue.message}; kept as written`);
+      }
+    }
+  }
+}
+
+/**
  * Step 3's `goals[]` — [goals-progress §2.2 and §3](docs/architecture/goals-progress.md).
  *
  * The convention is the one `filters[]` above uses and the one `recipes[]`
@@ -1476,43 +1574,6 @@ function validateMacros(source: Record<string, unknown>, warn: (path: string, me
   }
   if (kept.length === 0) delete source['macros'];
   else source['macros'] = kept;
-}
-
-/**
- * Step 3's `assets[]` — [pictures.md §2.1](docs/architecture/pictures.md).
- *
- * The `macros[]` convention: a record that cannot be read is dropped with a warning that names it, and the load goes on. A second
- * record with a kept record's id is dropped. A record whose file is missing is **kept** (it carries the writer's caption and alt);
- * that is a listing question, not a manifest one, so nothing here looks at `assets/`. A key this build does not know is named in a
- * warning and left out, as an unknown node key is. With no record left the key is removed, as a project that never had one.
- */
-function validateAssetRecords(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
-  const raw = source['assets'];
-  if (raw === undefined) return;
-  if (!Array.isArray(raw)) {
-    warn('assets', 'expected an array of picture records; dropped, and the open makes them again from the files in assets/');
-    delete source['assets'];
-    return;
-  }
-  const kept: unknown[] = [];
-  const ids = new Set<string>();
-  for (const [i, item] of (raw as unknown[]).entries()) {
-    const read = readAssetRecord(item);
-    if (!read.ok) {
-      warn(`assets[${i}]`, `${read.reason}; picture record dropped (the file in assets/ is untouched)`);
-      continue;
-    }
-    if (ids.has(read.record.id)) {
-      warn(`assets[${i}]`, `duplicate id "${read.record.id}"; dropped, and the first record keeps it`);
-      continue;
-    }
-    const unknown = isRecord(item) ? unknownRecordKeys(item) : [];
-    if (unknown.length > 0) warn(`assets[${i}]`, `unknown ${unknown.length === 1 ? 'key' : 'keys'} ${unknown.join(', ')}; dropped on next save`);
-    ids.add(read.record.id);
-    kept.push(read.record);
-  }
-  if (kept.length === 0) delete source['assets'];
-  else source['assets'] = kept;
 }
 
 /** Step 4: referential integrity. */

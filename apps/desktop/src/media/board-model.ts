@@ -4,10 +4,13 @@
  * only turns them into the words the header shows.
  */
 
+import { plural, t } from '@lingui/core/macro';
 import type { ProjectState } from '@caotang/store';
 
 import { animaticTotals, shotsIn } from './engines.js';
 
+
+/* lingui-set comment="The animatic line. Interpolated values: seconds is the total length in seconds; untimed counts shots left out." */
 export interface AnimaticLine {
   /** The timed total, in seconds, to two places. */
   readonly seconds: number;
@@ -24,7 +27,13 @@ export function animaticLineOf(state: ProjectState, folderId: string): AnimaticL
   const shotIds = shotsIn(state, folderId).map((node) => node.id);
   const totals = animaticTotals(state, shotIds);
   const untimed = totals.untimed.length;
-  const total = `${String(totals.seconds)} s of animatic`;
-  const left = untimed === 0 ? '' : `, with ${untimed} ${untimed === 1 ? 'shot' : 'shots'} left out for want of a duration`;
-  return { seconds: totals.seconds, timed: totals.timedCount, untimed, text: `${total}${left}` };
+  const seconds = String(totals.seconds);
+  const text =
+    untimed === 0
+      ? t`${seconds} s of animatic`
+      : plural(untimed, {
+          one: `${seconds} s of animatic, with # shot left out for want of a duration`,
+          other: `${seconds} s of animatic, with # shots left out for want of a duration`,
+        });
+  return { seconds: totals.seconds, timed: totals.timedCount, untimed, text };
 }

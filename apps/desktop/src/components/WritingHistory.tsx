@@ -9,9 +9,14 @@ import { useEffect, useState, type PointerEvent, type ReactNode } from 'react';
 import { HISTORY_BAR_DAYS, historyCsv, historyReading, type HistoryReading } from '@caotang/furniture';
 import { listProjectIds, readSessions, type RuntimeStore, type SessionRecord } from '@caotang/store';
 
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+
 import { downloadBytes } from '../app/download.js';
 import type { TargetProgress } from '../app/session-progress.js';
 import { formatCount } from './shared.js';
+
+/* lingui-set comment="Interpolated values: count, day, days, error" */
 
 /** The tallest bar, in pixels. A bar's height is its share of the largest day shown. */
 const BAR_MAX_PX = 48;
@@ -38,7 +43,10 @@ export function WritingHistory({ store, target }: { store: RuntimeStore; target:
         setReading(historyReading(sessions, new Date(), target.target, target.words));
         setFailure(null);
       } catch (error) {
-        if (alive) setFailure(`The writing history could not be read: ${error instanceof Error ? error.message : String(error)}`);
+        if (alive) {
+          const reason = error instanceof Error ? error.message : String(error);
+          setFailure(t`The writing history could not be read: ${{ error: reason }}`);
+        }
       }
     };
     void load();
@@ -49,8 +57,13 @@ export function WritingHistory({ store, target }: { store: RuntimeStore; target:
 
   const bars = reading?.lastTen ?? [];
   const largest = bars.reduce((max, day) => Math.max(max, day.words), 0);
-  const summaryOf = (day: (typeof bars)[number]): string =>
-    `${day.day}: ${formatCount(day.words)} ${day.words === 1 ? 'word' : 'words'}${day.met ? ', target met' : ''}`;
+  const summaryOf = (day: (typeof bars)[number]): string => {
+    const count = formatCount(day.words);
+    const words = day.words;
+    return day.met
+      ? t`${{ day: day.day }}: ${{ count }} ${plural(words, { one: 'word', other: 'words' })}, target met`
+      : t`${{ day: day.day }}: ${{ count }} ${plural(words, { one: 'word', other: 'words' })}`;
+  };
   const pointedDay = pointed === null ? undefined : bars[pointed];
 
   /** The bar under the pointer is found by its column, so a day with no words, which has no height to point at, is read too. */
@@ -66,8 +79,8 @@ export function WritingHistory({ store, target }: { store: RuntimeStore; target:
   };
 
   return (
-    <section className="footer-section history" aria-label="Writing history" data-testid="writing-history">
-      <h3 className="footer-title">History</h3>
+    <section className="footer-section history" aria-label={t`Writing history`} data-testid="writing-history">
+      <h3 className="footer-title"><Trans>History</Trans></h3>
       <button
         type="button"
         className="button is-quiet"
@@ -75,7 +88,7 @@ export function WritingHistory({ store, target }: { store: RuntimeStore; target:
         aria-controls="writing-history-body"
         onClick={() => setOpen((on) => !on)}
       >
-        {open ? 'Hide the history' : 'Show the history'}
+        {open ? <Trans>Hide the history</Trans> : <Trans>Show the history</Trans>}
       </button>
       {open ? (
         <div id="writing-history-body" className="history-body">
@@ -84,27 +97,27 @@ export function WritingHistory({ store, target }: { store: RuntimeStore; target:
               {failure}
             </p>
           ) : null}
-          {reading === null && failure === null ? <p className="field-note">Reading the history…</p> : null}
+          {reading === null && failure === null ? <p className="field-note"><Trans>Reading the history…</Trans></p> : null}
           {reading !== null ? (
             <>
               <dl className="history-stats" data-testid="history-stats">
                 <div>
-                  <dt>Today</dt>
-                  <dd>{formatCount(reading.today)} words</dd>
+                  <dt><Trans>Today</Trans></dt>
+                  <dd>{t`${{ count: formatCount(reading.today) }} words`}</dd>
                 </div>
                 <div>
-                  <dt>Daily average</dt>
-                  <dd>{formatCount(reading.dailyAverage)} words</dd>
+                  <dt><Trans>Daily average</Trans></dt>
+                  <dd>{t`${{ count: formatCount(reading.dailyAverage) }} words`}</dd>
                 </div>
                 <div>
-                  <dt>Daily best</dt>
-                  <dd>{formatCount(reading.dailyBest)} words</dd>
+                  <dt><Trans>Daily best</Trans></dt>
+                  <dd>{t`${{ count: formatCount(reading.dailyBest) }} words`}</dd>
                 </div>
               </dl>
-              {reading.recorded.length === 0 ? <p className="field-note">No writing is recorded yet.</p> : null}
+              {reading.recorded.length === 0 ? <p className="field-note"><Trans>No writing is recorded yet.</Trans></p> : null}
               <ol
                 className="history-bars"
-                aria-label={`Words on each of the last ${HISTORY_BAR_DAYS} days`}
+                aria-label={t`Words on each of the last ${{ days: HISTORY_BAR_DAYS }} days`}
                 onPointerMove={point}
                 onPointerLeave={() => setPointed(null)}
               >
@@ -126,10 +139,10 @@ export function WritingHistory({ store, target }: { store: RuntimeStore; target:
               {/* The same sentence for a sighted reader, who sees only the bars' heights. It is hidden from a screen reader, which
                   already reads each bar's own text, so the day is not said twice. */}
               <p className="field-note" aria-hidden="true" data-testid="history-readout">
-                {pointedDay === undefined ? 'Point at a bar to read its day and words.' : summaryOf(pointedDay)}
+                {pointedDay === undefined ? <Trans>Point at a bar to read its day and words.</Trans> : summaryOf(pointedDay)}
               </p>
               <button type="button" className="button" disabled={reading.recorded.length === 0} onClick={exportCsv}>
-                Download CSV
+                <Trans>Download CSV</Trans>
               </button>
             </>
           ) : null}

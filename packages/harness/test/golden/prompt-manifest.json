@@ -1,11 +1,11 @@
 [
   {
     "id": "planner.system.json",
-    "sha256": "d59f01c707bcddc309869832a437162e84ddc7065571f92e4ff7ec8d54e645ad"
+    "sha256": "d436ab7001f259f7e8eac05cc5d28b42aea152875ce247ad29a693dacf8187ef"
   },
   {
     "id": "planner.system.native",
-    "sha256": "c18f63b7e78b11ccd914d0b65750d3248a94c4d6b3aa70bb485bae89a77db290"
+    "sha256": "a77f748a59ca31186f6df144b39a991a9c214dc15bd0438c6faa53803c3aae92"
   },
   {
     "id": "planner.more-tools-line",
@@ -17,7 +17,7 @@
   },
   {
     "id": "planner.tools.native.all",
-    "sha256": "0336496aba102fdc332786756245f569cd09fc10be1225a7095b8380584d0428"
+    "sha256": "5d7e4cf387a5e3befff0def9a2609ed99c6ab96228a2ee171af0761dded5fb5a"
   },
   {
     "id": "draft.scene.prose",
@@ -239,6 +239,61 @@
     "descriptionVersion": 1
   },
   {
+    "id": "tool.timeline.read",
+    "sha256": "ba8b410f7434e6079bc564a571867a6249023f37e2e3f84af3d8c4706dc51ab4",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.pictures.list",
+    "sha256": "53fb2cd2a2f7c8ca27b621bba47c8a3427b8089e7e470e55a58c466674c70c9c",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.pictures.view",
+    "sha256": "cb201051df91692d781bf9454f14f2ab4c7f44188d737613d40347de28965bde",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.pictures.annotate",
+    "sha256": "86f9beda58a467fa0a11de30f56f59c5639235bc8c0c05f4268aedb016d57080",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.pictures.attach",
+    "sha256": "1f2ce64208c18a9e0b1bc0c0b516e6618ac0d8f535cf3a9c716b7932cf4e4110",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.pictures.import",
+    "sha256": "70da21c7e9ac59fd553a7587f7c62b4d1a3054ab44f9ca186129befec657596a",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.pictures.place",
+    "sha256": "bf97c7788e49fa443713a8cd5a1b4438f9bd3a317b2a9dd71b8b72c8c8e2a177",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.pictures.transcribe",
+    "sha256": "a14416f301bdf3c262bf5bdcda32d10afecd9d84fb2497b3f0eb6622e3be64e1",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.comic.derive",
+    "sha256": "81240b8c6b5f5d46b2b9204a7181e5cf1126caabc1a64837c4b5c90946f713c6",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.comic.letter",
+    "sha256": "caf4baeafed6a88d3cba81f823ab04d72392dd173db87c7970e38cd48e56042d",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.comic.scriptFromPages",
+    "sha256": "67fd6094b53982370707e69b1fe04a6f6362550a0dc57a9a27f364c459b784a3",
+    "descriptionVersion": 1
+  },
+  {
     "id": "tool.scene.brief",
     "sha256": "ca5d96119465f15de756f23f9dcfd4548e3a5a822d4dafb8e3ecb8297de54641",
     "descriptionVersion": 1
@@ -291,6 +346,11 @@
   {
     "id": "tool.instructions.propose",
     "sha256": "6584d8f54ab84691ae3fc78a8990c9d6b80e23fde8c6409de544dc8be0377fad",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.timeline.edit",
+    "sha256": "0dc24b3096efb3d09abfd34592500391ee4f03cf4bf79bb541e3d4c04a7e7fe2",
     "descriptionVersion": 1
   }
 ]

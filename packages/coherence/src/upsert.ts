@@ -20,6 +20,7 @@
  * findings are kept, since they are the writer's history. An llm run never clears.
  */
 
+import type { MessageRef } from '@caotang/i18n';
 import type { RandomBytes } from '@caotang/ids';
 
 import { mintCoherenceId } from './ids.js';
@@ -34,6 +35,8 @@ export interface UpsertDraft {
   readonly factGroup: string;
   readonly evidence: readonly Evidence[];
   readonly message: string;
+  /** A deterministic check's additive message reference (I7); absent on model-authored drafts. */
+  readonly messageRef?: MessageRef;
   readonly expected?: string;
   readonly reasoning?: string;
   readonly modelMeta?: ModelMeta;
@@ -115,6 +118,7 @@ export function upsertFindings(file: CoherenceFile, drafts: readonly UpsertDraft
         createdAt: options.now,
         updatedAt: options.now,
       };
+      if (draft.messageRef !== undefined) created.messageRef = draft.messageRef;
       if (draft.expected !== undefined) created.expected = draft.expected;
       if (draft.reasoning !== undefined) created.reasoning = draft.reasoning;
       if (draft.modelMeta !== undefined) created.modelMeta = draft.modelMeta;
@@ -129,6 +133,8 @@ export function upsertFindings(file: CoherenceFile, drafts: readonly UpsertDraft
       existing.type = draft.type;
       existing.severity = draft.severity;
       existing.message = draft.message;
+      if (draft.messageRef === undefined) delete existing.messageRef;
+      else existing.messageRef = draft.messageRef;
       existing.evidence = [...draft.evidence];
       if (draft.expected !== undefined) existing.expected = draft.expected;
       if (draft.reasoning !== undefined) existing.reasoning = draft.reasoning;

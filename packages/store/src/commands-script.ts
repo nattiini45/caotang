@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * The store's applies for the script and dialogue commands ([screenplay.md §2.2](docs/architecture/screenplay.md),
  * [dialogue-narrative.md §2.1 and §4](docs/architecture/dialogue-narrative.md)): the two imports and a container's settings,
@@ -34,6 +35,7 @@ import {
 import { mintTermId } from './commands-project.js';
 import type { CodexEntry, TreeNode, VocabularyTerm } from './manifest.js';
 import { addDocument, addNode, nodeById, removeNode, type ProjectState } from './state.js';
+import { defaultTitleOf } from '@caotang/i18n';
 
 /** The clock seam the applies read for `createdAt` and `updatedAt`, as the rest of the store does. */
 export interface ScriptClock {
@@ -149,7 +151,7 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
 
     /** One scene: a screenplay document holding its Fountain text, with its synopsis fitted to the binder's limit. */
     const writeScene = (scene: ImportedScene, parent: string): void => {
-      const title = titleOrDefault(scene.nodeTitle ?? scene.title, 'Untitled scene');
+      const title = titleOrDefault(scene.nodeTitle ?? scene.title, defaultTitleOf('scene', state.manifest.project.language));
       const synopsis = fitSynopsis(scene.synopsis);
       if (synopsis.cut) notices.push(`"${title}": its synopsis is longer than ${SYNOPSIS_LIMIT} characters and was cut to fit.`);
       const doc = addDocument(state, {
@@ -172,7 +174,7 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
         const section: ImportedSection = node;
         while (open.length > 0 && (open[open.length - 1]?.depth ?? 0) >= section.depth) open.pop();
         const parent = innermost();
-        const title = titleOrDefault(section.title, 'Untitled section');
+        const title = titleOrDefault(section.title, defaultTitleOf('section', state.manifest.project.language));
         const folder = addNode(state, { parentId: parent, title, type: 'folder', now: at });
         const synopsis = fitSynopsis(section.synopsis);
         folder.synopsis = synopsis.value;
@@ -267,6 +269,19 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
       summary: `imported a ${format} script: ${scenes} scene${scenes === 1 ? '' : 's'} and ${folders} section${folders === 1 ? '' : 's'}${
         madeEntries.length === 0 ? '' : `, with ${madeEntries.length} codex entr${madeEntries.length === 1 ? 'y' : 'ies'}`
       }`,
+      summaryRef:
+        madeEntries.length === 0
+          ? {
+              id: 'store.script.importSummary',
+              message: 'imported a {format} script: {scenes, plural, one {# scene} other {# scenes}} and {folders, plural, one {# section} other {# sections}}',
+              values: { format, scenes, folders },
+            }
+          : {
+              id: 'store.script.importSummaryCodex',
+              message:
+                'imported a {format} script: {scenes, plural, one {# scene} other {# scenes}} and {folders, plural, one {# section} other {# sections}}, with {entries, plural, one {# codex entry} other {# codex entries}}',
+              values: { format, scenes, folders, entries: madeEntries.length },
+            },
     });
     if (script.titlePage !== null) {
       notices.push('The title page was read but not stored: set the project title and author on the project block.');

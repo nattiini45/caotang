@@ -60,7 +60,14 @@ async function listedNames(client: Client): Promise<string[]> {
 
 /** The two write rows this server never lists, with writes on: a standing instruction is changed in the app, at a card (tools.ts, `IN_APP_ONLY`). */
 const IN_APP_ONLY = ['memory.write', 'instructions.propose'];
+/** The registry's write rows: every one of them is listed with --allow-writes, unless it needs a model (MODEL_BACKED), is in-app only, or has no port here. */
 const WRITE_TOOLS = TOOL_METADATA.filter((meta) => (meta.risk === 'write-auto' || meta.risk === 'write-confirm') && !IN_APP_ONLY.includes(meta.name)).map((meta) => meta.name);
+
+/** Writes whose ports need the writer's own files or vision/review host: unwired here, so never listed. */
+const NO_PORT_HERE = ['pictures.import', 'pictures.transcribe'];
+
+/** The registry rows this server does not list through the mapping: the picture reads are registered beside it, with their own text (tools.ts). */
+const SERVED_BESIDE = ['pictures.list', 'pictures.view'];
 /**
  * The tools this server does not list, because no port answers them here and an unwired tool is never advertised
  * (tools.ts, the `wired` check). The first three draft with Caotang's own provider, which this server does not hold.
@@ -109,15 +116,42 @@ describe('the tool surface', () => {
       expect(roNames).toContain('project.overview');
       expect(roNames).toContain('binder.read_tree');
 
-      for (const name of WRITE_TOOLS.filter((n) => !MODEL_BACKED.includes(n))) expect(rwNames).toContain(name);
+      for (const name of WRITE_TOOLS.filter((n) => !MODEL_BACKED.includes(n) && !NO_PORT_HERE.includes(n))) expect(rwNames).toContain(name);
       expect(rwNames).toContain('doc.import');
       // The negative half: no model-backed tool is listed, with writes on either. coherence.review is wired as an async port, so
       // without the async check it was the one listed here, and a host asked the user to approve a call that then refused.
       for (const name of MODEL_BACKED) expect(rwNames).not.toContain(name);
+      // And a write that needs a host port this server does not have is not listed either: pictures.import takes bytes the host staged,
+      // and no host stages a file for this server.
+      for (const name of NO_PORT_HERE) expect(rwNames).not.toContain(name);
       expect(rwNames.length).toBeGreaterThan(roNames.length);
     } finally {
       await roClient.close();
       await rwClient.close();
+    }
+  });
+
+  it('lists timeline.edit with --allow-writes only, and refuses it before asking a host that cannot answer', async () => {
+    const roClient = await connectClient(readOnly.url, readOnly.token);
+    const rwClient = await connectClient(writable.url, writable.token);
+    const asking = await connectClient(writable.url, writable.token, acceptConfirm);
+    try {
+      expect(await listedNames(roClient)).not.toContain('timeline.edit');
+      expect(await listedNames(rwClient)).toContain('timeline.edit');
+      // A host that declared no elicitation is refused before the batch is looked at, and nothing is written: the typed outcome a
+      // timeline write answers with needs a person's yes, and this host cannot be asked for one (timeline.md §9.2).
+      const refused = await rwClient.callTool({ name: 'timeline.edit', arguments: { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 3 } }] } });
+      expect(refused.isError).toBe(true);
+      expect(JSON.stringify(resultJson(refused))).toContain('did not declare elicitation support');
+      // A host that can be asked gets the bus's own refusal for a batch with no ops, before any question: nothing is asked for a call
+      // that cannot run.
+      const empty = await asking.callTool({ name: 'timeline.edit', arguments: { ops: [] } });
+      expect(empty.isError).toBe(true);
+      expect(JSON.stringify(resultJson(empty))).toContain('invalid-params');
+    } finally {
+      await roClient.close();
+      await rwClient.close();
+      await asking.close();
     }
   });
 
@@ -179,6 +213,12 @@ describe('the tool surface', () => {
       const listings = writable.session.harness.tools();
       for (const listing of listings) {
         const exposure = mcpExposure(listing);
+        // The picture reads are registered beside the mapping, with the picture module's own descriptions and size checks, so the
+        // registry's row is not what a host reads. They are listed under the same name, wired or not: the module reads the folder itself.
+        if (SERVED_BESIDE.includes(listing.name)) {
+          expect(byName.has(listing.name), `${listing.name} is registered beside the mapping`).toBe(true);
+          continue;
+        }
         // tool.search is the one exposed tool this server leaves out: it has no tool server to search (tools.ts).
         if (!exposure.exposed || !listing.wired || listing.name === 'tool.search' || IN_APP_ONLY.includes(listing.name)) {
           expect(byName.has(listing.name), `${listing.name} must not be listed`).toBe(false);
@@ -225,7 +265,11 @@ describe('the tool surface', () => {
       const paragraph = readme.split('\n').find((line) => line.startsWith('The server is read-only unless'));
       expect(paragraph).toBeDefined();
       const names = (text: string) => [...text.matchAll(/`([a-z]+\.[A-Za-z]+)`/g)].map((match) => match[1]).sort();
-      const [autoText, confirmText] = paragraph!.split(', and ');
+      // The paragraph's first sentence names the timeline read, which is a read in either mode. The write lists are what follow
+      // "With writes allowed", split on the sentence's own ", and" between the two clauses.
+      const writeText = paragraph!.split('With writes allowed, ')[1];
+      expect(writeText).toBeDefined();
+      const [autoText, confirmText] = writeText!.split(', and ');
       expect(names(autoText!)).toEqual([...auto].sort());
       expect(names(confirmText!.split('Add `--create')[0]!)).toEqual([...confirm].sort());
     } finally {
@@ -842,8 +886,11 @@ describe('the registry seam', () => {
             'doc.read',
             'memory.read',
             'notes.read',
+            'pictures.list',
+            'pictures.view',
             'project.overview',
             'scene.brief',
+            'timeline.read',
           ]);
           expect(await listedNames(rwClient)).toEqual([
             'binder.read_tree',
@@ -853,6 +900,9 @@ describe('the registry seam', () => {
             'codex.write',
             'coherence.scan',
             'coherence.setFindingStatus',
+            'comic.derive',
+            'comic.letter',
+            'comic.scriptFromPages',
             'dialogue.apply',
             'dialogue.brief',
             'dialogue.table',
@@ -866,11 +916,18 @@ describe('the registry seam', () => {
             'notes.append',
             'notes.read',
             'notes.replace',
+            'pictures.annotate',
+            'pictures.attach',
+            'pictures.list',
+            'pictures.place',
+            'pictures.view',
             'project.overview',
             'scene.apply',
             'scene.brief',
             'shots.annotate',
             'synopsis.set',
+            'timeline.edit',
+            'timeline.read',
             'vocabulary.upsert',
           ]);
         } finally {
@@ -1571,6 +1628,11 @@ describe('a retried write request, asked to write once', () => {
     }
   }
 
+  // Every test in this block starts a server fixture and connects a client over the wire, which
+  // is the cost the rest of this file already declares 30_000 ms for; this block was the one
+  // place without it. One fixture here took 3 999 ms alone and exceeded 5 000 ms under the full
+  // suite's worker pool, so the default was not a budget for its claim. 30 000 ms matches the
+  // convention above and still fails a hang.
   it('writes once, and answers the repeat with the first answer', async () => {
     await withFixture('retry-once', async (fixture, client) => {
       const first = await append(client, LINE, { [KEY]: 'req-1' });
@@ -1579,7 +1641,7 @@ describe('a retried write request, asked to write once', () => {
       expect(again).toEqual(first);
       expect(timesIn(notesOf(fixture), LINE)).toBe(1);
     });
-  });
+  }, 30_000);
 
   it('refuses the same key with other arguments, or another tool, naming both calls, and writes nothing', async () => {
     await withFixture('retry-mismatch', async (fixture, client) => {
@@ -1596,7 +1658,7 @@ describe('a retried write request, asked to write once', () => {
       expect(notesOf(fixture)).toBe(before);
       expect(fixture.session.state.manifest.tree.find((node) => node.id === LANDING)?.synopsis).not.toBe('Late.');
     });
-  });
+  }, 30_000);
 
   it('is opt-in: requests without a key are two calls, and two keys are two calls', async () => {
     await withFixture('retry-optin', async (fixture, client) => {
@@ -1609,7 +1671,7 @@ describe('a retried write request, asked to write once', () => {
       await append(client, LINE, { [KEY]: 'b' });
       expect(timesIn(notesOf(fixture), LINE)).toBe(4);
     });
-  });
+  }, 30_000);
 
   it('gives a retry that arrives while the first write is still being saved the first answer, with one write', async () => {
     await withFixture('retry-inflight', async (fixture, client) => {
@@ -1634,7 +1696,7 @@ describe('a retried write request, asked to write once', () => {
       expect(calls).toHaveBeenCalledTimes(1);
       expect(timesIn(notesOf(fixture), LINE)).toBe(1);
     });
-  });
+  }, 30_000);
 
   it('forgets an answer after the retry window: the same key is a new call again', async () => {
     await withFixture('retry-expiry', async (fixture, client) => {
@@ -1651,7 +1713,7 @@ describe('a retried write request, asked to write once', () => {
         vi.useRealTimers();
       }
     });
-  });
+  }, 30_000);
 
   it('reads only its own key name: a reserved io.modelcontextprotocol/* name or an unrelated foreign key is not a key', async () => {
     await withFixture('retry-meta', async (fixture, client) => {
@@ -1668,7 +1730,7 @@ describe('a retried write request, asked to write once', () => {
       }
       expect(timesIn(notesOf(fixture), LINE)).toBe(7);
     });
-  });
+  }, 30_000);
 
   it('does not cache a refusal, since it wrote nothing: the same key can be sent again once the call is valid', async () => {
     await withFixture('retry-refused', async (fixture, client) => {
@@ -1682,12 +1744,12 @@ describe('a retried write request, asked to write once', () => {
       expect(fixed.isError).not.toBe(true);
       expect(timesIn(notesOf(fixture), LINE)).toBe(1);
     });
-  });
+  }, 30_000);
 
   it('writes nothing of the cache to the folder', async () => {
     await withFixture('retry-folder', async (fixture, client) => {
       await append(client, LINE, { [KEY]: 'req-6' });
       expect(JSON.stringify(folderBytes(fixture.root))).not.toContain('req-6');
     });
-  });
+  }, 30_000);
 });

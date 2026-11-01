@@ -8,10 +8,21 @@
  * `@caotang/pdf-fonts/indic-shaper`.
  */
 
-export { MAX_SFNT_BYTES, checkFontBytes, loaderFor, looksLikeFont, sfntFromWoff, withCommon, type CommonFontLoader, type FontLoader } from './font-bytes.js';
+export {
+  MAX_SFNT_BYTES,
+  checkFontBytes,
+  loaderFor,
+  looksLikeFont,
+  sfntFromWoff,
+  withCommon,
+  type CommonFontLoader,
+  type ComicLetteringFontLoader,
+  type FontLoader,
+} from './font-bytes.js';
 export {
   ARABIC_FONT_FILE,
   ARABIC_FONT_NAME,
+  BANGERS_FONT_NAME,
   CJK_BOLD_COMMON_FONT_FILE,
   CJK_BOLD_FONT_FILE,
   CJK_BOLD_FONT_NAME,
@@ -20,6 +31,9 @@ export {
   CJK_FONT_NAME,
   COLOUR_EMOJI_FILE,
   COLOUR_EMOJI_NAME,
+  COMIC_LETTERING_FACES,
+  COMIC_LETTERING_FONT_FILES,
+  COMIC_NEUE_FONT_NAME,
   DEVANAGARI_FONT_FILE,
   DEVANAGARI_FONT_NAME,
   EMOJI_COMMON_FONT_FILE,
@@ -27,6 +41,7 @@ export {
   EMOJI_FONT_NAME,
   HEBREW_FONT_FILE,
   HEBREW_FONT_NAME,
+  type ComicLetteringFace,
 } from './font-files.js';
 export { TYPE3_CODES, type3Objects, type3Place, type Type3Font, type Type3Fonts, type Type3Glyph, type Type3Pool } from './type3.js';
 export { EMBOLDEN_RATIO, emboldenOf, emboldenedExtra } from './embolden.js';

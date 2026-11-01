@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, card, countOf, createProject, freezeClock, projectTrace, trace } from './support.js';
+import { binderRow, binderTitle, card, countOf, createProject, freezeClock, projectTrace, trace, loose } from './support.js';
 
 /**
  * ui-modules §4: the inspector edits the selected node. Synopsis and notes are debounced at
@@ -111,7 +111,7 @@ test('keywords are added and removed one command at a time, and duplicates are r
 
   await input.fill('Sea');
   await input.press('Enter');
-  await expect(inspector(page).getByText('“Sea” is already a keyword here.')).toBeVisible();
+  await expect(inspector(page).getByText(loose('“Sea” is already a keyword here.'))).toBeVisible();
 
   await inspector(page).getByRole('button', { name: 'Remove keyword sea' }).click();
   await expect(inspector(page).getByRole('listitem').filter({ hasText: 'sea' })).toHaveCount(0);

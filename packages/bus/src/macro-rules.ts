@@ -72,7 +72,8 @@ const MACRO_KEYS = ['id', 'slug', 'name', 'description', 'params', 'steps'] as c
 /** A key that would reach an object's prototype if it were ever copied by assignment. Refused wherever a key can appear. */
 const FORBIDDEN_KEYS: readonly string[] = ['__proto__', 'constructor', 'prototype'];
 const PARAM_KINDS: readonly string[] = ['string', 'integer', 'boolean', 'enum'];
-const ENUM_VALUES_MAX = 20;
+// Room for the longest choice list a tool field offers, so a macro value can stand in for it: export.compile's format has 25.
+const ENUM_VALUES_MAX = 40;
 const ENUM_VALUE_MAX = 80;
 const SPEC_DESCRIPTION_MAX = 200;
 const STRING_LENGTH_MAX = 2_000;

@@ -11,8 +11,11 @@
  * up (MediaBoundary, for a view that throws while it draws). There is no automatic reload: that would discard the page's state
  * without being asked.
  */
+/* lingui-set comment="Interpolated values: subject" */
 
 import { Component, Suspense, createElement, lazy, useState, type ComponentType, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 
 import { EmptyState } from './shared.js';
 
@@ -84,20 +87,21 @@ export class LazyBoundary extends Component<LazyBoundaryProps, LazyBoundaryState
     const actions = (
       <>
         <button type="button" className="button" onClick={this.tryAgain}>
-          Try again
+          <Trans>Try again</Trans>
         </button>
         <button type="button" className={retried ? 'button is-primary' : 'button'} onClick={reloadPage}>
-          Reload
+          <Trans>Reload</Trans>
         </button>
         {onDismiss === undefined ? null : (
           <button type="button" className="button is-quiet" onClick={onDismiss}>
-            Close
+            <Trans>Close</Trans>
           </button>
         )}
       </>
     );
-    const title = `${capitalised(label)} ${retried ? 'still could not be loaded' : 'could not be loaded'}`;
-    const reason = retried ? 'Reload the page to fetch it again.' : 'This can happen after an update, or when the connection drops.';
+    const subject = capitalised(label);
+    const title = retried ? t`${{ subject }} still could not be loaded` : t`${{ subject }} could not be loaded`;
+    const reason = retried ? t`Reload the page to fetch it again.` : t`This can happen after an update, or when the connection drops.`;
     if (variant === 'toast') {
       return (
         <div className="status-line is-error" role="alert">
@@ -111,7 +115,7 @@ export class LazyBoundary extends Component<LazyBoundaryProps, LazyBoundaryState
     return (
       <div role="alert">
         <EmptyState title={title} actions={actions}>
-          {reason} Nothing in the project changed.
+          {reason} <Trans>Nothing in the project changed.</Trans>
         </EmptyState>
       </div>
     );
@@ -123,7 +127,7 @@ export class LazyBoundary extends Component<LazyBoundaryProps, LazyBoundaryState
 }
 
 function LoadingLine({ label, variant }: { readonly label: string; readonly variant: 'pane' | 'toast' }): ReactNode {
-  const text = `Loading ${label}…`;
+  const text = t`Loading ${{ subject: label }}…`;
   return variant === 'toast' ? (
     <p className="status-line" role="status">
       {text}
