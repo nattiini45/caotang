@@ -11,7 +11,7 @@
  * | `topOrnament`    | #306  | `InterimTopOrnament` (name, save state, More menu) | before the binder                      |
  * | `sidebar`        | #307  | `BinderSidebar` (built: binder-sidebar.tsx)        | before the page                        |
  * | `bottomOrnament` | #306  | `InterimBottomOrnament` (the centre views)         | after the page                         |
- * | `sceneInfo`      | #308  | nothing (the inspector waits for Scene info)       | after the bottom ornament              |
+ * | `sceneInfo`      | #308  | `SceneInfo` (built by #308; scene-info.tsx)        | after the bottom ornament              |
  * | `companion`      | #309  | nothing (the agent drawer stays on the page)       | after Scene info                       |
  * | `palette`        | #310  | nothing                                            | last, before the dialogs               |
  *
@@ -28,6 +28,7 @@ import { BinderSidebar } from './binder-sidebar.js';
 import { InterimBottomOrnament, InterimTopOrnament } from './interim-ornaments.js';
 import { InterimNotices } from './interim-notices.js';
 import { Palette } from './palette.js';
+import { SceneInfo } from './scene-info.js';
 
 /** What every slot receives. */
 export interface ModernSlotProps {
@@ -61,7 +62,7 @@ export const MODERN_SLOTS: ModernSlots = {
   topOrnament: InterimTopOrnament,
   sidebar: BinderSidebar,
   bottomOrnament: InterimBottomOrnament,
-  sceneInfo: null,
+  sceneInfo: SceneInfo,
   companion: null,
   palette: Palette,
 };

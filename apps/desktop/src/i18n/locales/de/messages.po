@@ -4751,6 +4751,7 @@ msgstr "Cliplänge, Sekunden"
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: confirm, file, files, generation, name, path
 #. Interpolated values: subject
+#. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. The review of returned photographs. Interpolated values: number and count are page and panel numbers; counts are numbers grouped for the formatter locale.
 #. The shot picture viewer. Interpolated values: title is the shot's title.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
@@ -4760,6 +4761,7 @@ msgstr "Cliplänge, Sekunden"
 #: apps/desktop/src/components/RecoveryDialog.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/scene-info.tsx
 #: apps/desktop/src/media/ComicPhotoReturn.tsx
 #: apps/desktop/src/media/ShotLightbox.tsx
 msgid "Close"
@@ -5822,6 +5824,7 @@ msgid "bus.permission.never.hint"
 msgstr "Nicht erneut als direkter Aufruf versuchen – rufen Sie entweder das zusammengesetzte Werkzeug auf, dem es gehört (scene.draft setzt editor.insert und editor.replaceRange in seinem eigenen Apply-Schritt zusammen, wo die Berechtigung vererbt wird), oder sagen Sie dem Benutzer, was Sie schreiben wollten, und lassen Sie ihn das tun"
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Document"
 msgstr "Dokument"
@@ -6450,6 +6453,8 @@ msgstr "{name} als Bundle exportieren"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#. Modern interface: Scene info, the inspector as a popover from the title capsule.
+#: apps/desktop/src/components/shell/modern/scene-info.tsx
 #: apps/desktop/src/components/StaleTabNotice.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Export a backup"
@@ -6886,6 +6891,7 @@ msgid "Fold: {lower}, {rest}"
 msgstr "Falten: {lower}, {rest}"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
+#. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
@@ -7827,6 +7833,7 @@ msgid "It would resolve no open finding."
 msgstr "Es würde keine offene Feststellung lösen."
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Item"
 msgstr "Eintrag"
@@ -7916,10 +7923,12 @@ msgstr "Halten Sie jeden Eintrag bei höchstens {itemLimit} Zeichen."
 msgid "Keep it with the text before chapter 1"
 msgstr "Beim Text vor Kapitel 1 behalten"
 
+#. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
+#: apps/desktop/src/components/shell/modern/scene-info.tsx
 msgid "Keep open"
-msgstr "Offen halten"
+msgstr "Offen lassen"
 
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Keep originals"
@@ -7928,6 +7937,11 @@ msgstr "Originale behalten"
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "Keep originals stores each file as it is. A working copy is scaled so its longest side is at most 4096 pixels, which takes far less room; the original is not kept."
 msgstr "Originale behalten speichert jede Datei so, wie sie ist. Eine Arbeitskopie wird so skaliert, dass ihre längste Seite höchstens 4096 Pixel beträgt, was weit weniger Platz braucht; das Original wird nicht behalten."
+
+#. Modern interface: Scene info, the inspector as a popover from the title capsule.
+#: apps/desktop/src/components/shell/modern/scene-info.tsx
+msgid "Keep Scene info open beside the page"
+msgstr "Szeneninfo neben der Seite offen lassen"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -9876,6 +9890,7 @@ msgstr "Notiz: <0/>"
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
@@ -10962,6 +10977,11 @@ msgstr "Profil"
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "Profile default"
 msgstr "Profil-Standard"
+
+#. Modern interface: Scene info, the inspector as a popover from the title capsule.
+#: apps/desktop/src/components/shell/modern/scene-info.tsx
+msgid "Progress"
+msgstr "Fortschritt"
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #: apps/desktop/src/components/InspectorGoals.tsx
@@ -12819,9 +12839,11 @@ msgstr "Szenenüberschrift"
 msgid "Scene headings"
 msgstr "Szenenüberschriften"
 
+#. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
+#: apps/desktop/src/components/shell/modern/scene-info.tsx
 msgid "Scene info"
 msgstr "Szeneninfo"
 
@@ -13757,6 +13779,7 @@ msgid "Status"
 msgstr "Status"
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Status and label"
 msgstr "Status und Label"
@@ -13955,6 +13978,11 @@ msgstr "Arbeitskopien mit 4096 px speichern"
 msgid "Store working copies ({count})"
 msgstr "Arbeitskopien speichern ({count})"
 
+#. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
+#: apps/desktop/src/components/Inspector.tsx
+msgid "Story details"
+msgstr "Story-Details"
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
@@ -14100,6 +14128,7 @@ msgstr "Zur klassischen Oberfläche wechseln"
 msgid "Synopses this step writes"
 msgstr "Synopsen, die dieser Schritt schreibt"
 
+#. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 #: apps/desktop/src/components/SynopsisField.tsx

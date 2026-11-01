@@ -1,0 +1,147 @@
+/*
+ * Scene info (docs/architecture/modern-interface.md §5.3, §6, §7.5, §8.2, §8.4; #308): thick glass, a popover from the title capsule or
+ * docked beside the page. In the `modern-shell` chunk's stylesheet, loaded only while Modern is on.
+ *
+ * Rules as in shell-modern.css: every selector starts with :root[data-shell='modern'] and only logical properties are used (checked by
+ * test/modern-css.test.ts). The popover's place is set by script (scene-info-model.ts, through the CSSOM, §11); the docked panel's
+ * place is here, and moves the page over through the stage's --area-end until #306's modernLayout computes it (§8.4).
+ */
+
+:root[data-shell='modern'] .scene-info {
+  --scene-info-w: 380px;
+  /* Text sits on thick glass: the inspector's text tokens become the one text colour the contrast test checks on it (§9.3). */
+  --ink: var(--on-glass);
+  --ink-soft: var(--on-glass);
+  --muted: var(--on-glass);
+  position: fixed;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  border-radius: var(--radius-sheet);
+  color: var(--on-glass);
+  transform-origin: 0 0;
+  box-shadow: var(--elev-glass);
+}
+
+:root[data-shell='modern'] .scene-info:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* The glass is its own layer behind the content (see scene-info.tsx): the rim, the blur and the tint, none on the dialog itself. */
+:root[data-shell='modern'] .scene-info > .scene-info-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+:root[data-shell='modern'] .scene-info-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  flex: 1 1 auto;
+  padding: var(--sheet-pad);
+}
+
+:root[data-shell='modern'] .scene-info-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block-end: var(--space-2);
+}
+
+:root[data-shell='modern'] .scene-info-heading {
+  flex: 1 1 auto;
+  margin: 0;
+  padding-inline: var(--space-4);
+  font: 600 17px/1.3 var(--ui);
+}
+
+:root[data-shell='modern'] .scene-info-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline: var(--space-4);
+  padding-block-end: var(--space-4);
+}
+
+/* The inspector inside: no column of its own (Classic's grid column, border and panel colour). */
+:root[data-shell='modern'] .scene-info .inspector {
+  grid-column: auto;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+:root[data-shell='modern'] .scene-info .inspector-disclosure {
+  margin-block-start: var(--space-4);
+  border-radius: var(--radius-inner);
+  background: var(--scrim);
+}
+
+:root[data-shell='modern'] .scene-info .inspector-disclosure > summary {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  padding-inline: var(--space-5);
+  border-radius: var(--radius-inner);
+  font: 600 15px/1.2 var(--ui);
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] .scene-info .inspector-disclosure > summary:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+:root[data-shell='modern'] .scene-info .inspector-disclosure[open] {
+  padding-block-end: var(--space-4);
+}
+
+:root[data-shell='modern'] .scene-info .inspector-disclosure > :not(summary) {
+  margin-inline: var(--space-5);
+}
+
+:root[data-shell='modern'] .scene-info-progress {
+  margin-block-start: var(--space-5);
+}
+
+:root[data-shell='modern'] .scene-info-progress .target-button {
+  min-block-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .scene-info-save {
+  margin-block: var(--space-3) 0;
+}
+
+/* ---- Docked (Keep open): a companion panel at the page's inline-end edge, the page moved over for it (§6, §8.4). ---- */
+:root[data-shell='modern'] .scene-info.is-docked {
+  inset-block: calc(var(--page-top) + var(--radius-ornament)) var(--page-bottom);
+  inset-inline-end: var(--page-gutter);
+  inline-size: var(--scene-info-w);
+}
+
+:root[data-shell='modern'] .modern-stage:has(> .scene-info.is-docked) {
+  --area-end: calc(var(--scene-info-w, 380px) + var(--page-gutter));
+}
+
+/* From 1,280 px down a docked Scene info overlaps the page as a sheet instead of pushing it (§8.4). */
+@media (width <= 1280px) {
+  :root[data-shell='modern'] .modern-stage:has(> .scene-info.is-docked) {
+    --area-end: 0px;
+  }
+}
+
+@media (forced-colors: active) {
+  :root[data-shell='modern'] .scene-info {
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+}
