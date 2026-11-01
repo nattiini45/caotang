@@ -18,6 +18,8 @@ export interface StageGeometry {
   readonly areaStart?: number;
   /** Room taken at the inline-end edge (the companion window, a docked Scene info). Default 0. */
   readonly areaEnd?: number;
+  /** From the stage's inline-end edge to a docked Scene info's: the gutter, or past the open agent window, so the two stack. Default the gutter. */
+  readonly infoEnd?: number;
 }
 
 const PROPERTIES: Readonly<Record<keyof StageGeometry, string>> = {
@@ -26,6 +28,7 @@ const PROPERTIES: Readonly<Record<keyof StageGeometry, string>> = {
   pageBottom: '--page-bottom',
   areaStart: '--area-start',
   areaEnd: '--area-end',
+  infoEnd: '--info-end',
 };
 
 /** The custom properties a geometry sets on the stage, or `undefined` when it sets none (so no style is written). */

@@ -6,8 +6,9 @@
  * The window is thick glass at the stage's inline-end edge, aligned with the page. Its header sits on the glass with --on-glass text;
  * the turns and the Intent box sit on solid panes, so the agent's muted text keeps 4.5:1 whatever the wallpaper behind (§5.3, §9.3).
  *
- * Above 1,280 px the open window takes room from the page (--area-end, which #306's modernLayout also writes from companionAreaEnd in
- * companion-model.ts); from 1,280 px down it overlaps the page as a sheet over a scrim; below 960 px it is a full-width sheet.
+ * Above 1,280 px the open window takes room from the page: the stage's --area-end, which #306's modernLayout writes from companionAreaEnd
+ * in companion-model.ts (a docked Scene info stacks beside the window); from 1,280 px down it overlaps the page as a sheet over a
+ * scrim; below 960 px it is a full-width sheet.
  */
 
 :root[data-shell='modern'] .modern-companion {
@@ -42,12 +43,6 @@
 
 :root[data-shell='modern'] .modern-stage:has(> .modern-companion.is-open) > .modern-page-area {
   transform: scale(0.985);
-}
-
-@media (min-width: 1281px) {
-  :root[data-shell='modern'] .modern-stage:has(> .modern-companion.is-open) {
-    --area-end: calc(400px + var(--page-gutter));
-  }
 }
 
 /* Reduced motion: the page moves over at once and does not recede (§5.5, §8.10). */

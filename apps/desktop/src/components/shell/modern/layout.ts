@@ -11,13 +11,18 @@
  * - The page's width follows the view (Write about 780 px, Board about 1,120, Codex about 1,000) and is clamped to the room the
  *   sidebar and the windows leave; its top is 11% of the height and at least 84 px, its bottom leaves the bottom ornament 112 px.
  * - The sidebar (a pinned or open binder) always takes room at the inline-start edge: the page moves over.
- * - Above 1,280 px the agent window and a docked Scene info take room at the inline-end edge too. From 1,280 px down, or when the
- *   page would shrink below {@link MIN_PAGE_WIDTH}, they overlap the page as sheets with a scrim instead (`overlay`): the page shrinks
+ * - Above 1,280 px the agent window takes room at the inline-end edge too, exactly as the window places itself (`companionAreaEnd` in
+ *   companion-model.ts, #309): the stage's inline `--area-end` is the one source of the page's room, so it must agree with the window.
+ *   From 1,280 px down the window overlaps the page as a sheet with a scrim instead.
+ * - A docked Scene info (#308) and the open agent window **stack** at the inline-end edge: the agent window at the edge, Scene info
+ *   beside it, never over each other (`geometry.infoEnd` places the panel). Above 1,280 px the docked panel takes room too, unless
+ *   the page would then shrink below {@link MIN_PAGE_WIDTH}; then it lies over the page instead (`sheets.info`). The page shrinks
  *   before anything overlaps it, and stops shrinking where it would stop being a page.
  * - Below 960 px (the narrow layout, §13, is #312's) the gutters and the ornaments' room are smaller, so the page takes nearly the
  *   whole width; there is no sidebar beside the page, and a window is a sheet.
  */
 
+import { COMPANION_WIDTH, companionAreaEnd } from './companion-model.js';
 import type { StageGeometry } from './geometry.js';
 
 /** The page's views: the three of the bottom ornament, and the two Classic centre views reached from **⋯**. */
@@ -58,8 +63,10 @@ export interface ModernLayout {
   readonly sidebar: Box | null;
   readonly agent: Box | null;
   readonly info: Box | null;
-  /** The agent window or Scene info lies over the page as a sheet, with a scrim, rather than beside it. */
+  /** The agent window or Scene info lies over the page as a sheet rather than beside it (either of `sheets`). */
   readonly overlay: boolean;
+  /** Which window lies over the page: the agent window from 1,280 px down; Scene info then too, or where docking it would leave the page too narrow. */
+  readonly sheets: { readonly agent: boolean; readonly info: boolean };
   /** What the stage needs to place the page (ModernShell's `geometry`). */
   readonly geometry: StageGeometry;
 }
@@ -80,7 +87,8 @@ export const MIN_PAGE_WIDTH = 480;
 export const GUTTER = 32;
 export const NARROW_GUTTER = 8;
 export const SIDEBAR_WIDTH = 300;
-export const AGENT_WIDTH = 400;
+/** The agent window's width: companion-model.ts's (#309). */
+export const AGENT_WIDTH = COMPANION_WIDTH;
 /** A docked Scene info's width: scene-info.css's `--scene-info-w` (#308), so the page moves over exactly as far as the panel is wide. */
 export const INFO_WIDTH = 380;
 export const PAGE_TOP_MIN = 84;
@@ -106,11 +114,14 @@ export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInp
   const hasSidebar = sidebar && !narrow;
   const areaStart = hasSidebar ? SIDEBAR_WIDTH + gutter : 0;
 
-  // Room at the inline-end edge: the agent window at the edge, a docked Scene info inside it.
-  const windows = (agent ? AGENT_WIDTH + gutter : 0) + (info ? INFO_WIDTH + gutter : 0);
-  const pushRoom = width - areaStart - windows - 2 * gutter;
-  const overlay = windows > 0 && (narrow || width <= OVERLAY_AT || pushRoom < MIN_PAGE_WIDTH);
-  const areaEnd = overlay ? 0 : windows;
+  // Room at the inline-end edge: the agent window at the edge (the window's own rule, so the page and the window always agree), then a
+  // docked Scene info beside it, if the page keeps its minimum width.
+  const agentRoom = narrow ? 0 : companionAreaEnd(width, agent);
+  const infoFits = width - areaStart - agentRoom - (INFO_WIDTH + gutter) - 2 * gutter >= MIN_PAGE_WIDTH;
+  const infoRoom = info && !narrow && width > OVERLAY_AT && infoFits ? INFO_WIDTH + gutter : 0;
+  const sheets = { agent: agent && agentRoom === 0, info: info && infoRoom === 0 };
+  const overlay = sheets.agent || sheets.info;
+  const areaEnd = agentRoom + infoRoom;
 
   const areaWidth = Math.max(0, width - areaStart - areaEnd);
   const pageWidth = Math.max(0, Math.min(VIEW_WIDTH[view], areaWidth - 2 * gutter));
@@ -122,7 +133,9 @@ export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInp
     return { start: round(end - w), top: pageTop, width: round(w), height: columnHeight };
   };
   const agentBox = agent ? sheet(AGENT_WIDTH, width - gutter) : null;
-  const infoBox = info ? sheet(INFO_WIDTH, agentBox === null ? width - gutter : agentBox.start - gutter) : null;
+  // Stacked: Scene info sits beside the agent window, never under it. In a narrow window both are sheets over the whole page (#312).
+  const infoBox = info ? sheet(INFO_WIDTH, agentBox === null || narrow ? width - gutter : agentBox.start - gutter) : null;
+  const infoEnd = infoBox === null ? gutter : width - (infoBox.start + infoBox.width);
 
   return {
     narrow,
@@ -133,6 +146,7 @@ export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInp
     agent: agentBox,
     info: infoBox,
     overlay,
-    geometry: { pageWidth: round(pageWidth), pageTop, pageBottom, areaStart, areaEnd },
+    sheets,
+    geometry: { pageWidth: round(pageWidth), pageTop, pageBottom, areaStart, areaEnd, infoEnd },
   };
 }

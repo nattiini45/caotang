@@ -63,11 +63,13 @@ export function ModernShell({
   const sidebar = slots.sidebar !== null && !view.hideRails && !view.narrow;
   const current = modernViewOf(view.rail, view.center);
   const size = useSyncExternalStore(subscribeViewport, readViewport);
-  // A docked Scene info (#308) takes room at the inline-end edge while it shows (focus mode hides it). The agent window (#309) adds its
-  // state here when it is built.
+  // The windows at the inline-end edge, as their own components decide whether they show (focus mode hides both): the agent window
+  // (#309) while the workspace's agentOpen is set, exactly CompanionWindow's `open`; a docked Scene info (#308). The stage's inline
+  // geometry is the one source of the page's room, so the stylesheets' own --area-end rules never apply; modernLayout stacks the two.
   const sceneInfo = useSceneInfo();
+  const agent = slots.companion !== null && view.agentOpen && !view.hideRails;
   const info = slots.sceneInfo !== null && sceneInfo.open && sceneInfo.docked && !view.hideRails;
-  const layout = modernLayout({ viewport: size, view: current, sidebar, agent: false, info });
+  const layout = modernLayout({ viewport: size, view: current, sidebar, agent, info });
   const placed = geometry ?? layout.geometry;
   const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={regions} pageId={PAGE_ID} />);
   const skip = (event: ReactMouseEvent<HTMLAnchorElement>): void => {
