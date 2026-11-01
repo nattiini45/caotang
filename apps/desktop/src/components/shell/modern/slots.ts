@@ -11,7 +11,7 @@
  * | `topOrnament`    | #306  | `TopOrnament` (title capsule, ⋯; built by #306)    | before the binder                      |
  * | `sidebar`        | #307  | `InterimSidebar` (the binder on paper)             | before the page                        |
  * | `bottomOrnament` | #306  | `BottomOrnament` (Write/Board/Codex, Ask, Search)  | after the page                         |
- * | `sceneInfo`      | #308  | nothing (the inspector waits for Scene info)       | after the bottom ornament              |
+ * | `sceneInfo`      | #308  | `SceneInfo` (built by #308; scene-info.tsx)        | after the bottom ornament              |
  * | `companion`      | #309  | nothing (the agent drawer stays on the page)       | after Scene info                       |
  * | `palette`        | #310  | nothing                                            | last, before the dialogs               |
  *
@@ -28,6 +28,7 @@ import { BottomOrnament } from './bottom-ornament.js';
 import { InterimNotices } from './interim-notices.js';
 import { InterimSidebar } from './interim-sidebar.js';
 import { Palette } from './palette.js';
+import { SceneInfo } from './scene-info.js';
 import { TopOrnament } from './top-ornament.js';
 
 /** What every slot receives. */
@@ -62,7 +63,7 @@ export const MODERN_SLOTS: ModernSlots = {
   topOrnament: TopOrnament,
   sidebar: InterimSidebar,
   bottomOrnament: BottomOrnament,
-  sceneInfo: null,
+  sceneInfo: SceneInfo,
   companion: null,
   palette: Palette,
 };

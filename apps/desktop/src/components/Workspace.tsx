@@ -57,6 +57,7 @@ import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notic
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
+import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
 import { RecurringTasks } from '../app/recurring-tasks.js';
@@ -397,6 +398,7 @@ export function Workspace({
     if (hideRails) setFocusMode(false);
     if (selected !== sceneId) selectNode(session, sceneId);
     if (narrow) setPanel('inspector');
+    requestInspector('synopsis');
     // Unlike the binder's Edit synopsis, a miss is said: the chord was pressed in the text, and nothing else would show it failed.
     requestAnimationFrame(() => {
       const field = document.querySelector<HTMLElement>('#inspector-synopsis');
@@ -931,6 +933,7 @@ export function Workspace({
           onOpened={() => setPanel(null)}
           onFocusSynopsis={() => {
             if (narrow) setPanel('inspector');
+            requestInspector('synopsis');
             focusSoon('#inspector-synopsis');
           }}
           onAgentIntent={runAgentIntent}
@@ -1093,6 +1096,7 @@ export function Workspace({
       </div>
     ) : null,
     saveState: <SaveIndicator state={saveState} onExport={exportNow} />,
+    progress: { target, setTarget: saveTarget, saveState, exportBackup: exportNow },
     search: {
       state,
       activeDocId: view.activeDocId,
@@ -1121,6 +1125,7 @@ export function Workspace({
       },
       openSceneInfo: () => {
         if (narrow) setPanel('inspector');
+        requestInspector('synopsis');
         focusSoon('#inspector-synopsis');
       },
     },
