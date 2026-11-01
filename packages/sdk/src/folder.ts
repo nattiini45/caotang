@@ -646,14 +646,21 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
         const writtenFile = declarationsWritten(base, mine, declarations, heldMeta);
         const report: WriteReport = { written: [], rotated: [], dropped: [], pruned: [] };
         try {
-          await saveProjectOnce(report);
+          // Only a move changes the manifest. A declaration-only batch writes coherence.json alone: rewriting caotang.json for it
+          // would make an open desktop session take the folder as changed by another program and stop its saves. The folder's
+          // drift check still runs, so a change another program made is refused here as a save would refuse it.
+          if (moves.length > 0) await saveProjectOnce(report);
+          else {
+            const cause = await driftCause();
+            if (cause !== undefined) stopWith(cause);
+          }
         } catch (error) {
           const reached = manifestReached(report);
           return stopPartway({
             status: 'partial',
             outcome: result.outcome,
             written: reached,
-            unwritten: reached.length === 0 ? ['caotang.json', 'coherence.json'] : ['coherence.json'],
+            unwritten: reached.length === 0 && moves.length > 0 ? ['caotang.json', 'coherence.json'] : ['coherence.json'],
             readback: await readBack(declarations, moves),
             recovery: `The timeline batch was only partly saved, and ${errorNameOf(error)} stopped it. The scene declarations are not on disk, and ${voice.holder} writes nothing more until the project is opened again; read the timeline again before proposing the change.`,
           });

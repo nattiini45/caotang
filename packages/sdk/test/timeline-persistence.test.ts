@@ -135,6 +135,30 @@ describe('a timeline batch written as its two files (timeline.md §9.2)', () => 
     }
   });
 
+  // PawCommit (#322, 638c78eb): a declaration-only batch must leave caotang.json byte for byte, or an open desktop session takes the
+  // folder as changed by another program and stops saving; a change another program made to the folder is still refused.
+  it('leaves caotang.json untouched for a declaration-only batch, and still refuses one over a changed folder', async () => {
+    const project = await opened('declaration-only');
+    try {
+      const manifestBefore = folderBytes(project.root)['caotang.json'];
+      const result = await applyEdit(project, { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 21 } }] });
+      expect(result.status).toBe('persisted');
+      if (result.status !== 'persisted') return;
+      expect(result.files).toEqual(['coherence.json']);
+      expect(folderBytes(project.root)['caotang.json']).toBe(manifestBefore);
+      expect(onDisk(project.root).sceneMeta[LANDING]?.dayOffset).toBe(21);
+
+      // Another program rewrites the manifest: the next declaration-only batch writes nothing and says so.
+      writeFileSync(join(project.root, 'caotang.json'), readFileSync(join(project.root, 'caotang.json'), 'utf8').replace('"The Landing"', '"The Landing (theirs)"'));
+      const held = folderBytes(project.root);
+      const next = await applyEdit(project, { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 22 } }] }, 'c_2');
+      expect(next.status).not.toBe('persisted');
+      expect(folderBytes(project.root)).toEqual(held);
+    } finally {
+      await project.folder.close();
+    }
+  });
+
   it('keeps what the app declared elsewhere: other scenes, dismissals, world rules and review state', async () => {
     const project = await opened('merge');
     const result = await applyEdit(project, { ops: [{ op: 'meta', nodeId: LANDING, patch: { dayOffset: 30 } }] });
