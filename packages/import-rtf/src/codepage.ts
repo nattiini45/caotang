@@ -66,6 +66,7 @@ const CHARSETS: Readonly<Record<number, number>> = {
 
 /** The charsets whose bytes are not text: Symbol (2) and the OEM set (255). Their bytes decode as windows-1252 and are counted. */
 export const SYMBOL_CHARSET = 2;
+export const OEM_CHARSET = 255;
 
 export const DEFAULT_CODE_PAGE = 1252;
 

@@ -1,14 +1,14 @@
 /**
  * An `.rtfd` package (TextEdit's "Rich Text with Graphics", Scrivener 2's `content.rtfd`): a folder holding `TXT.rtf` and the files
  * its `\NeXTGraphic` groups name. It arrives through the shared archive reader (`@caotang/import-read`), as a zip or as a picked
- * folder, so the caps and the path checks are the archive reader's. Attachments the text never names are reported, not dropped
- * silently.
+ * folder, so the caps and the path checks are the archive reader's. Only the files the text names are read, and only when the
+ * package declares them no larger than the picture cap; files the text never names are reported from the entry list, never read.
  */
 
-import type { ArchiveResult, ImportArchive, ImportArchiveError } from '@caotang/import-read/zip';
+import type { ImportArchive, ImportArchiveError } from '@caotang/import-read/zip';
 
 import type { LossWarning } from './model.js';
-import { readRtf, type RtfReadOptions, type RtfReadResult } from './rtf.js';
+import { readRtf, rtfLimitsOf, type RtfReadOptions, type RtfReadResult } from './rtf.js';
 
 export type RtfdReadResult = RtfReadResult | { readonly ok: false; readonly error: ImportArchiveError };
 
@@ -30,20 +30,46 @@ export async function readRtfd(archive: ImportArchive, options: Omit<RtfReadOpti
   }
   const dir = textPath.slice(0, textPath.length - 'TXT.rtf'.length);
   const siblings = archive.entries.map((e) => e.path).filter((p) => p !== textPath && p.startsWith(dir));
-  const read: ArchiveResult<ReadonlyMap<string, Uint8Array>> = await archive.readMany([textPath, ...siblings]);
-  if (!read.ok) return read;
-  const text = read.value.get(textPath) as Uint8Array;
-  const used = new Set<string>();
-  const result = readRtf(text, {
+  const textRead = await archive.read(textPath);
+  if (!textRead.ok) return textRead;
+  const text = textRead.value;
+
+  // First the names the text attaches, read the way the reader reads them (escapes, code pages); nothing else is opened.
+  const named = new Set<string>();
+  let result = readRtf(text, {
     ...options,
     attachment: (name) => {
-      const path = dir + name;
-      const bytes = read.value.get(path);
-      if (bytes !== undefined) used.add(path);
-      return bytes;
+      named.add(name);
+      return undefined;
     },
   });
   if (!result.ok) return result;
+
+  const used = new Set<string>();
+  if (named.size > 0) {
+    const cap = rtfLimitsOf(options.limits).maxImageBytes;
+    const tooLarge = new Set<string>();
+    const wanted: string[] = [];
+    for (const name of named) {
+      const entry = archive.entry(dir + name);
+      if (entry === undefined || entry.path === textPath) continue;
+      used.add(entry.path);
+      if (entry.size > cap) tooLarge.add(entry.path);
+      else wanted.push(entry.path);
+    }
+    const read = wanted.length > 0 ? await archive.readMany(wanted) : ({ ok: true, value: new Map<string, Uint8Array>() } as const);
+    if (!read.ok) return read;
+    result = readRtf(text, {
+      ...options,
+      attachment: (name) => {
+        const path = dir + name;
+        if (tooLarge.has(path)) return 'too-large';
+        return read.value.get(path);
+      },
+    });
+    if (!result.ok) return result;
+  }
+
   const unused = siblings.filter((p) => !used.has(p));
   if (unused.length === 0) return result;
   const loss: LossWarning = {

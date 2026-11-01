@@ -9,6 +9,7 @@ import { readRtf } from '../packages/import-rtf/src/rtf.js';
 import { rtfSummary, type RtfInput } from './import-rtf-summary.js';
 
 const scope = self as unknown as {
+  location: { origin: string };
   onmessage: ((event: MessageEvent<RtfInput>) => void) | null;
   postMessage(message: unknown): void;
   addEventListener(type: 'securitypolicyviolation', listener: (event: SecurityPolicyViolationEvent) => void): void;
@@ -20,6 +21,9 @@ scope.addEventListener('securitypolicyviolation', (event) => {
 });
 
 scope.onmessage = (event) => {
+  // A dedicated worker hears only the page that made it, whose messages carry an empty origin (or this origin). Anything that
+  // names another origin is not the spec's page, so it is ignored rather than read.
+  if (event.origin !== '' && event.origin !== scope.location.origin) return;
   try {
     const summary = rtfSummary(event.data, readRtf);
     scope.postMessage({ summary, violations, isWorker: typeof (self as { document?: unknown }).document === 'undefined' });

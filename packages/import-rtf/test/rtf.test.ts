@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { readRtf, RTF_LIMITS } from '../src/index.js';
-import { doc, lossMessages, mdOf, read } from './helpers.js';
+import { doc, lossMessages, mdOf, PIXEL_PNG, read } from './helpers.js';
 
 describe('Unicode', () => {
   it('honours \\uc0 (Cocoa): nothing after \\u is skipped', () => {
@@ -28,6 +28,15 @@ describe('Unicode', () => {
     expect(mdOf(read(doc('\\uc0\\u55357 x\\u56832 \\par')))).toEqual(['\uFFFDx\uFFFD']);
   });
 
+  it('writes one U+FFFD for a high surrogate another high one replaces, and keeps the pair that follows', () => {
+    expect(mdOf(read(doc('\\uc0\\u55357 \\u55357 \\u56832 \\par')))).toEqual(['\uFFFD😀']);
+  });
+
+  it('writes U+FFFD for a high surrogate left open at a paragraph end or at the end of the input, in its own paragraph', () => {
+    expect(mdOf(read(doc('\\uc0 a\\u55357 \\par b\\par')))).toEqual(['a\uFFFD', 'b']);
+    expect(mdOf(read(doc('\\uc0 a\\u55357 ')))).toEqual(['a\uFFFD']);
+  });
+
   it('reads the named characters and control symbols', () => {
     expect(mdOf(read(doc('a\\emdash b\\endash c\\~d\\_e\\-f\\lquote g\\rquote \\ldblquote h\\rdblquote \\bullet \\{\\}\\\\\\par')))).toEqual([
       'a—b–c\u00A0d\u2011ef‘g’“h”•{}\\\\',
@@ -39,6 +48,18 @@ describe('code pages', () => {
   it('reads cp1252 bytes by default and \\ansicpg1251 when the header says so', () => {
     expect(mdOf(read(doc("\\'93Caf\\'e9\\'94\\par")))).toEqual(['“Café”']);
     expect(mdOf(read(doc("\\'cf\\'f0\\'e8\\'e2\\'e5\\'f2\\par", '\\ansi\\ansicpg1251')))).toEqual(['Привет']);
+  });
+
+  it('reads Symbol (\\fcharset2) and OEM (\\fcharset255) fonts as windows-1252, not the document code page, and says so', () => {
+    const header = '\\ansi\\ansicpg1251{\\fonttbl{\\f0 Arial;}{\\f1\\fcharset2 Symbol;}{\\f2\\fcharset255 Terminal;}{\\f3\\fcharset255\\cpg1251 Terminal;}}';
+    const imported = read(doc("{\\f1\\'e9}{\\f2\\'e9}{\\f3\\'e9}\\'e9\\par", header));
+    expect(mdOf(imported)).toEqual(['ééйй']);
+    expect(lossMessages(imported)).toEqual(
+      expect.arrayContaining([
+        'formatting: Text set in a symbol font is kept as the letters its codes stand for, not as the symbols.',
+        'formatting: Text set in an OEM (DOS) font was read as Windows Western (1252); check its accented letters and line-drawing characters.',
+      ]),
+    );
   });
 
   it('reads raw 8-bit bytes in the code page too', () => {
@@ -291,6 +312,19 @@ describe('pictures', () => {
     const capped = read(doc(`{\\pict\\pngblip ${PNG}}\\par{\\pict\\pngblip ${PNG}}\\par`), { limits: { maxImages: 1 } });
     expect(capped.document.assets).toHaveLength(1);
     expect(lossMessages(capped)).toEqual(['image-unreadable: Only the first 1 pictures of a file are imported.']);
+  });
+
+  it('holds an .rtfd attachment to the same picture cap, whether it arrives as bytes or as declared too large', () => {
+    const body = '{{\\NeXTGraphic a.png \\width20 \\height20}\\uc0\\u65532 }\\par{{\\NeXTGraphic b.png \\width20 \\height20}\\uc0\\u65532 }\\par';
+    const big = new Uint8Array(PIXEL_PNG.length + 16);
+    big.set(PIXEL_PNG);
+    const imported = read(doc(body), {
+      limits: { maxImageBytes: PIXEL_PNG.length },
+      attachment: (name) => (name === 'a.png' ? big : 'too-large'),
+    });
+    expect(imported.document.assets ?? []).toHaveLength(0);
+    expect(imported.assetData.size).toBe(0);
+    expect(lossMessages(imported)).toEqual(['image-unreadable: A picture larger than 0 MB is not imported. ×2']);
   });
 });
 

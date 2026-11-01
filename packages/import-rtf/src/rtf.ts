@@ -31,7 +31,7 @@
  * `}`, text after the end) is read as far as it goes and reported, never thrown.
  */
 
-import { DEFAULT_CODE_PAGE, SYMBOL_CHARSET, codePageOfCharset, decodeCodePage } from './codepage.js';
+import { DEFAULT_CODE_PAGE, OEM_CHARSET, SYMBOL_CHARSET, codePageOfCharset, decodeCodePage } from './codepage.js';
 import { NO_MARKS, escapeLineStarts, isSafeLinkTarget, plainOf, renderRuns, type Marks, type Run } from './markdown.js';
 import type { Align, ImportAsset, ImportBlock, ImportComment, ImportDocument, ImportFootnote, ImportMetadata, LossCode, LossWarning, Signals } from './model.js';
 
@@ -64,8 +64,11 @@ export interface RtfReadOptions {
   readonly underlineAs?: 'italic' | 'none';
   /** Prefix for asset refs (`rtf-image-1.png`); a Scrivener reader passes one per document so refs stay unique across a project. */
   readonly assetPrefix?: string;
-  /** The bytes of an attachment an `.rtfd` package names in a `\NeXTGraphic` group, by file name. */
-  readonly attachment?: (name: string) => Uint8Array | undefined;
+  /**
+   * The bytes of an attachment an `.rtfd` package names in a `\NeXTGraphic` group, by file name; `'too-large'` when the package
+   * declares it larger than `maxImageBytes` (so it was never read), undefined when the package does not hold it.
+   */
+  readonly attachment?: (name: string) => Uint8Array | 'too-large' | undefined;
   /** Checked as the file is read; when it reports aborted, the read stops with `cancelled`. An `AbortSignal` fits. */
   readonly signal?: { readonly aborted: boolean };
   /** The clock for the deadline; tests pass their own. */
@@ -344,7 +347,7 @@ const SYMBOLS: Readonly<Record<string, string>> = {
 
 /** Reads RTF bytes (or a string of byte values, as a file read as Latin-1 gives) into the block list and its losses. */
 export function readRtf(input: Uint8Array | string, options: RtfReadOptions = {}): RtfReadResult {
-  const limits = limitsOf(options.limits);
+  const limits = rtfLimitsOf(options.limits);
   const bytes = typeof input === 'string' ? latin1Bytes(input) : input;
   if (bytes.length > limits.maxInputBytes) {
     return fail('too-large', `The file is ${bytes.length} bytes; the largest RTF file this import reads is ${limits.maxInputBytes} bytes.`);
@@ -365,7 +368,8 @@ function fail(code: RtfErrorCode, message: string): RtfReadResult {
   return { ok: false, error: new RtfReadError(code, message) };
 }
 
-function limitsOf(overrides: Partial<RtfLimits> | undefined): RtfLimits {
+/** The limits a read runs under: `RTF_LIMITS` with each valid override applied. */
+export function rtfLimitsOf(overrides: Partial<RtfLimits> | undefined): RtfLimits {
   const out: Record<string, number> = { ...RTF_LIMITS };
   for (const [key, value] of Object.entries(overrides ?? {})) {
     if (typeof value === 'number' && Number.isFinite(value) && value >= 0) out[key] = value;
@@ -1107,7 +1111,15 @@ class Reader {
       if (font.charset !== undefined) {
         const cp = codePageOfCharset(font.charset);
         if (cp !== undefined) return cp;
-        if (font.charset === SYMBOL_CHARSET && this.group.dest === 'body') this.loss('formatting', 'Text set in a symbol font is kept as the letters its codes stand for, not as the symbols.');
+        // Symbol and OEM fonts' bytes are not text in the document's code page: read them as windows-1252, as documented, and say so.
+        if (font.charset === SYMBOL_CHARSET) {
+          if (this.group.dest === 'body') this.loss('formatting', 'Text set in a symbol font is kept as the letters its codes stand for, not as the symbols.');
+          return DEFAULT_CODE_PAGE;
+        }
+        if (font.charset === OEM_CHARSET) {
+          if (this.group.dest === 'body') this.loss('formatting', 'Text set in an OEM (DOS) font was read as Windows Western (1252); check its accented letters and line-drawing characters.');
+          return DEFAULT_CODE_PAGE;
+        }
       }
     }
     return this.docCodePage;
@@ -1134,7 +1146,7 @@ class Reader {
   private unicode(value: number): void {
     let code = value < 0 ? value + 65536 : value;
     if (code >= 0xd800 && code <= 0xdbff) {
-      if (this.highSurrogate !== undefined) this.text('\uFFFD');
+      this.flushHighSurrogate();
       this.highSurrogate = code;
       return;
     }
@@ -1153,11 +1165,15 @@ class Reader {
 
   private text(text: string): void {
     if (text.length === 0) return;
-    if (this.highSurrogate !== undefined) {
-      this.highSurrogate = undefined;
-      this.emitText('\uFFFD');
-    }
+    this.flushHighSurrogate();
     this.emitText(text);
+  }
+
+  /** A high surrogate no low one followed: one U+FFFD where it stood, written before the text, paragraph end or input end after it. */
+  private flushHighSurrogate(): void {
+    if (this.highSurrogate === undefined) return;
+    this.highSurrogate = undefined;
+    this.emitText('\uFFFD');
   }
 
   private emitText(text: string): void {
@@ -1234,6 +1250,7 @@ class Reader {
   // ---- paragraphs, rows and blocks ----
 
   private endParagraph(how: 'par' | 'cell' | 'cell-end' | 'break' | 'end'): void {
+    this.flushHighSurrogate();
     const g = this.group;
     const sink = how === 'end' ? this.body : g.sink;
     const para = sink.para;
@@ -1449,7 +1466,7 @@ class Reader {
     if (parent.chr.hidden || parent.chr.deleted) return;
     const bytes = pict.hex.subarray(0, pict.length);
     if (pict.tooBig) {
-      this.loss('image-unreadable', `A picture larger than ${Math.round(this.limits.maxImageBytes / MB)} MB is not imported.`);
+      this.loss('image-unreadable', this.tooLargeMessage());
       return;
     }
     const mime = sniffImage(bytes);
@@ -1461,12 +1478,21 @@ class Reader {
     this.addPicture(bytes.slice(), mime, '', parent);
   }
 
+  private tooLargeMessage(): string {
+    return `A picture larger than ${Math.round(this.limits.maxImageBytes / MB)} MB is not imported.`;
+  }
+
   private attachmentPicture(name: string, parent: Group): void {
     parent.sink.para.swallow = true;
     if (name.length === 0) return;
     const bytes = this.options.attachment?.(name);
     if (bytes === undefined) {
       this.loss('image-unreadable', `The attached file "${name}" is not in the package, so it is not imported.`);
+      return;
+    }
+    // The same cap as a picture inside the text: a larger attachment is never kept, whatever its format.
+    if (bytes === 'too-large' || bytes.length > this.limits.maxImageBytes) {
+      this.loss('image-unreadable', this.tooLargeMessage());
       return;
     }
     const mime = sniffImage(bytes);
