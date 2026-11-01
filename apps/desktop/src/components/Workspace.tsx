@@ -77,6 +77,7 @@ import { ProjectPanel } from './ProjectPanel.js';
 import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
 import { VocabularyEditor } from './VocabularyEditor.js';
+import { ImportPreviewHost } from '../import-preview/ImportPreviewHost.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
 import { inlineKey } from '../i18n/direction.js';
@@ -1393,6 +1394,7 @@ export function Workspace({
         <SkillsPanel session={session} />
         <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
         <VocabularyEditor session={session} />
+        <ImportPreviewHost session={session} />
 
 
         <ConfirmDialog

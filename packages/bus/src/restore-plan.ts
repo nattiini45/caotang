@@ -180,6 +180,7 @@ export const FOOTPRINT_CLASS: Readonly<Record<CommandName, 'content' | 'move' | 
   'comic.scriptFromPages': 'global',
   'comic.derive': 'global',
   'comic.letter': 'global',
+  'binder.importTree': 'global',
 };
 
 const FOOTPRINTS: Readonly<Record<'content' | 'move', FootprintOf>> = { content, move };

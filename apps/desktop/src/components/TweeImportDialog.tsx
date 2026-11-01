@@ -1,18 +1,16 @@
 /**
- * The report a Twee import shows before anything is written (dialogue-narrative.md §4). A Twine story format is a programming
- * environment, so what the import strips is counted here first: the writer confirms having read it, or cancels and nothing changes.
+ * The report a Twee import shows before anything is written (dialogue-narrative.md §4), on the shared import preview (issue #267).
+ * A Twine story format is a programming environment, so what the import strips is counted first: the writer confirms having read it,
+ * or cancels and nothing changes. The preview is the shared one (`import-preview/`); this component opens it over the Twee plan when
+ * a file is waiting on an answer, and hands the answer back to the import action as before.
  */
 
-import { t } from '@lingui/core/macro';
-import { Trans } from '@lingui/react/macro';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 
-import { describeTweeReport, type TweeImportPlan } from '@caotang/dialogue';
-import { isolate } from '@caotang/i18n';
+import type { TweeImportPlan } from '@caotang/dialogue';
 
-import { ChoiceDialog } from './shared.js';
-
-/* lingui-set comment="Interpolated values: file, title" */
+import { closeImportPreview, currentImportPreview, openImportPreview } from '../import-preview/requests.js';
+import { tweePreviewSource } from '../import-preview/twee-source.js';
 
 export function TweeImportDialog({
   fileName,
@@ -26,42 +24,34 @@ export function TweeImportDialog({
   onImport: () => void;
   onCancel: () => void;
 }): ReactNode {
-  const open = fileName !== null && plan !== null;
-  const file = isolate(fileName ?? '');
-  const title = isolate(plan?.container?.title ?? (fileName ?? ''));
-  return (
-    <ChoiceDialog
-      open={open}
-      title={t`Import this Twee story?`}
-      choices={[{ label: t`Import`, onChoose: onImport }]}
-      onCancel={onCancel}
-    >
-      {open ? (
-        <div className="twee-report">
-          <p>
-            <Trans>
-              <strong>{title}</strong> ({file}) will be one dialogue container. Read what the import changes first.
-            </Trans>
-          </p>
-          <ul aria-label={t`What the import does`}>
-            {describeTweeReport(plan.report).map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-          {plan.report.warnings.length > 0 ? (
-            <>
-              <h3>
-                <Trans>Warnings</Trans>
-              </h3>
-              <ul aria-label={t`Warnings`}>
-                {plan.report.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-    </ChoiceDialog>
-  );
+  // The latest answers, read when the preview closes: the action's callbacks change identity on every render.
+  const answers = useRef({ onImport, onCancel });
+  useEffect(() => {
+    answers.current = { onImport, onCancel };
+  }, [onImport, onCancel]);
+
+  useEffect(() => {
+    if (fileName === null || plan === null) return;
+    let imported = false;
+    const source = tweePreviewSource({
+      fileName,
+      plan,
+      write: () => {
+        imported = true;
+        answers.current.onImport();
+      },
+    });
+    openImportPreview({
+      source,
+      onClose: () => {
+        if (!imported) answers.current.onCancel();
+      },
+    });
+    return () => {
+      // The action dropped its file (a newer one, or the workspace closed): the preview over it goes too.
+      if (currentImportPreview()?.source === source) closeImportPreview(false);
+    };
+  }, [fileName, plan]);
+
+  return null;
 }

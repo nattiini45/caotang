@@ -49,6 +49,7 @@ import type {
 } from './descriptors-pictures.js';
 import type { AssetTranscribeParams } from './descriptors-transcription.js';
 import type { AssetLink, ReadAssetLink, ReadAssetRecord } from '@caotang/pictures';
+import type { ImportTreeParams } from './descriptors-import.js';
 import type { ScriptSetEpisodeMetaParams, ScriptSetShowMetaParams } from './descriptors-av-script.js';
 import type { RecipeScriptFont, SceneNumbersOption } from './descriptors-project.js';
 import type { HookDraft } from './hook-rules.js';
@@ -224,6 +225,9 @@ export const COMMAND_NAMES = [
   // one undo group. `agentRisk: 'never'`: the agent's import is `codex.import`, which keeps its 20-entry cap. Its descriptor is
   // `descriptors-codex-import.ts`, and its apply is the store's (`commands-codex-import.ts`).
   'codex.importBatch',
+  // The commit of the shared import preview (import-preview.md §5): a whole proposed tree, its notes, vocabulary terms, codex rows and
+  // pictures as one undo group. `agentRisk: 'never'`; its descriptor is `descriptors-import.ts`, its apply the store's (`commands-import.ts`).
+  'binder.importTree',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -742,6 +746,7 @@ export interface CommandParams {
   'hook.save': HookSaveParams;
   'hook.delete': HookDeleteParams;
   'codex.importBatch': CodexImportBatchParams;
+  'binder.importTree': ImportTreeParams;
 }
 
 /**

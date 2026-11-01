@@ -467,6 +467,8 @@ export {
 } from './commands-project.js';
 export { loadZipEngine } from './zip.js';
 export type { AssetRecord, ExportRecipe, ExportRecipeOptions } from './manifest.js';
+// The shared import preview's commit (import-preview.md §5): the round-trip check the preview runs before Import, and the term colour.
+export { IMPORTED_TERM_COLOR, keepsImportedBody, rewritePictureRefs } from './commands-import.js';
 
 // Storyboard: the browser's copy of the project's images, in its own IndexedDB database (storyboard.md §2.2). Version 2 adds only
 // the `thumbs` store (pictures.md §6.5): derived, per-browser thumbnails, never in the app database, the folder or a bundle.

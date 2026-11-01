@@ -114,6 +114,8 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, MessageDescriptor>> = 
   'hook.delete': msg`Hook deleted`,
   // The writer's codex import (codex.md §7.1).
   'codex.importBatch': msg`Codex entries imported`,
+  // The shared import preview's commit (import-preview.md §5).
+  'binder.importTree': msg`Imported into the binder`,
   // The writer's instructions and the agent's memory (context-assembly.md §2, layer LI).
   'project.setInstructions': msg`Instructions changed`,
   'memory.write': msg`Memory note saved`,

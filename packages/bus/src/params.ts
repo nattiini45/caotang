@@ -152,6 +152,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'hook.save': ['hook'],
   'hook.delete': ['hookId'],
   'codex.importBatch': ['entries', 'pages', 'parentId'],
+  'binder.importTree': ['parentId', 'nodes', 'vocabulary', 'codex', 'pictures'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */

@@ -1619,7 +1619,8 @@ describe('the bus/store split these applies depend on', () => {
     // `asset.link`, `asset.unlink`, `asset.makeDocumentLevel`, `asset.repin`, `asset.reorderLinks`, `asset.delete`) have applies of the
     // store's own, and `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies` register only with the host's asset port: 77 names, 61 implemented.
     // The seven comic commands need no port: 84 names, 68 implemented.
-    expect(Object.keys(registry)).toHaveLength(84);
+    // The import preview's commit adds `binder.importTree`, which registers only with the asset port: 85 names, 68 implemented.
+    expect(Object.keys(registry)).toHaveLength(85);
     expect(implemented).toHaveLength(68);
   });
 });

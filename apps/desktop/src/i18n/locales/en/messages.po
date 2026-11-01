@@ -1941,11 +1941,6 @@ msgstr "<0/> learns it in <1><2/></1>"
 msgid "<0/>, word by word from the old to the new ({wordsBefore} words to {wordsAfter}), shown before approval: every later request carries it"
 msgstr "<0/>, word by word from the old to the new ({wordsBefore} words to {wordsAfter}), shown before approval: every later request carries it"
 
-#. Interpolated values: file, title
-#: apps/desktop/src/components/TweeImportDialog.tsx
-msgid "<0>{title}</0> ({file}) will be one dialogue container. Read what the import changes first."
-msgstr "<0>{title}</0> ({file}) will be one dialogue container. Read what the import changes first."
-
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "<0><1/></0> is paid off in <2/>"
@@ -6904,10 +6899,8 @@ msgstr "Image to video"
 msgid "Images added to shots"
 msgstr "Images added to shots"
 
-#. Interpolated values: file, title
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
-#: apps/desktop/src/components/TweeImportDialog.tsx
 msgid "Import"
 msgstr "Import"
 
@@ -6982,11 +6975,6 @@ msgstr "Import script"
 msgid "harness.progress.picturesImport.content"
 msgstr "Import the staged picture"
 
-#. Interpolated values: file, title
-#: apps/desktop/src/components/TweeImportDialog.tsx
-msgid "Import this Twee story?"
-msgstr "Import this Twee story?"
-
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Import Twee"
@@ -7034,6 +7022,11 @@ msgstr "imported a {format} script: {scenes, plural, one {# scene} other {# scen
 #: packages/store/src/commands-script.ts
 msgid "store.script.importSummaryCodex"
 msgstr "imported a {format} script: {scenes, plural, one {# scene} other {# scenes}} and {folders, plural, one {# section} other {# sections}}, with {entries, plural, one {# codex entry} other {# codex entries}}"
+
+#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#: apps/desktop/src/app/activity-model.ts
+msgid "Imported into the binder"
+msgstr "Imported into the binder"
 
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
@@ -16433,12 +16426,9 @@ msgstr "Waits for an earlier step"
 msgid "Warning"
 msgstr "Warning"
 
-#. Interpolated values: file, title
-#. Interpolated values: file, title
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
-#: apps/desktop/src/components/TweeImportDialog.tsx
 msgid "Warnings"
 msgstr "Warnings"
 
@@ -16486,11 +16476,6 @@ msgstr "What should Caotang do with it?"
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
 msgstr "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
-
-#. Interpolated values: file, title
-#: apps/desktop/src/components/TweeImportDialog.tsx
-msgid "What the import does"
-msgstr "What the import does"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.

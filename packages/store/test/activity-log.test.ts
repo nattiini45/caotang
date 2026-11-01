@@ -669,13 +669,15 @@ describe('§8 — the activity row for every shipped store apply', () => {
     // `shot.importImage` registers only with both the asset port and the storyboard port, so it
     // is unimplemented here too. Its row is asserted with both ports in `commands-shot-image.test.ts`.
     // `asset.import` and `asset.importBatch` register only with the asset port, so they are unimplemented here as well; their rows
-    // are asserted with the port in `pictures-import.test.ts`.
+    // are asserted with the port in `pictures-import.test.ts`. `binder.importTree` (the import preview's commit) registers only
+    // with the asset port for the same reason; its row is asserted with the port in `commands-import.test.ts`.
     expect(withoutApply).toEqual([
       'asset.import',
       'asset.importBatch',
       'asset.relink',
       'asset.storeWorkingCopies',
       'asset.sweep',
+      'binder.importTree',
       'export.compile',
       'export.compileSelection',
       'mcp.invoke',

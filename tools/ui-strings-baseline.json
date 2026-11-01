@@ -212,6 +212,30 @@
       "attribute": 0,
       "literal": 1,
       "template": 0
+    },
+    "import-preview/ImportPreviewDialog.tsx": {
+      "jsxText": 34,
+      "attribute": 18,
+      "literal": 4,
+      "template": 4
+    },
+    "import-preview/ImportPreviewHost.tsx": {
+      "jsxText": 0,
+      "attribute": 1,
+      "literal": 0,
+      "template": 0
+    },
+    "import-preview/model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 8
+    },
+    "import-preview/twee-source.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 2
     }
   }
 }

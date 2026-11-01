@@ -135,7 +135,7 @@ The agent's `codex.import` keeps its 20-entry cap, which bounds one plan card. A
 - **Who builds it.** The harness's `planCodexImportBatch` turns a reader's rows into the command: it fits the fields, applies the collision answers, locates each citation by §4's rules (a renamed row by the name its source used), runs the scan, and checks the result with the bus's own validate, so the preview lists every refused row before **Import** is offered: a refusal of an entry or a page is listed against the row that brought it, and a refusal of the whole command (the folder the pages go into) is the plan's own `batch` line, never pinned on a row. Nothing is written until the command is dispatched; a cancelled preview changes nothing.
 - **Not an agent tool.** The descriptor is `agentRisk: 'never'` and the command is on the harness's never-exposed list, so neither the agent nor the MCP server can issue it.
 
-The preview dialog that drives it (imports epic) is not in this build; the command and the plan are.
+The shared import preview ([import-preview.md](import-preview.md) §4, #267) is built: its codex rows carry the same answers, and its commit, `binder.importTree`, sends them as `codex.importBatch` entries (an entry may also name a document of the same import by index) checked by this command's own validator, in the import's one undo group. No reader feeds it codex rows yet (a CSV, a wiki export, a Scrivener Characters folder are each their own issue), so in the app codex entries still arrive one at a time or through the agent's tool.
 
 ## 8. UI surfaces (v0.1 scope)
 

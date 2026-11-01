@@ -369,7 +369,7 @@ interface ImportedItem {
  * The import both commands run. The registered undo is one compensation that removes the records and the placements this import made;
  * a picture it reused loses nothing, and its file stays in every case.
  */
-async function runImport(
+export async function runImport(
   state: ProjectState,
   assets: ProjectAssetPort,
   clock: ApplyClock,

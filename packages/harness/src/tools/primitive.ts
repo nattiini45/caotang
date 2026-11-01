@@ -75,6 +75,8 @@ export const NEVER_EXPOSED = [
   'hook.delete',
   // The writer's codex import from the app (codex.md §7.1) lifts codex.import's 20-entry cap; the agent imports through codex.import.
   'codex.importBatch',
+  // The commit of the writer's import preview (import-preview.md §5): the agent imports one document at a time through doc.import.
+  'binder.importTree',
   // A memory note is the writer's to forget: hard-denied for an agent as a deletion (command-bus §4).
   'memory.forget',
 ] as const satisfies readonly CommandName[];

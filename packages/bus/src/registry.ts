@@ -43,6 +43,7 @@ import * as calendarDescriptors from './descriptors-calendar.js';
 import * as agentFileDescriptors from './descriptors-agent-files.js';
 import * as hookDescriptors from './descriptors-hooks.js';
 import * as codexImportDescriptors from './descriptors-codex-import.js';
+import * as importTreeDescriptors from './descriptors-import.js';
 import * as macroDescriptors from './descriptors-macros.js';
 import {
   viewSetActiveDocApply,
@@ -190,6 +191,8 @@ export function buildRegistry(): CommandRegistry {
     'hook.delete': { descriptor: hookDescriptors.hookDelete },
     // The writer's batch import of codex entries (codex.md §7.1). Descriptor only; the apply is the store's (`commands-codex-import.ts`).
     'codex.importBatch': { descriptor: codexImportDescriptors.codexImportBatch },
+    // The commit of the shared import preview (import-preview.md §5). Descriptor only; the apply is the store's (`commands-import.ts`).
+    'binder.importTree': { descriptor: importTreeDescriptors.binderImportTree },
   };
 }
 
