@@ -13,7 +13,7 @@ import { resolveKey, shortcutLabel, type KeyContext, type KeyFacts } from '../..
  */
 
 const KEYS = [
-  'a', 'b', 'e', 'f', 'i', 'j', 'k', 'n', 's', 'y', 'z', 'J', 'N', 'Z', '1', '9', ' ',
+  'a', 'b', 'e', 'f', 'i', 'j', 'k', 'n', 's', 'y', 'z', 'J', 'K', 'N', 'Z', '1', '9', ' ',
   'Enter', 'Escape', 'Tab', 'F2', 'F6', 'F10', 'Delete', 'Backspace', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End',
 ] as const;
 
@@ -88,8 +88,9 @@ test.describe('the keymap in both shells', () => {
       }
     }
     expect(changed).toEqual([]);
-    // Ctrl+J and Cmd+J (and Ctrl+Cmd+J), lower and upper case, in every context: the matrix did reach the new chord.
-    expect(added).toBe(Object.keys(CONTEXTS).length * 2 * 3);
+    // Each of Modern's chords (Ctrl+J, Ctrl+K) as Ctrl, Cmd and Ctrl+Cmd, lower and upper case, in every context: the matrix did
+    // reach every new chord.
+    expect(added).toBe(Object.keys(CONTEXTS).length * Object.keys(MODERN_CHORDS).length * 2 * 3);
   });
 
   test('the existing chords keep their meaning in both shells', () => {
