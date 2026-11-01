@@ -324,6 +324,16 @@ describe('§3.4 · what assistive technology and a pointer are given', () => {
     expect(names()).toEqual(['Footnote 1', 'Footnote b', 'Footnote 1', 'Footnote b']);
   });
 
+  it('a scene without footnotes takes new labels, and a footnote added afterwards carries them', async () => {
+    const { host, instance } = await mountInto('The ferry was late.\n');
+    instance.setLabels({ footnoteReference: (label) => `Fußnote ${label}`, footnoteNote: (label) => `Anmerkung ${label}` });
+    const editor = tiptapOf(focusDom(host));
+    editor.commands.setTextSelection(5);
+    expect(instance.insertFootnote()).toBe(true);
+    expect(focusDom(host).querySelector('sup')!.getAttribute('aria-label')).toBe('Fußnote 1');
+    expect(focusDom(host).querySelector('div.caotang-footnote')!.getAttribute('aria-label')).toBe('Anmerkung 1');
+  });
+
   it('the package’s default footnote words are the English source', () => {
     expect(DEFAULT_EDITOR_LABELS.footnoteReference('2')).toBe('Footnote 2');
     expect(DEFAULT_EDITOR_LABELS.footnoteNote('2')).toBe('Footnote 2');

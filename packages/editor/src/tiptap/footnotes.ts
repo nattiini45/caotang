@@ -475,8 +475,10 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
             const notes = new Map<string, string>();
             const defs = footnoteTail(state.doc).defs;
             for (const def of defs) notes.set(footnoteKey(def.attrs.label as string), noteText(def));
+            // No notes, nothing to walk: every keystroke in a scene without footnotes stays as cheap as before. A marker always has a
+            // note (the canonical rule adds one), so no marker goes unnamed.
+            if (defs.length === 0) return null;
             const words = options.words?.();
-            if (notes.size === 0 && words === undefined) return null;
             const decorations: Decoration[] = [];
             state.doc.descendants((node, pos) => {
               const label = node.attrs.label as string;
