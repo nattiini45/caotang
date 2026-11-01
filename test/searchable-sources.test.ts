@@ -198,6 +198,8 @@ const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly 
 const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-(glass|solid)-[a-z-]+)\.png$/;
 const VISUAL_SURFACES = ['projects', 'workspace', 'corkboard', 'codex', 'findings', 'activity', 'settings-appearance', 'export', 'narrow'];
 const MODERN_VISUAL_SURFACES = ['page'];
+/** Modern surfaces taken in glass only (e2e/visual/modern-dialogs.spec.ts, M10 #311). */
+const MODERN_GLASS_SURFACES = ['projects', 'settings-appearance', 'export', 'confirm'];
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** The same scan over the real tree, the named binary assets and the visual baselines left out. */
@@ -287,7 +289,7 @@ describe('no source file is invisible to search', () => {
     const classic = ['light', 'dark'].flatMap((scheme) => VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/classic-${scheme}-${surface}.png`));
     const modern = ['light', 'dark'].flatMap((scheme) =>
       ['glass', 'solid'].flatMap((material) => MODERN_VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/modern-${scheme}-${material}-${surface}.png`)),
-    );
+    ).concat(['light', 'dark'].flatMap((scheme) => MODERN_GLASS_SURFACES.map((surface) => `e2e/visual/__snapshots__/modern-${scheme}-glass-${surface}.png`)));
     const modernCommitted = baselines.some((rel) => rel.includes('/modern-'));
     const expected = [...classic, ...(modernCommitted ? modern : [])].sort();
     expect(baselines).toEqual(expected);

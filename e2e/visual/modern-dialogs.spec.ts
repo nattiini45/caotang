@@ -57,7 +57,7 @@ for (const scheme of ['light', 'dark'] as const) {
   test(`Modern's projects screen, ${scheme}`, async ({ page }) => {
     await start(page, scheme);
     await page.evaluate(() => (globalThis as unknown as { document: { activeElement: { blur?: () => void } | null } }).document.activeElement?.blur?.());
-    await shot(page, `modern-${scheme}-projects`);
+    await shot(page, `modern-${scheme}-glass-projects`);
   });
 
   test(`Modern's Settings › Appearance, ${scheme}`, async ({ page }) => {
@@ -66,7 +66,7 @@ for (const scheme of ['light', 'dark'] as const) {
     const settings = page.getByTestId('settings');
     await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
     await expect(settings.getByRole('group', { name: 'Interface', exact: true })).toBeVisible();
-    await shot(page, `modern-${scheme}-settings-appearance`);
+    await shot(page, `modern-${scheme}-glass-settings-appearance`);
   });
 
   test(`Modern's Export dialog, ${scheme}`, async ({ page }) => {
@@ -76,7 +76,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await more(page).click();
     await page.getByRole('menuitem', { name: 'Compile…' }).click();
     await expect(page.locator('dialog.export-dialog')).toBeVisible();
-    await shot(page, `modern-${scheme}-export`);
+    await shot(page, `modern-${scheme}-glass-export`);
   });
 
   test(`Modern's Confirm dialog, ${scheme}`, async ({ page }) => {
@@ -86,6 +86,6 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByRole('treeitem', { name: /The Landing/ }).click();
     await page.keyboard.press('Delete');
     await expect(page.getByRole('dialog', { name: 'Delete “The Landing”?' })).toBeVisible();
-    await shot(page, `modern-${scheme}-confirm`);
+    await shot(page, `modern-${scheme}-glass-confirm`);
   });
 }
