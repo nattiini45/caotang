@@ -132,7 +132,7 @@ export function sniffCoverImage(bytes: Uint8Array): CoverImageKind | undefined {
 }
 
 /** A vocabulary id from a name: lower-case words joined by hyphens (`Act 1` → `act-1`), made unique among the terms. */
-function mintTermId(name: string, terms: readonly VocabularyTerm[]): string {
+export function mintTermId(name: string, terms: readonly VocabularyTerm[]): string {
   const base =
     name
       .toLowerCase()
