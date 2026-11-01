@@ -14,7 +14,12 @@ import { binderRow, binderTitle, createProject, waitForSaved } from './support.j
 test.use({ storageState: NO_PIN });
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
+  await page.addInitScript(() => {
+    localStorage.setItem('caotang.interface', 'modern');
+    // Once the binder lives in Modern's sidebar (#307), closed and inert until opened, a pinned sidebar keeps the tree in reach; the
+    // key is ignored where there is no sidebar.
+    localStorage.setItem('caotang.modern.binderPinned', 'true');
+  });
 });
 
 /** A Modern project with one scene, selected. */
