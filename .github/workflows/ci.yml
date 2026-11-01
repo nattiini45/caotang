@@ -131,7 +131,9 @@ jobs:
   e2e:
     name: e2e (chromium)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # About 2,000 tests on two workers now take close to 30 minutes on their own (the timeline, pictures and comic specs), so
+    # the limit leaves room for retries instead of cancelling a run that is still passing.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
