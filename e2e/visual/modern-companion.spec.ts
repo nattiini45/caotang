@@ -9,7 +9,8 @@ import { waitForSaved } from '../support.js';
  * image, with time fixed and masked, animations off (reduced motion) and the caret hidden.
  */
 
-test.use({ storageState: NO_PIN });
+// A missing step fails in 15 s instead of holding the job until it is cancelled (#307's finisher).
+test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
 const NOW = new Date('2026-06-01T09:00:00Z');
 
@@ -17,6 +18,26 @@ type Scheme = 'light' | 'dark';
 
 function masks(page: Page): Locator[] {
   return [page.locator('time'), page.getByTestId('save-state')];
+}
+
+/**
+ * Opens the binder before the empty manuscript's **Create Chapter 1**. Once #307's sidebar is in, the binder sits in a sidebar that is
+ * closed and inert until Manuscript in the tab bar opens it; before that it is on the page, and this does nothing.
+ */
+async function openBinder(page: Page): Promise<void> {
+  const tabs = page.getByRole('navigation', { name: 'Binder' });
+  if ((await tabs.count()) === 0) return;
+  await tabs.getByRole('button', { name: 'Manuscript' }).click();
+  await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
+}
+
+/** Lets #307's sidebar close as the pointer leaves it, so the page and the window are not behind it. Nothing without the sidebar. */
+async function leaveBinder(page: Page): Promise<void> {
+  const binder = page.getByTestId('modern-binder');
+  if ((await binder.count()) === 0) return;
+  const size = page.viewportSize() ?? { width: 1440, height: 900 };
+  await page.mouse.move(size.width - 60, Math.round(size.height / 2));
+  await expect(binder).toHaveAttribute('data-state', 'closed');
 }
 
 async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> {
@@ -35,6 +56,7 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await page.getByLabel('Project name').fill('The Lighthouse Keeper');
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
+  await openBinder(page);
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
@@ -44,6 +66,7 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   const banner = page.getByTestId('storage-banner');
   await banner.getByRole('button', { name: 'Dismiss' }).click();
   await expect(banner).toBeHidden();
+  await leaveBinder(page);
   // The window, opened with its chord, with the panel drawn.
   await page.keyboard.press('ControlOrMeta+j');
   const pane = page.getByRole('complementary', { name: 'Agent' });

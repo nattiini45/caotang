@@ -61,15 +61,37 @@ async function watchChord(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Opens the binder before the empty manuscript's **Create Chapter 1**. Once #307's sidebar is in, the binder sits in a sidebar that is
+ * closed and inert until Manuscript in the tab bar opens it; before that it is on the page, and this does nothing.
+ */
+async function openBinder(page: Page): Promise<void> {
+  const tabs = page.getByRole('navigation', { name: 'Binder' });
+  if ((await tabs.count()) === 0) return;
+  await tabs.getByRole('button', { name: 'Manuscript' }).click();
+  await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
+}
+
+/** Lets #307's sidebar close as the pointer leaves it, so the page and the window are not behind it. Nothing without the sidebar. */
+async function leaveBinder(page: Page): Promise<void> {
+  const binder = page.getByTestId('modern-binder');
+  if ((await binder.count()) === 0) return;
+  const size = page.viewportSize() ?? { width: 1440, height: 900 };
+  await page.mouse.move(size.width - 60, Math.round(size.height / 2));
+  await expect(binder).toHaveAttribute('data-state', 'closed');
+}
+
 async function sceneInModern(page: Page, name: string): Promise<Locator> {
   await createProject(page, name);
   await expect(page.getByTestId('modern-stage')).toBeVisible();
+  await openBinder(page);
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
   await page.keyboard.press('Enter');
   const editor = page.getByRole('textbox', { name: 'Document text' });
   await editor.fill('The boat came in with the tide.');
+  await leaveBinder(page);
   return editor;
 }
 
