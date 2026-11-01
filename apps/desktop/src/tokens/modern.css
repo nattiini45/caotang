@@ -16,7 +16,9 @@
  *
  * The material values were settled in M4 (#305) by the computed contrast test (§9.3, e2e/unit/modern-tokens.spec.ts): text on the
  * scrim or on thick glass meets 4.5:1 over every colour the wallpaper draws, light and dark, with the text glow not counted. The
- * concept's dark scrim (.34) and dark thick glass (.46) did not, over the night sun; they are .56 and .64 here.
+ * concept's dark scrim (.34) and dark thick glass (.46) did not, over the night sun; they are .56 and .64 here, and the dark frost .68
+ * (from .62). The focus ring is two-tone and meets 3:1 on every surface; the light ring is #3730a3 and the dark #bcb7ff, a step
+ * further from the middle than the concept's.
  */
 
 /* 1. Scheme-free: geometry, density, motion, materials. */
@@ -85,7 +87,7 @@
   --accent: #5145d8;
   --accent-ink: #ffffff;
   --accent-soft: #e9e7fb;
-  --focus: #4338ca;
+  --focus: #3730a3;
   --focus-halo: #ffffff;
   --on-glass: #1b1a1f;
   --m-glass: rgba(255, 255, 255, 0.14);
@@ -119,12 +121,12 @@
     --accent: #8f87ff;
     --accent-ink: #12102a;
     --accent-soft: #2c2850;
-    --focus: #a9a3ff;
+    --focus: #bcb7ff;
     --focus-halo: #12102a;
     --on-glass: #f5f4f8;
     --m-glass: rgba(30, 28, 44, 0.18);
     --m-thick: rgba(22, 20, 34, 0.64);
-    --m-frost: rgba(28, 27, 33, 0.62);
+    --m-frost: rgba(28, 27, 33, 0.68);
     --m-scrim: rgba(14, 12, 24, 0.56);
     --m-solid: #201f26;
     --m-solid-line: #4a4752;
@@ -153,12 +155,12 @@
   --accent: #8f87ff;
   --accent-ink: #12102a;
   --accent-soft: #2c2850;
-  --focus: #a9a3ff;
+  --focus: #bcb7ff;
   --focus-halo: #12102a;
   --on-glass: #f5f4f8;
   --m-glass: rgba(30, 28, 44, 0.18);
   --m-thick: rgba(22, 20, 34, 0.64);
-  --m-frost: rgba(28, 27, 33, 0.62);
+  --m-frost: rgba(28, 27, 33, 0.68);
   --m-scrim: rgba(14, 12, 24, 0.56);
   --m-solid: #201f26;
   --m-solid-line: #4a4752;
