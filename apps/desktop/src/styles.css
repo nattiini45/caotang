@@ -1,140 +1,9 @@
 /*
  * Caotang's shell. A restrained, neutral palette: one accent for focus and selection, the
- * vocabulary's own colours for status and label dots, and nothing decorative. Every colour
- * is a token on :root, and dark mode redefines the same tokens.
+ * vocabulary's own colours for status and label dots, and nothing decorative. The colours, and the
+ * radii, spaces, type sizes, shadows and durations that fit a step, are tokens on :root in
+ * tokens/classic.css, and dark mode redefines the colour tokens there.
  */
-
-:root {
-  color-scheme: light dark;
-  --paper: #faf9f6;
-  --panel: #f2f0eb;
-  --raised: #ffffff;
-  --ink: #1f1e1b;
-  --ink-soft: #4d4a44;
-  --muted: #6b665f;
-  --line: #e2ded5;
-  --line-strong: #cfc9bd;
-  --accent: #2c5d8f;
-  --accent-ink: #ffffff;
-  --accent-soft: #e4edf6;
-  --danger: #9a3b2e;
-  --danger-soft: #f6e6e3;
-  --warn: #7d5f16;
-  --focus: #2c5d8f;
-  --suggest-add-bg: #dcefdd;
-  --suggest-add-ink: #14301a;
-  --suggest-del-bg: #f7e0dc;
-  --suggest-del-ink: #5a1d14;
-  --dot-empty: #bdb8ae;
-  --shadow: 0 1px 2px rgba(31, 30, 27, 0.06), 0 4px 12px rgba(31, 30, 27, 0.05);
-  --radius: 8px;
-  --ui: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --manuscript: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --rail-w: 288px;
-  --inspector-w: 296px;
-
-  /* ---------------------------------------------------------------------------------------------------------------- *
-   * Semantic tokens (docs/architecture/modern-interface.md §2, §5.1). The names above (--paper … --inspector-w) are
-   * Classic's semantic colour, type and layout tokens and keep their names and values (D6). The tokens below are the
-   * groundwork for what has no token yet; each Classic value is today's literal or an alias of a token above, and no
-   * Classic rule reads them yet, so Classic renders exactly as before. Later milestones move literals onto them, one area
-   * per pull request, against the Classic screenshots (e2e/visual/).
-   *
-   * Three axes choose values, each an attribute on <html>, composed by attribute selectors alone:
-   *   shell   data-shell="classic|modern" (app/interface.ts); Modern overrides under :root[data-shell='modern'] in its
-   *           lazily loaded stylesheet (modern/modern.css).
-   *   skin    data-skin, absent for the default; a Classic skin redefines tokens under
-   *           :root[data-shell='classic'][data-skin='<name>'] (designed, not built).
-   *   scheme  data-theme="light|dark", or the system (app/theme.ts).
-   *
-   *   --surface-app, --surface-page   the stage and the manuscript page (= --paper); --panel and --raised stay as they are
-   *   --radius-xs, -sm, -md, -lg, -pill   3, 6, 8 (= --radius), 12 px and a pill
-   *   --elev-0 … -3                   none, the base shadow (= --shadow), a popover, a floating panel
-   *   --focus-width, -offset, -halo   2 px, 2 px, none
-   *   --dur-2, --ease-standard        the shell's one transition today: 0.2 s, ease
-   *   --target-min, --control-pad-x   24 px pointer target (WCAG 2.5.8), a button's 12 px side padding
-   *   --mat-*, --scrim, --wallpaper   Modern's materials; solid in Classic, so a stray use renders sanely
-   * ---------------------------------------------------------------------------------------------------------------- */
-  --surface-app: var(--paper);
-  --surface-page: var(--paper);
-  --radius-xs: 3px;
-  --radius-sm: 6px;
-  --radius-md: var(--radius);
-  --radius-lg: 12px;
-  --radius-pill: 999px;
-  --elev-0: none;
-  --elev-1: var(--shadow);
-  --elev-2: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
-  --elev-3: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
-  --focus-width: 2px;
-  --focus-offset: 2px;
-  --focus-halo: none;
-  --dur-2: 0.2s;
-  --ease-standard: ease;
-  --target-min: 24px;
-  --control-pad-x: 12px;
-  --mat-glass-bg: var(--raised);
-  --mat-glass-blur: 0px;
-  --mat-glass-saturate: 100%;
-  --mat-glass-edge-hi: transparent;
-  --mat-glass-edge-lo: transparent;
-  --mat-thick-bg: var(--raised);
-  --mat-thick-blur: 0px;
-  --mat-frost-bg: var(--paper);
-  --scrim: transparent;
-  --wallpaper: none;
-  font-family: var(--ui);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --paper: #161513;
-    --panel: #1d1c19;
-    --raised: #23221e;
-    --ink: #ebe8e1;
-    --ink-soft: #c9c5bc;
-    --muted: #a8a398;
-    --line: #2f2d28;
-    --line-strong: #48443c;
-    --accent: #8fb6de;
-    --accent-ink: #10202f;
-    --accent-soft: #22324a;
-    --danger: #e08b7c;
-    --danger-soft: #3a2420;
-    --warn: #d6b25e;
-    --focus: #8fb6de;
-    --suggest-add-bg: #1f3b27;
-    --suggest-add-ink: #c6ebcd;
-    --suggest-del-bg: #472622;
-    --suggest-del-ink: #f4c2b8;
-    --dot-empty: #55514a;
-    --shadow: none;
-  }
-}
-
-:root[data-theme='dark'] {
-  --paper: #161513;
-  --panel: #1d1c19;
-  --raised: #23221e;
-  --ink: #ebe8e1;
-  --ink-soft: #c9c5bc;
-  --muted: #a8a398;
-  --line: #2f2d28;
-  --line-strong: #48443c;
-  --accent: #8fb6de;
-  --accent-ink: #10202f;
-  --accent-soft: #22324a;
-  --danger: #e08b7c;
-  --danger-soft: #3a2420;
-  --warn: #d6b25e;
-  --focus: #8fb6de;
-  --suggest-add-bg: #1f3b27;
-  --suggest-add-ink: #c6ebcd;
-  --suggest-del-bg: #472622;
-  --suggest-del-ink: #f4c2b8;
-  --dot-empty: #55514a;
-  --shadow: none;
-}
 
 * {
   box-sizing: border-box;
@@ -144,8 +13,8 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.45;
+  font-size: var(--text-xl);
+  line-height: var(--leading-ui);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -156,8 +25,8 @@ h3 {
 }
 
 :focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
 }
 
 .visually-hidden {
@@ -175,10 +44,10 @@ h3 {
 
 .button {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   line-height: 1.2;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: var(--space-3) var(--control-pad-x);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong);
   background: var(--raised);
   color: var(--ink);
@@ -227,10 +96,10 @@ h3 {
 input[type='text'],
 .keyword-input {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   padding: 7px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
   width: 100%;
@@ -240,7 +109,7 @@ input[type='text']:focus,
 .keyword-input:focus,
 .notes:focus,
 .synopsis:focus {
-  outline: 2px solid var(--focus);
+  outline: var(--focus-width) solid var(--focus);
   outline-offset: 0;
 }
 
@@ -250,14 +119,14 @@ label {
 
 label > span {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
 }
 
 .muted {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-lg);
   margin: 0;
 }
 
@@ -276,9 +145,9 @@ label > span {
   align-items: center;
   gap: 5px;
   font: inherit;
-  font-size: 11.5px;
-  padding: 2px 8px;
-  border-radius: 999px;
+  font-size: var(--text-xs);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--raised);
   color: var(--ink-soft);
@@ -309,8 +178,8 @@ button.chip {
    place in the row. A minimum, not a fixed size: a bare chip that carries words ("Unknown status", for a status the
    project no longer holds) grows to fit them instead of spilling into the title. */
 .chip.is-bare.chip-status {
-  min-width: 24px;
-  min-height: 24px;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
   justify-content: center;
   margin: -8px;
 }
@@ -333,13 +202,13 @@ button.chip {
   background: none;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-xl);
   line-height: 1;
-  padding: 0 0 0 2px;
+  padding: 0 0 0 var(--space-1);
 }
 
 .field-note {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--warn);
   margin: 0;
 }
@@ -347,7 +216,7 @@ button.chip {
 .drop-note {
   min-height: 1.2em;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--danger);
 }
 
@@ -385,9 +254,9 @@ button.chip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-5);
   height: 52px;
-  padding: 0 14px 0 12px;
+  padding: 0 14px 0 var(--space-5);
   border-bottom: 1px solid var(--line);
   background: var(--paper);
 }
@@ -396,22 +265,22 @@ button.chip {
 .toolbar-end {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   min-width: 0;
 }
 
 .project-name {
   font-size: 15px;
-  margin: 0 0 0 8px;
+  margin: 0 0 0 var(--space-4);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .save-state {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
-  padding: 4px 6px;
+  padding: var(--space-2) var(--space-3);
   white-space: nowrap;
 }
 
@@ -437,14 +306,14 @@ button.chip {
   /* Five tabs: a narrow rail wraps the last onto a second line rather than hiding it. */
   flex-wrap: wrap;
   gap: 0;
-  padding: 6px 8px 0;
+  padding: var(--space-3) var(--space-4) 0;
   border-bottom: 1px solid var(--line);
 }
 
 .rail-tab {
   font: inherit;
-  font-size: 13px;
-  padding: 8px 5px;
+  font-size: var(--text-lg);
+  padding: var(--space-4) 5px;
   border: none;
   border-bottom: 2px solid transparent;
   background: none;
@@ -466,7 +335,7 @@ button.chip {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px 8px 16px;
+  padding: var(--space-4) var(--space-4) var(--space-6);
 }
 
 .center {
@@ -482,7 +351,7 @@ button.chip {
   grid-column: 3;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 16px 28px;
+  padding: var(--space-6) var(--space-6) 28px;
   border-left: 1px solid var(--line);
   background: var(--panel);
 }
@@ -500,13 +369,13 @@ button.chip {
   max-width: min(680px, calc(100vw - 32px));
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 10px 10px 16px;
+  gap: var(--space-5);
+  padding: 10px 10px 10px var(--space-6);
   border-radius: 10px;
   border: 1px solid var(--line-strong);
   background: var(--raised);
   box-shadow: var(--shadow), 0 2px 8px rgba(0, 0, 0, 0.08);
-  font-size: 13px;
+  font-size: var(--text-lg);
   z-index: 40;
 }
 
@@ -528,8 +397,8 @@ button.chip {
 }
 
 .status-link:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-offset);
 }
 
 /* ------------------------------------------------------------------ *
@@ -539,17 +408,17 @@ button.chip {
 .binder {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .binder-toolbar {
   display: flex;
-  gap: 6px;
-  padding: 2px 4px 0;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2) 0;
 }
 
 .binder-toolbar .button {
-  font-size: 12.5px;
+  font-size: var(--text-md);
   padding: 5px 9px;
 }
 
@@ -563,10 +432,10 @@ button.chip {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 30px;
-  padding: 4px 8px;
-  border-radius: 6px;
+  gap: var(--space-3);
+  min-height: var(--row-h);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   user-select: none;
   color: var(--ink);
@@ -581,8 +450,8 @@ button.chip {
 }
 
 .row.is-section {
-  margin-top: 12px;
-  padding-left: 8px;
+  margin-top: var(--space-5);
+  padding-left: var(--space-4);
   cursor: default;
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -592,7 +461,7 @@ button.chip {
 }
 
 .row.is-section:first-child {
-  margin-top: 4px;
+  margin-top: var(--space-2);
 }
 
 .row.is-section:hover {
@@ -609,18 +478,18 @@ button.chip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--text-xl);
 }
 
 .row-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   flex-shrink: 0;
 }
 
 .row-count {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -636,23 +505,23 @@ button.chip {
 
 /* A folder or document a rule limits for the agent: an icon and the words, never colour alone (agent-harness §4, Rules). */
 .row-agent {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
   white-space: nowrap;
 }
 
 .settings-rules {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .settings-rules li {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .settings-rules li > span:first-child {
@@ -683,8 +552,8 @@ button.chip {
 .row-rename {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  padding: 2px 6px;
+  font-size: var(--text-xl);
+  padding: var(--space-1) var(--space-3);
 }
 
 .row.is-drop-before::before,
@@ -721,16 +590,16 @@ button.chip {
 .center-switch {
   display: inline-flex;
   align-self: flex-start;
-  margin: 12px 24px 0;
+  margin: var(--space-5) 24px 0;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
 .segmented-item {
   font: inherit;
-  font-size: 12.5px;
-  padding: 5px 12px;
+  font-size: var(--text-md);
+  padding: 5px var(--space-5);
   border: none;
   border-right: 1px solid var(--line);
   background: var(--raised);
@@ -771,7 +640,7 @@ button.chip {
 .editor-title {
   font-family: var(--manuscript);
   font-size: 24px;
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 /* ------------------------------------------------------------------ *
@@ -787,7 +656,7 @@ button.chip {
   padding-bottom: 40px;
   font-family: var(--manuscript);
   font-size: 17px;
-  line-height: 1.7;
+  line-height: var(--leading-prose);
   color: var(--ink);
 }
 
@@ -871,8 +740,8 @@ button.chip {
 
 .ProseMirror pre {
   margin: 0 0 0.9em;
-  padding: 10px 12px;
-  border-radius: 6px;
+  padding: 10px var(--space-5);
+  border-radius: var(--radius-sm);
   background: var(--panel);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 0.9em;
@@ -1024,7 +893,7 @@ button.chip {
   padding-top: 10px;
   border-top: 1px solid var(--line);
   font-family: var(--ui);
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -1037,25 +906,25 @@ button.chip {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 16px;
-  padding: 10px 12px;
+  gap: var(--space-5);
+  margin: 0 0 var(--space-6);
+  padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
   font-family: var(--ui);
-  font-size: 13px;
+  font-size: var(--text-lg);
   line-height: 1.5;
   color: var(--ink-soft);
 }
 
 .load-banner p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .load-banner ul {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
   padding-left: 18px;
 }
 
@@ -1071,7 +940,7 @@ button.chip {
 
 .codex-toolbar {
   display: flex;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .codex-search,
@@ -1081,9 +950,9 @@ button.chip {
   font: inherit;
   font-size: 13.5px;
   width: 100%;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
 }
@@ -1096,15 +965,15 @@ button.chip {
 .codex-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .chip-toggle {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-sm);
   padding: 3px 9px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
   color: var(--ink-soft);
   cursor: pointer;
@@ -1119,12 +988,12 @@ button.chip {
 .codex-groups {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .codex-group-title {
-  margin: 6px 4px 4px;
-  font-size: 11.5px;
+  margin: var(--space-3) var(--space-2) var(--space-2);
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1132,14 +1001,14 @@ button.chip {
 }
 
 .codex-group-count {
-  margin-left: 4px;
+  margin-left: var(--space-2);
   font-weight: 400;
 }
 
 .codex-rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1148,11 +1017,11 @@ button.chip {
 .codex-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   width: 100%;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink);
   font: inherit;
@@ -1175,9 +1044,9 @@ button.chip {
 }
 
 .codex-row-policy {
-  padding: 1px 6px;
+  padding: 1px var(--space-3);
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   white-space: nowrap;
   color: var(--muted);
@@ -1194,7 +1063,7 @@ button.chip {
 }
 
 .codex-row-count {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -1212,16 +1081,16 @@ button.chip {
 .check {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--space-3);
+  font-size: var(--text-lg);
   color: var(--ink-soft);
 }
 
 .policy {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 12px 0 0;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 0;
   padding: 0;
   border: none;
 }
@@ -1229,18 +1098,18 @@ button.chip {
 .policy-options {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .policy-option {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 9px;
+  padding: var(--space-2) 9px;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
   cursor: pointer;
 }
 
@@ -1256,8 +1125,8 @@ button.chip {
 /* Help that describes a field. Muted, unlike `.field-note`, which is for a warning. */
 .field-help {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
   color: var(--muted);
 }
 
@@ -1272,7 +1141,7 @@ dialog.export-dialog {
   overflow-y: auto;
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--raised);
   color: var(--ink);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
@@ -1297,14 +1166,14 @@ dialog.export-dialog::backdrop {
 .export-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   border: none;
 }
 
 .export-group legend {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
   padding: 0;
 }
 
@@ -1312,9 +1181,9 @@ dialog.export-dialog::backdrop {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1339,13 +1208,13 @@ dialog.export-dialog::backdrop {
 
 .export-option-help {
   display: block;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 .export-note {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -1358,19 +1227,19 @@ dialog.export-dialog::backdrop {
 .export-preview {
   max-height: 220px;
   overflow-y: auto;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-lg);
 }
 
 .export-preview:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--accent);
+  outline-offset: var(--focus-offset);
 }
 
 .export-preview-heading {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -1390,7 +1259,7 @@ dialog.export-dialog::backdrop {
 }
 
 .export-preview-notes li {
-  padding: 2px 0;
+  padding: var(--space-1) 0;
 }
 
 .export-preview-front,
@@ -1399,7 +1268,7 @@ dialog.export-dialog::backdrop {
 }
 
 .export-preview-chapter {
-  margin-top: 6px;
+  margin-top: var(--space-3);
 }
 
 /* A part heading reads above its chapters: capitals, a little more room. */
@@ -1412,7 +1281,7 @@ dialog.export-dialog::backdrop {
 .export-preview-scene {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-5);
   padding: 1px 0 1px 14px;
 }
 
@@ -1430,19 +1299,19 @@ dialog.export-dialog::backdrop {
 .export-preview-views {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: var(--space-2) var(--space-6);
 }
 
 .export-preview-views .export-option-help {
   display: inline;
-  margin-left: 6px;
+  margin-left: var(--space-3);
 }
 
 /* The Proof is the file's own text: its line breaks and spaces are kept, and a long line wraps inside the region. */
 .export-proof-text {
   margin: 0;
   font-family: var(--mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: var(--text-sm);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1451,7 +1320,7 @@ dialog.export-dialog::backdrop {
 .export-footer {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .export-footer .form-message {
@@ -1476,7 +1345,7 @@ dialog.export-dialog::backdrop {
 .activity-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1488,7 +1357,7 @@ dialog.export-dialog::backdrop {
   gap: 3px;
   padding: 9px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--raised);
 }
 
@@ -1500,29 +1369,29 @@ dialog.export-dialog::backdrop {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .activity-title {
-  font-size: 13px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
 .activity-summary {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
 .activity-meta {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 .activity-undo {
   align-self: flex-start;
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 
 .activity-older {
@@ -1530,9 +1399,9 @@ dialog.export-dialog::backdrop {
 }
 
 .badge {
-  padding: 1px 6px;
+  padding: 1px var(--space-3);
   border: 1px solid var(--line-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 10.5px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -1554,21 +1423,13 @@ dialog.export-dialog::backdrop {
   display: none !important;
 }
 
-:root[data-theme='light'] {
-  color-scheme: light;
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-}
-
 .corkboard {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 12px 24px 24px;
+  padding: var(--space-5) 24px 24px;
   overflow: auto;
 }
 
@@ -1577,23 +1438,23 @@ dialog.export-dialog::backdrop {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .crumbs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: var(--text-lg);
   color: var(--muted);
 }
 
 .crumbs li + li::before {
   content: '›';
-  margin-right: 6px;
+  margin-right: var(--space-3);
 }
 
 .corkboard-controls {
@@ -1605,12 +1466,12 @@ dialog.export-dialog::backdrop {
 .corkboard-controls .segmented {
   display: inline-flex;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
 .corkboard-controls .segmented-item {
-  padding: 4px 10px;
+  padding: var(--space-2) 10px;
 }
 
 .cards {
@@ -1650,12 +1511,12 @@ dialog.export-dialog::backdrop {
 .filter-dates {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .filter-field {
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   font-size: 0.85em;
 }
 
@@ -1663,7 +1524,7 @@ dialog.export-dialog::backdrop {
 .filter-days {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 0;
 }
 
@@ -1676,14 +1537,14 @@ dialog.export-dialog::backdrop {
 .filter-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-2);
   margin: 0;
 }
 
 .filter-chip {
   border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  padding: 1px var(--space-4);
   font-size: 0.8em;
 }
 
@@ -1699,7 +1560,7 @@ dialog.export-dialog::backdrop {
 
 .notes-read {
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .notes-run {
@@ -1710,7 +1571,7 @@ dialog.export-dialog::backdrop {
 .notes-divider {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   color: var(--muted, inherit);
   font-size: 0.8em;
 }
@@ -1724,12 +1585,12 @@ dialog.export-dialog::backdrop {
 
 .inspector-goals .goal-add {
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .demo-choices {
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
   justify-items: start;
 }
 
@@ -1737,7 +1598,7 @@ dialog.export-dialog::backdrop {
   display: inline-flex;
   color: var(--accent, currentColor);
   vertical-align: middle;
-  margin-right: 4px;
+  margin-right: var(--space-2);
 }
 
 .session-ring.is-met {
@@ -1748,13 +1609,13 @@ dialog.export-dialog::backdrop {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
   min-height: 116px;
-  padding: 12px 12px 10px;
+  padding: var(--space-5) var(--space-5) 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--raised);
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-1);
   cursor: pointer;
 }
 
@@ -1779,7 +1640,7 @@ dialog.export-dialog::backdrop {
 .card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 0;
 }
 
@@ -1797,7 +1658,7 @@ dialog.export-dialog::backdrop {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-xl);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1806,19 +1667,19 @@ dialog.export-dialog::backdrop {
 .card-rename {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
-  padding: 2px 6px;
+  font-size: var(--text-xl);
+  padding: var(--space-1) var(--space-3);
 }
 
 .card-labels {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .card-foot {
   margin-top: auto;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -1829,19 +1690,19 @@ dialog.export-dialog::backdrop {
 .synopsis-field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .synopsis {
   width: 100%;
   resize: none;
-  padding: 4px 6px;
+  padding: var(--space-2) var(--space-3);
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-soft);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   line-height: 1.5;
 }
 
@@ -1867,16 +1728,16 @@ dialog.export-dialog::backdrop {
 }
 
 .empty-state {
-  margin: 16px 0;
+  margin: var(--space-6) 0;
   padding: 28px 24px;
   border: 1px dashed var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   text-align: center;
   color: var(--ink-soft);
 }
 
 .empty-state h2 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   font-size: 15px;
   color: var(--ink);
 }
@@ -1892,14 +1753,14 @@ dialog.export-dialog::backdrop {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-4);
   margin-top: 14px;
 }
 
 .rail-panel .empty-state {
-  margin: 12px 4px;
+  margin: var(--space-5) var(--space-2);
   padding: 20px 14px;
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1915,27 +1776,27 @@ dialog.export-dialog::backdrop {
 }
 
 .inspector-title {
-  margin: 2px 0 4px;
+  margin: var(--space-1) 0 var(--space-2);
   font-family: var(--manuscript);
   font-size: 20px;
 }
 
 .inspector-meta {
-  margin: 0 0 6px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 .inspector-section {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
   margin-top: 18px;
 }
 
 .field-label {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--ink-soft);
@@ -1943,9 +1804,9 @@ dialog.export-dialog::backdrop {
 
 .notes {
   resize: vertical;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
   font: inherit;
@@ -1956,7 +1817,7 @@ dialog.export-dialog::backdrop {
 .keyword-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1965,7 +1826,7 @@ dialog.export-dialog::backdrop {
 .thread-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1974,8 +1835,8 @@ dialog.export-dialog::backdrop {
 .thread-row {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  font-size: 13px;
+  gap: var(--space-3);
+  font-size: var(--text-lg);
 }
 
 .thread-row > span {
@@ -1986,7 +1847,7 @@ dialog.export-dialog::backdrop {
 
 .thread-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .picker-row {
@@ -1998,22 +1859,22 @@ dialog.export-dialog::backdrop {
 .picker {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .picker-button {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 6px 10px;
+  padding: var(--space-3) 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   text-align: left;
   overflow: hidden;
   white-space: nowrap;
@@ -2031,11 +1892,11 @@ dialog.export-dialog::backdrop {
   min-width: 200px;
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: var(--space-2);
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--raised);
-  box-shadow: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--elev-2);
 }
 
 .menu-item {
@@ -2047,7 +1908,7 @@ dialog.export-dialog::backdrop {
   background: none;
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-lg);
   text-align: left;
   cursor: pointer;
 }
@@ -2088,14 +1949,14 @@ dialog.export-dialog::backdrop {
 
 .menu-rule {
   height: 1px;
-  margin: 4px 6px;
+  margin: var(--space-2) var(--space-3);
   background: var(--line);
 }
 
 .menu-empty {
   margin: 0;
-  padding: 8px 10px;
-  font-size: 12.5px;
+  padding: var(--space-4) 10px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -2103,7 +1964,7 @@ dialog.confirm {
   width: min(460px, calc(100vw - 32px));
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--raised);
   color: var(--ink);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
@@ -2120,16 +1981,16 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .folder-file-preview {
-  margin-top: 8px;
+  margin-top: var(--space-4);
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--paper);
 }
 
 .folder-file-preview .field-note {
-  margin: 0 0 6px;
-  font-size: 12px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
 }
 
 .folder-diff {
@@ -2187,8 +2048,8 @@ dialog.confirm:has(.folder-file-preview) {
   /* A question with three or four answers wraps them, rather than pushing the first out of the dialog. */
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }
 
 .confirm .button.is-danger {
@@ -2220,7 +2081,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .lede {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--muted);
 }
 
@@ -2229,8 +2090,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .home-section h2 {
-  margin: 0 0 12px;
-  font-size: 12px;
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-sm);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
@@ -2238,7 +2099,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 /* An empty state inside a section is a sentence, not a section label. */
 .home-section .empty-state h2 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   font-size: 15px;
   letter-spacing: normal;
   text-transform: none;
@@ -2268,8 +2129,8 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: var(--space-5);
+  padding: 14px var(--space-6);
   border-top: 1px solid var(--line);
 }
 
@@ -2280,7 +2141,7 @@ dialog.confirm:has(.folder-file-preview) {
 .project-meta {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
@@ -2290,7 +2151,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .project-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-3);
   flex-shrink: 0;
 }
 
@@ -2304,7 +2165,7 @@ dialog.confirm:has(.folder-file-preview) {
 .home .status-line {
   position: static;
   transform: none;
-  margin-top: 16px;
+  margin-top: var(--space-6);
   max-width: none;
 }
 
@@ -2333,11 +2194,11 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-6);
 }
 
 .first-run {
-  padding: 14px 16px;
+  padding: 14px var(--space-6);
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius);
@@ -2353,11 +2214,11 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .first-run-next {
-  margin: 12px 0 8px;
+  margin: var(--space-5) 0 var(--space-4);
 }
 
 .settings {
@@ -2369,7 +2230,7 @@ dialog.confirm:has(.folder-file-preview) {
   border-radius: var(--radius);
   background: var(--raised);
   color: var(--ink);
-  box-shadow: var(--shadow), 0 12px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--elev-3);
 }
 
 .settings::backdrop {
@@ -2386,7 +2247,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid var(--line);
 }
 
@@ -2405,8 +2266,8 @@ dialog.confirm:has(.folder-file-preview) {
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 10px 8px;
+  gap: var(--space-1);
+  padding: 10px var(--space-4);
   border-right: 1px solid var(--line);
   background: var(--panel);
 }
@@ -2416,7 +2277,7 @@ dialog.confirm:has(.folder-file-preview) {
   text-align: left;
   padding: 7px 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
@@ -2429,22 +2290,22 @@ dialog.confirm:has(.folder-file-preview) {
 
 .settings-body {
   overflow-y: auto;
-  padding: 16px 20px 28px;
+  padding: var(--space-6) 20px 28px;
 }
 
 .settings-section h3 {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   font-size: 15px;
 }
 
 .settings-section h4 {
-  margin: 18px 0 6px;
+  margin: 18px 0 var(--space-3);
   font-size: 13.5px;
 }
 
 .profile-list {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
   padding: 0;
   border-top: 1px solid var(--line);
 }
@@ -2454,7 +2315,7 @@ dialog.confirm:has(.folder-file-preview) {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
 }
@@ -2463,7 +2324,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 10px;
+  gap: var(--space-2) 10px;
   min-width: 0;
 }
 
@@ -2474,7 +2335,7 @@ dialog.confirm:has(.folder-file-preview) {
 .profile-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .profile-form,
@@ -2482,15 +2343,15 @@ dialog.confirm:has(.folder-file-preview) {
   display: grid;
   gap: 10px;
   max-width: 520px;
-  margin: 12px 0;
+  margin: var(--space-5) 0;
 }
 
 .profile-form label,
 .settings-form label {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 12.5px;
+  gap: var(--space-2);
+  font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
@@ -2502,17 +2363,17 @@ dialog.confirm:has(.folder-file-preview) {
 .plan-expect input,
 .plan-step textarea {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
 }
 
 .profile-form-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 /* The provider form's selects and preset fields style like its inputs. */
@@ -2520,10 +2381,10 @@ dialog.confirm:has(.folder-file-preview) {
 .role-row select,
 .role-row input {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
 }
@@ -2532,7 +2393,7 @@ dialog.confirm:has(.folder-file-preview) {
 .header-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   align-items: center;
 }
 
@@ -2540,10 +2401,10 @@ dialog.confirm:has(.folder-file-preview) {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
 }
@@ -2551,29 +2412,29 @@ dialog.confirm:has(.folder-file-preview) {
 /* The task-role picker: one line per role, the name leading. */
 .role-rows {
   display: grid;
-  gap: 8px;
-  margin: 8px 0;
+  gap: var(--space-4);
+  margin: var(--space-4) 0;
 }
 
 .role-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .role-title {
   min-width: 120px;
-  font-size: 13px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
 .form-message {
   margin: 10px 0;
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: var(--space-4) 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .form-message.is-error {
@@ -2583,7 +2444,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .models ul {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 18px;
   columns: 2;
 }
@@ -2592,8 +2453,8 @@ dialog.confirm:has(.folder-file-preview) {
 .request-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
-  margin-top: 6px;
+  font-size: var(--text-md);
+  margin-top: var(--space-3);
 }
 
 .usage-table th,
@@ -2601,7 +2462,7 @@ dialog.confirm:has(.folder-file-preview) {
 .request-table th,
 .request-table td {
   text-align: left;
-  padding: 5px 8px 5px 0;
+  padding: 5px var(--space-4) 5px 0;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
@@ -2618,9 +2479,9 @@ dialog.confirm:has(.folder-file-preview) {
 .budget {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 4px 14px;
-  margin: 8px 0 12px;
-  font-size: 13px;
+  gap: var(--space-2) 14px;
+  margin: var(--space-4) 0 var(--space-5);
+  font-size: var(--text-lg);
 }
 
 .budget dt {
@@ -2633,14 +2494,14 @@ dialog.confirm:has(.folder-file-preview) {
 
 .settings-radios {
   display: flex;
-  gap: 16px;
+  gap: var(--space-6);
   border: none;
   padding: 0;
-  margin: 8px 0;
+  margin: var(--space-4) 0;
 }
 
 .storage-row p {
-  margin: 4px 0;
+  margin: var(--space-2) 0;
 }
 
 /* The agent drawer: under the editor, never over its ghost region (ui-modules §1). */
@@ -2662,23 +2523,23 @@ dialog.confirm:has(.folder-file-preview) {
 /* Runs a reload left unfinished: shown above the drawer's body, open or closed, and scrolled inside themselves when there are several. */
 .agent-interrupted {
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
   max-height: 40vh;
   overflow-y: auto;
-  padding: 0 16px 8px;
+  padding: 0 var(--space-6) var(--space-4);
 }
 
 .interrupted-run-lost {
-  margin: 4px 0;
-  font-size: 12.5px;
+  margin: var(--space-2) 0;
+  font-size: var(--text-md);
 }
 
 .agent-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 16px;
-  font-size: 12.5px;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
@@ -2698,13 +2559,13 @@ dialog.confirm:has(.folder-file-preview) {
 
 .agent-body {
   overflow-y: auto;
-  padding: 4px 16px 16px;
+  padding: var(--space-2) var(--space-6) var(--space-6);
 }
 
 .agent-intent {
   display: flex;
-  gap: 8px;
-  margin: 6px 0 10px;
+  gap: var(--space-4);
+  margin: var(--space-3) 0 10px;
 }
 
 .agent-intent input {
@@ -2727,24 +2588,24 @@ dialog.confirm:has(.folder-file-preview) {
   right: 0;
   z-index: 20;
   margin: 0;
-  padding: 4px;
+  padding: var(--space-2);
   list-style: none;
   max-height: 260px;
   overflow-y: auto;
   background: var(--raised);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  box-shadow: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--elev-2);
 }
 
 .command-menu li {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 2px 10px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  font-size: 12.5px;
+  gap: var(--space-1) 10px;
+  padding: 5px var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
   cursor: pointer;
 }
 
@@ -2772,15 +2633,15 @@ dialog.confirm:has(.folder-file-preview) {
 /* What the last slash command said under the box. */
 .agent-command-note {
   margin: 0 0 10px;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .agent-command-note p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .agent-command-title {
@@ -2788,16 +2649,16 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-command-note ul {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-3);
   padding-left: 18px;
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   color: var(--ink-soft);
 }
 
 .agent-turn-command {
   font-family: var(--mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 /* Stop sits in the header while a turn runs, at the end of the line. */
@@ -2808,48 +2669,48 @@ dialog.confirm:has(.folder-file-preview) {
 /* Notes sent to a running turn, and the queue of messages typed behind it (agent-harness §8, "Stop and steer"). */
 .agent-notes {
   list-style: none;
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   padding: 0;
   display: grid;
-  gap: 2px;
-  font-size: 12.5px;
+  gap: var(--space-1);
+  font-size: var(--text-md);
   color: var(--ink-soft);
 }
 
 .agent-held {
   margin: 0 0 10px;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .agent-held p {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-3);
 }
 
 .agent-held-actions,
 .agent-chip-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .agent-queue {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
 }
 
 .agent-queue h4 {
-  margin: 0 0 4px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
   color: var(--muted);
   font-weight: 600;
 }
 
 .agent-queue-paused {
-  margin: 0 0 6px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
 }
 
 .agent-queue-list {
@@ -2857,19 +2718,19 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .agent-chip {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-4);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
   cursor: grab;
 }
 
@@ -2886,24 +2747,24 @@ dialog.confirm:has(.folder-file-preview) {
   flex: 1;
   min-width: 0;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 /* Background tasks and the offer before a big plan is staged (agent-harness §8). */
 .agent-tasks {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-5);
 }
 
 .agent-tasks h4 {
-  margin: 0 0 4px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
   color: var(--muted);
   font-weight: 600;
 }
 
 .agent-tasks-note {
-  margin: 0 0 6px;
-  font-size: 12.5px;
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
 }
 
 .agent-task-list {
@@ -2911,15 +2772,15 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .agent-task {
-  padding: 6px 10px;
+  padding: var(--space-3) 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .agent-task[data-status='ready'] {
@@ -2933,7 +2794,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-task p {
-  margin: 2px 0;
+  margin: var(--space-1) 0;
 }
 
 .agent-task-status {
@@ -2941,26 +2802,26 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-task-errors {
-  margin: 2px 0;
+  margin: var(--space-1) 0;
   padding-left: 18px;
 }
 
 .agent-task-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
 }
 
 .plan-offer-steps {
-  margin: 6px 0;
+  margin: var(--space-3) 0;
   padding-left: 20px;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .plan-offer-calls {
-  margin: 4px 0;
-  font-size: 12.5px;
+  margin: var(--space-2) 0;
+  font-size: var(--text-md);
 }
 
 .agent-turns {
@@ -2972,7 +2833,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-turn {
-  padding: 10px 12px;
+  padding: 10px var(--space-5);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
@@ -2981,8 +2842,8 @@ dialog.confirm:has(.folder-file-preview) {
 .agent-turn-head {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  font-size: 13px;
+  gap: var(--space-5);
+  font-size: var(--text-lg);
 }
 
 .agent-intent-text {
@@ -2996,8 +2857,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-stream {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
   color: var(--muted);
   white-space: pre-wrap;
   max-height: 4.5em;
@@ -3006,27 +2867,27 @@ dialog.confirm:has(.folder-file-preview) {
 
 /* The model's thinking channel on a turn: collapsed and muted, never inline (provider-gateway §6, D12). */
 .agent-reasoning {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 .agent-reasoning-text {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   white-space: pre-wrap;
   max-height: 10em;
   overflow-y: auto;
 }
 
 .agent-context {
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 /* The turn's task list (agent-harness §8). The state is also written as text, so colour is never the only signal. */
 .agent-tasks {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
 }
 
 .agent-tasks summary {
@@ -3036,17 +2897,17 @@ dialog.confirm:has(.folder-file-preview) {
 
 .task-list {
   list-style: none;
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding: 0;
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .task-item {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0 8px;
+  gap: 0 var(--space-4);
   color: var(--ink-soft);
 }
 
@@ -3058,7 +2919,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .task-state {
   margin-left: auto;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -3088,7 +2949,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .task-calls {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--muted);
 }
 
@@ -3103,18 +2964,18 @@ dialog.confirm:has(.folder-file-preview) {
 
 .status-cards {
   list-style: none;
-  margin: 8px 0;
+  margin: var(--space-4) 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .status-card {
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line);
   border-left: 3px solid var(--dot-empty);
-  border-radius: 6px;
-  font-size: 12.5px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-md);
 }
 
 .status-card.is-running {
@@ -3135,12 +2996,12 @@ dialog.confirm:has(.folder-file-preview) {
 .status-card-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 
 .status-card-text {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
 }
 
 .status-card-text.is-error {
@@ -3151,8 +3012,8 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  margin-top: 6px;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .status-card-progress progress {
@@ -3164,7 +3025,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .status-card-progress-count {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .status-card-progress-message {
@@ -3174,21 +3035,21 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .status-card-args pre {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   white-space: pre-wrap;
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
 }
 
 .delegation {
-  margin: 6px 0 2px;
+  margin: var(--space-3) 0 var(--space-1);
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .delegation-line {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-4);
   flex-wrap: wrap;
   margin: 0;
 }
@@ -3203,12 +3064,12 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .delegation-trace ol {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 20px;
 }
 
 .status-pill {
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -3218,13 +3079,13 @@ dialog.confirm:has(.folder-file-preview) {
 
 .status-group summary {
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
 }
 
 .plan-card {
   margin: 10px 0;
-  padding: 10px 12px;
+  padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--paper);
@@ -3238,7 +3099,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .plan-head h3 {
@@ -3247,24 +3108,24 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .plan-state {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
 .plan-steps {
   list-style: none;
-  margin: 8px 0;
+  margin: var(--space-4) 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .plan-step {
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .plan-step.is-done {
@@ -3279,7 +3140,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
+  gap: var(--space-3) var(--space-4);
 }
 
 .plan-step-number {
@@ -3289,17 +3150,17 @@ dialog.confirm:has(.folder-file-preview) {
   height: 20px;
   border-radius: 50%;
   background: var(--accent-soft);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .plan-step-controls {
   margin-left: auto;
   display: flex;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .plan-step-status {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -3309,13 +3170,13 @@ dialog.confirm:has(.folder-file-preview) {
 
 .plan-step-error {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--danger);
 }
 
 .plan-step-hook {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--warn);
 }
 
@@ -3326,14 +3187,14 @@ dialog.confirm:has(.folder-file-preview) {
 .plan-params {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .plan-param {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--ink-soft);
 }
 
@@ -3351,28 +3212,28 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .plan-notice {
-  margin: 8px 0 0;
-  font-size: 12.5px;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-md);
   color: var(--warn);
 }
 
 .plan-step-note {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
 .plan-draft {
   margin: 0;
-  padding: 8px 10px;
+  padding: var(--space-4) 10px;
   border: 1px dashed var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .plan-draft figcaption {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
   color: var(--muted);
 }
 
@@ -3393,12 +3254,12 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-on {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
 }
 
 .context-preview {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -3408,17 +3269,17 @@ dialog.confirm:has(.folder-file-preview) {
 
 .context-layers {
   list-style: none;
-  margin: 6px 0;
+  margin: var(--space-3) 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .context-layers li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 90px max-content;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .context-bar {
@@ -3437,41 +3298,41 @@ dialog.confirm:has(.folder-file-preview) {
 
 .context-reasons,
 .context-dropped {
-  margin: 4px 0;
+  margin: var(--space-2) 0;
   padding-left: 18px;
 }
 
 .askback {
-  margin: 8px 0;
-  padding: 8px 10px;
+  margin: var(--space-4) 0;
+  padding: var(--space-4) 10px;
   border-left: 3px solid var(--warn);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .askback h4 {
-  margin: 0 0 4px;
-  font-size: 13px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
 }
 
 .askback p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .askback-options {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   padding-left: 18px;
 }
 
 .findings {
-  margin: 8px 0;
-  font-size: 12.5px;
+  margin: var(--space-4) 0;
+  font-size: var(--text-md);
 }
 
 .findings h4 {
-  margin: 0 0 4px;
-  font-size: 13px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
 }
 
 .findings ul {
@@ -3481,11 +3342,11 @@ dialog.confirm:has(.folder-file-preview) {
 
 .checkpoint-row {
   justify-content: space-between;
-  margin: 8px 0 0;
-  padding: 6px 8px;
-  border-radius: 6px;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .checkpoint-label {
@@ -3493,8 +3354,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-report {
-  margin: 8px 0 0;
-  font-size: 13px;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-lg);
 }
 
 .agent-report-text {
@@ -3502,8 +3363,8 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-report-meta {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
 }
 
 .badge.is-warn {
@@ -3512,22 +3373,22 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .ghost-bar {
-  margin: 12px 0 0;
-  padding: 10px 12px;
+  margin: var(--space-5) 0 0;
+  padding: 10px var(--space-5);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   background: var(--accent-soft);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .ghost-bar p {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
 }
 
 .editor-target {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 
 .storage-banner {
@@ -3535,43 +3396,38 @@ dialog.confirm:has(.folder-file-preview) {
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin: 12px 24px 0;
-  padding: 10px 12px;
+  gap: var(--space-5);
+  margin: var(--space-5) 24px 0;
+  padding: 10px var(--space-5);
   border: 1px solid var(--line-strong);
   border-left: 3px solid var(--warn);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .storage-banner p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .activity-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
   flex-wrap: wrap;
 }
 
 /* A narrow window is not a supported layout, but it should scroll rather than overlap. The shell's minimum is 960 px (ui-modules §0).
    From 1100 px down the rails narrow, and the toolbar wraps onto a second line, so a window of 1024 px fits with no sideways scroll. */
 @media (max-width: 1100px) {
-  :root {
-    --rail-w: 232px;
-    --inspector-w: 260px;
-  }
-
   .toolbar {
     height: auto;
     min-height: 52px;
     flex-wrap: wrap;
-    row-gap: 6px;
-    padding-top: 6px;
-    padding-bottom: 6px;
+    row-gap: var(--space-3);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
   }
 
   .toolbar-end {
@@ -3597,8 +3453,8 @@ dialog.confirm:has(.folder-file-preview) {
     flex: none;
     height: auto;
     min-height: 52px;
-    gap: 6px;
-    padding: 4px 8px;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
   }
 
   .workspace .toolbar-start {
@@ -3607,7 +3463,7 @@ dialog.confirm:has(.folder-file-preview) {
 
   .workspace .toolbar-end {
     flex: none;
-    gap: 4px;
+    gap: var(--space-2);
   }
 
   .workspace .center {
@@ -3625,7 +3481,7 @@ dialog.confirm:has(.folder-file-preview) {
     background: var(--panel);
     box-shadow: var(--shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
     visibility: hidden;
-    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+    transition: transform var(--dur-2) var(--ease-standard), visibility 0s linear var(--dur-2);
   }
 
   .workspace .rail.is-drawer {
@@ -3654,7 +3510,7 @@ dialog.confirm:has(.folder-file-preview) {
   .workspace .sheet.is-open {
     visibility: visible;
     transform: none;
-    transition: transform 0.2s ease, visibility 0s;
+    transition: transform var(--dur-2) var(--ease-standard), visibility 0s;
   }
 
   .workspace .sheet .inspector {
@@ -3668,14 +3524,14 @@ dialog.confirm:has(.folder-file-preview) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 4px 8px 4px 16px;
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-4) var(--space-2) var(--space-6);
     border-bottom: 1px solid var(--line);
   }
 
   .workspace .panel-title {
     font-weight: 600;
-    font-size: 14px;
+    font-size: var(--text-xl);
   }
 
   .workspace .scrim {
@@ -3697,7 +3553,7 @@ dialog.confirm:has(.folder-file-preview) {
 
   .workspace .toolbar-title .save-state {
     padding: 0;
-    font-size: 11.5px;
+    font-size: var(--text-xs);
     white-space: normal;
   }
 
@@ -3709,8 +3565,8 @@ dialog.confirm:has(.folder-file-preview) {
 
   .workspace .agent-head {
     flex-wrap: wrap;
-    gap: 0 8px;
-    padding: 4px 8px;
+    gap: 0 var(--space-4);
+    padding: var(--space-2) var(--space-4);
   }
 
   .workspace .agent-provider {
@@ -3727,7 +3583,7 @@ dialog.confirm:has(.folder-file-preview) {
   }
 
   .workspace .agent-body {
-    padding: 4px 8px 12px;
+    padding: var(--space-2) var(--space-4) var(--space-5);
   }
 
   /* Touch targets: every control in the shell is at least 44 by 44 px (WCAG 2.5.5). A sentence's own inline link keeps its line. */
@@ -3746,7 +3602,7 @@ dialog.confirm:has(.folder-file-preview) {
     margin: 0 -4px 0 0;
     padding: 0;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     background: none;
     color: var(--muted);
     font: inherit;
@@ -3798,7 +3654,7 @@ dialog.confirm:has(.folder-file-preview) {
   }
 
   dialog.settings .settings-body {
-    padding: 12px 12px 24px;
+    padding: var(--space-5) var(--space-5) 24px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -3814,20 +3670,20 @@ dialog.confirm:has(.folder-file-preview) {
 /* The writing history in the binder footer (goals-progress §9.1). */
 .history-body {
   display: grid;
-  gap: 8px;
-  margin-top: 6px;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
 }
 
 .history-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: var(--space-4);
   margin: 0;
 }
 
 .history-stats div {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
 .history-stats dt {
@@ -3842,7 +3698,7 @@ dialog.confirm:has(.folder-file-preview) {
 .history-bars {
   display: flex;
   align-items: flex-end;
-  gap: 4px;
+  gap: var(--space-2);
   height: 52px;
   margin: 0;
   padding: 0;
@@ -3866,7 +3722,7 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 2px 10px;
+  gap: var(--space-1) 10px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -3875,7 +3731,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .agent-mode legend {
   float: left;
-  margin-right: 8px;
+  margin-right: var(--space-4);
   padding: 0;
   color: var(--muted);
 }
@@ -3883,7 +3739,7 @@ dialog.confirm:has(.folder-file-preview) {
 .agent-mode-option {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   cursor: pointer;
 }
 
@@ -3893,7 +3749,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-turn-mode {
-  font-size: 12px;
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
@@ -3908,10 +3764,10 @@ dialog.confirm:has(.folder-file-preview) {
   right: 0;
   top: 100%;
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 260px;
   max-width: min(360px, 90vw);
-  padding: 6px;
+  padding: var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
@@ -3920,29 +3776,29 @@ dialog.confirm:has(.folder-file-preview) {
 
 .turn-menu-item {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   justify-items: start;
   text-align: left;
   height: auto;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
 }
 
 .turn-menu-hint,
 .turn-menu-note {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 .turn-menu-note {
-  margin: 4px 8px 2px;
+  margin: var(--space-2) var(--space-4) var(--space-1);
 }
 
 /* Turns the writer rewound: kept in the panel, collapsed, and not sent to the model. */
 .agent-rewound {
-  padding: 6px 12px;
+  padding: var(--space-3) var(--space-5);
   border: 1px dashed var(--line);
   border-radius: var(--radius);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .agent-rewound > details > .agent-turns {
@@ -3950,13 +3806,13 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .agent-old-instruction {
-  margin: 6px 0;
-  font-size: 12.5px;
+  margin: var(--space-3) 0;
+  font-size: var(--text-md);
 }
 
 .plan-auto {
   margin: 10px 0;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .plan-auto > summary {
@@ -3965,25 +3821,25 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .badge.is-auto {
-  margin-left: 6px;
+  margin-left: var(--space-3);
 }
 
 .held-plan {
   margin: 10px 0;
-  padding: 8px 12px;
+  padding: var(--space-4) var(--space-5);
   border: 1px dashed var(--line-strong);
   border-radius: var(--radius);
 }
 
 .held-plan h3 {
-  margin: 0 0 4px;
-  font-size: 13px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
 }
 
 .held-plan ol {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-4);
   padding-left: 20px;
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 /* ------------------------------------------------------------------ *
@@ -3993,27 +3849,27 @@ dialog.confirm:has(.folder-file-preview) {
 .trace {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 12.5px;
+  gap: var(--space-4);
+  font-size: var(--text-md);
 }
 
 .trace-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .trace-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
 }
 
 .trace-faint {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
 }
 
 .trace-turns,
@@ -4023,12 +3879,12 @@ dialog.confirm:has(.folder-file-preview) {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
 }
 
 .trace-turn {
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
 }
 
@@ -4037,9 +3893,9 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 2px;
+  gap: var(--space-1);
   width: 100%;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
   font: inherit;
   text-align: left;
   background: none;
@@ -4053,7 +3909,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .trace-rows {
-  padding: 4px;
+  padding: var(--space-2);
 }
 
 .trace-row {
@@ -4081,7 +3937,7 @@ dialog.confirm:has(.folder-file-preview) {
 
 .trace-facts {
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
@@ -4103,22 +3959,22 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .trace-detail {
-  padding: 2px 8px 8px;
+  padding: var(--space-1) var(--space-4) var(--space-4);
 }
 
 .trace-detail h4 {
-  margin: 8px 0 4px;
-  font-size: 12px;
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .trace-message {
   margin: 3px 0;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .trace-message > summary {
-  padding: 3px 6px;
+  padding: 3px var(--space-3);
   cursor: pointer;
 }
 
@@ -4131,27 +3987,27 @@ dialog.confirm:has(.folder-file-preview) {
 
 .trace-text {
   margin: 0;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
   max-height: 260px;
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: inherit;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11.5px;
-  line-height: 1.45;
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
   background: var(--bg);
 }
 
 .trace-note-row {
   display: block;
-  padding: 4px 8px;
+  padding: var(--space-2) var(--space-4);
   color: var(--ink-soft);
-  font-size: 11.5px;
+  font-size: var(--text-xs);
 }
 
 .trace-error {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
   color: var(--danger);
 }
 
@@ -4162,13 +4018,13 @@ dialog.confirm:has(.folder-file-preview) {
   display: flex;
   flex-direction: column;
   /* Two radios whose targets (24 px, WCAG 2.2 2.5.8) do not touch. */
-  gap: 12px;
+  gap: var(--space-5);
 }
 
 .trace-scope legend {
   padding: 0;
-  margin-bottom: 4px;
-  font-size: 13px;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
@@ -4207,16 +4063,16 @@ dialog.confirm:has(.folder-file-preview) {
 .review-bar {
   position: sticky;
   bottom: 0;
-  margin: 12px 0 0;
-  padding: 10px 12px;
+  margin: var(--space-5) 0 0;
+  padding: 10px var(--space-5);
   border: 1px solid var(--accent);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 13px;
+  font-size: var(--text-lg);
 }
 
 .review-bar p {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2);
 }
 
 .review-count {
@@ -4226,15 +4082,15 @@ dialog.confirm:has(.folder-file-preview) {
 .review-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
 }
 
 .agent-review {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin: 8px 0 0;
-  font-size: 13px;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-lg);
 }
