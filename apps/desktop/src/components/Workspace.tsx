@@ -1,7 +1,8 @@
 /**
  * The writing workspace — ui-modules §1, modern-interface.md §4.1. It holds the state and the handlers of the writing studio and
- * builds the regions a shell arranges: the feature elements, the shell actions (app/shell-actions.ts) and the view state. The Classic
- * shell (shell/ClassicShell.tsx) lays them out: a toolbar on top; a left rail with the binder, codex, activity and findings tab
+ * builds the regions a shell arranges: the feature elements, the shell actions (app/shell-actions.ts) and the view state. Shell
+ * (shell/Shell.tsx) puts them in the chosen shell: Modern (shell/modern/, a lazy chunk) or Classic. The Classic shell
+ * (shell/ClassicShell.tsx) lays them out: a toolbar on top; a left rail with the binder, codex, activity and findings tab
  * slots; the centre (the editor, or the corkboard for a container); the inspector on the right. Focus mode hides both rails and
  * keeps the centre exactly as it was.
  *
@@ -96,8 +97,9 @@ import {
 } from './actions.js';
 import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
-import { ClassicShell, railTabId } from './shell/ClassicShell.js';
+import { railTabId } from './shell/ClassicShell.js';
 import type { RailTab, ShellRegions } from './shell/regions.js';
+import { Shell } from './shell/Shell.js';
 
 /** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
 const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
@@ -1092,8 +1094,8 @@ export function Workspace({
 
   return (
     <ReportContext.Provider value={report}>
-      {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have. */}
-      <ClassicShell regions={regions}>
+      {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have, in either shell. */}
+      <Shell regions={regions}>
         <ConfirmDialog
           open={doomed !== undefined}
           title={doomed ? t`Delete “${{ title: isolate(doomed.title) }}”?` : t`Delete?`}
@@ -1175,7 +1177,7 @@ export function Workspace({
             onProvidersChanged={() => agent?.refresh()}
           />
         ) : null}
-      </ClassicShell>
+      </Shell>
     </ReportContext.Provider>
   );
 }

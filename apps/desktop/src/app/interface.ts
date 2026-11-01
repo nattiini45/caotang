@@ -3,13 +3,15 @@
  * The theme (theme.ts) chooses light or dark inside either one. The choice is put on the page as `data-shell` on `<html>`.
  *
  * Like the theme, it lives in this browser's local storage under one key (`caotang.interface`), read before the first render,
- * and every access is guarded (§3.1). Modern's stylesheet is a chunk of its own (`modern/modern.css`), loaded only while Modern is
- * on, so Classic's first load never carries it (§12).
+ * and every access is guarded (§3.1). Modern is a chunk of its own, `modern-shell` (components/shell/modern/modern-shell.tsx, with its
+ * stylesheets tokens/modern.css and shell-modern.css), loaded only while Modern is on, so Classic's first load never carries it (§12).
+ * The shell on screen follows {@link currentInterface}, which changes only once that chunk is in (components/shell/Shell.tsx).
  *
  * The default is {@link resolveInterface} (§3.2). Local storage answers before the first paint when it holds a choice or another
  * Caotang key; otherwise the page waits behind "Opening your projects…" until the stores have opened and {@link settleInterface}
  * answers. Either answer is stored at once, so it never flips on a later visit.
  */
+import { applyModernPreferences } from './modern-preferences.js';
 import { applySkin } from './skin.js';
 
 export type Interface = 'classic' | 'modern';
@@ -95,7 +97,72 @@ export function rememberInterface(value: Interface): void {
  */
 export function applyInterface(value: Interface): Promise<unknown> {
   document.documentElement.dataset['shell'] = value;
-  return Promise.all([value === 'modern' ? import('../modern/modern.css') : undefined, applySkin(value)]);
+  applyModernPreferences();
+  const requested = ++requests;
+  return Promise.all([value === 'modern' ? loadModernShell() : undefined, applySkin(value)]).then(
+    (loaded) => {
+      // A later choice wins over an earlier one whose chunk arrived late.
+      if (requested === requests) publish(value);
+      return loaded;
+    },
+    (error: unknown) => {
+      // Without Modern's chunk the page keeps the layout it has; the attribute still says what was chosen.
+      if (requested === requests && value === 'classic') publish(value);
+      throw error;
+    },
+  );
+}
+
+/** The `modern-shell` chunk: ModernShell with its stylesheets. One import, so the chunk loads once and Shell.tsx reads the same module. */
+export type ModernShellModule = typeof import('../components/shell/modern/modern-shell.js');
+
+let modernShell: Promise<ModernShellModule> | null = null;
+let modernLoaded: ModernShellModule | null = null;
+
+/** Loads the `modern-shell` chunk, once. A failed load is forgotten, so the next choice of Modern asks again. */
+export function loadModernShell(): Promise<ModernShellModule> {
+  modernShell ??= import('../components/shell/modern/modern-shell.js').then(
+    (module) => {
+      modernLoaded = module;
+      return module;
+    },
+    (error: unknown) => {
+      modernShell = null;
+      throw error;
+    },
+  );
+  return modernShell;
+}
+
+/** The `modern-shell` module once it has loaded, else `null`. */
+export function loadedModernShell(): ModernShellModule | null {
+  return modernLoaded;
+}
+
+let requests = 0;
+let shown: Interface = 'classic';
+const listeners = new Set<() => void>();
+
+function publish(value: Interface): void {
+  if (shown === value) return;
+  shown = value;
+  for (const listener of listeners) listener();
+}
+
+/**
+ * The interface the workspace lays out now: the chosen one once everything it needs has loaded. Classic until Modern's chunk is in,
+ * so a switch never shows a shell without its styles. For `useSyncExternalStore`, with {@link subscribeInterface}.
+ */
+export function currentInterface(): Interface {
+  return shown;
+}
+
+/** Calls `listener` whenever {@link currentInterface} changes; returns the unsubscribe. */
+export function subscribeInterface(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 let pending = false;

@@ -8,7 +8,13 @@
  *   - a chunk over its own cap on BUDGET.allow (fontkit is one library, already loaded only for CJK and emoji text, so it has 750 kB);
  *   - an allow-list entry whose chunk has fallen under the limit or gone, so a split is never left covered by an old exception;
  *   - the first load (the module script and the modulepreload links in index.html) over BUDGET.initialGzip;
- *   - all JS over BUDGET.totalJs.
+ *   - all JS over BUDGET.totalJs;
+ *   - a lazy chunk on BUDGET.lazy over its own raw cap, missing from the build, or in the first load (Modern's `modern-shell`,
+ *     modern-interface.md §12, loads only while Modern is on);
+ *   - the entry stylesheet (the stylesheet links in index.html) more than BUDGET.css.entryMargin over BUDGET.css.entry, or a lazy
+ *     stylesheet over its cap on BUDGET.css.caps (Modern's, 30 kB raw);
+ *   - "Modern first load" (the first load plus `modern-shell`'s JS and CSS, gzip) more than BUDGET.modernFirstLoadDelta over Classic's
+ *     first load.
  *
  * Vite's own "chunks are larger than 500 kB" warning is turned down to the highest cap (apps/desktop/vite.config.ts), because it names
  * no chunk's reason and moves for no one; this script is the gate. The numbers live in BUDGET below. Everything except the 500 kB
@@ -136,8 +142,32 @@ export const BUDGET = {
   // with import-core (38.0 kB), the RTF reader and its source (31.7 kB), the plain-text reader and its source (6.2 kB), all loaded on
   // use, and the English and German catalogues' new messages (6.6 and 7.3 kB). The ceiling is that plus about 1%, rounded up to the
   // thousand.
-  totalJs: 7_748_000,
+  // 7,684.2 kB measured with the Modern stage, page and materials (#305): the `modern-shell` chunk (4.5 kB raw, loaded only while
+  // Modern is on) and the entry's interface store, Shell frame and Appearance switches. The ceiling rises once, by the Modern chunk's
+  // measured size rounded up to the thousand (modern-interface.md §12): 7,748,000 + 5,000.
+  totalJs: 7_753_000,
+  /**
+   * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
+   * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
+   * 70 kB. 4.5 kB raw, 1.8 kB gzip measured at #305.
+   */
+  lazy: { 'modern-shell': 70_000 },
+  css: {
+    /**
+     * The entry stylesheet (index.html's stylesheet links), raw, as measured: 105,500 bytes at #305, which added nothing to it (Modern's
+     * styles are in its own chunk). It may grow by `entryMargin` (1%) before the number here has to move with a reason.
+     */
+    entry: 105_500,
+    entryMargin: 0.01,
+    /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
+    caps: { 'modern-shell': 30_000 },
+  },
+  /** "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. */
+  modernFirstLoadDelta: 25_000,
 };
+
+/** The lazy chunk whose JS and CSS make "Modern first load". */
+export const MODERN_CHUNK = 'modern-shell';
 
 const KB = 1000;
 
@@ -148,7 +178,7 @@ function kb(bytes) {
 
 /** A chunk's name: its file name without the extension and the 8-character hash Vite appends (`fontkit.es-B1-xruQ9.js` is `fontkit.es`). */
 export function chunkName(file) {
-  const base = file.endsWith('.js') ? file.slice(0, -3) : file;
+  const base = file.endsWith('.js') ? file.slice(0, -3) : file.endsWith('.css') ? file.slice(0, -4) : file;
   return base.length > 9 && base[base.length - 9] === '-' ? base.slice(0, -9) : base;
 }
 
@@ -165,9 +195,18 @@ function attribute(tag, name) {
   return undefined;
 }
 
-/** The JS files index.html loads at start: the module script and the modulepreload links, by file name, in the order the page lists them. */
-export function initialFilesOf(html) {
-  const files = [];
+/** The stylesheets index.html links, by file name, in the order the page lists them. */
+export function initialStylesOf(html) {
+  return tagsOf(html).flatMap((tag) => {
+    const spaced = ` ${tag}`;
+    const url = tag.startsWith('link ') && attribute(spaced, 'rel') === 'stylesheet' ? attribute(spaced, 'href') : undefined;
+    return url === undefined ? [] : [url.slice(url.lastIndexOf('/') + 1)];
+  });
+}
+
+/** Every tag's text in an HTML page, comments left out, whitespace inside a tag made spaces. */
+function tagsOf(html) {
+  const tags = [];
   let at = 0;
   while ((at = html.indexOf('<', at)) !== -1) {
     if (html.startsWith('<!--', at)) {
@@ -178,22 +217,29 @@ export function initialFilesOf(html) {
     }
     const close = html.indexOf('>', at);
     if (close === -1) break;
-    const tag = html.slice(at + 1, close).replaceAll('\n', ' ').replaceAll('\r', ' ').replaceAll('\t', ' ');
+    tags.push(html.slice(at + 1, close).replaceAll('\n', ' ').replaceAll('\r', ' ').replaceAll('\t', ' '));
     at = close + 1;
+  }
+  return tags;
+}
+
+/** The JS files index.html loads at start: the module script and the modulepreload links, by file name, in the order the page lists them. */
+export function initialFilesOf(html) {
+  return tagsOf(html).flatMap((tag) => {
     const spaced = ` ${tag}`;
     const isScript = tag.startsWith('script ') && attribute(spaced, 'type') === 'module';
     const isPreload = tag.startsWith('link ') && attribute(spaced, 'rel') === 'modulepreload';
     const url = isScript ? attribute(spaced, 'src') : isPreload ? attribute(spaced, 'href') : undefined;
-    if (url !== undefined) files.push(url.slice(url.lastIndexOf('/') + 1));
-  }
-  return files;
+    return url === undefined ? [] : [url.slice(url.lastIndexOf('/') + 1)];
+  });
 }
 
 /**
- * Measures the chunks against the budget. `chunks` are `{ file, bytes, gzip }`; `initial` are the file names the first load fetches.
- * Returns the rows (largest first), the first load's gzip size, the total JS, and the problems.
+ * Measures the chunks against the budget. `chunks` are `{ file, bytes, gzip }`; `initial` are the file names the first load fetches;
+ * `styles`, when given, are the stylesheets `{ files, initial }` in the same shape. Returns the rows (largest first), the first load's
+ * gzip size, the total JS, the stylesheet rows, Modern's first load, and the problems.
  */
-export function analyse(chunks, initial, budget = BUDGET) {
+export function analyse(chunks, initial, budget = BUDGET, styles = undefined) {
   const problems = [];
   const first = new Set(initial);
   const rows = [...chunks]
@@ -238,7 +284,58 @@ export function analyse(chunks, initial, budget = BUDGET) {
   if (totalJs > budget.totalJs) {
     problems.push(`all JS is ${kb(totalJs)} kB, over the ${kb(budget.totalJs)} kB ceiling`);
   }
-  return { rows, initialGzip, totalJs, problems };
+
+  for (const [name, cap] of Object.entries(budget.lazy ?? {})) {
+    const named = rows.filter((row) => row.name === name);
+    if (named.length === 0) problems.push(`the lazy chunk "${name}" is not in the build: it was renamed or merged into another chunk`);
+    for (const row of named) {
+      if (row.initial) problems.push(`${row.chunk.file} is in the first load, and "${name}" must load only on use`);
+      if (row.chunk.bytes > cap) problems.push(`${row.chunk.file} is ${kb(row.chunk.bytes)} kB, over its lazy cap of ${kb(cap)} kB`);
+    }
+  }
+
+  const styleRows = styles === undefined ? [] : stylesReport(styles, budget, problems);
+  const report = { rows, initialGzip, totalJs, problems, styles: styleRows };
+  const modern = modernFirstLoad(report);
+  if (modern !== undefined && budget.modernFirstLoadDelta !== undefined && modern - initialGzip > budget.modernFirstLoadDelta) {
+    problems.push(
+      `Modern's first load is ${kb(modern)} kB gzip, ${kb(modern - initialGzip)} kB over Classic's, more than the ${kb(budget.modernFirstLoadDelta)} kB allowed`,
+    );
+  }
+  return { ...report, modernFirstLoad: modern };
+}
+
+/** The stylesheets with what each is, checking the entry's and the lazy caps. */
+function stylesReport(styles, budget, problems) {
+  const first = new Set(styles.initial);
+  const rows = [...styles.files]
+    .sort((a, b) => b.bytes - a.bytes || (a.file < b.file ? -1 : 1))
+    .map((chunk) => ({ chunk, name: chunkName(chunk.file), initial: first.has(chunk.file) }));
+  const css = budget.css;
+  if (css !== undefined) {
+    const entry = rows.filter((row) => row.initial).reduce((sum, row) => sum + row.chunk.bytes, 0);
+    const ceiling = Math.floor(css.entry * (1 + css.entryMargin));
+    if (entry > ceiling) {
+      problems.push(`the entry stylesheet is ${kb(entry)} kB, over ${kb(css.entry)} kB measured plus ${css.entryMargin * 100}% (${kb(ceiling)} kB)`);
+    }
+    for (const [name, cap] of Object.entries(css.caps)) {
+      const named = rows.filter((row) => row.name === name);
+      if (named.length === 0) problems.push(`the stylesheet "${name}" is not in the build`);
+      for (const row of named) {
+        if (row.initial) problems.push(`${row.chunk.file} is linked from index.html, and "${name}" must load only on use`);
+        if (row.chunk.bytes > cap) problems.push(`${row.chunk.file} is ${kb(row.chunk.bytes)} kB, over its cap of ${kb(cap)} kB`);
+      }
+    }
+  }
+  return rows;
+}
+
+/** Classic's first load plus Modern's chunk and stylesheet, gzip, or undefined when the build has no Modern chunk. */
+function modernFirstLoad(report) {
+  const js = report.rows.filter((row) => row.name === MODERN_CHUNK && !row.initial);
+  if (js.length === 0) return undefined;
+  const css = report.styles.filter((row) => row.name === MODERN_CHUNK && !row.initial);
+  return report.initialGzip + [...js, ...css].reduce((sum, row) => sum + row.chunk.gzip, 0);
 }
 
 /** The report as a table, then the totals and the problems, if any. */
@@ -260,6 +357,12 @@ export function renderReport(report) {
     `first load: ${firstLoad.length} files, ${kb(firstRaw)} kB raw, ${kb(report.initialGzip)} kB gzip`,
     `all JS: ${report.rows.length} files, ${kb(report.totalJs)} kB raw`,
   ];
+  for (const { chunk, initial } of report.styles ?? []) {
+    out.push(`css ${chunk.file}: ${kb(chunk.bytes)} kB raw, ${kb(chunk.gzip)} kB gzip, ${initial ? 'first load' : 'on use'}`);
+  }
+  if (report.modernFirstLoad !== undefined) {
+    out.push(`Modern first load: ${kb(report.modernFirstLoad)} kB gzip (${kb(report.modernFirstLoad - report.initialGzip)} kB over Classic's)`);
+  }
   if (report.problems.length === 0) {
     out.push('bundle size: ok');
   } else {
@@ -268,27 +371,31 @@ export function renderReport(report) {
   return out.join('\n');
 }
 
-/** Reads `<dist>/index.html` and `<dist>/assets/*.js`. */
+/** Reads `<dist>/index.html`, `<dist>/assets/*.js` and `<dist>/assets/*.css`. */
 export function readBuild(dist) {
   const html = join(dist, 'index.html');
   const assets = join(dist, 'assets');
   if (!existsSync(html) || !existsSync(assets)) {
     throw new Error(`no build in ${dist}: run pnpm build first`);
   }
-  const chunks = readdirSync(assets)
-    .filter((file) => file.endsWith('.js'))
-    .map((file) => {
-      const bytes = readFileSync(join(assets, file));
-      return { file, bytes: bytes.length, gzip: gzipSync(bytes).length };
-    });
-  return { chunks, initial: initialFilesOf(readFileSync(html, 'utf8')) };
+  const measure = (file) => {
+    const bytes = readFileSync(join(assets, file));
+    return { file, bytes: bytes.length, gzip: gzipSync(bytes).length };
+  };
+  const files = readdirSync(assets);
+  const page = readFileSync(html, 'utf8');
+  return {
+    chunks: files.filter((file) => file.endsWith('.js')).map(measure),
+    initial: initialFilesOf(page),
+    styles: { files: files.filter((file) => file.endsWith('.css')).map(measure), initial: initialStylesOf(page) },
+  };
 }
 
 // Run directly: `node tools/check-bundle-size.mjs [dist]`.
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const dist = resolve(process.argv[2] ?? join(fileURLToPath(new URL('..', import.meta.url)), 'apps', 'desktop', 'dist'));
   const build = readBuild(dist);
-  const report = analyse(build.chunks, build.initial);
+  const report = analyse(build.chunks, build.initial, BUDGET, build.styles);
   process.stdout.write(`${renderReport(report)}\n`);
   if (report.problems.length > 0) process.exitCode = 1;
 }

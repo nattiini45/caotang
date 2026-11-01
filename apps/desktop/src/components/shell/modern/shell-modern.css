@@ -1,0 +1,347 @@
+/*
+ * Modern's shell (docs/architecture/modern-interface.md §5.2, §5.3, §6, §9): the stage with its wallpaper, the page of paper, the
+ * materials, and the provisional controls of M4 (#305). In the `modern-shell` chunk's stylesheet with tokens/modern.css, loaded only
+ * while Modern is on.
+ *
+ * Rules: every selector starts with :root[data-shell='modern'] (D7) and only logical properties are used (i18n.md §5.1); both are
+ * checked by test/modern-css.test.ts. Colours, shapes, motion and materials come from tokens (tokens/modern.css); a fallback changes
+ * a token, never a rule here, except forced colours, which needs a border the tokens cannot draw.
+ *
+ * Geometry is custom properties on the stage (--page-w, --page-top, --page-bottom, --area-start, --area-end), with defaults here.
+ * modernLayout (M5, #306) will set them through the CSSOM (§8.4, §11); nothing here needs to change for that.
+ */
+
+/* ---- The frame: the workspace element in Modern. The dialogs Workspace renders are its last children, as in Classic. ---- */
+:root[data-shell='modern'] .modern-frame {
+  min-block-size: 100dvh;
+  color: var(--ink);
+  background: var(--surface-app);
+}
+
+/* ---- The stage: the wallpaper and everything floating on it (§6, Frame). ---- */
+:root[data-shell='modern'] .modern-stage {
+  --page-w: 780px;
+  --page-top: max(84px, 11dvh);
+  --page-bottom: 112px;
+  --page-gutter: 32px;
+  --area-start: 0px;
+  --area-end: 0px;
+  --sidebar-w: 300px;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--surface-app);
+}
+
+:root[data-shell='modern'] .modern-stage.has-sidebar {
+  --area-start: calc(var(--sidebar-w) + var(--page-gutter));
+}
+
+/* Decorative, drawn once, fixed, never animated (§5.3). */
+:root[data-shell='modern'] .modern-wallpaper {
+  position: absolute;
+  inset: 0;
+  background-color: var(--surface-app);
+  background-image: var(--wallpaper);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+
+/* ---- The page area: the space left by the sidebar and the companion; the page and its ornaments centre in it. ---- */
+:root[data-shell='modern'] .modern-page-area {
+  position: absolute;
+  inset-block: var(--page-top) var(--page-bottom);
+  inset-inline: var(--area-start) var(--area-end);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+:root[data-shell='modern'] .modern-page-area > * {
+  pointer-events: auto;
+}
+
+/* ---- Paper: the page (§5.3). Opaque, never glass, and nothing on it is blurred, so typing never pays for a filter. ---- */
+:root[data-shell='modern'] .mat-paper {
+  background: var(--surface-page);
+  color: var(--ink);
+  border-radius: var(--radius-page);
+  box-shadow: var(--elev-3);
+}
+
+:root[data-shell='modern'] .modern-page {
+  display: flex;
+  flex-direction: column;
+  inline-size: min(var(--page-w), 100% - 2 * var(--page-gutter));
+  block-size: 100%;
+  min-block-size: 0;
+  overflow: hidden;
+  transition:
+    inline-size var(--dur-3) var(--ease-spring),
+    opacity var(--dur-fade) var(--ease-standard);
+}
+
+:root[data-shell='modern'] .modern-page > * {
+  min-inline-size: 0;
+}
+
+/* The scroll inside the page keeps its corners: the content clips to the page's radius. */
+:root[data-shell='modern'] .modern-page:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---- Glass, thick glass, frost, scrim (§5.3). ---- */
+:root[data-shell='modern'] .mat-glass,
+:root[data-shell='modern'] .mat-thick,
+:root[data-shell='modern'] .mat-frost {
+  position: relative;
+  isolation: isolate;
+  color: var(--on-glass);
+  box-shadow:
+    var(--elev-glass),
+    inset 0 1px 0 var(--mat-glass-edge-hi),
+    inset 0 -1px 0 var(--mat-glass-edge-lo);
+}
+
+:root[data-shell='modern'] .mat-glass {
+  background: var(--mat-glass-bg);
+  backdrop-filter: blur(var(--mat-glass-blur)) saturate(var(--mat-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--mat-glass-blur)) saturate(var(--mat-glass-saturate));
+}
+
+:root[data-shell='modern'] .mat-thick {
+  background: var(--mat-thick-bg);
+  backdrop-filter: blur(var(--mat-thick-blur)) saturate(var(--mat-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--mat-thick-blur)) saturate(var(--mat-glass-saturate));
+}
+
+:root[data-shell='modern'] .mat-frost {
+  background: var(--mat-frost-bg);
+  color: var(--ink);
+  backdrop-filter: blur(var(--mat-frost-blur));
+  -webkit-backdrop-filter: blur(var(--mat-frost-blur));
+}
+
+/* The light-catching rim: a gradient border drawn by a mask, so it follows any radius. Gone when the rim token is none. */
+:root[data-shell='modern'] .mat-glass::before,
+:root[data-shell='modern'] .mat-thick::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--mat-rim);
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+}
+
+/* Text and icons never sit on thin glass alone (§5.3): a label on glass sits on a scrim. */
+:root[data-shell='modern'] .mat-scrim {
+  background: var(--scrim);
+  color: var(--on-glass);
+}
+
+/* ---- Ornaments: glass capsules half over the page's edges (§6, §8.1), centred over the page area. M4's are provisional; #306
+   replaces them. ---- */
+:root[data-shell='modern'] .modern-ornament {
+  position: absolute;
+  inset-inline: var(--area-start) var(--area-end);
+  margin-inline: auto;
+  inline-size: max-content;
+  max-inline-size: calc(100% - var(--area-start) - var(--area-end) - 2 * var(--page-gutter));
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--ornament-pad);
+  border-radius: var(--radius-ornament);
+  z-index: 2;
+}
+
+:root[data-shell='modern'] .modern-ornament.is-top {
+  inset-block-start: calc(var(--page-top) - var(--radius-ornament));
+}
+
+:root[data-shell='modern'] .modern-ornament.is-bottom {
+  inset-block-end: calc(var(--page-bottom) - var(--radius-ornament));
+}
+
+:root[data-shell='modern'] .modern-capsule {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+  padding-inline: var(--control-pad-x);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--scrim);
+  color: var(--on-glass);
+  font: 600 15px/1 var(--ui);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-1) var(--ease-standard),
+    transform var(--dur-1) var(--ease-spring);
+}
+
+:root[data-shell='modern'] .modern-capsule:hover {
+  background: var(--mat-thick-bg);
+}
+
+:root[data-shell='modern'] .modern-capsule:active {
+  transform: scale(0.97);
+}
+
+:root[data-shell='modern'] .modern-capsule[aria-checked='true'],
+:root[data-shell='modern'] .modern-capsule[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .modern-capsule:focus-visible,
+:root[data-shell='modern'] .modern-skip:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
+}
+
+:root[data-shell='modern'] .modern-ornament-title {
+  margin: 0;
+  padding-inline: var(--space-5);
+  border-radius: var(--radius-control);
+  font: 600 15px/var(--target-min) var(--ui);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:root[data-shell='modern'] .modern-ornament-state {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--target-min);
+  padding-inline: var(--space-5);
+  border-radius: var(--radius-control);
+}
+
+/* ---- The provisional binder panel (M4); #307's tab bar and sidebar replace it. Paper, so the binder's muted text keeps 4.5:1. ---- */
+:root[data-shell='modern'] .modern-sidebar {
+  position: absolute;
+  inset-block: var(--page-top) var(--page-bottom);
+  inset-inline-start: var(--page-gutter);
+  inline-size: var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+  min-block-size: 0;
+  overflow: auto;
+  padding: var(--sheet-pad);
+  border-radius: var(--radius-sheet);
+  background: var(--m-solid);
+  color: var(--ink);
+  box-shadow: var(--elev-glass);
+  z-index: 1;
+}
+
+/* ---- Notices: the status line and the storage notices float at the top centre (§8.6, provisional until #311). ---- */
+:root[data-shell='modern'] .modern-notices {
+  position: absolute;
+  inset-block-start: var(--space-6);
+  inset-inline: 0;
+  margin-inline: auto;
+  inline-size: min(720px, calc(100% - 2 * var(--page-gutter)));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  z-index: 3;
+}
+
+:root[data-shell='modern'] .modern-notices:empty {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-notices > * {
+  margin: 0;
+  border-radius: var(--radius-sheet);
+  background: var(--m-solid);
+  color: var(--ink);
+  box-shadow: var(--elev-glass);
+}
+
+/* Classic's status line is fixed at the window's foot; here it sits in the notices, in their flow. */
+:root[data-shell='modern'] .modern-notices > .status-line {
+  position: static;
+  transform: none;
+  max-inline-size: none;
+}
+
+/* ---- Skip link: the first stop, shown when focused (§9.1). ---- */
+:root[data-shell='modern'] .modern-skip {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-start: var(--space-4);
+  z-index: 10;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-control);
+  background: var(--m-solid);
+  color: var(--ink);
+  transform: translateY(-200%);
+}
+
+:root[data-shell='modern'] .modern-skip:focus {
+  transform: none;
+}
+
+/* ---- Below 960 px the page fills the width (§13 is M11, #312); the provisional binder panel steps aside. ---- */
+@media (max-width: 959px) {
+  :root[data-shell='modern'] .modern-stage {
+    --page-gutter: 8px;
+    --page-top: 72px;
+    --page-bottom: 88px;
+    --area-start: 0px;
+  }
+
+  :root[data-shell='modern'] .modern-sidebar {
+    display: none;
+  }
+
+  :root[data-shell='modern'] .mat-paper {
+    border-radius: var(--radius-sheet);
+  }
+}
+
+/* ---- Forced colours (§5.3): system colours, a 1 px CanvasText border on every container, no shadows, no wallpaper. ---- */
+@media (forced-colors: active) {
+  :root[data-shell='modern'] .mat-paper,
+  :root[data-shell='modern'] .mat-glass,
+  :root[data-shell='modern'] .mat-thick,
+  :root[data-shell='modern'] .mat-frost,
+  :root[data-shell='modern'] .modern-sidebar,
+  :root[data-shell='modern'] .modern-capsule {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  :root[data-shell='modern'] .mat-glass::before,
+  :root[data-shell='modern'] .mat-thick::before {
+    display: none;
+  }
+
+  :root[data-shell='modern'] .modern-capsule[aria-checked='true'],
+  :root[data-shell='modern'] .modern-capsule[aria-pressed='true'] {
+    background: Highlight;
+    color: HighlightText;
+  }
+}

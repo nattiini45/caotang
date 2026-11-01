@@ -140,6 +140,9 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     outDir: 'dist',
+    // Modern's wallpaper is a hashed same-origin file, never a data: URL inlined into the stylesheet (modern-interface.md §5.3, §12):
+    // it stays out of Modern's CSS budget and is cached on its own. Every other asset keeps Vite's default.
+    assetsInlineLimit: (file: string) => (/[\\/]shell[\\/]modern[\\/]wallpaper-[a-z]+\.svg$/.test(file) ? false : undefined),
     sourcemap: true,
     // Vite's own warning is turned down to the highest cap on the script's allow-list: tools/check-bundle-size.mjs is the gate.
     chunkSizeWarningLimit: Math.max(...Object.values(BUDGET.allow)) / 1000,

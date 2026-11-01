@@ -42,6 +42,7 @@ import {
   type RoleSettings,
 } from '../app/settings.js';
 import { MODERN_DEFAULT_FOR_NEW_USERS, applyInterface, rememberInterface, type Interface } from '../app/interface.js';
+import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
 import { sameLanguageSetting } from '../i18n/catalogues.js';
@@ -1411,6 +1412,9 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
     rememberInterface(next);
     setShell(next);
   };
+  // Modern's two switches (modern-interface.md §9.4), shown while Modern is chosen; they apply to Modern only.
+  const [modernPrefs, setModernPrefs] = useState<ModernPreferences>(() => readModernPreferences());
+  const chooseModernPref = (name: keyof ModernPreferences, on: boolean): void => setModernPrefs(setModernPreference(name, on));
   return (
     <section className="settings-section" aria-labelledby="settings-appearance">
       <h3 id="settings-appearance">
@@ -1443,8 +1447,34 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
       <p className="muted">
         {MODERN_DEFAULT_FOR_NEW_USERS
           ? t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. The choice is kept in this browser and applies at once.`
-          : t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built, so for now it looks almost the same as Classic. The choice is kept in this browser and applies at once.`}
+          : shell === 'modern'
+            ? t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built: the page and its glass are in, and its own controls come next. The choice is kept in this browser and applies at once.`
+            : t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built, so for now it looks almost the same as Classic. The choice is kept in this browser and applies at once.`}
       </p>
+      {shell === 'modern' ? (
+        <fieldset className="settings-radios" data-testid="modern-preferences">
+          <legend>{t`Modern interface`}</legend>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={modernPrefs.reduceTransparency}
+              onChange={(event) => chooseModernPref('reduceTransparency', event.currentTarget.checked)}
+            />{' '}
+            {t`Reduce transparency`}
+          </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={modernPrefs.reduceMotion}
+              onChange={(event) => chooseModernPref('reduceMotion', event.currentTarget.checked)}
+            />{' '}
+            {t`Reduce motion`}
+          </label>
+          <p className="muted">
+            {t`These apply to the Modern interface: glass becomes solid, and nothing slides or grows. Your system’s own settings for transparency and motion are always followed as well.`}
+          </p>
+        </fieldset>
+      ) : null}
 
       <fieldset className="settings-radios" data-testid="interface-language">
         <legend>{t`Interface language`}</legend>

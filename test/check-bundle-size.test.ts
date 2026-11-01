@@ -6,7 +6,17 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { BUDGET, analyse, chunkName, initialFilesOf, readBuild, renderReport, type Budget, type Chunk } from '../tools/check-bundle-size.mjs';
+import {
+  BUDGET,
+  analyse,
+  chunkName,
+  initialFilesOf,
+  initialStylesOf,
+  readBuild,
+  renderReport,
+  type Budget,
+  type Chunk,
+} from '../tools/check-bundle-size.mjs';
 
 const kB = (n: number): number => n * 1000;
 
@@ -118,6 +128,70 @@ describe('analyse', () => {
   });
 });
 
+describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-interface.md §12)', () => {
+  const modernBudget: Budget = {
+    ...budget,
+    totalJs: kB(6000),
+    lazy: { 'modern-shell': kB(70) },
+    css: { entry: kB(100), entryMargin: 0.01, caps: { 'modern-shell': kB(30) } },
+    modernFirstLoadDelta: kB(25),
+  };
+  const MODERN = chunk('modern-shell-PuIyez0W.js', 5, 2);
+  const styles = (entryKb: number, modernKb: number, initial = ['index-DVvcK7w0.css']) => ({
+    files: [chunk('index-DVvcK7w0.css', entryKb, entryKb / 5), chunk('modern-shell-L4IqL40g.css', modernKb, modernKb / 4)],
+    initial,
+  });
+
+  it('names a stylesheet chunk without its hash, and reads the stylesheet links of index.html', () => {
+    expect(chunkName('modern-shell-L4IqL40g.css')).toBe('modern-shell');
+    expect(initialStylesOf('<link rel="stylesheet" crossorigin href="/app/assets/index-DVvcK7w0.css"><link rel="modulepreload" href="/a-AAAAAAAA.js">')).toEqual([
+      'index-DVvcK7w0.css',
+    ]);
+  });
+
+  it('passes a Modern chunk on use within its caps, and reports Modern first load over Classic’s', () => {
+    const report = analyse([...GOOD, MODERN], INITIAL, modernBudget, styles(100, 12));
+    expect(report.problems).toEqual([]);
+    expect(report.modernFirstLoad).toBeCloseTo(report.initialGzip + kB(2) + kB(3), 3);
+    expect(renderReport(report)).toMatch(/Modern first load: [\d.]+ kB gzip \(5\.0 kB over Classic's\)/);
+  });
+
+  it('fails the Modern chunk in the first load, over its cap, or missing', () => {
+    expect(analyse([...GOOD, MODERN], [...INITIAL, MODERN.file], modernBudget, styles(100, 12)).problems).toEqual([
+      expect.stringContaining('modern-shell-PuIyez0W.js is in the first load'),
+    ]);
+    expect(analyse([...GOOD, chunk('modern-shell-PuIyez0W.js', 71, 20)], INITIAL, modernBudget, styles(100, 12)).problems).toEqual([
+      expect.stringContaining('over its lazy cap of 70.0 kB'),
+    ]);
+    expect(analyse(GOOD, INITIAL, modernBudget, styles(100, 12)).problems).toEqual([expect.stringContaining('"modern-shell" is not in the build')]);
+  });
+
+  it('fails the entry stylesheet beyond its measured size plus 1%, and Modern’s stylesheet over 30 kB or in the first load', () => {
+    expect(analyse([...GOOD, MODERN], INITIAL, modernBudget, styles(101, 12)).problems).toEqual([]);
+    expect(analyse([...GOOD, MODERN], INITIAL, modernBudget, styles(101.1, 12)).problems).toEqual([
+      expect.stringContaining('the entry stylesheet is 101.1 kB'),
+    ]);
+    expect(analyse([...GOOD, MODERN], INITIAL, modernBudget, styles(100, 31)).problems).toEqual([expect.stringContaining('over its cap of 30.0 kB')]);
+    expect(
+      analyse([...GOOD, MODERN], INITIAL, modernBudget, styles(100, 12, ['index-DVvcK7w0.css', 'modern-shell-L4IqL40g.css'])).problems,
+    ).toContainEqual(expect.stringContaining('modern-shell-L4IqL40g.css is linked from index.html'));
+  });
+
+  it('fails Modern first load more than 25 kB over Classic’s', () => {
+    const heavy = chunk('modern-shell-PuIyez0W.js', 69, 23);
+    expect(analyse([...GOOD, heavy], INITIAL, modernBudget, styles(100, 12)).problems).toEqual([
+      expect.stringContaining('more than the 25.0 kB allowed'),
+    ]);
+  });
+
+  it('holds Modern’s caps in the real budget: 70 kB of JS and 30 kB of CSS, within 25 kB gzip of Classic', () => {
+    expect(BUDGET.lazy?.['modern-shell']).toBe(70_000);
+    expect(BUDGET.css?.caps['modern-shell']).toBe(30_000);
+    expect(BUDGET.css?.entryMargin).toBe(0.01);
+    expect(BUDGET.modernFirstLoadDelta).toBe(25_000);
+  });
+});
+
 describe('renderReport', () => {
   it('prints a table of chunks, largest first, with raw and gzip sizes, and says what it found', () => {
     const lines = renderReport(analyse(GOOD, INITIAL, budget)).split('\n');
@@ -140,7 +214,7 @@ describe('readBuild', () => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  it('reads index.html and the JS under assets, and ignores everything else there', () => {
+  it('reads index.html, the JS and the stylesheets under assets, and ignores everything else there', () => {
     const dist = mkdtempSync(join(tmpdir(), 'caotang-bundle-'));
     dirs.push(dist);
     mkdirSync(join(dist, 'assets'));
@@ -150,6 +224,8 @@ describe('readBuild', () => {
     writeFileSync(join(dist, 'assets', 'index-DVvcK7w0.css'), 'a{}');
     const build = readBuild(dist);
     expect(build.initial).toEqual(['index-aVYiHL54.js']);
+    expect(build.styles.files.map((file) => file.file)).toEqual(['index-DVvcK7w0.css']);
+    expect(build.styles.initial).toEqual([]);
     expect(build.chunks).toHaveLength(1);
     expect(build.chunks[0]).toMatchObject({ file: 'index-aVYiHL54.js', bytes: 2000 });
     expect(build.chunks[0]?.gzip).toBeGreaterThan(0);
