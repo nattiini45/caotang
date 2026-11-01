@@ -15,7 +15,12 @@ import { scanCss } from '../tools/logical-css.mjs';
 
 const repoRoot = resolve(__dirname, '..');
 const MODERN_DIR = resolve(repoRoot, 'apps/desktop/src/components/shell/modern');
-const SHEETS = [resolve(repoRoot, 'apps/desktop/src/tokens/modern.css'), join(MODERN_DIR, 'shell-modern.css')];
+const SHEETS = [
+  resolve(repoRoot, 'apps/desktop/src/tokens/modern.css'),
+  ...readdirSync(MODERN_DIR)
+    .filter((file) => file.endsWith('.css'))
+    .map((file) => join(MODERN_DIR, file)),
+];
 const PREFIX = ":root[data-shell='modern']";
 
 /** Every selector in a stylesheet (split on top-level commas), with the at-rules around it. Comments are left out. */

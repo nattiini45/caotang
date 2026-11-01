@@ -1,0 +1,391 @@
+/*
+ * Modern's dialogs, menus, notices and projects screen (docs/architecture/modern-interface.md §6, §7.6, §8.2, §8.3, §8.6, §9.5; M10,
+ * #311). In the `modern-shell` chunk's stylesheet with tokens/modern.css and shell-modern.css, loaded only while Modern is on. The
+ * components are Classic's own (same markup, same handlers, same focus code in dialog-focus.ts); only their look changes here.
+ *
+ * Rules, as for every Modern sheet (test/modern-css.test.ts): every selector starts with :root[data-shell='modern'] and only logical
+ * properties are used. A fallback changes a token, never a rule.
+ *
+ * Sheet glass. A dialog holds Classic's text as it is: muted notes, danger and accent words, as well as ink. On the spec's thick glass
+ * (.40 light, .64 dark) over the wallpaper, muted text falls to about 2.3:1, so dialogs, menus and toasts take a denser glass, settled
+ * by the computed test in e2e/unit/modern-surfaces.spec.ts (§9.3): a dialog's sheet sits over its own veil (the ::backdrop tint, which
+ * the sheet's blur samples), a menu or a toast has no veil and so is denser still. Both are still blurred, see-through glass.
+ */
+
+/* ---- Tokens. The scheme blocks set the primitives (--m-*); the --mat-* names are what the rules read and what a fallback changes. ---- */
+:root[data-shell='modern'] {
+  --mat-sheet-bg: var(--m-sheet);
+  --mat-float-bg: var(--m-float);
+  --mat-sheet-blur: 28px;
+  --mat-veil: var(--m-veil);
+  --mat-sheet-rim: var(--m-sheet-rim);
+}
+
+:root[data-shell='modern']:not([data-theme='dark']) {
+  --m-sheet: rgba(255, 252, 250, 0.78);
+  --m-float: rgba(255, 252, 250, 0.84);
+  --m-veil: rgba(250, 244, 240, 0.4);
+  --m-sheet-rim: rgba(255, 255, 255, 0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) {
+    --m-sheet: rgba(26, 24, 36, 0.86);
+    --m-float: rgba(26, 24, 36, 0.91);
+    --m-veil: rgba(8, 6, 16, 0.5);
+    --m-sheet-rim: rgba(255, 255, 255, 0.14);
+  }
+}
+
+:root[data-shell='modern'][data-theme='dark'] {
+  --m-sheet: rgba(26, 24, 36, 0.86);
+  --m-float: rgba(26, 24, 36, 0.91);
+  --m-veil: rgba(8, 6, 16, 0.5);
+  --m-sheet-rim: rgba(255, 255, 255, 0.14);
+}
+
+/* Reduced transparency (the system's or the Appearance switch), no backdrop-filter, more contrast: opaque, unblurred sheets. */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-shell='modern'] {
+    --mat-sheet-bg: var(--m-solid);
+    --mat-float-bg: var(--m-solid);
+    --mat-sheet-blur: 0px;
+    --mat-sheet-rim: var(--m-solid-line);
+  }
+}
+
+:root[data-shell='modern'][data-transparency='reduced'] {
+  --mat-sheet-bg: var(--m-solid);
+  --mat-float-bg: var(--m-solid);
+  --mat-sheet-blur: 0px;
+  --mat-sheet-rim: var(--m-solid-line);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-shell='modern'] {
+    --mat-sheet-bg: var(--m-solid);
+    --mat-float-bg: var(--m-solid);
+    --mat-sheet-blur: 0px;
+    --mat-sheet-rim: var(--m-solid-line);
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root[data-shell='modern'] {
+    --mat-sheet-bg: var(--m-solid);
+    --mat-float-bg: var(--m-solid);
+    --mat-sheet-rim: var(--m-solid-line);
+  }
+}
+
+/* ---- Dialogs (§7.6): every native dialog, in sheet glass with concentric corners, over a veil. Width, height and scrolling stay
+   Classic's, so nothing inside reflows differently. ---- */
+:root[data-shell='modern'] dialog {
+  border: 1px solid var(--mat-sheet-rim);
+  border-radius: var(--radius-sheet);
+  background: var(--mat-sheet-bg);
+  color: var(--ink);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+  box-shadow:
+    var(--elev-glass),
+    inset 0 1px 0 var(--mat-glass-edge-hi),
+    inset 0 -1px 0 var(--mat-glass-edge-lo);
+}
+
+:root[data-shell='modern'] dialog::backdrop {
+  background: var(--mat-veil, rgba(20, 19, 17, 0.35));
+}
+
+/* Classic's opaque panels inside a dialog step back, so the sheet reads as one piece of glass; their lines stay. */
+:root[data-shell='modern'] dialog :is(.settings-nav, .settings-head, .export-actions, .project-dialog-actions) {
+  background: transparent;
+}
+
+:root[data-shell='modern'] dialog h2 {
+  letter-spacing: -0.01em;
+}
+
+/* The ghost a closing dialog leaves, shrinking back into its opener (§8.3, morph.ts). Decorative, never in the way. Drawn left to right
+   whatever the interface's direction, because morph.ts places it by viewport coordinates. */
+:root[data-shell='modern'] .modern-morph-ghost {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  direction: ltr;
+  z-index: 1000;
+  border: 1px solid var(--mat-sheet-rim);
+  border-radius: var(--radius-sheet);
+  background: var(--mat-sheet-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+  box-shadow: var(--elev-glass);
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* ---- Context menus (§7.6, §8.2): float glass, rows of at least 44 px, a highlight capsule on the row in focus. ---- */
+:root[data-shell='modern'] .menu {
+  min-inline-size: 240px;
+  padding: var(--space-3);
+  border: 1px solid var(--mat-sheet-rim);
+  border-radius: var(--radius-lg);
+  background: var(--mat-float-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+  box-shadow:
+    var(--elev-glass),
+    inset 0 1px 0 var(--mat-glass-edge-hi),
+    inset 0 -1px 0 var(--mat-glass-edge-lo);
+  transition:
+    opacity var(--dur-fade) var(--ease-standard),
+    transform var(--dur-3) var(--ease-spring);
+}
+
+@starting-style {
+  :root[data-shell='modern'] .menu {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+:root[data-shell='modern'] .menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-block-size: var(--target-min);
+  padding-block: var(--space-3);
+  padding-inline: 14px;
+  border-radius: calc(var(--radius-lg) - var(--space-3));
+  font-size: 15px;
+  transition: background-color var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] .menu-item:hover:not(:disabled),
+:root[data-shell='modern'] .menu-item:focus-visible {
+  background: var(--accent-soft);
+}
+
+:root[data-shell='modern'] .menu-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+:root[data-shell='modern'] .menu-item.is-checked {
+  padding-inline-start: 36px;
+}
+
+:root[data-shell='modern'] .menu-item.is-checked::before {
+  inset-inline-start: 14px;
+}
+
+:root[data-shell='modern'] .menu-key {
+  float: none;
+  margin-inline-start: auto;
+}
+
+:root[data-shell='modern'] .menu-key + .menu-key {
+  margin-inline-start: 0;
+}
+
+:root[data-shell='modern'] .menu-rule {
+  margin-block: var(--space-2);
+  margin-inline: 14px;
+}
+
+/* ---- Controls inside these surfaces: every one at least 44 px (§9.5). A checkbox or radio counts with its label; a link inside a
+   sentence keeps its line. ---- */
+:root[data-shell='modern'] :is(dialog, .menu, .home, .modern-notices, .ink-gate) :is(button, .button):not(p button, .status-link, .menu-item),
+:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) select,
+:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden']) {
+  min-block-size: var(--target-min);
+}
+
+:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) .button {
+  border-radius: var(--radius-pill);
+  transition:
+    background-color var(--dur-1) var(--ease-standard),
+    transform var(--dur-1) var(--ease-spring);
+}
+
+:root[data-shell='modern'] :is(dialog, .home, .modern-notices, .ink-gate) .button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+:root[data-shell='modern'] :is(dialog, .home) :is(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file'], [type='hidden'])) {
+  border-radius: 12px;
+}
+
+:root[data-shell='modern'] :is(dialog, .home) label:has(> input:is([type='checkbox'], [type='radio'])) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: var(--target-min);
+}
+
+:root[data-shell='modern'] dialog .settings-nav-item {
+  display: flex;
+  align-items: center;
+  border-radius: 14px;
+}
+
+:root[data-shell='modern'] :is(dialog, .menu, .home, .modern-notices, .ink-gate) :is(button, .button, select, input):focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
+}
+
+/* ---- Notices (§8.6): toast capsules of float glass at the top centre, with the same roles, text and buttons. ---- */
+:root[data-shell='modern'] .modern-notices {
+  position: absolute;
+  inset-block-start: var(--space-6);
+  inset-inline: 0;
+  margin-inline: auto;
+  inline-size: min(720px, calc(100% - 2 * var(--page-gutter)));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  z-index: 3;
+  pointer-events: none;
+}
+
+:root[data-shell='modern'] .modern-notices:not(:has(.modern-toast:not(:empty))) {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-toast {
+  max-inline-size: 100%;
+  pointer-events: auto;
+  transition:
+    opacity var(--dur-fade) var(--ease-standard),
+    transform var(--dur-3) var(--ease-spring);
+}
+
+@starting-style {
+  :root[data-shell='modern'] .modern-toast {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+}
+
+:root[data-shell='modern'] .modern-toast:empty {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-toast > :is(.status-line, .storage-banner) {
+  position: static;
+  transform: none;
+  max-inline-size: none;
+  margin: 0;
+  padding-block: var(--space-3);
+  padding-inline: 22px var(--space-3);
+  border: 1px solid var(--mat-sheet-rim);
+  border-radius: var(--radius-sheet);
+  background: var(--mat-float-bg);
+  color: var(--ink);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+  box-shadow:
+    var(--elev-glass),
+    inset 0 1px 0 var(--mat-glass-edge-hi),
+    inset 0 -1px 0 var(--mat-glass-edge-lo);
+}
+
+:root[data-shell='modern'] .modern-toast > .storage-banner {
+  align-items: center;
+  padding-block: var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-toast > .status-line.is-error {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ---- The Ink gate (§7.6): its pane is a sheet of glass on the page, with 44 px buttons. ---- */
+:root[data-shell='modern'] .ink-gate:is(.empty-state, [role='alert']) {
+  margin: var(--space-6);
+  padding: var(--space-6);
+  border: 1px solid var(--mat-sheet-rim);
+  border-radius: var(--radius-sheet);
+  background: var(--mat-float-bg);
+  color: var(--ink);
+  box-shadow: var(--elev-glass);
+}
+
+/* ---- The projects screen (§6, §7.6): Home on the wallpaper, its sections on paper. ---- */
+:root[data-shell='modern'] .home {
+  max-inline-size: none;
+  min-block-size: 100dvh;
+  margin: 0;
+  padding-block: 56px 80px;
+  padding-inline: max(24px, calc((100% - 46rem) / 2));
+  background-color: var(--surface-app);
+  background-image: var(--wallpaper);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+:root[data-shell='modern'] .home > :is(.home-head, .home-section, .storage-banner, .status-line) {
+  margin-block: 20px 0;
+  padding-block: 22px;
+  padding-inline: 28px;
+  border: 0;
+  border-radius: var(--radius-sheet);
+  background: var(--surface-page);
+  color: var(--ink);
+  box-shadow: var(--elev-glass);
+}
+
+:root[data-shell='modern'] .home > .home-head {
+  margin-block-start: 0;
+}
+
+:root[data-shell='modern'] .home > .home-section.first-run {
+  box-shadow:
+    var(--elev-glass),
+    inset 0 0 0 2px var(--accent-soft);
+}
+
+:root[data-shell='modern'] .home > .status-line {
+  position: static;
+  transform: none;
+  max-inline-size: none;
+}
+
+:root[data-shell='modern'] .home > .status-line.is-error {
+  color: var(--danger);
+  box-shadow:
+    var(--elev-glass),
+    inset 0 0 0 1px var(--danger);
+}
+
+:root[data-shell='modern'] .home .project-list {
+  border-radius: var(--radius-inner);
+  background: var(--surface-page);
+}
+
+:root[data-shell='modern'] .home .project-row {
+  min-block-size: 64px;
+}
+
+/* ---- Forced colours: system colours, a 1 px CanvasText border on every container, no shadows, no blur. ---- */
+@media (forced-colors: active) {
+  :root[data-shell='modern'] dialog,
+  :root[data-shell='modern'] .menu,
+  :root[data-shell='modern'] .modern-toast > :is(.status-line, .storage-banner),
+  :root[data-shell='modern'] .ink-gate:is(.empty-state, [role='alert']),
+  :root[data-shell='modern'] .home > :is(.home-head, .home-section, .storage-banner, .status-line) {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
+
+  :root[data-shell='modern'] .home {
+    background: Canvas;
+  }
+
+  :root[data-shell='modern'] .modern-morph-ghost {
+    display: none;
+  }
+}

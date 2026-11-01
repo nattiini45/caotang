@@ -17,15 +17,20 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
 import '../../../tokens/modern.css';
 import './shell-modern.css';
+import './surfaces-modern.css';
 
 import { LazyBoundary } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';
 import type { ShellRegions } from '../regions.js';
+import { installMorph } from './morph.js';
 import { MODERN_SLOTS, type ModernSlot, type ModernSlots } from './slots.js';
 import { Page, Stage, type StageGeometry } from './stage.js';
 
 export { MODERN_SLOTS, type ModernSlot, type ModernSlotProps, type ModernSlots } from './slots.js';
 export { Page, Stage, geometryProperties, type StageGeometry } from './stage.js';
+
+// Dialogs grow out of their openers while Modern is on, on the projects screen as in a project (§8.3).
+installMorph();
 
 /** The page's id: the skip link's target, and what a slot names with `aria-controls`. */
 export const PAGE_ID = 'modern-page';
