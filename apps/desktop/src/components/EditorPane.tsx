@@ -321,6 +321,11 @@ function DocumentEditor({
     if (host.current !== null) labelSurface(host.current);
   }, [i18n.locale, editor]);
 
+  // The editor's own words follow the switch too (the footnote markers' and notes' names at once), without a remount.
+  useEffect(() => {
+    editor?.setLabels(editorLabels());
+  }, [i18n.locale, editor]);
+
   const stored = getBody(session.state, docId);
   const revision = getRevision(session.state, docId);
   const save = session.autosave.status(docId);

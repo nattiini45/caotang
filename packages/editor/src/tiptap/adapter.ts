@@ -338,6 +338,11 @@ export interface TiptapEditorInstance extends ReviewableEditorInstance {
    * (a look-alike note in its place is not it); the app tells the writer which.
    */
   deleteFootnoteNote(orphan: FootnoteOrphan): FootnoteNoteDeletion;
+  /**
+   * Replaces the app's labels in a mounted editor, as on a language switch, without remounting it. The footnote markers' and notes'
+   * accessible names follow at once; the other words are read when their part is next drawn. English fills any left out.
+   */
+  setLabels(labels: Partial<EditorLabels>): void;
   /** Lane 1: the user's own undo. Never reverts an agent apply. */
   undo(): boolean;
   /** Lane 1: the user's own redo. */
@@ -549,8 +554,11 @@ const createInstance = (
   let scope: Span | null = null;
 
   const pictures = opts.pictures === undefined ? null : createPictureController(opts.pictures);
+  // The labels as the app last gave them: the mount's, then each `setLabels`.
+  let liveLabels: Partial<EditorLabels> = opts.labels ?? {};
   const footnoteOptions = {
     ...(opts.onFootnoteOrphaned !== undefined ? { onFootnoteOrphaned: opts.onFootnoteOrphaned } : {}),
+    currentLabels: () => liveLabels,
   };
   const editor = new Editor({
     element: focusEl,
@@ -1079,6 +1087,13 @@ const createInstance = (
 
     deleteFootnoteNote: (orphan: FootnoteOrphan): FootnoteNoteDeletion =>
       destroyed ? 'gone' : deleteOrphanNote(editor.state, (tr) => dispatch(tr), orphan),
+
+    setLabels: (labels: Partial<EditorLabels>): void => {
+      if (destroyed) return;
+      liveLabels = labels;
+      // A transaction that changes nothing, so the view redraws its decorations with the new words. Nothing is saved or undone.
+      editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false));
+    },
 
     undo: (): boolean => (destroyed ? false : editor.commands.undo()),
 

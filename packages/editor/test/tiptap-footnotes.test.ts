@@ -305,6 +305,25 @@ describe('§3.4 · what assistive technology and a pointer are given', () => {
     expect(focusDom(host).querySelector('div.caotang-footnote')!.getAttribute('aria-label')).toBe('Footnote 1');
   });
 
+  it('new labels rename the markers and notes of a mounted editor, without a change to undo or save', async () => {
+    const { host, instance } = await mountInto('A[^1] and B[^b].\n\n[^1]: One.\n\n[^b]: Two.\n');
+    const body = instance.getContent();
+    const names = (): Array<string | null> => [
+      ...[...focusDom(host).querySelectorAll('sup[role="doc-noteref"]')].map((ref) => ref.getAttribute('aria-label')),
+      ...[...focusDom(host).querySelectorAll('div.caotang-footnote')].map((note) => note.getAttribute('aria-label')),
+    ];
+    expect(names()).toEqual(['Footnote 1', 'Footnote b', 'Footnote 1', 'Footnote b']);
+    instance.setLabels({ footnoteReference: (label) => `Fußnote ${label}`, footnoteNote: (label) => `Anmerkung ${label}` });
+    expect(names()).toEqual(['Fußnote 1', 'Fußnote b', 'Anmerkung 1', 'Anmerkung b']);
+    // The tooltip is still the note's text, and the switch is not an edit.
+    expect(focusDom(host).querySelector('sup')!.getAttribute('title')).toBe('One.');
+    expect(instance.getContent()).toBe(body);
+    expect(instance.hasUnsavedEdits()).toBe(false);
+    // Labels that leave the footnote words out go back to English.
+    instance.setLabels({});
+    expect(names()).toEqual(['Footnote 1', 'Footnote b', 'Footnote 1', 'Footnote b']);
+  });
+
   it('the package’s default footnote words are the English source', () => {
     expect(DEFAULT_EDITOR_LABELS.footnoteReference('2')).toBe('Footnote 2');
     expect(DEFAULT_EDITOR_LABELS.footnoteNote('2')).toBe('Footnote 2');

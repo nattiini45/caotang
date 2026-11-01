@@ -192,6 +192,11 @@ export interface CaotangExtensionOptions {
    * (`deleteFootnoteNote`). Focus only.
    */
   onFootnoteOrphaned?: (orphans: readonly FootnoteOrphan[]) => void;
+  /**
+   * The app's labels as they are now, over `labels`, for the words a mounted editor can change in place (the footnote names, on a
+   * language switch). Focus only.
+   */
+  currentLabels?: () => Partial<EditorLabels>;
 }
 
 /**
@@ -201,6 +206,7 @@ export interface CaotangExtensionOptions {
 export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extensions => {
   const role: CaotangRole = options.role ?? 'focus';
   const labels: EditorLabels = { ...DEFAULT_EDITOR_LABELS, ...options.labels };
+  const currentLabels = options.currentLabels;
   const blockMarks = options.reviewMarks === true ? { marks: REVIEW_BLOCK_MARKS } : {};
   // The schema-shaping half. Its order is the mark rank: `Italic` precedes `Bold`
   // and `Strike` precedes `Code`, because the list is what the stable priority sort
@@ -281,6 +287,9 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     UndoRedo,
     CaotangPaste,
     ...(pictures === undefined ? [] : [CaotangPictures(pictures, labels)]),
-    FootnoteBehaviour.configure({ onOrphaned: options.onFootnoteOrphaned }),
+    FootnoteBehaviour.configure({
+      onOrphaned: options.onFootnoteOrphaned,
+      words: currentLabels === undefined ? undefined : () => ({ ...DEFAULT_EDITOR_LABELS, ...currentLabels() }),
+    }),
   ];
 };

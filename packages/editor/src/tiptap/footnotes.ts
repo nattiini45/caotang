@@ -325,9 +325,14 @@ export const deleteOrphanNote = (state: EditorState, dispatch: Dispatch, orphan:
 
 const footnoteKeyPlugin = new PluginKey<FootnotePluginState>('caotangFootnotes');
 
-/** The behaviour's options. The words a marker and a note carry are the nodes' (`footnoteNodes`), not the behaviour's. */
+/** The behaviour's options. The words a marker and a note are made with are the nodes' (`footnoteNodes`); `words` keeps them current. */
 export interface FootnoteBehaviourOptions {
   onOrphaned?: ((orphans: readonly FootnoteOrphan[]) => void) | undefined;
+  /**
+   * The words as they are now. With it, a marker's and a note's `aria-label` is also a decoration read on every view update, so
+   * the app can change the words (a language switch) without remounting the editor (`TiptapEditorInstance.setLabels`).
+   */
+  words?: (() => FootnoteWords) | undefined;
 }
 
 /** The marker's DOM. Its text is the label; the tooltip is added by the behaviour plugin. */
@@ -402,7 +407,7 @@ const byWriter = (trs: readonly Transaction[]): boolean =>
 export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
   name: 'caotangFootnotes',
   addOptions() {
-    return { onOrphaned: undefined };
+    return { onOrphaned: undefined, words: undefined };
   },
   addKeyboardShortcuts() {
     return {
@@ -465,22 +470,28 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
           },
         }),
         props: {
-          // A marker's tooltip is its note's text: hovering shows the note.
+          // A marker's tooltip is its note's text: hovering shows the note. With live words, the accessible names follow them too.
           decorations(state) {
             const notes = new Map<string, string>();
-            for (const def of footnoteTail(state.doc).defs) notes.set(footnoteKey(def.attrs.label as string), noteText(def));
-            if (notes.size === 0) return null;
+            const defs = footnoteTail(state.doc).defs;
+            for (const def of defs) notes.set(footnoteKey(def.attrs.label as string), noteText(def));
+            const words = options.words?.();
+            if (notes.size === 0 && words === undefined) return null;
             const decorations: Decoration[] = [];
             state.doc.descendants((node, pos) => {
+              const label = node.attrs.label as string;
               if (node.type.name === 'footnote_reference') {
-                const text = notes.get(footnoteKey(node.attrs.label as string));
-                if (text !== undefined && text.length > 0) {
-                  decorations.push(Decoration.node(pos, pos + node.nodeSize, { title: text }));
-                }
+                const text = notes.get(footnoteKey(label));
+                const attrs: Record<string, string> = {};
+                if (text !== undefined && text.length > 0) attrs.title = text;
+                if (words !== undefined) attrs['aria-label'] = words.footnoteReference(label);
+                if (Object.keys(attrs).length > 0) decorations.push(Decoration.node(pos, pos + node.nodeSize, attrs));
+              } else if (node.type.name === 'footnote_definition' && words !== undefined) {
+                decorations.push(Decoration.node(pos, pos + node.nodeSize, { 'aria-label': words.footnoteNote(label) }));
               }
               return true;
             });
-            return DecorationSet.create(state.doc, decorations);
+            return decorations.length === 0 ? null : DecorationSet.create(state.doc, decorations);
           },
           // A click on a marker goes to its note.
           handleClickOn(view, _pos, node) {
