@@ -2,8 +2,10 @@
 #
 # What runs:
 #   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), each in two
-#     shards, so four jobs in parallel. They skip e2e/unit, the production smoke and the provider specs, and the specs that need
-#     File System Access skip themselves outside Chromium. e2e/non-chromium-storage.spec.ts covers the bundle-only path instead.
+#     shards plus a `Modern gate` leg, so six jobs in parallel. The shards leave the Modern reachability walk and accessibility gate
+#     (#313) to that leg (CAOTANG_E2E_MODERN_GATE=skip), so no leg runs near its limit. They skip e2e/unit, the production smoke
+#     and the provider specs, and the specs that need File System Access skip themselves outside Chromium.
+#     e2e/non-chromium-storage.spec.ts covers the bundle-only path instead.
 #   - Each shard writes a blob report. One job merges them into a single HTML report, uploaded when any shard failed.
 #
 # Details that are load-bearing rather than tidy:
@@ -27,7 +29,7 @@ concurrency:
 
 jobs:
   e2e:
-    name: e2e (${{ matrix.browser }} ${{ matrix.shard }}/2)
+    name: e2e (${{ matrix.browser }} ${{ matrix.shard == 'modern' && 'Modern gate' || format('{0}/2', matrix.shard) }})
     runs-on: ubuntu-latest
     # Keep the preinstalled browser binaries and Linux dependencies aligned with the locked Playwright 1.63.0 package.
     container:
@@ -37,7 +39,8 @@ jobs:
       fail-fast: false
       matrix:
         browser: [firefox, webkit]
-        shard: [1, 2]
+        # 1 and 2 are the suite's shards; `modern` is the Modern gate's leg.
+        shard: [1, 2, modern]
     steps:
       - uses: actions/checkout@v7
 
@@ -52,9 +55,19 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of 2)
+        if: ${{ matrix.shard != 'modern' }}
         run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --reporter=blob
         env:
           # GitHub's /github/home is owned by pwuser, but this container runs as root and Firefox checks HOME ownership.
+          HOME: /root
+          CI: 'true'
+          CAOTANG_E2E_BROWSERS: all
+          CAOTANG_E2E_MODERN_GATE: skip
+
+      - name: End-to-end (${{ matrix.browser }}, the Modern reachability walk and accessibility gate)
+        if: ${{ matrix.shard == 'modern' }}
+        run: pnpm exec playwright test --project=${{ matrix.browser }} --reporter=blob e2e/modern-reachability.spec.ts e2e/modern-gate.spec.ts
+        env:
           HOME: /root
           CI: 'true'
           CAOTANG_E2E_BROWSERS: all
