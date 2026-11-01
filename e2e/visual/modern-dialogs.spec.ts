@@ -9,7 +9,8 @@ import { waitForSaved } from '../support.js';
  * `visual` project in CI's pinned Playwright image, with time fixed and masked, animations off and the caret hidden.
  */
 
-test.use({ storageState: NO_PIN });
+// A missing element fails in 15 s instead of holding the job until it is cancelled (#307's lesson).
+test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
 const NOW = new Date('2026-06-01T09:00:00Z');
 
@@ -32,10 +33,22 @@ async function start(page: Page, scheme: Scheme): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Projects in this browser' })).toBeVisible();
 }
 
+/**
+ * Opens the binder where Modern keeps it in a sidebar (#307's tab bar: the sidebar is closed and inert until **Manuscript** opens it).
+ * With the provisional sidebar (before #307) the binder is always shown, so this does nothing.
+ */
+async function openBinder(page: Page): Promise<void> {
+  if ((await page.getByTestId('modern-binder-bar').count()) === 0) return;
+  if (await page.getByRole('tree', { name: 'Binder' }).isVisible()) return;
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+}
+
 async function project(page: Page): Promise<void> {
   await page.getByLabel('Project name').fill('The Lighthouse Keeper');
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
+  await openBinder(page);
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
@@ -83,6 +96,7 @@ for (const scheme of ['light', 'dark'] as const) {
     test.setTimeout(90_000);
     await start(page, scheme);
     await project(page);
+    await openBinder(page);
     await page.getByRole('treeitem', { name: /The Landing/ }).click();
     await page.keyboard.press('Delete');
     await expect(page.getByRole('dialog', { name: 'Delete “The Landing”?' })).toBeVisible();

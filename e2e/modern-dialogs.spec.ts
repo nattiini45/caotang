@@ -160,10 +160,22 @@ async function openFromMore(page: Page, item: string): Promise<void> {
   await page.getByRole('menuitem', { name: item }).click();
 }
 
+/**
+ * Opens the binder where Modern keeps it in a sidebar (#307's tab bar: the sidebar is closed and inert until **Manuscript** opens it).
+ * With the provisional sidebar (before #307) the binder is always shown, so this does nothing.
+ */
+async function openBinder(page: Page): Promise<void> {
+  if ((await page.getByTestId('modern-binder-bar').count()) === 0) return;
+  if (await page.getByRole('tree', { name: 'Binder' }).isVisible()) return;
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+}
+
 async function projectWithScene(page: Page, name: string): Promise<void> {
   await page.getByLabel('Project name').fill(name);
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
+  await openBinder(page);
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
@@ -261,6 +273,7 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
     await expect(banner).toBeHidden();
   }
 
+  await openBinder(page);
   const row = page.getByRole('treeitem', { name: /The Landing/ });
   await row.click();
   await clearAnimations(page);
