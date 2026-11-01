@@ -6,15 +6,13 @@
  * save will do to it.
  */
 
-import type { LossWarningGroup } from '@caotang/editor';
+import type { DialectNotice, LossWarningGroup } from '@caotang/editor';
 import { formatCount } from '../i18n/locale.js';
 
 /** The singular and plural a writer reads for each construct a load can name (the mdast type). */
 const CONSTRUCTS: Readonly<Record<string, readonly [string, string]>> = {
   table: ['table', 'tables'],
   html: ['raw HTML block', 'raw HTML blocks'],
-  footnoteReference: ['footnote', 'footnotes'],
-  footnoteDefinition: ['footnote', 'footnotes'],
   definition: ['reference definition', 'reference definitions'],
   linkReference: ['reference link', 'reference links'],
   imageReference: ['reference image', 'reference images'],
@@ -48,4 +46,18 @@ export function describeLossGroup(group: LossWarningGroup): string {
  */
 export function reStyleSentence(blocks: number): string {
   return `Saving will re-style ${formatCount(blocks)} ${blocks === 1 ? 'block' : 'blocks'} to Caotang’s Markdown spelling. The words stay the same.`;
+}
+
+/**
+ * The dialect notice's sentences for one load. The blocks a save re-spells are counted in one sentence; the
+ * footnote notice (#270) is not a re-spelt block but a move of the notes, so it gets its own sentence, which is the
+ * notice's own `detail`, rather than being counted as a block whose "words stay the same".
+ */
+export function dialectSentences(dialect: readonly DialectNotice[]): string[] {
+  const blocks = dialect.filter((notice) => notice.cause !== 'footnote-layout').length;
+  const footnotes = dialect.find((notice) => notice.cause === 'footnote-layout');
+  const sentences: string[] = [];
+  if (blocks > 0) sentences.push(reStyleSentence(blocks));
+  if (footnotes !== undefined) sentences.push(footnotes.detail);
+  return sentences;
 }

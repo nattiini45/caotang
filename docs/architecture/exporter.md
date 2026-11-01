@@ -146,7 +146,9 @@ interface Exporter {
 
 - None. Every format the specs name for this enum is in it.
 
-**Not built, and not on any list yet:** print CSS, custom CSS injection, endnote and footnote engines. EPUB ships, as §3a describes.
+**Not built, and not on any list yet:** print CSS, custom CSS injection, an endnote engine. EPUB ships, as §3a describes.
+
+**Footnotes are #271.** The editor keeps GFM footnotes since #270 ([editor-engine.md](editor-engine.md) §3.4): `[^1]` markers in the text and `[^1]: …` notes at the end of the body. Until #271 renders them, every renderer that reads the body model (`prose.ts`) exports a marker and a note as the text they are. The model's parse is CommonMark without GFM, where a one-word note (`[^1]: Marta.`) is a link definition and its marker a link reference; `prose.ts` turns both back into their text when the label starts with `^`, so no note is dropped. The Markdown export writes the body as it is.
 
 ## 7. Assumptions / open questions
 

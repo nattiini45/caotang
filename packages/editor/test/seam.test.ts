@@ -185,16 +185,17 @@ describe('the projection map, measured over the whole §13 corpus', () => {
 
     expect(loaded, 'corpus entries that failed to load').toBe(CORPUS.length);
     // The measured split, kept as a cross-check on the per-leaf assertions above
-    // rather than as the assertion. The figures are 77 / 4 / 0 over 81 runs
-    // (72 / 4 / 0 over 76 if leaves were not cut at escapes): five §13 leaves carry an
-    // escape in their body spelling and are cut at it, so they contribute 2 + 2 + 2 + 3 runs where
-    // they contributed 1 each. Four of the five are `escape-bracket`,
-    // `footnote-reference`, `html-raw-block` and `html-raw-inline`; the fifth,
+    // rather than as the assertion. The figures are 76 / 4 / 0 over 80 runs: four §13
+    // leaves carry an escape in their body spelling and are cut at it, so they contribute
+    // more than one run each. Three of the four are `escape-bracket`, `html-raw-block`
+    // and `html-raw-inline`. (`footnote-reference` was a fifth until #270: its `[^1]`
+    // was escaped text, and it is now a marker, which is no text leaf and has no run,
+    // so its `Text` and `The note.` are one run each.) The fourth,
     // `obsidian-heading-spacing`, has no escape left after the cut and is
     // byte-identical uncut. Cutting does not change **which** locator finds a leaf
     // — `raw` is 4 and `escaped` is 0 either way — so the per-leaf assertions
     // above are unaffected, which is the point of keeping them primary.
-    expect({ standalone, raw, escaped }).toEqual({ standalone: 77, raw: 4, escaped: 0 });
+    expect({ standalone, raw, escaped }).toEqual({ standalone: 76, raw: 4, escaped: 0 });
     // And the control in the direction the field can lie: a `matched` that was
     // always `'standalone'` passes every total above and fails these two.
     expect(raw, 'leaves the first search could not find').toBeGreaterThan(0);

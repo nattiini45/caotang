@@ -61,7 +61,10 @@ import { Schema } from '@tiptap/pm/model';
 
 export const caotangSchema = new Schema({
   nodes: {
-    doc: { content: 'block+' },
+    // `block+ footnote_definition*`: the notes are the document's tail and nothing
+    // else may follow them, which is GFM's canonical spelling (definitions at the
+    // end) held by the schema rather than by the save (#270).
+    doc: { content: 'block+ footnote_definition*' },
     paragraph: { group: 'block', content: 'inline*' },
     heading: {
       group: 'block',
@@ -105,6 +108,24 @@ export const caotangSchema = new Schema({
         alt: { default: null },
         title: { default: null },
       },
+    },
+    // #270: GFM footnotes. The reference is an inline atom that shows its label; the
+    // definition is a block that only the document's tail may hold (see `doc`).
+    // `label` is the writer's own spelling (`1`, `note`), required because a
+    // footnote without one cannot be written. Numeric labels re-flow to their
+    // position (`footnotes.ts`); named ones are kept.
+    footnote_reference: {
+      group: 'inline',
+      inline: true,
+      atom: true,
+      selectable: true,
+      attrs: { label: {} },
+    },
+    footnote_definition: {
+      content: 'block+',
+      defining: true,
+      isolating: true,
+      attrs: { label: {} },
     },
     text: { group: 'inline' },
   },

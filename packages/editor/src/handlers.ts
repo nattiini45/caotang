@@ -36,20 +36,23 @@
  * | mdast type | without a handler |
  * |---|---|
  * | `table` | throws `unknown markdown node: table` |
- * | `footnoteReference` | throws `unknown markdown node: footnoteReference` |
  * | `imageReference` | throws `unknown markdown node: imageReference` |
  * | `html` (block) | throws `Invalid content for node doc: <"<div>raw</div>">` |
  *
- * `definition` and `footnoteDefinition` are in the same table for a different
- * reason: neither throws, so nothing forces them to be written, but §3.3's
- * declared behaviour is not reachable without them. The resolved URL of a
- * reference lives in the `definition` node, so an `imageReference` cannot be
- * "expanded to a direct image" while its definition is silently dropped; and
- * §3.3 says a footnote's definition is "appended as a paragraph", which the
- * library's `ignore` default does not do. **Both are here because the fixture
- * that §13's `image-reference` and `footnote-reference` entries name is
- * otherwise lossy in a way the spec does not declare** — a silent extra loss,
- * which is worse than a declared one.
+ * `definition` is in the same table for a different reason: it does not throw,
+ * so nothing forces it to be written, but §3.3's declared behaviour is not
+ * reachable without it. The resolved URL of a reference lives in the
+ * `definition` node, so an `imageReference` cannot be "expanded to a direct
+ * image" while its definition is silently dropped.
+ *
+ * ## Footnotes left the degrade class (#270)
+ *
+ * `footnoteReference` (which the library throws on) and `footnoteDefinition`
+ * (which it drops with `ignore`) were degrade rows until decision 3 of the
+ * imports wave: they are now §3.1 nodes (`footnote_reference`,
+ * `footnote_definition`) with exact handlers in both directions, and
+ * `footnotes.ts` holds the one rule for where the notes go and what they are
+ * called.
  */
 import type { Node as PmNode, NodeType, Schema } from '@tiptap/pm/model';
 import type {
@@ -75,6 +78,10 @@ import type {
   TableRow,
 } from 'mdast';
 import { fromPmMark, fromPmNode, toPmMark, toPmNode } from '@handlewithcare/remark-prosemirror';
+import { footnoteKey } from './footnotes.js';
+
+/** mdast's `identifier` for a label: its normalised key, lower-cased (remark-parse's own form). */
+const footnoteIdentifier = (label: string): string => footnoteKey(label).toLowerCase();
 
 /**
  * §3.3's `LossWarning`, verbatim — all five fields, and 0.1.5 emits no warning
@@ -134,8 +141,6 @@ export interface LossWarning {
 export const DEGRADE_MDAST_TYPES = [
   'html',
   'table',
-  'footnoteReference',
-  'footnoteDefinition',
   'definition',
   'imageReference',
   'linkReference',
@@ -156,16 +161,12 @@ export const DEGRADE_MDAST_TYPES = [
  *
  * - `table` → §3.3's row-per-paragraph degrade. `rowAsParagraph` answers with a
  *   single paragraph per row, so the span is the row count.
- * - `footnoteDefinition` → §3.3's *"appended as paragraph"*. `state.all(node)`
- *   splices the definition's children in as blocks, so the span is the sum of
- *   *their* spans.
+ * - `footnoteDefinition` → one `footnote_definition` block (#270). The load moves
+ *   every definition to the end of the tree before the compile
+ *   (`canonicalizeFootnoteTree`), so the parse tree and the document stay in step.
  * - `definition` → the URL an `imageReference` resolves against, consumed by the
  *   reference rather than represented in the document: no compiled block at all.
  * - everything else → one block, which is what the exact-class handlers produce.
- *
- * The recursion into a definition's children is not decoration: a definition
- * whose child is a table expands by that table's rows, and a rule that stopped
- * at the definition would misalign everything after it by exactly that many.
  *
  * `test/dialect.test.ts` asserts the rule against the corpus: a document whose
  * blocks do not add up to the compiled document's blocks is a document this
@@ -176,8 +177,6 @@ export const compiledBlockSpan = (node: Nodes): number => {
   switch (node.type) {
     case 'table':
       return node.children.length;
-    case 'footnoteDefinition':
-      return node.children.reduce((total, child) => total + compiledBlockSpan(child), 0);
     case 'definition':
       return 0;
     default:
@@ -315,6 +314,8 @@ export const EXACT_CLASS_MDAST_TYPES = [
   'break',
   'thematicBreak',
   'code',
+  'footnoteReference',
+  'footnoteDefinition',
 ] as const;
 
 /**
@@ -394,6 +395,8 @@ export interface ParseHandlers {
   link: (node: Link, parent: never, state: never) => unknown;
   inlineCode: (node: InlineCode) => unknown;
   code: (node: Code) => unknown;
+  footnoteReference: (node: FootnoteReference) => unknown;
+  footnoteDefinition: (node: FootnoteDefinition, parent: MdastParent, state: PmState) => unknown;
 
   // --- the degrade class. Every one of these is a construct §3.3 names, with
   // the behaviour and the warning code its own row declares. The parameter
@@ -402,8 +405,6 @@ export interface ParseHandlers {
   // reference against the definitions 0.1.5 collects in `createState`).
   html: (node: Html, parent: MdastParent, state: PmState) => unknown;
   table: (node: Table, parent: MdastParent, state: PmState) => unknown;
-  footnoteReference: (node: FootnoteReference, parent: MdastParent, state: PmState) => unknown;
-  footnoteDefinition: (node: FootnoteDefinition, parent: MdastParent, state: PmState) => unknown;
   definition: (node: Definition, parent: MdastParent, state: PmState) => unknown;
   imageReference: (node: ImageReference, parent: MdastParent, state: PmState) => unknown;
   linkReference: (node: LinkReference, parent: MdastParent, state: PmState) => unknown;
@@ -606,40 +607,13 @@ const PHRASING_CONTAINERS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * A reference as literal text, in the spelling 0.1.5's own `revert` uses
- * (`mdast-util-to-prosemirror.js:76-105`).
- *
- * Re-implemented rather than imported because `revert` is not exported, and
- * transcribed rather than invented because the three shapes are the dialect's:
- * a **shortcut** reference is `[^n]`, a **collapsed** one is `[^n][]`, and a
- * **full** one is `[^n][label]`. remark-stringify escapes the brackets on the
- * way out (`Text\[^1]`) and remark-parse unescapes them on the way back in, so
- * the *text* is preserved exactly and the *bytes* are canonical — which is §5's
- * "parse is lenient, serialize is canonical", not a loss.
- */
-const referenceText = (node: {
-  identifier: string;
-  label?: string | null;
-  referenceType?: string | null;
-}): string => {
-  const suffix =
-    node.referenceType === 'collapsed'
-      ? '][]'
-      : node.referenceType === 'full'
-        ? `][${node.label || node.identifier}]`
-        : ']';
-  return `[^${node.identifier}${suffix}`;
-};
-
-/**
  * A **link** reference as literal text, in the spelling CommonMark gives it.
  *
- * A sibling of `referenceText`, and not a reuse of it: that one is the footnote
- * shape, `[^n]`, because a footnote's visible marker *is* `[^n]`. A link
- * reference's visible text is its identifier, so the shortcut is `[docs]`, the
- * collapsed `[docs][]` and the full `[docs][label]` — with a `[^]` prefix in the
- * wrong place it would be a footnote marker, which is a different construct
- * entirely and would re-parse as one.
+ * The spelling is 0.1.5's own `revert` (`mdast-util-to-prosemirror.js:76-105`),
+ * transcribed because it is not exported. A link reference's visible text is its
+ * identifier, so the shortcut is `[docs]`, the collapsed `[docs][]` and the full
+ * `[docs][label]` — with a `[^]` prefix it would be a footnote marker, which is
+ * a different construct entirely and would re-parse as one.
  *
  * `identifier` is the visible text rather than the concatenation of the children
  * because CommonMark *defines* it that way: in `[text][ref]` the label's own
@@ -737,31 +711,6 @@ const createDegradeHandlers = (schema: Schema, sink: LossWarning[]) => ({
     return node.children.map((row: TableRow) => rowAsParagraph(schema, row, state));
   },
 
-  // `footnoteReference` — the inline `[^n]` survives as literal text, so a
-  // reader can still see the marker; the note itself is the definition node.
-  footnoteReference: (node: FootnoteReference) => {
-    warn(
-      sink,
-      node,
-      'unsupported-node',
-      'A footnote reference is kept as literal [^n] text; the note below it becomes a normal paragraph.',
-    );
-    return [schema.text(referenceText(node))];
-  },
-
-  // `footnoteDefinition` — §3.3's "definition appended as paragraph". The
-  // definition's own children are already block content, so `state.all` hands
-  // back exactly the paragraphs to splice in where the definition stood.
-  footnoteDefinition: (node: FootnoteDefinition, _parent: MdastParent, state: PmState) => {
-    warn(
-      sink,
-      node,
-      'unsupported-node',
-      'A footnote definition was kept as an ordinary paragraph; it is no longer a footnote.',
-    );
-    return state.all(node);
-  },
-
   // `definition` — the URL an `imageReference` resolves against, so this node is
   // consumed by the reference rather than represented in the document. It is
   // still a degrade row in §3.3 and it still gets its code: the definition is
@@ -783,7 +732,7 @@ const createDegradeHandlers = (schema: Schema, sink: LossWarning[]) => ({
   // An unresolvable reference degrades to literal text rather than throwing:
   // §3.3's rule is that behaviour is never silent, and a *failed* load is the
   // one outcome the degrade class exists to prevent. The literal spelling is
-  // 0.1.5's own (`revert`, same place as `referenceText`).
+  // 0.1.5's own (`revert`, `mdast-util-to-prosemirror.js:76-105`).
   imageReference: (node: ImageReference, _parent: MdastParent, state: PmState) => {
     const definition = state.definitionById.get(String(node.identifier).toUpperCase());
     warn(
@@ -916,6 +865,19 @@ export const createParseHandlers = (schema: Schema, sink: LossWarning[]): ParseH
     );
   },
 
+  // --- footnotes (#270): exact. The label is the writer's spelling; mdast's
+  // `label` is optional and the `identifier` is its case-folded form, so the
+  // label falls back to the identifier.
+  footnoteReference: (node: FootnoteReference) =>
+    schema.nodes.footnote_reference!.create({ label: node.label ?? node.identifier }),
+  // An empty definition (`[^1]:`) has no children, and §3.1's `block+` fills it
+  // with one empty paragraph, which the serializer writes back as `[^1]:`.
+  footnoteDefinition: (node: FootnoteDefinition, _parent: MdastParent, state: PmState) =>
+    schema.nodes.footnote_definition!.createAndFill(
+      { label: node.label ?? node.identifier },
+      state.all(node) as never,
+    ),
+
   // --- the degrade class, spread last so every name above is still §3.3's ----
   ...createDegradeHandlers(schema, sink),
 });
@@ -962,6 +924,25 @@ export const createSerializeHandlers = () => ({
   code: (_mark: unknown, _parent: unknown, children: Array<{ value?: string }>) => ({
     type: 'inlineCode' as const,
     value: children.map((child) => child.value ?? '').join(''),
+  }),
+
+  // --- footnotes (#270). The identifier is the label's case-folded key, as
+  // remark-parse writes it. A reference is a leaf, so it carries no children.
+  footnote_reference: (node: { attrs: Record<string, unknown> }) => ({
+    type: 'footnoteReference' as const,
+    identifier: footnoteIdentifier(node.attrs.label as string),
+    label: node.attrs.label as string,
+  }),
+  // A note that is one empty paragraph is written `[^n]:`, the spelling an empty
+  // definition loads from, so an empty note round-trips byte for byte.
+  footnote_definition: (node: PmNode, _parent: unknown, state: { all: (node: PmNode) => unknown[] }) => ({
+    type: 'footnoteDefinition' as const,
+    identifier: footnoteIdentifier(node.attrs.label as string),
+    label: node.attrs.label as string,
+    children:
+      node.childCount === 1 && node.firstChild!.type.name === 'paragraph' && node.firstChild!.childCount === 0
+        ? []
+        : state.all(node),
   }),
 
   // --- marks ---------------------------------------------------------------
