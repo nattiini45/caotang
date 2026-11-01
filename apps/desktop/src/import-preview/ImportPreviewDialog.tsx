@@ -49,6 +49,7 @@ import {
   type PreviewBlock,
   type PreviewCodexRow,
   type PreviewEdits,
+  type PreviewHelpers,
   type PreviewMarker,
   type PreviewNode,
   type PreviewPlan,
@@ -75,7 +76,7 @@ function plural(count: number, one: string, many = `${one}s`): string {
   return `${formatCount(count)} ${count === 1 ? one : many}`;
 }
 
-export default function ImportPreviewDialog({ session, request }: { session: ProjectSession; request: ImportPreviewRequest }): ReactNode {
+export default function ImportPreviewDialog({ session, request, helpers }: { session: ProjectSession; request: ImportPreviewRequest; helpers: PreviewHelpers }): ReactNode {
   useSession(session);
   const report = useReport();
   const { source } = request;
@@ -131,7 +132,7 @@ export default function ImportPreviewDialog({ session, request }: { session: Pro
   const plan: PreviewPlan | null = useMemo(() => (ready ? source.plan(settings, edits.overrides) : null), [ready, source, settings, edits.overrides]);
   const shown = useMemo(() => (plan === null ? [] : applyEdits(plan.tree, edits)), [plan, edits]);
   const rows = useMemo(() => visibleRows(shown, collapsed), [shown, collapsed]);
-  const scan = useMemo(() => scanTree(shown), [shown]);
+  const scan = useMemo(() => scanTree(shown, helpers), [shown, helpers]);
   const codexRows: readonly PreviewCodexRow[] = useMemo(() => (ready ? (source.codexRows?.() ?? []) : []), [ready, source]);
   const held = useMemo(() => (session.state.manifest.codex ?? []).flatMap((entry) => [entry.name, ...entry.aliases]), [session.state.manifest.codex]);
   const colliding = useMemo(() => collisions(codexRows, held), [codexRows, held]);
@@ -195,7 +196,7 @@ export default function ImportPreviewDialog({ session, request }: { session: Pro
       codexAnswers: Object.fromEntries(codexRows.map((row) => [row.id, codexAnswers[row.id] ?? defaultCodexAnswer(row.id, colliding)])),
       codexHeld: held,
       pictures,
-    });
+    }, helpers);
     if (built.params.nodes.length === 0) {
       setError('Everything is left out, so there is nothing to import. Tick at least one chapter or scene.');
       setCommitting(false);

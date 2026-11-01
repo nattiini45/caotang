@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 
 import type { ProjectSession } from '../app/session.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
+import { PREVIEW_HELPERS } from './helpers.js';
 import { closeImportPreview, useImportPreviewRequest } from './requests.js';
 
 const ImportPreviewDialog = lazyView(() => import('./ImportPreviewDialog.js'));
@@ -17,7 +18,7 @@ export function ImportPreviewHost({ session }: { session: ProjectSession }): Rea
   return (
     <LazyBoundary label="the import preview" variant="toast" onDismiss={() => closeImportPreview(false)}>
       {/* A new request is a new dialog: its edits and answers start fresh. */}
-      <ImportPreviewDialog key={request.id} session={session} request={request} />
+      <ImportPreviewDialog key={request.id} session={session} request={request} helpers={PREVIEW_HELPERS} />
     </LazyBoundary>
   );
 }

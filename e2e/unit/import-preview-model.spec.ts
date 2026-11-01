@@ -11,7 +11,7 @@ import {
   NO_EDITS,
   addSplit,
   applyEdits,
-  buildCommit,
+  buildCommit as buildCommitWith,
   collisions,
   defaultCodexAnswer,
   editCount,
@@ -26,7 +26,7 @@ import {
   offsetsOf,
   removeSplit,
   rename,
-  scanTree,
+  scanTree as scanTreeWith,
   toggleExcluded,
   unknownValues,
   visibleRange,
@@ -35,12 +35,17 @@ import {
   type PreviewNode,
   type PreviewPlan,
 } from '../../apps/desktop/src/import-preview/model.js';
+import { PREVIEW_HELPERS } from '../../apps/desktop/src/import-preview/helpers.js';
 import { LIGHTHOUSE, lighthouseSource, longSource, planOf } from '../import-preview-fixture.js';
 
 import { project } from './fixtures.js';
 
 test.beforeAll(() => pinFormatLocale('en-US'));
 test.afterAll(() => pinFormatLocale(undefined));
+
+// The app hands the model its package functions (helpers.ts); the tests hand it the same ones.
+const buildCommit = (commitInput: CommitInput): ReturnType<typeof buildCommitWith> => buildCommitWith(commitInput, PREVIEW_HELPERS);
+const scanTree = (tree: Parameters<typeof scanTreeWith>[0]): ReturnType<typeof scanTreeWith> => scanTreeWith(tree, PREVIEW_HELPERS);
 
 const SETTINGS = { chips: { chapters: 'heading-1' }, options: {} };
 

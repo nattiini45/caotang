@@ -17,12 +17,13 @@ const fixtureUrl = `/@fs/${fileURLToPath(new URL('./import-preview-fixture.ts', 
 
 async function openFixture(page: Page, which: 'lighthouseSource' | 'longSource' | 'stuckSource', words = 0): Promise<void> {
   await page.evaluate(
-    async ({ url, which, words }) => {
+    async ({ url, store, which, words }) => {
       const fixture = (await import(/* @vite-ignore */ url)) as Record<string, (words: number) => unknown>;
-      const requests = (await import(/* @vite-ignore */ '/src/import-preview/requests.ts')) as { openImportPreview(request: { source: unknown }): void };
+      const requests = (await import(/* @vite-ignore */ store)) as { openImportPreview(request: { source: unknown }): void };
       requests.openImportPreview({ source: fixture[which]?.(words) });
     },
-    { url: fixtureUrl, which, words },
+    // The app's own request store, at the URL the dev server gives the app's import of it, so this is the module the workspace listens to.
+    { url: fixtureUrl, store: '/src/import-preview/requests.ts', which, words },
   );
 }
 

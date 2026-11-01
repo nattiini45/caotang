@@ -13,10 +13,21 @@
  */
 
 import type { ImportTreeCodexEntry, ImportTreeNode, ImportTreeParams } from '@caotang/bus';
-import { importScanSentence, scanImport } from '@caotang/harness';
-import { keepsImportedBody } from '@caotang/store';
+import type { importScanSentence, scanImport } from '@caotang/harness';
+import type { keepsImportedBody } from '@caotang/store';
 
 import { formatCount } from '../i18n/locale.js';
+
+/**
+ * The package functions the model calls, handed in rather than imported (helpers.ts builds the one set the app uses). The dialog and
+ * this model load in a lazy chunk; importing `@caotang/harness` or `@caotang/store` here made the bundler split the package roots out
+ * of the entry into a shared chunk of their own. The entry already holds both, so the host passes them down.
+ */
+export interface PreviewHelpers {
+  readonly scanImport: typeof scanImport;
+  readonly importScanSentence: typeof importScanSentence;
+  readonly keepsImportedBody: typeof keepsImportedBody;
+}
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // What a source hands the dialog
@@ -436,7 +447,7 @@ export interface InjectionRow {
 }
 
 /** The injection scan over every document of the tree and its notes (issue #54), located by node. Nothing is changed by it. */
-export function scanTree(tree: readonly PreviewNode[]): { readonly total: number; readonly rows: readonly InjectionRow[]; readonly sentence: (name: string) => string | undefined } {
+export function scanTree(tree: readonly PreviewNode[], helpers: PreviewHelpers): { readonly total: number; readonly rows: readonly InjectionRow[]; readonly sentence: (name: string) => string | undefined } {
   const parts: { where: string; text: string }[] = [];
   const titles = new Map<string, string>();
   const walk = (nodes: readonly PreviewNode[]): void => {
@@ -448,12 +459,12 @@ export function scanTree(tree: readonly PreviewNode[]): { readonly total: number
     }
   };
   walk(tree);
-  const found = scanImport(parts);
+  const found = helpers.scanImport(parts);
   return {
     total: found.total,
     rows: found.hits.map((hit) => ({ nodeId: hit.where, where: titles.get(hit.where) ?? hit.where, excerpt: hit.excerpt, kind: hit.kind })),
     // The status line's sentence after the import, the one every import says (ScriptImport.tsx).
-    sentence: (name) => importScanSentence(name, found),
+    sentence: (name) => helpers.importScanSentence(name, found),
   };
 }
 
@@ -547,7 +558,7 @@ function resolveTerm(value: string, terms: readonly VocabularyTermLike[], answer
 }
 
 /** The writer's preview as the one command that commits it. Pure: the session stages the pictures and dispatches. */
-export function buildCommit(input: CommitInput): CommitPlan {
+export function buildCommit(input: CommitInput, helpers: PreviewHelpers): CommitPlan {
   const { plan, edits } = input;
   const tree = applyEdits(plan.tree, edits);
   const nodes: ImportTreeNode[] = [];
@@ -630,7 +641,7 @@ export function buildCommit(input: CommitInput): CommitPlan {
 
   function addDocument(node: PreviewNode, parent: number | undefined, place: 'research' | undefined): void {
     const body = node.body ?? '';
-    if (!keepsImportedBody(body, node.title)) unkept.push(node.title);
+    if (!helpers.keepsImportedBody(body, node.title)) unkept.push(node.title);
     nodes.push({ type: 'document', title: node.title, body, ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
     indexOf.set(node.id, nodes.length - 1);
     documents += 1;
