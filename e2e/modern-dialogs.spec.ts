@@ -274,8 +274,9 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
   }
 
   await openBinder(page);
+  // Focus the row from the keyboard's side: a click would choose the scene, and choosing one closes an unpinned sidebar (#307).
   const row = page.getByRole('treeitem', { name: /The Landing/ });
-  await row.click();
+  await row.focus();
   await clearAnimations(page);
   await page.keyboard.press('Delete');
   const confirm = page.getByRole('dialog', { name: 'Delete “The Landing”?' });
