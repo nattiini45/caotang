@@ -324,13 +324,13 @@ test('under reduced motion the sidebar does not move: it appears with the 120 ms
 test.describe('touch', () => {
   test.use({ hasTouch: true });
 
-  test('a tap on Manuscript opens the sidebar, and a tap on the page closes it', async ({ page, browserName }) => {
+  test('a tap on Manuscript opens the sidebar, and a tap on the editor closes it', async ({ page, browserName }) => {
     test.skip(browserName === 'firefox', 'Firefox has no touch emulation in Playwright');
     await modernProject(page);
     await manuscript(page).tap();
     await expectOpen(page);
     await expect(sidebar(page).getByRole('treeitem', { name: 'The ticket' })).toBeFocused();
-    await page.locator('#modern-page').tap({ position: { x: 600, y: 300 } });
+    await editorText(page).tap();
     await expectClosed(page);
   });
 });
