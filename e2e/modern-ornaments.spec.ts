@@ -55,8 +55,13 @@ async function lensGap(page: Page, control: Locator): Promise<number> {
 test('Write, Board and Codex are one radio group with a lens; the keys choose, and the editor keeps its caret and undo history', async ({ page }) => {
   const surface = await modernScene(page);
   const main = page.getByRole('main', { name: 'Ferry Book' });
+  // A selection inside the words (the hook reports a range, not a collapsed caret): the last word but its full stop.
+  await surface.focus();
+  await page.keyboard.press('End');
+  await page.keyboard.press('ArrowLeft');
+  for (let step = 0; step < 4; step += 1) await page.keyboard.press('Shift+ArrowLeft');
+  await expect.poll(() => selectionOf(page)).not.toBeNull();
   const before = await selectionOf(page);
-  expect(before).not.toBeNull();
 
   const group = views(page).getByRole('radiogroup', { name: 'View' });
   await expect(group.getByRole('radio')).toHaveText(['Write', 'Board', 'Codex']);
@@ -103,8 +108,9 @@ test('Write, Board and Codex are one radio group with a lens; the keys choose, a
   // Back in Write: the words, the caret where it was, and Ctrl+Z still takes back the typing.
   await expect(surface).toBeVisible();
   await expect(surface).toHaveText('Alpha beta.');
-  expect(await selectionOf(page)).toEqual(before);
   await surface.focus();
+  await expect.poll(() => selectionOf(page)).toEqual(before);
+  await page.keyboard.press('End');
   await page.keyboard.press('Control+z');
   await expect(surface).toHaveText('');
 });
@@ -241,7 +247,8 @@ test('the ornaments show seven controls, each at least 44 by 44 px, and every â‹
   }
   await more(page).click();
   for (const item of await menu(page).locator('[role^="menuitem"]').all()) {
-    expect((await item.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    // The layout size: the popover may still be growing out of â‹¯, and a transform scales the bounding box.
+    expect(await item.evaluate((element) => (element as HTMLElement).offsetHeight)).toBeGreaterThanOrEqual(44);
   }
 });
 
