@@ -39,7 +39,7 @@ import { activeAppDb } from '../app/app-db.js';
 import { nodeById } from '../app/binder-model.js';
 import type { AgentController } from '../app/agent.js';
 import type { GhostView } from '../app/agent-model.js';
-import { describeLossGroup, reStyleSentence } from '../app/load-banner.js';
+import { describeLossGroup, dialectSentences } from '../app/load-banner.js';
 import { isOwnWrite } from '../app/integrity-model.js';
 import { takePending } from '../app/review-notice.js';
 import { pendingNotice } from '../app/review-text.js';
@@ -194,8 +194,10 @@ function DocumentEditor({
   const [load, setLoad] = useState<LoadResult | null>(null);
   const [bannerOpen, setBannerOpen] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
-  // The note whose last marker the writer just deleted (editor-engine §3.4): the editor keeps it, and this asks whether it goes too.
-  const [orphan, setOrphan] = useState<FootnoteOrphan | null>(null);
+  // The notes whose last marker the writer deleted (editor-engine §3.4), oldest first: the editor keeps them, and the question asks
+  // about the first, then the next. One edit can orphan several notes, and each is asked about.
+  const [orphans, setOrphans] = useState<readonly FootnoteOrphan[]>([]);
+  const orphan = orphans[0] ?? null;
   // What the editor agrees with: the body and revision it was last made to hold. A store change that is not this one is the
   // only thing that makes the editor take a new body.
   const synced = useRef<{ body: string; revision: number } | null>(null);
@@ -231,8 +233,8 @@ function DocumentEditor({
           placeholder: PLACEHOLDER,
           history: { journal, onChange: saver.onChange },
           agentEditMode: modeAtOpen,
-          onFootnoteOrphaned: (orphans) => {
-            if (alive) setOrphan(orphans[orphans.length - 1] ?? null);
+          onFootnoteOrphaned: (found) => {
+            if (alive) setOrphans((queued) => [...queued, ...found]);
           },
           ghost: {
             onApply: () => agent.answer({ action: 'approve' }),
@@ -292,7 +294,7 @@ function DocumentEditor({
       .then(() => {
         editor.setRevision(revision);
         // The body was replaced from outside (an undo, a restore, an agent apply): a question about a note in the old body is stale.
-        setOrphan(null);
+        setOrphans([]);
       })
       .catch((error: unknown) => {
         report({
@@ -374,12 +376,12 @@ function DocumentEditor({
             onDelete={() => {
               // The note is the one the question named, followed by the editor since; a refusal changes nothing and is said.
               const outcome = editor.deleteFootnoteNote(orphan);
-              setOrphan(null);
+              setOrphans((queued) => queued.filter((entry) => entry.id !== orphan.id));
               if (outcome !== 'deleted') report({ text: footnoteKeptNotice(outcome), tone: 'info' });
               editor.focus();
             }}
             onKeep={() => {
-              setOrphan(null);
+              setOrphans((queued) => queued.filter((entry) => entry.id !== orphan.id));
               editor.focus();
             }}
           />
@@ -410,7 +412,13 @@ function DocumentEditor({
               className="button is-quiet editor-footnote"
               aria-keyshortcuts="Control+Shift+6 Meta+Shift+6"
               title="Add a footnote at the caret (Ctrl+Shift+6). The same keys in a note go back to the text."
-              onClick={() => editor.insertFootnote()}
+              onClick={() => {
+                // The command refuses where a footnote cannot go (inside a note, or where the block takes no marker); say so.
+                if (!editor.insertFootnote()) {
+                  report({ text: 'A footnote can’t be added here. Put the caret in the text, outside a note, and try again.', tone: 'info' });
+                }
+                editor.focus();
+              }}
             >
               Add footnote
             </button>
@@ -513,11 +521,13 @@ function FootnoteQuestion({
  * cannot keep is named with its line. Nothing here is an error: the text is kept.
  */
 function LoadBanner({ load, onDismiss }: { load: LoadResult; onDismiss: () => void }): ReactNode {
-  const blocks = load.dialect.length;
+  const sentences = dialectSentences(load.dialect);
   return (
     <aside className="load-banner" role="status" aria-label="About this document's format">
       <div className="load-banner-text">
-        {blocks > 0 ? <p>{reStyleSentence(blocks)}</p> : null}
+        {sentences.map((sentence) => (
+          <p key={sentence}>{sentence}</p>
+        ))}
         {load.groups.length > 0 ? (
           <>
             <p>Saving will not keep these constructs exactly:</p>

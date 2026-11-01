@@ -670,12 +670,15 @@ const detailFor = (type: string, cause: DialectCause): string => {
  * whose only change is a re-numbered marker compares equal to its source. The
  * replacement is simultaneous (one pass), so `1 → 2` and `2 → 1` do not undo each
  * other, and it reads only unescaped `[^label]`, which is how a save writes a marker.
+ * A code span (or fence) is passed over whole: a `[^1]` inside one is literal text,
+ * not a marker, and is never relabelled.
  */
 const unrelabel = (text: string, relabelled: ReadonlyMap<string, string>): string => {
   if (relabelled.size === 0) return text;
   const back = new Map<string, string>();
   for (const [before, after] of relabelled) back.set(after, before);
-  return text.replace(/(?<!\\)\[\^([^\]\s]+)\]/g, (whole, label: string) => {
+  return text.replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)|(?<!\\)\[\^([^\]\s]+)\]/g, (whole, code: string | undefined, label: string | undefined) => {
+    if (code !== undefined || label === undefined) return whole;
     const before = back.get(label);
     return before === undefined ? whole : `[^${before}]`;
   });

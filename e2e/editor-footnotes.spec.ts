@@ -3,8 +3,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { bodyOf, createProject, idOf, waitForSaved } from './support.js';
 
 /**
- * Footnotes in the editor (editor-engine §3.4, #270), with the keyboard only: add one, write its note, go back to the text,
- * delete the number and answer the question about its note. The stored body is the GFM spelling.
+ * Footnotes in the editor (editor-engine §3.4, #270), with the keyboard and the Add footnote button: add one, write its note, go
+ * back to the text, delete the number and answer the question about its note, either way. The stored body is the GFM spelling.
  */
 
 async function chapterWithScene(page: Page, scene: string): Promise<void> {
@@ -63,4 +63,28 @@ test('the Add footnote button numbers in reading order, and deleting a number as
   await question.getByRole('button', { name: 'Delete the note' }).click();
   await waitForSaved(page);
   expect(await bodyOf(page, docId)).toBe('First Second[^1]\n\n[^1]: Note B.\n');
+});
+
+test('answering Keep the note closes the question and leaves the note, after the others', async ({ page }) => {
+  await createProject(page, 'Footnote Keep');
+  await chapterWithScene(page, 'Keep');
+  const docId = await idOf(page, 'Keep');
+
+  const surface = page.getByRole('textbox', { name: 'Document text' });
+  await surface.click();
+  await page.keyboard.type('Only');
+  await page.keyboard.press('Control+Shift+6');
+  await page.keyboard.type('Kept note.');
+  await page.keyboard.press('Control+Shift+6');
+  await waitForSaved(page);
+  expect(await bodyOf(page, docId)).toBe('Only[^1]\n\n[^1]: Kept note.\n');
+
+  // Delete the number, then keep its note: the question goes, and the note stays as an unreferenced note.
+  await page.keyboard.press('Backspace');
+  const question = page.getByTestId('footnote-question');
+  await expect(question).toContainText('footnote 1');
+  await question.getByRole('button', { name: 'Keep the note' }).click();
+  await expect(question).toHaveCount(0);
+  await waitForSaved(page);
+  expect(await bodyOf(page, docId)).toBe('Only\n\n[^1]: Kept note.\n');
 });

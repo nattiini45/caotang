@@ -95,7 +95,10 @@ function isFootnoteLabel(label: string | null | undefined): boolean {
   return typeof label === 'string' && label.startsWith('^');
 }
 
-/** A footnote note CommonMark read as a link definition, back as the line it was written as. */
+/**
+ * A footnote note CommonMark read as a link definition, rebuilt as a `[label]: url "title"` line from what the parse kept:
+ * the note's words, though not necessarily the exact spacing or quoting it was written with.
+ */
 function footnoteDefinitionText(node: { label?: string | null; url: string; title?: string | null }): string {
   const title = node.title === null || node.title === undefined ? '' : ` "${node.title}"`;
   return `[${node.label ?? ''}]: ${node.url}${title}`;
@@ -136,7 +139,7 @@ function runsOf(nodes: readonly PhrasingContent[], marks: Marks): Run[] {
         out.push({ text: node.value, ...marks });
         break;
       case 'linkReference':
-        // A footnote marker (`[^1]`) whose note CommonMark read as a link definition: kept as its text (see `definition`).
+        // A footnote marker (`[^1]`) that CommonMark read as a link reference: always kept as its text, whatever it resolves to (see `definition`).
         if (isFootnoteLabel(node.label)) out.push({ text: '[', ...marks }, ...runsOf(node.children, marks), { text: ']', ...marks });
         break;
       default:

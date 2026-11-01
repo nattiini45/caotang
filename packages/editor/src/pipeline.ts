@@ -128,9 +128,10 @@ export const serialize = (pm: PmNode): string => {
     markHandlers: SAVE_HANDLERS as never,
   });
   const text = String(SAVE_CHAIN.stringify(tree));
-  // A document that is only notes still has §3.1's one leading block, an empty
-  // paragraph, which writes nothing and leaves the separator before the first note.
-  // The body a writer saved had no such line, so it is not written (#270).
+  // A document that opens with an empty paragraph writes nothing for it but the
+  // separator after it. That is how a document that is only notes is held (§3.1
+  // needs one leading block), and an empty first paragraph is never text a writer
+  // saved, so the leading separator is not written, whatever follows it (#270).
   return text.startsWith('\n\n') && pm.firstChild?.type.name === 'paragraph' && pm.firstChild.childCount === 0
     ? text.slice(2)
     : text;

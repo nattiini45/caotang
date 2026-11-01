@@ -255,6 +255,6 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     Placeholder.configure({ placeholder: options.placeholder ?? 'Begin the scene…' }),
     UndoRedo,
     CaotangPaste,
-    FootnoteBehaviour.configure({ onOrphaned: options.onFootnoteOrphaned, words: options.footnoteWords }),
+    FootnoteBehaviour.configure({ onOrphaned: options.onFootnoteOrphaned }),
   ];
 };

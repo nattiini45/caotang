@@ -318,9 +318,9 @@ export interface TiptapEditorInstance extends ReviewableEditorInstance {
   /**
    * #270, Lane 1: deletes the orphan's note if no marker refers to it any more, the answer to
    * `onFootnoteOrphaned`. The note is the one the question named, followed by the editor since
-   * (not whichever note holds its label now). `'referenced'` or `'gone'`, and nothing changes,
-   * when the note has a marker again, or is gone or no longer holds the text the question showed;
-   * the app tells the writer which.
+   * by its node (not whichever note holds its label, text or place now). `'referenced'` or
+   * `'gone'`, and nothing changes, when the note has a marker again, or was removed or edited
+   * (a look-alike note in its place is not it); the app tells the writer which.
    */
   deleteFootnoteNote(orphan: FootnoteOrphan): FootnoteNoteDeletion;
   /** Lane 1: the user's own undo. Never reverts an agent apply. */

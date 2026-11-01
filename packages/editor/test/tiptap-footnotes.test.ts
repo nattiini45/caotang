@@ -153,6 +153,84 @@ describe('§3.4 · keyboard only', () => {
     expect(instance.deleteFootnoteNote({ id: -1, label: '2', text: 'One more.' })).toBe('gone');
   });
 
+  it('a note removed while the question is open is gone, even when an identical note moves into its place (F24)', async () => {
+    const orphans: FootnoteOrphan[] = [];
+    const { host, instance } = await mountInto('A[^1] B[^2].\n\n[^1]: One.\n\n[^2]: Two.\n\n[^3]: One.\n', {
+      onFootnoteOrphaned: (found) => orphans.push(...found),
+    });
+    const editor = tiptapOf(focusDom(host));
+    caretAfter(editor, 'A');
+    const marker = editor.state.selection.from;
+    editor.view.dispatch(editor.state.tr.delete(marker, marker + 1));
+    // The orphan is the first "One.", now note 2; a second, unreferenced "One." is note 3.
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n\n[^3]: One.\n');
+    expect(orphans).toEqual([{ id: expect.any(Number), label: '2', text: 'One.' }]);
+    // While the question is open the writer removes note 2 itself. Note 3 re-flows to 2: the
+    // same text, at the very position the question's note had.
+    const notes: number[] = [];
+    editor.state.doc.forEach((child, pos) => {
+      if (child.type.name === 'footnote_definition') notes.push(pos);
+    });
+    const second = notes[1]!;
+    editor.view.dispatch(editor.state.tr.delete(second, second + editor.state.doc.nodeAt(second)!.nodeSize));
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n');
+    let after = -1;
+    editor.state.doc.forEach((child, pos) => {
+      if (child.type.name === 'footnote_definition' && child.attrs.label === '2') after = pos;
+    });
+    expect(after).toBe(second);
+    // The answer does not take the look-alike: the note it named is gone, and nothing changes.
+    expect(instance.deleteFootnoteNote(orphans[0]!)).toBe('gone');
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n');
+    // Undo brings the named note back (the same note, not a copy), and the answer finds it.
+    pressUndo(host);
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n\n[^3]: One.\n');
+    expect(instance.deleteFootnoteNote(orphans[0]!)).toBe('deleted');
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n');
+    // It deleted note 2, the one the question named; note 3's node is the one left.
+    pressUndo(host);
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n\n[^3]: One.\n');
+  });
+
+  it('a note an agent replaces with an identical one while the question is open is gone (F24)', async () => {
+    const orphans: FootnoteOrphan[] = [];
+    const { host, instance } = await mountInto('A[^1] B[^2].\n\n[^1]: One.\n\n[^2]: Two.\n', {
+      onFootnoteOrphaned: (found) => orphans.push(...found),
+    });
+    const editor = tiptapOf(focusDom(host));
+    caretAfter(editor, 'A');
+    const marker = editor.state.selection.from;
+    editor.view.dispatch(editor.state.tr.delete(marker, marker + 1));
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n');
+    // An agent (Lane 2) rewrites the tail: the note it writes has the same label, text and place, but it is not the note the question named.
+    const body = instance.getContent();
+    const from = body.indexOf('[^2]: One.');
+    instance.replaceRange({ from, to: from + '[^2]: One.'.length }, '[^2]: One.', { historyExcluded: true });
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n');
+    expect(instance.deleteFootnoteNote(orphans[0]!)).toBe('gone');
+    expect(instance.getContent()).toBe('A B[^1].\n\n[^1]: Two.\n\n[^2]: One.\n');
+  });
+
+  it('two markers deleted at once report both notes, and each answer deletes its own', async () => {
+    const orphans: Array<readonly FootnoteOrphan[]> = [];
+    const { host, instance } = await mountInto('A[^1] B[^2] C[^3].\n\n[^1]: One.\n\n[^2]: Two.\n\n[^3]: Three.\n', {
+      onFootnoteOrphaned: (found) => orphans.push(found),
+    });
+    const editor = tiptapOf(focusDom(host));
+    caretAfter(editor, 'A');
+    const from = editor.state.selection.from;
+    caretAfter(editor, 'B');
+    const to = editor.state.selection.from + 1;
+    editor.view.dispatch(editor.state.tr.delete(from, to));
+    expect(instance.getContent()).toBe('A C[^1].\n\n[^1]: Three.\n\n[^2]: One.\n\n[^3]: Two.\n');
+    expect(orphans).toHaveLength(1);
+    const [one, two] = orphans[0]!;
+    expect([one!.text, two!.text]).toEqual(['One.', 'Two.']);
+    expect(instance.deleteFootnoteNote(two!)).toBe('deleted');
+    expect(instance.deleteFootnoteNote(one!)).toBe('deleted');
+    expect(instance.getContent()).toBe('A C[^1].\n\n[^1]: Three.\n');
+  });
+
   it('a note whose text is deleted with a selection across it comes back empty, so the marker survives the save', async () => {
     const { host, instance } = await mountInto('A[^1].\n\n[^1]: One.\n');
     const editor = tiptapOf(focusDom(host));
@@ -186,6 +264,25 @@ describe('§3.4 · what assistive technology and a pointer are given', () => {
       ['note', 'Footnote 1'],
       ['note', 'Footnote note'],
     ]);
+  });
+
+  it('a click on a marker puts the caret in its note', async () => {
+    const { host } = await mountInto('A[^1] and B[^2].\n\n[^1]: One.\n\n[^2]: Two.\n');
+    const editor = tiptapOf(focusDom(host));
+    let marker = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (marker < 0 && node.type.name === 'footnote_reference' && node.attrs.label === '2') marker = pos;
+      return marker < 0;
+    });
+    const node = editor.state.doc.nodeAt(marker)!;
+    const handled = editor.view.someProp('handleClickOn', (handle) =>
+      handle(editor.view, marker, node, marker, new MouseEvent('click'), true),
+    );
+    expect(handled).toBe(true);
+    const { $from } = editor.state.selection;
+    expect(caretIn(editor)).toEqual(['paragraph', 'footnote_definition']);
+    expect($from.node(1).attrs.label).toBe('2');
+    expect($from.parent.textContent).toBe('Two.');
   });
 
   it('the words are the app’s when it passes its own', async () => {

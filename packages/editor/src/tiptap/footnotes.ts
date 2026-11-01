@@ -56,8 +56,9 @@ export interface FootnoteOrphan {
   /**
    * Which note this is, for the answer. A label is not an identity: while the question is
    * open an agent change can re-flow the numbering, and the label then names another note.
-   * The editor follows the note itself (its position, mapped through every change, and its
-   * text) under this id; `deleteFootnoteNote` takes the orphan, not the label.
+   * Nor are its text and place: the note can be removed and another with the same text move
+   * into its place. The editor follows the note node itself under this id (see
+   * `TrackedOrphan`); `deleteFootnoteNote` takes the orphan, not the label.
    */
   readonly id: number;
   /** The note's label after renumbering, which is how the editor shows it at the moment of the question. */
@@ -87,8 +88,19 @@ export const noteText = (note: PmNode): string => {
 };
 
 /**
+ * What a re-flow rebuilt, as transaction meta: each rebuilt note's node before → after.
+ * A note is followed by its node (`TrackedOrphan`), and rebuilding the tail makes new node
+ * objects, so this is how a followed note survives its own re-flow.
+ */
+const footnoteReflowKey = new PluginKey('caotangFootnoteReflow');
+
+type Rebuilt = ReadonlyArray<readonly [before: PmNode, after: PmNode]>;
+
+/**
  * Puts `tr`'s document in the canonical footnote spelling, as steps on `tr`. Returns old
- * key → new label for every note whose label changed.
+ * key → new label for each note whose label changed and whose markers follow it (the
+ * first note for a key; a second definition renamed apart is not in it). Records each
+ * rebuilt note's before → after node on `tr` (`footnoteReflowKey`).
  */
 export const applyFootnoteFix = (tr: Transaction): Map<string, string> => {
   const fix = planPmFootnotes(tr.doc);
@@ -97,7 +109,15 @@ export const applyFootnoteFix = (tr: Transaction): Map<string, string> => {
     const node = tr.doc.nodeAt(pos);
     if (node !== null) tr.setNodeMarkup(pos, undefined, { ...node.attrs, label });
   }
-  if (fix.tail !== null) tr.replaceWith(fix.tailStart, tr.doc.content.size, fix.tail);
+  if (fix.tail !== null) {
+    const tail = fix.tail;
+    tr.replaceWith(fix.tailStart, tr.doc.content.size, tail);
+    const rebuilt: Array<readonly [PmNode, PmNode]> = [...((tr.getMeta(footnoteReflowKey) as Rebuilt | undefined) ?? [])];
+    fix.sources.forEach((before, index) => {
+      if (before !== null) rebuilt.push([before, tail[index]!]);
+    });
+    tr.setMeta(footnoteReflowKey, rebuilt);
+  }
   return fix.mapping;
 };
 
@@ -115,7 +135,7 @@ const findNote = (doc: PmNode, label: string): { node: PmNode; pos: number } | n
   return found;
 };
 
-/** The first marker for `label` in the text, with its position, or `null`. */
+/** The first marker for `label` in the document (the text, then the notes), with its position, or `null`. */
 const findReference = (doc: PmNode, label: string): number | null => {
   const key = footnoteKey(label);
   let found: number | null = null;
@@ -233,44 +253,61 @@ export type FootnoteNoteDeletion =
   | 'deleted'
   /** Nothing changed: a marker refers to the note again (an undo, a paste, an agent's text). */
   | 'referenced'
-  /** Nothing changed: the note is gone, or its text changed, so it is not the note the question named. */
+  /** Nothing changed: the note is gone, or it was edited, so it is not the note the question named. */
   | 'gone';
 
-/** An orphaned note the editor follows until the question about it is answered. */
+/**
+ * An orphaned note the editor follows until the question about it is answered.
+ *
+ * The identity is the note's node. ProseMirror's nodes are persistent: a change elsewhere
+ * keeps every untouched note the same object, an edit inside the note makes a new one, and
+ * an undo puts back the very nodes it removed. So the note is "the definition that is one
+ * of these nodes", which a note with the same text is not, wherever it moves. The only
+ * change that rebuilds an unedited note is the canonical re-flow, and it says which node
+ * became which (`footnoteReflowKey`), so `nodes` gains the rebuilt one. Text and position
+ * are never used: when no definition is one of the nodes, the note is gone.
+ */
 interface TrackedOrphan {
   readonly id: number;
-  /** The note's start, in the current document (mapped through every transaction). */
-  readonly pos: number;
-  /** The note's whole text (not the preview), which the note must still have to be deleted. */
-  readonly text: string;
+  /** Every node this note has been since the question, newest first. */
+  readonly nodes: readonly PmNode[];
 }
 
 interface FootnotePluginState {
   /** The orphans this transaction reported, or `null`. */
   readonly emitted: readonly FootnoteOrphan[] | null;
-  /** The orphans of the latest report, followed through later changes. */
+  /** The orphans reported so far, newest last, followed through later changes. */
   readonly tracked: readonly TrackedOrphan[];
 }
 
+/** How many reported orphans the editor keeps following; the app answers them long before this. */
+const MAX_TRACKED = 64;
+
 let nextOrphanId = 1;
 
-/** A note's text in full, for identity rather than for display. */
-const fullNoteText = (note: PmNode): string => note.textBetween(0, note.content.size, '\n', '\n');
+/** `tracked`, each extended with what the re-flow in `rebuilt` made of its nodes. */
+const followRebuilt = (tracked: readonly TrackedOrphan[], rebuilt: Rebuilt): readonly TrackedOrphan[] => {
+  let changed = false;
+  const next = tracked.map((entry) => {
+    const added = rebuilt.filter(([before, after]) => entry.nodes.includes(before) && !entry.nodes.includes(after)).map(([, after]) => after);
+    if (added.length === 0) return entry;
+    changed = true;
+    return { ...entry, nodes: [...added, ...entry.nodes] };
+  });
+  return changed ? next : tracked;
+};
 
 /**
- * The note `tracked` names in `doc`, or `null`. Its mapped position is tried first; if the
- * note moved (a re-flow reorders the tail), the one note with the same text is taken, and
- * when the text matches none or several, nothing is: a wrong note is never deleted.
+ * The note `tracked` names in `doc`, or `null`: the one definition that is one of its
+ * nodes. None (removed, edited, or replaced by a note that only looks the same) or more
+ * than one (the same node pasted twice) is `null`: a wrong note is never deleted.
  */
 const resolveTracked = (doc: PmNode, tracked: TrackedOrphan): { node: PmNode; pos: number } | null => {
-  const notes: { node: PmNode; pos: number }[] = [];
+  const found: { node: PmNode; pos: number }[] = [];
   doc.forEach((child, pos) => {
-    if (child.type.name === 'footnote_definition') notes.push({ node: child, pos });
+    if (child.type.name === 'footnote_definition' && tracked.nodes.includes(child)) found.push({ node: child, pos });
   });
-  const same = notes.filter((note) => fullNoteText(note.node) === tracked.text);
-  const atPos = same.find((note) => note.pos === tracked.pos);
-  if (atPos !== undefined) return atPos;
-  return same.length === 1 ? same[0]! : null;
+  return found.length === 1 ? found[0]! : null;
 };
 
 /**
@@ -291,9 +328,9 @@ export const deleteOrphanNote = (state: EditorState, dispatch: Dispatch, orphan:
 
 const footnoteKeyPlugin = new PluginKey<FootnotePluginState>('caotangFootnotes');
 
+/** The behaviour's options. The words a marker and a note carry are the nodes' (`footnoteNodes`), not the behaviour's. */
 export interface FootnoteBehaviourOptions {
   onOrphaned?: ((orphans: readonly FootnoteOrphan[]) => void) | undefined;
-  words?: FootnoteWords | undefined;
 }
 
 /** The marker's DOM. Its text is the label; the tooltip is added by the behaviour plugin. */
@@ -368,7 +405,7 @@ const byWriter = (trs: readonly Transaction[]): boolean =>
 export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
   name: 'caotangFootnotes',
   addOptions() {
-    return { onOrphaned: undefined, words: undefined };
+    return { onOrphaned: undefined };
   },
   addKeyboardShortcuts() {
     return {
@@ -383,12 +420,13 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
         state: {
           init: () => ({ emitted: null, tracked: [] }),
           apply: (tr, value) => {
+            const rebuilt = tr.getMeta(footnoteReflowKey) as Rebuilt | undefined;
+            const followed = rebuilt === undefined ? value.tracked : followRebuilt(value.tracked, rebuilt);
             const reported = tr.getMeta(footnoteKeyPlugin) as { orphans: readonly FootnoteOrphan[]; tracked: readonly TrackedOrphan[] } | undefined;
-            if (reported !== undefined) return { emitted: reported.orphans, tracked: reported.tracked };
-            const tracked = tr.docChanged
-              ? value.tracked.map((entry) => ({ ...entry, pos: tr.mapping.map(entry.pos, -1) }))
-              : value.tracked;
-            return value.emitted === null && tracked === value.tracked ? value : { emitted: null, tracked };
+            if (reported !== undefined) {
+              return { emitted: reported.orphans, tracked: [...followed, ...reported.tracked].slice(-MAX_TRACKED) };
+            }
+            return value.emitted === null && followed === value.tracked ? value : { emitted: null, tracked: followed };
           },
         },
         appendTransaction(trs, oldState, newState) {
@@ -400,6 +438,7 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
               )
             : [];
           const mapping = applyFootnoteFix(tr);
+          const rebuilt = (tr.getMeta(footnoteReflowKey) as Rebuilt | undefined) ?? [];
           if (lostKeys.length > 0) {
             const orphans: FootnoteOrphan[] = [];
             const tracked: TrackedOrphan[] = [];
@@ -411,7 +450,9 @@ export const FootnoteBehaviour = Extension.create<FootnoteBehaviourOptions>({
               if (label !== undefined && note !== null) {
                 const id = nextOrphanId++;
                 orphans.push({ id, label, text: noteText(note.node) });
-                tracked.push({ id, pos: note.pos, text: fullNoteText(note.node) });
+                // The note as it is now, and as it was before this re-flow rebuilt it (which an undo brings back).
+                const before = rebuilt.filter(([, after]) => after === note.node).map(([was]) => was);
+                tracked.push({ id, nodes: [note.node, ...before] });
               }
             }
             if (orphans.length > 0) tr.setMeta(footnoteKeyPlugin, { orphans, tracked });

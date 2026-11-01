@@ -248,7 +248,8 @@ export const canonicalizeFootnoteTree = (tree: Root): TreeFootnoteResult => {
       return;
     }
     const def = allDefs[note.def]!;
-    if (def !== defs[index]) result.changed = true;
+    // Out of its place among the definitions (both indices are into `allDefs`): the save moves it.
+    if (note.def !== index) result.changed = true;
     const before = def.label ?? def.identifier;
     if (before !== note.label) {
       result.changed = true;
@@ -316,6 +317,12 @@ export interface PmFootnoteFix {
   relabel: Array<{ pos: number; label: string }>;
   /** The canonical tail, or `null` when the tail itself is already canonical. */
   tail: PmNode[] | null;
+  /**
+   * For each node of `tail`, the definition it was rebuilt from (`null` for a note the plan
+   * creates). Rebuilding makes new node objects, so this is how a caller that follows a
+   * note by its node carries it across the re-flow.
+   */
+  sources: Array<PmNode | null>;
   tailStart: number;
   /** Old key → new label, for every note that changed its label. */
   mapping: Map<string, string>;
@@ -344,6 +351,7 @@ export const planPmFootnotes = (doc: PmNode, schema: Schema = doc.type.schema): 
   const mapping = new Map<string, string>();
   const placedKeys = new Set<string>();
   let tailChanged = plan.notes.length !== defs.length;
+  const sources = plan.notes.map((note) => (note.def === null ? null : defs[note.def]!));
   const tail = plan.notes.map((note, index) => {
     if (note.def === null) {
       tailChanged = true;
@@ -369,7 +377,7 @@ export const planPmFootnotes = (doc: PmNode, schema: Schema = doc.type.schema): 
   const tailFrom = start;
   const mainRelabel = relabel.filter((entry) => entry.pos < tailFrom);
   if (mainRelabel.length === 0 && !tailChanged) return null;
-  return { relabel: mainRelabel, tail: tailChanged ? tail : null, tailStart: start, mapping };
+  return { relabel: mainRelabel, tail: tailChanged ? tail : null, sources, tailStart: start, mapping };
 };
 
 /** `fragment` with every reference relabelled by `refLabel`; the same object when nothing changes. */
@@ -403,5 +411,3 @@ const relabelFragment = (fragment: Fragment, refLabel: Map<string, string>, sche
   return changed ? Fragment.fromArray(children) : fragment;
 };
 
-/** The next numeric label a new footnote would take before re-flow: one past the count. */
-export const nextFootnoteLabel = (doc: PmNode): string => String(footnoteTail(doc).defs.length + 1);

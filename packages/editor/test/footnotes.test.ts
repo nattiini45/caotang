@@ -215,6 +215,22 @@ describe('§3.4 · load and save', () => {
     ]);
   });
 
+  it('a `[^1]` inside a code span is literal text: it is not relabelled, and gets no notice of its own', async () => {
+    const { dialect } = await parseWithDiagnostics('X[^2] and `[^1]` and Y[^1]\n\n[^1]: one\n\n[^2]: two');
+    expect(dialect.map((notice) => notice.cause)).toEqual(['footnote-layout']);
+  });
+
+  it('a definition nested in a block quote is hoisted to the tail, and the quote it emptied is dropped', () => {
+    const tree = unified().use(remarkParse).use(remarkGfm).parse('Text[^1].\n\n> [^1]: The note.\n\nAfter.') as Root;
+    expect(canonicalizeFootnoteTree(tree).changed).toBe(true);
+    expect(tree.children.map((child) => child.type)).toEqual(['paragraph', 'paragraph', 'footnoteDefinition']);
+  });
+
+  it('a canonical tail is unchanged when compared in one index space', () => {
+    const tree = unified().use(remarkParse).use(remarkGfm).parse('A[^1] B[^2].\n\n[^1]: One.\n\n[^2]: Two.') as Root;
+    expect(canonicalizeFootnoteTree(tree)).toEqual({ changed: false, relabelled: new Map() });
+  });
+
   it('the mdast rule leaves a tree without footnotes alone', () => {
     const tree = unified().use(remarkParse).use(remarkGfm).parse('Plain.\n\n> Quote.') as Root;
     const before = JSON.stringify(tree);
