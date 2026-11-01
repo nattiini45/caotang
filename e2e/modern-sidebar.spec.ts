@@ -55,9 +55,10 @@ async function modernProject(page: Page, pinned = false): Promise<void> {
   await page.getByLabel('Project name').fill('Harbour Book');
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
-  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+  // The empty manuscript's button is in the binder, so in the sidebar: closed, it is inert. Open it first (a pinned one is open).
   if (!pinned) await manuscript(page).click();
   await expectOpen(page);
+  await sidebar(page).getByRole('button', { name: 'Create Chapter 1' }).click();
   for (const title of ['The ferry', 'The ticket']) {
     await sidebar(page).getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
     await sidebar(page).getByRole('textbox', { name: 'Rename Untitled' }).fill(title);

@@ -11,7 +11,9 @@ import { waitForSaved } from '../support.js';
  * fixed and masked, animations off and the caret hidden. They start without the Classic pin and choose Modern themselves.
  */
 
-test.use({ storageState: NO_PIN });
+// A step that cannot happen fails in 15 s, not at the 90 s test timeout: twelve snapshots with two retries each would otherwise wait out
+// the job's 20 minutes and be cancelled with no failure to read.
+test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
 const NOW = new Date('2026-06-01T09:00:00Z');
 
@@ -37,9 +39,11 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await page.getByLabel('Project name').fill('The Lighthouse Keeper');
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
-  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
-  // The binder is in the sidebar (#307): open it from the tab bar, make the scene, and let it close as the pointer leaves.
+  // The binder is in the sidebar (#307), inert while closed: open it from the tab bar, make the chapter and the scene, and let it close
+  // as the pointer leaves.
   await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
+  await page.getByTestId('modern-sidebar').getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
   await page.keyboard.press('Enter');
