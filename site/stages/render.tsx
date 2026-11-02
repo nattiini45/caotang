@@ -1,6 +1,6 @@
 // Every stage on caotang.app, rendered to static markup at build time by tools/build-site.mjs. Nothing here runs in the browser.
 import type { ReactElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderToString } from 'react-dom/server'
 import { Hero, HeroCompact } from './hero'
 import { Board, BoardCompact } from './board'
 import { Local } from './local'
@@ -25,7 +25,11 @@ export const CSS_FILES = [
   'stages/findings/findings.css',
 ]
 
-const STAGES: Record<string, () => ReactElement> = {
+/**
+ * Every stage by the name its marker uses. L2's motion island imports this same map in the browser and hydrates each
+ * `[data-stage]` root the build wrote (hydrateRoot(root, <STAGES[name] />)), so the stills are its poster frames and no-JS fallback.
+ */
+export const STAGES: Record<string, () => ReactElement> = {
   hero: Hero,
   'hero-compact': HeroCompact,
   board: Board,
@@ -36,7 +40,10 @@ const STAGES: Record<string, () => ReactElement> = {
   findings: Findings,
 }
 
-/** Each stage's markup, by the name its `<!-- stage:name -->` marker in site/index.html uses. */
+/**
+ * Each stage's markup, by the name its `<!-- stage:name -->` marker in site/index.html uses. renderToString rather than static markup,
+ * so the HTML is what React can hydrate later (L2); today nothing does.
+ */
 export function renderAll(): Record<string, string> {
-  return Object.fromEntries(Object.entries(STAGES).map(([name, Component]) => [name, renderToStaticMarkup(<Component />)]))
+  return Object.fromEntries(Object.entries(STAGES).map(([name, Component]) => [name, renderToString(<Component />)]))
 }

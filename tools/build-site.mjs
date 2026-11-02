@@ -108,7 +108,8 @@ html = html.replace(/<!-- stage:([a-z0-9-]+) -->/g, (_, name) => {
   const markup = stages[name];
   if (markup === undefined) fail(`site/index.html asks for a stage "${name}" that site/stages/render.tsx does not render`);
   used.add(name);
-  return extractStyles(markup.replace(/\sdata-placing="[^"]*"/g, ''), rules);
+  // Each stage in its own root, named, so a later motion island (L2) can find it and hydrate it in place with the same component.
+  return `<div class="stage-root" data-stage="${name}">${extractStyles(markup.replace(/\sdata-placing="[^"]*"/g, ''), rules)}</div>`;
 });
 for (const name of Object.keys(stages)) if (!used.has(name)) fail(`stage "${name}" is rendered but site/index.html has no <!-- stage:${name} --> marker`);
 

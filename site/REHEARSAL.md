@@ -4,6 +4,8 @@ Eight stills on one page, rendered at build time (no script): the hero (wide and
 Local-first, Binder, Export and Codex & Findings tiles. Every one is a poster: there is no motion on this page until the owner relaxes
 `script-src 'none'` (PLAN.md, L2), so there are no beats, no loop and no reduced-motion difference to film.
 
+**Motion is L2.** Caspar agreed (2026-11-02) that the landing may later run its own self-hosted script (about 100 kB) for animated demos; that is a separate follow-up, and these stills become its poster frames and no-JS fallback (each stage is rendered with `renderToString` into a `[data-stage]` root, and `stages/render.tsx` exports the `STAGES` map a client entry would hydrate).
+
 **hero: re-check after #361 and #363.** The hero draws the ghost capsule and the agent window as the Modern spec intends them; the app
 still draws Classic's bar there (#361) and the agent window is being reworked (#363). Re-film it against the app once both land, so
 the picture never shows a better UI than the product.

@@ -444,6 +444,11 @@ section[id] {
   font-weight: 600;
 }
 
+/* The root build-site wraps each stage in (for L2's hydration) takes no box, so the stage lays out as if it were the slot's own child. */
+.stage-root {
+  display: contents;
+}
+
 .tile .stage-slot {
   margin-top: auto;
   padding-top: 24px;
