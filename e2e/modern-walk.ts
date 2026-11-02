@@ -150,12 +150,16 @@ export async function setUp(page: Page, setup: Setup, options: SetupOptions = {}
   await switchToModern(page);
 }
 
-/** Shows the binder: once #307's tab bar is in, Manuscript opens the sidebar; before that the binder is on the page already. */
+/**
+ * Shows the binder in #307's sidebar. The sidebar closes 420 ms after the pointer or focus leaves it, so an open one may be about
+ * to close: the pointer rests on the tab bar first, which keeps it open, and a closed (or closing) one is opened with Manuscript.
+ */
 export async function showBinder(page: Page): Promise<void> {
   const tree = page.getByRole('tree', { name: 'Binder' });
-  if (await tree.isVisible()) return;
-  const bar = page.getByTestId('modern-binder-bar');
-  if ((await bar.count()) > 0) await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  const nav = page.getByTestId('modern-binder');
+  await page.getByTestId('modern-binder-bar').hover();
+  if ((await nav.getAttribute('data-state')) !== 'open') await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await expect(nav).toHaveAttribute('data-state', 'open');
   await expect(tree).toBeVisible();
 }
 

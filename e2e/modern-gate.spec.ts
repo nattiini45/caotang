@@ -74,7 +74,7 @@ export const SURFACES: readonly Surface[] = [
     id: 'the sidebar',
     setup: 'scene',
     open: [{ click: { role: 'button', name: 'Manuscript', within: { role: 'navigation', name: 'Binder' } } }],
-    scope: '[data-testid="modern-binder"]',
+    scope: '[data-testid="modern-binder-bar"], [data-testid="modern-sidebar"]',
   },
   { id: 'a toast', setup: 'scene', open: [{ provoke: 'deleted-scene' }, { see: { testId: 'modern-toast', pattern: 'Deleted' } }], scope: '[data-testid="modern-notices"]' },
   { id: 'Settings', setup: 'scene', open: [{ palette: 'Settings' }], scope: '[data-testid="settings"]' },

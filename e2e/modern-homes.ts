@@ -105,7 +105,12 @@ const goals: Target = { role: 'button', name: 'Goals and sprint', within: sideba
 /** The scene the `scene` setup opens. */
 export const SCENE = 'The Landing';
 const sceneRow: Target = { css: '.row-title', pattern: `^${SCENE}$` };
-const chapterRow: Target = { css: '.row-title', pattern: '^Chapter 1$' };
+/**
+ * A row as the keyboard reaches it: focused, not clicked, since a click chooses the scene and choosing one closes an unpinned
+ * sidebar (#307), so the chord would land on the page.
+ */
+const sceneItem: Target = { role: 'treeitem', pattern: `^${SCENE}` };
+const chapterItem: Target = { role: 'treeitem', pattern: '^Chapter 1' };
 
 const see = (target: Target, extra: { focused?: boolean; gone?: boolean } = {}): Step => ({ see: target, ...extra });
 
@@ -146,11 +151,11 @@ export const MODERN_HOMES: readonly Home[] = [
     modern: '⋯ › Undo, with the same label; Ctrl+Z; palette',
     setup: 'scene',
     routes: [
-      { via: '⋯ › Undo brings a deleted scene back', steps: [{ provoke: 'deleted-scene' }, { more: 'Undo' }, see({ ...sceneRow })] },
-      { via: 'palette › Undo brings it back', steps: [{ provoke: 'deleted-scene' }, { palette: 'Undo' }, see({ ...sceneRow })] },
+      { via: '⋯ › Undo brings a deleted scene back', steps: [{ provoke: 'deleted-scene' }, { more: 'Undo' }, { binder: true }, see({ ...sceneRow })] },
+      { via: 'palette › Undo brings it back', steps: [{ provoke: 'deleted-scene' }, { palette: 'Undo' }, { binder: true }, see({ ...sceneRow })] },
       {
         via: 'Ctrl+Z on the binder brings it back',
-        steps: [{ provoke: 'deleted-scene' }, { press: 'ControlOrMeta+z', on: chapterRow }, see({ ...sceneRow })],
+        steps: [{ provoke: 'deleted-scene' }, { binder: true }, { press: 'ControlOrMeta+z', focus: chapterItem }, { binder: true }, see({ ...sceneRow })],
       },
     ],
   },
@@ -163,12 +168,12 @@ export const MODERN_HOMES: readonly Home[] = [
     modern: '⋯ › Focus mode; Ctrl+Shift+F; palette; the Leave focus mode capsule (§8.8)',
     setup: 'scene',
     routes: [
-      { via: '⋯ › Focus mode', steps: [{ more: 'Focus mode' }, see(binderTree, { gone: true }), { more: 'Leave focus mode' }, see(editor)] },
-      { via: 'palette › Focus mode', steps: [{ palette: 'Focus mode' }, see(binderTree, { gone: true }), see(editor)] },
-      { via: 'Ctrl+Shift+F in the text', steps: [{ press: 'ControlOrMeta+Shift+F', on: editor }, see(binderTree, { gone: true }), { press: 'ControlOrMeta+Shift+F', on: editor }, see(binderTree)] },
+      { via: '⋯ › Focus mode', steps: [{ more: 'Focus mode' }, see(manuscript, { gone: true }), { more: 'Leave focus mode' }, see(editor)] },
+      { via: 'palette › Focus mode', steps: [{ palette: 'Focus mode' }, see(manuscript, { gone: true }), see(editor)] },
+      { via: 'Ctrl+Shift+F in the text', steps: [{ press: 'ControlOrMeta+Shift+F', on: editor }, see(manuscript, { gone: true }), { press: 'ControlOrMeta+Shift+F', on: editor }, see(manuscript)] },
       {
         via: 'the Leave focus mode capsule',
-        steps: [{ more: 'Focus mode' }, { click: { role: 'button', name: 'Leave focus mode' } }, see(binderTree)],
+        steps: [{ more: 'Focus mode' }, { click: { role: 'button', name: 'Leave focus mode' } }, see(manuscript)],
         pending: 313,
         why: 'no 44 px Leave focus mode capsule stays at the top in focus mode (§8.8)',
       },
@@ -326,9 +331,9 @@ export const MODERN_HOMES: readonly Home[] = [
     routes: [
       { via: 'the tree', steps: [{ binder: true }, see(binderTree), see({ ...sceneRow })] },
       { via: 'a row’s menu › Edit synopsis opens Scene info on it', steps: [{ binder: true }, { click: { ...sceneRow }, right: true }, { click: { role: 'menuitem', name: 'Edit synopsis' } }, see({ css: '#inspector-synopsis', within: sceneInfo }, { focused: true })] },
-      { via: 'F2 renames the row', steps: [{ binder: true }, { press: 'F2', on: { ...sceneRow } }, see({ role: 'textbox', pattern: '^Rename' }, { focused: true }), { press: 'Escape' }, see({ role: 'textbox', pattern: '^Rename' }, { gone: true })] },
-      { via: 'Delete asks first', steps: [{ binder: true }, { press: 'Delete', on: { ...sceneRow } }, see({ role: 'dialog', name: `Delete “${SCENE}”?` })] },
-      { via: 'Ctrl+N makes a new document', steps: [{ binder: true }, { press: 'ControlOrMeta+n', on: { ...sceneRow } }, see({ role: 'textbox', name: 'Rename Untitled' }, { focused: true })] },
+      { via: 'F2 renames the row', steps: [{ binder: true }, { press: 'F2', focus: sceneItem }, see({ role: 'textbox', pattern: '^Rename' }, { focused: true }), { press: 'Escape' }, see({ role: 'textbox', pattern: '^Rename' }, { gone: true })] },
+      { via: 'Delete asks first', steps: [{ binder: true }, { press: 'Delete', focus: sceneItem }, see({ role: 'dialog', name: `Delete “${SCENE}”?` })] },
+      { via: 'Ctrl+N makes a new document', steps: [{ binder: true }, { press: 'ControlOrMeta+n', focus: sceneItem }, see({ role: 'textbox', name: 'Rename Untitled' }, { focused: true })] },
       { via: 'Manuscript in the tab bar opens it', steps: [{ click: manuscript }, see(binderTree)] },
     ],
   },
