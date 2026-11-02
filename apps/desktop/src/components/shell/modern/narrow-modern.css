@@ -83,10 +83,18 @@
     background: var(--mat-thick-bg);
   }
 
+  /* The current tab names .rail-tab too, so it wins over the tabs' own colour below (accent ink on the accent, §9.3). */
   :root[data-shell='modern'] .modern-narrow-binder[aria-expanded='true'],
-  :root[data-shell='modern'] .modern-drawer-tabs .is-current {
+  :root[data-shell='modern'] .modern-drawer-tabs .rail-tab.is-current {
     background: var(--accent);
     color: var(--accent-ink);
+  }
+
+  /* The skip link is a 44 px target too (§9.1, §9.5). */
+  :root[data-shell='modern'] .modern-stage .modern-skip {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--target-min);
   }
 
   /* ---- The bottom tab bar: five equal tabs, each an icon over its word, above the bottom safe area. ---- */
