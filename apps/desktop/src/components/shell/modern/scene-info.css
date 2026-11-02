@@ -4,7 +4,7 @@
  *
  * Rules as in shell-modern.css: every selector starts with :root[data-shell='modern'] and only logical properties are used (checked by
  * test/modern-css.test.ts). The popover's place is set by script (scene-info-model.ts, through the CSSOM, §11); the docked panel's
- * place is here, and moves the page over through the stage's --area-end until #306's modernLayout computes it (§8.4).
+ * place is here, at the stage's --info-end, and the page's room is the stage's --area-end, both from #306's modernLayout (§8.4).
  */
 
 :root[data-shell='modern'] .scene-info {
@@ -122,21 +122,12 @@
 }
 
 /* ---- Docked (Keep open): a companion panel at the page's inline-end edge, the page moved over for it (§6, §8.4). ---- */
+/* The page's room and the panel's place both come from #306's modernLayout through the stage's geometry: --area-end moves the page
+   over (from 1,280 px down the panel overlaps it as a sheet instead), and --info-end stacks the panel beside an open agent window. */
 :root[data-shell='modern'] .scene-info.is-docked {
   inset-block: calc(var(--page-top) + var(--radius-ornament)) var(--page-bottom);
-  inset-inline-end: var(--page-gutter);
+  inset-inline-end: var(--info-end, var(--page-gutter));
   inline-size: var(--scene-info-w);
-}
-
-:root[data-shell='modern'] .modern-stage:has(> .scene-info.is-docked) {
-  --area-end: calc(var(--scene-info-w, 380px) + var(--page-gutter));
-}
-
-/* From 1,280 px down a docked Scene info overlaps the page as a sheet instead of pushing it (§8.4). */
-@media (width <= 1280px) {
-  :root[data-shell='modern'] .modern-stage:has(> .scene-info.is-docked) {
-    --area-end: 0px;
-  }
 }
 
 @media (forced-colors: active) {
