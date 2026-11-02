@@ -16,6 +16,10 @@
 
 @media (max-width: 959px) {
   :root[data-shell='modern'] .modern-stage {
+    --page-gutter: 8px;
+    --page-top: 72px;
+    --page-bottom: 88px;
+    --area-start: 0px;
     --narrow-top-bar: 56px;
     --narrow-tab-bar: 64px;
     /* The side insets are physical in the environment; the larger of the two on both sides keeps either edge clear in either direction. */
@@ -32,6 +36,10 @@
   :root[data-shell='modern'] .modern-stage .mat-glass {
     background: var(--mat-thick-bg);
     backdrop-filter: blur(var(--mat-thick-blur)) saturate(var(--mat-glass-saturate));
+  }
+
+  :root[data-shell='modern'] .mat-paper {
+    border-radius: var(--radius-sheet);
   }
 
   /* ---- The page: full-bleed with the small margin, between the two bars. ---- */

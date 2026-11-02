@@ -23,11 +23,10 @@ import {
   SIDEBAR_WIDTH,
   VIEW_WIDTH,
   modernLayout,
-  narrowPanels,
   type Box,
-  type NarrowPanels,
   type ModernView,
 } from '../src/components/shell/modern/layout.js';
+import { narrowPanels, type NarrowPanels } from '../src/components/shell/modern/narrow-geometry.js';
 import { companionAreaEnd } from '../src/components/shell/modern/companion-model.js';
 import { flipTransform, parseDuration } from '../src/components/shell/modern/morph.js';
 import { chooseView, modernViewOf, viewControlId } from '../src/components/shell/modern/views.js';
@@ -206,8 +205,7 @@ describe('modernLayout', () => {
         });
         // The compact capsule in the top bar, above the page; the tab bar below it, the page's width.
         expect(layout.topOrnament.top + layout.topOrnament.height).toBeLessThanOrEqual(layout.page.top);
-        const panels = layout.narrowPanels as NarrowPanels;
-        expect(panels).not.toBeNull();
+        const panels: NarrowPanels = narrowPanels(width, height);
         expect(panels.tabBar.top).toBeGreaterThanOrEqual(layout.page.top + layout.page.height);
         expect(panels.tabBar.top + panels.tabBar.height).toBe(height - NARROW_GUTTER);
         expect(panels.tabBar.width).toBe(width - 2 * NARROW_GUTTER);
@@ -232,9 +230,9 @@ describe('modernLayout', () => {
     }
   }
 
-  it('has no narrow panels from 960 px', () => {
-    expect(modernLayout({ viewport: { width: 960, height: 800 }, view: 'write', sidebar: false, agent: false, info: false }).narrowPanels).toBeNull();
-    expect(modernLayout({ viewport: { width: 959, height: 800 }, view: 'write', sidebar: false, agent: false, info: false }).narrowPanels).not.toBeNull();
+  it('is narrow below 960 px only', () => {
+    expect(modernLayout({ viewport: { width: 960, height: 800 }, view: 'write', sidebar: false, agent: false, info: false }).narrow).toBe(false);
+    expect(modernLayout({ viewport: { width: 959, height: 800 }, view: 'write', sidebar: false, agent: false, info: false }).narrow).toBe(true);
   });
 
   it('at 200% zoom a 1,440 by 900 window is 720 by 450 CSS px and gets the narrow layout (§9.7)', () => {

@@ -22,7 +22,7 @@
  * - Below 960 px (the narrow layout, §13, M11 #312) the page goes full-bleed with an 8 px margin: the compact top capsule (title,
  *   **⋯**) sits above it and the bottom tab bar (Write, Board, Codex, Ask, Search) below it, each in a bar of its own, not over the
  *   page's edge. Nothing sits beside the page: the binder is a drawer from the inline-start edge, Scene info a bottom sheet of at most
- *   80% of the height, and the agent window a full-height sheet ({@link NarrowPanels}), one at a time over a scrim. The bottom safe
+ *   80% of the height, and the agent window a full-height sheet (their boxes: narrow-geometry.ts), one at a time over a scrim. The bottom safe
  *   area (`env(safe-area-inset-*)`) is the stylesheet's to add: a pure function cannot read it.
  */
 
@@ -76,25 +76,8 @@ export interface ModernLayout {
   readonly overlay: boolean;
   /** Which window lies over the page: the agent window from 1,280 px down; Scene info then too, or where docking it would leave the page too narrow. */
   readonly sheets: { readonly agent: boolean; readonly info: boolean };
-  /** Below 960 px: where the narrow layout's panels open (§13); `null` in a wide window. */
-  readonly narrowPanels: NarrowPanels | null;
   /** What the stage needs to place the page (ModernShell's `geometry`). */
   readonly geometry: StageGeometry;
-}
-
-/**
- * The narrow layout's panels (§13), each the box it takes while open: the binder **drawer** from the inline-start edge, Scene info's
- * bottom **sheet** (its height a maximum: it is as tall as its content, up to 80% of the window) and the **agent** sheet, the window's
- * full height. The binder's button and the compact top capsule share the top bar; the tab bar is the bottom one.
- */
-export interface NarrowPanels {
-  readonly drawer: Box;
-  readonly sheet: Box;
-  readonly agent: Box;
-  /** The binder's button at the top bar's inline-start end. */
-  readonly binderButton: Box;
-  /** The bottom tab bar, the page's width. */
-  readonly tabBar: Box;
 }
 
 /** The width each view asks for. */
@@ -185,7 +168,6 @@ export function modernLayout({ viewport, view, sidebar, binderBar = false, agent
 
   return {
     narrow,
-    narrowPanels: narrow ? narrowPanels(width, height) : null,
     page: { start: round(pageStart), top: pageTop, width: round(pageWidth), height: columnHeight },
     // Narrow: the compact capsule in the top bar and the tab bar at the bottom, each in its own bar, clear of the page's edges.
     topOrnament: narrow
@@ -200,21 +182,5 @@ export function modernLayout({ viewport, view, sidebar, binderBar = false, agent
     overlay,
     sheets,
     geometry: { pageWidth: round(pageWidth), pageTop, pageBottom, areaStart, areaEnd, infoEnd },
-  };
-}
-
-/** The narrow layout's panel boxes for a window below 960 px (§13). */
-export function narrowPanels(width: number, height: number): NarrowPanels {
-  const g = NARROW_GUTTER;
-  const inner = Math.max(0, width - 2 * g);
-  const tall = Math.max(0, height - 2 * g);
-  const drawerWidth = Math.max(0, Math.min(DRAWER_WIDTH, width - DRAWER_LEAVES - g));
-  const sheetHeight = Math.min(tall, round(height * SHEET_MAX_SHARE));
-  return {
-    drawer: { start: g, top: g, width: round(drawerWidth), height: tall },
-    sheet: { start: g, top: round(height - g - sheetHeight), width: inner, height: sheetHeight },
-    agent: { start: g, top: g, width: inner, height: tall },
-    binderButton: { start: g, top: g, width: NARROW_TOP_BAR, height: NARROW_TOP_BAR },
-    tabBar: { start: g, top: Math.max(0, height - g - NARROW_TAB_BAR), width: inner, height: NARROW_TAB_BAR },
   };
 }

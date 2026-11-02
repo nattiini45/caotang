@@ -81,14 +81,7 @@
   }
 }
 
-/* Below 960 px: a full-width, full-height sheet (§13; the narrow layout's own rules are M11, #312). */
-@media (max-width: 959px) {
-  :root[data-shell='modern'] .modern-companion {
-    inset-block: var(--space-4);
-    inset-inline: var(--page-gutter);
-    inline-size: auto;
-  }
-}
+/* Below 960 px the window is the narrow layout's full-height sheet (narrow-modern.css, in the narrow-panels chunk; M11, #312). */
 
 /* ---- The agent panel inside the window (AgentPanel, placement="window"). ---- */
 :root[data-shell='modern'] .modern-companion .agent {

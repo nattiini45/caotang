@@ -450,19 +450,7 @@
   transform: none;
 }
 
-/* ---- Below 960 px the page fills the width (§13 is M11, #312); the binder tab bar is not drawn there (ModernShell). ---- */
-@media (max-width: 959px) {
-  :root[data-shell='modern'] .modern-stage {
-    --page-gutter: 8px;
-    --page-top: 72px;
-    --page-bottom: 88px;
-    --area-start: 0px;
-  }
-
-  :root[data-shell='modern'] .mat-paper {
-    border-radius: var(--radius-sheet);
-  }
-}
+/* ---- Below 960 px: the page's margins are narrow-modern.css's (the narrow-panels chunk; §13, M11 #312). ---- */
 
 /* ---- Forced colours (§5.3): system colours, a 1 px CanvasText border on every container, no shadows, no wallpaper. ---- */
 @media (forced-colors: active) {
