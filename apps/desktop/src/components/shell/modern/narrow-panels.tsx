@@ -10,7 +10,8 @@
  *   (companion.tsx); they keep their own components, and narrow-sync.ts keeps the three to one at a time through the workspace's
  *   `openPanel` (`NarrowPanel` gains 'agent').
  * - One **scrim** under the open panel, a tap on which closes it; everything else on the stage is `inert` while a panel is open, so
- *   neither Tab nor a tap reaches behind it (notices and modal dialogs excepted: they have their own rules).
+ *   neither Tab nor a tap reaches behind it (notices and modal dialogs excepted: they have their own rules). Scene info kept open
+ *   (**Keep open**, #364) is the exception: a sheet below the page with no scrim, the page live above it.
  * - **Focus**: in as a panel opens (the drawer's current tab; Scene info and the agent window move it themselves), and back to the
  *   panel's button as it closes (the binder's button, the title capsule, **Ask**), unless the writer has already moved it (ui-modules
  *   §1, decisions.md "Panels return focus to their opener"). Close, Escape and the scrim close each.
@@ -75,6 +76,8 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   const state: NarrowState = { panel: view.openPanel, agent: view.agentOpen, info: info.open, rail: view.rail };
   const shown = view.hideRails ? null : shownPanel(state);
   const drawerOpen = shown === 'rail';
+  // Scene info kept open (Keep open) is not modal: no scrim, and the page stays live above it (#364).
+  const modal = shown === 'inspector' && info.docked ? null : shown;
   const tab = drawerTabFor(view.rail);
   // The binder footer's "Goals and sprint" disclosure, as in #307's sidebar; closed each time the narrow layout starts.
   const [goalsOpen, setGoalsOpen] = useState(false);
@@ -110,9 +113,9 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   const before = useRef<NarrowPanel | null>(null);
   useLayoutEffect(() => {
     const stage = drawer.current?.closest('.modern-stage') ?? document.querySelector('.modern-stage');
-    const open = shown === null ? null : panelElement(shown);
+    const open = modal === null ? null : panelElement(modal);
     // Lifted wherever this set it, even off a stage that has moved on.
-    if (shown === null) {
+    if (modal === null) {
       for (const element of Array.from(document.querySelectorAll(`[${MARK}]`))) {
         element.removeAttribute('inert');
         element.removeAttribute(MARK);
@@ -129,10 +132,10 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
           child.classList.contains('modern-notices') ||
           child.classList.contains('modern-wallpaper');
         const mine = child.hasAttribute(MARK);
-        if (shown !== null && !keep && !child.hasAttribute('inert')) {
+        if (modal !== null && !keep && !child.hasAttribute('inert')) {
           child.setAttribute('inert', '');
           child.setAttribute(MARK, '');
-        } else if ((shown === null || keep) && mine) {
+        } else if ((modal === null || keep) && mine) {
           child.removeAttribute('inert');
           child.removeAttribute(MARK);
         }
@@ -222,7 +225,7 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
       </nav>
       {/* Always drawn while narrow, so the tap that closes a panel never falls through to the page under it. */}
       <div
-        className={`modern-narrow-scrim${shown === null ? '' : ' is-open'}`}
+        className={`modern-narrow-scrim${modal === null ? '' : ' is-open'}`}
         aria-hidden="true"
         data-testid="modern-narrow-scrim"
         data-panel={shown ?? 'none'}
