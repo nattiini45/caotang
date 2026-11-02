@@ -181,7 +181,8 @@
   border-radius: calc(var(--radius-lg) - var(--space-3));
   font-size: 15px;
   /* One line per action: the menu grows to its longest label (the overlay band and the right edge still hold it); only a label
-     wider than the screen wraps. */
+     wider than the screen wraps, whatever white-space the menu's opener would hand it. */
+  white-space: normal;
   overflow-wrap: anywhere;
   transition: background-color var(--dur-1) var(--ease-standard);
 }
