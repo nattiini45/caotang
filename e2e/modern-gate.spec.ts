@@ -310,54 +310,10 @@ type Check = 'axe' | 'contrast' | '44 px';
  */
 const GAPS: readonly { readonly surface: string; readonly check: Check; readonly patterns: readonly string[]; readonly why: string }[] = [
   {
-    surface: 'the page (Write)',
-    check: '44 px',
-    patterns: ['^button “Insert picture”', '^button “Add footnote”', '^button “.*words today'],
-    why: 'the editor’s picture and footnote buttons are 24–30 px tall, and the editor footer (its target quick-set) is still on the page, not in Scene info › Progress (§7.3)',
-  },
-  {
-    surface: 'Scene info',
-    check: 'contrast',
-    patterns: ['^(p|li)\\.field-note '],
-    why: 'the inspector’s field notes (--muted) reach about 3:1 on thick glass over the light wallpaper',
-  },
-  {
-    surface: 'Scene info',
-    check: '44 px',
-    patterns: ['^button “(Status|Label): ', '^(input|select|summary) “', '^button “(Add thread|Link|Import pictures here…|Attach to this paragraph)”'],
-    why: 'the inspector’s fields, pickers and buttons keep Classic’s 23–35 px heights inside Scene info',
-  },
-  { surface: 'the agent window', check: 'axe', patterns: ['^heading-order'], why: 'the agent panel’s headings skip a level (an h4) in the window' },
-  { surface: 'the agent window', check: 'contrast', patterns: ['agent-close'], why: 'the panel’s quiet Close button is about 2.5:1 (light) and 3.3:1 (dark) on glass' },
-  {
-    surface: 'the agent window',
-    check: '44 px',
-    patterns: ['^input “”', '^button “New task”'],
-    why: 'the agent panel’s checkboxes with their labels are 21 px tall, and New task 30 px',
-  },
-  ...(['the ornaments', 'Board'] as const).map((surface) => ({
-    surface,
-    check: 'contrast' as const,
-    patterns: ['^span\\.save-state\\.'],
-    why: 'the save state in the top ornament (--muted) sits on the ornament’s thin glass, about 1.1–1.3:1 over the wallpaper’s mid tones',
-  })),
-  {
     surface: 'the sidebar',
     check: '44 px',
     patterns: ['^button “(New document|New folder|New research note|Save current…|Import [^”]*)”', '^(input|select) “', '^button “(Collapse|Expand) '],
     why: 'the Binder tab holds Classic’s binder as it is: its New and Import buttons, the filter bar’s fields and Save current… are 23–30 px tall, and a row’s Collapse / Expand 24 px',
-  },
-  {
-    surface: 'Board',
-    check: '44 px',
-    patterns: ['^button “New card”', '^button\\[role=radio\\] “[SML]: '],
-    why: 'the corkboard keeps Classic’s toolbar on the page: New card 30 px and the S / M / L zoom 26 px tall (§7.3 puts the zoom in the top ornament)',
-  },
-  {
-    surface: 'Codex',
-    check: '44 px',
-    patterns: ['^button “(Always|Never|Detected|Manual|Character|Location|Object|Lore|Subplot|Other)”', '^button “(New entry|Let the agent draft entries)', '^input “Search the codex”'],
-    why: 'the codex on the page keeps Classic’s 25 px filter chips, its 30 px buttons and its 34 px search field',
   },
 ];
 

@@ -140,8 +140,6 @@ export const MODERN_HOMES: readonly Home[] = [
       {
         via: 'Scene info › the project’s name',
         steps: [{ palette: 'Scene info' }, { click: { role: 'button', pattern: 'Gate Book', within: sceneInfo } }, see({ role: 'dialog', name: 'Project' })],
-        pending: 313,
-        why: 'Scene info has no project line that links to Project details (§7.1)',
       },
     ]),
   },
