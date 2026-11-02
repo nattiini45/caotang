@@ -37,9 +37,12 @@ export interface ZoomControlProps {
   readonly labels?: Readonly<Record<ZoomLevel, string>>;
   /** The group's accessible name. */
   readonly ariaLabel?: string;
+  /** The group's and each level's class, for a shell that draws the control its own way (Modern's top ornament). */
+  readonly className?: string;
+  readonly itemClassName?: string;
 }
 
-export function ZoomControl({ zoom, onZoom, labels, ariaLabel }: ZoomControlProps): ReactNode {
+export function ZoomControl({ zoom, onZoom, labels, ariaLabel, className = 'segmented', itemClassName = 'segmented-item' }: ZoomControlProps): ReactNode {
   const groupLabel = ariaLabel ?? t`Card size`;
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
     const next = radioStep(ZOOM_LEVELS, zoom, event.key);
@@ -49,7 +52,7 @@ export function ZoomControl({ zoom, onZoom, labels, ariaLabel }: ZoomControlProp
     event.currentTarget.querySelector<HTMLElement>(`[data-zoom="${next}"]`)?.focus();
   };
   return (
-    <div role="radiogroup" aria-label={accessibleText(groupLabel)} className="segmented" onKeyDown={onKeyDown}>
+    <div role="radiogroup" aria-label={accessibleText(groupLabel)} className={className} onKeyDown={onKeyDown}>
       {ZOOM_LEVELS.map((level) => {
         const label = labelText(level, labels);
         return (
@@ -62,7 +65,7 @@ export function ZoomControl({ zoom, onZoom, labels, ariaLabel }: ZoomControlProp
             tabIndex={zoom === level ? 0 : -1}
             aria-label={`${level}: ${label}`}
             title={label}
-            className="segmented-item"
+            className={itemClassName}
             onClick={() => onZoom(level)}
           >
             {level}

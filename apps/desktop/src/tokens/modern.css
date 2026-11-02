@@ -1,0 +1,269 @@
+/*
+ * Modern's tokens (docs/architecture/modern-interface.md §5.1–§5.5, §9.2–§9.4). In the `modern-shell` chunk's stylesheet, loaded only while
+ * data-shell="modern" is on <html> (app/interface.ts), so Classic's first load never carries it (§12).
+ *
+ * Every selector starts with :root[data-shell='modern'] (D7, checked by test/modern-css.test.ts): the prefix outranks Classic's :root
+ * blocks (tokens/classic.css) by specificity, never by load order, and Classic never sees a value here. Modern has no skin axis.
+ *
+ * How the blocks compose:
+ *   1. The scheme-free block: geometry, density, motion, and the material tokens (--mat-*), which name the scheme's primitives (--m-*).
+ *   2. The light and dark blocks set colours and the primitives only, never a --mat-* token, so a fallback below wins in either scheme.
+ *      Light is :not([data-theme='dark']); dark is the system query :not([data-theme='light']) and the chosen [data-theme='dark'],
+ *      both after light, with the same values (checked by e2e/unit/modern-tokens.spec.ts).
+ *   3. The fallbacks (§5.3, §9.4), each after the blocks it overrides: reduced transparency (the system's, or the Appearance switch's
+ *      data-transparency='reduced'), no backdrop-filter, more contrast, forced colours, and reduced motion (the system's, or
+ *      data-motion='reduced'). Each turns glass into an opaque surface with the same text colours, so contrast never drops.
+ *
+ * The material values were settled in M4 (#305) by the computed contrast test (§9.3, e2e/unit/modern-tokens.spec.ts): text on the
+ * scrim or on thick glass meets 4.5:1 over every colour the wallpaper draws, light and dark, with the text glow not counted. The
+ * concept's dark scrim (.34) and dark thick glass (.46) did not, over the night sun; they are .56 and .64 here, and the dark frost .68
+ * (from .62). The focus ring is two-tone and meets 3:1 on every surface; the light ring is #3730a3 and the dark #bcb7ff, a step
+ * further from the middle than the concept's.
+ */
+
+/* 1. Scheme-free: geometry, density, motion, materials. */
+:root[data-shell='modern'] {
+  /* Concentric radii (§5.5): inner = outer − padding. */
+  --radius-page: 36px;
+  --radius-ornament: 30px;
+  --ornament-pad: 6px;
+  --radius-control: 24px;
+  --radius-sheet: 32px;
+  --sheet-pad: 12px;
+  --radius-inner: 20px;
+  --radius: 14px;
+  --radius-lg: 20px;
+
+  /* Density: every control at least 44 px (§9.5). */
+  --target-min: 44px;
+  --control-h: 44px;
+  --control-pad-x: 18px;
+  --row-h: 44px;
+
+  /* Motion (§5.5): hover and press, close, open and morph; a fade that stays under reduced motion. */
+  --dur-1: 120ms;
+  --dur-2: 240ms;
+  --dur-3: 520ms;
+  --dur-fade: 120ms;
+  --ease-spring: cubic-bezier(0.3, 1.22, 0.42, 1);
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Focus (§9.2): a two-tone ring, --focus outside and --focus-halo inside. */
+  --focus-width: 3px;
+  --focus-offset: 2px;
+
+  /* Elevation: the page floats (paper, §5.3); glass lifts. */
+  --elev-3: var(--m-page-shadow);
+  --elev-glass: var(--m-lift);
+
+  /* Materials (§5.3). Each names a primitive the scheme blocks set, so the fallbacks below override them in both schemes. */
+  --mat-glass-bg: var(--m-glass);
+  --mat-glass-blur: 9px;
+  --mat-glass-saturate: 185%;
+  --mat-glass-edge-hi: var(--m-edge-hi);
+  --mat-glass-edge-lo: var(--m-edge-lo);
+  --mat-thick-bg: var(--m-thick);
+  --mat-thick-blur: 24px;
+  --mat-frost-bg: var(--m-frost);
+  --mat-frost-blur: 30px;
+  --scrim: var(--m-scrim);
+  --mat-rim: var(--m-rim);
+  --mat-glow: var(--m-glow);
+  --wallpaper: var(--m-wallpaper);
+}
+
+/* 2a. Light (dawn harbour). */
+:root[data-shell='modern']:not([data-theme='dark']) {
+  --paper: #fffdf9;
+  --surface-page: #fffdf9;
+  --surface-app: #f3e3dc;
+  --panel: #fbf7f2;
+  --raised: #ffffff;
+  --ink: #24211f;
+  --ink-soft: #5d5852;
+  --muted: #625d57;
+  --line: #e9e3db;
+  --line-strong: #d3cbc0;
+  --accent: #5145d8;
+  --accent-ink: #ffffff;
+  --accent-soft: #e9e7fb;
+  --focus: #3730a3;
+  --focus-halo: #ffffff;
+  --on-glass: #1b1a1f;
+  --m-glass: rgba(255, 255, 255, 0.14);
+  --m-thick: rgba(255, 250, 248, 0.4);
+  --m-frost: rgba(255, 253, 249, 0.62);
+  --m-scrim: rgba(255, 252, 250, 0.3);
+  --m-solid: #fbf7f2;
+  --m-solid-line: #d3cbc0;
+  --m-edge-hi: rgba(255, 255, 255, 0.95);
+  --m-edge-lo: rgba(255, 255, 255, 0.25);
+  --m-rim: linear-gradient(140deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.18) 32%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.22) 78%, rgba(255, 255, 255, 0.75));
+  --m-glow: 0 0 10px rgba(255, 255, 255, 0.55);
+  --m-lift: 0 1px 1px rgba(40, 20, 60, 0.06), 0 10px 24px -6px rgba(60, 30, 80, 0.22), 0 30px 60px -20px rgba(60, 30, 80, 0.28);
+  --m-page-shadow: 0 2px 4px rgba(60, 30, 40, 0.05), 0 24px 50px -18px rgba(80, 40, 70, 0.3), 0 60px 120px -40px rgba(80, 40, 90, 0.35);
+  --m-wallpaper: url('../components/shell/modern/wallpaper-light.svg');
+}
+
+/* 2b. Dark (night harbour): the system's dark scheme while no theme is chosen. */
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) {
+    --paper: #1c1b21;
+    --surface-page: #1c1b21;
+    --surface-app: #15122b;
+    --panel: #201f26;
+    --raised: #26252c;
+    --ink: #ece8e2;
+    --ink-soft: #c8c2ba;
+    --muted: #b4aea6;
+    --line: #302e37;
+    --line-strong: #4a4752;
+    --accent: #8f87ff;
+    --accent-ink: #12102a;
+    --accent-soft: #2c2850;
+    --focus: #bcb7ff;
+    --focus-halo: #12102a;
+    --on-glass: #f5f4f8;
+    --m-glass: rgba(30, 28, 44, 0.18);
+    --m-thick: rgba(22, 20, 34, 0.64);
+    --m-frost: rgba(28, 27, 33, 0.68);
+    --m-scrim: rgba(14, 12, 24, 0.56);
+    --m-solid: #201f26;
+    --m-solid-line: #4a4752;
+    --m-edge-hi: rgba(255, 255, 255, 0.55);
+    --m-edge-lo: rgba(255, 255, 255, 0.06);
+    --m-rim: linear-gradient(140deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.08) 78%, rgba(255, 255, 255, 0.35));
+    --m-glow: 0 0 10px rgba(10, 8, 20, 0.6);
+    --m-lift: 0 1px 1px rgba(0, 0, 0, 0.3), 0 10px 24px -6px rgba(0, 0, 0, 0.5), 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+    --m-page-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 24px 50px -18px rgba(0, 0, 0, 0.6), 0 60px 120px -40px rgba(0, 0, 0, 0.7);
+    --m-wallpaper: url('../components/shell/modern/wallpaper-dark.svg');
+  }
+}
+
+/* 2c. Dark, chosen in Appearance: the same values as 2b. */
+:root[data-shell='modern'][data-theme='dark'] {
+  --paper: #1c1b21;
+  --surface-page: #1c1b21;
+  --surface-app: #15122b;
+  --panel: #201f26;
+  --raised: #26252c;
+  --ink: #ece8e2;
+  --ink-soft: #c8c2ba;
+  --muted: #b4aea6;
+  --line: #302e37;
+  --line-strong: #4a4752;
+  --accent: #8f87ff;
+  --accent-ink: #12102a;
+  --accent-soft: #2c2850;
+  --focus: #bcb7ff;
+  --focus-halo: #12102a;
+  --on-glass: #f5f4f8;
+  --m-glass: rgba(30, 28, 44, 0.18);
+  --m-thick: rgba(22, 20, 34, 0.64);
+  --m-frost: rgba(28, 27, 33, 0.68);
+  --m-scrim: rgba(14, 12, 24, 0.56);
+  --m-solid: #201f26;
+  --m-solid-line: #4a4752;
+  --m-edge-hi: rgba(255, 255, 255, 0.55);
+  --m-edge-lo: rgba(255, 255, 255, 0.06);
+  --m-rim: linear-gradient(140deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.08) 32%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, 0.08) 78%, rgba(255, 255, 255, 0.35));
+  --m-glow: 0 0 10px rgba(10, 8, 20, 0.6);
+  --m-lift: 0 1px 1px rgba(0, 0, 0, 0.3), 0 10px 24px -6px rgba(0, 0, 0, 0.5), 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+  --m-page-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), 0 24px 50px -18px rgba(0, 0, 0, 0.6), 0 60px 120px -40px rgba(0, 0, 0, 0.7);
+  --m-wallpaper: url('../components/shell/modern/wallpaper-dark.svg');
+}
+
+/* 3a. Reduced transparency, from the system: every glass an opaque surface, no blur, no rim, no glow. */
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-shell='modern'] {
+    --mat-glass-bg: var(--m-solid);
+    --mat-thick-bg: var(--m-solid);
+    --mat-frost-bg: var(--surface-page);
+    --scrim: transparent;
+    --mat-glass-blur: 0px;
+    --mat-thick-blur: 0px;
+    --mat-frost-blur: 0px;
+    --mat-glass-saturate: 100%;
+    --mat-glass-edge-hi: var(--m-solid-line);
+    --mat-glass-edge-lo: var(--m-solid-line);
+    --mat-rim: none;
+    --mat-glow: none;
+  }
+}
+
+/* 3b. Reduced transparency, from the Appearance switch. */
+:root[data-shell='modern'][data-transparency='reduced'] {
+  --mat-glass-bg: var(--m-solid);
+  --mat-thick-bg: var(--m-solid);
+  --mat-frost-bg: var(--surface-page);
+  --scrim: transparent;
+  --mat-glass-blur: 0px;
+  --mat-thick-blur: 0px;
+  --mat-frost-blur: 0px;
+  --mat-glass-saturate: 100%;
+  --mat-glass-edge-hi: var(--m-solid-line);
+  --mat-glass-edge-lo: var(--m-solid-line);
+  --mat-rim: none;
+  --mat-glow: none;
+}
+
+/* 3c. A browser without backdrop-filter: glass it cannot blur would be unreadable, so it is opaque. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-shell='modern'] {
+    --mat-glass-bg: var(--m-solid);
+    --mat-thick-bg: var(--m-solid);
+    --mat-frost-bg: var(--surface-page);
+    --scrim: transparent;
+    --mat-glass-blur: 0px;
+    --mat-thick-blur: 0px;
+    --mat-frost-blur: 0px;
+    --mat-glass-saturate: 100%;
+    --mat-glass-edge-hi: var(--m-solid-line);
+    --mat-glass-edge-lo: var(--m-solid-line);
+    --mat-rim: none;
+    --mat-glow: none;
+  }
+}
+
+/* 3d. More contrast: thick glass and scrims at full opacity; thin glass stays the see-through layer, with text on a scrim. */
+@media (prefers-contrast: more) {
+  :root[data-shell='modern'] {
+    --mat-thick-bg: var(--m-solid);
+    --scrim: var(--m-solid);
+    --mat-glow: none;
+  }
+}
+
+/* 3e. Forced colours: system colours, no wallpaper, no glass, no shadow (shell-modern.css draws a 1 px CanvasText border). */
+@media (forced-colors: active) {
+  :root[data-shell='modern'] {
+    --mat-glass-bg: Canvas;
+    --mat-thick-bg: Canvas;
+    --mat-frost-bg: Canvas;
+    --scrim: Canvas;
+    --mat-glass-blur: 0px;
+    --mat-thick-blur: 0px;
+    --mat-frost-blur: 0px;
+    --mat-glass-saturate: 100%;
+    --mat-rim: none;
+    --mat-glow: none;
+    --elev-3: none;
+    --elev-glass: none;
+    --wallpaper: none;
+  }
+}
+
+/* 3f. Reduced motion, from the system or the Appearance switch: nothing moves; an element that appears in place fades in 120 ms. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-shell='modern'] {
+    --dur-1: 0s;
+    --dur-2: 0s;
+    --dur-3: 0s;
+  }
+}
+
+:root[data-shell='modern'][data-motion='reduced'] {
+  --dur-1: 0s;
+  --dur-2: 0s;
+  --dur-3: 0s;
+}

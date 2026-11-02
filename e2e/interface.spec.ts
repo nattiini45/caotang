@@ -8,9 +8,9 @@ import { createProject } from './support.js';
  * Interface, kept in this browser as `caotang.interface` and put on <html> as `data-shell` before the first render. These specs check
  * the default themselves, so they start without the suite's Classic pin (e2e/classic-pin.ts).
  *
- * Until the parity gate opens (MODERN_DEFAULT_FOR_NEW_USERS, #313) a fresh profile resolves to Classic, and Modern is "Modern
- * (Preview)" in Settings. Modern's stylesheet is loaded only while Modern is on; its placeholder override sets `--radius` to 14px
- * (8px in Classic), which is what these specs read.
+ * A fresh profile is a new writer, who starts in Modern (#313); a profile with any sign of earlier use (another `caotang.*` key, a
+ * project, a settings record) stays on Classic. Modern's stylesheet is loaded only while Modern is on; its tokens (tokens/modern.css)
+ * set `--radius` to 14px (8px in Classic), which is what these specs read. The stage and the page themselves are e2e/modern-stage.spec.ts's.
  *
  * The code inside `page.evaluate` is sent to the page as text, so each callback names its own globals.
  */
@@ -38,7 +38,7 @@ function radius(page: Page): Promise<string> {
   });
 }
 
-/** Every request for Modern's stylesheet, from the dev server (`/src/modern/modern.css`) or a build (`modern-<hash>.css`). */
+/** Every request for Modern's stylesheets, from the dev server (`/src/tokens/modern.css`, `shell-modern.css`) or a build (`modern-shell-<hash>.css`). */
 function watchModernCss(page: Page): string[] {
   const seen: string[] = [];
   page.on('request', (request) => {
@@ -56,22 +56,39 @@ async function openAgent(page: Page): Promise<void> {
 
 const HOME = 'Projects in this browser';
 
-test('a fresh profile resolves as the parity gate says: Classic today, stored at once, and Modern’s stylesheet is not fetched', async ({ page }) => {
+test('a fresh profile is a new writer: Modern, stored at once, with its stylesheet, and it stays Modern on a reload', async ({ page }) => {
   const css = watchModernCss(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: HOME })).toBeVisible();
+  expect(await shellOf(page)).toBe('modern');
+  expect(await stored(page)).toBe('modern');
+  await expect.poll(() => radius(page)).toBe('14px');
+  expect(css).not.toEqual([]);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: HOME })).toBeVisible();
+  expect(await shellOf(page)).toBe('modern');
+});
+
+test('Settings › Appearance names Modern plainly, with no Preview, and says who starts where', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
+  const group = settings.getByRole('group', { name: 'Interface', exact: true });
+  await expect(group.getByRole('radio', { name: 'Modern', exact: true })).toBeChecked();
+  await expect(group).not.toContainText('Preview');
+  await expect(settings).toContainText('New writers start in Modern');
+});
+
+test('an existing profile (a theme kept from an earlier visit) stays Classic, and Modern’s stylesheet is not fetched', async ({ page }) => {
+  const css = watchModernCss(page);
+  await page.addInitScript(() => (globalThis as unknown as View).localStorage.setItem('caotang.theme', 'light'));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: HOME })).toBeVisible();
   expect(await shellOf(page)).toBe('classic');
   expect(await stored(page)).toBe('classic');
   expect(await radius(page)).toBe('8px');
   expect(css).toEqual([]);
-});
-
-test('an existing profile (a theme kept from an earlier visit) stays Classic', async ({ page }) => {
-  await page.addInitScript(() => (globalThis as unknown as View).localStorage.setItem('caotang.theme', 'light'));
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: HOME })).toBeVisible();
-  expect(await shellOf(page)).toBe('classic');
-  expect(await stored(page)).toBe('classic');
 });
 
 test('an existing profile with a project and no interface stored settles on Classic from the store', async ({ page }) => {
@@ -92,6 +109,11 @@ test('a stored Modern loads its stylesheet before the first render, and survives
 });
 
 test('Settings › Appearance › Interface switches live: the unsaved text, the open agent panel and focus on the radio all stay', async ({ page }) => {
+  // This writer starts from Classic, chosen once.
+  await page.addInitScript(() => {
+    const store = (globalThis as unknown as View).localStorage;
+    if (store.getItem('caotang.interface') === null) store.setItem('caotang.interface', 'classic');
+  });
   await createProject(page, 'Switch Book');
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
@@ -105,7 +127,7 @@ test('Settings › Appearance › Interface switches live: the unsaved text, the
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
   const group = settings.getByRole('group', { name: 'Interface', exact: true });
-  const modern = group.getByRole('radio', { name: 'Modern (Preview)' });
+  const modern = group.getByRole('radio', { name: 'Modern', exact: true });
   await modern.check();
   await expect(modern).toBeFocused();
   expect(await shellOf(page)).toBe('modern');

@@ -1,7 +1,8 @@
 /**
  * The writing workspace — ui-modules §1, modern-interface.md §4.1. It holds the state and the handlers of the writing studio and
- * builds the regions a shell arranges: the feature elements, the shell actions (app/shell-actions.ts) and the view state. The Classic
- * shell (shell/ClassicShell.tsx) lays them out: a toolbar on top; a left rail with the binder, codex, activity and findings tab
+ * builds the regions a shell arranges: the feature elements, the shell actions (app/shell-actions.ts) and the view state. Shell
+ * (shell/Shell.tsx) puts them in the chosen shell: Modern (shell/modern/, a lazy chunk) or Classic. The Classic shell
+ * (shell/ClassicShell.tsx) lays them out: a toolbar on top; a left rail with the binder, codex, activity and findings tab
  * slots; the centre (the editor, or the corkboard for a container); the inspector on the right. Focus mode hides both rails and
  * keeps the centre exactly as it was.
  *
@@ -56,6 +57,7 @@ import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notic
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords } from '../app/integrity-model.js';
+import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
 import { RecurringTasks } from '../app/recurring-tasks.js';
@@ -72,7 +74,7 @@ import { clearTray, pendingRows } from '../app/timeline-tray.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
 import { BinderFooter } from './BinderFooter.js';
 import { whenAgent } from '../app/agent-registry.js';
-import { openFindingCount } from '../app/findings-model.js';
+import { openFindingCount, openFindingsOfScene } from '../app/findings-model.js';
 import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
@@ -96,8 +98,10 @@ import {
 } from './actions.js';
 import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
-import { ClassicShell, railTabId } from './shell/ClassicShell.js';
-import type { RailTab, ShellRegions } from './shell/regions.js';
+import { railTabId } from './shell/ClassicShell.js';
+import { minimapDots } from './shell/minimap.js';
+import type { AgentActivity, RailTab, ShellRegions } from './shell/regions.js';
+import { Shell } from './shell/Shell.js';
 
 /** The timeline is its own chunk: the view and its package are fetched when the writer first opens it. */
 const PictureBoard = lazyView(() => import('../media/PictureBoard.js').then((module) => ({ default: module.PictureBoard })));
@@ -177,6 +181,9 @@ export function Workspace({
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
   const [filterFocusRequest, setFilterFocusRequest] = useState(0);
+  // Counts the documents chosen in the binder, so a shell whose binder floats over the page (Modern's sidebar) can close it on each.
+  const [binderChoice, setBinderChoice] = useState(0);
+  const [railRequest, setRailRequest] = useState(0);
   const [zoom, setZoom] = useState<ZoomLevel>('M');
   const [renaming, setRenaming] = useState<Renaming | null>(null);
   const [askingDelete, setAskingDelete] = useState<string | null>(null);
@@ -191,6 +198,8 @@ export function Workspace({
     notice === null ? null : { text: notice, tone: 'info' },
   );
   const [agentOpen, setAgentOpen] = useState(startIntent !== null);
+  /** Text the palette put in the agent's Intent box, unsent (modern-interface.md §8.9); the serial makes a repeat count. */
+  const [agentDraft, setAgentDraft] = useState<{ readonly text: string; readonly serial: number } | null>(null);
   const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissedForVisit());
   const [explainStorage, setExplainStorage] = useState(false);
@@ -230,6 +239,12 @@ export function Workspace({
       setAgent(null);
     };
   }, [session, services.providers, services.settings]);
+  // What the agent is doing, for a shell that shows it with the agent out of sight (Modern's Ask, modern-interface.md §8.10). The
+  // selector reads one field of the cached snapshot, so the workspace renders again only when the activity changes, not on every step.
+  const agentActivity = useSyncExternalStore(
+    useCallback((listener: () => void) => (agent === null ? () => undefined : agent.subscribe(listener)), [agent]),
+    (): AgentActivity => activityOf(agent),
+  );
   /** Starts a turn for intent once the controller has loaded: the request waits for it, so a click before the download is not lost. */
   const submitToAgent = useCallback(
     (intent: string, options?: SubmitOptions): void => {
@@ -369,6 +384,7 @@ export function Workspace({
     }
     if (hideRails) setFocusMode(false);
     setRail('binder');
+    setRailRequest((count) => count + 1);
     if (narrow) setPanel('rail');
     for (const folder of above) setExpanded(session, folder.id, true);
     selectNode(session, section.id);
@@ -393,6 +409,7 @@ export function Workspace({
     if (hideRails) setFocusMode(false);
     if (selected !== sceneId) selectNode(session, sceneId);
     if (narrow) setPanel('inspector');
+    requestInspector('synopsis');
     // Unlike the binder's Edit synopsis, a miss is said: the chord was pressed in the text, and nothing else would show it failed.
     requestAnimationFrame(() => {
       const field = document.querySelector<HTMLElement>('#inspector-synopsis');
@@ -625,7 +642,9 @@ export function Workspace({
     shownPanel.current = openPanel;
     if (openPanel === 'rail') document.getElementById(railTabId(rail))?.focus();
     else if (openPanel === 'inspector') document.getElementById('narrow-close-inspector')?.focus();
-    else if (before !== null) {
+    // Modern's agent sheet moves focus in and back itself (the companion window, to and from Ask).
+    else if (openPanel === 'agent') return;
+    else if (before !== null && before !== 'agent') {
       const active = document.activeElement;
       const left = document.getElementById(before === 'rail' ? 'narrow-rail' : 'narrow-sheet');
       if (active === null || active === document.body || left?.contains(active)) document.getElementById(`narrow-toggle-${before}`)?.focus();
@@ -910,30 +929,40 @@ export function Workspace({
       hideRails,
       narrow,
       agentOpen,
+      setAgentOpen,
+      agentActivity,
       openPanel,
       setPanel,
       overflow,
       openOverflow,
       closeOverflow: () => setOverflow(null),
+      filterRequest: filterFocusRequest,
+      binderChoice,
+      railRequest,
+      zoom,
+      setZoom,
     },
     binder: (
-      <>
-        <Binder
-          session={session}
-          renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
-          onRename={renameOn('binder')}
-          onAskDelete={askDelete}
-          onShowCenter={showCenter}
-          onOpened={() => setPanel(null)}
-          onFocusSynopsis={() => {
-            if (narrow) setPanel('inspector');
-            focusSoon('#inspector-synopsis');
-          }}
-          onAgentIntent={runAgentIntent}
-        />
-        <BinderFooter session={session} runtime={store} target={target} />
-      </>
+      <Binder
+        session={session}
+        renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
+        onRename={renameOn('binder')}
+        onAskDelete={askDelete}
+        onShowCenter={showCenter}
+        onOpened={() => {
+          setPanel(null);
+          setBinderChoice((count) => count + 1);
+        }}
+        onFocusSynopsis={() => {
+          if (narrow) setPanel('inspector');
+          requestInspector('synopsis');
+          focusSoon('#inspector-synopsis');
+        }}
+        onAgentIntent={runAgentIntent}
+      />
     ),
+    binderFooter: <BinderFooter session={session} runtime={store} target={target} />,
+    minimap: minimapDots(state, activeDoc),
     codex: <CodexPanel session={session} onOpenDocument={openDocument} focus={codexFocus} onAgentIntent={runAgentIntent} />,
     findings: (
       <FindingsPanel
@@ -952,6 +981,11 @@ export function Workspace({
       />
     ),
     findingsBadge: openFindingCount(session.coherenceFile()),
+    sceneFindings: openFindingsOfScene(state, session.coherenceFile(), selected),
+    showInFindings: (factGroup: string) => {
+      setRailRequest((count) => count + 1);
+      openInFindings(factGroup);
+    },
     activity: <ActivityPanel session={session} onExport={() => void exportActivity()} />,
     trace: <TracePanel services={services} projectName={state.manifest.project.name} />,
     inspector: (
@@ -1007,8 +1041,26 @@ export function Workspace({
           agent={agent}
           recurring={recurring}
           startIntent={startIntent}
+          draft={agentDraft}
           open={agentOpen}
           onToggle={() => setAgentOpen((on) => !on)}
+          sample={sample}
+        />
+      ),
+    // The same panel for a shell that hosts it in a window of its own (Modern's companion, modern-interface.md §7.4, §8.10): always open,
+    // with Close in its header. Only the shell that places it mounts it.
+    agentWindow:
+      agent === null || recurring === null ? null : (
+        <AgentPanel
+          session={session}
+          agent={agent}
+          recurring={recurring}
+          startIntent={startIntent}
+          draft={agentDraft}
+          open
+          onToggle={() => setAgentOpen((on) => !on)}
+          onClose={() => setAgentOpen(false)}
+          placement="window"
           sample={sample}
         />
       ),
@@ -1088,12 +1140,45 @@ export function Workspace({
       </div>
     ) : null,
     saveState: <SaveIndicator state={saveState} onExport={exportNow} />,
+    progress: { target, setTarget: saveTarget, saveState, exportBackup: exportNow },
+    search: {
+      state,
+      activeDocId: view.activeDocId,
+      openNode: (nodeId) => {
+        const node = nodeById(state, nodeId);
+        if (node === undefined) return;
+        selectNode(session, nodeId);
+        setPanel(null);
+        if (node.type !== 'document') {
+          showCenter('corkboard');
+          return;
+        }
+        setCenter('editor');
+        if (mediaKindOf(node) === null) setFocusDocId(nodeId);
+      },
+      openCodexEntry,
+      showCodex: () => {
+        setRail('codex');
+        if (narrow) setPanel('rail');
+      },
+      openSettings: setSettingsSection,
+      openAgent: (text) => {
+        setAgentOpen(true);
+        setPanel(null);
+        if (text !== null) setAgentDraft((previous) => ({ text, serial: (previous?.serial ?? 0) + 1 }));
+      },
+      openSceneInfo: () => {
+        if (narrow) setPanel('inspector');
+        requestInspector('synopsis');
+        focusSoon('#inspector-synopsis');
+      },
+    },
   };
 
   return (
     <ReportContext.Provider value={report}>
-      {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have. */}
-      <ClassicShell regions={regions}>
+      {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have, in either shell. */}
+      <Shell regions={regions}>
         <ConfirmDialog
           open={doomed !== undefined}
           title={doomed ? t`Delete “${{ title: isolate(doomed.title) }}”?` : t`Delete?`}
@@ -1175,7 +1260,7 @@ export function Workspace({
             onProvidersChanged={() => agent?.refresh()}
           />
         ) : null}
-      </ClassicShell>
+      </Shell>
     </ReportContext.Provider>
   );
 }
@@ -1521,4 +1606,11 @@ function focusAfterDelete(place: DeletePlace): void {
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** What the agent is doing: a turn working, a card waiting for the writer, or nothing. `idle` until the controller has loaded. */
+function activityOf(agent: AgentController | null): AgentActivity {
+  if (agent === null) return 'idle';
+  const snapshot = agent.snapshot();
+  return snapshot.busy ? 'working' : snapshot.pending !== null ? 'waiting' : 'idle';
 }

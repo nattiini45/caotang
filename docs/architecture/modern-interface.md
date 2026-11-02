@@ -1,6 +1,6 @@
 # Modern interface — a spatial shell beside Classic
 
-> Status: **specified, built in part.** Epic #301, milestone "Modern interface". The foundation (§16, M1, #302: the Interface setting, the `data-shell` attribute, the default rule, an empty lazily loaded Modern stylesheet, semantic-token groundwork and the Classic visual snapshots) is **built** (#314). The shell actions and the regions with `ClassicShell` (§4.1, §4.2, M2, #303) are **built**. Classic's token layer and the skin hook (M3, #304: `tokens/classic.css`, the tokens of §5.1 with Classic's values behind the shell frame, binder, agent panel, dialogs and media views, `data-skin`, §2.2) are **built** (#331). Nothing else in this document exists in the current build. The decisions in §17 bind the work when it is cut.
+> Status: **built.** Epic #301, milestone "Modern interface". Every phase of §16 is built: the foundation and the Interface setting (M1, #302, #314), the shell actions and regions (M2, #303), Classic's token layer and the skin hook (M3, #304, #331), the stage, page and materials (M4, #305), the ornaments, ⋯ and the morph (M5, #306), the tab bar and sidebar (M6, #307), Scene info (M7, #308), the agent window (M8, #309), the palette (M9, #310), dialogs, menus, notices and Home (M10, #311), the narrow layout (M11, #312), and the accessibility and reachability gate with focus mode (M12, #313). The parity gate (D4) is open: new writers start in Modern, existing writers stay on Classic, and Settings no longer says "Preview". Not built: the review capsule beside a marked change (§8.7) and any Classic skin (§2.2: the hook only). The decisions in §17 bind later work.
 > Scope: a second **shell** for the writing studio, called **Modern**, chosen by the owner from the concept "Glass 2 · Spatial" (2026-10-31): the manuscript as one solid floating page on a wallpaper, glass ornaments on its edges, a binder that grows out of a slim tab bar, the inspector and the status line in a scene-info popover, views that switch by morphing the page, and the agent in a companion glass window. The current interface stays, unchanged, as **Classic**, and the writer chooses in Settings › Appearance › Interface. A token layer that lets later **skins** restyle Classic (concepts A Calm, B Glass, C Focus) is designed here as a hook only.
 > Cross-refs: the Classic shell, the narrow layout and Settings = [ui-modules.md](ui-modules.md) §0–§5 · the keyboard map = `apps/desktop/src/app/keymap.ts` and ui-modules §2.5/§5.6 · the agent panel = [agent-harness.md](agent-harness.md) §8 · the editor, ghost and review marks = [editor-engine.md](editor-engine.md) §8/§15 · the codex panel = [codex-panels.md](codex-panels.md) · findings = [coherence.md](coherence.md) §8 · the binder footer = [binder-filters.md](binder-filters.md), [goals-progress.md](goals-progress.md) · interface languages and right-to-left = [i18n.md](i18n.md) §3, §5, §7 · the bundle gate = `tools/check-bundle-size.mjs` · the concept = `ui-concepts/glass2-spatial/index.html` (a design reference outside the repository; this document is the contract, not the mock).
 
@@ -77,7 +77,7 @@ Decided by the owner: **new users default to Modern; existing users stay on Clas
 
 No workspace is rendered before the answer is known, so the wrong shell never flashes. Step 3 adds no wait: the loading screen is already there for the store.
 
-**Gate until parity (D4).** Step 3's "Modern" applies only once Modern is complete (M12 closes). Until then `resolveInterface` returns Classic at step 3, and Settings › Appearance offers Modern labelled "Preview". A new writer must never meet a shell with a hole in it. The gate is one constant in the resolver, removed by M12.
+**Gate until parity (D4).** Step 3's "Modern" applied only once Modern was complete. Until then `resolveInterface` returned Classic at step 3, and Settings › Appearance offered Modern labelled "Preview". A new writer must never meet a shell with a hole in it. The gate was one constant in the resolver (`MODERN_DEFAULT_FOR_NEW_USERS`), removed by M12 (#313): a fresh profile now resolves to Modern, and Settings names it plainly, under a sentence that says new writers start in Modern and earlier ones stay on Classic until they choose.
 
 ### 3.3 Switching
 
@@ -85,7 +85,7 @@ Settings › Appearance › **Interface**: a radio group, **Classic** and **Mode
 
 ### 3.4 Tests and the default
 
-Every existing e2e spec was written against Classic and keeps running against Classic: a shared fixture sets `caotang.interface` to `'classic'` through `addInitScript` (M1). Only Modern specs, and the first-run spec that checks the default, start without it.
+Every existing e2e spec was written against Classic and keeps running against Classic: the suite's default `storageState` sets `caotang.interface` to `'classic'` (`e2e/classic-pin.ts`, M1). Only Modern specs, and `e2e/interface.spec.ts`, which checks the default, start without it; since #313 a spec without the pin that builds its project in Classic chooses Classic first, because a fresh profile starts in Modern.
 
 ## 4. One component tree
 
@@ -148,12 +148,14 @@ The existing names (`--paper`, `--panel`, `--raised`, `--ink`, `--ink-soft`, `--
 
 ### 5.3 Materials (Modern)
 
-| Material | Used for | Recipe (starting values from the concept; M4 measures and settles them) |
+| Material | Used for | Recipe (starting values from the concept; the values M4 settled follow the table) |
 |---|---|---|
 | **Paper** | The manuscript page, board cards, the codex detail | Opaque `--surface-page`; never glass. `--radius-page` 36 px, `--elev-3`. |
 | **Glass** | Ornaments, the binder tab bar, the view lens | Light `rgba(255,255,255,.14)`, dark `rgba(30,28,44,.18)`; `backdrop-filter: blur(9px) saturate(185%)`; an inner top highlight (`--mat-glass-edge-hi`) and bottom edge; a light-catching rim drawn as a masked gradient border. A pointer-following specular highlight is decoration, set through the CSSOM (§11), off under reduced motion and reduced transparency. |
 | **Thick glass** | The scene-info popover, the **⋯** menu, the palette, the agent window, sheets and dialogs, toasts | Light `rgba(255,250,248,.40)`, dark `rgba(22,20,34,.46)`; `blur(22–24px)`. Any run of text sits on it or on a `--scrim` chip. |
 | **Frost** | The board's wall behind its paper cards | `--surface-page` at about 62% with `blur(30px)`. |
+
+**Settled in M4 (#305).** The computed contrast test (`e2e/unit/modern-contrast.spec.ts`, §9.3) changed the concept's dark values, which fell under 4.5:1 over the night sun: the dark **scrim** is `rgba(14,12,24,.56)` (from .34), dark **thick glass** `rgba(22,20,34,.64)` (from .46) and dark **frost** `rgba(28,27,33,.68)` (from .62). The light values stay the concept's (glass .14, thick glass .40, frost .62, scrim .30). The **focus ring** is two-tone and meets 3:1 on every surface: `#3730a3` in light and `#bcb7ff` in dark, each with a halo. The values live in `tokens/modern.css` as per-scheme primitives (`--m-*`) that the material tokens name, so each fallback below changes tokens only.
 
 **Scrims and contrast.** Text and icons never sit on thin glass alone. Labels on an ornament sit on a `--scrim` (light `rgba(255,252,250,.30)`, dark `rgba(14,12,24,.34)`) or on thick glass. The concept's text glow is decoration and is not counted toward contrast. The bar is computed, not eyeballed (§9.3).
 
@@ -198,6 +200,24 @@ Motion: `--dur-1` 120 ms (hover, press), `--dur-2` 240 ms (close), `--dur-3` 520
 | Projects screen | `Home` on the paper colour | `Home` on the wallpaper, its sections on paper |
 
 Below 960 px see §13.
+
+### 6.1 Slots (built in M4, #305)
+
+`ModernShell` (`components/shell/modern/modern-shell.tsx`, the `modern-shell` chunk) is the stage, the skip link, the page and seven **slots**, the places the later Modern issues fill. They are one object, `MODERN_SLOTS` in `components/shell/modern/slots.ts`, with one line per slot, so the parallel issues merge without touching each other: an issue builds its component under `components/shell/modern/`, changes only its own line, and deletes the provisional (`Interim…`) file it replaces. Nothing else in `ModernShell` changes.
+
+| Slot | Owner | What M4 ships in it | DOM place (§9.1) |
+|---|---|---|---|
+| `notices` | #311 | `InterimNotices` (the status line, the storage notices) | after the skip link |
+| `topOrnament` | #306 | `InterimTopOrnament` (the project's name, the save state, the **More** menu) | before the binder |
+| `sidebar` | #307 | `InterimSidebar` (the binder on paper) | before the page |
+| `bottomOrnament` | #306 | `InterimBottomOrnament` (the centre views as one radio group) | after the page |
+| `sceneInfo` | #308 | nothing (the inspector waits for Scene info) | after the bottom ornament |
+| `companion` | #309 | nothing (the agent drawer stays at the page's foot) | after Scene info |
+| `palette` | #310 | nothing | last, before the dialogs |
+
+**Props.** Every slot is a `ModernSlot`, a component of `ModernSlotProps` `{ regions, pageId }`: `regions` is the `ShellRegions` (the same feature elements Classic shows, and the view state), and `pageId` is the page's id, `'modern-page'` (`PAGE_ID`), for a control that moves focus to the page or names it with `aria-controls`. A slot never reads the interface (§4.3 rule 1); it is Modern by being here. A `null` slot renders nothing; the sidebar slot renders only when the rails are shown and the window is not narrow. `ModernShell` takes a `slots` prop for tests, `MODERN_SLOTS` by default.
+
+**Geometry.** Room a slot takes from the page is not the slot's business: it is the stage's **geometry**, `ModernShell`'s `geometry` prop of type `StageGeometry` (`components/shell/modern/geometry.ts`), which #306's `modernLayout` computes. Its fields, in CSS px, are `pageWidth` (default 780), `pageTop` (default max(84, 11% of the height)), `pageBottom` (the bottom ornament's room, default 112), `areaStart` (the sidebar's room, default 0, or the sidebar's width while a sidebar slot is shown, `has-sidebar`) and `areaEnd` (the companion window or a docked Scene info, default 0). `geometryProperties` turns it into the custom properties `shell-modern.css` reads (`--page-w`, `--page-top`, `--page-bottom`, `--area-start`, `--area-end`), written through the CSSOM (React's `style` prop, which `style-src 'self'` does not govern, §11); a field left out keeps the stylesheet's default.
 
 ## 7. Inventory: every surface and its Modern home
 
@@ -271,6 +291,8 @@ The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**,
 | Export style, codex attachments and mention chips, scene declarations (POV, day, duration, after, expected present, timeline mode, threads, knowledge), dialogue container, story part, goals, dialogue meta | Scene info › **Story details** disclosure (same `InspectorSections`) |
 | Empty state and its demo intents | Scene info when nothing is selected |
 
+Built (M7, #308): Scene info (`components/shell/modern/scene-info.tsx`) is a non-modal thick-glass `role="dialog"` named Scene info (id `modern-scene-info`) holding the same `Inspector` with `grouping="disclosures"`: head, synopsis (`#inspector-synopsis`), status and label, keywords; **Notes** and **Story details** as `<details>` disclosures; **Progress** (`regions.progress`: `TargetQuickSet` and the save state in words, with **Export a backup** on failure). It opens with the project's line, its name a capsule that opens Project details (#313). The routes (**Edit synopsis**, Ctrl+Shift+Y) send `requestInspector('synopsis')` (`app/inspector-request.ts`, a cancelable window event), which Scene info answers synchronously; Classic ignores it, since its inspector is always shown. **Keep open** (`caotang.modern.sceneInfoDocked`) docks it at the inline-end edge. Its glass is a child layer, not the dialog, so its fixed-position pickers keep the viewport as their containing block.
+
 ### 7.6 Dialogs, Settings, Home
 
 | Classic surface | Modern home |
@@ -278,6 +300,8 @@ The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**,
 | Export (recipes, preview, proof), Project, Skills, Instructions and memory, Vocabulary, Save as macro, Encoding review, Recovery, Twee import, Ink gate, every Confirm and Choice dialog, context menus | Same components; container and menu styles from the material layer |
 | Settings, all nine sections | Same; Appearance gains **Interface**, **Reduce transparency** and **Reduce motion** |
 | Home: new project, the leave suggestion, projects list (open, rename, remove), bring a project in, first-run card, Settings | Same `Home` on the wallpaper (M10) |
+
+Built (M10, #311): every dialog, Settings, the context menus and Home are sheet glass (dialogs .78/.86 over a .40/.50 veil, menus and toasts .84/.91, values computed in `e2e/unit/modern-surfaces.spec.ts`) that grows out of its opener and shrinks back into it (`morph.ts`), or fades under reduced motion; their controls are 44 px. The stale-tab notice stays a modal dialog (reached by the walk from a second tab, #313).
 
 ### 7.7 Keys
 
@@ -301,9 +325,13 @@ A popover, sheet or window grows out of the control that opened it and shrinks b
 
 One pure function, `modernLayout({ viewport, view, sidebar, agent, info })` (M5), returns the page, ornament, sidebar and window rectangles, as the concept's `layout()` does, so geometry is unit-tested and the components only apply it. The page shrinks before anything overlaps it. From 1,280 px down the agent window and a docked Scene info overlap the page as sheets at the inline-end edge with a scrim, instead of pushing it.
 
+Built (M5, #306): `modernLayout` in `components/shell/modern/layout.ts` returns the page, the ornaments, the sidebar, the agent window and the docked Scene info in logical coordinates; the page is 780 px in Write, 1,120 px on the Board (and the timeline and pictures) and 1,000 px in the Codex; the sidebar (300 px) pushes; the agent window (400 px) and a docked Scene info (360 px) push above 1,280 px, stacked at the inline-end edge, and overlap as sheets at 1,280 px and below or when the page would drop below 480 px. Unit-tested at 960 to 1,920 px (`apps/desktop/test/modern-layout.test.ts`).
+
 ### 8.5 The binder tab bar and sidebar
 
 The tab bar opens into the sidebar on a hover held for 140 ms, a click, Enter or Space, or Ctrl+Alt+F. A hover-open does not move focus; a click or key moves focus to the current row. The sidebar closes 420 ms after the pointer leaves, unless it is pinned or focus is inside it; Escape closes it and returns focus to the tab bar. **Keep open** (`aria-pressed`) pins it and the page moves over; the pin is a view preference in local storage (`caotang.modern.binderPinned`). Choosing a scene in an unpinned sidebar closes it on the editor, as the narrow drawer does today. The minimap is decorative (`aria-hidden`).
+
+Built (M6, #307): closed, the sidebar is `inert`. Manuscript or Panels pressed again closes a sidebar it opened by press; after a hover-open a press takes it over and moves focus in. A tab chosen from elsewhere (Show in Findings, Ctrl+Shift+S) opens the sidebar on it through `ShellView.railRequest`, even when that tab is already current (#313). The pin is a small store (`sidebar-model.ts`) that `modernLayout` reads. The sidebar never opens by itself. The Binder tab holds Classic's binder with 44 px targets (#313).
 
 ### 8.6 Notices
 
@@ -313,17 +341,25 @@ Classic's status line becomes a toast capsule at the top centre with the same ro
 
 Optional polish inside M7: when a marked change has focus or the pointer, a small glass capsule with **Reject** and **Accept** appears beside it, calling the review bar's own handlers for the change in focus. The review bar stays the full control and the keyboard path.
 
+Not built: the review bar is the control, on the page, with 44 px buttons (#313); the capsule beside a marked change waits for its own issue.
+
 ### 8.8 Focus mode
 
 Focus mode hides the ornaments, the tab bar, a docked Scene info and the agent window, as far as the Writing setting **In focus mode, hide the binder and the inspector** says. A **Leave focus mode** capsule (44 px) stays at the top, so the button that left the mode is always there (ui-modules §1); moving the pointer to an edge or tabbing into the hidden ornaments brings them back until focus leaves. Ctrl+Shift+F leaves as today.
+
+Built (#313): the ornaments, the tab bar (and a sidebar it opened), Scene info and the agent window fade (`--dur-2`, so not under reduced motion) and stay mounted with their state; the page keeps focus mode's room. They come back while the pointer is within 56 px of an edge of the window or over one of them, while keyboard focus is in one of them, and after a key pressed outside a text field, or Tab, F6 or Escape anywhere; typing in the text never brings them back. They fade 600 ms after none of that holds. The **Leave focus mode** capsule sits at the top inline-end corner whenever focus mode is on, whatever the Writing setting. Focus mode's code is a lazy chunk of its own (`focus-mode`).
 
 ### 8.9 The palette
 
 **Search** and **Ctrl+K** (Cmd+K) open a modal palette of thick glass: a combobox over a grouped listbox (APG). Sources: scenes and folders by title and synopsis, matched by the binder filter's own text criterion so there is one search, not two; codex entries by name and alias, with the codex panel's collation; every shell action; the views, the sidebar tabs, Scene info, the agent; and each Settings section. Empty, it shows recent scenes and the common commands. The arrow keys move, Enter runs, Escape closes and returns focus. With no match, Enter opens the agent window with the text in the Intent box and **does not send it** (a send can spend the writer's money). The model is `app/palette-model.ts`, pure and shell-free; only Modern mounts it in this epic (D11).
 
+Built (M9, #310): `app/palette-model.ts` and `Palette` (`components/shell/modern/palette.tsx`), opened by Ctrl/Cmd+K (`palette`, resolved only with `KeyContext.shell`) and `openPalette()` (`requests.ts`). Scenes match by the binder filter's text criterion (title, then synopsis); codex names by the codex collation at base strength (accent- and case-insensitive). Empty, it lists up to five recent scenes and the shell actions; with no match, one **Ask the agent: “…”** option puts the text in the Intent box, unsent.
+
 ### 8.10 The agent window
 
 **Ask** and **Ctrl+J** (Cmd+J) open and close it; it morphs out of whatever opened it (Ask, a finding's **Fix with agent**, an empty state's agent request, which all go through `runAgentIntent`). The page moves over and recedes slightly (`scale(.985)`, not under reduced motion). It is an `aside` named "Agent", non-modal; it hosts `AgentPanel` with `placement="window"`. Escape inside it keeps Classic's meaning first: with the Intent box empty and a turn running, Escape stops the turn (`agent-stop`, which acts only when the turn is stoppable). Otherwise Escape closes the window and focus returns to **Ask**. A turn keeps running while the window is closed, and **Ask** shows that it is working.
+
+Built (M8, #309): the window is `AgentPanel placement="window"`, mounted while closed (`hidden`), so a running turn, its Intent draft and the panel's state survive a close; the open state is the workspace's `agentOpen`, which Classic's drawer shares. Ctrl/Cmd+J (`agent-toggle`) is resolved only with `KeyContext.shell: 'modern'`. A draft's ghost bar and the review bar stay on the page (reached by the walk from the demo agent, #313).
 
 ### 8.11 Keyboard map
 
@@ -354,6 +390,8 @@ A two-tone ring (`--focus` outside, `--focus-halo` inside, 3 px, offset 2 px) th
 
 A computed test, in the style of `theme-contrast.spec.ts`, composites each Modern text token over each surface it can sit on (the scrim and thick glass over the lightest and the darkest colour of the wallpaper in that scheme, the paper, the frost) and requires 4.5:1 for text, 3:1 for large text, icons, focus rings and control boundaries (WCAG 1.4.3, 1.4.11). axe cannot see through `backdrop-filter`, so this test, not axe, is the contrast gate on glass; axe still scans every Modern surface for everything else. The same pairs are checked in the reduced-transparency surfaces.
 
+Beside the token test (`e2e/unit/modern-tokens.spec.ts`), the gate computes the same composite on the rendered DOM: each text element's colour over every background, gradient and material layer between it and the stage, then over each wallpaper colour and the paper (#313). Inside Scene info, `--warn` and `--danger` take glass-safe values (light #3f2e00 / #521c14, dark #f6e2ad / #fde2db); the top ornament's save state sits on the scrim in the glass ink (at least 5.5:1).
+
 ### 9.4 Preferences
 
 `prefers-reduced-motion`, `prefers-reduced-transparency`, `prefers-contrast: more` (thick glass and scrims at full opacity) and `forced-colors` are honoured from the system; **Reduce motion** (`data-motion='reduced'`, `caotang.modern.motion`) and **Reduce transparency** are also switches in Settings › Appearance, because not every system exposes them. Both switches say they apply to the Modern interface.
@@ -361,6 +399,8 @@ A computed test, in the style of `theme-contrast.spec.ts`, composites each Moder
 ### 9.5 Size and count
 
 Every control in Modern, including tree rows, menu items, tabs, chips that act and toast buttons, is at least 44 by 44 px; a checkbox or radio counts with its label; a link inside a sentence keeps its line. On the default Write screen, with nothing open and no notice, at most ten controls are reachable outside the page: the title capsule, **⋯**, **Write**, **Board**, **Codex**, **Ask**, **Search**, and the tab bar's **Manuscript** and **Panels**, nine. A notice adds its own buttons while it shows. Tests measure both (§15.3).
+
+Built (#313): the editor's toolbar and footer, a draft's ghost bar and the review bar, Scene info's fields, the agent window's Mode and New task, the Board's New card and card sizes, the Codex's buttons, chips, search and entry view, a Board card's grip and rename, and the Binder tab's buttons, filter fields and a row's Collapse/Expand are 44 px; the gate measures every Modern surface and `GAPS` is empty.
 
 ### 9.6 Pointer and touch
 
@@ -396,11 +436,17 @@ Numbers against `main`'s budget (`index` 1,565,000 B raw, first load 886,000 B g
 | Shell actions (M2) | Entry | about neutral: it replaces the duplicated lists |
 | `ClassicShell` (moved JSX) | Entry | neutral |
 | Modern JS (`ModernShell`, ornaments, sidebar, popovers, morph, palette, companion window, layout) | One lazy chunk, `modern-shell`, imported only when `data-shell='modern'`, started at boot beside the store's opening so it costs no extra wait behind the loading screen | target 60 kB raw / 18 kB gzip, cap 70 kB raw |
-| Modern CSS (`tokens/modern.css`, `shell-modern.css`) | The same chunk's stylesheet | cap 30 kB raw / 7 kB gzip |
+| Modern CSS (`tokens/modern.css`, `shell-modern.css`) | The same chunk's stylesheet | cap 50 kB raw / 10 kB gzip (raised from 30 kB at #311, once every Modern surface shared the sheet) |
 | Wallpaper | Asset referenced from Modern's CSS | at most 40 kB per scheme |
 | A Classic skin (later) | Its own lazy stylesheet | at most 6 kB raw each |
 
-Changes to `tools/check-bundle-size.mjs` (M4): a cap map for named lazy chunks; a check that `modern-shell` is not among `initialFilesOf(index.html)`; a CSS section (the entry stylesheet may not grow beyond its measured size plus 1%, and Modern's CSS has its cap); and a reported "Modern first load" (the first load plus Modern's chunk and CSS, gzip), which must stay within 25 kB gzip of the Classic first load. `totalJs` rises once, by the measured size of the Modern chunk, in the pull request that adds it. A `modulepreload` for the Modern chunk is not used, because it would land in Classic's first load.
+Changes to `tools/check-bundle-size.mjs` (M4): a cap map for named lazy chunks; a check that `modern-shell` is not among `initialFilesOf(index.html)`; a CSS section (the entry stylesheet may not grow beyond its measured size plus 1%, and Modern's CSS has its cap); and a reported "Modern first load" (the first load plus Modern's chunk and CSS, gzip), which must stay within 25.9 kB gzip of the Classic first load (25 kB until the merge of #351 into #312: narrow layout + focus mode, #312/#351; Classic unchanged). `totalJs` rises once, by the measured size of the Modern chunk, in the pull request that adds it. A `modulepreload` for the Modern chunk is not used, because it would land in Classic's first load.
+
+**Measured at M4 (#305)** (`node tools/check-bundle-size.mjs` on the production build): the first load is 1,020.2 kB gzip against main's 1,019.1 kB (+1.1 kB for the interface store, the shared shell frame, the Modern preferences and the Appearance switches; over this table's +0.6 kB target for the boot switch, inside the 1,030,000 B ceiling, which did not move). `index` is 1,193.6 kB raw, 359.1 kB gzip. `modern-shell` is 4.6 kB raw, 1.8 kB gzip (cap 70 kB raw), and its stylesheet 12.6 kB raw, 2.8 kB gzip (cap 30 kB raw); the entry stylesheet is 105.5 kB raw, unchanged. Each wallpaper is 3.3 kB (SVG, about 1.2 kB gzip; cap 40 kB). **Modern first load** is 1,024.8 kB gzip, 4.6 kB over Classic's (allowed 25 kB). All JS is 7,682.6 kB raw; `totalJs` rose once, from 7,748,000 to 7,753,000.
+
+**Measured on the merge of #351 into #312** (narrow layout + focus mode, #312/#351; Classic unchanged): the narrow panels (`narrow-panels`, with `narrow-modern.css`) and focus mode (`focus-mode`, with `focus-modern.css`) are lazy chunks of their own; **Modern first load** is 25.4 kB gzip over Classic's, so its allowance rose once, from 25,000 to 25,900 B. All JS is 7,754.4 kB raw; `totalJs` rose from 7,753,000 to 7,755,000. Splitting the palette's dialog out as well was measured and not taken: it brought Modern first load to 22.8 kB over Classic's but re-split shared chunks, cost Classic's first load +0.9 kB gzip and all JS +4.8 kB raw.
+
+**Measured at M12 (#313), the final build of the epic** (`node tools/check-bundle-size.mjs`, against feat/modern-interface at d1d4e437 before it): the first load is 1,025.6 kB gzip (1,025,641 B, −182 B; ceiling 1,030,000 B, not moved). All JS is 7,753.6 kB raw (7,753,593 B, −1,118 B, under the 7,755,000 B ceiling: the flip removed the two Preview paragraphs and the gate's branch). `modern-shell`'s stylesheet is 47.65 kB raw (47,650 B, +164 B for the ghost bar's and the review bar's 44 px buttons), 7.4 kB gzip (cap 50 kB); `narrow-panels`' is 5.9 kB and `focus-mode`'s 0.8 kB, both on use. **Modern first load** is 1,051.2 kB gzip, 25.6 kB (25,592 B, +21 B) over Classic's (allowed 25,900 B). The entry stylesheet is 105.5 kB raw, unchanged since M4. No cap moved at #313.
 
 ## 13. Narrow and mobile
 
@@ -412,6 +458,8 @@ Below 960 px (`NARROW_QUERY`), Modern has its own narrow layout, with the narrow
 - Thick glass only, and less of it; `prefers-reduced-transparency` gives solid surfaces.
 - Targets 44 px, `env(safe-area-inset-*)`, `100dvh`. Tested in `e2e/mobile-shell.spec.ts`'s Chromium projects at 375 and 768 px, emulation only, as today.
 
+Built (M11, #312): below 960 px (`NARROW_QUERY`) the stage uses `100dvh` and the safe areas. The page is full-bleed with an 8 px margin between a top bar (the binder's button, `#narrow-toggle-rail`, at the inline-start end; the compact capsule, title and ⋯, centred) and the bottom tab bar (five equal tabs, icon over word, above the bottom safe area). The binder is a drawer (`components/shell/modern/narrow-panels.tsx`, its own lazy chunk) from the inline-start edge, at most 360 px, with the sidebar's tabs; Scene info is a bottom sheet with no Keep open; the agent window is a full-height sheet. `NarrowPanel` gains `'agent'`, and `narrow-sync.ts` keeps the workspace's `openPanel`, `agentOpen` and Scene info's store to one open panel, the last opened winning. One scrim; the rest of the stage is `inert`. Tested in `e2e/modern-mobile-shell.spec.ts` at 390 by 844, 768 by 1024 and 720 by 450, and in the Modern gate and visual snapshots at 390 by 844.
+
 ## 14. Classic
 
 Classic is the current shell and stays the contract of ui-modules.md, with three additions: Settings › Appearance › **Interface**; the shell-actions list behind its toolbar and More menu; and token names behind its literals. None changes a pixel or a behaviour outside Settings, which the snapshots prove (§15.4).
@@ -420,7 +468,7 @@ Classic is the current shell and stays the contract of ui-modules.md, with three
 
 ### 15.1 Unit (Vitest, and Playwright model specs in `e2e/unit/`)
 
-`resolveInterface` over every combination of stored value, other keys, projects and settings record, and the parity gate; the shell-actions list against the Classic toolbar and More menu; `resolveKey` in both shells for every chord; `modernLayout` geometry at 960, 1,100, 1,280, 1,440 and 1,920 px with each combination of sidebar, agent and info; the palette model's grouping, matching and empty state; token parity (every semantic token defined in Classic light, both Classic dark blocks, Modern light and Modern dark; Classic colour values unchanged).
+`resolveInterface` over every combination of stored value, other keys, projects and settings record (the parity gate is gone since #313: a fresh profile resolves to Modern); the shell-actions list against the Classic toolbar and More menu; `resolveKey` in both shells for every chord; `modernLayout` geometry at 960, 1,100, 1,280, 1,440 and 1,920 px with each combination of sidebar, agent and info; the palette model's grouping, matching and empty state; token parity (every semantic token defined in Classic light, both Classic dark blocks, Modern light and Modern dark; Classic colour values unchanged).
 
 ### 15.2 Guards (repo tests)
 
@@ -429,6 +477,8 @@ No file outside `components/shell/` reads the shell; every selector in Modern's 
 ### 15.3 End to end (functional)
 
 A spec per region (ornaments and views, the sidebar and its pin, Scene info and its docking, the agent window and its Escape rule, the palette, notices, focus mode, the dialogs, Home); the live switch keeps an unsaved journal, a running turn and the editor's undo history; the reachability walk over `MODERN_HOMES`; the default-control count (§9.5) and the 44 px measure; a keyboard-only walk through the default screen; axe on every Modern surface in both schemes; the reduced-transparency and reduced-motion switches; the CSP listener. Firefox and WebKit run the functional Modern specs in their pull-request shards.
+
+Built (M12, #313): `MODERN_HOMES` in `e2e/modern-homes.ts` lists every §7 row with the routes a writer takes to its home as plain steps; `e2e/unit/modern-homes.spec.ts` fails on a §7 row, a shell action or a `KeyAction` without a home, and on any route still pending (none is). `e2e/modern-reachability.spec.ts` walks every route in Modern, from a project built in Classic and switched live (the stale-tab notice from a second tab, a draft's Apply and Discard from the demo agent, the review bar from a draft marked for review), and fails on any CSP violation. `e2e/modern-gate.spec.ts` holds every Modern surface, light and dark, glass and solid, to axe (without contrast), the computed contrast of each text over its real layer stack down to every wallpaper colour and the paper, and the 44 px measure; then the default-control count, a keyboard-only walk, reduced motion (system and switch), the system's reduced transparency and the CSP listener. CI runs both specs in their own legs (`e2e (chromium, Modern gate)`, `e2e (firefox Modern gate)`, `e2e (webkit Modern gate)`). `e2e/interface.spec.ts` checks the defaults: a fresh profile starts in Modern; a theme key, or a project with nothing stored, stays Classic. Only the Chromium-only checks are skipped elsewhere: File System Access, the solid material and the emulated reduced transparency.
 
 ### 15.4 Visual snapshots (CI only)
 
@@ -442,14 +492,14 @@ Playwright `toHaveScreenshot` in a `visual` project, run only in CI in the pinne
 | Phase | Issue | What lands | Visible to writers |
 |---|---|---|---|
 | 0 | this spec | The contract | — |
-| 1 | M1 #302 (built, #314) | The setting, `data-shell`, the default rule with the parity gate, the empty lazy Modern stylesheet, token groundwork, Classic snapshots, the Classic e2e pin | Settings › Appearance › Interface with Modern as "Preview" |
+| 1 | M1 #302 (built, #314) | The setting, `data-shell`, the default rule with the parity gate, the empty lazy Modern stylesheet, token groundwork, Classic snapshots, the Classic e2e pin | Settings › Appearance › Interface with Modern as "Preview" (until phase 6) |
 | 2 | M2 #303 (built), M3 #304 (built, #331) | One shell-actions list; size, shape, density, elevation and motion tokens; the skin hook | Nothing |
-| 3 | M4 #305, M5 #306 | The stage, wallpaper, page and materials with every fallback; ornaments, **⋯**, the Write / Board / Codex morph | Modern (Preview) is usable for writing |
-| 4 | M6 #307, M7 #308, M8 #309, M9 #310 | The sidebar, Scene info, the agent window, the palette | Every surface reachable |
-| 5 | M10 #311, M11 #312 | Dialogs, menus, Home and notices in glass; the narrow Modern layout | Modern complete on every width |
-| 6 | M12 #313 | The accessibility and reachability gate; the user guide and changelog for both interfaces; the parity gate removed, so new users get Modern | New users start in Modern |
+| 3 | M4 #305 (built), M5 #306 (built) | The stage, wallpaper, page and materials with every fallback; ornaments, **⋯**, the Write / Board / Codex morph | Modern (Preview) is usable for writing |
+| 4 | M6 #307 (built), M7 #308 (built), M8 #309 (built), M9 #310 (built) | The sidebar, Scene info, the agent window, the palette | Every surface reachable |
+| 5 | M10 #311 (built), M11 #312 (built) | Dialogs, menus, Home and notices in glass; the narrow Modern layout | Modern complete on every width |
+| 6 | M12 #313 (built) | The accessibility and reachability gate; focus mode, Show in Findings and the last 44 px controls; the user guide and changelog for both interfaces; the parity gate removed, so new users get Modern | New users start in Modern; Settings drops "(Preview)" |
 
-Phases 2 and 3 can overlap once M1 merges; M6 to M9 run in parallel after M5. Each issue names what blocks it.
+Phases 2 and 3 overlapped once M1 merged; M6 to M9 ran in parallel after M5. Every phase is built.
 
 ## 17. Decisions
 
@@ -460,7 +510,7 @@ Recorded on 2026-10-31. **[owner]** lines are the owner's; the rest are delegate
 | D1 | **Modern is a second shell; Classic stays selectable** in Settings › Appearance › Interface. [owner] | Replacing the interface: long-time writers lose a layout they know, with no way back. |
 | D2 | **Modern follows "Glass 2 · Spatial"**: one solid page on a wallpaper, glass ornaments, a tab bar that grows into a sidebar, Scene info for the inspector and status, view morphs, a companion agent window, ten controls or fewer, 44 px targets. [owner] | Concept B (Glass): a reskin of the same density, not see-through enough. |
 | D3 | **New users default to Modern; anyone with a stored project, settings record or `caotang.*` key stays on Classic** until they switch, and the answer is stored at once. [owner] | Everyone to Modern: changes a working writer's screen without asking. A one-off prompt: a decision on the first screen a new writer sees. |
-| D4 | **The new-user default waits for parity**: until M12 closes, new users get Classic and Modern is "Preview". | Default at M1: a new writer would meet a half-built shell. |
+| D4 | **The new-user default waits for parity**: until M12 closes, new users get Classic and Modern is "Preview". (Met at #313: the gate is removed.) | Default at M1: a new writer would meet a half-built shell. |
 | D5 | **One component tree**; shells arrange and wrap, never fork; feature components take container facts, never the shell. | Two trees: every feature built twice and drifting apart. |
 | D6 | **Existing token names are kept** as Classic's semantic tokens; new tokens are added only where a literal stands. | Renaming to a new scheme: hundreds of edits for no visible gain and a riskier pixel lock. |
 | D7 | **Modern overrides by a `:root[data-shell='modern']` prefix**, in a lazily loaded stylesheet; Classic's rules stay unscoped. | Cascade layers: the unlayered Classic sheets would outrank a layered Modern sheet, and layering Classic risks its pixels. |

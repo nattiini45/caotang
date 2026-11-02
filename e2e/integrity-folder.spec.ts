@@ -522,7 +522,18 @@ const ordinaryProfile = test.extend<{ page: Page }>({
       viewport: { width: 1280, height: 720 },
     });
     await context.addInitScript(() => {
-      (globalThis as unknown as { caotangRememberPrivateFolders: boolean }).caotangRememberPrivateFolders = true;
+      const view = globalThis as unknown as {
+        caotangRememberPrivateFolders: boolean;
+        localStorage: { getItem(key: string): string | null; setItem(key: string, value: string): void };
+      };
+      view.caotangRememberPrivateFolders = true;
+      // The suite's Classic pin (e2e/classic-pin.ts): a persistent profile does not take the default storageState, and a fresh
+      // profile starts in Modern since #313. These specs test Classic, so Classic is chosen before the first render.
+      try {
+        if (view.localStorage.getItem('caotang.interface') === null) view.localStorage.setItem('caotang.interface', 'classic');
+      } catch {
+        // A page with no storage of its own (about:blank) has nothing to pin.
+      }
     });
     const page = context.pages()[0] ?? (await context.newPage());
     await provide(page);

@@ -140,9 +140,19 @@ export default defineConfig(({ command }) => ({
   },
   build: {
     outDir: 'dist',
+    // Modern's wallpaper is a hashed same-origin file, never a data: URL inlined into the stylesheet (modern-interface.md §5.3, §12):
+    // it stays out of Modern's CSS budget and is cached on its own. Every other asset keeps Vite's default.
+    assetsInlineLimit: (file: string) => (/[\\/]shell[\\/]modern[\\/]wallpaper-[a-z]+\.svg$/.test(file) ? false : undefined),
     sourcemap: true,
     // Vite's own warning is turned down to the highest cap on the script's allow-list: tools/check-bundle-size.mjs is the gate.
     chunkSizeWarningLimit: Math.max(...Object.values(BUDGET.allow)) / 1000,
+    // Modern's narrow panels (#312) are a chunk of their own (with their stylesheet) that only `modern-shell` imports, and every other
+    // module they need is already loaded by then: preloading that list again would only write it into `modern-shell` and spend Modern's
+    // first-load budget.
+    modulePreload: {
+      resolveDependencies: (filename, deps, { hostId }) =>
+        /(^|\/)narrow-panels-[\w-]+\.js$/.test(filename) && /(^|\/)modern-shell-[\w-]+\.js$/.test(hostId) ? deps.filter((dep) => dep === filename || /(^|\/)narrow-panels-[\w-]+\.css$/.test(dep)) : deps,
+    },
     rolldownOptions: {
       // The workspace packages are libraries of declarations: nothing in their src/ runs on import. Without this, one constant imported
       // from a package's barrel keeps every module that barrel re-exports in the importing chunk, and the lazy-loaded agent and exporter
