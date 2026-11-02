@@ -11,8 +11,10 @@
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
 #     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
 #   - `pnpm build` builds the desktop app, which writes THIRD-PARTY-NOTICES.md beside it. `tools/check-bundle-size.mjs` then checks
-#     the build against its size budget (CONTRIBUTING.md, Bundle size). The MCP server bundle is then packed as an MCPB, which
-#     checks its manifest with the pinned MCPB CLI.
+#     the build against its size budget (CONTRIBUTING.md, Bundle size). `tools/build-site.mjs` builds the landing page as pages.yml
+#     publishes it (and fails if it would carry a script or an inline style), and `tools/check-site-size.mjs` holds its HTML, CSS and
+#     asset caps and its zero JavaScript. The MCP server bundle is then packed as an MCPB, which checks its manifest with the pinned
+#     MCPB CLI.
 #   - `pnpm test:e2e` runs the dev-server suite, and the production-preview project, which smoke-tests the build from the step
 #     above on its own port (e2e/prod-smoke.spec.ts).
 #     The two mobile projects run only e2e/mobile-shell.spec.ts, the narrow layout, in Chromium with touch (emulation, not WebKit).
@@ -93,6 +95,12 @@ jobs:
 
       - name: Bundle size (chunk caps, first load, total JS)
         run: node tools/check-bundle-size.mjs
+
+      - name: Build the landing page (site/dist, as the pages workflow publishes it)
+        run: node tools/build-site.mjs
+
+      - name: Landing page size (HTML, CSS and assets caps; no JavaScript)
+        run: node tools/check-site-size.mjs
 
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
         run: pnpm --filter @caotang/mcp-server run pack

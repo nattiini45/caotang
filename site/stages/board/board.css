@@ -1,0 +1,137 @@
+/* The Board tile (board/index.tsx). */
+
+.bd--wide {
+  --w: 654;
+  --h: 272;
+}
+
+.bd--compact {
+  --w: 338;
+  --h: 262;
+}
+
+.bd .ss-stage {
+  overflow: hidden;
+}
+
+/* The page: pinned to the tile's gutter at its top-left corner, off the right and the foot. */
+.bd .bd-page {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 760px;
+  height: 420px;
+  padding: 20px;
+  border-radius: 36px 0 0 0;
+  background: var(--ss-surface);
+  box-shadow: var(--ss-shadow-hero);
+}
+
+.bd .bd-grid {
+  display: grid;
+  /* Four columns: the fourth shows 70 px, enough to read as the next card; the second row is cut at its synopsis. */
+  grid-template-columns: repeat(4, 176px);
+  gap: 12px;
+}
+
+.bd--compact .bd-page {
+  padding: 16px;
+  border-radius: 28px 0 0 0;
+}
+
+/* Two whole columns, the page off the right with the gutter beside them; a third would show as a sliver at this width. */
+.bd--compact .bd-grid {
+  grid-template-columns: repeat(2, 147px);
+  gap: 12px;
+}
+
+.bd .bd-card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  height: 148px;
+  padding: 12px 14px 14px 10px;
+  border-radius: 20px;
+  background: var(--ss-raised);
+  box-shadow: var(--ss-shadow-card);
+}
+
+.bd .bd-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.bd .bd-card__grip {
+  display: inline-flex;
+  color: var(--ss-icon-faint);
+}
+
+.bd .bd-card__title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--ss-text-strong);
+}
+
+.bd .bd-card__status {
+  justify-self: start;
+  margin-left: 24px;
+}
+
+.bd .bd-card > .ss-bar {
+  margin-left: 24px;
+}
+
+.bd .bd-card__synopsis {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 0 24px;
+}
+
+/* The room the others made: the card's own footprint, empty. */
+.bd .bd-slot {
+  height: 148px;
+  border-radius: 20px;
+  background: var(--ss-ink-1);
+  box-shadow: inset 0 0 0 1.5px var(--ss-ink-2);
+}
+
+/* The card in the hand: over its slot, carried a little right and up, turned, on the lift shadow, its edge over the next card. */
+.bd .bd-card--lifted {
+  position: absolute;
+  left: 228px;
+  top: 12px;
+  width: 176px;
+  rotate: -2deg;
+  /* Its edge as a border: Firefox paints an inset shadow on a turned, rounded box as wedges across the card. */
+  border: 1px solid var(--ss-line);
+  box-shadow: var(--ss-shadow-lift);
+}
+
+.bd--compact .bd-card {
+  padding-left: 8px;
+}
+
+.bd--compact .bd-card__title {
+  font-size: 14px;
+}
+
+.bd--compact .bd-card--lifted {
+  left: 36px;
+  top: 8px;
+  width: 147px;
+}
+
+.bd .bd-card--lifted .bd-card__grip {
+  color: var(--ss-icon);
+}
+
+.bd--wide .ss-cursor {
+  transform: translate(244px, 40px);
+}
+
+.bd--compact .ss-cursor {
+  transform: translate(52px, 33px);
+}

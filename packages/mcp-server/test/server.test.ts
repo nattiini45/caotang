@@ -277,6 +277,27 @@ describe('the tool surface', () => {
     }
   });
 
+  it('is described by the landing page\'s llms.txt with the same read, write-auto and write-confirm tools it lists', async () => {
+    // site/llms.txt is a hand-kept copy that agents read first; it drifted once (#359), so it is checked like the README.
+    const reader = await connectClient(readOnly.url, readOnly.token);
+    const writer = await connectClient(writable.url, writable.token);
+    try {
+      const reads = (await reader.listTools()).tools.map((tool) => tool.name).sort();
+      const writes = (await writer.listTools()).tools.filter((tool) => tool.annotations?.readOnlyHint === false);
+      const confirm = writes.filter((tool) => tool.description?.startsWith('Requires user confirmation.')).map((tool) => tool.name).sort();
+      const auto = writes.map((tool) => tool.name).filter((name) => !confirm.includes(name)).sort();
+      const llms = readFileSync(new URL('../../../site/llms.txt', import.meta.url), 'utf8');
+      const line = (prefix: string) => llms.split('\n').find((l) => l.startsWith(prefix)) ?? '';
+      const names = (text: string) => [...text.matchAll(/\b([a-z]+\.[A-Za-z_]+)\b/g)].map((match) => match[1]).sort();
+      expect(names(line('- Read tools').split(': ')[1] ?? '')).toEqual(reads);
+      expect(names(line('- Write tools that apply at once').split(': ')[1] ?? '')).toEqual(auto);
+      expect(names(line('- Write tools that ask first').split(': ')[1] ?? '')).toEqual(confirm);
+    } finally {
+      await reader.close();
+      await writer.close();
+    }
+  });
+
   it('is described with the tool counts it lists, in the package README, the host checks and the spec', async () => {
     const reader = await connectClient(readOnly.url, readOnly.token);
     const writer = await connectClient(writable.url, writable.token, acceptConfirm);
