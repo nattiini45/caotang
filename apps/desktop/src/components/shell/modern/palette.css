@@ -68,8 +68,8 @@
 }
 
 :root[data-shell='modern'] .modern-palette-glass {
-  font-size: 20px;
-  line-height: 1;
+  display: inline-flex;
+  flex: none;
 }
 
 :root[data-shell='modern'] .modern-palette-field input {
@@ -146,10 +146,8 @@
 :root[data-shell='modern'] .modern-palette-heading {
   padding-block: 8px 4px;
   padding-inline: 14px;
-  color: var(--on-glass);
-  font: 700 12px/1.3 var(--ui);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font: 600 13px/1.3 var(--ui);
 }
 
 :root[data-shell='modern'] .modern-palette-option {
@@ -164,27 +162,26 @@
   cursor: pointer;
 }
 
+/* The option the keys are on is the accent's soft step, as a menu's row is, not a saturated fill heavier than anything else on screen.
+   A disabled one is faint, never struck through. */
 :root[data-shell='modern'] .modern-palette-option[aria-selected='true'] {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 
 :root[data-shell='modern'] .modern-palette-option[aria-disabled='true'] {
   cursor: default;
-  text-decoration: line-through;
+  opacity: 0.5;
 }
 
+/* The glyph column (icons.tsx at 20 px, one stroke), kept for every option so the labels share one reading edge; no tile. */
 :root[data-shell='modern'] .modern-palette-icon {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 28px;
-  block-size: 28px;
-  border-radius: 9px;
-  background: var(--scrim);
-  font-size: 15px;
-  line-height: 1;
+  inline-size: 20px;
+  block-size: 20px;
 }
 
 :root[data-shell='modern'] .modern-palette-words {

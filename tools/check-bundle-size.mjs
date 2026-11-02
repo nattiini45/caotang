@@ -148,7 +148,8 @@ export const BUDGET = {
   // 7,754.4 kB measured on the merge of #351 (focus mode, Show in Findings) into #312 (the narrow layout): narrow layout + focus mode,
   // #312/#351; Classic unchanged. Both are lazy chunks (`narrow-panels`, `focus-mode`) and the slots they touch; Classic's first load
   // did not move. The ceiling is that plus about 0.6 kB.
-  totalJs: 7_755_000,
+  // Stageshow polish wave 2 (#360–#364), approved by Caspar 2026-11-02: 7,755,000 -> 7,760,000.
+  totalJs: 7_760_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -169,7 +170,9 @@ export const BUDGET = {
     // one on-use sheet; it never loads for Classic.
     // Stageshow polish #358: dense materials, overlay band, menu columns. 67,121 bytes raw (10.9 kB gzip) measured on top of #357's
     // control kit (+6,746 bytes); the cap is that plus about 2%.
-    caps: { 'modern-shell': 68_500 },
+    // Stageshow polish #362: calm dialogs, Settings, Home and the palette (one menu style, Compile's rows, Home at 390 px, k-tonal and
+    // k-quiet). 70,357 bytes raw measured; the cap is that rounded up to the next 500.
+    caps: { 'modern-shell': 70_500 },
   },
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
@@ -179,8 +182,10 @@ export const BUDGET = {
    * the allowance is its first cut (27.7 kB) plus about 0.6 kB.
    * Stageshow polish #358: dense materials, overlay band, menu columns. 29,164 bytes measured, nearly all of it Modern's stylesheet
    * (the JS caps do not move); the allowance is that plus about 1%.
+   * Stageshow polish #362: calm dialogs, Settings, Home and the palette. 29,668 bytes measured, nearly all of it Modern's stylesheet;
+   * the allowance is that rounded up to the next 100.
    */
-  modernFirstLoadDelta: 29_500,
+  modernFirstLoadDelta: 29_700,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */

@@ -25,6 +25,7 @@
   --k-track: #ebe5dd;
   --k-thumb: #ffffff;
   --k-edge: #857e74;
+  --k-tonal-ink: #3730a3;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,6 +37,7 @@
     --k-thumb: #4a4752;
     --k-edge: #868190;
     --k-tick: var(--k-tick-dark);
+    --k-tonal-ink: #d4d0ff;
   }
 }
 
@@ -47,6 +49,7 @@
   --k-thumb: #4a4752;
   --k-edge: #868190;
   --k-tick: var(--k-tick-dark);
+  --k-tonal-ink: #d4d0ff;
 }
 
 /* ---- Buttons: primary (the one action), secondary (tonal), quiet (a lighter step, still a surface at rest), icon. ---- */
@@ -91,18 +94,31 @@
   filter: none;
 }
 
-:root[data-shell='modern'] .button.is-quiet {
+:root[data-shell='modern'] .button:is(.is-quiet, .k-quiet) {
   background: var(--k-quiet);
   color: var(--ink-soft);
 }
 
-:root[data-shell='modern'] .button.is-quiet:hover:not(:disabled) {
+:root[data-shell='modern'] .button:is(.is-quiet, .k-quiet):hover:not(:disabled) {
   background: var(--k-fill);
   color: var(--ink);
 }
 
 :root[data-shell='modern'] .button.is-danger {
   color: var(--danger);
+}
+
+/* Tonal: a row's own action, or one of a card's several, beside the surface's one filled primary. The accent's soft step with a deep
+   accent ink (both schemes keep 4.5:1). `k-tonal` and `k-quiet` set Modern's weight on markup whose Classic class (`is-primary`, or a
+   plain secondary) stays Classic's look. */
+:root[data-shell='modern'] .button.k-tonal {
+  background: var(--accent-soft);
+  color: var(--k-tonal-ink);
+  font-weight: 600;
+}
+
+:root[data-shell='modern'] .button.k-tonal:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-soft) 84%, var(--accent));
 }
 
 /* A Confirm's destructive answer stays filled (Classic's .confirm rule), its ink the one Classic picks for each scheme. */

@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react';
 
-export type IconName = 'write' | 'board' | 'codex' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close';
+export type IconName = 'write' | 'board' | 'codex' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'scene';
 
 const PATHS: Readonly<Record<IconName, ReactNode>> = {
   write: (
@@ -28,12 +28,8 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
       <path d="M5 16.5a3 3 0 0 1 3-3h10" />
     </>
   ),
-  ask: (
-    <>
-      <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z" />
-      <path d="M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
-    </>
-  ),
+  // Ask is a conversation, so its mark is a speech bubble: no sparkle, which reads as generic AI decoration (Stageshow polish #362).
+  ask: <path d="M6.5 4.5h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H11l-4 3v-3h-.5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z" />,
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="6" />
@@ -56,6 +52,8 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
     </>
   ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  // A scene or document: a page with its corner turned (the palette's scene results).
+  scene: <path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4" />,
 };
 
 export function Icon({ name }: { name: IconName }): ReactNode {

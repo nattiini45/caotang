@@ -12,6 +12,7 @@ import {
   PALETTE_SETTINGS_SECTIONS,
   PALETTE_TABS,
   PALETTE_VIEWS,
+  actionDetail,
   binderOrder,
   collatorIncludes,
   matchCodex,
@@ -341,6 +342,18 @@ describe('stepActive', () => {
     expect(stepActive(results, 0, 'Home')).toBeNull();
     expect(stepActive(results, 0, 'End')).toBeNull();
     expect(stepActive(results, 0, 'a')).toBeNull();
+  });
+});
+
+describe('an action\'s detail line', () => {
+  it('says only what the label does not, and leaves the shortcut to its chip', () => {
+    expect(actionDetail({ label: 'Project details', hint: 'Project details: title, author, language, ISBN and cover' })).toBe(
+      'title, author, language, ISBN and cover',
+    );
+    expect(actionDetail({ label: 'Focus mode', hint: 'Focus mode (Ctrl+Shift+F)', shortcut: 'focus-mode' })).toBeUndefined();
+    expect(actionDetail({ label: 'Skills', hint: 'Reusable writing instructions for the agent' })).toBe('Reusable writing instructions for the agent');
+    expect(actionDetail({ label: 'Undo', hint: 'Nothing to undo' })).toBe('Nothing to undo');
+    expect(actionDetail({ label: 'Settings' })).toBeUndefined();
   });
 });
 

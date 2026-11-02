@@ -75,7 +75,19 @@ export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
         ))}
       </ol>
 
-      <AddServerForm mcp={mcp} onAdded={refresh} />
+      {/* In Modern the add form waits behind a disclosure while the switch is off (#362), so a section that contacts nothing does not
+          lead with a full form; it is still there to fill in ahead of switching on, and switching on opens the same disclosure (the
+          form stays mounted, so what was typed stays). Classic keeps the form open. */}
+      {document.documentElement.dataset['shell'] === 'modern' ? (
+        <details className={settings.enabled ? 'mcp-add-off is-on' : 'mcp-add-off'} open={settings.enabled || undefined}>
+          <summary>
+            <Trans>Add a server</Trans>
+          </summary>
+          <AddServerForm mcp={mcp} onAdded={refresh} />
+        </details>
+      ) : (
+        <AddServerForm mcp={mcp} onAdded={refresh} />
+      )}
       <ImportExport mcp={mcp} onChanged={refresh} />
     </section>
   );

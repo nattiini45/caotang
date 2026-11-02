@@ -32,6 +32,7 @@ import {
 } from '../../../app/palette-model.js';
 import type { SettingsSection } from '../../Settings.js';
 import type { ShellRegions } from '../regions.js';
+import { Icon, type IconName } from './icons.js';
 import { paletteChannel, sceneInfoChannel, sidebarChannel, viewChannel } from './requests.js';
 import type { ModernSlotProps } from './slots.js';
 
@@ -174,7 +175,7 @@ function PaletteDialog({ regions, onClose }: { regions: ShellRegions; onClose: (
       <div className="modern-palette-frame">
         <div className="modern-palette-field mat-scrim">
           <span className="modern-palette-glass" aria-hidden="true">
-            ⌕
+            <Icon name="search" />
           </span>
           <input
             ref={input}
@@ -230,7 +231,7 @@ function PaletteDialog({ regions, onClose }: { regions: ShellRegions; onClose: (
                   onClick={() => run(item)}
                 >
                   <span className="modern-palette-icon" aria-hidden="true">
-                    {ICONS[item.icon]}
+                    <PaletteGlyph icon={item.icon} />
                   </span>
                   <span className="modern-palette-words">
                     <span className="modern-palette-label">{item.label}</span>
@@ -256,19 +257,16 @@ function PaletteDialog({ regions, onClose }: { regions: ShellRegions; onClose: (
   );
 }
 
-/** Decorative glyphs; every option is named by its words. */
-const ICONS: Readonly<Record<PaletteItem['icon'], string>> = {
-  scene: '¶',
-  folder: '▤',
-  codex: '◈',
-  command: '›',
-  view: '▭',
-  tab: '☰',
-  info: 'ⓘ',
-  agent: '✦',
-  settings: '⚙',
-  interface: '⇄',
-};
+/**
+ * Decorative glyphs from the ornaments' set (icons.tsx), for the things a result opens: a scene, a folder, a codex entry and Ask. A
+ * command, a view, a tab or a setting has none; its words say it, and the empty column keeps every label on one reading edge.
+ */
+const ICONS: Partial<Record<PaletteItem['icon'], IconName>> = { scene: 'scene', folder: 'binder', codex: 'codex', agent: 'ask' };
+
+function PaletteGlyph({ icon }: { icon: PaletteItem['icon'] }): ReactNode {
+  const name = ICONS[icon];
+  return name === undefined ? null : <Icon name={name} />;
+}
 
 /** Runs what an option names, through the handler `Workspace` has for it, or the slot that owns the place. */
 function runTarget(target: PaletteTarget, regions: ShellRegions): void {
