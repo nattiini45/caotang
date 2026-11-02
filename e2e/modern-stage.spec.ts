@@ -71,7 +71,7 @@ async function sceneWithWords(page: Page): Promise<void> {
   await waitForSaved(page);
 }
 
-/** Opens Settings › Appearance from either shell (Classic's toolbar, or Modern's provisional More menu). */
+/** Opens Settings › Appearance from either shell (Classic's toolbar, or Modern's **⋯**, named More). */
 async function openAppearance(page: Page) {
   const toolbarSettings = page.locator('.toolbar').getByRole('button', { name: 'Settings', exact: true });
   if ((await toolbarSettings.count()) > 0) {
@@ -129,10 +129,10 @@ test('choosing Modern shows the stage, the wallpaper and one page of paper with 
   expect(glass.radius).toBe('30px');
   expect(await token(page, '--radius-control')).toBe('24px');
 
-  // The centre views still switch, with Classic's ids, and the editor stays mounted.
-  await page.getByRole('radio', { name: 'Corkboard' }).click();
-  await expect(page.getByRole('radio', { name: 'Corkboard' })).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('radio', { name: 'Editor' }).click();
+  // The centre views still switch (Write and Board, with Classic's ids), and the editor stays mounted.
+  await page.getByRole('radio', { name: 'Board' }).click();
+  await expect(page.locator('#center-corkboard')).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Write' }).click();
   await expect(main.getByRole('textbox', { name: 'Document text' })).toBeVisible();
 
   // Back to Classic: the toolbar and the grid return, the words are where they were.

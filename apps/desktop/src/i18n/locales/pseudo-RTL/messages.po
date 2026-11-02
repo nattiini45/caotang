@@ -1118,6 +1118,11 @@ msgstr ""
 msgid "{filter, select, open {No open findings} dismissed {No dismissed findings} fixed {No marked fixed findings} all {No all findings} other {No findings}}"
 msgstr ""
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
+msgid "{findings, plural, one {# open finding} other {# open findings}}"
+msgstr ""
+
 #. Sentences about Ink line ids. Interpolated values: title and titles are container titles the writer wrote; line, minted and the other counts are numbers; lines, where, first and shown are lists of line positions or ids; room is the reason a line could not take an id; rest counts the ids not shown.
 #: apps/desktop/src/media/ink-model.ts
 msgid "{first} and {rest} more"
@@ -3280,9 +3285,11 @@ msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Appearance"
 msgstr ""
 
@@ -3437,8 +3444,10 @@ msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
 #: apps/desktop/src/components/AgentModeSettings.tsx
 #: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "Ask"
 msgstr ""
 
@@ -3451,6 +3460,11 @@ msgstr ""
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 msgid "Ask the agent"
+msgstr ""
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Ask the agent ({shortcut})"
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
@@ -3829,9 +3843,11 @@ msgstr ""
 msgid "Bleed: extend the art past the trim, for a printer"
 msgstr ""
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
 #: apps/desktop/src/app/palette-model.ts
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Board"
 msgstr ""
@@ -4196,10 +4212,8 @@ msgstr ""
 msgid "Centered"
 msgstr ""
 
-#. Modern interface, provisional controls on the page's edges.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
-#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Centre view"
 msgstr ""
 
@@ -4789,6 +4803,7 @@ msgstr ""
 msgid "Close the agent ({shortcut}). A running turn keeps working."
 msgstr ""
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -4796,6 +4811,7 @@ msgstr ""
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Codex"
 msgstr ""
 
@@ -5137,10 +5153,8 @@ msgstr ""
 msgid "Copy them into a folder beside the file"
 msgstr ""
 
-#. Modern interface, provisional controls on the page's edges.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
-#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Corkboard"
 msgstr ""
 
@@ -5297,7 +5311,9 @@ msgid "Daily target, in words (0 for none)"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Dark"
 msgstr ""
 
@@ -6239,10 +6255,8 @@ msgstr ""
 msgid "harness.progress.timelineEdit.active"
 msgstr ""
 
-#. Modern interface, provisional controls on the page's edges.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
-#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Editor"
 msgstr ""
 
@@ -8250,7 +8264,9 @@ msgid "harness.progress.comicLetter.active"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Light"
 msgstr ""
 
@@ -8869,12 +8885,13 @@ msgstr ""
 msgid "Monthly"
 msgstr ""
 
-#. Modern interface, provisional controls on the page's edges.
-#. Modern interface, provisional controls on the page's edges.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
-#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "More"
 msgstr ""
 
@@ -10651,7 +10668,7 @@ msgid "Picture: {text}"
 msgstr ""
 
 #. Interpolated values: size and budget are formatted sizes; count is a number.
-#. Modern interface, provisional controls on the page's edges.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -10661,7 +10678,7 @@ msgstr ""
 #: apps/desktop/src/components/InspectorPictures.tsx
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
-#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Pictures"
 msgstr ""
@@ -10983,11 +11000,9 @@ msgid "Progress toward the manuscript"
 msgstr ""
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
-#. Modern interface, provisional controls on the page's edges.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
-#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
 msgid "Project"
 msgstr ""
 
@@ -11667,7 +11682,9 @@ msgid "Reduce motion"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Reduce transparency"
 msgstr ""
 
@@ -12798,6 +12815,8 @@ msgstr ""
 
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Scene"
@@ -12828,11 +12847,13 @@ msgstr ""
 msgid "Scene headings"
 msgstr ""
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Scene info"
 msgstr ""
 
@@ -12997,9 +13018,19 @@ msgstr ""
 msgid "sea, storm"
 msgstr ""
 
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Search"
+msgstr ""
+
 #. Modern interface: the search and commands palette (Ctrl+K).
 #: apps/desktop/src/components/shell/modern/palette.tsx
 msgid "Search and commands"
+msgstr ""
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Search and commands ({shortcut})"
 msgstr ""
 
 #. js-lingui-explicit-id
@@ -14508,6 +14539,16 @@ msgstr ""
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
+msgstr ""
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "The agent is waiting for you"
+msgstr ""
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "The agent is working"
 msgstr ""
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
@@ -16508,7 +16549,7 @@ msgid "Time skip (declared)"
 msgstr ""
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
-#. Modern interface, provisional controls on the page's edges.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
@@ -16517,7 +16558,7 @@ msgstr ""
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
-#: apps/desktop/src/components/shell/modern/interim-ornaments.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "Timeline"
@@ -17134,6 +17175,11 @@ msgstr ""
 msgid "Use external tool servers"
 msgstr ""
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
+msgid "Use the Classic interface"
+msgstr ""
+
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
 #: apps/desktop/src/app/shell-actions.ts
 msgid "Use the dark theme"
@@ -17218,8 +17264,10 @@ msgstr ""
 msgid "Verified"
 msgstr ""
 
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "View"
 msgstr ""
 
@@ -17239,6 +17287,11 @@ msgstr ""
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "View of the scene"
+msgstr ""
+
+#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Views and tools"
 msgstr ""
 
 #. Interpolated values: parent, title
@@ -17531,8 +17584,10 @@ msgstr ""
 msgid "Working…"
 msgstr ""
 
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Write"
 msgstr ""
 

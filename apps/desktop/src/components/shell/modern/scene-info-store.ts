@@ -65,10 +65,13 @@ export function sceneInfoOpener(): HTMLElement | null {
   return connected(opener) ?? connected(capsule);
 }
 
-/** Where focus returns as Scene info closes: its opener, else where the writer was before a route opened it, else the page. */
+/**
+ * Where focus returns as Scene info closes: the control that opened it, else where the writer was before a route opened it (the text,
+ * for the synopsis chord), else the title capsule (a menu item that asked is gone with its menu), else the page.
+ */
 export function sceneInfoReturnTarget(): HTMLElement | null {
   const page = typeof document === 'undefined' ? null : document.getElementById(PAGE_FALLBACK_ID);
-  return sceneInfoOpener() ?? connected(previous) ?? page;
+  return connected(opener) ?? connected(previous) ?? connected(capsule) ?? page;
 }
 
 /** The page's id (modern-shell.tsx's PAGE_ID), the last place focus goes back to. Not imported, so this module stays a leaf. */

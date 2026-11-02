@@ -7,8 +7,8 @@
  * checked by test/modern-css.test.ts. Colours, shapes, motion and materials come from tokens (tokens/modern.css); a fallback changes
  * a token, never a rule here, except forced colours, which needs a border the tokens cannot draw.
  *
- * Geometry is custom properties on the stage (--page-w, --page-top, --page-bottom, --area-start, --area-end), with defaults here.
- * modernLayout (M5, #306) will set them through the CSSOM (§8.4, §11); nothing here needs to change for that.
+ * Geometry is custom properties on the stage (--page-w, --page-top, --page-bottom, --area-start, --area-end), with defaults here;
+ * modernLayout (layout.ts, #306) sets them through the CSSOM (§8.4, §11), and the page's width follows them with a transition.
  */
 
 /* ---- The frame: the workspace element in Modern. The dialogs Workspace renders are its last children, as in Classic. ---- */
@@ -147,8 +147,7 @@
   color: var(--on-glass);
 }
 
-/* ---- Ornaments: glass capsules half over the page's edges (§6, §8.1), centred over the page area. M4's are provisional; #306
-   replaces them. ---- */
+/* ---- Ornaments: glass capsules half over the page's edges (§6, §8.1), centred over the page area (modernLayout, #306). ---- */
 :root[data-shell='modern'] .modern-ornament {
   position: absolute;
   inset-inline: var(--area-start) var(--area-end);
@@ -211,22 +210,225 @@
   box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
 }
 
-:root[data-shell='modern'] .modern-ornament-title {
-  margin: 0;
-  padding-inline: var(--space-5);
-  border-radius: var(--radius-control);
-  font: 600 15px/var(--target-min) var(--ui);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 :root[data-shell='modern'] .modern-ornament-state {
   display: inline-flex;
   align-items: center;
   min-block-size: var(--target-min);
   padding-inline: var(--space-5);
   border-radius: var(--radius-control);
+}
+
+/* ---- The top ornament (#306): the title capsule and ⋯. ---- */
+:root[data-shell='modern'] .modern-capsule.is-icon {
+  padding-inline: 0;
+  inline-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .modern-icon {
+  flex: none;
+  inline-size: 20px;
+  block-size: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:root[data-shell='modern'] .modern-capsule.is-icon .modern-icon circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+:root[data-shell='modern'] .modern-title {
+  position: relative;
+  gap: var(--space-3);
+  max-inline-size: min(46ch, 52vw);
+}
+
+:root[data-shell='modern'] .modern-title-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] .modern-title-crumb {
+  flex: none;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* An open finding: the dot on the title capsule (§6). Its words are for assistive technology. */
+:root[data-shell='modern'] .modern-title-dot {
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--scrim);
+}
+
+/* Ask's dot (§8.10): filled while the agent works, a ring while it waits for an answer, with its window closed. Its words are for
+   assistive technology. */
+:root[data-shell='modern'] .modern-ask-dot {
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--scrim);
+}
+
+:root[data-shell='modern'] .modern-ask[data-activity='waiting'] .modern-ask-dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent), 0 0 0 2px var(--scrim);
+}
+
+/* ---- The bottom ornament (#306): Write, Board and Codex with the lens, then Ask and Search. ---- */
+:root[data-shell='modern'] .modern-views {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: var(--radius-control);
+  background: var(--scrim);
+}
+
+:root[data-shell='modern'] .modern-views .modern-capsule {
+  background: transparent;
+}
+
+:root[data-shell='modern'] .modern-views .modern-capsule[aria-checked='true'] {
+  background: transparent;
+  color: var(--accent-ink);
+}
+
+:root[data-shell='modern'] .modern-views .modern-capsule:hover:not([aria-checked='true']) {
+  background: var(--mat-thick-bg);
+}
+
+/* The lens: the accent, under the chosen view, sliding when the choice changes (placed by script, §8.3). */
+:root[data-shell='modern'] .modern-lens {
+  position: absolute;
+  inset-block: 0;
+  z-index: -1;
+  border-radius: var(--radius-control);
+  background: var(--accent);
+  box-shadow: inset 0 1px 0 var(--mat-glass-edge-hi), var(--elev-glass);
+  pointer-events: none;
+}
+
+:root[data-shell='modern'] .modern-lens[data-ready='true'] {
+  transition:
+    transform var(--dur-3) var(--ease-spring),
+    inline-size var(--dur-3) var(--ease-spring);
+}
+
+:root[data-shell='modern'] .modern-lens[data-shown='false'] {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-kbd {
+  font: 500 12px/1 var(--ui);
+  opacity: 0.8;
+}
+
+/* ---- ⋯ and every popover (§8.2): thick glass, placed by script (GlassPopover), one at a time. ---- */
+:root[data-shell='modern'] .modern-popover {
+  position: fixed;
+  z-index: 20;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-sheet);
+  transform-origin: center;
+}
+
+:root[data-shell='modern'] .modern-menu {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 264px;
+  padding: var(--space-3);
+}
+
+:root[data-shell='modern'] .modern-menu-section {
+  display: flex;
+  flex-direction: column;
+}
+
+:root[data-shell='modern'] .modern-menu-rule {
+  margin-block: var(--space-2);
+  margin-inline: var(--space-4);
+  block-size: 1px;
+  background: var(--line);
+}
+
+:root[data-shell='modern'] .modern-menu-heading {
+  padding-block: var(--space-3) var(--space-2);
+  padding-inline: var(--space-5);
+  font: 600 12px/1.2 var(--ui);
+  letter-spacing: 0.02em;
+  color: var(--on-glass);
+}
+
+:root[data-shell='modern'] .modern-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  padding-inline: var(--space-3) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-inner);
+  background: transparent;
+  color: var(--on-glass);
+  font: 500 15px/1.2 var(--ui);
+  text-align: start;
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] .modern-menu-item:hover:not([disabled]),
+:root[data-shell='modern'] .modern-menu-item:focus-visible {
+  background: var(--scrim);
+}
+
+:root[data-shell='modern'] .modern-menu-item:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-width));
+}
+
+:root[data-shell='modern'] .modern-menu-item[disabled] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+:root[data-shell='modern'] .modern-menu-check {
+  display: inline-flex;
+  flex: none;
+  inline-size: 20px;
+}
+
+:root[data-shell='modern'] .modern-menu-label {
+  flex: 1;
+}
+
+:root[data-shell='modern'] .modern-menu-chord {
+  font: 500 12px/1 var(--ui);
+  opacity: 0.8;
+}
+
+/* ---- The page: the editor kept mounted in every view (§4.1), the Codex view at the page's width. ---- */
+:root[data-shell='modern'] .modern-editor-host:not([hidden]) {
+  display: contents;
+}
+
+:root[data-shell='modern'] .modern-codex-view {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  overflow: auto;
+  padding-inline: var(--space-6);
 }
 
 /* ---- The provisional binder panel (M4); #307's tab bar and sidebar replace it. Paper, so the binder's muted text keeps 4.5:1. ---- */
@@ -302,6 +504,20 @@
   :root[data-shell='modern'] .mat-glass::before,
   :root[data-shell='modern'] .mat-thick::before {
     display: none;
+  }
+
+  :root[data-shell='modern'] .modern-lens {
+    background: Highlight;
+    box-shadow: none;
+  }
+
+  :root[data-shell='modern'] .modern-views .modern-capsule[aria-checked='true'] {
+    background: transparent;
+    color: HighlightText;
+  }
+
+  :root[data-shell='modern'] .modern-menu-item {
+    color: CanvasText;
   }
 
   :root[data-shell='modern'] .modern-capsule[aria-checked='true'],
