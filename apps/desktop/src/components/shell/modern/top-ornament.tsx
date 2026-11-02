@@ -323,13 +323,15 @@ function MoreMenu({
     list[next]?.focus();
   };
 
+  // A roving tab stop on the first item that can be chosen, so the menu, which can scroll, is reachable by keyboard (axe).
+  const first = sections.flatMap(({ entries }) => entries).find((entry) => entry.disabled !== true)?.key;
   const render = (entry: Entry): ReactNode => (
     <button
       key={entry.key}
       type="button"
       role={entry.role}
       className="modern-menu-item"
-      tabIndex={-1}
+      tabIndex={entry.key === first ? 0 : -1}
       disabled={entry.disabled}
       aria-checked={entry.role === 'menuitem' ? undefined : entry.checked === true}
       title={entry.title}
