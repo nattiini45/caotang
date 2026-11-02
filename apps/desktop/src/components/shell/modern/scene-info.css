@@ -191,13 +191,6 @@
   align-content: center;
 }
 
-:root[data-shell='modern'] .scene-info label:has(> input:is([type='checkbox'], [type='radio'])) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: var(--target-min);
-}
-
 /* The project's line (§7.1): its name, a capsule that opens Project details. */
 :root[data-shell='modern'] .scene-info-project {
   display: flex;

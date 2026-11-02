@@ -215,13 +215,6 @@
   align-content: center;
 }
 
-:root[data-shell='modern'] .modern-companion .agent-body label:has(> input:is([type='checkbox'], [type='radio'])) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-block-size: var(--target-min);
-}
-
 /* In the window the panel's title is the h2, so its sections are h3 (AgentPanel's sectionHeading); they look as the drawer's h4 do. */
 :root[data-shell='modern'] .modern-companion :is(.recurring, .agent-queue, .agent-tasks) > h3 {
   margin-block: 0 var(--space-2);

@@ -329,8 +329,3 @@
     background: CanvasText;
   }
 }
-
-/* The filter bar's day windows, in the sidebar and the narrow drawer: the number shrinks, the unit never breaks inside the word ("day / s"). Classic's rail is untouched. */
-:root[data-shell='modern'] :is(.modern-sidebar, .modern-drawer) .filter-days {
-  white-space: nowrap;
-}

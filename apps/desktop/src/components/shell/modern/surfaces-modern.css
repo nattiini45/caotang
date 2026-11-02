@@ -241,13 +241,6 @@
   border-radius: 12px;
 }
 
-:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home) label:has(> input:is([type='checkbox'], [type='radio'])) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  min-block-size: var(--target-min);
-}
-
 :root[data-shell='modern'] dialog:where(:not(.modern-palette)) .settings-nav-item {
   display: flex;
   align-items: center;
