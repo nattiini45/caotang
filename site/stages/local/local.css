@@ -1,0 +1,56 @@
+/* The local-first tile's field (local/index.tsx). */
+
+.lc {
+  --w: 333;
+  --h: 200;
+  --max: 1.2;
+}
+
+.lc .ss-stage {
+  overflow: hidden;
+}
+
+/* Hung from the top-right corner: off the top and the right, the words inside the visible part with the full inset. */
+.lc .lc-panel {
+  position: absolute;
+  left: 76px;
+  top: -36px;
+  width: 300px;
+  padding: 64px 52px 22px 22px;
+  border-radius: 32px;
+  background: var(--cao-glass-dense);
+}
+
+.lc .lc-label {
+  margin: 0 0 8px 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ss-text-strong);
+}
+
+.lc .lc-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 24px;
+  background: var(--ss-raised);
+  box-shadow: inset 0 0 0 1px var(--ss-line);
+  color: var(--ss-icon);
+}
+
+.lc .lc-mask {
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  color: var(--ss-text-strong);
+}
+
+.lc .lc-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0 6px;
+  font-size: 13px;
+  color: var(--ss-text);
+}

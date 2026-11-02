@@ -1,0 +1,18 @@
+{
+  "name": "@caotang/site",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "caotang.app, the landing page: static HTML and CSS, with Stageshow product pictures rendered at build time (no runtime script)",
+  "scripts": {
+    "build": "node ../tools/build-site.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
+}

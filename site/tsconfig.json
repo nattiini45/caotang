@@ -1,0 +1,17 @@
+{
+  // The landing's build-time stages and the vendored Stageshow kit. Not tsconfig.base.json: the kit is third-party code written
+  // for `strict` without noUncheckedIndexedAccess or noUnused*, and it is kept unedited (stageshow-kit/README.md).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["stages", "stageshow-kit"]
+}

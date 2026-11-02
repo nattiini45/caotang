@@ -30,3 +30,5 @@ Thumbs.db
 *.env
 !.env.example
 _site/
+# The landing page build (tools/build-site.mjs)
+site/dist/

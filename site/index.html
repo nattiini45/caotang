@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- The landing page is static: no script runs here. The JSON-LD block below is data for search engines and agents, not code. -->
+    <!-- The landing page is static: no script runs here. Its product pictures are rendered to HTML when the site is built (tools/build-site.mjs).
+         The JSON-LD block below is data for search engines and agents, not code. -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'none'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'"
@@ -12,7 +13,7 @@
     <title>Caotang: a free, local-first writing studio for novels, scripts and story worlds</title>
     <meta
       name="description"
-      content="Caotang is a free, open-source (MIT) writing app for novels, screenplays, branching dialogue and storyboards. Scrivener-style binder, corkboard and codex, an AI agent that asks before it changes anything, bring your own key, and an MCP server for other AI tools. Your manuscript stays on your machine."
+      content="Caotang is a free, open-source (MIT) writing app for novels, screenplays, branching dialogue and storyboards. Scrivener-style binder, a board of index cards and a codex, an AI agent that asks before it changes anything, bring your own key or run a local model, and an MCP server for other AI tools. Your manuscript stays on your machine."
     />
     <meta
       name="keywords"
@@ -32,16 +33,18 @@
     <meta name="twitter:card" content="summary" />
     <meta name="color-scheme" content="light dark" />
     <link rel="stylesheet" href="/landing.css" />
+    <link rel="stylesheet" href="/kit/stageshow.css" />
+    <link rel="stylesheet" href="/stages.css" />
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "Caotang",
         "url": "https://caotang.app/",
-        "description": "A free, local-first writing studio for novels, scripts and story worlds. Scrivener-style binder, corkboard, codex and compile, an AI agent that plans and asks before it changes anything (bring your own key), Fountain screenplays, Ink dialogue, storyboards, and an MCP server so other AI tools can read and, when allowed, edit a project.",
+        "description": "A free, local-first writing studio for novels, scripts and story worlds. Scrivener-style binder, Board (corkboard), codex and compile, an AI agent that plans and asks before it changes anything (bring your own key), Fountain screenplays, Ink dialogue, storyboards, and an MCP server so other AI tools can read and, when allowed, edit a project.",
         "applicationCategory": "WritingApplication",
         "applicationSubCategory": "Novel and screenplay writing software",
-        "operatingSystem": "Any modern desktop browser",
+        "operatingSystem": "Any modern browser; a desktop works best",
         "browserRequirements": "A current browser; folder saves need Chrome, Edge or another Chromium browser.",
         "softwareVersion": "0.1.0",
         "license": "https://opensource.org/licenses/MIT",
@@ -50,14 +53,20 @@
         "codeRepository": "https://github.com/nattiini45/caotang",
         "author": { "@type": "Person", "name": "nattiini45", "url": "https://github.com/nattiini45" },
         "featureList": [
-          "Binder of chapters and scenes, corkboard, inspector",
+          "Two interfaces, Modern and Classic, with a narrow layout for phones",
+          "Binder of chapters and scenes, the Board of index cards (corkboard), inspector",
           "Codex of characters, places, objects and lore",
           "AI agent with plans, draft previews, checkpoints and restore",
           "Bring your own key: Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek, OpenRouter or any OpenAI-compatible endpoint",
+          "Local models on the same computer: Ollama, LM Studio and llama.cpp",
+          "Timeline in story time or reading order, with an Agenda",
+          "Picture board, card pictures and handwriting transcription",
+          "Comics: pages, panels, balloons, Comic PDF, CBZ and EPUB",
           "Screenplays in Fountain, with Final Draft (.fdx) import and export",
           "Branching dialogue in Ink",
           "Storyboards with video prompt packs",
-          "Export to Word (.docx), EPUB, Markdown and plain text",
+          "Export to Word (.docx), EPUB, Markdown, plain text and a screenplay PDF that prints CJK, Arabic, Hebrew, Devanagari and emoji",
+          "Interface in English and German",
           "MCP client for external tools",
           "MCP server, read-only by default, over stdio or local HTTP, and as an .mcpb bundle"
         ],
@@ -81,67 +90,102 @@
           <a href="#mcp">For AI tools</a>
           <a href="https://github.com/nattiini45/caotang">GitHub</a>
         </nav>
+        <a class="button primary compact" href="/app/">Open Caotang</a>
       </div>
     </header>
 
     <main id="main">
       <section class="hero">
         <div class="wrap">
-          <p class="eyebrow">Free · open source · no account</p>
-          <h1>A writing studio for novels, scripts and story worlds.</h1>
-          <p class="lede">
-            Caotang gives you the structure long-form writers know, a binder, a corkboard and a codex, plus an AI agent that
-            plans first and asks before it changes your book. It runs in your browser, and your manuscript stays on your machine.
-          </p>
-          <div class="cta">
-            <a class="button primary" href="/app/">Open Caotang</a>
-            <a class="button" href="https://github.com/nattiini45/caotang">View the source</a>
+          <div class="hero-copy">
+            <p class="eyebrow">Free · open source · no account</p>
+            <h1>A writing studio for novels, scripts and story worlds.</h1>
+            <p class="lede">
+              A binder, a board of index cards and a codex, plus an AI agent that plans first and asks before it changes your book.
+              It runs in your browser, and your manuscript stays on your machine.
+            </p>
+            <div class="cta">
+              <a class="button primary" href="/app/">Open Caotang</a>
+              <a class="text-link" href="https://github.com/nattiini45/caotang">View the source <span aria-hidden="true">→</span></a>
+            </div>
+            <p class="fine">Nothing to install, nothing to sign up for. Works best in a desktop browser; phones get a narrow layout.</p>
           </div>
-          <p class="fine">Nothing to install, nothing to sign up for. A desktop browser window at least 960 px wide works best.</p>
-
-          <figure class="manuscript" aria-label="How the agent works">
-            <ol class="flow">
-              <li><span>1</span><strong>Ask</strong> “Draft the scene where Mara finds the letter.”</li>
-              <li><span>2</span><strong>Plan</strong> The agent proposes its steps. You approve or change them.</li>
-              <li><span>3</span><strong>Preview</strong> The draft appears in the scene, waiting for you.</li>
-              <li><span>4</span><strong>Restore</strong> Every turn leaves a checkpoint you can roll back.</li>
-            </ol>
+          <figure
+            class="stage-figure hero-figure"
+            role="img"
+            aria-label="Caotang's Modern interface: a scene called The Landing on a page of paper. A paragraph is selected, the agent window beside the page holds the request “Tighten this paragraph.”, and the tightened draft waits under the text with Apply, Retry and Discard."
+          >
+            <div class="stage-slot hero-wide" aria-hidden="true"><!-- stage:hero --></div>
+            <div class="stage-slot hero-compact" aria-hidden="true"><!-- stage:hero-compact --></div>
           </figure>
         </div>
       </section>
 
-      <section id="what" class="band">
+      <section class="loop" aria-label="How the agent works">
+        <div class="wrap">
+          <ol class="loop-steps">
+            <li><strong>Ask</strong> in your own words</li>
+            <li><strong>It plans,</strong> you approve</li>
+            <li><strong>You preview</strong> the draft in the scene</li>
+            <li><strong>Every turn</strong> can be restored</li>
+          </ol>
+        </div>
+      </section>
+
+      <section id="what">
         <div class="wrap">
           <h2>What it is</h2>
           <p class="section-lede">
             Everything a long manuscript needs, in one place. If you have used Scrivener, you will feel at home.
           </p>
-          <div class="grid">
-            <article>
-              <h3>Binder and corkboard</h3>
-              <p>Chapters and scenes you drag into order, a research section that is never compiled, index cards, statuses, labels, word goals and a sprint timer.</p>
-            </article>
-            <article>
-              <h3>Codex</h3>
-              <p>Characters, places, objects, lore and subplots, with aliases. Caotang lists every document a name appears in, and a quick scan flags continuity slips.</p>
-            </article>
-            <article>
-              <h3>Screenplays</h3>
-              <p>Scenes in Fountain, with script, source and page views. Import <code>.fountain</code> or Final Draft <code>.fdx</code>, and export them again.</p>
-            </article>
-            <article>
-              <h3>Branching dialogue</h3>
-              <p>Ink stories with an outline, a branch graph and line ids, for games and interactive fiction.</p>
-            </article>
-            <article>
-              <h3>Storyboards</h3>
-              <p>Shot cards with pictures, an animatic total, script coverage, and prompt packs for video models.</p>
-            </article>
-            <article>
-              <h3>Compile</h3>
-              <p>Word (<code>.docx</code>), EPUB, Markdown and plain text, for the whole book or one part, with saved recipes.</p>
-            </article>
+          <div class="bento">
+            <figure class="tile tile-board">
+              <figcaption><strong>The Board.</strong> Every scene is an index card. Drag one into place and the others make room.</figcaption>
+              <div class="stage-slot" role="img" aria-label="The Board: index cards for scenes such as “The ferry”, “The letter” and “Night crossing”, one card lifted by its grip and being placed between two others.">
+                <div class="board-wide"><!-- stage:board --></div>
+                <div class="board-compact"><!-- stage:board-compact --></div>
+              </div>
+            </figure>
+            <figure class="tile tile-local">
+              <div class="stage-slot" role="img" aria-label="An API key field, its value hidden, marked “Sealed in this browser”.">
+                <!-- stage:local -->
+              </div>
+              <figcaption>
+                <strong class="statement">No account.<br />No server.</strong>
+                Your projects stay in this browser, or in a folder you choose, and your key is sealed here too.
+              </figcaption>
+            </figure>
+            <figure class="tile tile-binder">
+              <figcaption><strong>A binder with goals.</strong> Parts, chapters and scenes, each with its own word target.</figcaption>
+              <div class="stage-slot" role="img" aria-label="The binder: Chapter 3 open with three scenes, its goal ring full at 2,512 of 2,500 words.">
+                <!-- stage:binder -->
+              </div>
+            </figure>
+            <figure class="tile tile-export">
+              <figcaption><strong>If you can type it, you can print it.</strong> Word, EPUB, screenplay PDF, Final Draft, Fountain and more.</figcaption>
+              <div class="stage-slot" role="img" aria-label="A page of a screenplay PDF made by Caotang, its dialogue mixing English, Chinese, Arabic and an emoji, on a loose stack of paper.">
+                <!-- stage:export -->
+              </div>
+            </figure>
+            <figure class="tile tile-findings">
+              <figcaption><strong>Findings, pinned to the sentence.</strong> The codex knows your cast; a quick scan marks where the story slips.</figcaption>
+              <div class="stage-slot" role="img" aria-label="A sentence where Mara, a codex name, is underlined, and a finding pinned to it: Mara knows she is the keeper’s heir in “The quay”, but learns it only in “The will”.">
+                <!-- stage:findings -->
+              </div>
+            </figure>
           </div>
+
+          <h3 class="list-head">Also in the studio</h3>
+          <dl class="also">
+            <div><dt>Screenplays</dt><dd>Scenes in Fountain, with script, source and page views. Import <code>.fountain</code> or Final Draft <code>.fdx</code>, and export them again.</dd></div>
+            <div><dt>Branching dialogue</dt><dd>Ink stories with an outline, a branch graph and line ids, for games and interactive fiction.</dd></div>
+            <div><dt>Storyboards</dt><dd>Shot cards with pictures, an animatic total, script coverage, and prompt packs for video models.</dd></div>
+            <div><dt>Comics</dt><dd>Pages with numbered panels and balloons, a linked script, and Comic PDF, CBZ and EPUB.</dd></div>
+            <div><dt>Timeline</dt><dd>Scenes laid out in story time or reading order, with an Agenda. Changes you make there are proposals you apply in one step.</dd></div>
+            <div><dt>Pictures</dt><dd>A picture board for the project, card pictures, pictures pinned to a paragraph, and handwriting transcription you review.</dd></div>
+            <div><dt>Two interfaces</dt><dd>Modern, a page of paper with glass controls, and Classic, the original layout. Both do the same things; switch at once.</dd></div>
+            <div><dt>In German too</dt><dd>The interface speaks English and German. The German is machine-assisted and not yet reviewed by a native speaker.</dd></div>
+          </dl>
 
           <div class="split">
             <div>
@@ -152,40 +196,35 @@
               </p>
             </div>
             <div>
-              <h3>Your key, your provider</h3>
+              <h3>Your key, your provider, or your computer</h3>
               <p>
                 Bring a key for Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek, OpenRouter or any OpenAI-compatible endpoint,
-                and pay that provider directly. No key yet? A built-in demo provider lets you try the agent without one.
+                and pay that provider directly. Or run a model on this computer with Ollama, LM Studio or llama.cpp, and your text
+                stays on it. No key yet? A built-in demo provider lets you try the agent without one.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="storage">
+      <section id="storage" class="band">
         <div class="wrap">
           <h2>Where your work lives</h2>
           <p class="section-lede">
-            Caotang is a web page with no server behind it. That surprises people, so here is what it means.
+            Caotang is a web page with no server behind it. When you open caotang.app, the page loads once, then everything happens on
+            your computer: nothing is uploaded, and there is no Caotang account or server that could see your book.
           </p>
-          <div class="storage">
-            <div class="card">
-              <h3>Your projects are saved in your browser</h3>
-              <p>
-                When you open caotang.app, the page loads once, then everything happens on your computer. Your projects are
-                kept in this browser's own storage for this site. Nothing is uploaded, and there is no Caotang account or
-                server that could see your book.
-              </p>
-            </div>
-            <div class="card">
-              <h3>So it stays with this browser</h3>
+          <div class="columns">
+            <div>
+              <h3>Saved in this browser</h3>
               <ul>
-                <li>Another browser, another computer or a private window will not see your projects.</li>
+                <li>Your projects are kept in this browser's own storage for this site.</li>
+                <li>Another browser, another computer or a private window will not see them.</li>
                 <li>Clearing this site's data, or a cleanup tool that does it for you, removes them.</li>
                 <li>Caotang asks the browser to keep its storage, and shows a banner if the browser has not promised to.</li>
               </ul>
             </div>
-            <div class="card accent">
+            <div>
               <h3>Keep a copy you own</h3>
               <ul>
                 <li><strong>Export bundle</strong> saves the whole project as one <code>.caotang</code> file you can import into any copy of Caotang.</li>
@@ -200,13 +239,13 @@
         </div>
       </section>
 
-      <section id="start" class="band">
+      <section id="start">
         <div class="wrap">
           <h2>Get started</h2>
           <ol class="steps">
             <li>
               <h3>Open Caotang</h3>
-              <p><a href="/app/">caotang.app/app</a> in a desktop browser. Chrome or Edge if you want folder saves.</p>
+              <p><a href="/app/">caotang.app/app</a> in your browser; a desktop works best. Chrome or Edge if you want folder saves.</p>
             </li>
             <li>
               <h3>Create a project</h3>
@@ -214,22 +253,26 @@
             </li>
             <li>
               <h3>Add a provider, if you like</h3>
-              <p>In <em>Settings › Providers</em>, pick a preset, choose a model and paste your key. Or skip it and write on your own.</p>
+              <p>In <em>Settings › Providers</em>, pick a preset, choose a model and paste your key, or pick a model on this computer (Ollama, LM Studio, llama.cpp). Or skip it and write on your own.</p>
             </li>
             <li>
               <h3>Keep a copy</h3>
               <p>Save to a folder, or export a bundle now and then. Your writing should never live in one place only.</p>
             </li>
           </ol>
+          <div class="cta">
+            <a class="button primary" href="/app/">Open Caotang</a>
+          </div>
           <p class="note">
             Prefer your own copy? Caotang is static files: build it from the repository and
             <a href="https://github.com/nattiini45/caotang#self-hosting">host it anywhere</a>. The
-            <a href="https://github.com/nattiini45/caotang/blob/main/docs/USER-GUIDE.md">user guide</a> walks through every screen.
+            <a href="https://github.com/nattiini45/caotang/blob/main/docs/USER-GUIDE.md">user guide</a> walks through every screen, and
+            <a href="https://github.com/nattiini45/caotang/blob/main/docs/USER-GUIDE.md#the-modern-interface">The Modern interface</a> shows the one new writers start in.
           </p>
         </div>
       </section>
 
-      <section id="mcp">
+      <section id="mcp" class="band">
         <div class="wrap">
           <h2>For AI tools: an MCP server for your manuscript</h2>
           <p class="section-lede">
@@ -249,8 +292,10 @@
             <div>
               <pre><code>node caotang-mcp.mjs serve \
   --project ~/Writing/my-novel --stdio</code></pre>
+              <p class="fine">Build it from the repository with</p>
+              <pre><code>pnpm --filter @caotang/mcp-server build</code></pre>
               <p class="fine">
-                Build it from the repository with <code>pnpm --filter @caotang/mcp-server build</code>. Full reference:
+                Full reference:
                 <a href="https://github.com/nattiini45/caotang/blob/main/packages/mcp-server/README.md">MCP server README</a>.
               </p>
             </div>
@@ -271,8 +316,8 @@
         </div>
       </section>
 
-      <section id="who" class="band">
-        <div class="wrap narrow">
+      <section id="who">
+        <div class="wrap">
           <h2>Who makes it</h2>
           <p>
             Caotang is an independent open-source project by <a href="https://github.com/nattiini45">@nattiini45</a> and contributors, released under
@@ -299,7 +344,8 @@
           <a href="https://github.com/nattiini45/caotang">GitHub</a> ·
           <a href="https://github.com/nattiini45/caotang/blob/main/docs/ROADMAP.md">Roadmap</a> ·
           <a href="https://github.com/nattiini45/caotang/blob/main/CHANGELOG.md">Changelog</a> ·
-          <a href="/llms.txt">llms.txt</a>
+          <a href="/llms.txt">llms.txt</a> ·
+          <a href="/notices.txt">Notices</a>
         </span>
       </div>
     </footer>

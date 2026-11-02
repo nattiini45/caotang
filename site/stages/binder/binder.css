@@ -1,0 +1,113 @@
+/* The Binder tile (binder/index.tsx). */
+
+.bn {
+  --w: 333;
+  --h: 270;
+  --max: 1.3;
+}
+
+.bn .ss-stage {
+  overflow: hidden;
+}
+
+/* The sidebar's sheet, cut by the tile's left edge and its foot. */
+.bn .bn-panel {
+  position: absolute;
+  left: -40px;
+  top: 0;
+  width: 349px;
+  height: 320px;
+  padding: 10px 12px 0 40px;
+  border-radius: 32px 32px 0 0;
+  background: var(--ss-surface);
+  box-shadow: var(--ss-shadow-hero);
+}
+
+.bn .bn-tree {
+  display: grid;
+}
+
+/* Modern's 44 px rows at its 15 px type, on the kit's Row. */
+.bn .bn-row {
+  --ss-row-pad: 0px;
+  --ss-row-title: 15px;
+  --ss-row-meta: 13px;
+  --ss-row-line: 20px;
+  min-height: 44px;
+  align-content: center;
+  padding: 0 12px;
+  border-radius: 14px;
+  column-gap: 8px;
+  color: var(--ss-text-strong);
+}
+
+/* Scenes one weight step under their chapter. */
+.bn .bn-row .ss-row__title {
+  font-weight: 500;
+  color: var(--ss-text-strong);
+}
+
+/* The depth, 18 px a level as the app's binder indents, as a spacer at the head of the lead: the row keeps one inset at both ends and
+   the selected pill still runs the row's full width, as the app's does. */
+.bn .bn-indent {
+  display: inline-block;
+  flex: none;
+}
+
+/* Less the lead's 2 px gap after the spacer. */
+.bn .bn-row--d0 .bn-indent {
+  display: none;
+}
+
+.bn .bn-row--d1 .bn-indent {
+  width: 16px;
+}
+
+.bn .bn-row--d2 .bn-indent {
+  width: 34px;
+}
+
+.bn .bn-row--chapter .ss-row__title {
+  font-weight: 600;
+}
+
+.bn .bn-row[data-selected] {
+  background: var(--ss-ink-2);
+}
+
+.bn .bn-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ss-icon);
+}
+
+.bn .bn-chevron {
+  display: inline-flex;
+  width: 16px;
+  color: var(--ss-icon-faint);
+}
+
+.bn .bn-goal {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ss-text);
+}
+
+/* The goal ring, full and ticked: the target met. */
+.bn .bn-ring circle {
+  fill: none;
+  stroke: var(--ss-success);
+  stroke-width: 2;
+}
+
+.bn .bn-ring path {
+  fill: none;
+  stroke: var(--ss-success);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
