@@ -236,7 +236,8 @@ test('the More menu is glass with 44 px rows, and each dialog it opens is glass,
   const menu = page.getByRole('menu', { name: /^(More|⋯)$/ });
   await expect(menu).toBeVisible();
   await settle(page);
-  await expectGlass(menu, '20px');
+  // #306's ⋯ menu wears its glass on the popover around the menu (.modern-popover, the sheet radius); the menu inside is clear.
+  await expectGlass(page.locator('.modern-popover').filter({ has: menu }), '32px');
   expect(await undersized(menu)).toEqual([]);
   const rows = await menu.getByRole('menuitem').all();
   for (const row of rows) expect((await row.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);

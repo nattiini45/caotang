@@ -7,8 +7,9 @@ import { binderRow, binderTitle, createProject, waitForSaved } from './support.j
  * Modern's Scene info (M7, #308; modern-interface.md §7.3, §7.5, §8.2, §8.3): the inspector as a non-modal dialog of thick glass, with
  * the same ids, so the routes to `#inspector-synopsis` keep working; the first fields, **Notes** and **Story details** as disclosures,
  * and **Progress** with today's words and the save state in words. Escape commits the field and closes, and focus goes back; a click
- * outside closes; **Keep open** docks it; reduced motion fades it in place of the morph. The title capsule that opens it is #306's, so
- * these specs open it by the binder's **Edit synopsis**, the route every shell has. They run Modern, so they start without the pin.
+ * outside closes; **Keep open** docks it; reduced motion fades it in place of the morph. Most specs open it by the binder's **Edit
+ * synopsis**, the route every shell has; it then grows out of #306's title capsule, its opener. They run Modern, so they start without
+ * the pin.
  */
 
 test.use({ storageState: NO_PIN });
@@ -96,8 +97,8 @@ test('Escape in the synopsis commits it, closes Scene info and gives focus back'
   // Escape at once, inside the field's debounce: the field commits before Scene info goes.
   await page.keyboard.press('Escape');
   await expect(sceneInfo(page)).toHaveCount(0);
-  // The menu item that asked is gone, so focus goes to the page (with #306's title capsule, to the capsule).
-  await expect(page.locator('#modern-page')).toBeFocused();
+  // The menu item that asked is gone with its menu, so focus goes to #306's title capsule, Scene info's opener.
+  await expect(page.getByTestId('modern-title-capsule')).toBeFocused();
 
   await editSynopsis(page);
   await expect(sceneInfo(page).locator('#inspector-synopsis')).toHaveValue('Lin crosses at dawn.');
@@ -180,11 +181,15 @@ test('Keep open docks Scene info beside the page: a click outside leaves it, Esc
 });
 
 test.describe('motion', () => {
-  test('with motion on, the durations stand, and a route-opened Scene info fades in place', async ({ page }) => {
+  test('with motion on, the durations stand, and Scene info grows out of the title capsule, from a route too', async ({ page }) => {
     await sceneInModern(page, 'Morph Book');
     await editSynopsis(page);
-    // A route has no opener to grow from, so it fades; #306's capsule gives the morph (scene-info-model.test.ts covers the rule).
-    await expect(sceneInfo(page)).toHaveAttribute('data-entrance', 'fade');
+    // A route has no control of its own to grow from, so Scene info grows out of #306's title capsule, its opener (§8.3).
+    await expect(sceneInfo(page)).toHaveAttribute('data-entrance', 'morph');
+    await page.keyboard.press('Escape');
+    await expect(sceneInfo(page)).toHaveCount(0);
+    await page.getByTestId('modern-title-capsule').click();
+    await expect(sceneInfo(page)).toHaveAttribute('data-entrance', 'morph');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dur-3').trim())).toBe('520ms');
   });
 

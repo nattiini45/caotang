@@ -6,8 +6,8 @@
  * Rules: every selector starts with :root[data-shell='modern'] (D7) and only logical properties are used (i18n.md §5.1); both are
  * checked by test/modern-css.test.ts. Colours, shapes, motion and materials come from tokens (tokens/modern.css).
  *
- * The page moves over for the bar, and for the sidebar too while it is pinned: the stage's --area-start, set here from what the
- * stage holds (`:has`), until #306's modernLayout writes the geometry through the CSSOM.
+ * The page moves over for the bar, and for the sidebar too while it is pinned: the stage's --area-start. modernLayout (layout.ts,
+ * BINDER_* at these sizes) writes it inline; the `:has` rules below are the fallback for a stage given no geometry.
  */
 
 :root[data-shell='modern'] .modern-stage {

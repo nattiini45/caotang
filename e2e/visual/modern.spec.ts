@@ -94,3 +94,23 @@ for (const scheme of ['light', 'dark'] as const) {
     }
   }
 }
+
+// The ornaments' surfaces (#306): Board, Codex and the open ⋯ menu, light and dark, on glass.
+for (const scheme of ['light', 'dark'] as const) {
+  for (const surface of ['board', 'codex', 'more'] as const) {
+    test(`Modern's ${surface === 'more' ? '⋯ menu' : surface} view, ${scheme}`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await start(page, scheme, false);
+      const views = page.getByRole('navigation', { name: 'Views and tools' });
+      if (surface === 'board') await views.getByRole('radio', { name: 'Board' }).click();
+      if (surface === 'codex') await views.getByRole('radio', { name: 'Codex' }).click();
+      if (surface === 'more') {
+        await page.getByRole('toolbar', { name: 'Scene' }).getByRole('button', { name: 'More', exact: true }).click();
+        await expect(page.getByRole('menu', { name: 'More' })).toBeVisible();
+      }
+      await page.evaluate(() => (globalThis as unknown as { document: { activeElement: { blur?: () => void } | null } }).document.activeElement?.blur?.());
+      await expect(page).toHaveScreenshot(`modern-${scheme}-glass-${surface}.png`, { animations: 'disabled', caret: 'hide', mask: masks(page), maxDiffPixels: 0 });
+    });
+  }
+}
