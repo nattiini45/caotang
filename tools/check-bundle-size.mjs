@@ -117,7 +117,7 @@ export const BUDGET = {
   // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
   // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
   // 6,076.1 kB measured with the narrow layout (#18): its model, notice and hook, the drawer, sheet and More menu in the workspace, and the row Actions button; the ceiling is that plus about 1%.
-  // 6,137.5 kB measured on main at #252, 2.5 kB under that ceiling, with eight feature PRs in flight (#175, #209, #86, #69, #106, #152, #192, #253)
+  // 6,137.5 kB measured on main at #252, 2.5 kB under that ceiling, with seven feature PRs in flight (#175, #209, #86, #69, #152, #192, #253; #106 is already in the baseline)
   // that each add a few kB of app code; the ceiling is raised once to the measured size plus about 1% so each PR is not trimmed to fit.
   // 6,202.0 kB measured with this batch merged (#254, #255, #257, #258, #259, #261, #262) and the story parts (#175); the ceiling is that plus about 1%.
   // The shared import readers (#268) are lazy chunks and leave the caps as they are: `xml` is 1.7 kB raw, 1.0 kB gzip, measured after #264 merged (the XML decoder

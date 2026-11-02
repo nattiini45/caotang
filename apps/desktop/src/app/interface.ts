@@ -111,7 +111,7 @@ export function initInterface(): Promise<unknown> {
   const value = resolveInterface({ stored, otherKeys: otherCaotangKeys(local()), projects: null, settingsRecord: null });
   pending = value === null;
   if (value !== null && value !== stored) rememberInterface(value);
-  // Nothing renders but the loading line while pending, so Classic's attribute meanwhile shows no shell.
+  // While pending only the loading line renders, so the interim data-shell='classic' puts no shell on screen.
   return applyInterface(value ?? 'classic');
 }
 
