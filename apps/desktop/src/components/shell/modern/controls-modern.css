@@ -80,6 +80,13 @@
   opacity: 0.5;
 }
 
+/* A disabled primary is the neutral fill with muted ink, not a faded accent that reads as pressed (#363). */
+:root[data-shell='modern'] .button.is-primary:disabled {
+  background: var(--k-fill);
+  color: var(--muted);
+  opacity: 1;
+}
+
 :root[data-shell='modern'] .button.is-primary {
   background: var(--accent);
   color: var(--accent-ink);
@@ -339,23 +346,84 @@
   font-size: inherit;
 }
 
-/* The agent's four modes sit in two even columns beside "Mode", so none is left alone on a line in the 400 px window. */
-:root[data-shell='modern'] .agent-mode {
+/* ---- Segmented radios (#363): a radio group whose labels are the segments, on the kit's track and thumb. The radios stay, covering each
+   segment unseen, so the group is still a radiogroup to assistive tech. The agent's Mode (a fieldset whose legend is read, not shown;
+   four names that wrap to two even rows when a language's do not fit one) and the Export Preview's Draft and Proof (two even halves,
+   each a name over its few words). ---- */
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 24px;
+  background: var(--k-track);
+}
+
+:root[data-shell='modern'] .export-preview-views {
   display: grid;
-  grid-template-columns: max-content repeat(2, minmax(0, 1fr));
-  column-gap: 12px;
-  align-items: start;
+  grid-template-columns: 1fr 1fr;
 }
 
-:root[data-shell='modern'] .agent-mode legend {
-  grid-row: span 2;
-  margin: 0;
-  padding-block: 12px;
-  line-height: 20px;
-}
-
-:root[data-shell='modern'] .agent-mode > label {
+:root[data-shell='modern'] :is(.agent-mode, .export-recipe) legend {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option) {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-block-size: var(--target-min);
+  padding: 0 10px;
+  border: 0;
+  border-radius: 21px;
+  background: none;
+  color: var(--ink-soft);
+  font: 500 14px/1.25 var(--ui);
+  text-align: center;
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option) > input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option):hover {
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option):has(> input:checked) {
+  background: var(--k-thumb);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+:root[data-shell='modern'] .agent-mode > label:has(> input:checked) {
+  font-weight: 600;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option):has(> input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+
+:root[data-shell='modern'] .export-preview-views .export-option-help {
+  margin: 0;
+  font-size: 12px;
 }
 
 /* The saved-filter menu keeps its whole name; Save moves to the next line when the two do not fit. */

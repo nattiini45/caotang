@@ -898,6 +898,7 @@ export function Workspace({
     if (next === 'home') leaveNow();
     else if (next !== null) setCenterNow(next);
   };
+  const openProviders = (): void => setSettingsSection('providers');
   // The shell actions (modern-interface.md §4.2): Classic's toolbar and its narrow More menu both render from this one list.
   const actions = shellActions(
     { undoLabel, focusMode, theme, folderPicker: folderAccessSupported(), keyboardLayout },
@@ -911,7 +912,7 @@ export function Workspace({
       compile: () => setExporting(true),
       bundle: exportBundleOffering,
       folder: saveToFolder,
-      settings: () => setSettingsSection('providers'),
+      settings: openProviders,
       theme: toggleTheme,
     },
   );
@@ -1060,6 +1061,7 @@ export function Workspace({
           open
           onToggle={() => setAgentOpen((on) => !on)}
           onClose={() => setAgentOpen(false)}
+          onAddProvider={openProviders}
           placement="window"
           sample={sample}
         />

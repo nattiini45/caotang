@@ -50,7 +50,7 @@ import { compileManuscript, compileSelection, explain, saveRecipe } from './acti
 import { ExportPreviewPanel, type PreviewState } from './ExportPreviewPanel.js';
 import { holdsOf } from './export-preview-model.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
-import { formatCount, useReport, useSession, type StatusMessage } from './shared.js';
+import { formatCount, ModernFold, useReport, useSession, type StatusMessage } from './shared.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 
 
@@ -649,213 +649,216 @@ export function ExportDialog({
           </label>
         </fieldset>
 
-        <fieldset className="export-group" disabled={!optionsEnabled}>
-          <legend className="field-label"><Trans>Settings for this recipe</Trans></legend>
-          <label className="export-option">
-            <input
-              type="checkbox"
-              checked={shown.titlePage}
-              onChange={(event) => saveOptions({ ...shown, titlePage: event.target.checked })}
+        {/* Modern (#363): the recipe's settings and "Save as recipe" fold under one line, so the Preview is near the formats. */}
+        <ModernFold label={t`Settings for this recipe`} className="export-recipe">
+          <fieldset className="export-group" disabled={!optionsEnabled}>
+            <legend className="field-label"><Trans>Settings for this recipe</Trans></legend>
+            <label className="export-option">
+              <input
+                type="checkbox"
+                checked={shown.titlePage}
+                onChange={(event) => saveOptions({ ...shown, titlePage: event.target.checked })}
+              />
+              <span className="export-option-label"><Trans>Title page</Trans></span>
+            </label>
+            <label className="export-option">
+              <input type="checkbox" checked={shown.toc} onChange={(event) => saveOptions({ ...shown, toc: event.target.checked })} />
+              <span className="export-option-label"><Trans>Contents list</Trans></span>
+            </label>
+            {/* Each field is keyed by the recipe, so it starts again from that recipe's value when the recipe changes. The two are
+                siblings, so each key also names its field: one key for both is React's duplicate-key warning. */}
+            <AuthorField
+              key={`author:${recipe?.name ?? ''}`}
+              value={shown.author}
+              onSave={(author) => saveOptions({ ...shown, author })}
             />
-            <span className="export-option-label"><Trans>Title page</Trans></span>
-          </label>
-          <label className="export-option">
-            <input type="checkbox" checked={shown.toc} onChange={(event) => saveOptions({ ...shown, toc: event.target.checked })} />
-            <span className="export-option-label"><Trans>Contents list</Trans></span>
-          </label>
-          {/* Each field is keyed by the recipe, so it starts again from that recipe's value when the recipe changes. The two are
-              siblings, so each key also names its field: one key for both is React's duplicate-key warning. */}
-          <AuthorField
-            key={`author:${recipe?.name ?? ''}`}
-            value={shown.author}
-            onSave={(author) => saveOptions({ ...shown, author })}
-          />
-          {shown.toc && (format === 'md' || format === 'docx' || format === 'epub') ? (
-            <ContentsLabelField
-              key={`contents:${recipe?.name ?? ''}`}
-              value={shown.contentsLabel}
-              onSave={(contentsLabel) => saveOptions({ ...shown, contentsLabel })}
-            />
-          ) : null}
-          {pictureControls === undefined ? null : (
-            <>
-              {pictureControls.mode === undefined ? null : (
+            {shown.toc && (format === 'md' || format === 'docx' || format === 'epub') ? (
+              <ContentsLabelField
+                key={`contents:${recipe?.name ?? ''}`}
+                value={shown.contentsLabel}
+                onSave={(contentsLabel) => saveOptions({ ...shown, contentsLabel })}
+              />
+            ) : null}
+            {pictureControls === undefined ? null : (
+              <>
+                {pictureControls.mode === undefined ? null : (
+                  <label className="export-field">
+                    <span className="export-option-label"><Trans>Pictures in the text</Trans></span>
+                    <select
+                      value={pictureControls.mode}
+                      onChange={(event) =>
+                        saveOptions({ ...shown, pictures: withPictureMode(shown.pictures, format, event.target.value as PictureMode) })
+                      }
+                    >
+                      {pictureControls.modes.map((mode) => (
+                        <option key={mode} value={mode}>
+                          {PICTURE_MODE_LABELS[mode]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {pictureControls.linkNote ? (
+                  <p className="export-option-help">
+                    <Trans>The links point into the project folder, so they break if the exported file is moved away from it.</Trans>
+                  </p>
+                ) : null}
+                {pictureControls.keepMetadata ? (
+                  <label className="export-option">
+                    <input
+                      type="checkbox"
+                      checked={shown.pictures.keepPictureMetadata}
+                      onChange={(event) => saveOptions({ ...shown, pictures: { ...shown.pictures, keepPictureMetadata: event.target.checked } })}
+                    />
+                    <span className="export-option-label"><Trans>Keep the pictures’ private details, such as where they were taken</Trans></span>
+                  </label>
+                ) : null}
+                {pictureControls.keepWebp ? (
+                  <label className="export-option">
+                    <input
+                      type="checkbox"
+                      checked={shown.pictures.epubKeepWebp}
+                      onChange={(event) => saveOptions({ ...shown, pictures: { ...shown.pictures, epubKeepWebp: event.target.checked } })}
+                    />
+                    <span className="export-option-label"><Trans>Keep WebP pictures as they are (for Apple Books; other readers may show them blank)</Trans></span>
+                  </label>
+                ) : null}
+              </>
+            )}
+            {format === 'dialogue-csv' || format === 'dialogue-xlsx' ? (
+              <CharLimitField
+                key={`limit:${recipe?.name ?? ''}`}
+                value={shown.charLimit}
+                onSave={(charLimit) => saveOptions({ ...shown, charLimit })}
+                onInvalid={(text) => setNotice({ text, tone: 'error' })}
+              />
+            ) : null}
+            {format === 'pdf' ? (
+              <>
                 <label className="export-field">
-                  <span className="export-option-label"><Trans>Pictures in the text</Trans></span>
+                  <span className="export-option-label"><Trans>Scene numbers</Trans></span>
                   <select
-                    value={pictureControls.mode}
-                    onChange={(event) =>
-                      saveOptions({ ...shown, pictures: withPictureMode(shown.pictures, format, event.target.value as PictureMode) })
-                    }
+                    value={shown.sceneNumbers}
+                    onChange={(event) => saveOptions({ ...shown, sceneNumbers: event.target.value as SceneNumbersOption })}
                   >
-                    {pictureControls.modes.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {PICTURE_MODE_LABELS[mode]}
+                    {SCENE_NUMBER_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {SCENE_NUMBER_LABELS[option]}
                       </option>
                     ))}
                   </select>
                 </label>
-              )}
-              {pictureControls.linkNote ? (
-                <p className="export-option-help">
-                  <Trans>The links point into the project folder, so they break if the exported file is moved away from it.</Trans>
-                </p>
-              ) : null}
-              {pictureControls.keepMetadata ? (
+                <label className="export-field">
+                  <span className="export-option-label">Paper size</span>
+                  {/* Letter is the screenplay PDF's own paper, so choosing it leaves the option out of the recipe. */}
+                  <select
+                    value={shown.pageSize ?? 'Letter'}
+                    onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
+                  >
+                    <option value="Letter">US Letter</option>
+                    <option value="A4">A4</option>
+                  </select>
+                </label>
+                <label className="export-field">
+                  <span className="export-option-label">Font</span>
+                  <select
+                    value={shown.scriptFont ?? 'courier-prime'}
+                    onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}
+                  >
+                    {RECIPE_SCRIPT_FONTS.map((option) => (
+                      <option key={option} value={option}>
+                        {SCRIPT_FONT_LABELS[option]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="export-option">
                   <input
                     type="checkbox"
-                    checked={shown.pictures.keepPictureMetadata}
-                    onChange={(event) => saveOptions({ ...shown, pictures: { ...shown.pictures, keepPictureMetadata: event.target.checked } })}
+                    checked={shown.continued}
+                    onChange={(event) => saveOptions({ ...shown, continued: event.target.checked })}
                   />
-                  <span className="export-option-label"><Trans>Keep the pictures’ private details, such as where they were taken</Trans></span>
+                  <span className="export-option-label"><Trans>(MORE) and (CONT’D) where a speech crosses a page</Trans></span>
                 </label>
-              ) : null}
-              {pictureControls.keepWebp ? (
+                <ColourEmojiControl format="pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
+              </>
+            ) : null}
+            {format === 'comic-pdf' ? (
+              <>
+                <label className="export-option">
+                  <input type="checkbox" checked={shown.bleed} onChange={(event) => saveOptions({ ...shown, bleed: event.target.checked })} />
+                  <span className="export-option-label"><Trans>Bleed: extend the art past the trim, for a printer</Trans></span>
+                </label>
+                <label className="export-option">
+                  <input type="checkbox" checked={shown.cropMarks} onChange={(event) => saveOptions({ ...shown, cropMarks: event.target.checked })} />
+                  <span className="export-option-label"><Trans>Crop marks: print the trim lines in the margin</Trans></span>
+                </label>
                 <label className="export-option">
                   <input
                     type="checkbox"
-                    checked={shown.pictures.epubKeepWebp}
-                    onChange={(event) => saveOptions({ ...shown, pictures: { ...shown.pictures, epubKeepWebp: event.target.checked } })}
+                    checked={shown.paperFrames}
+                    onChange={(event) => saveOptions({ ...shown, paperFrames: event.target.checked })}
                   />
-                  <span className="export-option-label"><Trans>Keep WebP pictures as they are (for Apple Books; other readers may show them blank)</Trans></span>
+                  <span className="export-option-label"><Trans>Paper frames: blank numbered frames to draw in, without the pictures</Trans></span>
                 </label>
-              ) : null}
-            </>
-          )}
-          {format === 'dialogue-csv' || format === 'dialogue-xlsx' ? (
-            <CharLimitField
-              key={`limit:${recipe?.name ?? ''}`}
-              value={shown.charLimit}
-              onSave={(charLimit) => saveOptions({ ...shown, charLimit })}
-              onInvalid={(text) => setNotice({ text, tone: 'error' })}
-            />
-          ) : null}
-          {format === 'pdf' ? (
-            <>
-              <label className="export-field">
-                <span className="export-option-label"><Trans>Scene numbers</Trans></span>
-                <select
-                  value={shown.sceneNumbers}
-                  onChange={(event) => saveOptions({ ...shown, sceneNumbers: event.target.value as SceneNumbersOption })}
-                >
-                  {SCENE_NUMBER_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {SCENE_NUMBER_LABELS[option]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="export-field">
-                <span className="export-option-label">Paper size</span>
-                {/* Letter is the screenplay PDF's own paper, so choosing it leaves the option out of the recipe. */}
-                <select
-                  value={shown.pageSize ?? 'Letter'}
-                  onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
-                >
-                  <option value="Letter">US Letter</option>
-                  <option value="A4">A4</option>
-                </select>
-              </label>
-              <label className="export-field">
-                <span className="export-option-label">Font</span>
-                <select
-                  value={shown.scriptFont ?? 'courier-prime'}
-                  onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}
-                >
-                  {RECIPE_SCRIPT_FONTS.map((option) => (
-                    <option key={option} value={option}>
-                      {SCRIPT_FONT_LABELS[option]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="export-option">
-                <input
-                  type="checkbox"
-                  checked={shown.continued}
-                  onChange={(event) => saveOptions({ ...shown, continued: event.target.checked })}
-                />
-                <span className="export-option-label"><Trans>(MORE) and (CONT’D) where a speech crosses a page</Trans></span>
-              </label>
-              <ColourEmojiControl format="pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
-            </>
-          ) : null}
-          {format === 'comic-pdf' ? (
-            <>
-              <label className="export-option">
-                <input type="checkbox" checked={shown.bleed} onChange={(event) => saveOptions({ ...shown, bleed: event.target.checked })} />
-                <span className="export-option-label"><Trans>Bleed: extend the art past the trim, for a printer</Trans></span>
-              </label>
-              <label className="export-option">
-                <input type="checkbox" checked={shown.cropMarks} onChange={(event) => saveOptions({ ...shown, cropMarks: event.target.checked })} />
-                <span className="export-option-label"><Trans>Crop marks: print the trim lines in the margin</Trans></span>
-              </label>
-              <label className="export-option">
-                <input
-                  type="checkbox"
-                  checked={shown.paperFrames}
-                  onChange={(event) => saveOptions({ ...shown, paperFrames: event.target.checked })}
-                />
-                <span className="export-option-label"><Trans>Paper frames: blank numbered frames to draw in, without the pictures</Trans></span>
-              </label>
-              <p className="export-option-help"><Trans>The reading direction is the book’s own setting, so a recipe does not change it.</Trans></p>
-            </>
-          ) : null}
-          {format === 'contact-sheet-pdf' || format === 'timeline-pdf' ? (
-            <>
-              <label className="export-field">
-                <span className="export-option-label"><Trans>Paper size</Trans></span>
-                <select
-                  value={shown.pageSize ?? 'A4'}
-                  onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'Letter' ? 'Letter' : 'A4' })}
-                >
-                  <option value="A4"><Trans>A4</Trans></option>
-                  <option value="Letter"><Trans>US Letter</Trans></option>
-                </select>
-              </label>
-              {format === 'contact-sheet-pdf' ? (
-              <label className="export-option">
-                <input
-                  type="checkbox"
-                  checked={shown.paperFrames}
-                  onChange={(event) => saveOptions({ ...shown, paperFrames: event.target.checked })}
-                />
-                <span className="export-option-label"><Trans>Paper frames: blank numbered frames to draw in, without the pictures</Trans></span>
-              </label>
-              ) : null}
-              {format === 'timeline-pdf' ? (
+                <p className="export-option-help"><Trans>The reading direction is the book’s own setting, so a recipe does not change it.</Trans></p>
+              </>
+            ) : null}
+            {format === 'contact-sheet-pdf' || format === 'timeline-pdf' ? (
+              <>
+                <label className="export-field">
+                  <span className="export-option-label"><Trans>Paper size</Trans></span>
+                  <select
+                    value={shown.pageSize ?? 'A4'}
+                    onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'Letter' ? 'Letter' : 'A4' })}
+                  >
+                    <option value="A4"><Trans>A4</Trans></option>
+                    <option value="Letter"><Trans>US Letter</Trans></option>
+                  </select>
+                </label>
+                {format === 'contact-sheet-pdf' ? (
                 <label className="export-option">
                   <input
                     type="checkbox"
-                    checked={shown.timelinePictures}
-                    onChange={(event) => saveOptions({ ...shown, timelinePictures: event.target.checked })}
+                    checked={shown.paperFrames}
+                    onChange={(event) => saveOptions({ ...shown, paperFrames: event.target.checked })}
                   />
-                  <span className="export-option-label"><Trans>Pictures: show each scene’s pictures as small thumbnails on its bar</Trans></span>
+                  <span className="export-option-label"><Trans>Paper frames: blank numbered frames to draw in, without the pictures</Trans></span>
                 </label>
-              ) : null}
-              {format === 'contact-sheet-pdf' ? (
-                <ColourEmojiControl format="contact-sheet-pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
-              ) : null}
-            </>
-          ) : null}
-        </fieldset>
+                ) : null}
+                {format === 'timeline-pdf' ? (
+                  <label className="export-option">
+                    <input
+                      type="checkbox"
+                      checked={shown.timelinePictures}
+                      onChange={(event) => saveOptions({ ...shown, timelinePictures: event.target.checked })}
+                    />
+                    <span className="export-option-label"><Trans>Pictures: show each scene’s pictures as small thumbnails on its bar</Trans></span>
+                  </label>
+                ) : null}
+                {format === 'contact-sheet-pdf' ? (
+                  <ColourEmojiControl format="contact-sheet-pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
+                ) : null}
+              </>
+            ) : null}
+          </fieldset>
 
-        <div className="export-field export-save-new">
-          <label className="export-field">
-            <span className="export-option-label"><Trans>Save these settings as a new recipe</Trans></span>
-            <input
-              type="text"
-              value={newName}
-              maxLength={80}
-              placeholder={t`For example, Beta read`}
-              onChange={(event) => setNewName(event.target.value)}
-            />
-          </label>
-          <button type="button" className="button" onClick={saveAsNew} disabled={newName.trim() === ''}>
-            <Trans>Save as recipe</Trans>
-          </button>
-        </div>
+          <div className="export-field export-save-new">
+            <label className="export-field">
+              <span className="export-option-label"><Trans>Save these settings as a new recipe</Trans></span>
+              <input
+                type="text"
+                value={newName}
+                maxLength={80}
+                placeholder={t`For example, Beta read`}
+                onChange={(event) => setNewName(event.target.value)}
+              />
+            </label>
+            <button type="button" className="button" onClick={saveAsNew} disabled={newName.trim() === ''}>
+              <Trans>Save as recipe</Trans>
+            </button>
+          </div>
+        </ModernFold>
 
         <p className="export-note">
           <Trans>Empty documents are left out and listed in the compile log. Undo removes the file again.</Trans>
