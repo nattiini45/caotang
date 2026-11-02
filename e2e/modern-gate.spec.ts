@@ -182,9 +182,17 @@ async function contrastProblems(page: Page, scope: string, wallpaper: readonly s
         const stack: Rgba[][] = [];
         for (let node: Element | null = element; node !== null; node = node.parentElement) {
           if (node.matches('[data-testid="modern-stage"], [data-testid="modern-wallpaper"]')) return stack;
-          // A material layer drawn behind the element's content (aria-hidden, a sibling of the content: Scene info's glass).
+          // A layer drawn behind the element's content as an aria-hidden sibling: a material (Scene info's glass), or a positioned
+          // shape under this element (the bottom ornament's lens under the chosen view).
+          const box = element.getBoundingClientRect();
+          const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
           for (const child of node.children) {
-            if (child.contains(element) || child.getAttribute('aria-hidden') !== 'true' || !/\bmat-/.test(child.className)) continue;
+            if (child.contains(element) || child.getAttribute('aria-hidden') !== 'true') continue;
+            const material = /\bmat-/.test(child.className);
+            const position = getComputedStyle(child).position;
+            const under = child.getBoundingClientRect();
+            const shape = (position === 'absolute' || position === 'fixed') && under.left <= x && x <= under.right && under.top <= y && y <= under.bottom;
+            if (!material && !shape) continue;
             stack.push(...layersOf(child));
           }
           stack.push(...layersOf(node));
@@ -328,6 +336,24 @@ const GAPS: readonly { readonly surface: string; readonly check: Check; readonly
     check: '44 px',
     patterns: ['^input “”', '^button “New task”'],
     why: 'the agent panel’s checkboxes with their labels are 21 px tall, and New task 30 px',
+  },
+  ...(['the ornaments', 'Board'] as const).map((surface) => ({
+    surface,
+    check: 'contrast' as const,
+    patterns: ['^span\\.save-state\\.'],
+    why: 'the save state in the top ornament (--muted) sits on the ornament’s thin glass, about 1.1–1.3:1 over the wallpaper’s mid tones',
+  })),
+  {
+    surface: 'Board',
+    check: '44 px',
+    patterns: ['^button “New card”', '^button\\[role=radio\\] “[SML]: '],
+    why: 'the corkboard keeps Classic’s toolbar on the page: New card 30 px and the S / M / L zoom 26 px tall (§7.3 puts the zoom in the top ornament)',
+  },
+  {
+    surface: 'Codex',
+    check: '44 px',
+    patterns: ['^button “(Always|Never|Detected|Manual|Character|Location|Object|Lore|Subplot|Other)”', '^button “(New entry|Let the agent draft entries)', '^input “Search the codex”'],
+    why: 'the codex on the page keeps Classic’s 25 px filter chips, its 30 px buttons and its 34 px search field',
   },
 ];
 

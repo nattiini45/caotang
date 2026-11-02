@@ -464,6 +464,7 @@ export const MODERN_HOMES: readonly Home[] = [
         // The first card on the page: the Board's scope is wherever the writer left it (a reopened project starts at the manuscript).
         steps: [{ click: { css: '#center-corkboard' } }, { press: 'Shift+F10', focus: { css: '#modern-page article.card' } }, see({ role: 'menu', pattern: '^Actions for ' })],
       },
+      { via: 'the zoom on the Board’s page, meanwhile', steps: [{ click: { role: 'radio', name: 'Board', within: bottom } }, see({ role: 'radio', pattern: '^S: Small cards', within: page })] },
       { via: 'the zoom in the top ornament', steps: [{ click: { role: 'radio', name: 'Board', within: bottom } }, see({ role: 'radiogroup', pattern: 'zoom|Zoom', within: { testId: 'modern-top-ornament' } })], pending: 306, why: '#306 landed without the Board’s zoom in the top ornament (§7.3); it is still to be placed' },
     ],
   },
