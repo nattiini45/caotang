@@ -287,7 +287,7 @@ test.describe('the agent window', () => {
 
       await switchToModern(page);
       const window = await openAgentWindow(page);
-      await expect(window.getByRole('heading', { name: 'Agent', level: 2 })).toBeVisible();
+      await expect(window.getByRole('heading', { name: 'Agent', level: 2, exact: true })).toBeVisible();
       await expect(window.getByRole('heading', { name: 'Recurring tasks', level: 3 })).toBeVisible();
       await expect(window.getByRole('heading', { level: 4 })).toHaveCount(0);
 
