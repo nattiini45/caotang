@@ -110,7 +110,8 @@ const sceneRow: Target = { css: '.row-title', pattern: `^${SCENE}$` };
  * sidebar (#307), so the chord would land on the page.
  */
 const sceneItem: Target = { role: 'treeitem', pattern: `^${SCENE}` };
-const chapterItem: Target = { role: 'treeitem', pattern: '^Chapter 1' };
+/** A chapter row's name starts with its Collapse button's label, so it is matched anywhere in the name. */
+const chapterItem: Target = { role: 'treeitem', pattern: 'Chapter 1' };
 
 const see = (target: Target, extra: { focused?: boolean; gone?: boolean } = {}): Step => ({ see: target, ...extra });
 

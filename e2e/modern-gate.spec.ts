@@ -342,6 +342,12 @@ const GAPS: readonly { readonly surface: string; readonly check: Check; readonly
     why: 'the save state in the top ornament (--muted) sits on the ornament’s thin glass, about 1.1–1.3:1 over the wallpaper’s mid tones',
   })),
   {
+    surface: 'the sidebar',
+    check: '44 px',
+    patterns: ['^button “(New document|New folder|New research note|Save current…|Import [^”]*)”', '^(input|select) “', '^button “(Collapse|Expand) '],
+    why: 'the Binder tab holds Classic’s binder as it is: its New and Import buttons, the filter bar’s fields and Save current… are 23–30 px tall, and a row’s Collapse / Expand 24 px',
+  },
+  {
     surface: 'Board',
     check: '44 px',
     patterns: ['^button “New card”', '^button\\[role=radio\\] “[SML]: '],
