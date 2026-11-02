@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react';
 
-export type IconName = 'write' | 'board' | 'codex' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'scene';
+export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'scene';
 
 const PATHS: Readonly<Record<IconName, ReactNode>> = {
   write: (
@@ -28,8 +28,16 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
       <path d="M5 16.5a3 3 0 0 1 3-3h10" />
     </>
   ),
-  // Ask is a conversation, so its mark is a speech bubble: no sparkle, which reads as generic AI decoration (Stageshow polish #362).
-  ask: <path d="M6.5 4.5h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H11l-4 3v-3h-.5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z" />,
+  // The timeline and the pictures, shown in the bottom ornament while the page shows them (#361).
+  timeline: <path d="M4 7h9M8 12h12M4 17h7" />,
+  pictures: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M3.5 16l5-5 4.5 4.5 3-3 4.5 4.5" />
+    </>
+  ),
+  // Ask is a speech bubble: what the agent does is answer (Stageshow: no sparkle for AI, #361).
+  ask: <path d="M6.5 4.5h11a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H11l-4.5 3.5v-3.5a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" />,
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="6" />

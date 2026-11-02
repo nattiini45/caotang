@@ -8,9 +8,12 @@
  * rejecting is the writer's own edit and is saved as one.
  */
 
+import { t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import type { ReviewApi, ReviewSuggestion } from '@caotang/editor';
 
+import { isModern } from '../app/interface.js';
 import { pendingLabel } from '../app/review-text.js';
 
 /** What one suggestion does, in words: the added and removed text is quoted, shortened by the editor. */
@@ -22,11 +25,23 @@ export function describeSuggestion(suggestion: ReviewSuggestion): string {
 
 /** `onUnsettled` hears of a button that was pressed with something to resolve and settled none of it. */
 export function ReviewBar({ review, onUnsettled }: { review: ReviewApi; onUnsettled?: () => void }): ReactNode {
+  useLingui();
   const state = useSyncExternalStore(review.subscribe, review.state);
   const { pending, current, position, selected } = state;
   const resolve = (call: () => number, asked: number): void => {
     if (call() === 0 && asked > 0) onUnsettled?.();
   };
+  const modern = isModern();
+  const all = (
+    <>
+      <button type="button" className="button" onClick={() => resolve(() => review.acceptAll(), pending)}>
+        Accept all
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => resolve(() => review.rejectAll(), pending)}>
+        Reject all
+      </button>
+    </>
+  );
   return (
     <>
       <span className="visually-hidden" role="status" aria-live="polite" data-testid="review-live">
@@ -58,12 +73,15 @@ export function ReviewBar({ review, onUnsettled }: { review: ReviewApi; onUnsett
             <button type="button" className="button" disabled={selected === 0} onClick={() => resolve(() => review.reject(), selected)}>
               Reject
             </button>
-            <button type="button" className="button" onClick={() => resolve(() => review.acceptAll(), pending)}>
-              Accept all
-            </button>
-            <button type="button" className="button is-quiet" onClick={() => resolve(() => review.rejectAll(), pending)}>
-              Reject all
-            </button>
+            {/* Modern keeps Accept the one primary in view and the whole-scene actions in a disclosure (#361); Classic shows all six. */}
+            {modern ? (
+              <details className="k-more">
+                <summary>{t`More`}</summary>
+                {all}
+              </details>
+            ) : (
+              all
+            )}
           </div>
         </section>
       ) : null}

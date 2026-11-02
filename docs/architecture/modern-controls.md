@@ -41,7 +41,7 @@ These are set by the kit, with light values and a dark override in both dark blo
 
 | Control | Selector (existing markup) | Kit class (new markup) | Notes |
 |---|---|---|---|
-| Button, secondary | `.button` | — | Tonal pill, 15/500, 44 px, 16 px inline padding |
+| Button, secondary | `.button`, `.tl-save` (the timeline's Calendar and Save image), `.thread-actions > button` (Scene info's Add thread) | — | Tonal pill, 15/500, 44 px, 16 px inline padding |
 | Button, primary | `.button.is-primary` | — | Accent fill. Use **one per surface** |
 | Button, quiet | `.button.is-quiet` | `.k-quiet` | Lighter surface at rest, `--ink-soft` text. `k-quiet` gives Modern's quiet weight to markup that stays a plain secondary in Classic |
 | Button, tonal | — | `.k-tonal` | `--accent-soft` with `--k-tonal-ink`, 600. A row's own action, or one of a card's several, beside the surface's one primary. On `.is-primary` markup it keeps Classic's look in Classic and steps down in Modern |
@@ -60,6 +60,7 @@ These are set by the kit, with light values and a dark override in both dark blo
 | Fieldset and legend | `fieldset`, `legend` | — | No groove border; the legend is a 13/600 group label |
 | Segmented | `.segmented` + `.segmented-item`, `.tl-segmented` + `.tl-segmented-item` | `.k-segmented` + `.segmented-item` | Track with 3 px inset; segments 44 px; the selected one (`aria-checked`, `aria-pressed` or `aria-selected` = true) on `--k-thumb` |
 | Disclosure | `details > summary` | — | 44 px row, 14/600, the chevron at the start pointing inline-end, turned down when open |
+| More (secondary actions) | — | `details.k-more` + `summary` | Holds a surface's secondary actions beside its one primary (the ghost bar, the review bar, #361). The summary is a quiet pill with the chevron at the start; opened, the actions follow it on the same line and wrap after it |
 | Help text | `.field-help`, `.field-note`, `.settings-note`, `.project-dialog-help`, `.export-note`, `.export-option-help` | `.k-help` | 13 px in `--k-help-ink`, never the warning colour. `.field-note.is-complaint`, `.is-error` and `[role=alert]` stay `--danger` |
 | Badge | `.badge` (`.is-warn`, `.is-source-mcp`) | `.k-badge` (`.is-accent`) | Tonal pill, 12/600, sentence case (no uppercase or tracking) |
 | Link | `a` without a class | — | Accent, underlined, never UA blue |
