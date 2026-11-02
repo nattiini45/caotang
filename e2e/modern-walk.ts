@@ -66,10 +66,14 @@ export interface SetupOptions {
   readonly solid?: boolean;
 }
 
-/** Builds the project a setup starts from, in Classic, the way a writer would: a new project, and for 'scene' Chapter 1 with one scene. */
+/**
+ * Builds the project a setup starts from, in Classic, the way a writer would: a new project, and for 'scene' Chapter 1 with one scene.
+ * 'findings' adds a second scene, FINDINGS_SCENE, declared on day one and after SCENE, which is declared on day five, and runs the scan,
+ * so the manuscript has open findings that quote both (as findings.spec.ts does).
+ */
 async function buildProject(page: Page, setup: Exclude<Setup, 'home'>): Promise<void> {
   await createProject(page, PROJECT);
-  if (setup === 'scene') {
+  if (setup === 'scene' || setup === 'findings') {
     await page.getByRole('button', { name: 'Create Chapter 1' }).click();
     await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
     await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(SCENE);
@@ -77,7 +81,34 @@ async function buildProject(page: Page, setup: Exclude<Setup, 'home'>): Promise<
     await page.getByRole('textbox', { name: 'Document text' }).fill(SCENE_TEXT);
     await waitForSaved(page);
   }
+  if (setup === 'findings') {
+    await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+    await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(FINDINGS_SCENE);
+    await page.keyboard.press('Enter');
+    await page.getByRole('textbox', { name: 'Document text' }).fill('The lamp went out before the boat came in.');
+    await waitForSaved(page);
+    const declare = async (title: string, day: string): Promise<void> => {
+      await binderTitle(page, title).click();
+      const meta = page.getByTestId('scene-meta');
+      if ((await meta.getAttribute('open')) === null) await meta.locator('summary').click();
+      await page.getByRole('spinbutton', { name: 'Day offset' }).fill(day);
+      await page.getByRole('spinbutton', { name: 'Day offset' }).press('Enter');
+    };
+    await declare(SCENE, '5');
+    await declare(FINDINGS_SCENE, '1');
+    await page.getByRole('combobox', { name: 'Add a scene this follows' }).selectOption({ label: SCENE });
+    await expect(page.getByRole('list', { name: 'Follows these scenes' })).toContainText(SCENE);
+    await waitForSaved(page);
+    await page.getByRole('tab', { name: /^Findings/ }).click();
+    await page.getByRole('button', { name: 'Scan the manuscript' }).click();
+    await expect(page.getByTestId('findings-open')).toHaveText(/^[1-9]\d* open$/);
+    await page.getByRole('tab', { name: 'Binder', exact: true }).click();
+    await waitForSaved(page);
+  }
 }
+
+/** The 'findings' setup's second scene, open in the editor when a route starts from it. */
+const FINDINGS_SCENE = 'The landing';
 
 const SCENE_TEXT = 'The boat came in with the tide. Nobody was on it.';
 
@@ -147,6 +178,7 @@ export async function setUp(page: Page, setup: Setup, options: SetupOptions = {}
     await binderTitle(page, SCENE).click();
     await expect(page.getByRole('textbox', { name: 'Document text' })).toContainText(SCENE_TEXT);
   }
+  if (setup === 'findings') await binderTitle(page, FINDINGS_SCENE).click();
   await switchToModern(page);
 }
 
@@ -285,7 +317,7 @@ export async function runStep(page: Page, step: Step): Promise<void> {
 /** Walks a route from its setup. */
 export async function walk(page: Page, setup: Setup, route: Route): Promise<void> {
   const banner = route.steps.some((step) => 'provoke' in step && step.provoke === 'storage-banner');
-  await setUp(page, setup, { banner });
+  await setUp(page, route.setup ?? setup, { banner });
   for (const step of route.steps) await runStep(page, step);
 }
 
