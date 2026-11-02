@@ -566,7 +566,7 @@
   font: 400 13px/1.45 var(--ui);
 }
 
-:root[data-shell='modern'] .comic-panel-note {
+:root[data-shell='modern'] .comic-panel-note.is-empty {
   display: none;
 }
 
