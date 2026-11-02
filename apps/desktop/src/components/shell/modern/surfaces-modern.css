@@ -326,7 +326,9 @@
 
 :root[data-shell='modern'] .modern-toast > .storage-banner {
   align-items: center;
+  /* No close button at its end, unlike a status line: its words keep the same 22 px from both edges. */
   padding-block: var(--space-5);
+  padding-inline-end: 22px;
 }
 
 :root[data-shell='modern'] .modern-toast > .status-line.is-error {
