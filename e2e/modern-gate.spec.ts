@@ -481,6 +481,8 @@ async function movement(page: Page): Promise<string[]> {
 test.describe('reduced motion', () => {
   for (const source of ['the system', 'the Reduce motion switch'] as const) {
     test(`${source}: opening each surface moves nothing, and fades take 120 ms at most`, async ({ page }) => {
+      // One test opens every built surface in turn, so it has the time of several.
+      test.slow();
       if (source === 'the system') await page.emulateMedia({ reducedMotion: 'reduce' });
       else await page.addInitScript(() => localStorage.setItem('caotang.modern.motion', 'reduced'));
       await setUp(page, 'scene');
@@ -495,6 +497,7 @@ test.describe('reduced motion', () => {
 });
 
 test('the system’s reduced transparency: no surface is blurred or see-through', async ({ page, browserName }) => {
+  test.slow();
   test.skip(browserName !== 'chromium', 'Reduced transparency is emulated through Chromium’s DevTools protocol.');
   const session = await page.context().newCDPSession(page);
   await session.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }] });
@@ -520,6 +523,7 @@ test('the system’s reduced transparency: no surface is blurred or see-through'
 test.describe('the Content-Security-Policy listener', () => {
   for (const scheme of SCHEMES) {
     test(`${scheme}: opening every surface raises no violation`, async ({ page }) => {
+      test.slow();
       await watchCsp(page);
       await setUp(page, 'scene', { scheme });
       for (const surface of SURFACES.filter((each) => each.pending === undefined && each.setup === 'scene')) {
