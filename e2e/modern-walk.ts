@@ -163,11 +163,18 @@ export async function showBinder(page: Page): Promise<void> {
   await expect(tree).toBeVisible();
 }
 
-/** Closes the sidebar with Manuscript, as a writer does who opened it so. */
+/**
+ * Closes the sidebar with Manuscript, as a writer does who opened it so. A sidebar the hover opened (a menu that vanished under the
+ * pointer leaves it over the tab bar, and WebKit then fires the bar's pointerenter) takes the first press as "open it for real", as
+ * #307 has it, so a writer presses Manuscript again: the walk does the same, up to three times.
+ */
 export async function closeBinder(page: Page): Promise<void> {
   const nav = page.getByTestId('modern-binder');
-  if ((await nav.getAttribute('data-state')) === 'open') await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
-  await expect(nav).toHaveAttribute('data-state', 'closed');
+  const manuscript = page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' });
+  await expect(async () => {
+    if ((await nav.getAttribute('data-state')) === 'open') await manuscript.click();
+    await expect(nav).toHaveAttribute('data-state', 'closed', { timeout: 1_000 });
+  }).toPass({ intervals: [100, 250, 500], timeout: 6_000 });
 }
 
 /** **⋯**: the top ornament's More (M4's provisional one, or #306's). */
