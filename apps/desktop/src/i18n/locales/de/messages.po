@@ -4721,18 +4721,8 @@ msgstr "Klassisch"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
-msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built, so for now it looks almost the same as Classic. The choice is kept in this browser and applies at once."
-msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Modern ist eine Vorschau und noch im Aufbau, daher sieht es vorerst fast so aus wie Klassisch. Die Wahl wird in diesem Browser gespeichert und gilt sofort."
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built: the page and its glass are in, and its own controls come next. The choice is kept in this browser and applies at once."
-msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Modern ist eine Vorschau und noch im Aufbau: Die Seite und ihr Glas sind da, die eigenen Bedienelemente folgen als Nächstes. Die Wahl wird in diesem Browser gespeichert und gilt sofort."
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. The choice is kept in this browser and applies at once."
-msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Die Wahl wird in diesem Browser gespeichert und gilt sofort."
+msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. New writers start in Modern; if you used Caotang before, it stays Classic until you choose. The choice is kept in this browser and applies at once."
+msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Wer neu beginnt, startet in Modern; haben Sie Caotang schon genutzt, bleibt es bei Klassisch, bis Sie wechseln. Die Wahl wird in diesem Browser gespeichert und gilt sofort."
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -8880,11 +8870,6 @@ msgstr "Von {profile} aufgelistete Modelle"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Modern"
 msgstr "Modern"
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Modern (Preview)"
-msgstr "Modern (Vorschau)"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx

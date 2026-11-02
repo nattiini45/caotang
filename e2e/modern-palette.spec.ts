@@ -28,7 +28,7 @@ async function openAppearance(page: Page): Promise<Locator> {
   return settings;
 }
 
-async function switchTo(page: Page, name: 'Classic' | 'Modern (Preview)'): Promise<void> {
+async function switchTo(page: Page, name: 'Classic' | 'Modern'): Promise<void> {
   const settings = await openAppearance(page);
   await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name }).check();
   await settings.getByRole('button', { name: 'Close' }).click();
@@ -55,7 +55,7 @@ async function harbourInModern(page: Page): Promise<void> {
   await name.press('Enter');
   await page.getByRole('tab', { name: 'Binder' }).click();
   await waitForSaved(page);
-  await switchTo(page, 'Modern (Preview)');
+  await switchTo(page, 'Modern');
   await expect(page.getByTestId('modern-stage')).toBeVisible();
 }
 

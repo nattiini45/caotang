@@ -19,12 +19,6 @@ export type Interface = 'classic' | 'modern';
 
 export const INTERFACE_KEY = 'caotang.interface';
 
-/**
- * The parity gate (modern-interface.md D4): whether a new writer starts in Modern. Off until Modern is complete (#313 turns it
- * on); until then a new writer starts in Classic and Settings labels Modern "Preview". Existing writers stay on Classic either way.
- */
-export const MODERN_DEFAULT_FOR_NEW_USERS = false;
-
 /** What the default rule reads (§3.2). A fact that is not known yet is `null`. */
 export interface InterfaceFacts {
   /** The value stored under `caotang.interface`, whatever it is, or `null` when there is none. */
@@ -38,16 +32,15 @@ export interface InterfaceFacts {
 }
 
 /**
- * The default rule, in the spec's order: a stored `'classic'` or `'modern'` wins; another `caotang.*` key means Classic; then,
- * once the stores have opened, a project or a settings record means Classic, and neither means Modern, if the parity gate allows
- * it, else Classic. `null` while the stores have not answered.
+ * The default rule, in the spec's order: a stored `'classic'` or `'modern'` wins; another `caotang.*` key means an existing writer,
+ * so Classic; then, once the stores have opened, a project or a settings record means Classic too, and neither means a new writer,
+ * who starts in Modern (the parity gate, D4, opened at #313). `null` while the stores have not answered.
  */
-export function resolveInterface(facts: InterfaceFacts, modernForNewUsers: boolean = MODERN_DEFAULT_FOR_NEW_USERS): Interface | null {
+export function resolveInterface(facts: InterfaceFacts): Interface | null {
   if (facts.stored === 'classic' || facts.stored === 'modern') return facts.stored;
   if (facts.otherKeys) return 'classic';
   if (facts.projects === null || facts.settingsRecord === null) return null;
-  if (facts.projects || facts.settingsRecord) return 'classic';
-  return modernForNewUsers ? 'modern' : 'classic';
+  return facts.projects || facts.settingsRecord ? 'classic' : 'modern';
 }
 
 /** The part of `Storage` the rule reads. */

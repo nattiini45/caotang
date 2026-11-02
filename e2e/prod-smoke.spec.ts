@@ -194,25 +194,26 @@ test('a failed production German download changes nothing and choosing Deutsch a
 test.describe('the interface', () => {
   test.use({ storageState: NO_PIN });
 
-  test('the built app loads the Modern stylesheet as its own chunk, under the policy, only while Modern is on', async ({ page }) => {
+  test('the built app starts a new writer in Modern, its stylesheet a chunk of its own under the policy, and Classic fetches none', async ({ page }) => {
     const problems = await watchForProblems(page);
     const sheets: string[] = [];
     page.on('request', (request) => {
       const name = new URL(request.url()).pathname.split('/').pop() ?? '';
       if (name.endsWith('.css')) sheets.push(name.replace(/-[\w-]{8}\.css$/, ''));
     });
-    // A fresh profile resolves to Classic while the parity gate is closed (app/interface.ts), so Modern's sheet (the `modern-shell`
-    // chunk's, since #305) is not fetched.
+    // A fresh profile is a new writer, who starts in Modern (app/interface.ts, #313): Modern's sheet is the `modern-shell` chunk's.
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('classic');
-    expect(sheets).not.toContain('modern-shell');
-
-    await page.evaluate(() => localStorage.setItem('caotang.interface', 'modern'));
-    await page.reload();
     await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('modern');
     expect(sheets).toContain('modern-shell');
+
+    // Classic, once chosen, fetches none of it.
+    await page.evaluate(() => localStorage.setItem('caotang.interface', 'classic'));
+    sheets.length = 0;
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.dataset['shell'])).toBe('classic');
+    expect(sheets).not.toContain('modern-shell');
     expect(problems).toEqual([]);
     expect(await violations(page)).toEqual([]);
   });

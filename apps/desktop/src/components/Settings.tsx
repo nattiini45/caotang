@@ -41,7 +41,7 @@ import {
   type RoleRef,
   type RoleSettings,
 } from '../app/settings.js';
-import { MODERN_DEFAULT_FOR_NEW_USERS, applyInterface, rememberInterface, type Interface } from '../app/interface.js';
+import { applyInterface, rememberInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
@@ -1441,15 +1441,11 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
         </label>
         <label className="check">
           <input type="radio" name="shell" checked={shell === 'modern'} onChange={() => chooseShell('modern')} />{' '}
-          {MODERN_DEFAULT_FOR_NEW_USERS ? t`Modern` : t`Modern (Preview)`}
+          {t`Modern`}
         </label>
       </fieldset>
       <p className="muted">
-        {MODERN_DEFAULT_FOR_NEW_USERS
-          ? t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. The choice is kept in this browser and applies at once.`
-          : shell === 'modern'
-            ? t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built: the page and its glass are in, and its own controls come next. The choice is kept in this browser and applies at once.`
-            : t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. Modern is a preview and is still being built, so for now it looks almost the same as Classic. The choice is kept in this browser and applies at once.`}
+        {t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. New writers start in Modern; if you used Caotang before, it stays Classic until you choose. The choice is kept in this browser and applies at once.`}
       </p>
       {shell === 'modern' ? (
         <fieldset className="settings-radios" data-testid="modern-preferences">

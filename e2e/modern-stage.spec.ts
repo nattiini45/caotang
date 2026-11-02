@@ -85,7 +85,7 @@ async function openAppearance(page: Page) {
   return settings;
 }
 
-async function switchTo(page: Page, name: 'Classic' | 'Modern (Preview)') {
+async function switchTo(page: Page, name: 'Classic' | 'Modern') {
   const settings = await openAppearance(page);
   const radio = settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name });
   await radio.check();
@@ -95,10 +95,14 @@ async function switchTo(page: Page, name: 'Classic' | 'Modern (Preview)') {
 
 test('choosing Modern shows the stage, the wallpaper and one page of paper with the scene on it; Classic comes back as it was', async ({ page }) => {
   await watchCsp(page);
+  // A fresh profile starts in Modern (#313): this writer starts from Classic, chosen once, and switches live.
+  await page.addInitScript(() => {
+    if (localStorage.getItem('caotang.interface') === null) localStorage.setItem('caotang.interface', 'classic');
+  });
   await page.goto('/');
   await sceneWithWords(page);
 
-  const settings = await switchTo(page, 'Modern (Preview)');
+  const settings = await switchTo(page, 'Modern');
   await expect(page.getByTestId('modern-stage')).toBeVisible();
   // The live switch keeps Settings open, with focus on the radio, behind which the shell changed.
   await expect(settings).toBeVisible();

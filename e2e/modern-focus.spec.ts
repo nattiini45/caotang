@@ -182,7 +182,9 @@ test('Scene info lists the scene’s open findings, and Show in Findings opens t
   // Built in Classic (the suite's pin), as findings.spec.ts does: two declared scenes whose days break their order, then a scan.
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
+  // A fresh profile starts in Modern (#313); Classic is chosen and the page reloaded, so the project is built in Classic.
   await page.evaluate(() => localStorage.setItem('caotang.interface', 'classic'));
+  await page.reload();
   await createProject(page, 'Findings Book');
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   for (const title of ['Scene A', 'Scene B']) {

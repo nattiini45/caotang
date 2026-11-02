@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test';
 
 import {
   INTERFACE_KEY,
-  MODERN_DEFAULT_FOR_NEW_USERS,
   initInterface,
   interfacePending,
   otherCaotangKeys,
@@ -14,44 +13,45 @@ import {
 
 /**
  * The interface's default rule (app/interface.ts; modern-interface.md §3.2, D3, D4): a stored choice wins; another `caotang.*`
- * key means Classic; then a project or a settings record means Classic, and neither means Modern only when the parity gate is
- * open. The answer is stored at once.
+ * key means an existing writer, so Classic; then a project or a settings record means Classic too, and neither means a new writer,
+ * who starts in Modern (the parity gate opened at #313). The answer is stored at once.
  *
  * The page's globals are stood in for: a `window` with a local storage and a `document` whose root carries the attribute.
  */
 
-type Row = readonly [string, InterfaceFacts, 'classic' | 'modern' | null, 'classic' | 'modern' | null];
+type Row = readonly [string, InterfaceFacts, 'classic' | 'modern' | null];
 
 const unknown = { projects: null, settingsRecord: null } as const;
 const fresh = { stored: null, otherKeys: false, projects: false, settingsRecord: false } as const;
 
-/** Each row: what it is, the facts, the answer with the gate closed (today), the answer with it open (#313). */
+/** Each row: what it is, the facts, the answer. */
 const TABLE: readonly Row[] = [
-  ['stored classic, nothing else known', { stored: 'classic', otherKeys: false, ...unknown }, 'classic', 'classic'],
-  ['stored modern, nothing else known', { stored: 'modern', otherKeys: false, ...unknown }, 'modern', 'modern'],
-  ['stored modern beats other keys and a project', { stored: 'modern', otherKeys: true, projects: true, settingsRecord: true }, 'modern', 'modern'],
-  ['stored classic beats a fresh profile', { ...fresh, stored: 'classic' }, 'classic', 'classic'],
-  ['a stored value that is not an interface is ignored', { ...fresh, stored: 'glass' }, 'classic', 'modern'],
-  ['another caotang key, stores not open yet', { stored: null, otherKeys: true, ...unknown }, 'classic', 'classic'],
-  ['another caotang key on a fresh store', { ...fresh, otherKeys: true }, 'classic', 'classic'],
-  ['nothing in local storage, stores not open yet', { stored: null, otherKeys: false, ...unknown }, null, null],
-  ['nothing in local storage, only the projects known', { stored: null, otherKeys: false, projects: false, settingsRecord: null }, null, null],
-  ['a project', { ...fresh, projects: true }, 'classic', 'classic'],
-  ['a settings record', { ...fresh, settingsRecord: true }, 'classic', 'classic'],
-  ['a project and a settings record', { ...fresh, projects: true, settingsRecord: true }, 'classic', 'classic'],
-  ['a fresh profile: nothing anywhere', fresh, 'classic', 'modern'],
+  ['stored classic, nothing else known', { stored: 'classic', otherKeys: false, ...unknown }, 'classic'],
+  ['stored modern, nothing else known', { stored: 'modern', otherKeys: false, ...unknown }, 'modern'],
+  ['stored modern beats other keys and a project', { stored: 'modern', otherKeys: true, projects: true, settingsRecord: true }, 'modern'],
+  ['stored classic beats a fresh profile', { ...fresh, stored: 'classic' }, 'classic'],
+  ['a stored value that is not an interface is ignored', { ...fresh, stored: 'glass' }, 'modern'],
+  ['another caotang key, stores not open yet', { stored: null, otherKeys: true, ...unknown }, 'classic'],
+  ['another caotang key on a fresh store', { ...fresh, otherKeys: true }, 'classic'],
+  ['nothing in local storage, stores not open yet', { stored: null, otherKeys: false, ...unknown }, null],
+  ['nothing in local storage, only the projects known', { stored: null, otherKeys: false, projects: false, settingsRecord: null }, null],
+  ['a project', { ...fresh, projects: true }, 'classic'],
+  ['a settings record', { ...fresh, settingsRecord: true }, 'classic'],
+  ['a project and a settings record', { ...fresh, projects: true, settingsRecord: true }, 'classic'],
+  ['a fresh profile: nothing anywhere', fresh, 'modern'],
 ];
 
-for (const [name, facts, gated, open] of TABLE) {
+for (const [name, facts, answer] of TABLE) {
   test(`resolveInterface: ${name}`, () => {
-    expect(resolveInterface(facts, false), 'parity gate closed').toBe(gated);
-    expect(resolveInterface(facts, true), 'parity gate open').toBe(open);
+    expect(resolveInterface(facts)).toBe(answer);
   });
 }
 
-test('the parity gate is closed until Modern is complete, so the default today is the closed column', () => {
-  expect(MODERN_DEFAULT_FOR_NEW_USERS).toBe(false);
-  expect(resolveInterface(fresh)).toBe('classic');
+test('a new writer starts in Modern; an existing one (a project, a settings record or another key, with nothing stored) stays on Classic', () => {
+  expect(resolveInterface(fresh)).toBe('modern');
+  expect(resolveInterface({ ...fresh, projects: true })).toBe('classic');
+  expect(resolveInterface({ ...fresh, settingsRecord: true })).toBe('classic');
+  expect(resolveInterface({ ...fresh, otherKeys: true })).toBe('classic');
 });
 
 /** A local storage of these keys, readable and writable as the browser's. */
@@ -143,14 +143,24 @@ test('with nothing in local storage the default waits for the stores, which sett
   expect(interfacePending()).toBe(false);
 });
 
-test('a fresh profile settles as the parity gate says (Classic today), and the answer is stored', async () => {
+test('a fresh profile settles as Modern, and the answer is stored, so it never flips on a later visit', async () => {
   const store = storage();
   const dataset = page(store);
   await initInterface();
+  // Modern's stylesheet is a Vite chunk a bare Node host cannot load; the attribute and the stored answer are what count here.
   await settleInterface(false, false).catch(() => undefined);
-  const expected = MODERN_DEFAULT_FOR_NEW_USERS ? 'modern' : 'classic';
-  expect(dataset['shell']).toBe(expected);
-  expect(store.map.get(INTERFACE_KEY)).toBe(expected);
+  expect(dataset['shell']).toBe('modern');
+  expect(store.map.get(INTERFACE_KEY)).toBe('modern');
+});
+
+test('an existing profile with a project and nothing stored settles as Classic, and the answer is stored', async () => {
+  const store = storage();
+  const dataset = page(store);
+  await initInterface();
+  expect(interfacePending()).toBe(true);
+  await settleInterface(true, false);
+  expect(dataset['shell']).toBe('classic');
+  expect(store.map.get(INTERFACE_KEY)).toBe('classic');
 });
 
 test('a stored Modern is applied before the first render (its stylesheet is a Vite chunk a bare Node host cannot load)', async () => {
