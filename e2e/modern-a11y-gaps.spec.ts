@@ -243,12 +243,19 @@ test.describe('Scene info', () => {
       await sceneInClassic(page, scheme);
       await switchToModern(page);
       const dialog = await openSceneInfo(page);
-      // Open every disclosure, the nested ones too, so every field the inspector has is measured.
+      // Open every disclosure, the nested ones too, so every field the inspector has is measured. Each summary is activated in the
+      // page (its own click, so the inspector's toggle handlers run) rather than by a pointer: WebKit scrolls the body's lower
+      // disclosures past the viewport's edge while the one above it opens, and the measure needs them open, not on screen.
       for (let round = 0; round < 4; round += 1) {
-        const closed = dialog.locator('details:not([open]) > summary');
-        if ((await closed.count()) === 0) break;
-        for (const summary of await closed.all()) if (await summary.isVisible()) await summary.click();
+        const opened = await dialog.evaluate((root) => {
+          const closed = [...root.querySelectorAll<HTMLElement>('details:not([open]) > summary')];
+          for (const summary of closed) summary.click();
+          return closed.length;
+        });
+        if (opened === 0) break;
+        await settle(page);
       }
+      await expect(dialog.locator('details:not([open])')).toHaveCount(0);
       await settle(page);
       expect(await smallControls(dialog)).toEqual([]);
 
@@ -303,4 +310,54 @@ test.describe('the agent window', () => {
       expect(await smallControls(window)).toEqual([]);
     });
   }
+});
+
+test.describe('the top ornament', () => {
+  for (const scheme of SCHEMES) {
+    test(`${scheme}: the save state sits on the scrim and keeps 4.5:1 on the thin glass`, async ({ page }) => {
+      await sceneInClassic(page, scheme);
+      await switchToModern(page);
+      await settle(page);
+      const state = page.getByTestId('modern-top-ornament').getByTestId('save-state');
+      await expect(state).toBeVisible();
+      expect(await worstContrast(state, WALLPAPER[scheme]), `“${(await state.textContent()) ?? ''}” on the thin glass`).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});
+
+/** A centre view, from the bottom ornament's View group. */
+async function openView(page: Page, name: 'Board' | 'Codex'): Promise<void> {
+  await page.getByTestId('modern-bottom-ornament').getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name, exact: true }).click();
+  await settle(page);
+}
+
+test.describe('the Board and the Codex', () => {
+  test('the Board’s New card and card size (S/M/L) are 44 px', async ({ page }) => {
+    await sceneInClassic(page);
+    await switchToModern(page);
+    await openView(page, 'Board');
+    const board = page.locator('.corkboard');
+    await expect(board).toBeVisible();
+    const controls = board.locator('.corkboard-controls');
+    await expectTarget(controls.getByRole('button', { name: 'New card', exact: true }), 'New card');
+    const sizes = controls.getByRole('radiogroup', { name: 'Card size' }).getByRole('radio');
+    expect(await sizes.count(), 'the card sizes').toBe(3);
+    for (const size of await sizes.all()) await expectTarget(size, `card size ${(await size.textContent()) ?? ''}`);
+    expect(await smallControls(controls)).toEqual([]);
+  });
+
+  test('the Codex’s buttons, filter chips and search field are 44 px', async ({ page }) => {
+    await sceneInClassic(page);
+    await switchToModern(page);
+    await openView(page, 'Codex');
+    const codex = page.locator('.codex');
+    await expect(codex).toBeVisible();
+    await expectTarget(codex.getByRole('searchbox', { name: 'Search the codex' }), 'the search field');
+    const chips = codex.locator('.codex-chips').getByRole('button');
+    expect(await chips.count(), 'the filter chips').toBeGreaterThan(0);
+    for (const chip of await chips.all()) await expectTarget(chip, `the chip ${(await chip.textContent()) ?? ''}`);
+    const buttons = codex.locator('.button');
+    expect(await buttons.count(), 'the Codex’s buttons').toBeGreaterThan(0);
+    for (const button of await buttons.all()) if (await button.isVisible()) await expectTarget(button, `the button ${(await button.textContent()) ?? ''}`);
+  });
 });
