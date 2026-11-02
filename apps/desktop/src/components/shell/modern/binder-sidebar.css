@@ -323,23 +323,24 @@
 }
 
 /* ---- The panels' content (Stageshow polish, #360): say it once, advanced controls behind a disclosure (shared.tsx `More`), rows
-   instead of cards. The controls are the kit's (controls-modern.css); these rules only lay the panels out. ---- */
-:root[data-shell='modern'] .k-more {
+   instead of cards. The controls are the kit's (controls-modern.css); these rules only lay the panels out, so they are scoped to the
+   sidebar and the narrow drawer and leave the write surfaces' More (the ghost and review bars, #361) as the kit draws it. ---- */
+:root[data-shell='modern'] :where(.modern-sidebar, .modern-drawer-panel) .k-more {
   display: block;
   min-inline-size: 0;
 }
 
-:root[data-shell='modern'] .k-more > summary {
+:root[data-shell='modern'] :where(.modern-sidebar, .modern-drawer-panel) .k-more > summary {
   inline-size: fit-content;
   padding-inline-end: var(--space-4);
   border-radius: var(--radius-pill);
 }
 
-:root[data-shell='modern'] .k-more > summary:hover {
+:root[data-shell='modern'] :where(.modern-sidebar, .modern-drawer-panel) .k-more > summary:hover {
   color: var(--accent);
 }
 
-:root[data-shell='modern'] .k-more[open] > summary {
+:root[data-shell='modern'] :where(.modern-sidebar, .modern-drawer-panel) .k-more[open] > summary {
   margin-block-end: var(--space-3);
 }
 
