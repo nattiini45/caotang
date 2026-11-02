@@ -13,14 +13,14 @@
 
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { Suspense, useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 
 import '../../../tokens/modern.css';
 import './shell-modern.css';
 import './surfaces-modern.css';
 import './editor-modern.css';
 
-import { LazyBoundary } from '../../lazy-view.js';
+import { LazyBoundary, lazyView } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';
 import type { ShellRegions } from '../regions.js';
 import { modernLayout, type ModernView } from './layout.js';
@@ -51,6 +51,9 @@ function subscribeViewport(listener: () => void): () => void {
 // Dialogs grow out of their openers while Modern is on, on the projects screen as in a project (§8.3).
 installMorph();
 
+/** Focus mode's capsule and fade (§8.8), a chunk of its own that loads the first time focus mode is on. */
+const FocusMode = lazyView(() => import('./focus-mode.js').then((module) => ({ default: module.FocusMode })));
+
 /** The page's id: the skip link's target, and what a slot names with `aria-controls`. */
 export const PAGE_ID = 'modern-page';
 
@@ -79,7 +82,10 @@ export function ModernShell({
   const info = slots.sceneInfo !== null && sceneInfo.open && sceneInfo.docked && !view.hideRails;
   const layout = modernLayout({ viewport: size, view: current, sidebar: sidebar && pinned, binderBar: sidebar, agent, info });
   const placed = geometry ?? layout.geometry;
-  const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={regions} pageId={PAGE_ID} />);
+  // Focus mode (§8.8) fades the ornaments, the binder, Scene info and the agent window rather than taking them away (focus-mode.tsx), so
+  // they get the view as if the rails were shown; the page keeps focus mode's room above.
+  const chrome: ShellRegions = view.hideRails ? { ...regions, view: { ...view, hideRails: false } } : regions;
+  const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={chrome} pageId={PAGE_ID} />);
   const skip = (event: ReactMouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault();
     document.getElementById(PAGE_ID)?.focus();
@@ -91,8 +97,15 @@ export function ModernShell({
         <Trans>Skip to the page</Trans>
       </a>
       {slot(slots.notices)}
+      {view.focusMode ? (
+        <LazyBoundary label={t`Focus mode`} variant="toast">
+          <Suspense fallback={null}>
+            <FocusMode regions={regions} pageId={PAGE_ID} />
+          </Suspense>
+        </LazyBoundary>
+      ) : null}
       {slot(slots.topOrnament)}
-      {sidebar ? slot(slots.sidebar) : null}
+      {sidebar || (view.hideRails && slots.sidebar !== null && !view.narrow) ? slot(slots.sidebar) : null}
       <Page id={PAGE_ID} label={regions.projectName} view={current}>
         <PageContent regions={regions} view={current} agentOnPage={slots.companion === null} />
       </Page>

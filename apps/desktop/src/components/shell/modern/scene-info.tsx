@@ -41,6 +41,7 @@ import { onInspectorRequest } from '../../../app/inspector-request.js';
 import type { InspectorGrouping } from '../../Inspector.js';
 import { TargetQuickSet } from '../../TargetQuickSet.js';
 import type { ShellRegions } from '../regions.js';
+import { SceneFindings } from './scene-findings.js';
 import { SCENE_INFO_ID, durationMs, entranceOf, morphFrom, placePopover, type Box, type Placement } from './scene-info-model.js';
 import {
   closeSceneInfo,
@@ -253,6 +254,7 @@ function SceneInfoPanel({
             </p>
           )}
           {inspector}
+          <SceneFindings regions={regions} />
           <section className="scene-info-progress" aria-labelledby={progressId} data-testid="scene-info-progress">
             <h3 id={progressId} className="field-label">
               <Trans>Progress</Trans>

@@ -109,9 +109,12 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
     }
   }
   // A sidebar tab chosen from outside (a timeline fact's "Open in Findings", the screenplay's section route) opens the sidebar on it.
+  // A request counts too (Scene info's Show in Findings, the section route), so a tab that is already the current one still opens.
   const [seenRail, setSeenRail] = useState(view.rail);
-  if (view.rail !== seenRail) {
+  const [seenRequest, setSeenRequest] = useState(view.railRequest);
+  if (view.rail !== seenRail || view.railRequest !== seenRequest) {
     setSeenRail(view.rail);
+    setSeenRequest(view.railRequest);
     if (isSidebarTab(view.rail)) {
       setOpen(true);
       setHovered(false);
