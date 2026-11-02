@@ -77,7 +77,9 @@
     display: block;
   }
 
+  /* A sheet over the page stays between the ornaments (the overlay band, #358), never over the title capsule or the tab bar (#364). */
   :root[data-shell='modern'] .modern-companion {
+    inset-block: var(--overlay-top) var(--overlay-bottom);
     box-shadow: var(--elev-glass), var(--elev-3);
   }
 
@@ -86,6 +88,14 @@
   :root[data-shell='modern'] .modern-companion.mat-thick {
     background: var(--mat-float-bg);
     backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+  }
+}
+
+/* A short window (a tablet with its keyboard up) has no room for the band: the sheet takes the height, over the ornaments as the narrow
+   sheet does, so its composer stays inside it (#364). */
+@media (max-width: 1280px) and (max-height: 640px) {
+  :root[data-shell='modern'] .modern-companion {
+    inset-block: var(--space-6);
   }
 }
 

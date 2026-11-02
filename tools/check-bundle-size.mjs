@@ -169,7 +169,9 @@ export const BUDGET = {
     // one on-use sheet; it never loads for Classic.
     // Stageshow polish #358: dense materials, overlay band, menu columns. 67,121 bytes raw (10.9 kB gzip) measured on top of #357's
     // control kit (+6,746 bytes); the cap is that plus about 2%.
-    caps: { 'modern-shell': 68_500 },
+    // Stageshow polish #364: 44 px targets on coarse pointers at every width, the tablet sidebar's room, the agent sheet kept in the
+    // overlay band and the touch picture checkbox. 68,508 bytes raw measured (+1.3 kB on #358's); the cap is that plus about 1%.
+    caps: { 'modern-shell': 69_200 },
   },
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
