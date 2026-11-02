@@ -9,15 +9,16 @@
  *
  * A route whose home is still being built carries `pending`: the issue that builds it. The walk marks it `test.fixme` with that
  * number, so the branch stays green and the gap stays listed; when the issue lands, the line loses `pending` and the walk holds it.
- * `pending: 313` is a gap no open issue builds: this issue closes it before Modern becomes the default.
+ * None is pending now: #313 closed the last gaps before Modern became the default, and e2e/unit/modern-homes.spec.ts keeps it so.
  */
 
-/** The issue that builds a home still in flight; 313 is a gap this issue closes. */
-export type Pending = 306 | 311 | 313;
+/** The issue that builds a home still in flight. None is left: #313 closed the last gaps before Modern became the default. */
+export type Pending = 313;
 
 /** How the walk starts: on the projects screen, in a project with nothing in it, or in a project with one scene open. */
 /** 'findings' is 'scene' with a second scene whose declared days break their order and a scan run, so it has open findings. */
-export type Setup = 'home' | 'empty' | 'scene' | 'findings';
+/** 'draft' is 'scene' with an empty scene, The Friend, open (the demo agent drafts into it) and agent edits marked for review. */
+export type Setup = 'home' | 'empty' | 'scene' | 'findings' | 'draft';
 
 /**
  * Something on the screen. `role` with `name` (exact unless `pattern` gives a regular expression instead), or a test id, or a CSS
@@ -52,7 +53,7 @@ export type Step =
   /** Sizes the window as a writer narrows it (a phone, half a screen): below 960 px Modern takes its narrow layout (§13, #312). */
   | { readonly viewport: { readonly width: number; readonly height: number } }
   /** Sets something up a route needs that no control shows by itself. */
-  | { readonly provoke: 'storage-banner' | 'deleted-scene' | 'screenplay' | 'storyboard' | 'dialogue' }
+  | { readonly provoke: 'storage-banner' | 'deleted-scene' | 'screenplay' | 'storyboard' | 'dialogue' | 'stale-tab' | 'draft' | 'marked-change' }
   /** Expects a target: visible (default), focused, or gone. */
   | { readonly see: Target; readonly focused?: boolean; readonly gone?: boolean };
 
@@ -99,6 +100,8 @@ const corkboard: Target = { css: '#modern-page .corkboard' };
 const codexOnPage: Target = { role: 'searchbox', name: 'Search the codex', within: page };
 const bottom: Target = { role: 'navigation', name: 'Views and tools' };
 const titleCapsule: Target = { testId: 'modern-title-capsule' };
+const ghostBar: Target = { testId: 'ghost-bar', within: page };
+const reviewBar: Target = { testId: 'review-bar', within: page };
 const binderBar: Target = { role: 'navigation', name: 'Binder' };
 const manuscript: Target = { role: 'button', name: 'Manuscript', within: binderBar };
 const panels: Target = { role: 'button', name: 'Panels', within: binderBar };
@@ -319,7 +322,7 @@ export const MODERN_HOMES: readonly Home[] = [
     setup: 'scene',
     routes: [
       { via: 'the delete confirm', steps: [{ binder: true }, { click: { ...sceneRow }, right: true }, { click: { role: 'menuitem', pattern: '^Delete' } }, see({ role: 'dialog', name: `Delete “${SCENE}”?` })] },
-      { via: 'the stale-tab notice', steps: [see({ role: 'dialog', name: 'This project is open in another tab' })], pending: 313, why: 'the walk does not yet open a second tab' },
+      { via: 'the stale-tab notice', steps: [{ provoke: 'stale-tab' }, see({ role: 'dialog', name: 'This project is open in another tab' }), see({ role: 'button', name: 'Export a backup', within: { role: 'dialog', name: 'This project is open in another tab' } })] },
     ],
   },
   {
@@ -459,7 +462,13 @@ export const MODERN_HOMES: readonly Home[] = [
     classic: 'Ghost bar (draft preview: apply, discard)',
     modern: 'Same, as a glass capsule pinned inside the page above the bottom ornament',
     setup: 'scene',
-    routes: [{ via: 'a draft’s Apply and Discard', steps: [see({ role: 'button', name: 'Apply', within: page })], pending: 313, why: 'the walk does not yet run a demo draft' }],
+    routes: [
+      {
+        via: 'a draft’s Apply and Discard',
+        setup: 'draft',
+        steps: [{ provoke: 'draft' }, see({ role: 'button', name: 'Apply', within: ghostBar }), see({ role: 'button', name: 'Discard', within: ghostBar })],
+      },
+    ],
   },
   {
     id: 'review-bar',
@@ -467,7 +476,13 @@ export const MODERN_HOMES: readonly Home[] = [
     classic: 'Review bar (Previous, Next, Accept, Reject, Accept all, Reject all)',
     modern: 'Same bar, as a capsule inside the page',
     setup: 'scene',
-    routes: [{ via: 'a marked change’s review bar', steps: [see({ role: 'button', name: 'Accept all', within: page })], pending: 313, why: 'the walk does not yet make a marked change' }],
+    routes: [
+      {
+        via: 'a marked change’s review bar',
+        setup: 'draft',
+        steps: [{ provoke: 'marked-change' }, see({ role: 'button', name: 'Next', within: reviewBar }), see({ role: 'button', name: 'Accept all', within: reviewBar })],
+      },
+    ],
   },
   {
     id: 'target',

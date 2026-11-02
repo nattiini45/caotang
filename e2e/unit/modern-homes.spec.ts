@@ -93,15 +93,7 @@ test('every home has at least one route, every route ends in something seen, and
   }
 });
 
-test('the pending routes, by the issue that builds them (the list the gate still waits on)', () => {
-  const pending = new Map<number, string[]>();
-  for (const home of MODERN_HOMES) {
-    for (const route of home.routes) {
-      if (route.pending === undefined) continue;
-      pending.set(route.pending, [...(pending.get(route.pending) ?? []), `${home.id}: ${route.via}`]);
-    }
-  }
-  // Only the issues still in flight, and this issue's own gaps, may hold a route back.
-  expect([...pending.keys()].every((issue) => [306, 311, 313].includes(issue))).toBe(true);
-  test.info().annotations.push(...[...pending].map(([issue, routes]) => ({ type: `pending #${issue}`, description: routes.join('; ') })));
+test('no route is pending: every Classic surface, action and chord is reachable in Modern, now the default for new writers', () => {
+  const pending = MODERN_HOMES.flatMap((home) => home.routes.filter((route) => route.pending !== undefined).map((route) => `${home.id}: ${route.via}`));
+  expect(pending).toEqual([]);
 });

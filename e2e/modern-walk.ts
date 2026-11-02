@@ -1,8 +1,10 @@
 import { test as base, expect, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
 
-import { NO_PIN } from './classic-pin.js';
+import { NO_PIN, classicPin } from './classic-pin.js';
+import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';
+
 import { SCENE, type Route, type Setup, type Step, type Target } from './modern-homes.js';
-import { binderTitle, createProject, waitForSaved } from './support.js';
+import { binderTitle, createProject, idOf, projectIdOf, waitForSaved } from './support.js';
 
 /**
  * The walker for MODERN_HOMES (e2e/modern-homes.ts) and the surfaces of the Modern gate (e2e/modern-gate.spec.ts): it sets a
@@ -73,12 +75,29 @@ export interface SetupOptions {
  */
 async function buildProject(page: Page, setup: Exclude<Setup, 'home'>): Promise<void> {
   await createProject(page, PROJECT);
-  if (setup === 'scene' || setup === 'findings') {
+  if (setup === 'draft') {
+    // The demo agent's edits are marked for review (Settings › Writing); the choice applies to a document opened after it.
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const settings = page.getByTestId('settings');
+    await settings.getByRole('button', { name: 'Writing' }).click();
+    await settings.getByRole('combobox', { name: 'When you apply an agent edit' }).selectOption('suggestions');
+    await settings.getByRole('button', { name: 'Save writing settings' }).click();
+    await expect(settings.getByText(/Saved\./)).toBeVisible();
+    await settings.getByRole('button', { name: 'Close' }).click();
+  }
+  if (setup === 'scene' || setup === 'findings' || setup === 'draft') {
     await page.getByRole('button', { name: 'Create Chapter 1' }).click();
     await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
     await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(SCENE);
     await page.keyboard.press('Enter');
     await page.getByRole('textbox', { name: 'Document text' }).fill(SCENE_TEXT);
+    await waitForSaved(page);
+  }
+  if (setup === 'draft') {
+    // The scene the demo agent drafts into, left empty (packages/gateway/src/mock: DEMO_INTENTS.draftScene names it).
+    await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+    await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(DRAFT_SCENE);
+    await page.keyboard.press('Enter');
     await waitForSaved(page);
   }
   if (setup === 'findings') {
@@ -110,6 +129,9 @@ async function buildProject(page: Page, setup: Exclude<Setup, 'home'>): Promise<
 /** The 'findings' setup's second scene, open in the editor when a route starts from it. */
 const FINDINGS_SCENE = 'The landing';
 
+/** The 'draft' setup's empty scene, the one the demo agent drafts into, open when a route starts from it. */
+const DRAFT_SCENE = 'The Friend';
+
 const SCENE_TEXT = 'The boat came in with the tide. Nobody was on it.';
 
 type State = Exclude<BrowserContextOptions['storageState'], string | undefined>;
@@ -127,7 +149,9 @@ export const test = base.extend<{ setup: Setup }, { builtState: (setup: Exclude<
       const built = new Map<string, Promise<State>>();
       const build = async (setup: Exclude<Setup, 'home'>): Promise<State> => {
         const { baseURL, locale } = workerInfo.project.use;
-        const context = await browser.newContext({ baseURL, locale, storageState: NO_PIN, viewport: { width: 1440, height: 900 } });
+        // Built in Classic, chosen once (a fresh profile starts in Modern since #313), as a writer who used Caotang before has it.
+        const pin = classicPin(baseURL === undefined ? [] : [new URL(baseURL).origin]);
+        const context = await browser.newContext({ baseURL, locale, storageState: pin, viewport: { width: 1440, height: 900 } });
         try {
           const page = await context.newPage();
           await storageKept(page, true);
@@ -179,6 +203,7 @@ export async function setUp(page: Page, setup: Setup, options: SetupOptions = {}
     await expect(page.getByRole('textbox', { name: 'Document text' })).toContainText(SCENE_TEXT);
   }
   if (setup === 'findings') await binderTitle(page, FINDINGS_SCENE).click();
+  if (setup === 'draft') await binderTitle(page, DRAFT_SCENE).click();
   await switchToModern(page);
 }
 
@@ -248,8 +273,77 @@ async function withDownload(page: Page, wanted: boolean | undefined, act: () => 
   expect((await download).suggestedFilename()).not.toBe('');
 }
 
+/**
+ * Another tab stores newer text for SCENE at the revision this tab holds (the store's own write, as a second writer would make
+ * it), and this tab types on until its save is refused, so its stale-tab notice opens (as polish-stale-copy.spec.ts does in Classic).
+ */
+async function staleTab(page: Page): Promise<void> {
+  const projectId = (await projectIdOf(page)) ?? '';
+  const sceneId = await idOf(page, SCENE);
+  const other = await page.context().newPage();
+  await other.goto('/');
+  await other.evaluate(
+    async ([pid, docId]) => {
+      const idb = (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB;
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = idb.open('caotang');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const tx = db.transaction('documents', 'readwrite');
+      const documents = tx.objectStore('documents');
+      const row = await new Promise<{ revision: number }>((resolve, reject) => {
+        const request = documents.get([pid, docId]);
+        request.onsuccess = () => resolve(request.result as { revision: number });
+        request.onerror = () => reject(request.error);
+      });
+      documents.put({ ...row, body: 'Written in another tab.\n', revision: row.revision + 1 });
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+      db.close();
+    },
+    [projectId, sceneId] as const,
+  );
+  await other.close();
+  const text = page.locator('#modern-page').getByRole('textbox', { name: 'Document text' });
+  await text.click();
+  await page.keyboard.press('End');
+  await page.keyboard.type(' More from here.');
+  await expect(page.getByTestId('stale-tab-notice')).toBeVisible();
+}
+
+/** Asks the demo agent (no key: the built-in demo provider) for its draft from the agent window: the draft waits in the ghost bar. */
+async function demoDraft(page: Page): Promise<Locator> {
+  await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('button', { name: 'Ask', exact: true }).click();
+  const agent = page.getByRole('complementary', { name: 'Agent' });
+  const field = agent.getByRole('combobox', { name: 'Intent' });
+  await expect(field).toBeEnabled();
+  await field.fill(DEMO_INTENTS.draftScene);
+  await agent.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(page.getByTestId('ghost-bar')).toContainText(DRAFT_SCENE);
+  return agent;
+}
+
 async function provoke(page: Page, what: Extract<Step, { provoke: unknown }>['provoke']): Promise<void> {
   switch (what) {
+    case 'stale-tab':
+      await staleTab(page);
+      return;
+    case 'draft':
+      await demoDraft(page);
+      return;
+    case 'marked-change': {
+      // Approving the plan writes the draft into the scene, marked for review (the 'draft' setup's Writing choice).
+      const agent = await demoDraft(page);
+      const approve = agent.getByTestId('plan-card').getByRole('button', { name: 'Approve', exact: true });
+      await expect(approve).toBeEnabled();
+      await approve.click();
+      await expect(page.getByTestId('review-bar')).toBeVisible();
+      return;
+    }
     case 'storage-banner':
       await expect(page.getByTestId('storage-banner')).toBeVisible();
       return;

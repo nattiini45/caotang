@@ -9,15 +9,20 @@
  * test/modern-css.test.ts).
  */
 
-/* Insert picture (the toolbar), Add footnote and the daily target (the footer), and the target's own form when it is open. */
+/*
+ * Insert picture (the toolbar), Add footnote and the daily target (the footer), the target's own form when it is open, and the
+ * buttons of a draft's ghost bar and of the review bar (#313's walk).
+ */
 :root[data-shell='modern'] .modern-page .editor-toolbar .button,
 :root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button),
+:root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) .button,
 :root[data-shell='modern'] .modern-page .editor-status .target-quick-set input {
   min-block-size: var(--target-min);
   min-inline-size: var(--target-min);
 }
 
 :root[data-shell='modern'] .modern-page .editor-toolbar .button,
+:root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) .button,
 :root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button) {
   display: inline-flex;
   align-items: center;
