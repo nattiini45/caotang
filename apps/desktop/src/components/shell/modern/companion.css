@@ -87,6 +87,11 @@
     background: var(--mat-float-bg);
     backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
   }
+
+  /* As a sheet over the page it stays in the overlay band, between the ornaments, so it covers neither end of either (#363). */
+  :root[data-shell='modern'] .modern-companion {
+    inset-block: var(--overlay-top) var(--overlay-bottom);
+  }
 }
 
 /* Below 960 px the window is the narrow layout's full-height sheet (narrow-modern.css, in the narrow-panels chunk; M11, #312). */
@@ -103,11 +108,13 @@
   background: transparent;
 }
 
+/* The header (#363): "Agent", the provider in a quiet line and Close (×) on one row; Mode as a segmented control under it; the step
+   line, the spend and Stop on a third row only while a turn runs. Nothing wraps alone. */
 :root[data-shell='modern'] .modern-companion .agent-head {
   flex-wrap: wrap;
-  gap: var(--space-3) var(--space-4);
+  gap: var(--space-4) var(--space-5);
   padding-block: 0;
-  padding-inline: var(--space-4) 0;
+  padding-inline: var(--space-5) 0;
   color: var(--on-glass);
 }
 
@@ -116,18 +123,53 @@
   font: 600 17px/var(--target-min) var(--ui);
 }
 
-:root[data-shell='modern'] .modern-companion .agent-head .agent-provider,
-:root[data-shell='modern'] .modern-companion .agent-head .agent-busy,
-:root[data-shell='modern'] .modern-companion .agent-head .agent-spend,
-:root[data-shell='modern'] .modern-companion .agent-mode {
-  padding: var(--space-1) var(--space-4);
-  border-radius: var(--radius-control);
-  background: var(--m-solid);
-  color: var(--ink);
+:root[data-shell='modern'] .modern-companion .agent-head .agent-provider {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  font-size: 13px;
 }
 
-:root[data-shell='modern'] .modern-companion .agent-close {
-  margin-inline-start: auto;
+:root[data-shell='modern'] .modern-companion .agent-head .agent-close {
+  order: 1;
+  color: var(--on-glass);
+  font-size: 0;
+}
+
+/* Close is an icon: the ornaments' close stroke (icons.tsx) as a mask in the button's ink; the word stays its accessible name. */
+:root[data-shell='modern'] .modern-companion .agent-head .agent-close::before {
+  content: '';
+  inline-size: 20px;
+  block-size: 20px;
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E") center / 20px no-repeat;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .agent-mode {
+  order: 2;
+  flex-basis: 100%;
+  margin-inline-end: var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head :is(.agent-busy, .agent-spend, .agent-stop) {
+  order: 3;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .agent-busy {
+  min-inline-size: 0;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--m-solid);
+  color: var(--ink);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-head .agent-spend {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  font-size: 12px;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-head .button {
@@ -188,19 +230,9 @@
 /* ---- What the accessibility gate (#313) found in the window: contrast on the glass, 44 px targets, heading levels (§9.1, §9.3, §9.5). ---- */
 
 /* Close sits on the thick glass, not on a solid pane: Classic's quiet --ink-soft read about 2.5:1 (light) and 3.3:1 (dark) there. */
-:root[data-shell='modern'] .modern-companion .agent-head .agent-close {
-  color: var(--on-glass);
-}
-
 :root[data-shell='modern'] .modern-companion .agent-head .agent-close:hover:not(:disabled) {
   background: var(--m-solid);
   color: var(--ink);
-}
-
-/* A Mode radio counts with its label: the whole row is the target. */
-:root[data-shell='modern'] .modern-companion .agent-mode-option {
-  min-block-size: var(--target-min);
-  min-inline-size: var(--target-min);
 }
 
 /* Every control in the body (New task, Run now, a task's form, a history disclosure), but a link inside a sentence. */
@@ -222,4 +254,98 @@
   font-size: var(--text-md);
   font-weight: 600;
   color: var(--muted);
+}
+
+/* ---- The body (#363): a plan card is the one raised surface, its steps rows; Recurring tasks is one folded line under the turns. ---- */
+:root[data-shell='modern'] .modern-companion .plan-card {
+  padding: var(--space-5);
+  border: 0;
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+:root[data-shell='modern'] .modern-companion .plan-step:not(.is-refused) {
+  padding: 0;
+  border: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .plan-draft {
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: 12px;
+}
+
+:root[data-shell='modern'] .modern-companion :is(.plan-actions, .agent-foot .agent-intent) .button {
+  padding-inline: 14px;
+}
+
+:root[data-shell='modern'] .modern-companion .plan-step-edit > .plan-params {
+  padding-block-end: var(--space-4);
+}
+
+/* The body is a column so Recurring tasks, one folded line, sits under the turns (the drawer keeps it above them). */
+:root[data-shell='modern'] .modern-companion .agent-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body > * {
+  flex: none;
+  margin-block: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body > .recurring {
+  order: 1;
+}
+
+/* The Intent box's placeholder ends in an ellipsis rather than mid-word in the narrow window. */
+:root[data-shell='modern'] .modern-companion .agent-foot input {
+  text-overflow: ellipsis;
+}
+
+/* Recurring tasks is one line, "Recurring tasks · New task"; its explanation shows with a task's form, when it is wanted. */
+:root[data-shell='modern'] .modern-companion .recurring {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+:root[data-shell='modern'] .modern-companion .recurring > * {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+:root[data-shell='modern'] .modern-companion .recurring > :is(h3, .button) {
+  flex-basis: auto;
+}
+
+:root[data-shell='modern'] .modern-companion .recurring > h3 {
+  flex-grow: 1;
+  order: -2;
+}
+
+:root[data-shell='modern'] .modern-companion .recurring > .button {
+  order: -1;
+}
+
+:root[data-shell='modern'] .modern-companion .recurring-list:empty {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-companion .recurring:not(:has(.recurring-form)) > .recurring-note:first-of-type,
+:root[data-shell='modern'] .modern-companion .recurring-empty {
+  display: none;
+}
+
+/* A settled plan card has nothing left to decide. While its draft is on the page the card keeps Approve: approving writes the draft
+   marked for review, which the ghost bar's Apply does not. */
+:root[data-shell='modern'] .modern-companion .plan-card:not(.is-live) .plan-actions {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-body > .button {
+  align-self: flex-start;
 }

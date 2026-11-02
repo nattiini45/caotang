@@ -149,7 +149,8 @@ export const BUDGET = {
   // #312/#351; Classic unchanged. Both are lazy chunks (`narrow-panels`, `focus-mode`) and the slots they touch; Classic's first load
   // did not move. The ceiling is that plus about 0.6 kB.
   // Stageshow polish wave 2 (#360–#364), approved by Caspar 2026-11-02: every wave-2 PR adds JS (the panels' disclosures, menus and
-  // rows) against 7,754,996 bytes measured on W's branch (#361); the ceiling rises to 7,760,000.
+  // rows); the ceiling rises to 7,760,000. #363 alone measured 7,755,027 bytes (+535 on 7,754,492: the Modern folds, Add a provider,
+  // and interface.ts moving from the entry into the `shared` chunk); #360 + #363 measured 7,755,079 bytes on their merge.
   totalJs: 7_760_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
@@ -171,9 +172,11 @@ export const BUDGET = {
     // one on-use sheet; it never loads for Classic.
     // Stageshow polish #358: dense materials, overlay band, menu columns. 67,121 bytes raw (10.9 kB gzip) measured on top of #357's
     // control kit (+6,746 bytes); the cap is that plus about 2%.
-    // Stageshow polish #360: the sidebar's segmented tab head, the panels' disclosures, rows and the Import… menu. 74,448 bytes raw
-    // (12.0 kB gzip) measured on top of #358 (+7,327 bytes, all CSS; no JS cap moves); the cap is that plus about 1.5%.
-    caps: { 'modern-shell': 75_600 },
+    // Stageshow polish #363: the agent window, Import and Export (header row, folded Recurring tasks and plan actions, the Export recipe
+    // fold, Import's rule grid, opaque reading dialogs). 72,615 bytes raw measured (+5,367 on 67,248).
+    // Stageshow polish #360 + #363: #360 adds the sidebar's segmented tab head, the panels' disclosures, rows and the Import… menu.
+    // 79,692 bytes raw (12.8 kB gzip) measured on the merge (all CSS; no JS cap moves); the cap is that plus about 1%.
+    caps: { 'modern-shell': 80_500 },
   },
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
@@ -183,10 +186,12 @@ export const BUDGET = {
    * the allowance is its first cut (27.7 kB) plus about 0.6 kB.
    * Stageshow polish #358: dense materials, overlay band, menu columns. 29,164 bytes measured, nearly all of it Modern's stylesheet
    * (the JS caps do not move); the allowance is that plus about 1%.
-   * Stageshow polish #360: the sidebar's segmented tab head, disclosures and rows. 30,144 bytes measured, all of it Modern's stylesheet
-   * (the JS caps do not move); the allowance is that plus about 1.5%.
+   * Stageshow polish #363: the agent window, Import and Export. 29,950 bytes measured (+0.8 kB on 29,164 at the base, nearly all of it
+   * Modern's stylesheet).
+   * Stageshow polish #360 + #363: the sidebar's tab head, disclosures and rows on top of #363. 30,911 bytes measured on the merge,
+   * nearly all of it Modern's stylesheet (the JS caps do not move); the allowance is that plus about 1%.
    */
-  modernFirstLoadDelta: 30_600,
+  modernFirstLoadDelta: 31_200,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */
