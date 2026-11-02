@@ -94,6 +94,8 @@ export interface AgentPanelProps {
   readonly placement?: 'drawer' | 'window';
   /** Closes the window. Only the window placement draws **Close** and calls it. */
   readonly onClose?: () => void;
+  /** Opens Settings › Providers. Only the window gets it, and offers it under the demo's refusal (#363). */
+  readonly onAddProvider?: () => void;
 }
 
 /**
@@ -139,6 +141,7 @@ export function AgentPanel({
   sample,
   placement = 'drawer',
   onClose,
+  onAddProvider,
 }: AgentPanelProps): ReactNode {
   const inWindow = placement === 'window';
   const sectionHeading = inWindow ? 3 : 4;
@@ -431,9 +434,10 @@ export function AgentPanel({
           {snapshot.announcement}
         </p>
         {inWindow ? (
+          // Drawn as the ornaments' close stroke in companion.css (#363); the word stays its name.
           <button
             type="button"
-            className="button is-quiet agent-close"
+            className="button agent-close"
             data-testid="agent-close"
             title={t`Close the agent (${{ shortcut: shortcutLabel('agent-toggle', keyboardLayout) }}). A running turn keeps working.`}
             onClick={onClose}
@@ -498,6 +502,7 @@ export function AgentPanel({
 
           <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} />
 
+          {/* In the window it is one line under the turns, its explanation shown with a task's form (#363, companion.css). */}
           <RecurringTasksPanel recurring={recurring} headingLevel={sectionHeading} />
 
           {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
@@ -562,6 +567,12 @@ export function AgentPanel({
               })}
             </ol>
           )}
+          {/* The demo answers its three intents with a tool call or a plan; a last turn with neither is its refusal (#363). */}
+          {onAddProvider && snapshot.providerIsDemo && running?.report && !running.cards.length ? (
+            <button type="button" className="button" onClick={onAddProvider}>
+              <Trans>Add a provider</Trans>
+            </button>
+          ) : null}
         </div>
       ) : null}
       {inWindow ? <footer className="agent-foot">{intentForm}</footer> : null}

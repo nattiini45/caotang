@@ -2817,7 +2817,9 @@ msgstr "Phrase hinzufügen und Eingabetaste drücken"
 msgid "Add a picture"
 msgstr "Bild hinzufügen"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Add a provider"
 msgstr "Anbieter hinzufügen"
@@ -3434,7 +3436,9 @@ msgid "AR"
 msgstr "AR"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/PlanCard.tsx
 msgid "Arguments"
 msgstr "Argumente"
 
@@ -13330,6 +13334,7 @@ msgstr "Einstellungen"
 msgid "Settings › Writing"
 msgstr "Einstellungen › Schreiben"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Settings for this recipe"

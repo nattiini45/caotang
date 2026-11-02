@@ -212,3 +212,38 @@ dialog.confirm.import-preview {
     grid-template-columns: 1fr;
   }
 }
+
+/* Modern (#363): the rules are a grid of label and select rows on one baseline, each select as wide as its column, so a long choice
+   ends in an ellipsis instead of running out of the dialog; on a phone each label sits over its select. The actions are pinned at the
+   foot (surfaces-modern.css). */
+:root[data-shell='modern'] .import-preview-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 8px 24px;
+}
+
+:root[data-shell='modern'] .import-preview-chips label {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+:root[data-shell='modern'] .import-preview-chips label > span {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+:root[data-shell='modern'] .import-preview-chips select {
+  inline-size: 100%;
+  min-inline-size: 0;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 600px) {
+  :root[data-shell='modern'] .import-preview-chips label {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
