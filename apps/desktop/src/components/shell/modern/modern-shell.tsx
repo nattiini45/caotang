@@ -18,6 +18,7 @@ import { useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as React
 import '../../../tokens/modern.css';
 import './shell-modern.css';
 import './surfaces-modern.css';
+import './editor-modern.css';
 
 import { LazyBoundary } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';

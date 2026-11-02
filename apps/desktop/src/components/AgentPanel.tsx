@@ -125,6 +125,7 @@ export function AgentPanel({
   onClose,
 }: AgentPanelProps): ReactNode {
   const inWindow = placement === 'window';
+  const sectionHeading = inWindow ? 3 : 4;
   // A window is always open: only the drawer folds.
   const open = inWindow || drawerOpen;
   useLingui();
@@ -465,11 +466,20 @@ export function AgentPanel({
             </p>
           ) : null}
 
-          <AgentQueue agent={agent} snapshot={snapshot} held={heldNow} cardKey={cardKey} onHold={setHeld} onRelease={() => setHeld(null)} />
+          {/* In the window the panel's title is the h2 and its sections are h3; in the drawer they stay h4 (Classic's DOM unchanged). */}
+          <AgentQueue
+            agent={agent}
+            snapshot={snapshot}
+            held={heldNow}
+            cardKey={cardKey}
+            onHold={setHeld}
+            onRelease={() => setHeld(null)}
+            headingLevel={sectionHeading}
+          />
 
-          <BackgroundTasks agent={agent} tasks={agent.taskViews()} />
+          <BackgroundTasks agent={agent} tasks={agent.taskViews()} headingLevel={sectionHeading} />
 
-          <RecurringTasksPanel recurring={recurring} />
+          <RecurringTasksPanel recurring={recurring} headingLevel={sectionHeading} />
 
           {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
 
