@@ -469,7 +469,8 @@ export const MODERN_HOMES: readonly Home[] = [
       { via: 'the cards on the page', steps: [{ click: { css: '#center-corkboard' } }, see(corkboard), see({ css: '#modern-page article.card' })] },
       {
         via: 'Shift+F10 opens a card’s menu',
-        steps: [{ click: { css: '#center-corkboard' } }, { press: 'Shift+F10', focus: { css: '#modern-page article.card' } }, see({ role: 'menu', name: `Actions for ${SCENE}` })],
+        // The first card on the page: the Board's scope is wherever the writer left it (a reopened project starts at the manuscript).
+        steps: [{ click: { css: '#center-corkboard' } }, { press: 'Shift+F10', focus: { css: '#modern-page article.card' } }, see({ role: 'menu', pattern: '^Actions for ' })],
       },
       { via: 'the zoom in the top ornament', steps: [{ click: { role: 'radio', name: 'Board', within: bottom } }, see({ role: 'radiogroup', pattern: 'zoom|Zoom', within: { testId: 'modern-top-ornament' } })], pending: 306, why: 'the Board’s controls in the top ornament are #306’s' },
     ],
