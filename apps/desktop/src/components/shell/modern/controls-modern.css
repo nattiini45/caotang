@@ -299,7 +299,7 @@
   background-position: 2px 50%, 0 0;
 }
 
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option)):has(> input:is([type='checkbox'], [type='radio'])) {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) {
   display: block;
   position: relative;
   min-block-size: var(--target-min);
@@ -312,10 +312,19 @@
   cursor: pointer;
 }
 
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option)):has(> input:is([type='checkbox'], [type='radio'])) > input {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > input {
   position: absolute;
   inset-block-start: 12px;
   inset-inline-start: 0;
+}
+
+/* A picture tile's select mark stays the overlay on its thumbnail (pictures.css), with a 24 px target. */
+:root[data-shell='modern'] label.pb-select {
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+  cursor: pointer;
 }
 
 /* An option card or pill (Compile's formats, the codex policy) keeps its own layout; its row is still 44 px. */
@@ -365,7 +374,7 @@
 }
 
 /* Classic's `label > span` (a small muted caption) does not apply inside a check's row: the words are the label. */
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option)):has(> input:is([type='checkbox'], [type='radio'])) > span {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > span {
   display: inline;
   margin: 0;
   color: inherit;
@@ -546,8 +555,18 @@
     background-image: none;
   }
 
-  :root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']) {
+  /* Native selects get their own indicator back once the chevron goes. */
+  :root[data-shell='modern'] select:is(:enabled, :disabled) {
     appearance: auto;
+  }
+
+  /* Listed at the checked and switch rules' weight so their fixed-colour artwork goes too. */
+  :root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']),
+  :root[data-shell='modern'] input[type='checkbox']:is(:checked, :indeterminate),
+  :root[data-shell='modern'] input[type='radio']:checked,
+  :root[data-shell='modern'] input[type='checkbox']:is([role='switch'], .k-switch):is(:checked, :not(:checked)) {
+    appearance: auto;
+    background-image: none;
   }
 
   :root[data-shell='modern'] summary::before {
