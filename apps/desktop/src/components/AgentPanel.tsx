@@ -112,6 +112,22 @@ interface PendingRestore {
   readonly exact?: boolean;
 }
 
+/**
+ * What outlives one panel instance, by agent: switching Classic and Modern remounts the panel (drawer or window), and the new one must
+ * neither replay a start intent or palette draft the old one took nor lose the unsent Intent text.
+ */
+interface PanelMemory {
+  intent: string;
+  started: number;
+  drafted: number;
+}
+const panelMemory = new WeakMap<AgentController, PanelMemory>();
+function memoryFor(agent: AgentController): PanelMemory {
+  let memory = panelMemory.get(agent);
+  if (memory === undefined) panelMemory.set(agent, (memory = { intent: '', started: 0, drafted: 0 }));
+  return memory;
+}
+
 export function AgentPanel({
   session,
   agent,
@@ -139,13 +155,16 @@ export function AgentPanel({
   const pictureNames = useMemo(() => new Map([...pictures.values()].map((picture) => [picture.id, picture.fileName] as const)), [pictures]);
   const transcriptionRoutes = agent.transcriptionRoutes();
   const waitingSkills = session.skills().waiting;
-  const [intent, setIntent] = useState('');
+  const [intent, setIntent] = useState(() => memoryFor(agent).intent);
+  useEffect(() => {
+    memoryFor(agent).intent = intent;
+  }, [agent, intent]);
   const [restoring, setRestoring] = useState<PendingRestore | null>(null);
   // The instruction of a turn the writer rewound, offered when the Intent box already holds a draft: that draft is never replaced unasked.
   const [oldInstruction, setOldInstruction] = useState<string | null>(null);
   // A note the writer wrote while a card waits, until they choose what happens to it and the card.
   const [held, setHeld] = useState<HeldNote | null>(null);
-  const handled = useRef(0);
+  const handled = useRef(memoryFor(agent).started);
   const intentRef = useRef<HTMLInputElement>(null);
   // The form's own Enter path: its implicit submit does not pass through resolveKey (ui-modules §2.5).
   const intentIme = useComposingEnter();
@@ -154,15 +173,15 @@ export function AgentPanel({
   // demo intent, so it runs on the built-in demo profile.
   useEffect(() => {
     if (startIntent === null || startIntent.serial === handled.current) return;
-    handled.current = startIntent.serial;
+    handled.current = memoryFor(agent).started = startIntent.serial;
     void agent.submit(startIntent.intent, { demo: true });
   }, [agent, startIntent]);
 
   // Text from the palette: into the Intent box, after any draft already there, with the caret at its end. Nothing is sent.
-  const drafted = useRef(0);
+  const drafted = useRef(memoryFor(agent).drafted);
   useEffect(() => {
     if (draft === null || draft.serial === drafted.current) return;
-    drafted.current = draft.serial;
+    drafted.current = memoryFor(agent).drafted = draft.serial;
     setIntent((current) => (current.trim() === '' ? draft.text : `${current.trimEnd()} ${draft.text}`));
     requestAnimationFrame(() => {
       const field = intentRef.current;
@@ -170,7 +189,7 @@ export function AgentPanel({
       field.focus();
       field.setSelectionRange(field.value.length, field.value.length);
     });
-  }, [draft]);
+  }, [agent, draft]);
 
   useEffect(() => {
     if (snapshot.message !== null) report({ text: snapshot.message, tone: 'error' });

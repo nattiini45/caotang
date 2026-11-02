@@ -84,6 +84,8 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   const last = useRef<NarrowState>(EMPTY);
   const { setPanel, setAgentOpen } = view;
   useLayoutEffect(() => {
+    // Focus mode hides the open sheet without closing it: its hidden `openPanel` is not a close, so nothing syncs until it ends.
+    if (view.hideRails) return;
     const previous = last.current;
     last.current = state;
     const change = syncNarrow(previous, state);

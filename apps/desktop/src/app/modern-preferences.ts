@@ -36,9 +36,13 @@ function reduced(store: PreferenceStore | null, key: string): boolean {
   }
 }
 
-/** The stored preferences; both off when nothing is stored or the store cannot be read. */
+// Switches set this visit that the store could not keep, by store (`null` is no store at all): they hold until the page goes.
+const unkept = new WeakMap<object, Partial<Record<keyof ModernPreferences, boolean>>>();
+const NO_STORE = {};
+
+/** The stored preferences, with any this visit could not keep; both off when nothing is stored or the store cannot be read. */
 export function readModernPreferences(store: PreferenceStore | null = local()): ModernPreferences {
-  return { reduceTransparency: reduced(store, TRANSPARENCY_KEY), reduceMotion: reduced(store, MOTION_KEY) };
+  return { reduceTransparency: reduced(store, TRANSPARENCY_KEY), reduceMotion: reduced(store, MOTION_KEY), ...unkept.get(store ?? NO_STORE) };
 }
 
 /** The `<html>` attributes the preferences stand for: present only for a reduction. */
@@ -56,12 +60,15 @@ export function applyModernPreferences(preferences: ModernPreferences = readMode
   else root.dataset['motion'] = attributes.motion;
 }
 
-function remember(store: PreferenceStore | null, key: string, on: boolean): void {
+function remember(store: PreferenceStore | null, key: string, on: boolean): boolean {
+  if (store === null) return false;
   try {
-    if (on) store?.setItem(key, 'reduced');
-    else store?.removeItem(key);
+    if (on) store.setItem(key, 'reduced');
+    else store.removeItem(key);
+    return true;
   } catch {
     // Not kept: the switch applies to this visit only.
+    return false;
   }
 }
 
@@ -71,7 +78,11 @@ export function setModernPreference(
   on: boolean,
   store: PreferenceStore | null = local(),
 ): ModernPreferences {
-  remember(store, name === 'reduceTransparency' ? TRANSPARENCY_KEY : MOTION_KEY, on);
+  const owner = store ?? NO_STORE;
+  const memory = { ...unkept.get(owner) };
+  if (remember(store, name === 'reduceTransparency' ? TRANSPARENCY_KEY : MOTION_KEY, on)) delete memory[name];
+  else memory[name] = on;
+  unkept.set(owner, memory);
   const next = { ...readModernPreferences(store), [name]: on };
   applyModernPreferences(next);
   return next;
