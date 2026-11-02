@@ -287,6 +287,11 @@ test('Keep open pins the sidebar, the page moves over, a scene chosen keeps it, 
   await expectClosed(page);
 });
 
+/** A box edge to 1/100 px: Firefox lays out in 1/60 px units, so a 44 px row at a fractional y can measure 43.99998. */
+function px(value: number | undefined): number {
+  return Math.round((value ?? 0) * 100) / 100;
+}
+
 test('every control of the tab bar and the sidebar, and every tree row, is at least 44 by 44 px', async ({ page }) => {
   await modernProject(page);
   await manuscript(page).click();
@@ -302,15 +307,15 @@ test('every control of the tab bar and the sidebar, and every tree row, is at le
     const box = await target.boundingBox();
     const label = (await target.textContent()) ?? '';
     expect(box, label).not.toBeNull();
-    expect(box?.width ?? 0, label).toBeGreaterThanOrEqual(44);
-    expect(box?.height ?? 0, label).toBeGreaterThanOrEqual(44);
+    expect(px(box?.width), label).toBeGreaterThanOrEqual(44);
+    expect(px(box?.height), label).toBeGreaterThanOrEqual(44);
   }
   const rows = sidebar(page).getByRole('treeitem');
   expect(await rows.count()).toBeGreaterThan(2);
   for (const row of await rows.all()) {
     const box = await row.boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(px(box?.height)).toBeGreaterThanOrEqual(44);
+    expect(px(box?.width)).toBeGreaterThanOrEqual(44);
   }
 });
 
