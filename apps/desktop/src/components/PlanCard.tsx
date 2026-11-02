@@ -169,8 +169,7 @@ export function PlanCard({ card, live, drafts, project, session, transcriptionRo
       ) : null}
       {planCost !== undefined ? <p className="plan-cost">{t`About ${{ cost: formatUsd(planCost) }} for the whole plan, at this profile’s prices.`}</p> : null}
 
-      {/* A card the mode approved has nothing left to decide. In Modern's window a settled card, and one whose draft is decided on
-          the ghost bar, show none either (companion.css). */}
+      {/* A card the mode approved has nothing left to decide. In Modern's window a settled card shows none either (companion.css). */}
       <div className="plan-actions" hidden={auto}>
         <button type="button" className="button is-primary" disabled={!approvable} onClick={approve}>
           {needsSecond && armed ? t`Click again to send this text` : card.kind === 'confirm' ? t`Approve` : t`Approve plan`}

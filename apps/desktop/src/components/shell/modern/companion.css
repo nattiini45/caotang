@@ -340,10 +340,9 @@
   display: none;
 }
 
-/* A plan card has nothing to decide once settled, nor while its draft is on the page: the ghost bar's Apply, Retry and Discard
-   answer it there. A card with a warning (a caution, a cut reply) keeps its own buttons. */
-:root[data-shell='modern'] .modern-companion .plan-card:not(.is-live) .plan-actions,
-:root[data-shell='modern'] .modern-stage:has(.ghost-bar) .modern-companion .plan-card:not(:has(.is-warn)) .plan-actions {
+/* A settled plan card has nothing left to decide. While its draft is on the page the card keeps Approve: approving writes the draft
+   marked for review, which the ghost bar's Apply does not. */
+:root[data-shell='modern'] .modern-companion .plan-card:not(.is-live) .plan-actions {
   display: none;
 }
 
