@@ -29,7 +29,15 @@ interface Editing {
   readonly error: string | null;
 }
 
-export function RecurringTasksPanel({ recurring }: { recurring: RecurringTasks }): ReactNode {
+export function RecurringTasksPanel({
+  recurring,
+  headingLevel = 4,
+}: {
+  recurring: RecurringTasks;
+  /** The section heading's level: 4 in Classic's drawer, 3 in Modern's window, whose title is the h2 (modern-interface.md §9.1). */
+  headingLevel?: 3 | 4;
+}): ReactNode {
+  const Heading = headingLevel === 3 ? 'h3' : 'h4';
   const snapshot = useSyncExternalStore(recurring.subscribe, recurring.snapshot);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [removing, setRemoving] = useState<TaskRowView | null>(null);
@@ -63,7 +71,7 @@ export function RecurringTasksPanel({ recurring }: { recurring: RecurringTasks }
   const { status } = snapshot;
   return (
     <section className="recurring" aria-label="Recurring tasks" data-testid="recurring-tasks">
-      <h4>Recurring tasks</h4>
+      <Heading>Recurring tasks</Heading>
       <p className="recurring-note muted">
         A task runs only while this project is open in a visible tab. When one is due you are offered it, and a continuity scan, which reads
         your project and calls no model, may start by itself. Tasks live in tasks.json beside caotang.json; when each last ran is kept in

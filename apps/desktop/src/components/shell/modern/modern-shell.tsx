@@ -18,6 +18,7 @@ import { lazy, useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as
 import '../../../tokens/modern.css';
 import './shell-modern.css';
 import './surfaces-modern.css';
+import './editor-modern.css';
 
 import { NARROW_QUERY } from '../../../app/narrow-model.js';
 import { ChunkLoadError, LazyBoundary } from '../../lazy-view.js';

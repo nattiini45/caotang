@@ -18,11 +18,21 @@ function inboxFirst(tasks: readonly TaskView[]): TaskView[] {
   return [...tasks.filter((task) => task.canReview), ...tasks.filter((task) => !task.canReview)];
 }
 
-export function BackgroundTasks({ agent, tasks }: { agent: AgentController; tasks: readonly TaskView[] }): ReactNode {
+export function BackgroundTasks({
+  agent,
+  tasks,
+  headingLevel = 4,
+}: {
+  agent: AgentController;
+  tasks: readonly TaskView[];
+  /** The section heading's level: 4 in Classic's drawer, 3 in Modern's window, whose title is the h2 (modern-interface.md §9.1). */
+  headingLevel?: 3 | 4;
+}): ReactNode {
   if (tasks.length === 0) return null;
+  const Heading = headingLevel === 3 ? 'h3' : 'h4';
   return (
     <section className="agent-tasks" aria-label={t`Background tasks`} data-testid="background-tasks">
-      <h4><Trans>Background tasks</Trans></h4>
+      <Heading><Trans>Background tasks</Trans></Heading>
       <p className="agent-tasks-note muted">
         <Trans>A task is drafted only while this project is open in this tab. Nothing is applied until you review it.</Trans>
       </p>
