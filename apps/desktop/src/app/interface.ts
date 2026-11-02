@@ -3,24 +3,21 @@
  * The theme (theme.ts) chooses light or dark inside either one. The choice is put on the page as `data-shell` on `<html>`.
  *
  * Like the theme, it lives in this browser's local storage under one key (`caotang.interface`), read before the first render,
- * and every access is guarded (§3.1). Modern's stylesheet is a chunk of its own (`modern/modern.css`), loaded only while Modern is
- * on, so Classic's first load never carries it (§12).
+ * and every access is guarded (§3.1). Modern is a chunk of its own, `modern-shell` (components/shell/modern/modern-shell.tsx, with its
+ * stylesheets tokens/modern.css and shell-modern.css), loaded only while Modern is on, so Classic's first load never carries it (§12).
+ * The shell on screen follows {@link currentInterface}, which changes only once that chunk is in (components/shell/Shell.tsx, which
+ * registers the chunk's loader with {@link setModernShellLoader}).
  *
  * The default is {@link resolveInterface} (§3.2). Local storage answers before the first paint when it holds a choice or another
  * Caotang key; otherwise the page waits behind "Opening your projects…" until the stores have opened and {@link settleInterface}
  * answers. Either answer is stored at once, so it never flips on a later visit.
  */
+import { applyModernPreferences } from './modern-preferences.js';
 import { applySkin } from './skin.js';
 
 export type Interface = 'classic' | 'modern';
 
 export const INTERFACE_KEY = 'caotang.interface';
-
-/**
- * The parity gate (modern-interface.md D4): whether a new writer starts in Modern. Off until Modern is complete (#313 turns it
- * on); until then a new writer starts in Classic and Settings labels Modern "Preview". Existing writers stay on Classic either way.
- */
-export const MODERN_DEFAULT_FOR_NEW_USERS = false;
 
 /** What the default rule reads (§3.2). A fact that is not known yet is `null`. */
 export interface InterfaceFacts {
@@ -35,16 +32,15 @@ export interface InterfaceFacts {
 }
 
 /**
- * The default rule, in the spec's order: a stored `'classic'` or `'modern'` wins; another `caotang.*` key means Classic; then,
- * once the stores have opened, a project or a settings record means Classic, and neither means Modern, if the parity gate allows
- * it, else Classic. `null` while the stores have not answered.
+ * The default rule, in the spec's order: a stored `'classic'` or `'modern'` wins; another `caotang.*` key means an existing writer,
+ * so Classic; then, once the stores have opened, a project or a settings record means Classic too, and neither means a new writer,
+ * who starts in Modern (the parity gate, D4, opened at #313). `null` while the stores have not answered.
  */
-export function resolveInterface(facts: InterfaceFacts, modernForNewUsers: boolean = MODERN_DEFAULT_FOR_NEW_USERS): Interface | null {
+export function resolveInterface(facts: InterfaceFacts): Interface | null {
   if (facts.stored === 'classic' || facts.stored === 'modern') return facts.stored;
   if (facts.otherKeys) return 'classic';
   if (facts.projects === null || facts.settingsRecord === null) return null;
-  if (facts.projects || facts.settingsRecord) return 'classic';
-  return modernForNewUsers ? 'modern' : 'classic';
+  return facts.projects || facts.settingsRecord ? 'classic' : 'modern';
 }
 
 /** The part of `Storage` the rule reads. */
@@ -95,7 +91,57 @@ export function rememberInterface(value: Interface): void {
  */
 export function applyInterface(value: Interface): Promise<unknown> {
   document.documentElement.dataset['shell'] = value;
-  return Promise.all([value === 'modern' ? import('../modern/modern.css') : undefined, applySkin(value)]);
+  applyModernPreferences();
+  const requested = ++requests;
+  return Promise.all([value === 'modern' ? modernLoader() : undefined, applySkin(value)]).then(
+    (loaded) => {
+      // A later choice wins over an earlier one whose chunk arrived late.
+      if (requested === requests) publish(value);
+      return loaded;
+    },
+    (error: unknown) => {
+      // Without Modern's chunk the page keeps the layout it has; the attribute still says what was chosen.
+      if (requested === requests && value === 'classic') publish(value);
+      throw error;
+    },
+  );
+}
+
+/**
+ * Loads the `modern-shell` chunk. Registered by components/shell/Shell.tsx, which owns the import (so this module stays free of the
+ * shell's components and its unit specs run in Node); until then, and in a host without the shell, Modern needs nothing loaded.
+ */
+let modernLoader: () => Promise<unknown> = () => Promise.resolve();
+
+/** Registers how the `modern-shell` chunk loads. Shell.tsx calls it once, when the app's modules are evaluated. */
+export function setModernShellLoader(load: () => Promise<unknown>): void {
+  modernLoader = load;
+}
+
+let requests = 0;
+let shown: Interface = 'classic';
+const listeners = new Set<() => void>();
+
+function publish(value: Interface): void {
+  if (shown === value) return;
+  shown = value;
+  for (const listener of listeners) listener();
+}
+
+/**
+ * The interface the workspace lays out now: the chosen one once everything it needs has loaded. Classic until Modern's chunk is in,
+ * so a switch never shows a shell without its styles. For `useSyncExternalStore`, with {@link subscribeInterface}.
+ */
+export function currentInterface(): Interface {
+  return shown;
+}
+
+/** Calls `listener` whenever {@link currentInterface} changes; returns the unsubscribe. */
+export function subscribeInterface(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 let pending = false;

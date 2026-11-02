@@ -4,8 +4,9 @@
 #   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
 #     on Node 22.19.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium E2E,
 #     and the called Firefox/WebKit workflow; it passes only when all three gates succeed.
-#   - `e2e (chromium)` runs on Node 24 in parallel with the matrix and Firefox/WebKit's four shards. The cross-browser
-#     workflow merges the sharded reports and also runs nightly/on demand.
+#   - `e2e (chromium)` runs on Node 24 in parallel with the matrix and Firefox/WebKit's shards, beside `e2e (chromium, Modern gate)`,
+#     which runs the Modern reachability walk and accessibility gate (#313) on their own. The cross-browser workflow merges the
+#     sharded reports and also runs nightly/on demand.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
 #     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
@@ -129,11 +130,23 @@ jobs:
           test "$VISUAL_RESULT" = success
 
   e2e:
-    name: e2e (chromium)
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    # About 2,000 tests on two workers now take close to 30 minutes on their own (the timeline, pictures and comic specs), so
-    # the limit leaves room for retries instead of cancelling a run that is still passing.
-    timeout-minutes: 45
+    # Two legs, both read by `verify` through needs.e2e.result. `e2e (chromium)`: about 2,000 tests on two workers take close to
+    # 35 minutes on their own (the timeline, pictures and comic specs), so the limit leaves room for retries instead of cancelling a
+    # run that is still passing. `e2e (chromium, Modern gate)`: the Modern reachability walk and accessibility gate (M12, #313), left
+    # out of the first leg by CAOTANG_E2E_MODERN_GATE=skip so neither leg runs near its limit.
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: e2e (chromium)
+            leg: suite
+            timeout: 45
+          - name: e2e (chromium, Modern gate)
+            leg: modern-gate
+            timeout: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -154,7 +167,15 @@ jobs:
           pnpm exec playwright install --with-deps chromium
 
       - name: End-to-end (dev suite, and the production-preview smoke test)
+        if: ${{ matrix.leg == 'suite' }}
         run: pnpm test:e2e
+        env:
+          CI: 'true'
+          CAOTANG_E2E_MODERN_GATE: skip
+
+      - name: End-to-end (the Modern reachability walk and accessibility gate)
+        if: ${{ matrix.leg == 'modern-gate' }}
+        run: pnpm exec playwright test --project=chromium e2e/modern-reachability.spec.ts e2e/modern-gate.spec.ts
         env:
           CI: 'true'
 
@@ -162,13 +183,13 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.leg }}
           path: playwright-report/
           retention-days: 7
 
   # Classic lock-in (modern-interface.md §15.4): screenshots of Classic's surfaces, light and dark, at a zero-pixel threshold
-  # (e2e/visual/classic.spec.ts), in the pinned Playwright image so fonts and anti-aliasing match the baselines in
-  # e2e/visual/__snapshots__/. While none are committed this job writes them (--update-snapshots=all passes), warns, and uploads
+  # (e2e/visual/classic.spec.ts), and Modern's from M4 (e2e/visual/modern.spec.ts), in the pinned Playwright image so fonts and
+  # anti-aliasing match the baselines in e2e/visual/__snapshots__/. While none are committed this job writes them (--update-snapshots=all passes), warns, and uploads
   # them as the visual-baselines artifact to review and commit; the "Visual baselines" workflow rewrites them on demand.
   visual:
     name: visual (Classic snapshots)

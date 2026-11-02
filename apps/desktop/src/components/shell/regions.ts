@@ -6,10 +6,21 @@
 
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
+import type { ProjectState } from '@caotang/store';
+
+import type { ZoomLevel } from '../../app/corkboard-model.js';
+import type { FindingView } from '../../app/findings-model.js';
 import type { NarrowPanel } from '../../app/narrow-model.js';
+import type { SaveState } from '../../app/session.js';
+import type { TargetProgress } from '../../app/session-progress.js';
 import type { ShellAction } from '../../app/shell-actions.js';
 import type { CenterMode } from '../Binder.js';
+import type { SettingsSection } from '../Settings.js';
 import type { MenuAnchor } from '../shared.js';
+import type { MinimapDot } from './minimap.js';
+
+/** What the agent is doing: a turn working, a card waiting for the writer's answer, or nothing. */
+export type AgentActivity = 'idle' | 'working' | 'waiting';
 
 export type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
 
@@ -25,6 +36,10 @@ export interface ShellView {
   /** The window is below 960 px (`NARROW_QUERY`). */
   readonly narrow: boolean;
   readonly agentOpen: boolean;
+  /** Opens or closes the agent: Classic's drawer, Modern's companion window (modern-interface.md §8.10). */
+  readonly setAgentOpen: (open: boolean) => void;
+  /** What the agent is doing, so a control can show a turn that keeps running while the agent is out of sight (§8.10, **Ask**). */
+  readonly agentActivity: AgentActivity;
   /** The narrow layout's open panel (ui-modules §1), or `null`. Always `null` in a wide window and while the rails are hidden. */
   readonly openPanel: NarrowPanel | null;
   readonly setPanel: (panel: NarrowPanel | null) => void;
@@ -32,6 +47,52 @@ export interface ShellView {
   readonly overflow: MenuAnchor | null;
   readonly openOverflow: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   readonly closeOverflow: () => void;
+  /** Counts the filter chord's requests (Ctrl+Alt+F): a shell whose binder floats (Modern's sidebar) opens it on a new one. */
+  readonly filterRequest: number;
+  /** Counts the documents chosen in the binder (a row, or **Open in editor**): Modern closes an unpinned sidebar on each. */
+  readonly binderChoice: number;
+  /** Counts the requests from outside the rail to show one of its tabs (Show in Findings, the section route): Modern's sidebar opens on
+   *  a new one even when its tab is already the current one. */
+  readonly railRequest: number;
+  /** The Board's card size (S/M/L), which the corkboard and the shot board share: Modern shows it in the top ornament (§7.3). */
+  readonly zoom: ZoomLevel;
+  readonly setZoom: (zoom: ZoomLevel) => void;
+}
+
+/**
+ * Today's progress and the save state as values, for a shell that shows them in its own place (Modern's Scene info › Progress,
+ * modern-interface.md §6, §7.3). Classic shows them in the editor's footer and the toolbar, through `editor` and `saveState`.
+ */
+export interface ShellProgress {
+  /** Today's words and the daily target, the reading the editor's `TargetQuickSet` shows. */
+  readonly target: TargetProgress;
+  /** Saves the daily target (the app setting), as the editor's quick-set does. */
+  readonly setTarget: (words: number) => void;
+  readonly saveState: SaveState;
+  /** Export a backup, the save state's own button on a failed save. */
+  readonly exportBackup: () => void;
+}
+
+/**
+ * What Modern's palette (modern-interface.md §8.9, app/palette-model.ts) searches, and the handlers it runs beyond the shell actions
+ * and the view's setters. Each handler is one `Workspace` already uses elsewhere (§4.3 rule 3).
+ */
+export interface ShellSearch {
+  /** The project, for its scenes, folders and codex entries. */
+  readonly state: ProjectState;
+  /** The document open in the editor, or `null`. */
+  readonly activeDocId: string | null;
+  /** A binder node chosen: a document opens in the editor, a folder on the board, as choosing it in the binder does. */
+  readonly openNode: (nodeId: string) => void;
+  /** A codex entry chosen: the codex shows it, as a mention chip does. */
+  readonly openCodexEntry: (entryId: string) => void;
+  /** The codex without an entry. */
+  readonly showCodex: () => void;
+  readonly openSettings: (section: SettingsSection) => void;
+  /** Opens the agent. With text, the Intent box holds it and nothing is sent. */
+  readonly openAgent: (text: string | null) => void;
+  /** Shows the selected node's scene info (the inspector), on its synopsis. */
+  readonly openSceneInfo: () => void;
 }
 
 export interface ShellRegions {
@@ -39,12 +100,21 @@ export interface ShellRegions {
   /** The shell actions (app/shell-actions.ts), in order. */
   readonly actions: readonly ShellAction[];
   readonly view: ShellView;
-  /** The rail's tab panels: the binder with its footer, the codex, findings, activity and the trace. */
+  /** The rail's tab panels: the binder (its toolbar, import actions, filter bar and tree), the codex, findings, activity and the trace. */
   readonly binder: ReactNode;
+  /** The binder's footer (saved filters, goals, the sprint timer, totals, History, kept words): under the tree in Classic, under
+   *  **Goals and sprint** in Modern's sidebar. */
+  readonly binderFooter: ReactNode;
+  /** The manuscript's scenes as status dots, for Modern's decorative minimap on the binder tab bar. */
+  readonly minimap: readonly MinimapDot[];
   readonly codex: ReactNode;
   readonly findings: ReactNode;
   /** The open findings, which the Findings tab shows as a count. */
   readonly findingsBadge: number;
+  /** The open findings that quote the selected scene, in the Findings tab's order: Modern's Scene info lists them (§7.2). */
+  readonly sceneFindings: readonly FindingView[];
+  /** Shows the Findings tab on a finding's fact group, as the timeline's **Open in Findings** does. */
+  readonly showInFindings: (factGroup: string) => void;
   readonly activity: ReactNode;
   readonly trace: ReactNode;
   readonly inspector: ReactNode;
@@ -57,7 +127,10 @@ export interface ShellRegions {
   readonly pictures: ReactNode;
   /** A media node's own view (a screenplay scene, a storyboard, a dialogue), or its "Open on desktop", or `null`. */
   readonly media: ReactNode;
+  /** The agent panel as Classic's drawer, at the foot of the centre. */
   readonly agent: ReactNode;
+  /** The same agent panel for a window of its own (`placement="window"`): always open, with **Close** in its header. Modern's companion. */
+  readonly agentWindow: ReactNode;
   /** The storage banner, or `null` when it is not shown. */
   readonly storageBanner: ReactNode;
   /** The picture-aware storage notices (pictures.md §6.5), shown only while the general banner is not. */
@@ -65,4 +138,7 @@ export interface ShellRegions {
   /** The status line, or `null` when there is no message. */
   readonly status: ReactNode;
   readonly saveState: ReactNode;
+  readonly progress: ShellProgress;
+  /** What the palette searches and runs (Modern only mounts it). */
+  readonly search: ShellSearch;
 }

@@ -77,6 +77,8 @@ for (const scheme of ['light', 'dark'] as const) {
 
     for (const tab of ['Codex', 'Findings', 'Activity'] as const) {
       await page.getByRole('tab', { name: tab }).click();
+      // The Activity panel is a lazy chunk: the shot waits for its list, not its "Loading Activity…" line (#313).
+      if (tab === 'Activity') await expect(page.getByRole('list', { name: 'Activity' })).toBeVisible();
       await shot(page, `classic-${scheme}-${tab.toLowerCase()}`);
     }
     await page.getByRole('tab', { name: 'Binder' }).click();

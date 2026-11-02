@@ -243,6 +243,15 @@ export function openFindingCount(file: CoherenceFile | undefined): number {
   return file === undefined ? 0 : file.findings.filter((finding) => finding.status === 'open').length;
 }
 
+/**
+ * The open findings that quote a scene, in the Findings tab's order (severity, then the file's): what Modern's Scene info lists with
+ * **Show in Findings** (modern-interface.md §7.2). Nothing for no scene, and nothing without an open finding, before any view is built.
+ */
+export function openFindingsOfScene(state: ProjectState, file: CoherenceFile | undefined, docId: string | null): FindingView[] {
+  if (docId === null || openFindingCount(file) === 0) return [];
+  return severitySections(state, file, 'open').flatMap((section) => section.findings.filter((finding) => finding.quotes.some((quote) => quote.docId === docId)));
+}
+
 /** The findings the filter keeps, grouped by severity in the order the sections give. Empty sections are dropped. */
 export function severitySections(state: ProjectState, file: CoherenceFile | undefined, filter: FindingFilter): SeveritySection[] {
   const findings = file === undefined ? [] : file.findings.filter((finding) => filter === 'all' || finding.status === statusOf(filter));

@@ -1,0 +1,128 @@
+/*
+ * The editor's own controls on Modern's page (docs/architecture/modern-interface.md §7.3, §9.5): what the accessibility gate (#313)
+ * found there. In the `modern-shell` chunk's stylesheet, loaded only while Modern is on; Classic's editor is unchanged.
+ *
+ * The editor footer stays on the page in Modern. Scene info › Progress (#308) holds the daily target and the save state, but not the
+ * scene's word count or **Add footnote**, so the footer is not hidden; its controls, and the toolbar's, are 44 px targets instead.
+ *
+ * Rules as in shell-modern.css: every selector starts with :root[data-shell='modern'] and only logical properties are used (checked by
+ * test/modern-css.test.ts).
+ */
+
+/*
+ * Insert picture (the toolbar), Add footnote and the daily target (the footer), the target's own form when it is open, and the
+ * buttons of a draft's ghost bar and of the review bar (#313's walk).
+ */
+:root[data-shell='modern'] .modern-page .editor-toolbar .button,
+:root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button),
+:root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) .button,
+:root[data-shell='modern'] .modern-page .editor-status .target-quick-set input {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .modern-page .editor-toolbar .button,
+:root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) .button,
+:root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+}
+
+:root[data-shell='modern'] .modern-page .editor-status .editor-footnote {
+  padding-inline: var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-page .editor-status .target-button {
+  padding-inline: var(--space-4);
+}
+
+/* The footer's words and its controls share one line, centred on the 44 px targets. */
+:root[data-shell='modern'] .modern-page .editor-status {
+  align-items: center;
+  row-gap: var(--space-2);
+}
+
+/*
+ * The save state in the top ornament (#306, §5.3, §9.3): text never sits on thin glass alone, so it sits on the ornament's scrim and
+ * takes the glass ink. Classic's muted ink fell to 1.07–1.31:1 on the thin glass; on the scrim, --on-glass keeps at least 5.5:1 over
+ * every wallpaper colour, and a failed save's --danger takes the glass-safe values Scene info uses (4.8:1 light, 5.0:1 dark).
+ */
+:root[data-shell='modern'] .modern-ornament-state {
+  --danger: #521c14;
+  background: var(--scrim);
+  color: var(--on-glass);
+}
+
+:root[data-shell='modern'][data-theme='dark'] .modern-ornament-state {
+  --danger: #fde2db;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) .modern-ornament-state {
+    --danger: #fde2db;
+  }
+}
+
+:root[data-shell='modern'] .modern-ornament-state .save-state:not(.is-failed) {
+  color: var(--on-glass);
+}
+
+/* The Board's New card, and the Codex's buttons, filter chips and search field: 44 px targets (§9.5). */
+:root[data-shell='modern'] .corkboard .button,
+:root[data-shell='modern'] .codex :is(.button, .chip-toggle, .codex-search) {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .corkboard .button,
+:root[data-shell='modern'] .codex :is(.button, .chip-toggle) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-shell='modern'] .codex .chip-toggle {
+  padding-inline: var(--space-5);
+}
+
+/* The Codex's entry view (Back, the type select, the include options, Match case, the fields and a chip's remove button) and a Board
+   card's own controls (the grip, the rename field, the synopsis): 44 px targets too (§9.5). A radio or checkbox counts with its label. */
+:root[data-shell='modern'] .codex-entry :is(.codex-select, .codex-input, .keyword-input, .policy-option, .check),
+:root[data-shell='modern'] .card :is(.card-rename, .synopsis) {
+  min-block-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .codex-entry :is(.chip-remove, .codex-toolbar .button),
+:root[data-shell='modern'] .card .card-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+/* The Board's card size is in the top ornament (§7.3), as its capsules; the page's copy is hidden. */
+:root[data-shell='modern'] .corkboard-controls .segmented {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-zoom {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+/* The Binder tab (the sidebar, the narrow drawer): Classic's binder with 44 px targets by their box, not a larger look (§9.5); the
+   line-id checkbox counts with its label. A row's Collapse / Expand fills the row's height, its glyph where it was. */
+:root[data-shell='modern'] :is(.modern-sidebar, .modern-drawer) .binder :is(.button, input:not([type='checkbox']), select, .script-import-ids) {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+:root[data-shell='modern'] :is(.modern-sidebar, .modern-drawer) .row-toggle {
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  margin-block: -10px;
+  margin-inline: -10px -16px;
+}

@@ -4,7 +4,7 @@
 Dieses Handbuch ist für Autorinnen und Autoren. Es beschreibt, was Sie in Caotang sehen und was jedes Steuerelement bewirkt. Zur Einrichtung und zur technischen Seite siehe [README](../README.md). Der letzte Abschnitt listet auf, was in diesem Build noch fehlt.
 
 ## Ihre Arbeit und wo sie lebt
-<!-- source: ee2e3fa7 -->
+<!-- source: 9aad7b2f -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Caotang verwahrt jedes Projekt in Ihrem Browser, und dort schreiben Sie. Ein Browser kann seinen Speicher leeren, legen Sie deshalb auch Kopien an:
@@ -23,7 +23,7 @@ Ein Projekt kann jeweils nur in einem Tab geöffnet sein. Ein zweiter Tab wartet
 Das Undo Ihrer Eingabe in einer Szene übersteht ein erneutes Laden (das Redo vielleicht nicht). Das Undo in der Symbolleiste und das Undo in Activity bleiben bestehen, solange der Tab geöffnet ist, und ein Sicherungspunkt kann auch nach einem erneuten Laden noch einen Schritt zurückgehen. Das Undo auf der Registerkarte Source eines Drehbuchs und in Ink-Text ist das des Browsers selbst, und ein erneutes Laden löscht es. Caotang speichert einen Moment, nachdem Sie aufgehört haben zu tippen (standardmäßig 800 ms). Wird der Tab geschlossen oder neu geladen, bevor eine Speicherung abgeschlossen ist, bewahrt Caotang die Worte in diesem Browser auf und speichert sie, sobald Sie das Projekt wieder öffnen, und sagt das. Hat das Projekt bis dahin neueren Text, werden die Worte stattdessen in der Fußzeile des Binders angeboten, um sie als neue Dokumente zurückzulegen oder zu verwerfen.
 
 ## Projekte
-<!-- source: 1b9e44ab -->
+<!-- source: c159f7a0 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 - **Anlegen.** Geben Sie auf dem Projektbildschirm unter **Neues Projekt** einen Namen ein und wählen Sie dann **Projekt erstellen**.
@@ -37,7 +37,7 @@ Das Undo Ihrer Eingabe in einer Szene übersteht ein erneutes Laden (das Redo vi
 - **Ein Projekt, das sich nicht öffnet.** Lässt sich die Projektdatei eines Ordners oder eines Bundles nicht laden, bietet Caotang an, das Projekt aus seinen Dokumenten neu aufzubauen. Es fragt zuerst und sagt, was der Neuaufbau kosten würde. Eine Projektdatei, die eine andere App nennt, oder ein Format, das neuer ist, als diese Version von Caotang lesen kann, wird stattdessen abgelehnt: Caotang sagt das, schreibt nichts und bietet keinen Neuaufbau an.
 
 ## Der Binder
-<!-- source: ae206aa7 -->
+<!-- source: 37c62b53 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Der Binder ist die Liste auf der linken Seite, unter der Registerkarte **Binder**. Er hat zwei Abschnitte:
@@ -82,7 +82,7 @@ Die Filterleiste über der Liste engt sie ein. Tippen Sie, um nach Titel, Synops
 - **Aus einem gestoppten Tab übernommen.** Das erscheint, wenn ein Tab gestoppt wurde, weil ein anderer Tab neueren Text für das Projekt gespeichert hat. Die Worte, die dieser Tab hielt, wurden in diesem Browser aufbewahrt, und der Block sagt, wann. **Legen Sie sie als neue Dokumente zurück** fügt sie den Kapiteln hinzu, in denen sie waren. Eine Research-Notiz kommt in den Research-Ordner zurück, in dem sie war. Ein Dokument, dessen Kapitel (oder Research-Ordner) nicht mehr existiert, kommt in ein neues Kapitel namens **Aus einem gestoppten Tab behalten** ans Ende des Manuskripts. **Sie verwerfen** entfernt sie.
 
 ## Die Pinnwand
-<!-- source: 3918cd1e -->
+<!-- source: b9ac5e18 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Pinnwand** über der Mitte des Fensters, um die Karten des ausgewählten Kapitels zu sehen, oder die der Kapitel des Manuskripts, wenn **Manuscript** ausgewählt ist. **Editor** führt zurück zum Text.
@@ -168,7 +168,7 @@ Das Panel rechts zeigt das ausgewählte Element:
 - **Container-Einstellungen**: für einen Dialog-Container, beschrieben in [Dialoge schreiben](#dialoge-schreiben).
 
 ## Der Editor
-<!-- source: d90fc40d -->
+<!-- source: 8e8fd317 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie eine Szene im Binder, um in ihr zu schreiben.
@@ -183,7 +183,7 @@ Wählen Sie eine Szene im Binder, um in ihr zu schreiben.
 - Das Fenster braucht mindestens 960 px Breite. Unter 1100 px bricht die Symbolleiste auf eine zweite Zeile um, und die Seitenpanels werden schmaler.
 
 ## Ein Drehbuch schreiben
-<!-- source: dfc6cfce -->
+<!-- source: 952ebb2f -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Neue Drehbuchszene hier** aus dem Menü eines Ordners. Eine Drehbuchszene wird in Fountain geschrieben, einem Drehbuchformat in einfachem Text. Ihre Ansicht hat drei Registerkarten:
@@ -206,7 +206,7 @@ Wenn Caotang eine Szene speichert, schreibt es Fountain im Standardlayout: Eine 
 Kompilieren Sie ein Drehbuch über **Kompilieren…** in der Gruppe „Medien“ als Fountain, als Final Draft (`.fdx`) oder als PDF. Final-Draft-Dateien wurden noch nicht mit Final Draft selbst abgeglichen; siehe [Was in diesem Build noch fehlt](#was-in-diesem-build-noch-fehlt).
 
 ### Das Drehbuch-PDF
-<!-- source: 8e8deb82 -->
+<!-- source: 3adbece3 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 **Drehbuch-PDF (`.pdf`)** setzt das Drehbuch auf Seiten im Format US Letter im Standard-Drehbuchlayout:
@@ -261,7 +261,7 @@ Die Container-Einstellungen ändern diese Dateien:
 - In der Yarn-Strings-Datei bekommt eine Zeile oder Wahlmöglichkeit, deren Textzelle mit `=`, `+`, `-`, `@`, einem Tab oder einem Wagenrücklauf beginnt, ein Apostroph vorangestellt, wie bei jedem CSV-Export, damit eine Tabellenkalkulation sie nicht als Formel ausführt. Die Zelle einer gesprochenen Zeile beginnt mit dem Namen des Sprechers, wenn sie einen hat. Das Apostroph wird in die Zelle selbst geschrieben, sodass ein Werkzeug, das die Datei liest, es mit der Zeile bekommt; Caotang hat nicht geprüft, wie Yarn Spinner es anzeigt. Die Sprach-, Datei- und Kommentarzellen bekommen denselben Schutz.
 
 ## Ein Storyboard planen
-<!-- source: b08263c9 -->
+<!-- source: d2e2c388 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Neues Storyboard hier** aus dem Menü eines Ordners. Ein Storyboard enthält Einstellungen, und jede Einstellung ist eine Karte. Wählen Sie **Neue Einstellung hier**, um eine hinzuzufügen.
@@ -321,7 +321,7 @@ Die Liste **Erscheint in** zeigt jedes Dokument, in dem der Name oder ein Alias 
 **Visuelle Referenzen.** Der Abschnitt **Visuelle Referenzen** wählt Bilder aus, die bereits im Projekt vorhanden sind, über das Menü **Bild hinzufügen**, und jedes kann entfernt werden. Das Prompt-Pack nennt diese Bilder für die Szenen, in denen der Eintrag erscheint, damit Sie sie in Ihrem Video-Werkzeug anhängen können. Caotang lädt keines davon hoch. Wenn der Agent einen Eintrag mit visuellen Referenzen vorschlägt, nennt seine Karte jedes Bild mit seinem Dateinamen und sagt Bescheid, wenn ein Bild nicht mehr im Projekt ist.
 
 ## Feststellungen
-<!-- source: cbd41b57 -->
+<!-- source: 5f0b519d -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Die Registerkarte **Feststellungen** prüft das Manuskript. Sie hat zwei Arten von Prüfungen:
@@ -342,6 +342,7 @@ Feststellungen sind in **Fehler**, **Warnungen** und **Hinweise** gruppiert. **A
 - **Zurückweisen…** fragt Sie warum, und seine Auswahl erhält den Fokus. Abbrechen gibt den Fokus an die Schaltfläche **Zurückweisen…** zurück. Ob Sie zurückweisen, ist Ihre Entscheidung.
 
 ### Prologe und Epiloge
+<!-- source: 0b686038 -->
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
@@ -372,7 +373,7 @@ Das sind Hinweise, keine Fehler: Ein Zweig kann einer Figur zu Recht eine Zeile 
 Der **Ausführungsverlauf** listet jeden Lauf auf. **Erneut ausführen** wiederholt einen Lauf mit demselben Umfang und den Prüfungen, die Sie jetzt eingeschaltet haben. **Lauf verwerfen** entfernt einen Lauf, und Rückgängig stellt ihn wieder her. Die Prüfungsgruppe im Export-Dialog schreibt die Feststellungen und Läufe als Kohärenzbericht, in Markdown oder JSON.
 
 ## Der Agent
-<!-- source: bdb8cecf -->
+<!-- source: 7b626856 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie unten im Fenster **Agent**, um das Panel zu öffnen. Die Zeile oben im Panel nennt den Provider, auf dem der Agent läuft, oder sagt **Kein Provider**. **Den Agenten ausblenden** schließt es.
@@ -405,10 +406,12 @@ Die Arbeit des Agenten lesen:
 - **Aktivität.** Die Registerkarte **Aktivität** listet jede Änderung auf, markiert mit **Sie** oder **Agent**, und ein Aufruf eines externen Werkzeugs trägt ein **MCP**-Badge. **Rückgängig** macht eines davon rückgängig.
 
 ## Anweisungen und Gedächtnis des Agenten
+<!-- source: ba9699e8 -->
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ## Wiederkehrende Aufgaben
+<!-- source: 428ce9ad -->
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
@@ -428,15 +431,17 @@ Ist ein Skill genehmigt und eingeschaltet, erfährt der Agent seinen Namen und s
 Skills werden im Projekt im Ordner `.agents/skills/` aufbewahrt, daher tragen ein Projektordner, ein `.caotang`-Bundle und die Kopie dieses Browsers sie alle, und andere Programme, die diesen Ordner lesen, verwenden sie ebenfalls. Der Agent kann in seiner Antwort einen Skill vorschlagen, und er kann keinen Skill erstellen, ändern, importieren oder einschalten; das können nur Sie.
 
 ## Makros
+<!-- source: ab9a11a2 -->
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ## Hooks
+<!-- source: aec2ad42 -->
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ## Export
-<!-- source: 6b7949ce -->
+<!-- source: 8803ecec -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie in der Symbolleiste **Kompilieren…**. Wählen Sie danach ein Exportprofil, ein Format und was exportiert werden soll.
@@ -482,11 +487,29 @@ Bei **Prompt-Paket (Video)** wählen Sie die **Anbieter-Vorlage**, für die das 
 **Export-Bundle** ist keine Kompilierung. Es ist eine vollständige Kopie des Projekts, für Sicherungen. Lassen sich ungenutzte Bilddateien sicher entfernen, bietet es zuerst die unter [Die Bildtafel](#die-bildtafel) beschriebene Bereinigung an; Sie können immer exportieren, ohne etwas zu entfernen. **Als Markdown exportieren** im Tab **Aktivität** schreibt das Aktivitätsprotokoll als Datei.
 
 ## Caotang auf einem Telefon oder Tablet verwenden
+<!-- source: 34b31ae7 -->
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
+## Die moderne Oberfläche
+<!-- source: feb8d7bb -->
+
+Caotang hat zwei Oberflächen, **Klassisch** und **Modern**, und beide können dasselbe. Wer neu beginnt, startet in Modern. Haben Sie Caotang in diesem Browser schon genutzt, bleibt es bei Klassisch, bis Sie wechseln; Ihre Projekte und Einstellungen sind in beiden dieselben. Gewählt wird unter **Einstellungen › Erscheinungsbild › Oberfläche**, und der Wechsel geschieht sofort; eine ungespeicherte Szene und ein laufender Durchlauf des Agenten bleiben erhalten.
+
+Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Das Manuskript ist eine Seite Papier, die über einem Hafen-Hintergrundbild schwebt (Morgendämmerung im hellen Design, Nacht im dunklen), mit gläsernen Bedienelementen an ihren Rändern.
+
+- **Die Ornamente.** Oben an der Seite stehen der Name des Projekts, der Speicherstand und **⋯**. Der Name öffnet die Szeneninfo; ein Ring darum zeigt den heutigen Fortschritt zum Tagesziel, ein Punkt, wie viele Feststellungen offen sind. **⋯** enthält jede Aktion der klassischen Werkzeugleiste (Einstellungen, Kompilieren…, Export-Bundle, Rückgängig, Fokusmodus und die übrigen), **Zeitachse** und **Bilder** sowie **Darstellung**: Hell oder Dunkel, **Transparenz reduzieren** und **Klassische Oberfläche verwenden**. Auf der Pinnwand steht auch die Kartengröße (S, M, L) im oberen Ornament. Unten stehen **Schreiben**, **Pinnwand** und **Kodex** (die Pfeiltasten wechseln zwischen ihnen, und die Seite nimmt die passende Form an), **Fragen** und **Suchen**.
+- **Die Seitenleiste.** Am Anfangsrand (links, in einer Sprache, die von rechts nach links läuft, rechts) liegt eine schmale Glasleiste mit **Manuskript** und **Panels**. Ruht der Zeiger darauf, öffnet sich daneben die Seitenleiste; ein Klick, Enter oder die Leertaste öffnen sie und setzen den Fokus hinein. **Manuskript** öffnet den Reiter **Binder**, **Panels** den zuletzt benutzten von **Feststellungen**, **Aktivität** und **Ablauf**. Die Seitenleiste schließt sich kurz nachdem der Zeiger sie verlässt, solange der Fokus nicht in ihr ist; Escape schließt sie und führt zur Leiste zurück. **Offen halten** heftet sie an, und die Seite rückt zur Seite; das bleibt in diesem Browser gespeichert. Wer eine Szene wählt, schließt eine nicht angeheftete Seitenleiste und landet im Editor. Gespeicherte Filter, Ziele, Sprint-Timer, Summen und Verlauf stehen unter **Ziele und Sprint** unter dem Baum. **Strg+Alt+F** öffnet die Seitenleiste auf dem Filter.
+- **Die Szeneninfo.** Der Inspektor liegt in der Szeneninfo: der Name des Projekts (er öffnet die Projektdetails), Synopsis, Status, Etikett und Stichwörter der Szene, darunter eingeklappt **Notizen** und **Story-Details**, und **Fortschritt**: die heutigen Wörter, das Tagesziel (zum Setzen anklicken) und ob alles gespeichert ist. Unter **Offene Feststellungen in dieser Szene** öffnet **In Feststellungen zeigen** die Seitenleiste auf dieser Feststellung. **Synopsis bearbeiten** im Binder, Strg+Umschalt+Y in der Quelle eines Drehbuchs und der Titel öffnen sie. Escape speichert das Feld, in dem Sie sind, und schließt sie. **Offen lassen** hält sie beim Schreiben neben der Seite.
+- **Das Agentenfenster.** Drücken Sie Strg+J (Cmd+J auf dem Mac) oder wählen Sie **Fragen**, um den Agenten neben Ihrer Seite zu öffnen. Er arbeitet weiter, während das Fenster geschlossen ist. Esc stoppt einen laufenden Durchlauf, wenn das Intent-Feld leer ist; sonst schließt es das Fenster, und der Durchlauf läuft weiter. In einem Fenster bis 1.280 px Breite öffnet sich der Agent als Blatt über der Seite; ein Klick daneben schließt ihn. **Übernehmen**, **Erneut** und **Verwerfen** eines Entwurfs und die Prüfleiste einer zur Prüfung markierten Änderung stehen wie in der klassischen Oberfläche auf der Seite.
+- **Suche und Befehle.** Drücken Sie Strg+K (Cmd+K auf dem Mac) oder wählen Sie **Suchen**. Tippen Sie einen Teil eines Szenentitels oder einer Synopsis, einen Kodex-Namen oder Alias (Akzente spielen keine Rolle) oder einen Befehl. Auf und Ab bewegen, Eingabe öffnet, Esc schließt. Findet sich nichts, öffnet Eingabe den Agenten mit Ihren Worten im Intent-Feld; gesendet wird erst, wenn Sie es senden.
+- **Fokusmodus.** Der Fokusmodus blendet alles außer der Seite aus. Bewegen Sie den Mauszeiger an einen Fensterrand oder drücken Sie die Tabulatortaste, um die Bedienelemente zurückzuholen; **Fokusmodus verlassen** oben oder Strg+Umschalt+F beendet ihn.
+- **Dialoge und Meldungen.** Dialoge und Menüs sind aus Glas: Was dahinter liegt, scheint verschwommen durch. Ein Dialog wächst aus der Schaltfläche, die Sie gedrückt haben, und schrumpft beim Schließen in sie zurück. Meldungen erscheinen als Kapsel oben im Fenster und bleiben, bis Sie sie schließen. Bedienelemente sind mindestens 44 px groß. Schalten Sie unter Einstellungen › Erscheinungsbild **Transparenz reduzieren** oder **Bewegung reduzieren** ein, wenn Sie feste, ruhige Flächen bevorzugen; Modern folgt dafür auch den Einstellungen Ihres Systems, ebenso mehr Kontrast und erzwungenen Farben.
+- **Auf einem Telefon oder in einem schmalen Fenster.** Unter 960 px Breite passt sich Modern dem Bildschirm an. Titel und **⋯** stehen oben, daneben die Schaltfläche für den Binder; **Schreiben**, **Pinnwand**, **Kodex**, **Fragen** und **Suchen** bilden unten eine Tab-Leiste. Die Binder-Schaltfläche öffnet den Binder als Schublade vom Rand, mit den Reitern Binder, Feststellungen, Aktivität und Ablauf; wer eine Szene wählt, schließt sie. Der Titel öffnet die Szeneninfo als Blatt von unten, **Fragen** öffnet den Agenten über den ganzen Bildschirm. Es ist immer nur eines davon offen: Schließen, ein Tippen daneben oder Esc schließt es. Was ein Telefon einem Desktop überlässt, sagt **Open on desktop**, wie in der klassischen Oberfläche.
+- **Zurück zu Klassisch.** **Klassische Oberfläche verwenden** unter **⋯ › Darstellung**, **Zur klassischen Oberfläche wechseln** in der Suche oder **Klassisch** unter Einstellungen › Erscheinungsbild › Oberfläche wechselt sofort zurück, und Caotang merkt sich die Wahl in diesem Browser. Der Code von Modern wird nur geladen, solange Modern an ist; Klassisch lädt nichts zusätzlich.
+
 ## Einstellungen
-<!-- source: 8a37cb44 -->
+<!-- source: ea8dc51b -->
 
 Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat neun Abschnitte: Anbieter, Kontext, Agent, Makros, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
 
@@ -501,11 +524,11 @@ Zahlen, Daten und Uhrzeiten folgen der Sprache der Oberfläche (siehe **Erschein
 - **Schreiben.** Das Tagesziel in Wörtern (0 für keins) und die Pause, die nach dem Tippen vergeht, bevor Caotang speichert (100 bis 5.000 ms). Eine neue Pause gilt für die Projekte, die Sie nach dem Speichern öffnen. **When you apply an agent edit** wählt zwischen **Replace the text** (dem Standard) und **Mark the changes for review** (siehe „Reviewing a draft in place“ unter Der Agent); es gilt für das nächste Dokument, das Sie öffnen.
 - **Kohärenz.** Die Schnellprüfungen, die der Feststellungs-Scan ausführt, der Umfang, mit dem der Tab **Feststellungen** startet, und die meisten Feststellungen, die eine Modellprüfung hinzufügen darf. **Kohärenz-Einstellungen speichern** speichert sie.
 - **MCP & Werkzeuge.** Externe Werkzeugserver sind aus, bis Sie **Externe Werkzeugserver verwenden** einschalten. Solange es aus ist, wird kein Server kontaktiert. Wählen Sie dann **Server hinzufügen** und geben Sie einen Namen und eine Adresse an: https oder http für einen Server auf Ihrem eigenen Computer. Fügen Sie das Bearer-Token des Servers hinzu, falls es eines braucht. Das Token bleibt in diesem Browser, wie Ihre Anbieterschlüssel. **Verbinden** listet die Werkzeuge des Servers auf. Lesen Sie die Prüfung, bevor Sie sie genehmigen: Die Beschreibung jedes Werkzeugs wird vollständig angezeigt, und eine Liste, die sich seit Ihrer letzten Genehmigung geändert hat, wartet erneut auf Ihre Genehmigung. Das Kontrollkästchen **Ein** in der Zeile eines Werkzeugs schaltet dieses ein oder aus. **Aktivieren** oder **Deaktivieren** auf einer Serverkarte schaltet den ganzen Server ein oder aus. **Für Lesezugriffe vertraut** lässt die schreibgeschützten Werkzeuge ohne Nachfrage laufen und wird erst nach einer Prüfung angeboten. **Erneut prüfen** listet die Werkzeuge noch einmal auf, und **Entfernen** vergisst den Server. **Liste anzeigen** und **Liste importieren** verschieben die Serverliste als Text, ohne Token, Werkzeuggenehmigungen oder Vertrauensstatus. Ein Werkzeug, dessen Name ein Zeichen enthält, das in Werkzeugnamen eines Modells nicht vorkommen darf, etwa ein Punkt, wird dem Agenten unter einem kürzeren Alias angezeigt. Der Server erhält weiter seinen eigenen Namen. Ein Server kann auch Prompts und Ressourcenvorlagen auflisten. Sie werden in derselben Prüfung vollständig angezeigt, samt der Information, ob Sie sie genehmigt haben, und das Genehmigen der Liste genehmigt sie mit; eine, die sich danach ändert, wird erneut angezeigt und wartet auf Sie, während die Werkzeuge des Servers genehmigt bleiben. Lässt sich die Liste der Ressourcen oder Prompts des Servers nicht lesen, steht das auf seiner Karte, und die Werkzeuge sind nicht betroffen. Dieser Build listet sie nur auf: Er hängt noch keine Ressource an eine Anfrage und führt noch keinen Prompt aus, und der Agent kann beides ebenfalls nicht.
-- **Erscheinungsbild.** **Design**: hell oder dunkel. Bis Sie sich entscheiden, folgt Caotang Ihrer Systemeinstellung. **Oberfläche**: **Klassisch** oder **Modern (Vorschau)**. Klassisch ist die Oberfläche, die Caotang bisher hatte, und in ihr öffnet Caotang, bis Sie etwas anderes wählen. Modern ist eine Vorschau einer neuen Oberfläche, die noch im Aufbau ist, daher sieht sie vorerst fast so aus wie Klassisch. Beide Einstellungen werden in diesem Browser gespeichert und gelten sofort, ohne Neuladen. **Sprache der Oberfläche** ändert die Sprache der Menüs, Panels und Meldungen von Caotang selbst, sobald Sie sie wählen, ohne die Seite neu zu laden und ohne das Manuskript anzurühren: Eine ungespeicherte Szene bleibt im Editor, und ein Agentenzug, der auf Sie wartet, bleibt, wo er ist. Dazu gehören der Schreibbildschirm mit seiner Fußzeile, der Projektbildschirm und jeder Teil der Einstellungen sowie der Posteingang der Feststellungen, die Aktivitätsliste, Ladehinweise und die eigenen Fortschrittszeilen des Agenten, sofern dafür eine Übersetzung existiert. Zahlen, Daten und Preise folgen den Konventionen derselben Sprache. Die Namen Ihrer Projekte, Ordner und gespeicherten Filter bleiben in diesen Sätzen lesbar, in ihrer eigenen Schreibrichtung. Eine Feststellung, die das Modell geschrieben hat, und jeder Satz, der gespeichert wurde, bevor es eine Übersetzung gab, bleibt in der Sprache, in der er verfasst wurde. **Systemeinstellung folgen** verwendet die erste Ihrer Browsersprachen, die Caotang anbietet. Eine Sprache mit dem Vermerk **Vorschau, teilweise Englisch** ist nicht fertig, daher lauten einige Meldungen noch auf Englisch, und ihr Name nennt den erreichten Prozentsatz. Ihre Wahl bleibt in diesem Browser gespeichert, nicht im Projekt; öffnet man dasselbe Projekt in einem anderen Browser, behält es die Sprache dieses Browsers. Das Manuskript, seine Synopsis und der Kodex behalten ihre eigene Sprache und Schreibrichtung, was auch immer die Oberfläche tut. Englisch und Deutsch werden angeboten. Bei Deutsch weist der Sprachwähler darauf hin, dass die Übersetzung maschinell erstellt und nicht muttersprachlich geprüft ist. Dieser Leitfaden ist ebenfalls auf Deutsch verfügbar; für eine Sprache ohne übersetzten Leitfaden öffnet die Hilfe weiterhin die englische Fassung. **Benutzerhandbuch lesen** neben der Auswahl öffnet den deutschen Abschnitt „Einstellungen“, solange sein Quellhash aktuell ist; fehlt die Übersetzung oder ist sie veraltet, wird stattdessen der englische Abschnitt geöffnet.
+- **Erscheinungsbild.** **Design**: hell oder dunkel. Bis Sie sich entscheiden, folgt Caotang Ihrer Systemeinstellung. **Oberfläche**: **Klassisch** oder **Modern** (siehe [Die moderne Oberfläche](#die-moderne-oberfläche)). Klassisch ist die Oberfläche, die Caotang bisher hatte; Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Wer neu beginnt, startet in Modern; wer Caotang in diesem Browser schon genutzt hat, bleibt bei Klassisch, bis er wechselt. Solange Modern gewählt ist, bietet Erscheinungsbild außerdem **Transparenz reduzieren** (Glas wird undurchsichtig) und **Bewegung reduzieren** (nichts gleitet oder wächst); die Einstellungen Ihres Systems für beides werden in jedem Fall befolgt. Beide Einstellungen werden in diesem Browser gespeichert und gelten sofort, ohne Neuladen. **Sprache der Oberfläche** ändert die Sprache der Menüs, Panels und Meldungen von Caotang selbst, sobald Sie sie wählen, ohne die Seite neu zu laden und ohne das Manuskript anzurühren: Eine ungespeicherte Szene bleibt im Editor, und ein Agentenzug, der auf Sie wartet, bleibt, wo er ist. Dazu gehören der Schreibbildschirm mit seiner Fußzeile, der Projektbildschirm und jeder Teil der Einstellungen sowie der Posteingang der Feststellungen, die Aktivitätsliste, Ladehinweise und die eigenen Fortschrittszeilen des Agenten, sofern dafür eine Übersetzung existiert. Zahlen, Daten und Preise folgen den Konventionen derselben Sprache. Die Namen Ihrer Projekte, Ordner und gespeicherten Filter bleiben in diesen Sätzen lesbar, in ihrer eigenen Schreibrichtung. Eine Feststellung, die das Modell geschrieben hat, und jeder Satz, der gespeichert wurde, bevor es eine Übersetzung gab, bleibt in der Sprache, in der er verfasst wurde. **Systemeinstellung folgen** verwendet die erste Ihrer Browsersprachen, die Caotang anbietet. Eine Sprache mit dem Vermerk **Vorschau, teilweise Englisch** ist nicht fertig, daher lauten einige Meldungen noch auf Englisch, und ihr Name nennt den erreichten Prozentsatz. Ihre Wahl bleibt in diesem Browser gespeichert, nicht im Projekt; öffnet man dasselbe Projekt in einem anderen Browser, behält es die Sprache dieses Browsers. Das Manuskript, seine Synopsis und der Kodex behalten ihre eigene Sprache und Schreibrichtung, was auch immer die Oberfläche tut. Englisch und Deutsch werden angeboten. Bei Deutsch weist der Sprachwähler darauf hin, dass die Übersetzung maschinell erstellt und nicht muttersprachlich geprüft ist. Dieser Leitfaden ist ebenfalls auf Deutsch verfügbar; für eine Sprache ohne übersetzten Leitfaden öffnet die Hilfe weiterhin die englische Fassung. **Benutzerhandbuch lesen** neben der Auswahl öffnet den deutschen Abschnitt „Einstellungen“, solange sein Quellhash aktuell ist; fehlt die Übersetzung oder ist sie veraltet, wird stattdessen der englische Abschnitt geöffnet.
 - **Daten.** Der Speicherort — das ist dieser Browser —, was der Browser über seinen Speicher sagt, und die Sicherungspunkt-Limits: **Pro Projekt behaltene Sicherungspunkte** (standardmäßig 100) und **Tage, die ein Sicherungspunkt behalten wird** (standardmäßig 30). Wählen Sie **Limits speichern**, um Ihre Änderung zu übernehmen. Ist ein Projekt geöffnet, wendet **Jetzt auf die Limits kürzen** sie sofort an.
 
 ## Tastatur
-<!-- source: c75ae84d -->
+<!-- source: 844de109 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Auf einem Mac tritt an die Stelle von Strg die Cmd-Taste. Die Element-Akkorde sind die eine Ausnahme: Sie verwenden Cmd+Alt, weil Cmd+Shift+3 und Cmd+Shift+4 Bildschirmfotos aufnehmen.
@@ -533,7 +556,7 @@ Ein Tastenkürzel folgt dem Buchstaben, den Ihr Tastaturlayout ausgibt, und fäl
 Die Tabs links (**Binder**, **Kodex**, **Aktivität** und **Feststellungen**) und die Schaltflächen **Editor**, **Pinnwand** und **Zeitachse** nehmen die Pfeiltasten sowie Pos1 und Ende entgegen. In einem Menü bewegen die Pfeiltasten zwischen den Einträgen, und Enter oder die Leertaste wählt einen aus.
 
 ## Eigene Texte in einem KI-Werkzeug anhängen
-<!-- source: 81b20de8 -->
+<!-- source: 598e2a74 -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Ein KI-Werkzeug, das mit dem MCP-Server verbunden ist, kann Ihre Dokumente, die Notizen eines Dokuments und Ihre Kodex-Einträge als Ressourcen an eine Konversation anhängen. In Claude Code tippen Sie `@` und wählen `caotang`; in Cursor verwenden Sie die Ressourcenauswahl. Was Sie anhängen, ist der ganze Text, keine gekürzte Kopie. Ein Dokument über 2 MiB wird abgelehnt und sagt das, und es wird niemals gekürzt.
@@ -543,7 +566,7 @@ Der Server bietet außerdem fünf Prompts, die Ihr Werkzeug als Befehle aufliste
 Auf einem Server, der mit `--allow-writes` gestartet wurde, erfährt ein Werkzeug, das die Notizen eines Dokuments abonniert hat, wann sie sich ändern. Der Server beobachtet den Ordner nicht: Er meldet Ihrem Werkzeug seine eigenen Änderungen, und einmalig auch eine Änderung durch ein anderes Programm, die seine Schreibzugriffe ebenfalls stoppt.
 
 ## Vorhandene Texte über den MCP-Server hereinholen
-<!-- source: 1864d33a -->
+<!-- source: 0e9af41a -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wenn Ihre Texte woanders liegen, etwa in Notizen, einem Wiki oder einem alten Entwurf, kann der MCP-Server sie in ein Caotang-Projekt hereinholen. Zwei Werkzeuge erledigen das:
@@ -618,7 +641,7 @@ Ein Entwickler kann den Agenten mit dem Paket `@caotang/sdk` von einem Node-Skri
 - **Eine Karte ist unter dem Agenten-Panel verborgen.** Schließen Sie das Panel, um sie zu erreichen.
 
 ## Was in diesem Build noch fehlt
-<!-- source: 935c8030 -->
+<!-- source: 4aa7f2af -->
 > **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 - **Zu sehen, was sich in einem Ordner geändert hat.** Wenn ein anderes Programm ein Dokument in Ihrem Projektordner geändert hat, nennt die Frage das Dokument und zeigt den Unterschied nicht, und es gibt kein Zusammenführen. Speichern Sie darüber und vergleichen Sie die Version des Ordners in `.caotang-backup` von Hand.

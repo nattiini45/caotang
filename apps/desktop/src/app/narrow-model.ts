@@ -13,8 +13,11 @@ export const NARROW_MAX_WIDTH = 959;
 /** The media query styles.css repeats in its `@media` block; the two are kept in step by e2e/unit/narrow-model.spec.ts. */
 export const NARROW_QUERY = `(max-width: ${NARROW_MAX_WIDTH}px)`;
 
-/** The panels the narrow layout opens over the centre. At most one is open. */
-export type NarrowPanel = 'rail' | 'inspector';
+/**
+ * The panels the narrow layout opens over the centre. At most one is open. Classic opens the rail (the binder drawer) and the inspector
+ * (the bottom sheet); Modern adds the agent, its companion window as a full-height sheet (modern-interface.md §13).
+ */
+export type NarrowPanel = 'rail' | 'inspector' | 'agent';
 
 /** What the narrow layout leaves to a desktop, each named in the words the notice uses. */
 export type DesktopFeature = 'corkboard' | 'storyboard' | 'dialogue' | 'screenplay-pages' | 'mcp' | 'exports';

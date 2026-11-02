@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+<!-- Caotang's Modern wallpaper, dark (night harbour; modern-interface.md §5.3). Decorative, drawn once, never animated. -->
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1440"/><stop offset=".36" stop-color="#2b1d5a"/><stop offset=".58" stop-color="#4b2463"/><stop offset=".78" stop-color="#183a64"/><stop offset="1" stop-color="#0d5a63"/></linearGradient>
+<radialGradient id="sun"><stop offset="0" stop-color="#fff4d6"/><stop offset=".55" stop-color="#e8c27a" stop-opacity=".9"/><stop offset="1" stop-color="#e8c27a" stop-opacity="0"/></radialGradient>
+<linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#123a5c"/><stop offset="1" stop-color="#0a2238"/></linearGradient>
+<filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="70"/></filter>
+<filter id="soft2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2"/></filter>
+</defs>
+<rect width="1440" height="900" fill="url(#sky)"/>
+<g filter="url(#soft)" opacity=".85">
+<circle cx="180" cy="160" r="240" fill="#d9467a"/>
+<circle cx="1290" cy="120" r="260" fill="#5b4bf0" opacity=".75"/>
+<circle cx="1240" cy="780" r="280" fill="#14b8a6" opacity=".8"/>
+<circle cx="260" cy="820" r="220" fill="#5b4bf0" opacity=".6"/>
+</g>
+<circle cx="1120" cy="430" r="190" fill="url(#sun)"/>
+<circle cx="1120" cy="430" r="62" fill="#fff4d6" opacity=".95"/>
+<path d="M0 520 C120 470 220 480 330 505 C450 532 540 470 660 478 C790 486 860 528 980 512 C1100 496 1180 470 1300 488 C1370 498 1410 508 1440 512 L1440 600 L0 600 Z" fill="#2a2050" opacity=".7"/>
+<path d="M0 548 C160 528 260 540 400 552 C560 566 700 532 860 540 C1020 548 1180 560 1440 538 L1440 620 L0 620 Z" fill="#1d1840" opacity=".75"/>
+<g stroke="#0c0a1f" stroke-width="5" fill="none" opacity=".55" stroke-linecap="round">
+<path d="M92 560 V380 M92 392 H250 M92 392 L60 418 M230 392 V450 M92 430 L150 392"/>
+<path d="M178 560 V420 M178 430 H300 M178 430 L152 450 M285 430 V476 M178 462 L226 430"/>
+<path d="M40 560 h300" stroke-width="7"/>
+</g>
+<g fill="#0c0a1f" opacity=".6"><path d="M1238 548 l8 14 h86 l10 -14 z"/><rect x="1258" y="534" width="58" height="14" rx="2"/><rect x="1276" y="522" width="22" height="12" rx="2"/><rect x="1290" y="508" width="5" height="14"/></g>
+<rect y="560" width="1440" height="340" fill="url(#sea)"/>
+<ellipse cx="1120" cy="600" rx="210" ry="24" fill="#fff4d6" opacity=".35" filter="url(#soft2)"/>
+<g stroke="#aac8ff" stroke-opacity="0.3" fill="none" stroke-width="2.4" stroke-linecap="round">
+<path d="M0 600 q40 -10 80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0 t80 0" opacity=".7"/>
+<path d="M-40 650 q60 -14 120 0 t120 0 t120 0 t120 0 t120 0 t120 0 t120 0 t120 0 t120 0 t120 0 t120 0 t120 0 t120 0" opacity=".65"/>
+<path d="M0 710 q80 -18 160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0 t160 0" stroke-width="3" opacity=".6"/>
+<path d="M-60 780 q100 -22 200 0 t200 0 t200 0 t200 0 t200 0 t200 0 t200 0 t200 0" stroke-width="3.4" opacity=".55"/>
+<path d="M0 860 q120 -26 240 0 t240 0 t240 0 t240 0 t240 0 t240 0 t240 0" stroke-width="4" opacity=".5"/>
+</g>
+</svg>

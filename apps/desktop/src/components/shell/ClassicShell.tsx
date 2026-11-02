@@ -5,7 +5,8 @@
  * sheet, and the toolbar's actions are in the More menu.
  *
  * It arranges the regions `Workspace` built and renders the toolbar and the More menu from the shell actions; the state, the
- * handlers and the dialogs stay in `Workspace`, which passes the dialogs as children so they sit where they always have.
+ * handlers and the dialogs stay in `Workspace`. The workspace element itself is the frame `Shell` draws (Shell.tsx), with the
+ * dialogs as its last children, where they always were; the frame is shared with Modern, so a switch keeps the dialogs mounted.
  */
 /* lingui-set comment="The workspace shell: its toolbar, panels and centre views. count is a number of open findings." */
 
@@ -23,9 +24,9 @@ import { Menu } from '../shared.js';
 import type { RailTab, ShellRegions } from './regions.js';
 
 /** The rail's tabs in the order the arrow keys walk them (WAI-ARIA tabs). */
-const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'trace', 'findings'];
+export const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'trace', 'findings'];
 /** The centre views, in the order the arrow keys walk the radio group. */
-const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard', 'timeline', 'pictures'];
+export const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard', 'timeline', 'pictures'];
 
 /** The id of a rail tab, which its tabpanel names itself by (`aria-labelledby`). */
 export function railTabId(tab: RailTab): string {
@@ -37,7 +38,7 @@ export function railTabId(tab: RailTab): string {
  * WAI-ARIA tab and radio patterns have them, and Home and End go to the first and last item. Left and right follow the reading
  * direction (`inlineKey`), so in a right-to-left interface the right arrow walks back.
  */
-function keyStep<T>(items: readonly T[], current: T, pressed: string): T | null {
+export function keyStep<T>(items: readonly T[], current: T, pressed: string): T | null {
   const at = items.indexOf(current);
   if (at === -1) return null;
   const key = inlineKey(pressed);
@@ -48,7 +49,13 @@ function keyStep<T>(items: readonly T[], current: T, pressed: string): T | null 
   return null;
 }
 
-export function ClassicShell({ regions, children }: { regions: ShellRegions; children?: ReactNode }): ReactNode {
+/** The class of Classic's workspace element (the frame Shell.tsx draws): the grid, and focus mode's single column. */
+export function classicFrameClass(hideRails: boolean): string {
+  return `workspace${hideRails ? ' is-focus' : ''}`;
+}
+
+/** Classic's layout: everything inside the workspace element but the dialogs, which Shell.tsx puts after it. */
+export function ClassicLayout({ regions }: { regions: ShellRegions }): ReactNode {
   const { view, actions } = regions;
   const { rail, setRail, center, setCenter, hideRails, narrow, openPanel, setPanel, overflow } = view;
 
@@ -77,7 +84,7 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
   const [details] = classicToolbarSlot(actions, 'title');
 
   return (
-    <div className={`workspace${hideRails ? ' is-focus' : ''}`}>
+    <>
       <header className="toolbar" inert={openPanel !== null}>
         <div className="toolbar-start">
           {narrow ? (
@@ -168,7 +175,7 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
           </div>
           <div role="tabpanel" id="rail-panel" aria-labelledby={railTabId(rail)} className="rail-panel">
             {rail === 'binder'
-              ? regions.binder
+              ? <>{regions.binder}{regions.binderFooter}</>
               : rail === 'codex'
                 ? regions.codex
                 : rail === 'findings'
@@ -268,9 +275,7 @@ export function ClassicShell({ regions, children }: { regions: ShellRegions; chi
       {overflow === null ? null : <Menu label={t`More`} anchor={overflow} items={classicMenu(actions)} onClose={view.closeOverflow} />}
 
       {regions.status}
-
-      {children}
-    </div>
+    </>
   );
 }
 
@@ -299,7 +304,7 @@ function ToolbarButton({ action, quiet = false }: { action: ShellAction; quiet?:
  * One rail tab. Roving tabindex: the selected tab is the one Tab reaches, and the arrow keys (handled by the tab list) move
  * between the rest. The tabpanel names itself by this tab's id.
  */
-function RailTabButton({
+export function RailTabButton({
   tab,
   current,
   label,
