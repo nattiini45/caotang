@@ -299,8 +299,8 @@ test.describe('Scene info, the bottom sheet', () => {
       await expect(sceneInfo(page)).toBeVisible();
       await expect(sceneInfo(page)).toHaveClass(/is-sheet/);
       await expect(capsule(page)).toHaveAttribute('aria-expanded', 'true');
-      // Keep open docks beside a page; there is none to dock beside here.
-      await expect(sceneInfo(page).getByRole('button', { name: 'Keep open' })).toHaveCount(0);
+      // Keep open is here too (#364): off, the sheet is modal.
+      await expect(sceneInfo(page).getByRole('button', { name: 'Keep open' })).toHaveAttribute('aria-pressed', 'false');
       // Focus is in the sheet, on its first field; the rest is inert behind the scrim.
       expect(await sceneInfo(page).evaluate((element) => element.contains(document.activeElement))).toBe(true);
       for (const behind of [pageMain(page), tabBar(page), binderButton(page), capsule(page)]) expect(await isInert(behind)).toBe(true);
@@ -337,6 +337,111 @@ test.describe('Scene info, the bottom sheet', () => {
       await expect(capsule(page)).toBeFocused();
     });
   }
+});
+
+test.describe('Scene info kept open', () => {
+  test('Keep open leaves the sheet below the page with no scrim, the page live above it, and off makes it modal again', async ({ page }) => {
+    await newProject(page);
+    await sceneInDrawer(page, 'Opening');
+    await press(page, capsule(page));
+    await expect(sceneInfo(page)).toBeVisible();
+    const keep = sceneInfo(page).getByRole('button', { name: 'Keep open' });
+    await press(page, keep);
+    await expect(keep).toHaveAttribute('aria-pressed', 'true');
+    await expect(sceneInfo(page)).toHaveClass(/is-kept/);
+    await expect(scrim(page)).not.toHaveClass(/is-open/);
+    for (const live of [pageMain(page), tabBar(page), capsule(page)]) expect(await isInert(live)).toBe(false);
+    await settled(sceneInfo(page));
+    // The page ends a gutter above the sheet, and the sheet above the tab bar.
+    const paper = await pageMain(page).boundingBox();
+    const sheet = await sceneInfo(page).boundingBox();
+    const bar = await tabBar(page).boundingBox();
+    expect(Math.round((paper?.y ?? 0) + (paper?.height ?? 0))).toBeLessThanOrEqual(Math.round(sheet?.y ?? 0) - GUTTER);
+    expect((sheet?.y ?? 0) + (sheet?.height ?? 0)).toBeLessThanOrEqual(bar?.y ?? 0);
+    expect(await smallTargets(page)).toEqual([]);
+
+    // The writer types in the page; the sheet stays.
+    const text = page.getByRole('textbox', { name: 'Document text' });
+    await press(page, text);
+    await expect(text).toBeFocused();
+    await expect(sceneInfo(page)).toBeVisible();
+
+    // Off again: modal, over the scrim.
+    await press(page, keep);
+    await expect(keep).toHaveAttribute('aria-pressed', 'false');
+    await expect(scrim(page)).toHaveClass(/is-open/);
+    expect(await isInert(pageMain(page))).toBe(true);
+    await press(page, sceneInfo(page).getByRole('button', { name: 'Close', exact: true }));
+    await expect(sceneInfo(page)).toBeHidden();
+  });
+});
+
+test.describe('typing on a phone', () => {
+  test('with the keyboard up (a short window and a field in focus) the tab bar steps away, and it is back when the field lets go', async ({ page }) => {
+    await newProject(page);
+    test.skip(!(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)), 'The rule is for touch screens.');
+    await sceneInDrawer(page, 'Opening');
+    const text = page.getByRole('textbox', { name: 'Document text' });
+    await press(page, text);
+    await expect(text).toBeFocused();
+    await expect(tabBar(page)).toBeVisible();
+    // The on-screen keyboard, as interactive-widget=resizes-content gives it: the layout viewport shrinks.
+    await page.setViewportSize({ width: PHONE.width, height: 500 });
+    await expect(tabBar(page)).toBeHidden();
+    const paper = await pageMain(page).boundingBox();
+    expect(Math.round((paper?.y ?? 0) + (paper?.height ?? 0))).toBeGreaterThanOrEqual(500 - 2 * GUTTER);
+    await text.evaluate((element) => (element as HTMLElement).blur());
+    await expect(tabBar(page)).toBeVisible();
+    await page.setViewportSize(PHONE);
+  });
+});
+
+test.describe('a tablet in landscape (1,024 by 768, the wide layout) by touch', () => {
+  const LANDSCAPE = { width: 1024, height: 768 };
+
+  async function tabletProject(page: Page): Promise<void> {
+    await modern(page, LANDSCAPE);
+    await page.goto('/');
+    await page.getByLabel('Project name').fill('Tablet Book');
+    await page.getByRole('button', { name: 'Create project' }).click();
+    await expect(page.getByTestId('modern-stage')).toBeVisible();
+    await waitForSaved(page);
+    const banner = page.getByTestId('storage-banner');
+    if (await banner.isVisible()) {
+      await banner.getByRole('button', { name: 'Dismiss' }).click();
+      await expect(banner).toBeHidden();
+    }
+  }
+
+  test('every target is 44 px, the open sidebar takes its room beside the page, and the agent stays between the ornaments', async ({ page }) => {
+    await tabletProject(page);
+    test.skip(!(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)), 'The rule is for touch screens.');
+    expect(await smallTargets(page)).toEqual([]);
+
+    // Manuscript opens the sidebar, unpinned; the page narrows beside it instead of lying under it.
+    await press(page, page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }));
+    const side = page.getByTestId('modern-sidebar');
+    await expect(side).toBeVisible();
+    await settled(pageMain(page));
+    await settled(side);
+    const edge = await side.boundingBox();
+    const paper = await pageMain(page).boundingBox();
+    expect(paper?.x ?? 0).toBeGreaterThanOrEqual((edge?.x ?? 0) + (edge?.width ?? 0));
+    // The bottom ornament's tabs still fit over the narrower page.
+    expect(await tabBar(page).evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await smallTargets(page)).toEqual([]);
+    await page.keyboard.press('Escape');
+
+    // The agent window, a sheet here, starts below the title capsule and ends above the tab bar.
+    await press(page, ask(page));
+    await expect(agent(page)).toBeVisible();
+    await settled(agent(page));
+    const sheet = await agent(page).boundingBox();
+    const top = await page.getByRole('toolbar', { name: 'Scene', exact: true }).boundingBox();
+    const bar = await tabBar(page).boundingBox();
+    expect(sheet?.y ?? 0).toBeGreaterThanOrEqual((top?.y ?? 0) + (top?.height ?? 0));
+    expect((sheet?.y ?? 0) + (sheet?.height ?? 0)).toBeLessThanOrEqual(bar?.y ?? 0);
+  });
 });
 
 test.describe('the agent, a full-height sheet', () => {
