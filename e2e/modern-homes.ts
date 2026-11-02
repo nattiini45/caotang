@@ -460,13 +460,19 @@ export const MODERN_HOMES: readonly Home[] = [
     id: 'ghost-bar',
     section: '7.3',
     classic: 'Ghost bar (draft preview: apply, discard)',
-    modern: 'Same, as a glass capsule pinned inside the page above the bottom ornament',
+    modern: 'Same, on the page under the draft: Apply, with Retry and Discard in its More disclosure',
     setup: 'scene',
     routes: [
       {
         via: 'a draft’s Apply and Discard',
         setup: 'draft',
-        steps: [{ provoke: 'draft' }, see({ role: 'button', name: 'Apply', within: ghostBar }), see({ role: 'button', name: 'Discard', within: ghostBar })],
+        steps: [
+          { provoke: 'draft' },
+          see({ role: 'button', name: 'Apply', within: ghostBar }),
+          // Retry and Discard are in the bar's More disclosure (#361).
+          { click: { css: '[data-testid="ghost-bar"] summary' } },
+          see({ role: 'button', name: 'Discard', within: ghostBar }),
+        ],
       },
     ],
   },
@@ -474,13 +480,19 @@ export const MODERN_HOMES: readonly Home[] = [
     id: 'review-bar',
     section: '7.3',
     classic: 'Review bar (Previous, Next, Accept, Reject, Accept all, Reject all)',
-    modern: 'Same bar, as a capsule inside the page',
+    modern: 'Same bar on the page: Previous and Next as chevrons, Accept, Reject, and Accept all and Reject all in its More disclosure',
     setup: 'scene',
     routes: [
       {
         via: 'a marked change’s review bar',
         setup: 'draft',
-        steps: [{ provoke: 'marked-change' }, see({ role: 'button', name: 'Next', within: reviewBar }), see({ role: 'button', name: 'Accept all', within: reviewBar })],
+        steps: [
+          { provoke: 'marked-change' },
+          see({ role: 'button', name: 'Next', within: reviewBar }),
+          // Accept all and Reject all are in the bar's More disclosure (#361).
+          { click: { css: '[data-testid="review-bar"] summary' } },
+          see({ role: 'button', name: 'Accept all', within: reviewBar }),
+        ],
       },
     ],
   },

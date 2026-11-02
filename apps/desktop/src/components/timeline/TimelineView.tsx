@@ -94,6 +94,7 @@ import {
 } from '../../app/timeline-edit-model.js';
 import { SHIFT_ABOVE, datedAmong, declaredOf, isProposableDay, pinNow, pinWithDay, type MetaIntent, type MetaRow, type MoveRow, type PinRow } from '../../app/timeline-proposals.js';
 import { barPictures, packPins, picturePins, pictureIndex, pinBandPx, pinCenter, pinDragDay, pinKeyDelta, pinRect, portraitOf, type PicturePin } from '../../app/timeline-pictures.js';
+import { isModern } from '../../app/interface.js';
 import { accessibleText } from '../../i18n/accessible-text.js';
 import { uiIsRtl } from '../../i18n/direction.js';
 import { isImeEnter, layoutLetter } from '../../app/keymap.js';
@@ -141,15 +142,18 @@ function shifted(box: Box, ox: number, oy: number): Rect {
 
 const PREFERS_AGENDA = mediaQuery(['forced-colors', 'active'], ['prefers-reduced-motion', 'reduce']);
 
+/** Modern opens on the Agenda below 960 px too (the narrow layout, #361): a phone's width has no room for the canvas. */
 function usePrefersAgenda(): boolean {
-  const [prefers, setPrefers] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(PREFERS_AGENDA).matches);
+  // NARROW_QUERY (app/narrow-model.ts), written out so this chunk does not pull that module in.
+  const query = isModern() ? mediaQuery(['forced-colors', 'active'], ['prefers-reduced-motion', 'reduce'], ['max-width', '959px']) : PREFERS_AGENDA;
+  const [prefers, setPrefers] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
-    const list = window.matchMedia(PREFERS_AGENDA);
+    const list = window.matchMedia(query);
     const onChange = (): void => setPrefers(list.matches);
     list.addEventListener('change', onChange);
     return () => list.removeEventListener('change', onChange);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return prefers;
 }
 

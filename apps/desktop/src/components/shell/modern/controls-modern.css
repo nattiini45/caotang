@@ -49,8 +49,9 @@
   --k-tick: var(--k-tick-dark);
 }
 
-/* ---- Buttons: primary (the one action), secondary (tonal), quiet (a lighter step, still a surface at rest), icon. ---- */
-:root[data-shell='modern'] .button {
+/* ---- Buttons: primary (the one action), secondary (tonal), quiet (a lighter step, still a surface at rest), icon. The timeline's
+   Calendar and Save image (.tl-save) and Scene info's Add thread (a bare button) are secondary buttons too (#361). ---- */
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -68,15 +69,15 @@
   transition: background-color var(--dur-1) var(--ease-standard), transform var(--dur-1) var(--ease-spring);
 }
 
-:root[data-shell='modern'] .button:hover:not(:disabled) {
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button):hover:not(:disabled) {
   background: var(--k-fill-hover);
 }
 
-:root[data-shell='modern'] .button:active:not(:disabled) {
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button):active:not(:disabled) {
   transform: scale(0.97);
 }
 
-:root[data-shell='modern'] .button:disabled {
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button):disabled {
   opacity: 0.5;
 }
 
@@ -574,4 +575,31 @@
     background: none;
     content: '›';
   }
+}
+
+/* ---- More: a disclosure that holds a surface's secondary actions beside its one primary (the ghost bar, the review bar, #361). Its
+   summary is a quiet button (a surface at rest, the chevron at the start); opened, the actions follow it on the same line. ---- */
+:root[data-shell='modern'] .k-more {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+:root[data-shell='modern'] .k-more > summary {
+  gap: var(--space-2);
+  padding-inline: 10px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--k-quiet);
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+:root[data-shell='modern'] .k-more > summary:hover {
+  background: var(--k-fill-hover);
+}
+
+:root[data-shell='modern'] .k-more[open] > summary {
+  background: var(--k-fill);
+  color: var(--ink);
 }
