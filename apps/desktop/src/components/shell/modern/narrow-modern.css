@@ -231,9 +231,41 @@
     backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
   }
 
+  /* Scene info kept open (Keep open, #364): a sheet of a fixed share of the height above the tab bar with no scrim, and the page ends
+     a gutter above it, so the writer types in the page with the scene's details in sight below. */
+  :root[data-shell='modern'] .modern-stage > .scene-info.is-sheet.is-kept {
+    block-size: min(45dvh, 100dvh - var(--overlay-top) - var(--overlay-bottom));
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(> .scene-info.is-sheet.is-kept) > .modern-page-area {
+    inset-block-end: calc(var(--overlay-bottom) + min(45dvh, 100dvh - var(--overlay-top) - var(--overlay-bottom)) + var(--page-gutter));
+  }
+
+  /* The caret keeps a margin above the page's foot (and the keyboard) as the text scrolls under it. */
+  :root[data-shell='modern'] .modern-stage .modern-page .editor-pane {
+    scroll-padding-block-end: var(--space-6);
+  }
+
   /* Reduced motion (system or Settings): the drawer and the scrim appear and go at once (§5.5). */
   :root[data-shell='modern'][data-motion='reduced'] :is(.modern-drawer, .modern-drawer.is-open, .modern-narrow-scrim) {
     transition: none;
+  }
+}
+
+/* Typing on a phone (#364): with the on-screen keyboard up (the viewport meta's interactive-widget=resizes-content shrinks the layout
+   viewport, so a short narrow touch screen with a field in focus), the tab bar steps away and gives its room to the page and the sheets.
+   Write is the current tab already; the bar is back as soon as the keyboard goes. */
+@media (max-width: 959px) and (max-height: 600px) and (pointer: coarse) {
+  :root[data-shell='modern'] .modern-stage:has(:is([contenteditable='true'], textarea, input:not([type='checkbox'], [type='radio'])):focus) {
+    --overlay-bottom: var(--n-bottom);
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(:is([contenteditable='true'], textarea, input:not([type='checkbox'], [type='radio'])):focus) > .modern-ornament.is-bottom {
+    display: none;
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(:is([contenteditable='true'], textarea, input:not([type='checkbox'], [type='radio'])):focus) > .modern-page-area {
+    inset-block-end: var(--n-bottom);
   }
 }
 

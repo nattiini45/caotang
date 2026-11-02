@@ -29,8 +29,9 @@
 
 /* Open but not pinned (#358), above 1,280 px and with nothing docked at the inline-end edge, the page and its ornaments slide over to
    start a gap clear of the sidebar's edge (--binder-clear) when the page keeps its whole --page-w there; the slide is all or nothing
-   (the clamp's ×1000 is a step). Everywhere else (1,280 px and down, the agent window or a docked Scene info open, or a page wider
-   than the room left) nothing moves, and the sidebar overlaps the page as a sheet of the dense float material (below). The stage's
+   (the clamp's ×1000 is a step). From 1,280 px down the page narrows beside it instead (below, #364). Everywhere else (the agent
+   window or a docked Scene info open, or a page wider than the room left) nothing moves, and the sidebar overlaps the page as a sheet
+   of the dense float material. The stage's
    geometry is inline, so this is the one --area-start that is marked important. */
 @media (min-width: 1281px) {
   :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open:not(.is-pinned)):not(:has(> .modern-companion.is-open, > .scene-info.is-docked)) {
@@ -43,6 +44,20 @@
       var(--binder-base) +
         clamp(0px, var(--binder-to) - var(--binder-base) + 1000 * (var(--binder-cap) - var(--binder-to)), var(--binder-to) - var(--binder-base))
     ) !important;
+  }
+}
+
+/* From 1,280 px down to the narrow layout (a tablet in landscape), an open sidebar always takes its room, pinned or not: the page narrows
+   beside it rather than lying under it with its edge covered (#364). The agent window and a docked Scene info are sheets over the page
+   here (layout.ts), so the room at the inline-end edge is free. Important for the same reason as above: the stage's geometry is inline. */
+@media (min-width: 960px) and (max-width: 1280px) {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open:not(.is-pinned)) {
+    --area-start: calc(var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap) + var(--binder-sidebar-w)) !important;
+  }
+
+  /* The page is about 500 px wide beside the sidebar: the bottom ornament's tabs take tighter insets so all five fit over it. */
+  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open) > .modern-ornament.is-bottom .modern-capsule {
+    padding-inline: var(--space-5);
   }
 }
 
