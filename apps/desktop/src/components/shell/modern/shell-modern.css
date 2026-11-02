@@ -523,6 +523,35 @@
   transform: none;
 }
 
+/* ---- Touch (#364): a coarse pointer gets 44 px targets at every width, as the narrow layout has below 960 px (styles.css), so a tablet
+   in landscape on the wide layout is as easy to tap as a phone; and no keycaps. A sentence's own inline link keeps its line. ---- */
+@media (pointer: coarse) {
+  :root[data-shell='modern'] #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea, input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
+    min-inline-size: var(--target-min);
+    min-block-size: var(--target-min);
+  }
+
+  :root[data-shell='modern'] #root label:has(> input:is([type='checkbox'], [type='radio'])) {
+    min-block-size: var(--target-min);
+  }
+
+  :root[data-shell='modern'] .modern-kbd {
+    display: none;
+  }
+}
+
+/* A picture tile's select mark keeps its look, but by touch the whole 44 px corner of the tile is its target (#364). */
+@media (max-width: 959px), (pointer: coarse) {
+  :root[data-shell='modern'] .pb-tile > label.pb-select {
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    min-inline-size: var(--target-min);
+    min-block-size: var(--target-min);
+    padding: 0;
+    background: none;
+  }
+}
+
 /* ---- Below 960 px: the page's margins are narrow-modern.css's (the narrow-panels chunk; §13, M11 #312). ---- */
 
 /* ---- Forced colours (§5.3): system colours, a 1 px CanvasText border on every container, no shadows, no wallpaper. ---- */
