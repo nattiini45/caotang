@@ -266,8 +266,8 @@ The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**,
 |---|---|
 | **Editor** / **Corkboard** radio | **Write** / **Board** in the bottom ornament (same radio semantics; **Codex** is the third) |
 | Editor: the scene, its title, the load banner, the empty state (**New document**, **New chapter**) | The page in Write (same `EditorPane`) |
-| Ghost bar (draft preview: apply, discard) | Same, as a glass capsule pinned inside the page above the bottom ornament |
-| Review bar (**Previous**, **Next**, **Accept**, **Reject**, **Accept all**, **Reject all**) | Same bar, as a capsule inside the page; optionally also near the focused change (§8.7) |
+| Ghost bar (draft preview: apply, discard) | Same, on the page under the draft as one raised surface: **Apply** is the one primary, **Retry** and **Discard** are in its **More** disclosure (`.k-more`), and the words say only what the draft is (#361) |
+| Review bar (**Previous**, **Next**, **Accept**, **Reject**, **Accept all**, **Reject all**) | Same bar on the page: **Previous** and **Next** as chevrons, **Accept** the one primary, **Reject** beside it, **Accept all** and **Reject all** in its **More** disclosure (`.k-more`, #361); optionally also near the focused change (§8.7) |
 | Editor footer: word count, daily target quick-set and session ring | Scene info › Progress (same `TargetQuickSet`); the ring also on the title capsule |
 | Corkboard (cards, S/M/L zoom, synopsis edit, card menu, keyboard reorder) | Board view (same `Corkboard`), the zoom in the top ornament |
 | Screenplay scene (Script / Source / Pages, element menu, preview, chords) | Write view (same `ScreenplayView`), its mode switch in the page header |

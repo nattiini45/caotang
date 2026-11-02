@@ -355,6 +355,10 @@ test.describe('the Board and the Codex', () => {
     const codex = page.locator('.codex');
     await expect(codex).toBeVisible();
     await expectTarget(codex.getByRole('searchbox', { name: 'Search the codex' }), 'the search field');
+    // The chips are in the Filter disclosure (#361); its summary is a target too.
+    const filter = codex.locator('details.codex-filter > summary');
+    await expectTarget(filter, 'the Filter disclosure');
+    await filter.click();
     const chips = codex.locator('.codex-chips').getByRole('button');
     expect(await chips.count(), 'the filter chips').toBeGreaterThan(0);
     for (const chip of await chips.all()) await expectTarget(chip, `the chip ${(await chip.textContent()) ?? ''}`);

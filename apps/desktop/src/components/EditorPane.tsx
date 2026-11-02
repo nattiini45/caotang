@@ -30,6 +30,7 @@ import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { t } from '@lingui/core/macro';
+import { isModern } from '../app/interface.js';
 import { keyboardLayoutStore, shortcutLabel } from '../app/keymap.js';
 import {
   createTiptapEditorApi,
@@ -134,7 +135,7 @@ export function EditorPane({
           actions={
             onNewChapter === undefined ? (
               <button type="button" className="button is-primary" onClick={onNewDocument}>
-                New document
+                {t`New document`}
               </button>
             ) : (
               <button type="button" className="button is-primary" onClick={onNewChapter}>
@@ -642,23 +643,39 @@ function GhostBar({
   barRef: RefObject<HTMLElement | null>;
 }): ReactNode {
   useLingui();
+  const modern = isModern();
+  const rest = (
+    <>
+      <button type="button" className="button" disabled={!live} onClick={() => ghost.retry()}>
+        <Trans>Retry</Trans>
+      </button>
+      <button type="button" className="button is-quiet" disabled={!live} onClick={() => ghost.discard()}>
+        <Trans>Discard</Trans>
+      </button>
+    </>
+  );
   return (
     <aside ref={barRef} className="ghost-bar" aria-label={t`Draft preview`} data-testid="ghost-bar">
       <p>
         {draft.cut
-          ? t`Draft for “${{ title: isolate(title) }}”: ${{ words: wordsLabel(draft.words) }}, cut off at the model’s output limit. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is.`
-          : t`Draft for “${{ title: isolate(title) }}”: ${{ words: wordsLabel(draft.words) }}. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is.`}
+          ? t`Draft for “${{ title: isolate(title) }}”: ${{ words: wordsLabel(draft.words) }}, cut off at the model’s output limit.`
+          : t`Draft for “${{ title: isolate(title) }}”: ${{ words: wordsLabel(draft.words) }}.`}
+        {/* Modern says it once: the buttons name what they do (#361). */}
+        {modern ? null : ` ${t`Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is.`}`}
       </p>
       <div className="ghost-actions">
         <button type="button" className="button is-primary" disabled={!live || !approvable || !ghost.canApply()} onClick={() => ghost.apply()}>
           <Trans>Apply</Trans>
         </button>
-        <button type="button" className="button" disabled={!live} onClick={() => ghost.retry()}>
-          <Trans>Retry</Trans>
-        </button>
-        <button type="button" className="button is-quiet" disabled={!live} onClick={() => ghost.discard()}>
-          <Trans>Discard</Trans>
-        </button>
+        {/* Modern keeps one primary in view and the rest in a disclosure (#361); Classic shows all three. */}
+        {modern ? (
+          <details className="k-more">
+            <summary>{t`More`}</summary>
+            {rest}
+          </details>
+        ) : (
+          rest
+        )}
       </div>
     </aside>
   );

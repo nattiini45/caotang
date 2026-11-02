@@ -3335,6 +3335,11 @@ msgstr ""
 msgid "Apply selected ({count})"
 msgstr ""
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
+msgstr ""
+
 #: apps/desktop/src/app/agent-model.ts
 msgid "Applying"
 msgstr ""
@@ -3564,7 +3569,7 @@ msgstr ""
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
-msgid "Attached to no items yet. A Manual entry is sent only in the items it is attached to (codex.md §5)."
+msgid "Attached to no items yet. A Manual entry is sent only in the items it is attached to."
 msgstr ""
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
@@ -5941,12 +5946,12 @@ msgstr ""
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
-msgid "Draft for “{title}”: {words}, cut off at the model’s output limit. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
+msgid "Draft for “{title}”: {words}, cut off at the model’s output limit."
 msgstr ""
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
-msgid "Draft for “{title}”: {words}. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
+msgid "Draft for “{title}”: {words}."
 msgstr ""
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -6742,6 +6747,11 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.synopsisFill.one.active"
+msgstr ""
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
+msgid "Filter"
 msgstr ""
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -8909,11 +8919,14 @@ msgstr ""
 msgid "Monthly"
 msgstr ""
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/ReviewBar.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "More"
@@ -9147,8 +9160,10 @@ msgstr ""
 msgid "New dialogue here"
 msgstr ""
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
+#: apps/desktop/src/components/EditorPane.tsx
 msgid "New document"
 msgstr ""
 
