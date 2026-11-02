@@ -25,7 +25,9 @@ let modernLoaded: ModernShellModule | null = null;
 /** Loads the `modern-shell` chunk, once; a failed load is forgotten, so the next choice of Modern asks again. */
 function loadModernShell(): Promise<ModernShellModule> {
   modernShell ??= import('./modern/modern-shell.js').then(
-    (module) => {
+    async (module) => {
+      // Below 960 px the narrow layout's own chunk too (#312), so Modern is never laid out without the styles its width needs.
+      await module.modernReady();
       modernLoaded = module;
       return module;
     },

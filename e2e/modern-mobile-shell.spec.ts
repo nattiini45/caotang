@@ -254,6 +254,24 @@ test.describe('the Modern binder drawer', () => {
     await expect(page.getByRole('textbox', { name: 'Document text' })).toBeVisible();
   });
 
+  test('its Binder tab is #307’s: the import actions, the filter, the tree, and the footer under Goals and sprint, tapped open', async ({ page }) => {
+    await newProject(page, TABLET);
+    await openDrawer(page);
+    const side = drawer(page);
+    await expect(side.getByRole('toolbar', { name: 'Binder actions' })).toBeVisible();
+    await expect(side.locator('#binder-filter-text')).toBeVisible();
+    const goals = side.getByRole('button', { name: 'Goals and sprint' });
+    await expect(goals).toHaveAttribute('aria-expanded', 'false');
+    await expect(side.getByTestId('binder-footer')).toBeHidden();
+    await press(page, goals);
+    await expect(goals).toHaveAttribute('aria-expanded', 'true');
+    await expect(side.getByTestId('binder-footer')).toBeVisible();
+    await expect(drawer(page)).toHaveAttribute('data-state', 'open');
+    const box = await goals.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(43.99);
+    expect(await smallTargets(page)).toEqual([]);
+  });
+
   test('the keyboard reaches it from the top bar: Tab from the title capsule goes on to the binder’s button, in reading order', async ({ page }) => {
     await newProject(page);
     await capsule(page).focus();

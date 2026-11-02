@@ -14643,6 +14643,11 @@ msgstr "The app settings could not be opened here, so they will not be kept: {er
 msgid "the aspect ratio is one of the ratios in the list"
 msgstr "the aspect ratio is one of the ratios in the list"
 
+#. Modern interface: the stage and the page.
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
+msgid "the binder"
+msgstr "the binder"
+
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx

@@ -13,23 +13,24 @@
 
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { lazy, useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 
 import '../../../tokens/modern.css';
 import './shell-modern.css';
 import './surfaces-modern.css';
 
-import { LazyBoundary } from '../../lazy-view.js';
+import { NARROW_QUERY } from '../../../app/narrow-model.js';
+import { ChunkLoadError, LazyBoundary } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';
 import type { ShellRegions } from '../regions.js';
 import { modernLayout, type ModernView } from './layout.js';
 import { installMorph, morphPage } from './morph.js';
 import { useSceneInfo } from './scene-info-store.js';
-import { NarrowPanels } from './narrow-panels.js';
 import { currentBinderPinned, subscribeBinderPinned } from './sidebar-model.js';
 import { MODERN_SLOTS, type ModernSlot, type ModernSlots } from './slots.js';
 import { Page, Stage, type StageGeometry } from './stage.js';
 import { modernViewOf } from './views.js';
+import type * as NarrowPanelsModule from './narrow-panels.js';
 
 export { MODERN_SLOTS, type ModernSlot, type ModernSlotProps, type ModernSlots } from './slots.js';
 export { Page, Stage, geometryProperties, type StageGeometry } from './stage.js';
@@ -51,7 +52,31 @@ function subscribeViewport(listener: () => void): () => void {
 // Dialogs grow out of their openers while Modern is on, on the projects screen as in a project (§8.3).
 installMorph();
 
-/** The page's id: the skip link's target, and what a slot names with `aria-controls`. */
+/**
+ * The narrow layout's panels (#312), with narrow-modern.css, are a chunk of their own, loaded below 960 px only, so a wide Modern window
+ * does not carry them and Modern's first load stays inside its budget (§12). A failed fetch is a ChunkLoadError, so the boundary around
+ * them offers Try again and Reload.
+ */
+let narrowPanels: Promise<typeof NarrowPanelsModule> | null = null;
+function loadNarrowPanels(): Promise<typeof NarrowPanelsModule> {
+  narrowPanels ??= import('./narrow-panels.js').catch((error: unknown) => {
+    narrowPanels = null;
+    throw new ChunkLoadError(error);
+  });
+  return narrowPanels;
+}
+const NarrowPanels = lazy(() => loadNarrowPanels().then((module) => ({ default: module.NarrowPanels })));
+
+/**
+ * Resolves once what Modern needs for the window's width now has loaded: the narrow panels and their stylesheet below 960 px, nothing
+ * otherwise. Shell.tsx waits for it before it lays Modern out, so a narrow window never paints a frame of the wide layout. Never rejects:
+ * a failed narrow load is the boundary's to say.
+ */
+export function modernReady(): Promise<void> {
+  const narrow = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(NARROW_QUERY).matches;
+  return narrow ? loadNarrowPanels().then(() => undefined, () => undefined) : Promise.resolve();
+}
+
 export const PAGE_ID = 'modern-page';
 
 export function ModernShell({
@@ -94,7 +119,11 @@ export function ModernShell({
       {slot(slots.topOrnament)}
       {sidebar ? slot(slots.sidebar) : null}
       {/* Below 960 px (§13, #312): the binder's button and drawer, the one scrim, and the one-panel-at-a-time rule. */}
-      {view.narrow ? <NarrowPanels regions={regions} pageId={PAGE_ID} /> : null}
+      {view.narrow ? (
+        <LazyBoundary label={t`the binder`} variant="toast">
+          <NarrowPanels regions={regions} pageId={PAGE_ID} />
+        </LazyBoundary>
+      ) : null}
       <Page id={PAGE_ID} label={regions.projectName} view={current}>
         <PageContent regions={regions} view={current} agentOnPage={slots.companion === null} />
       </Page>
