@@ -105,6 +105,22 @@
   color: var(--danger);
 }
 
+/* A Confirm's destructive answer stays filled (Classic's .confirm rule), its ink the one Classic picks for each scheme. */
+:root[data-shell='modern'] .confirm .button.is-danger {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+:root[data-shell='modern'] .confirm .button.is-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 88%, var(--ink));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) .confirm .button.is-danger {
+    color: #1b0f0c;
+  }
+}
+
 :root[data-shell='modern'] :is(.k-icon-button, .button.is-icon) {
   inline-size: var(--target-min);
   block-size: var(--target-min);
@@ -119,7 +135,9 @@
 }
 
 /* ---- Fields: text, search, number, date, textarea and select share one shape. ---- */
-:root[data-shell='modern'] :is(select, textarea, .keyword-input, .picker-button, input:is(:not([type]), [type='text'], [type='search'], [type='email'], [type='url'], [type='password'], [type='tel'], [type='number'], [type='date'], [type='time'], [type='datetime-local'])) {
+/* Two fields draw themselves and stay out: the palette's query (palette.css) and a source field's input, which must match the highlight
+   layer under it (SourceField). :where() keeps the kit's weight where it was. */
+:root[data-shell='modern'] :is(select, textarea, .keyword-input, .picker-button, input:is(:not([type]), [type='text'], [type='search'], [type='email'], [type='url'], [type='password'], [type='tel'], [type='number'], [type='date'], [type='time'], [type='datetime-local'])):where(:not(.modern-palette-field > input, .src-input)) {
   min-block-size: var(--target-min);
   padding-block: 0;
   padding-inline: var(--k-pad-start, 12px) var(--k-pad-end, 12px);
@@ -136,17 +154,23 @@
   line-height: 1.45;
 }
 
-:root[data-shell='modern'] :is(select, textarea, input):hover:not(:disabled, :focus, [type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']) {
+/* A code or list box (a skill's text, the MCP server list, a calendar box) keeps its monospace face. */
+:root[data-shell='modern'] textarea:is(.skills-editor, .mcp-export, .tl-calendar-box) {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 13px;
+}
+
+:root[data-shell='modern'] :is(select, textarea, input):hover:not(:disabled, :focus, [type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']):where(:not(.modern-palette-field > input, .src-input)) {
   border-color: var(--k-edge);
 }
 
-:root[data-shell='modern'] :is(select, textarea, input, .button, .k-icon-button, summary, .segmented-item, .tl-segmented-item):focus-visible {
+:root[data-shell='modern'] :is(select, textarea, input, .button, .k-icon-button, summary, .segmented-item, .tl-segmented-item):focus-visible:where(:not(.modern-palette-field > input, .src-input)) {
   outline: var(--focus-width) solid var(--focus);
   outline-offset: var(--focus-offset);
   box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
 }
 
-:root[data-shell='modern'] :is(textarea, input)::placeholder {
+:root[data-shell='modern'] :is(textarea, input):where(:not(.modern-palette-field > input, .src-input))::placeholder {
   color: var(--muted);
   opacity: 1;
 }
@@ -275,7 +299,7 @@
   background-position: 2px 50%, 0 0;
 }
 
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option)):has(> input:is([type='checkbox'], [type='radio'])) {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) {
   display: block;
   position: relative;
   min-block-size: var(--target-min);
@@ -288,15 +312,55 @@
   cursor: pointer;
 }
 
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option)):has(> input:is([type='checkbox'], [type='radio'])) > input {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > input {
   position: absolute;
   inset-block-start: 12px;
   inset-inline-start: 0;
 }
 
+/* A picture tile's select mark stays the overlay on its thumbnail (pictures.css), with a 24 px target. */
+:root[data-shell='modern'] label.pb-select {
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+  cursor: pointer;
+}
+
 /* An option card or pill (Compile's formats, the codex policy) keeps its own layout; its row is still 44 px. */
 :root[data-shell='modern'] label:is(.export-option, .policy-option) {
   min-block-size: var(--target-min);
+}
+
+/* An option card's name is its title, not Classic's small muted `label > span` caption, which set it below its own help. */
+:root[data-shell='modern'] label.export-option > span {
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* The agent's four modes sit in two even columns beside "Mode", so none is left alone on a line in the 400 px window. */
+:root[data-shell='modern'] .agent-mode {
+  display: grid;
+  grid-template-columns: max-content repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+  align-items: start;
+}
+
+:root[data-shell='modern'] .agent-mode legend {
+  grid-row: span 2;
+  margin: 0;
+  padding-block: 12px;
+  line-height: 20px;
+}
+
+:root[data-shell='modern'] .agent-mode > label {
+  white-space: nowrap;
+}
+
+/* The saved-filter menu keeps its whole name; Save moves to the next line when the two do not fit. */
+:root[data-shell='modern'] .filter-row select {
+  flex: 1 1 auto;
 }
 
 /* A switch sits at the end of its row, as a setting does. */
@@ -310,7 +374,7 @@
 }
 
 /* Classic's `label > span` (a small muted caption) does not apply inside a check's row: the words are the label. */
-:root[data-shell='modern'] label:where(:not(.export-option, .policy-option)):has(> input:is([type='checkbox'], [type='radio'])) > span {
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > span {
   display: inline;
   margin: 0;
   color: inherit;
@@ -491,8 +555,18 @@
     background-image: none;
   }
 
-  :root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']) {
+  /* Native selects get their own indicator back once the chevron goes. */
+  :root[data-shell='modern'] select:is(:enabled, :disabled) {
     appearance: auto;
+  }
+
+  /* Listed at the checked and switch rules' weight so their fixed-colour artwork goes too. */
+  :root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']),
+  :root[data-shell='modern'] input[type='checkbox']:is(:checked, :indeterminate),
+  :root[data-shell='modern'] input[type='radio']:checked,
+  :root[data-shell='modern'] input[type='checkbox']:is([role='switch'], .k-switch):is(:checked, :not(:checked)) {
+    appearance: auto;
+    background-image: none;
   }
 
   :root[data-shell='modern'] summary::before {

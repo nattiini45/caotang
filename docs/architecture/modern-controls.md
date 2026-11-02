@@ -43,9 +43,9 @@ These are set by the kit, with light values and a dark override in both dark blo
 | Button, secondary | `.button` | — | Tonal pill, 15/500, 44 px, 16 px inline padding |
 | Button, primary | `.button.is-primary` | — | Accent fill. Use **one per surface** |
 | Button, quiet | `.button.is-quiet` | — | Lighter surface at rest, `--ink-soft` text |
-| Button, danger | `.button.is-danger` | — | Danger text on the button's own surface |
+| Button, danger | `.button.is-danger` | — | Danger text on the button's own surface. In a Confirm (`.confirm`) it stays filled, as in Classic |
 | Icon button | `.button.is-icon` | `.k-icon-button` | 44 × 44 circle; its `svg` is 20 px. Give it an `aria-label` |
-| Text field | `input` of type text, email, url, password, tel, date or time, untyped `input`, `.keyword-input`, `textarea` | — | 12 px radius, `--line-strong` edge, `--raised` fill, 15 px text |
+| Text field | `input` of type text, email, url, password, tel, date or time, untyped `input`, `.keyword-input`, `textarea` | — | 12 px radius, `--line-strong` edge, `--raised` fill, 15 px text. A code box (`.skills-editor`, `.mcp-export`, `.tl-calendar-box`) keeps monospace. The palette's query and a source field's `.src-input` (it must match its highlight layer) are left out |
 | Search field | `input[type=search]` | — | Magnifier at the start |
 | Number field | `input[type=number]` | — | No spinners (the arrow keys still step), tabular digits, at least 4 ch wide |
 | Select | `select` (single) | — | `appearance: none`, chevron at the end; the list stays the system's. `select[multiple]` and `[size]` lose the chevron |
@@ -53,7 +53,7 @@ These are set by the kit, with light values and a dark override in both dark blo
 | Checkbox | `input[type=checkbox]` | — | 20 px, 6 px radius, accent with a tick when checked; indeterminate shows a bar |
 | Radio | `input[type=radio]` | — | 20 px circle, accent with an inner dot |
 | Switch | `input[type=checkbox][role=switch]` | `input[type=checkbox].k-switch` | 36 × 22 track; the thumb moves to the end when on. In a label, it sits at the row's end |
-| Check, radio or switch row | `label` whose direct child is that input (not `.export-option`, `.policy-option`) | — | A block row, 44 px tall. The mark hangs at the start and the words wrap under themselves, whatever the label holds (`<code>`, a hint `<span>`). Classic's `label > span` caption style is undone inside it |
+| Check, radio or switch row | `label` whose direct child is that input (not `.export-option`, `.policy-option`) | — | A block row, 44 px tall. The mark hangs at the start and the words wrap under themselves, whatever the label holds (`<code>`, a hint `<span>`). Classic's `label > span` caption style is undone inside it, and inside an `.export-option` card, whose name is its title |
 | Radio group | `.settings-radios` | — | A column of rows |
 | Fieldset and legend | `fieldset`, `legend` | — | No groove border; the legend is a 13/600 group label |
 | Segmented | `.segmented` + `.segmented-item`, `.tl-segmented` + `.tl-segmented-item` | `.k-segmented` + `.segmented-item` | Track with 3 px inset; segments 44 px; the selected one (`aria-checked`, `aria-pressed` or `aria-selected` = true) on `--k-thumb` |
@@ -64,6 +64,11 @@ These are set by the kit, with light values and a dark override in both dark blo
 | Empty state | `.empty-state` | `.k-empty` | No dashed box: centred words on the surface, 32 px block padding, 15/600 title |
 
 Focus is the two-tone ring (`--focus` outside, `--focus-halo` inside) on every kit control. Forced colours draws `ButtonText` edges, removes the images, and gives checks and radios their system look.
+
+## Surface layouts the kit settles
+
+- The agent's Mode (`.agent-mode`) is a grid: "Mode", then the four options in two even columns, so none wraps alone in the 400 px window. Its segmented control is #363's.
+- The binder's saved-filter menu (`.filter-row select`) keeps its whole name; Save wraps to the next line when both don't fit.
 
 ## Shared fixes (Classic too)
 
