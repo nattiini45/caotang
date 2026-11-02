@@ -164,7 +164,7 @@ export const BUDGET = {
     entryMargin: 0.01,
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
-    // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 59,089 bytes raw (9.5 kB gzip); the cap is that plus
+    // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
     // about 5%. Raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this
     // one on-use sheet; it never loads for Classic.
     caps: { 'modern-shell': 62_000 },
@@ -173,8 +173,8 @@ export const BUDGET = {
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
    * Their panels are lazy chunks already; what is left is the slots' wiring in `modern-shell` (§12).
-   * Stageshow polish #357: 27.7 kB measured with the control kit, all of it CSS (Modern's stylesheet grew 2.1 kB gzip; no JS moved);
-   * the allowance is that plus about 0.6 kB.
+   * Stageshow polish #357: 28.0 kB measured with the control kit, all of it CSS (Modern's stylesheet grew 2.4 kB gzip; no JS moved);
+   * the allowance is its first cut (27.7 kB) plus about 0.6 kB.
    */
   modernFirstLoadDelta: 28_300,
 };

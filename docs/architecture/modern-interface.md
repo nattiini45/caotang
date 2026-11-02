@@ -449,7 +449,7 @@ Changes to `tools/check-bundle-size.mjs` (M4): a cap map for named lazy chunks; 
 
 **Measured at M12 (#313), the final build of the epic** (`node tools/check-bundle-size.mjs`, against feat/modern-interface at d1d4e437 before it): the first load is 1,025.6 kB gzip (1,025,641 B, −182 B; ceiling 1,030,000 B, not moved). All JS is 7,753.6 kB raw (7,753,593 B, −1,118 B, under the 7,755,000 B ceiling: the flip removed the two Preview paragraphs and the gate's branch). `modern-shell`'s stylesheet is 47.65 kB raw (47,650 B, +164 B for the ghost bar's and the review bar's 44 px buttons), 7.4 kB gzip (cap 50 kB); `narrow-panels`' is 5.9 kB and `focus-mode`'s 0.8 kB, both on use. **Modern first load** is 1,051.2 kB gzip, 25.6 kB (25,592 B, +21 B) over Classic's (allowed 25,900 B). The entry stylesheet is 105.5 kB raw, unchanged since M4. No cap moved at #313.
 
-**Measured with the control kit (Stageshow polish, #357):** `modern-shell`'s stylesheet is 59.1 kB raw (59,089 B), 9.5 kB gzip, so its cap rose from 50,000 to 62,000 B; **Modern first load** is 27.7 kB gzip over Classic's, all of the growth CSS, so its allowance rose from 25,900 to 28,300 B. The first load (1,025.7 kB gzip) and all JS (7,754.0 kB raw) did not move; the entry stylesheet is 105.8 kB raw, inside its 1% margin.
+**Measured with the control kit (Stageshow polish, #357):** `modern-shell`'s stylesheet is 60.4 kB raw (60,375 B), 9.6 kB gzip, so its cap rose from 50,000 to 62,000 B; **Modern first load** is 28.0 kB gzip over Classic's, all of the growth CSS, so its allowance rose from 25,900 to 28,300 B. The first load (1,025.7 kB gzip) and all JS (7,754.0 kB raw) did not move; the entry stylesheet is 105.8 kB raw, inside its 1% margin.
 
 ## 13. Narrow and mobile
 
