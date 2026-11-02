@@ -37,6 +37,14 @@
   --area-start: calc(var(--sidebar-w) + var(--page-gutter));
 }
 
+/* The overlay band (tokens/modern.css) from the stage's own geometry: below the top ornament's foot, above the bottom ornament's top. */
+@media (min-width: 960px) {
+  :root[data-shell='modern'] .modern-stage {
+    --overlay-top: calc(var(--page-top) + var(--radius-ornament) + var(--space-4));
+    --overlay-bottom: calc(var(--page-bottom) + var(--radius-ornament) + var(--space-4));
+  }
+}
+
 /* Decorative, drawn once, fixed, never animated (§5.3). */
 :root[data-shell='modern'] .modern-wallpaper {
   position: absolute;
@@ -160,6 +168,8 @@
   padding: var(--ornament-pad);
   border-radius: var(--radius-ornament);
   z-index: 2;
+  /* They follow the page when it slides over for an open sidebar (binder-sidebar.css). */
+  transition: inset-inline-start var(--dur-3) var(--ease-spring);
 }
 
 :root[data-shell='modern'] .modern-ornament.is-top {
@@ -335,7 +345,8 @@
   opacity: 0.8;
 }
 
-/* ---- ⋯ and every popover (§8.2): thick glass, placed by script (GlassPopover), one at a time. ---- */
+/* ---- ⋯ and every popover (§8.2): placed by script (GlassPopover), one at a time, between the ornaments. A popover holds text over
+   the page, so it takes the float material (surfaces-modern.css), dense, not the thick glass of the chrome (Stageshow polish, #358). ---- */
 :root[data-shell='modern'] .modern-popover {
   position: fixed;
   z-index: 20;
@@ -345,11 +356,51 @@
   transform-origin: center;
 }
 
-:root[data-shell='modern'] .modern-menu {
+:root[data-shell='modern'] .modern-popover.mat-thick {
+  background: var(--mat-float-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+}
+
+/* ⋯: the menu scrolls inside the popover's rounded edge, its last and first rows fading under a soft edge while there is more. */
+:root[data-shell='modern'] .modern-menu-popover {
   display: flex;
   flex-direction: column;
-  min-inline-size: 264px;
-  padding: var(--space-3);
+  overflow: hidden;
+}
+
+:root[data-shell='modern'] .modern-menu {
+  --fade-to: var(--mat-float-bg);
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 296px;
+  min-block-size: 0;
+  padding-block: 0;
+  padding-inline: var(--space-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: var(--space-5);
+}
+
+/* The edge fades: sticky strips in the surface's own colour, each taking its own room, so nothing is faded at either end. */
+:root[data-shell='modern'] :is(.modern-menu, .scene-info-body, .modern-palette-list, .menu)::before,
+:root[data-shell='modern'] :is(.modern-menu, .scene-info-body, .modern-palette-list, .menu)::after {
+  content: '';
+  position: sticky;
+  z-index: 1;
+  display: block;
+  flex: none;
+  block-size: var(--space-5);
+  pointer-events: none;
+}
+
+:root[data-shell='modern'] :is(.modern-menu, .scene-info-body, .modern-palette-list, .menu)::before {
+  inset-block-start: 0;
+  background: linear-gradient(var(--fade-to), transparent);
+}
+
+:root[data-shell='modern'] :is(.modern-menu, .scene-info-body, .modern-palette-list, .menu)::after {
+  inset-block-end: 0;
+  background: linear-gradient(transparent, var(--fade-to));
 }
 
 :root[data-shell='modern'] .modern-menu-section {
@@ -364,12 +415,12 @@
   background: var(--line);
 }
 
+/* A group's subhead, at the items' text inset (the check column and its gap), one weight step over them in the muted ink. */
 :root[data-shell='modern'] .modern-menu-heading {
-  padding-block: var(--space-3) var(--space-2);
-  padding-inline: var(--space-5);
-  font: 600 12px/1.2 var(--ui);
-  letter-spacing: 0.02em;
-  color: var(--on-glass);
+  padding-block: var(--space-4) var(--space-2);
+  padding-inline: calc(var(--space-3) + 20px + var(--space-3)) var(--space-5);
+  font: 600 13px/1.3 var(--ui);
+  color: var(--muted);
 }
 
 :root[data-shell='modern'] .modern-menu-item {
@@ -408,13 +459,25 @@
   inline-size: 20px;
 }
 
+/* The label takes the room; the chord is a trailing column of its own, never touching the words. */
 :root[data-shell='modern'] .modern-menu-label {
   flex: 1;
+  min-inline-size: 0;
 }
 
 :root[data-shell='modern'] .modern-menu-chord {
+  flex: none;
+  margin-inline-start: var(--space-6);
   font: 500 12px/1 var(--ui);
+  white-space: nowrap;
   opacity: 0.8;
+}
+
+/* Touch and the narrow layout have no chords: the shortcuts go, the items stay. */
+@media (max-width: 959px), (pointer: coarse) {
+  :root[data-shell='modern'] .modern-menu-chord {
+    display: none;
+  }
 }
 
 /* ---- The page: the editor kept mounted in every view (§4.1), the Codex view at the page's width. ---- */

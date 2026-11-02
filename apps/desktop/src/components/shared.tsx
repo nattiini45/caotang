@@ -110,6 +110,34 @@ export interface MenuAnchor {
  * A positioned list of actions. Arrow keys move, Enter or Space chooses, Escape or a
  * click outside closes. It takes focus on open, so the keyboard works without a click.
  */
+/**
+ * The band an overlay stays in, in viewport px: in Modern, below the top ornament and above the bottom one (`--overlay-top` and
+ * `--overlay-bottom`, registered lengths in tokens/modern.css); in Classic, which has neither, the window less a 4 px margin at the top.
+ */
+export function overlayBand(element: Element): { top: number; bottom: number } {
+  const style = getComputedStyle(element);
+  const edge = (name: string): number => Number.parseFloat(style.getPropertyValue(name)) || 0;
+  return { top: Math.max(4, edge('--overlay-top')), bottom: window.innerHeight - edge('--overlay-bottom') };
+}
+
+/**
+ * Puts an open menu at its anchor, kept on screen inside the overlay band. Exported so a test can call it twice and see the same place.
+ */
+export function placeMenu(menu: HTMLElement, anchor: MenuAnchor): void {
+  // Keep the menu on screen, inside the overlay band: open upward when it would run past its foot, and shift it in from the
+  // right edge. A fixed menu is not scrolled into view by anything else. It is placed by the viewport: a filtered ancestor (Modern's
+  // glass sidebar) is the containing block of a fixed box, so its offset is taken back. The menu goes back to its anchor before it
+  // is measured, so an effect that runs again (React's strict mode, a re-placed anchor) reads that offset, not its own last move.
+  menu.style.top = `${anchor.y}px`;
+  menu.style.left = `${anchor.x}px`;
+  const rect = menu.getBoundingClientRect();
+  const band = overlayBand(menu);
+  const top = anchor.y + rect.height > band.bottom ? anchor.y - rect.height - 36 : anchor.y;
+  const left = anchor.x + rect.width > window.innerWidth ? Math.max(4, window.innerWidth - rect.width - 8) : anchor.x;
+  menu.style.top = `${Math.max(band.top, top) - rect.top + anchor.y}px`;
+  menu.style.left = `${left - rect.left + anchor.x}px`;
+}
+
 export function Menu({
   label,
   anchor,
@@ -142,15 +170,7 @@ export function Menu({
   useEffect(() => {
     const menu = ref.current;
     if (!menu) return;
-    // Keep the menu on screen: open upward when it would run off the bottom, and shift it in
-    // from the right edge. A fixed menu is not scrolled into view by anything else.
-    const rect = menu.getBoundingClientRect();
-    if (rect.bottom > window.innerHeight) {
-      menu.style.top = `${Math.max(4, anchor.y - rect.height - 36)}px`;
-    }
-    if (rect.right > window.innerWidth) {
-      menu.style.left = `${Math.max(4, window.innerWidth - rect.width - 8)}px`;
-    }
+    placeMenu(menu, { x: anchor.x, y: anchor.y });
     // Focus the first item that can be chosen. A menu whose only entry is disabled takes
     // focus itself, so Escape still reaches it.
     const first = menu.querySelector<HTMLElement>('[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled])');

@@ -167,7 +167,9 @@ export const BUDGET = {
     // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
     // about 5%. Raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this
     // one on-use sheet; it never loads for Classic.
-    caps: { 'modern-shell': 62_000 },
+    // Stageshow polish #358: dense materials, overlay band, menu columns. 67,121 bytes raw (10.9 kB gzip) measured on top of #357's
+    // control kit (+6,746 bytes); the cap is that plus about 2%.
+    caps: { 'modern-shell': 68_500 },
   },
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
@@ -175,8 +177,10 @@ export const BUDGET = {
    * Their panels are lazy chunks already; what is left is the slots' wiring in `modern-shell` (§12).
    * Stageshow polish #357: 28.0 kB measured with the control kit, all of it CSS (Modern's stylesheet grew 2.4 kB gzip; no JS moved);
    * the allowance is its first cut (27.7 kB) plus about 0.6 kB.
+   * Stageshow polish #358: dense materials, overlay band, menu columns. 29,164 bytes measured, nearly all of it Modern's stylesheet
+   * (the JS caps do not move); the allowance is that plus about 1%.
    */
-  modernFirstLoadDelta: 28_300,
+  modernFirstLoadDelta: 29_500,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */

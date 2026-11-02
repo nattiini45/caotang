@@ -240,9 +240,16 @@
     inline-size: auto;
   }
 
+  /* Scene info's sheet rises from just above the tab bar, so Write and Ask stay in sight, and stops below the top bar (#358). */
   :root[data-shell='modern'] .modern-stage > .scene-info.is-sheet {
-    inset-block-start: auto;
-    max-block-size: min(80dvh, 100dvh - var(--n-top) - var(--n-bottom));
+    inset-block: auto var(--overlay-bottom);
+    max-block-size: min(80dvh, 100dvh - var(--overlay-top) - var(--overlay-bottom));
+  }
+
+  /* The drawer is a sheet over everything, the top bar too: the dense float material, not thick glass (#358). */
+  :root[data-shell='modern'] .modern-drawer.mat-thick {
+    background: var(--mat-float-bg);
+    backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
   }
 
   /* Reduced motion (system or Settings): the drawer and the scrim appear and go at once (§5.5). */

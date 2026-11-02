@@ -7,15 +7,17 @@
  * the tokens this reads, so nothing here repeats them; forced colours draws its own border and highlight.
  */
 
-/* The native modal dialog in the top layer. `.mat-thick` makes its element relative, so the dialog states its own placement. */
+/* The native modal dialog in the top layer. `.mat-thick` makes its element relative, so the dialog states its own placement. It opens
+   in the overlay band (tokens/modern.css), below the title capsule or the top bar and the safe area, and ends above the bottom
+   ornament or the tab bar, with the keyboard up too. It holds text over the page, so its material is the dense float (#358). */
 :root[data-shell='modern'] dialog.modern-palette {
   position: fixed;
-  inset-block: max(56px, 12dvh) auto;
+  inset-block: max(var(--overlay-top), 12dvh) auto;
   inset-inline: 0;
   margin-inline: auto;
   margin-block: 0;
-  inline-size: min(640px, calc(100% - 32px));
-  max-block-size: calc(100dvh - max(56px, 12dvh) - 24px);
+  inline-size: min(640px, calc(100% - 2 * var(--overlay-side)));
+  max-block-size: calc(100dvh - max(var(--overlay-top), 12dvh) - var(--overlay-bottom));
   padding: 0;
   border: 0;
   border-radius: var(--radius-sheet);
@@ -32,6 +34,11 @@
     opacity: 0;
     transform: translateY(-8px) scale(0.98);
   }
+}
+
+:root[data-shell='modern'] dialog.modern-palette.mat-thick {
+  background: var(--mat-float-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
 }
 
 :root[data-shell='modern'] dialog.modern-palette::backdrop {
@@ -101,8 +108,30 @@
   font: 600 12px/1.4 var(--ui);
 }
 
+/* On a phone or under touch the field's Esc keycap goes, so the placeholder keeps its words; so do the options' chords. */
+@media (max-width: 479px), (pointer: coarse) {
+  :root[data-shell='modern'] .modern-palette-field .modern-palette-kbd {
+    display: none;
+  }
+}
+
+/* A phone's field is a step smaller and the field's own inset is the only one, so the English placeholder fits whole at 390 px. */
+@media (max-width: 479px) {
+  :root[data-shell='modern'] .modern-palette-field input {
+    padding-inline: 0;
+    font-size: 15px;
+  }
+}
+
+@media (pointer: coarse) {
+  :root[data-shell='modern'] .modern-palette-option .modern-palette-kbd {
+    display: none;
+  }
+}
+
 /* ---- The grouped listbox. ---- */
 :root[data-shell='modern'] .modern-palette-list {
+  --fade-to: var(--mat-float-bg);
   flex: 1 1 auto;
   min-block-size: 0;
   max-block-size: min(56dvh, 480px);

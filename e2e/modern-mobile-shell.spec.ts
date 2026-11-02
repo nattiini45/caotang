@@ -306,7 +306,11 @@ test.describe('Scene info, the bottom sheet', () => {
       for (const behind of [pageMain(page), tabBar(page), binderButton(page), capsule(page)]) expect(await isInert(behind)).toBe(true);
       await settled(sceneInfo(page));
       const box = await sceneInfo(page).boundingBox();
-      expect(Math.round((box?.y ?? 0) + (box?.height ?? 0))).toBe(size.height - GUTTER);
+      // It rises from just above the tab bar, at the overlay band's foot, so the tab bar stays in sight behind the scrim (#358).
+      const bar = await tabBar(page).boundingBox();
+      const foot = await page.evaluate(() => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--overlay-bottom')));
+      expect(Math.round((box?.y ?? 0) + (box?.height ?? 0))).toBe(Math.round(size.height - foot));
+      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(bar?.y ?? 0);
       expect(box?.height ?? 0).toBeLessThanOrEqual(Math.round(size.height * 0.8) + 1);
       expect(Math.round(box?.width ?? 0)).toBe(size.width - 2 * GUTTER);
       expect(await smallTargets(page)).toEqual([]);

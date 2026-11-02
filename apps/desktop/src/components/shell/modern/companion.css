@@ -37,6 +37,7 @@
 /* The page moves over (above 1,280 px) and recedes slightly while the window is open (§8.10). */
 :root[data-shell='modern'] .modern-page-area {
   transition:
+    inset-inline-start var(--dur-3) var(--ease-spring),
     inset-inline-end var(--dur-3) var(--ease-spring),
     transform var(--dur-3) var(--ease-spring);
 }
@@ -78,6 +79,13 @@
 
   :root[data-shell='modern'] .modern-companion {
     box-shadow: var(--elev-glass), var(--elev-3);
+  }
+
+  /* A sheet over the page (and, below 960 px, over the bars): its header's words sit on the dense float material, never on thick
+     glass with the page's text behind (#358). Beside the page, above 1,280 px, it is chrome over the wallpaper and keeps the glass. */
+  :root[data-shell='modern'] .modern-companion.mat-thick {
+    background: var(--mat-float-bg);
+    backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
   }
 }
 

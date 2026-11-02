@@ -9,7 +9,10 @@
  * Sheet glass. A dialog holds Classic's text as it is: muted notes, danger and accent words, as well as ink. On the spec's thick glass
  * (.40 light, .64 dark) over the wallpaper, muted text falls to about 2.3:1, so dialogs, menus and toasts take a denser glass, settled
  * by the computed test in e2e/unit/modern-surfaces.spec.ts (§9.3): a dialog's sheet sits over its own veil (the ::backdrop tint, which
- * the sheet's blur samples), a menu or a toast has no veil and so is denser still. Both are still blurred, see-through glass.
+ * the sheet's blur samples), a menu or a toast has no veil and so is denser still. Both are still blurred glass, but dense: they hold
+ * text over the page, and nothing translucent sits under text (Stageshow polish, #358), so the page's words never read through even
+ * where a browser drops the blur. The float material is also every popover's, Scene info's, the palette's, the agent window's as a
+ * sheet over the page, and the binder sidebar's while it is not pinned. Glass stays on the chrome over the wallpaper.
  */
 
 /* ---- Tokens. The scheme blocks set the primitives (--m-*); the --mat-* names are what the rules read and what a fallback changes. ---- */
@@ -22,24 +25,24 @@
 }
 
 :root[data-shell='modern']:not([data-theme='dark']) {
-  --m-sheet: rgba(255, 252, 250, 0.78);
-  --m-float: rgba(255, 252, 250, 0.84);
+  --m-sheet: rgba(255, 252, 250, 0.97);
+  --m-float: rgba(255, 252, 250, 0.97);
   --m-veil: rgba(250, 244, 240, 0.4);
   --m-sheet-rim: rgba(255, 255, 255, 0.7);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-shell='modern']:not([data-theme='light']) {
-    --m-sheet: rgba(26, 24, 36, 0.86);
-    --m-float: rgba(26, 24, 36, 0.91);
+    --m-sheet: rgba(26, 24, 36, 0.97);
+    --m-float: rgba(26, 24, 36, 0.97);
     --m-veil: rgba(8, 6, 16, 0.5);
     --m-sheet-rim: rgba(255, 255, 255, 0.14);
   }
 }
 
 :root[data-shell='modern'][data-theme='dark'] {
-  --m-sheet: rgba(26, 24, 36, 0.86);
-  --m-float: rgba(26, 24, 36, 0.91);
+  --m-sheet: rgba(26, 24, 36, 0.97);
+  --m-float: rgba(26, 24, 36, 0.97);
   --m-veil: rgba(8, 6, 16, 0.5);
   --m-sheet-rim: rgba(255, 255, 255, 0.14);
 }
@@ -93,6 +96,17 @@
     inset 0 -1px 0 var(--mat-glass-edge-lo);
 }
 
+/* A modal dialog stays in the overlay band (tokens/modern.css), centred in it, and scrolls inside rather than covering the title capsule
+   or the bottom ornament; on a phone that band is between the top bar and the tab bar, clear of the safe areas. Settings on a phone
+   fills the screen instead (below). */
+:root[data-shell='modern'] dialog:where(:not(.modern-palette)):modal {
+  inset-block: var(--overlay-top) var(--overlay-bottom);
+  max-block-size: calc(100dvh - var(--overlay-top) - var(--overlay-bottom));
+  max-inline-size: calc(100dvw - 2 * var(--overlay-side));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 :root[data-shell='modern'] dialog:where(:not(.modern-palette))::backdrop {
   background: var(--mat-veil, rgba(20, 19, 17, 0.35));
 }
@@ -123,10 +137,20 @@
   pointer-events: none;
 }
 
-/* ---- Context menus (§7.6, §8.2): float glass, rows of at least 44 px, a highlight capsule on the row in focus. ---- */
+/* ---- Context menus (§7.6, §8.2): float glass, rows of at least 44 px, a highlight capsule on the row in focus. Kept in the overlay
+   band (shared.tsx clamps its top), scrolling inside with soft edges (shell-modern.css) when it is taller. ---- */
 :root[data-shell='modern'] .menu {
+  --fade-to: var(--mat-float-bg);
+  /* As wide as its longest label, so each action keeps one line, but never wider than the screen: a long status or label name
+     wraps inside the menu instead of pushing its actions out of reach. */
+  inline-size: max-content;
   min-inline-size: 240px;
-  padding: var(--space-3);
+  max-inline-size: calc(100dvw - 2 * var(--space-4));
+  max-block-size: calc(100dvh - var(--overlay-top) - var(--overlay-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block: 0;
+  padding-inline: var(--space-3);
   border: 1px solid var(--mat-sheet-rim);
   border-radius: var(--radius-lg);
   background: var(--mat-float-bg);
@@ -156,6 +180,10 @@
   padding-inline: 14px;
   border-radius: calc(var(--radius-lg) - var(--space-3));
   font-size: 15px;
+  /* One line per action: the menu grows to its longest label (the overlay band and the right edge still hold it); only a label
+     wider than the screen wraps, whatever white-space the menu's opener would hand it. */
+  white-space: normal;
+  overflow-wrap: anywhere;
   transition: background-color var(--dur-1) var(--ease-standard);
 }
 
@@ -231,6 +259,21 @@
   box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
 }
 
+/* Settings on a phone fills the screen (styles.css): its head and its last row clear the status bar, the island and the home
+   indicator, and a notch in landscape. Nothing of the page is left to see beside it, so it is solid, not glass. */
+@media (max-width: 959px) {
+  :root[data-shell='modern'] dialog.settings:modal {
+    background: var(--m-solid);
+    backdrop-filter: none;
+    inset-block: 0;
+    max-block-size: none;
+    max-inline-size: none;
+    padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
+    /* The larger side inset on both sides, as the narrow layout does, so a right-to-left Settings never swaps a notch's side. */
+    padding-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  }
+}
+
 /* ---- Notices (§8.6): toast capsules of float glass at the top centre of the page, with the same roles, text and buttons. They sit
    just below the top ornament, never over it: a tall notice that covered the title capsule would hide **More**, and Settings with it. ---- */
 :root[data-shell='modern'] .modern-notices {
@@ -290,7 +333,9 @@
 
 :root[data-shell='modern'] .modern-toast > .storage-banner {
   align-items: center;
+  /* No close button at its end, unlike a status line: its words keep the same 22 px from both edges. */
   padding-block: var(--space-5);
+  padding-inline-end: 22px;
 }
 
 :root[data-shell='modern'] .modern-toast > .status-line.is-error {
@@ -314,8 +359,9 @@
   max-inline-size: none;
   min-block-size: 100dvh;
   margin: 0;
-  padding-block: 56px 80px;
-  padding-inline: max(24px, calc((100% - 46rem) / 2));
+  /* Clear of the safe areas (an island, a home indicator, a notch in landscape) under viewport-fit=cover. */
+  padding-block: max(56px, env(safe-area-inset-top, 0px) + 16px) max(80px, env(safe-area-inset-bottom, 0px) + 24px);
+  padding-inline: max(24px, env(safe-area-inset-left, 0px) + 16px, env(safe-area-inset-right, 0px) + 16px, calc((100% - 46rem) / 2));
   background-color: var(--surface-app);
   background-image: var(--wallpaper);
   background-position: center;

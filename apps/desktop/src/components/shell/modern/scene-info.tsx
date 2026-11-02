@@ -40,6 +40,7 @@ import { saveStateWords } from '../../../app/integrity-model.js';
 import { onInspectorRequest } from '../../../app/inspector-request.js';
 import type { InspectorGrouping } from '../../Inspector.js';
 import { TargetQuickSet } from '../../TargetQuickSet.js';
+import { overlayBand } from '../../shared.js';
 import type { ShellRegions } from '../regions.js';
 import { SceneFindings } from './scene-findings.js';
 import { SCENE_INFO_ID, durationMs, entranceOf, morphFrom, placePopover, type Box, type Placement } from './scene-info-model.js';
@@ -134,7 +135,7 @@ function SceneInfoPanel({
       return;
     }
     const place = (): void =>
-      applyPlacement(element, placePopover(boxOf(sceneInfoOpener()), { width: window.innerWidth, height: window.innerHeight }));
+      applyPlacement(element, placePopover(boxOf(sceneInfoOpener()), { width: window.innerWidth, height: overlayBand(element).bottom }));
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
