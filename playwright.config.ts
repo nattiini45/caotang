@@ -33,6 +33,12 @@ const noServer = process.env['CAOTANG_E2E_NO_SERVER'] === '1';
 // Linux Chromium image, so they are left out of `pnpm test:e2e` and run in CI's own `visual` job (modern-interface.md §15.4).
 const visual = process.env['CAOTANG_VISUAL'] === '1';
 
+// CAOTANG_E2E_MODERN_GATE=skip leaves out the Modern gate's two browser specs (the reachability walk and the accessibility gate, M12,
+// #313): CI runs them in jobs of their own (ci.yml's `e2e (chromium, Modern gate)`, e2e-browsers.yml's `Modern gate` legs), so the
+// main suite and its shards stay inside their time limits. Unset, every spec runs, as `pnpm test:e2e` always has.
+const modernGateSpecs = [/[\\/]e2e[\\/]modern-gate\.spec\.ts$/, /[\\/]e2e[\\/]modern-reachability\.spec\.ts$/];
+const withoutModernGate = process.env['CAOTANG_E2E_MODERN_GATE'] === 'skip' ? modernGateSpecs : [];
+
 /** What Firefox and WebKit leave to Chromium: pure model specs (the same in any browser), the build smoke, and the specs that call real provider endpoints. */
 const chromiumOnlySpecs = [/[\\/]e2e[\\/]visual[\\/]/, /[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /providers-cors\.spec\.ts/, /provider-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/];
 
@@ -70,7 +76,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: [/prod-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/, /[\\/]e2e[\\/]visual[\\/]/],
+      testIgnore: [/prod-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/, /[\\/]e2e[\\/]visual[\\/]/, ...withoutModernGate],
       use: { ...devices['Desktop Chrome'] },
     },
     { name: 'mobile', testMatch: /mobile-shell\.spec\.ts/, use: { ...devices['Pixel 7'] } },
@@ -83,8 +89,8 @@ export default defineConfig({
     ...(visual ? [{ name: 'visual', testMatch: /[\\/]e2e[\\/]visual[\\/].*\.spec\.ts/, snapshotPathTemplate: '{testDir}/visual/__snapshots__/{arg}{ext}', use: { ...devices['Desktop Chrome'] } }] : []),
     ...(crossBrowser
       ? [
-          { name: 'firefox', testIgnore: chromiumOnlySpecs, use: { ...devices['Desktop Firefox'] } },
-          { name: 'webkit', testIgnore: chromiumOnlySpecs, use: { ...devices['Desktop Safari'] } },
+          { name: 'firefox', testIgnore: [...chromiumOnlySpecs, ...withoutModernGate], use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', testIgnore: [...chromiumOnlySpecs, ...withoutModernGate], use: { ...devices['Desktop Safari'] } },
         ]
       : []),
     {
