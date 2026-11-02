@@ -154,3 +154,14 @@
   color: var(--ss-text);
   font-weight: 500;
 }
+
+/* The page is a still: no effect runs to mark a shown connector arrived (the kit sets data-arrived from a layout effect), so a shown
+   connector's end dot and arrow show with its line, as they would once it arrived. */
+.ss-connector[data-show] .ss-connector__dot {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.ss-connector[data-show] .ss-connector__arrow {
+  opacity: 1;
+}

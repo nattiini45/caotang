@@ -149,15 +149,15 @@ writeFileSync(
   ].join('\n'),
 );
 
-// The CSP's promises, checked on what ships.
+// The CSP's promises, checked on what ships. Tag and attribute names are case-insensitive in HTML, so every check is too.
 const csp = html.match(/http-equiv="Content-Security-Policy"\s+content="([^"]*)"/)?.[1] ?? '';
 if (!csp.includes("script-src 'none'")) fail("the page's CSP must keep script-src 'none'");
 if (!csp.includes("style-src 'self'") || csp.includes('unsafe-inline')) fail("the page's CSP must keep style-src 'self' with no 'unsafe-inline'");
-const scripts = [...html.matchAll(/<script\b([^>]*)>/g)].filter((m) => !/type="application\/ld\+json"/.test(m[1]));
+const scripts = [...html.matchAll(/<script\b([^>]*)>/gi)].filter((m) => !/type="application\/ld\+json"/i.test(m[1]));
 if (scripts.length > 0) fail(`the page has ${scripts.length} script element(s); only the JSON-LD data block is allowed`);
-if (/<[^>]+\sstyle="/.test(html)) fail('a style attribute was left in the page; the CSP would drop it');
-if (/<[^>]+\son[a-z]+="/.test(html)) fail('an inline event handler is in the page');
-if (/<style\b/.test(html)) fail('a <style> element is in the page; the CSP would drop it');
+if (/<[^>]+\sstyle="/i.test(html)) fail('a style attribute was left in the page; the CSP would drop it');
+if (/<[^>]+\son[a-z]+="/i.test(html)) fail('an inline event handler is in the page');
+if (/<style\b/i.test(html)) fail('a <style> element is in the page; the CSP would drop it');
 writeFileSync(join(out, 'index.html'), html);
 
 console.log(`build-site: ${relative(root, out)}/ with ${used.size} stages (${[...used].join(', ')}), ${rules.size} generated style classes, no script`);

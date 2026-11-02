@@ -14,7 +14,7 @@
  *
  * The caps are the build of #359 (the Modern landing with five Stageshow stills and the hero) plus about 10%, so growing the page by
  * more is a decision written down in the change that does it. Measured on that build, in bytes (raw / gzip):
- *   html 102,288 / 16,126; css 62,731 / 15,852 (landing 12,852, stages 17,608, kit 32,271 raw); assets 28,516 / 19,596.
+ *   html 102,288 / 16,126; css 62,863 / 15,897 (landing 12,852, stages 17,740, kit 32,271 raw); assets 28,516 / 19,596.
  * To raise a number: build, run this, put the new size plus the margin in BUDGET, and say why in the change.
  *
  * Sizes are bytes in the file and zlib's default gzip; 1 kB is 1000 bytes.
