@@ -145,7 +145,10 @@ export const BUDGET = {
   // 7,684.2 kB measured with the Modern stage, page and materials (#305): the `modern-shell` chunk (4.5 kB raw, loaded only while
   // Modern is on) and the entry's interface store, Shell frame and Appearance switches. The ceiling rises once, by the Modern chunk's
   // measured size rounded up to the thousand (modern-interface.md §12): 7,748,000 + 5,000.
-  totalJs: 7_753_000,
+  // 7,754.4 kB measured on the merge of #351 (focus mode, Show in Findings) into #312 (the narrow layout): narrow layout + focus mode,
+  // #312/#351; Classic unchanged. Both are lazy chunks (`narrow-panels`, `focus-mode`) and the slots they touch; Classic's first load
+  // did not move. The ceiling is that plus about 0.6 kB.
+  totalJs: 7_755_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -162,8 +165,12 @@ export const BUDGET = {
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     caps: { 'modern-shell': 50_000 } // raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this one on-use sheet, about 6 kB gzip; it never loads for Classic,
   },
-  /** "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. */
-  modernFirstLoadDelta: 25_000,
+  /**
+   * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
+   * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
+   * Their panels are lazy chunks already; what is left is the slots' wiring in `modern-shell` (§12).
+   */
+  modernFirstLoadDelta: 25_900,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */

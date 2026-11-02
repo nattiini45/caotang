@@ -8,6 +8,7 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
 import type { ProjectState } from '@caotang/store';
 
+import type { FindingView } from '../../app/findings-model.js';
 import type { NarrowPanel } from '../../app/narrow-model.js';
 import type { SaveState } from '../../app/session.js';
 import type { TargetProgress } from '../../app/session-progress.js';
@@ -49,6 +50,9 @@ export interface ShellView {
   readonly filterRequest: number;
   /** Counts the documents chosen in the binder (a row, or **Open in editor**): Modern closes an unpinned sidebar on each. */
   readonly binderChoice: number;
+  /** Counts the requests from outside the rail to show one of its tabs (Show in Findings, the section route): Modern's sidebar opens on
+   *  a new one even when its tab is already the current one. */
+  readonly railRequest: number;
 }
 
 /**
@@ -103,6 +107,10 @@ export interface ShellRegions {
   readonly findings: ReactNode;
   /** The open findings, which the Findings tab shows as a count. */
   readonly findingsBadge: number;
+  /** The open findings that quote the selected scene, in the Findings tab's order: Modern's Scene info lists them (§7.2). */
+  readonly sceneFindings: readonly FindingView[];
+  /** Shows the Findings tab on a finding's fact group, as the timeline's **Open in Findings** does. */
+  readonly showInFindings: (factGroup: string) => void;
   readonly activity: ReactNode;
   readonly trace: ReactNode;
   readonly inspector: ReactNode;

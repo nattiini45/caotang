@@ -74,7 +74,7 @@ import { clearTray, pendingRows } from '../app/timeline-tray.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
 import { BinderFooter } from './BinderFooter.js';
 import { whenAgent } from '../app/agent-registry.js';
-import { openFindingCount } from '../app/findings-model.js';
+import { openFindingCount, openFindingsOfScene } from '../app/findings-model.js';
 import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
@@ -183,6 +183,7 @@ export function Workspace({
   const [filterFocusRequest, setFilterFocusRequest] = useState(0);
   // Counts the documents chosen in the binder, so a shell whose binder floats over the page (Modern's sidebar) can close it on each.
   const [binderChoice, setBinderChoice] = useState(0);
+  const [railRequest, setRailRequest] = useState(0);
   const [zoom, setZoom] = useState<ZoomLevel>('M');
   const [renaming, setRenaming] = useState<Renaming | null>(null);
   const [askingDelete, setAskingDelete] = useState<string | null>(null);
@@ -383,6 +384,7 @@ export function Workspace({
     }
     if (hideRails) setFocusMode(false);
     setRail('binder');
+    setRailRequest((count) => count + 1);
     if (narrow) setPanel('rail');
     for (const folder of above) setExpanded(session, folder.id, true);
     selectNode(session, section.id);
@@ -936,6 +938,7 @@ export function Workspace({
       closeOverflow: () => setOverflow(null),
       filterRequest: filterFocusRequest,
       binderChoice,
+      railRequest,
     },
     binder: (
       <Binder
@@ -976,6 +979,11 @@ export function Workspace({
       />
     ),
     findingsBadge: openFindingCount(session.coherenceFile()),
+    sceneFindings: openFindingsOfScene(state, session.coherenceFile(), selected),
+    showInFindings: (factGroup: string) => {
+      setRailRequest((count) => count + 1);
+      openInFindings(factGroup);
+    },
     activity: <ActivityPanel session={session} onExport={() => void exportActivity()} />,
     trace: <TracePanel services={services} projectName={state.manifest.project.name} />,
     inspector: (

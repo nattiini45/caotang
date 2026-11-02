@@ -83,3 +83,19 @@
 :root[data-shell='modern'] .codex .chip-toggle {
   padding-inline: var(--space-5);
 }
+
+/* The Codex's entry view (Back, the type select, the include options, Match case, the fields and a chip's remove button) and a Board
+   card's own controls (the grip, the rename field, the synopsis): 44 px targets too (§9.5). A radio or checkbox counts with its label. */
+:root[data-shell='modern'] .codex-entry :is(.codex-select, .codex-input, .keyword-input, .policy-option, .check),
+:root[data-shell='modern'] .card :is(.card-rename, .synopsis) {
+  min-block-size: var(--target-min);
+}
+
+:root[data-shell='modern'] .codex-entry :is(.chip-remove, .codex-toolbar .button),
+:root[data-shell='modern'] .card .card-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}

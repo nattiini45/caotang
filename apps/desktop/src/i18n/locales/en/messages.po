@@ -6905,8 +6905,10 @@ msgstr "Focus a scene on the timeline to change it."
 msgid "Focus document text"
 msgstr "Focus document text"
 
+#. Modern interface: the stage and the page.
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
 #: apps/desktop/src/app/shell-actions.ts
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "Focus mode"
 msgstr "Focus mode"
 
@@ -10223,6 +10225,11 @@ msgstr "Open as a separate copy"
 msgid "Open findings"
 msgstr "Open findings"
 
+#. Modern interface: Scene info's list of the scene's open findings.
+#: apps/desktop/src/components/shell/modern/scene-findings.tsx
+msgid "Open findings in this scene"
+msgstr "Open findings in this scene"
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Open in editor"
@@ -13496,6 +13503,11 @@ msgstr "Show {more} more scenes of {name}"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Show findings with status"
 msgstr "Show findings with status"
+
+#. Modern interface: Scene info's list of the scene's open findings.
+#: apps/desktop/src/components/shell/modern/scene-findings.tsx
+msgid "Show in Findings"
+msgstr "Show in Findings"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx

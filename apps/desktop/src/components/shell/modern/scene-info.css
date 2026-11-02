@@ -196,3 +196,23 @@
   max-inline-size: 100%;
   overflow-wrap: anywhere;
 }
+
+/* The scene's open findings (§7.2), each with Show in Findings. */
+:root[data-shell='modern'] .scene-info-findings {
+  margin-block-start: var(--space-5);
+}
+
+:root[data-shell='modern'] .scene-info-findings ul {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+:root[data-shell='modern'] .scene-info-findings li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}

@@ -1,0 +1,34 @@
+/*
+ * Focus mode in Modern (docs/architecture/modern-interface.md §8.8): the Leave focus mode capsule, and the fade of the ornaments, the
+ * binder, Scene info and the agent window while the stage's data-focus is 'hidden' (focus-mode.tsx). The stylesheet of focus mode's own
+ * lazy chunk. Every selector starts with :root[data-shell='modern'], and only logical properties are used (test/modern-css.test.ts).
+ */
+
+/* The capsule stays at the top, at the inline-end corner, clear of the notices at the top centre and the windows below the page's top. */
+:root[data-shell='modern'] .modern-focus-leave {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-end: var(--space-4);
+  z-index: 7;
+  padding: var(--ornament-pad);
+  border-radius: var(--radius-ornament);
+}
+
+/* The fade: --dur-2 is 0 under reduced motion, so nothing fades then. */
+:root[data-shell='modern'] .modern-stage[data-focus] > :is(.modern-ornament, .modern-binder, .scene-info, .modern-companion, .modern-companion-scrim) {
+  transition: opacity var(--dur-2) var(--ease-standard);
+}
+
+:root[data-shell='modern'] .modern-stage[data-focus='hidden'] > :is(.modern-ornament, .modern-binder, .scene-info, .modern-companion, .modern-companion-scrim) {
+  opacity: 0;
+}
+
+/* Hidden, the windows do not catch the pointer over the page. The ornaments and the binder do: the pointer over one brings them back. */
+:root[data-shell='modern'] .modern-stage[data-focus='hidden'] > :is(.scene-info, .modern-companion, .modern-companion-scrim) {
+  pointer-events: none;
+}
+
+/* The page keeps its place and size: an agent window kept open under focus mode does not make it recede. */
+:root[data-shell='modern'] .modern-stage[data-focus] > .modern-page-area {
+  transform: none;
+}

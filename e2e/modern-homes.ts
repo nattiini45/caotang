@@ -16,7 +16,8 @@
 export type Pending = 306 | 311 | 313;
 
 /** How the walk starts: on the projects screen, in a project with nothing in it, or in a project with one scene open. */
-export type Setup = 'home' | 'empty' | 'scene';
+/** 'findings' is 'scene' with a second scene whose declared days break their order and a scan run, so it has open findings. */
+export type Setup = 'home' | 'empty' | 'scene' | 'findings';
 
 /**
  * Something on the screen. `role` with `name` (exact unless `pattern` gives a regular expression instead), or a test id, or a CSS
@@ -64,6 +65,8 @@ export interface Route {
   readonly why?: string;
   /** Only in Chromium (a File System Access route). */
   readonly chromiumOnly?: boolean;
+  /** The setup this route starts from, when it is not its home's (a route that needs open findings). */
+  readonly setup?: Setup;
 }
 
 export interface Home {
@@ -105,6 +108,8 @@ const sidebarTab = (name: string): Target => ({ role: 'tab', name, within: sideb
 const selectedTab = (name: string): Target => ({ css: '[role="tab"][aria-selected="true"]', pattern: `^${name}`, within: sidebar });
 const goals: Target = { role: 'button', name: 'Goals and sprint', within: sidebar };
 /** The tab bar of a closed sidebar: a route that must open the sidebar itself starts from it closed, not from one still closing. */
+/** The stage while focus mode has faded the ornaments, the tab bar, Scene info and the agent window (§8.8): they stay mounted. */
+const chromeFaded: Target = { css: '[data-testid="modern-stage"][data-focus="hidden"]' };
 const sidebarClosed: Target = { css: '[data-testid="modern-binder"][data-state="closed"] [data-testid="modern-binder-bar"]' };
 /** The scene the `scene` setup opens. */
 export const SCENE = 'The Landing';
@@ -176,14 +181,12 @@ export const MODERN_HOMES: readonly Home[] = [
     modern: '⋯ › Focus mode; Ctrl+Shift+F; palette; the Leave focus mode capsule (§8.8)',
     setup: 'scene',
     routes: [
-      { via: '⋯ › Focus mode', steps: [{ more: 'Focus mode' }, see(manuscript, { gone: true }), { more: 'Leave focus mode' }, see(editor)] },
-      { via: 'palette › Focus mode', steps: [{ palette: 'Focus mode' }, see(manuscript, { gone: true }), see(editor)] },
-      { via: 'Ctrl+Shift+F in the text', steps: [{ press: 'ControlOrMeta+Shift+F', on: editor }, see(manuscript, { gone: true }), { press: 'ControlOrMeta+Shift+F', on: editor }, see(manuscript)] },
+      { via: '⋯ › Focus mode', steps: [{ more: 'Focus mode' }, see(chromeFaded), { more: 'Leave focus mode' }, see(editor)] },
+      { via: 'palette › Focus mode', steps: [{ palette: 'Focus mode' }, see(chromeFaded), see(editor)] },
+      { via: 'Ctrl+Shift+F in the text', steps: [{ press: 'ControlOrMeta+Shift+F', on: editor }, see(chromeFaded), { press: 'ControlOrMeta+Shift+F', on: editor }, see(manuscript)] },
       {
         via: 'the Leave focus mode capsule',
-        steps: [{ more: 'Focus mode' }, { click: { role: 'button', name: 'Leave focus mode' } }, see(manuscript)],
-        pending: 313,
-        why: 'no 44 px Leave focus mode capsule stays at the top in focus mode (§8.8)',
+        steps: [{ more: 'Focus mode' }, see(chromeFaded), { click: { role: 'button', name: 'Leave focus mode' } }, see(chromeFaded, { gone: true }), see(manuscript)],
       },
     ],
   },
@@ -404,12 +407,16 @@ export const MODERN_HOMES: readonly Home[] = [
         { via: `Panels › ${tab}`, steps: [{ click: panels }, { click: sidebarTab(tab) }, see(selectedTab(tab)), see({ role: 'tabpanel', within: sidebar })] },
         ...(tab === 'Findings'
           ? [
-              { via: 'the count on the title capsule’s dot', steps: [see({ testId: 'modern-title-dot' })], pending: 313 as const, why: 'the dot shows only with open findings, and the walk does not yet raise one' },
+              { via: 'the count on the title capsule’s dot', setup: 'findings' as const, steps: [see({ testId: 'modern-title-dot', pattern: 'open finding' })] },
               {
                 via: 'Scene info › Show in Findings',
-                steps: [{ palette: 'Scene info' }, see({ role: 'button', name: 'Show in Findings', within: sceneInfo })],
-                pending: 313 as const,
-                why: 'Scene info does not list the scene’s open findings (§7.2)',
+                setup: 'findings' as const,
+                steps: [
+                  { palette: 'Scene info' },
+                  { click: { role: 'button', name: 'Show in Findings', within: sceneInfo } },
+                  see(selectedTab('Findings')),
+                  see({ css: '.finding-group[data-group]', within: sidebar }, { focused: true }),
+                ],
               },
             ]
           : []),
@@ -664,8 +671,6 @@ export const MODERN_HOMES: readonly Home[] = [
       {
         via: 'Ctrl+Shift+S in a screenplay opens the sidebar on its section, in Board',
         steps: [{ provoke: 'screenplay' }, { click: { role: 'radio', name: 'Source', within: page } }, see(sidebarClosed), { press: 'Control+Shift+KeyS', on: { role: 'textbox', name: 'Fountain source' } }, see(corkboard), see(selectedTab('Binder')), see({ css: '.binder-tree [role="treeitem"]:focus', within: sidebar })],
-        pending: 313,
-        why: 'Ctrl+Shift+S selects the section and turns the page to Board, but a closed sidebar stays shut: Workspace’s showSceneSection sets the rail to Binder, which it already is, and binder-sidebar.tsx opens only on a rail change, Ctrl+Alt+F or Manuscript/Panels, so the section row it focuses is inert',
       },
     ],
   },

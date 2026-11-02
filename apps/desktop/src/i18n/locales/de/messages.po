@@ -6906,8 +6906,10 @@ msgstr "Fokussieren Sie eine Szene auf der Zeitachse, um sie zu ändern."
 msgid "Focus document text"
 msgstr "Dokumenttext fokussieren"
 
+#. Modern interface: the stage and the page.
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
 #: apps/desktop/src/app/shell-actions.ts
+#: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "Focus mode"
 msgstr "Fokusmodus"
 
@@ -10224,6 +10226,11 @@ msgstr "Als separate Kopie öffnen"
 msgid "Open findings"
 msgstr "Feststellungen öffnen"
 
+#. Modern interface: Scene info's list of the scene's open findings.
+#: apps/desktop/src/components/shell/modern/scene-findings.tsx
+msgid "Open findings in this scene"
+msgstr "Offene Feststellungen in dieser Szene"
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Open in editor"
@@ -13497,6 +13504,11 @@ msgstr "{more} weitere Szenen von {name} anzeigen"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Show findings with status"
 msgstr "Feststellungen mit Status anzeigen"
+
+#. Modern interface: Scene info's list of the scene's open findings.
+#: apps/desktop/src/components/shell/modern/scene-findings.tsx
+msgid "Show in Findings"
+msgstr "In Feststellungen zeigen"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
