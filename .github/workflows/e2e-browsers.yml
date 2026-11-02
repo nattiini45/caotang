@@ -34,7 +34,8 @@ jobs:
     # Keep the preinstalled browser binaries and Linux dependencies aligned with the locked Playwright 1.63.0 package.
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
-    timeout-minutes: 30
+    # Firefox's slower shard took 26 minutes on 2026-11-02 without the Modern gate; 40 leaves room for its retries.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
