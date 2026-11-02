@@ -8,6 +8,7 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 
 import type { ProjectState } from '@caotang/store';
 
+import type { ZoomLevel } from '../../app/corkboard-model.js';
 import type { FindingView } from '../../app/findings-model.js';
 import type { NarrowPanel } from '../../app/narrow-model.js';
 import type { SaveState } from '../../app/session.js';
@@ -53,6 +54,9 @@ export interface ShellView {
   /** Counts the requests from outside the rail to show one of its tabs (Show in Findings, the section route): Modern's sidebar opens on
    *  a new one even when its tab is already the current one. */
   readonly railRequest: number;
+  /** The Board's card size (S/M/L), which the corkboard and the shot board share: Modern shows it in the top ornament (§7.3). */
+  readonly zoom: ZoomLevel;
+  readonly setZoom: (zoom: ZoomLevel) => void;
 }
 
 /**

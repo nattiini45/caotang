@@ -332,7 +332,7 @@ async function openView(page: Page, name: 'Board' | 'Codex'): Promise<void> {
 }
 
 test.describe('the Board and the Codex', () => {
-  test('the Board’s New card and card size (S/M/L) are 44 px', async ({ page }) => {
+  test('the Board’s New card and card size (S/M/L, in the top ornament) are 44 px', async ({ page }) => {
     await sceneInClassic(page);
     await switchToModern(page);
     await openView(page, 'Board');
@@ -340,7 +340,9 @@ test.describe('the Board and the Codex', () => {
     await expect(board).toBeVisible();
     const controls = board.locator('.corkboard-controls');
     await expectTarget(controls.getByRole('button', { name: 'New card', exact: true }), 'New card');
-    const sizes = controls.getByRole('radiogroup', { name: 'Card size' }).getByRole('radio');
+    // The card size is the top ornament's (§7.3); the page's copy is hidden.
+    await expect(controls.getByRole('radiogroup', { name: 'Card size' })).toHaveCount(0);
+    const sizes = page.getByTestId('modern-top-ornament').getByRole('radiogroup', { name: 'Card size' }).getByRole('radio');
     expect(await sizes.count(), 'the card sizes').toBe(3);
     for (const size of await sizes.all()) await expectTarget(size, `card size ${(await size.textContent()) ?? ''}`);
     expect(await smallControls(controls)).toEqual([]);
