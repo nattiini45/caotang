@@ -75,8 +75,6 @@ export const SURFACES: readonly Surface[] = [
     setup: 'scene',
     open: [{ click: { role: 'button', name: 'Manuscript', within: { role: 'navigation', name: 'Binder' } } }],
     scope: '[data-testid="modern-binder"]',
-    pending: 307,
-    why: 'the tab bar and the sidebar are #307’s',
   },
   { id: 'a toast', setup: 'scene', open: [{ provoke: 'deleted-scene' }, { see: { testId: 'modern-toast', pattern: 'Deleted' } }], scope: '[data-testid="modern-notices"]' },
   { id: 'Settings', setup: 'scene', open: [{ palette: 'Settings' }], scope: '[data-testid="settings"]' },
@@ -388,7 +386,6 @@ for (const surface of SURFACES) {
 
 test.describe('the default Write screen', () => {
   test('at most ten controls outside the page, and they are the nine of §9.5', async ({ page }) => {
-    test.fixme(true, '#307: the binder is still on the page until the tab bar (#307) and the ornaments (#306) replace the provisional ones');
     await setUp(page, 'scene');
     const controls = await page.evaluate(() =>
       [...document.querySelectorAll('[data-testid="modern-stage"] *')]

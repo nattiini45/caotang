@@ -13,7 +13,7 @@
  */
 
 /** The issue that builds a home still in flight; 313 is a gap this issue closes. */
-export type Pending = 306 | 307 | 311 | 312 | 313;
+export type Pending = 306 | 311 | 312 | 313;
 
 /** How the walk starts: on the projects screen, in a project with nothing in it, or in a project with one scene open. */
 export type Setup = 'home' | 'empty' | 'scene';
@@ -46,7 +46,7 @@ export type Step =
   | { readonly click: Target; readonly right?: boolean }
   /** Types into what has focus. */
   | { readonly type: string }
-  /** Shows the binder: Manuscript in the tab bar once #307's sidebar is in; nothing while the binder is on the page. */
+  /** Shows the binder: Manuscript in the tab bar opens the sidebar on it (#307); nothing when it is open already. */
   | { readonly binder: true }
   /** Sets something up a route needs that no control shows by itself. */
   | { readonly provoke: 'storage-banner' | 'deleted-scene' | 'screenplay' | 'storyboard' | 'dialogue' }
@@ -97,7 +97,11 @@ const titleCapsule: Target = { testId: 'modern-title-capsule' };
 const binderBar: Target = { role: 'navigation', name: 'Binder' };
 const manuscript: Target = { role: 'button', name: 'Manuscript', within: binderBar };
 const panels: Target = { role: 'button', name: 'Panels', within: binderBar };
-const sidebarTab = (name: string): Target => ({ role: 'tab', name, within: { testId: 'modern-sidebar' } });
+const sidebar: Target = { testId: 'modern-sidebar' };
+const sidebarTab = (name: string): Target => ({ role: 'tab', name, within: sidebar });
+/** A sidebar tab that is the chosen one. */
+const selectedTab = (name: string): Target => ({ css: '[role="tab"][aria-selected="true"]', pattern: `^${name}`, within: sidebar });
+const goals: Target = { role: 'button', name: 'Goals and sprint', within: sidebar };
 /** The scene the `scene` setup opens. */
 export const SCENE = 'The Landing';
 const sceneRow: Target = { css: '.row-title', pattern: `^${SCENE}$` };
@@ -325,7 +329,7 @@ export const MODERN_HOMES: readonly Home[] = [
       { via: 'F2 renames the row', steps: [{ binder: true }, { press: 'F2', on: { ...sceneRow } }, see({ role: 'textbox', pattern: '^Rename' }, { focused: true }), { press: 'Escape' }, see({ role: 'textbox', pattern: '^Rename' }, { gone: true })] },
       { via: 'Delete asks first', steps: [{ binder: true }, { press: 'Delete', on: { ...sceneRow } }, see({ role: 'dialog', name: `Delete “${SCENE}”?` })] },
       { via: 'Ctrl+N makes a new document', steps: [{ binder: true }, { press: 'ControlOrMeta+n', on: { ...sceneRow } }, see({ role: 'textbox', name: 'Rename Untitled' }, { focused: true })] },
-      { via: 'Manuscript in the tab bar opens it', steps: [{ click: manuscript }, see(binderTree)], pending: 307, why: 'the tab bar and sidebar are #307’s' },
+      { via: 'Manuscript in the tab bar opens it', steps: [{ click: manuscript }, see(binderTree)] },
     ],
   },
   {
@@ -354,8 +358,10 @@ export const MODERN_HOMES: readonly Home[] = [
     modern: 'Sidebar › Binder, in the disclosure Goals and sprint; kept words also as a toast',
     setup: 'scene',
     routes: [
-      { via: 'the footer under the tree', steps: [{ binder: true }, see({ testId: 'binder-footer' }), see({ testId: 'sprint' })] },
-      { via: 'the Goals and sprint disclosure', steps: [{ binder: true }, { click: { pattern: '^Goals and sprint$', css: 'summary' } }, see({ testId: 'sprint' })], pending: 307, why: 'the disclosure is #307’s' },
+      {
+        via: 'the Goals and sprint disclosure under the tree',
+        steps: [{ binder: true }, { click: goals }, see({ testId: 'binder-footer', within: sidebar }), see({ testId: 'sprint', within: sidebar })],
+      },
     ],
   },
   {
@@ -377,8 +383,8 @@ export const MODERN_HOMES: readonly Home[] = [
       modern: `Sidebar › ${tab}`,
       setup: 'scene',
       routes: [
-        { via: `palette › ${tab}`, steps: [{ palette: tab, option: tab }, see(sidebarTab(tab))], pending: 307, why: `the sidebar’s ${tab} tab is #307’s` },
-        { via: `Panels › ${tab}`, steps: [{ click: panels }, { click: sidebarTab(tab) }, see({ role: 'tabpanel', within: { testId: 'modern-sidebar' } })], pending: 307, why: 'the tab bar’s Panels is #307’s' },
+        { via: `palette › ${tab}`, steps: [{ palette: tab, option: tab }, see(selectedTab(tab))] },
+        { via: `Panels › ${tab}`, steps: [{ click: panels }, { click: sidebarTab(tab) }, see(selectedTab(tab)), see({ role: 'tabpanel', within: sidebar })] },
         ...(tab === 'Findings'
           ? [
               { via: 'the count on the title capsule’s dot', steps: [see({ testId: 'modern-title-dot' })], pending: 313 as const, why: 'the dot shows only with open findings, and the walk does not yet raise one' },
@@ -635,9 +641,7 @@ export const MODERN_HOMES: readonly Home[] = [
       },
       {
         via: 'Ctrl+Shift+S in a screenplay opens the sidebar on its section, in Board',
-        steps: [{ provoke: 'screenplay' }, { click: { role: 'radio', name: 'Source', within: page } }, { press: 'Control+Shift+KeyS', on: { role: 'textbox', name: 'Fountain source' } }, see(corkboard), see({ testId: 'modern-sidebar' })],
-        pending: 307,
-        why: 'opening the sidebar on the section is #307’s',
+        steps: [{ provoke: 'screenplay' }, { click: { role: 'radio', name: 'Source', within: page } }, { press: 'Control+Shift+KeyS', on: { role: 'textbox', name: 'Fountain source' } }, see(corkboard), see(selectedTab('Binder')), see({ css: '.binder-tree [role="treeitem"]:focus', within: sidebar })],
       },
     ],
   },

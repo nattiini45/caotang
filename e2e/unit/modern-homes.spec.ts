@@ -102,6 +102,6 @@ test('the pending routes, by the issue that builds them (the list the gate still
     }
   }
   // Only the issues still in flight, and this issue's own gaps, may hold a route back.
-  expect([...pending.keys()].every((issue) => [306, 307, 311, 312, 313].includes(issue))).toBe(true);
+  expect([...pending.keys()].every((issue) => [306, 311, 312, 313].includes(issue))).toBe(true);
   test.info().annotations.push(...[...pending].map(([issue, routes]) => ({ type: `pending #${issue}`, description: routes.join('; ') })));
 });
