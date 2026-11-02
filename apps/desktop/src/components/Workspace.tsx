@@ -939,6 +939,8 @@ export function Workspace({
       filterRequest: filterFocusRequest,
       binderChoice,
       railRequest,
+      zoom,
+      setZoom,
     },
     binder: (
       <Binder

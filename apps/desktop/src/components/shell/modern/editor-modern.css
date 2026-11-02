@@ -64,16 +64,14 @@
   color: var(--on-glass);
 }
 
-/* The Board's New card and card size (S/M/L), and the Codex's buttons, filter chips and search field: 44 px targets (§9.5). */
+/* The Board's New card, and the Codex's buttons, filter chips and search field: 44 px targets (§9.5). */
 :root[data-shell='modern'] .corkboard .button,
-:root[data-shell='modern'] .corkboard-controls .segmented-item,
 :root[data-shell='modern'] .codex :is(.button, .chip-toggle, .codex-search) {
   min-block-size: var(--target-min);
   min-inline-size: var(--target-min);
 }
 
 :root[data-shell='modern'] .corkboard .button,
-:root[data-shell='modern'] .corkboard-controls .segmented-item,
 :root[data-shell='modern'] .codex :is(.button, .chip-toggle) {
   display: inline-flex;
   align-items: center;
@@ -98,4 +96,28 @@
   justify-content: center;
   min-block-size: var(--target-min);
   min-inline-size: var(--target-min);
+}
+
+/* The Board's card size is in the top ornament (§7.3), as its capsules; the page's copy is hidden. */
+:root[data-shell='modern'] .corkboard-controls .segmented {
+  display: none;
+}
+
+:root[data-shell='modern'] .modern-zoom {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+/* The Binder tab (the sidebar, the narrow drawer): Classic's binder with 44 px targets by their box, not a larger look (§9.5); the
+   line-id checkbox counts with its label. A row's Collapse / Expand fills the row's height, its glyph where it was. */
+:root[data-shell='modern'] :is(.modern-sidebar, .modern-drawer) .binder :is(.button, input:not([type='checkbox']), select, .script-import-ids) {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+:root[data-shell='modern'] :is(.modern-sidebar, .modern-drawer) .row-toggle {
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  margin-block: -10px;
+  margin-inline: -10px -16px;
 }

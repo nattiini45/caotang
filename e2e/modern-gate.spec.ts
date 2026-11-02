@@ -319,14 +319,7 @@ type Check = 'axe' | 'contrast' | '44 px';
  * it, without its measure), so a new problem anywhere else still fails. #313 closes them before Modern becomes the default; a fix
  * removes its line. A gap that a browser does not show is fine; a problem not listed here is not.
  */
-const GAPS: readonly { readonly surface: string; readonly check: Check; readonly patterns: readonly string[]; readonly why: string }[] = [
-  {
-    surface: 'the sidebar',
-    check: '44 px',
-    patterns: ['^button “(New document|New folder|New research note|Save current…|Import [^”]*)”', '^(input|select) “', '^button “(Collapse|Expand) '],
-    why: 'the Binder tab holds Classic’s binder as it is: its New and Import buttons, the filter bar’s fields and Save current… are 23–30 px tall, and a row’s Collapse / Expand 24 px',
-  },
-];
+const GAPS: readonly { readonly surface: string; readonly check: Check; readonly patterns: readonly string[]; readonly why: string }[] = [];
 
 /** The problems no gap explains. */
 function unexplained(surface: string, check: Check, problems: readonly string[]): string[] {

@@ -10,6 +10,10 @@
  *
  * The title capsule is Scene info's opener (#308, `useSceneInfoOpener` in scene-info-store.ts): a click toggles the popover, which
  * anchors under the capsule, grows out of it and gives focus back to it on Escape. Project details stays in **⋯**.
+ *
+ * On the Board (the corkboard, §7.3) the card size, S/M/L, sits before **⋯**: the corkboard's own `ZoomControl` on the same state
+ * (`view.zoom`), drawn as the ornament's capsules, so the page's copy is hidden in Modern. It is one stop of the toolbar, on its checked size; the arrow keys inside it
+ * change the size, as the radio pattern has them.
  */
 /* lingui-set comment="Modern interface, the top ornament: the project's title capsule and the More (⋯) menu." */
 
@@ -30,6 +34,7 @@ import { readModernPreferences, setModernPreference } from '../../../app/modern-
 import { CLASSIC_MENU_SECTIONS, type ShellAction, type ShellActionGroup } from '../../../app/shell-actions.js';
 import { activeTheme } from '../../../app/theme.js';
 import { inlineKey } from '../../../i18n/direction.js';
+import { ZoomControl } from '../../ZoomControl.js';
 import type { ShellView } from '../regions.js';
 import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
@@ -51,10 +56,13 @@ export function viewName(view: ModernView): string {
   return VIEW_NAMES[view]();
 }
 
-/** The focusable controls of a toolbar, in order. */
+/** The focusable controls of a toolbar, in order. A radio group counts once, on its checked radio. */
 function toolbarControls(toolbar: HTMLElement): HTMLElement[] {
   return Array.from(toolbar.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea')).filter(
-    (node) => !node.hasAttribute('disabled') && node.closest('[inert]') === null,
+    (node) =>
+      !node.hasAttribute('disabled') &&
+      node.closest('[inert]') === null &&
+      !(node.getAttribute('role') === 'radio' && node.getAttribute('aria-checked') !== 'true'),
   );
 }
 
@@ -86,7 +94,8 @@ export function useRovingToolbar(ref: RefObject<HTMLElement | null>): {
   };
   const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
     const toolbar = ref.current;
-    if (toolbar === null || event.target === toolbar) return;
+    // A control that took the key itself (the card size's radios) keeps it.
+    if (toolbar === null || event.target === toolbar || event.defaultPrevented) return;
     const controls = toolbarControls(toolbar);
     const at = controls.indexOf(event.target as HTMLElement);
     if (at === -1) return;
@@ -113,6 +122,8 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   const sceneInfo = useSceneInfoOpener();
   const current = modernViewOf(view.rail, view.center);
   const findings = regions.findingsBadge;
+  // The corkboard is on the page (not a storyboard's shot board, which has its own size, nor the narrow "Open on desktop").
+  const boardZoom = current === 'board' && regions.media === null && !view.narrow;
 
   // Each opening is a fresh popover (its key), so ⋯ pressed while the last one is still shrinking opens a new one at once.
   const [opening, setOpening] = useState(0);
@@ -156,6 +167,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           ) : null}
         </button>
         <span className="modern-ornament-state">{regions.saveState}</span>
+        {boardZoom ? <ZoomControl zoom={view.zoom} onZoom={view.setZoom} className="modern-zoom" itemClassName="modern-capsule" /> : null}
         <button
           ref={more}
           type="button"
