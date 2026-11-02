@@ -1,0 +1,91 @@
+/* The Codex & Findings tile (findings/index.tsx). */
+
+.fd {
+  --w: 333;
+  --h: 280;
+  --max: 1.3;
+}
+
+.fd .ss-stage {
+  overflow: hidden;
+}
+
+/* A crop of the page: off the top and the right, the words inside it. */
+.fd .fd-page {
+  position: absolute;
+  left: 20px;
+  top: -24px;
+  width: 360px;
+  height: 128px;
+  padding: 36px 60px 0 20px;
+  border-radius: 0 0 0 24px;
+  background: var(--ss-surface);
+  box-shadow: var(--ss-shadow-card);
+}
+
+.fd .fd-prose {
+  margin: 0;
+  font-family: var(--cao-manuscript);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ss-text-strong);
+}
+
+/* A codex mention: the name, underlined the way the editor marks one. */
+.fd .fd-mention {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--ss-text);
+}
+
+/* The passage the finding quotes. */
+.fd .fd-passage {
+  padding: 1px 0;
+  border-radius: 3px;
+  background: var(--ss-warning-soft);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.fd .fd-leader {
+  --ss-connector: var(--ss-text);
+}
+
+.fd .fd-card {
+  position: absolute;
+  left: 20px;
+  top: 136px;
+  width: 293px;
+  padding: 12px 14px 12px;
+  border-radius: 20px;
+  background: var(--ss-raised);
+  box-shadow: inset 0 0 0 1px var(--ss-line), var(--ss-shadow-satellite);
+}
+
+.fd .fd-card__type {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ss-text-strong);
+}
+
+.fd .fd-card__type .cao-glyph {
+  color: var(--ss-warning);
+}
+
+.fd .fd-card__message {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ss-text);
+}
+
+.fd .fd-card__action {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ss-accent-text);
+}

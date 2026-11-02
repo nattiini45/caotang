@@ -7,7 +7,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 const SDK_BROWSER_GLOBALS = ['window', 'document', 'indexedDB', 'localStorage', 'sessionStorage', 'navigator', 'location', 'self'];
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/playwright-report/**', '**/test-results/**', '.claude/**', '.local/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', '**/playwright-report/**', '**/test-results/**', '.claude/**', '.local/**', 'site/stageshow-kit/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

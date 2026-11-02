@@ -2,6 +2,8 @@
   - 'apps/*'
   - 'packages/*'
   - 'vendor/*'
+  # The landing page (caotang.app): its build-time stages need React (site/README.md).
+  - 'site'
 
 # No `onlyBuiltDependencies`, and that is a measured state rather than an omission.
 #
