@@ -11,7 +11,7 @@ import { waitForSaved } from '../support.js';
  * fixed and masked, animations off and the caret hidden. They start without the Classic pin and choose Modern themselves.
  */
 
-test.use({ storageState: NO_PIN });
+test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
 const NOW = new Date('2026-06-01T09:00:00Z');
 

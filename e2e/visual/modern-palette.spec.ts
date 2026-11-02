@@ -9,7 +9,7 @@ import { waitForSaved } from '../support.js';
  * image, like modern.spec.ts, with time fixed, animations off and the caret hidden.
  */
 
-test.use({ storageState: NO_PIN });
+test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
 const NOW = new Date(Date.UTC(2026, 5, 1, 9, 0, 0));
 
