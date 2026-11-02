@@ -114,7 +114,9 @@ export function CompanionWindow({ regions, pageId }: ModernSlotProps): ReactNode
     // Focus returns as the close starts, to Ask, unless the writer has already moved it somewhere else.
     const active = document.activeElement;
     const back = opener.current;
-    const target = document.getElementById(ASK_ID) ?? (back?.isConnected === true && !element.contains(back) ? back : null);
+    // An opener that has since gone out of reach (in a sidebar that closed, which is `inert`) cannot take focus: the page does.
+    const reachable = back?.isConnected === true && !element.contains(back) && back.closest('[inert], [hidden]') === null;
+    const target = document.getElementById(ASK_ID) ?? (reachable ? back : null);
     if (active === null || active === document.body || element.contains(active)) {
       (target instanceof HTMLElement ? target : document.getElementById(pageId))?.focus();
     }

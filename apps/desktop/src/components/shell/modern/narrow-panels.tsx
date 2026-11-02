@@ -3,8 +3,9 @@
  * width, the top ornament is a compact capsule (title, **⋯**) and the bottom ornament a tab bar (Write, Board, Codex, Ask, Search),
  * which narrow-modern.css draws. This component adds what only the narrow layout has:
  *
- * - The **binder's button** at the top bar's inline-start end, and the binder as a **drawer** from that edge: the same tabs as the wide
- *   sidebar (Binder, Findings, Activity, Trace, Classic's ids), over the same panels. The Codex is the page's own view here too.
+ * - The **binder's button** at the top bar's inline-start end, and the binder as a **drawer** from that edge, built from #307's sidebar
+ *   (binder-sidebar.tsx's tablist and panel, sidebar-model.ts's tabs): Binder, Findings, Activity, Trace with Classic's ids, over the
+ *   same panels, the binder footer in the same **Goals and sprint** disclosure. The Codex is the page's own view here too.
  * - Scene info as a **bottom sheet** (scene-info.tsx, at most 80% of the height) and the agent window as a **full-height sheet**
  *   (companion.tsx); they keep their own components, and narrow-sync.ts keeps the three to one at a time through the workspace's
  *   `openPanel` (`NarrowPanel` gains 'agent').
@@ -19,31 +20,30 @@
  */
 /* lingui-set comment="Modern interface, the narrow layout below 960 px: the binder's button and drawer." */
 
-import { plural, t } from '@lingui/core/macro';
-import { useLayoutEffect, useRef, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import './narrow-modern.css';
 
 import { isImeEnter } from '../../../app/keymap.js';
 import type { NarrowPanel } from '../../../app/narrow-model.js';
-import { LazyBoundary } from '../../lazy-view.js';
-import { keyStep, railTabId } from '../ClassicShell.js';
+import { railTabId } from '../ClassicShell.js';
 import type { RailTab, ShellRegions } from '../regions.js';
 import { ASK_ID, COMPANION_ID } from './companion-actions.js';
+import { SidebarPanel, SidebarTabList } from './binder-sidebar.js';
 import { Icon } from './icons.js';
 import { shownPanel, syncNarrow, type NarrowState } from './narrow-sync.js';
 import { SCENE_INFO_ID } from './scene-info-model.js';
 import { closeSceneInfo, openSceneInfo, sceneInfoReturnTarget, sceneInfoState, subscribeSceneInfo } from './scene-info-store.js';
+import { SIDEBAR_TABS, isSidebarTab, sidebarTabFor, type SidebarTab } from './sidebar-model.js';
 
 /** The drawer's id and its button's: Classic's narrow ids, so the workspace's own focus rule for the rail drawer finds them. */
 export const DRAWER_ID = 'narrow-rail';
 export const BINDER_BUTTON_ID = 'narrow-toggle-rail';
-/** The drawer's tabs, in the arrow keys' order: the wide sidebar's (#307); the Codex is the page's view. */
-export const DRAWER_TABS: readonly RailTab[] = ['binder', 'findings', 'activity', 'trace'];
-/** The tab the drawer shows for the workspace's rail: its own, or Binder while the page shows the Codex. */
-export function drawerTabFor(rail: RailTab): RailTab {
-  return DRAWER_TABS.includes(rail) ? rail : 'binder';
-}
+/** The drawer's tabs, in the arrow keys' order: #307's sidebar tabs (sidebar-model.ts); the Codex is the page's view. */
+export const DRAWER_TABS: readonly SidebarTab[] = SIDEBAR_TABS;
+/** The tab the drawer shows for the workspace's rail: #307's rule, its own tab or Binder while the page shows the Codex. */
+export const drawerTabFor = sidebarTabFor;
 
 const EMPTY: NarrowState = { panel: null, agent: false, info: false, rail: 'binder' };
 const MARK = 'data-narrow-inert';
@@ -76,6 +76,8 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   const shown = view.hideRails ? null : shownPanel(state);
   const drawerOpen = shown === 'rail';
   const tab = drawerTabFor(view.rail);
+  // The binder footer's "Goals and sprint" disclosure, as in #307's sidebar; closed each time the narrow layout starts.
+  const [goalsOpen, setGoalsOpen] = useState(false);
 
   // One at a time (narrow-sync.ts). In a layout effect, so two sheets are never painted together. The first narrow render starts
   // from nothing open, so a wide window's open agent window and docked Scene info become one sheet, the agent's.
@@ -156,14 +158,7 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
     else setPanel(null);
   };
   const choose = (next: RailTab): void => {
-    if (next !== view.rail) view.setRail(next);
-  };
-  const onTabKey = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const next = keyStep(DRAWER_TABS, tab, event.key);
-    if (next === null) return;
-    event.preventDefault();
-    choose(next);
-    document.getElementById(railTabId(next))?.focus();
+    if (isSidebarTab(next) && next !== view.rail) view.setRail(next);
   };
   // Escape closes the drawer after anything inside it (a menu, a rename, a dialog the binder opened) has had the key.
   const onDrawerKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
@@ -174,7 +169,6 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   };
 
   if (view.hideRails) return null;
-  const footer = (regions as ShellRegions & { readonly binderFooter?: ReactNode }).binderFooter ?? null;
   return (
     <>
       <button
@@ -215,26 +209,14 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
             <Icon name="close" />
           </button>
         </div>
-        <div role="tablist" aria-label={t`Panels`} className="rail-tabs modern-drawer-tabs" onKeyDown={onTabKey}>
-          <DrawerTab tab="binder" current={tab} label={t`Binder`} onSelect={choose} />
-          <DrawerTab tab="findings" current={tab} label={t`Findings`} badge={regions.findingsBadge} onSelect={choose} />
-          <DrawerTab tab="activity" current={tab} label={t`Activity`} onSelect={choose} />
-          <DrawerTab tab="trace" current={tab} label={t`Trace`} onSelect={choose} />
-        </div>
-        <div role="tabpanel" id="rail-panel" aria-labelledby={railTabId(tab)} className="rail-panel modern-drawer-panel">
-          {tab === 'binder' ? (
-            <>
-              {regions.binder}
-              {footer}
-            </>
-          ) : tab === 'findings' ? (
-            <LazyBoundary label={t`Findings`}>{regions.findings}</LazyBoundary>
-          ) : tab === 'trace' ? (
-            <LazyBoundary label={t`Trace`}>{regions.trace}</LazyBoundary>
-          ) : (
-            <LazyBoundary label={t`Activity`}>{regions.activity}</LazyBoundary>
-          )}
-        </div>
+        <SidebarTabList tab={tab} findingsBadge={regions.findingsBadge} onSelect={choose} className="modern-drawer-tabs" />
+        <SidebarPanel
+          regions={regions}
+          tab={tab}
+          goalsOpen={goalsOpen}
+          onToggleGoals={() => setGoalsOpen((was) => !was)}
+          className="modern-drawer-panel"
+        />
       </nav>
       {/* Always drawn while narrow, so the tap that closes a panel never falls through to the page under it. */}
       <div
@@ -248,37 +230,3 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   );
 }
 
-/** One drawer tab: Classic's rail tab (roving tabindex, the tabpanel named by its id). */
-function DrawerTab({
-  tab,
-  current,
-  label,
-  badge = 0,
-  onSelect,
-}: {
-  tab: RailTab;
-  current: RailTab;
-  label: string;
-  badge?: number;
-  onSelect: (tab: RailTab) => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      role="tab"
-      id={railTabId(tab)}
-      aria-selected={current === tab}
-      aria-controls="rail-panel"
-      tabIndex={current === tab ? 0 : -1}
-      className={`rail-tab${current === tab ? ' is-current' : ''}`}
-      onClick={() => onSelect(tab)}
-    >
-      {label}
-      {badge > 0 ? (
-        <span className="rail-badge" aria-label={t`${plural(badge, { one: '# open', other: '# open' })}`} data-testid={`${tab}-badge`}>
-          {badge}
-        </span>
-      ) : null}
-    </button>
-  );
-}

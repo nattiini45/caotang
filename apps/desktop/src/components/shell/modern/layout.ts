@@ -10,7 +10,8 @@
  * Rules:
  * - The page's width follows the view (Write about 780 px, Board about 1,120, Codex about 1,000) and is clamped to the room the
  *   sidebar and the windows leave; its top is 11% of the height and at least 84 px, its bottom leaves the bottom ornament 112 px.
- * - The sidebar (a pinned or open binder) always takes room at the inline-start edge: the page moves over.
+ * - The binder tab bar (#307) always takes room at the inline-start edge; the sidebar it grows into takes room only while pinned
+ *   (an open, unpinned one lies over the page). Without the bar, a sidebar takes its room whenever it is beside the page.
  * - Above 1,280 px the agent window takes room at the inline-end edge too, exactly as the window places itself (`companionAreaEnd` in
  *   companion-model.ts, #309): the stage's inline `--area-end` is the one source of the page's room, so it must agree with the window.
  *   From 1,280 px down the window overlaps the page as a sheet with a scrim instead.
@@ -34,8 +35,13 @@ export type ModernView = 'write' | 'board' | 'codex' | 'timeline' | 'pictures';
 export interface LayoutInput {
   readonly viewport: { readonly width: number; readonly height: number };
   readonly view: ModernView;
-  /** Whether the sidebar is beside the page (open or pinned), taking room at the inline-start edge. */
+  /** Whether the sidebar is beside the page, taking room at the inline-start edge. With the binder tab bar, that is while it is pinned. */
   readonly sidebar: boolean;
+  /**
+   * Whether #307's binder tab bar is at the inline-start edge. It always takes its own room, and the sidebar then grows out of it: an
+   * open, unpinned sidebar lies over the page; a pinned one ({@link LayoutInput.sidebar}) sits beside the bar and moves the page over.
+   */
+  readonly binderBar?: boolean;
   /** Whether the agent window is open. */
   readonly agent: boolean;
   /** Whether Scene info is docked beside the page. */
@@ -107,6 +113,11 @@ export const MIN_PAGE_WIDTH = 480;
 export const GUTTER = 32;
 export const NARROW_GUTTER = 8;
 export const SIDEBAR_WIDTH = 300;
+/** The binder tab bar (#307, binder-sidebar.css): its inset from the edge, its width, the gap to the sidebar, and that sidebar's width. */
+export const BINDER_INSET = 16;
+export const BINDER_BAR_WIDTH = 88;
+export const BINDER_GAP = 8;
+export const BINDER_SIDEBAR_WIDTH = 340;
 /** The agent window's width: companion-model.ts's (#309). */
 export const AGENT_WIDTH = COMPANION_WIDTH;
 /** A docked Scene info's width: scene-info.css's `--scene-info-w` (#308), so the page moves over exactly as far as the panel is wide. */
@@ -130,7 +141,7 @@ export const ORNAMENT_HEIGHT = 60;
 
 const round = (value: number): number => Math.round(value);
 
-export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInput): ModernLayout {
+export function modernLayout({ viewport, view, sidebar, binderBar = false, agent, info }: LayoutInput): ModernLayout {
   const width = Math.max(0, viewport.width);
   const height = Math.max(0, viewport.height);
   const narrow = width < NARROW_BELOW;
@@ -140,8 +151,13 @@ export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInp
   const columnHeight = Math.max(0, height - pageTop - pageBottom);
 
   // Room at the inline-start edge: the sidebar at the gutter, then the page area after it.
+  // With the tab bar, the bar's room comes first and a pinned sidebar sits after it (binder-sidebar.css draws them at these sizes).
   const hasSidebar = sidebar && !narrow;
-  const areaStart = hasSidebar ? SIDEBAR_WIDTH + gutter : 0;
+  const bar = binderBar && !narrow;
+  const barRoom = bar ? BINDER_INSET + BINDER_BAR_WIDTH : 0;
+  const sidebarStart = bar ? barRoom + BINDER_GAP : gutter;
+  const sidebarWidth = bar ? BINDER_SIDEBAR_WIDTH : SIDEBAR_WIDTH;
+  const areaStart = barRoom + (hasSidebar ? (bar ? BINDER_GAP + BINDER_SIDEBAR_WIDTH : SIDEBAR_WIDTH + gutter) : 0);
 
   // Room at the inline-end edge: the agent window at the edge (the window's own rule, so the page and the window always agree), then a
   // docked Scene info beside it, if the page keeps its minimum width.
@@ -178,7 +194,7 @@ export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInp
     bottomOrnament: narrow
       ? { centre: round(width / 2), top: Math.max(0, height - NARROW_GUTTER - NARROW_TAB_BAR), height: NARROW_TAB_BAR }
       : { centre: round(centre), top: pageTop + columnHeight - ORNAMENT_HEIGHT / 2, height: ORNAMENT_HEIGHT },
-    sidebar: hasSidebar ? { start: gutter, top: pageTop, width: SIDEBAR_WIDTH, height: columnHeight } : null,
+    sidebar: hasSidebar ? { start: sidebarStart, top: pageTop, width: sidebarWidth, height: columnHeight } : null,
     agent: agentBox,
     info: infoBox,
     overlay,

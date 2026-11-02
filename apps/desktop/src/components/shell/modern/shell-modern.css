@@ -431,24 +431,6 @@
   padding-inline: var(--space-6);
 }
 
-/* ---- The provisional binder panel (M4); #307's tab bar and sidebar replace it. Paper, so the binder's muted text keeps 4.5:1. ---- */
-:root[data-shell='modern'] .modern-sidebar {
-  position: absolute;
-  inset-block: var(--page-top) var(--page-bottom);
-  inset-inline-start: var(--page-gutter);
-  inline-size: var(--sidebar-w);
-  display: flex;
-  flex-direction: column;
-  min-block-size: 0;
-  overflow: auto;
-  padding: var(--sheet-pad);
-  border-radius: var(--radius-sheet);
-  background: var(--m-solid);
-  color: var(--ink);
-  box-shadow: var(--elev-glass);
-  z-index: 1;
-}
-
 /* ---- Notices: the toasts at the top centre are #311's, in surfaces-modern.css (§8.6). ---- */
 
 /* ---- Skip link: the first stop, shown when focused (§9.1). ---- */
@@ -468,17 +450,13 @@
   transform: none;
 }
 
-/* ---- Below 960 px the page fills the width (§13 is M11, #312); the provisional binder panel steps aside. ---- */
+/* ---- Below 960 px the page fills the width (§13 is M11, #312); the binder tab bar is not drawn there (ModernShell). ---- */
 @media (max-width: 959px) {
   :root[data-shell='modern'] .modern-stage {
     --page-gutter: 8px;
     --page-top: 72px;
     --page-bottom: 88px;
     --area-start: 0px;
-  }
-
-  :root[data-shell='modern'] .modern-sidebar {
-    display: none;
   }
 
   :root[data-shell='modern'] .mat-paper {
@@ -492,7 +470,6 @@
   :root[data-shell='modern'] .mat-glass,
   :root[data-shell='modern'] .mat-thick,
   :root[data-shell='modern'] .mat-frost,
-  :root[data-shell='modern'] .modern-sidebar,
   :root[data-shell='modern'] .modern-capsule {
     border: 1px solid CanvasText;
     background: Canvas;

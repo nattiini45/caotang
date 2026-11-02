@@ -244,6 +244,19 @@ describe('modernLayout', () => {
     expect(narrowPanels(720, 450).sheet.height).toBe(360);
   });
 
+  it('with #307’s tab bar, the bar always takes its room and the sidebar moves the page over only while pinned', () => {
+    const at = (sidebar: boolean, width = 1440) =>
+      modernLayout({ viewport: { width, height: HEIGHT }, view: 'write', sidebar, binderBar: true, agent: false, info: false });
+    // binder-sidebar.css: 16 px inset + 88 px bar; pinned, + 8 px gap + 340 px sidebar.
+    expect(at(false).geometry.areaStart).toBe(104);
+    expect(at(false).sidebar).toBeNull();
+    expect(at(true).geometry.areaStart).toBe(452);
+    expect(at(true).sidebar).toEqual({ start: 112, top: at(true).page.top, width: 340, height: at(true).page.height });
+    expect(overlaps(at(true).sidebar as Box, at(true).page)).toBe(false);
+    // Below 960 px there is no bar (ModernShell draws none) and no room for it.
+    expect(at(true, 700).geometry.areaStart).toBe(0);
+  });
+
   it('never returns a negative size', () => {
     const layout = modernLayout({ viewport: { width: 0, height: 0 }, view: 'write', sidebar: true, agent: true, info: true });
     for (const box of [layout.page, layout.agent, layout.info]) {

@@ -197,7 +197,7 @@ const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly 
  */
 const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-(glass|solid)-[a-z-]+)\.png$/;
 const VISUAL_SURFACES = ['projects', 'workspace', 'corkboard', 'codex', 'findings', 'activity', 'settings-appearance', 'export', 'narrow'];
-const MODERN_VISUAL_SURFACES = ['page', 'companion-beside', 'companion-sheet', 'palette', 'palette-query', 'narrow'];
+const MODERN_VISUAL_SURFACES = ['page', 'companion-beside', 'companion-sheet', 'palette', 'palette-query', 'sidebar-open', 'sidebar-pinned', 'narrow'];
 /** Modern surfaces taken on glass only: #306's Board, Codex and ⋯ menu (modern.spec.ts), #311's dialogs (modern-dialogs.spec.ts), #312's narrow panels (modern-narrow.spec.ts). */
 const MODERN_GLASS_SURFACES = ['board', 'codex', 'more', 'projects', 'settings-appearance', 'export', 'confirm', 'narrow-drawer', 'narrow-scene-info', 'narrow-agent'];
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];

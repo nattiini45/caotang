@@ -9,6 +9,7 @@ import { waitForSaved } from '../support.js';
  * image, like modern.spec.ts, with time fixed, animations off and the caret hidden.
  */
 
+// A step that cannot happen fails in 15 s, not at the 90 s test timeout (which, times retries, outlasts the visual job's 20 minutes).
 test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
 const NOW = new Date(Date.UTC(2026, 5, 1, 9, 0, 0));
@@ -35,7 +36,10 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await page.getByLabel('Project name').fill('The Lighthouse Keeper');
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
-  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+  // The binder is in the sidebar (#307), inert while closed: open it from the tab bar to make the chapter and the scene.
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
+  await page.getByTestId('modern-sidebar').getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
   await page.keyboard.press('Enter');
@@ -45,6 +49,9 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   const banner = page.getByTestId('storage-banner');
   await banner.getByRole('button', { name: 'Dismiss' }).click();
   await expect(banner).toBeHidden();
+  // Let the sidebar close as the pointer leaves, so the page behind the dialog is the bare page.
+  await page.mouse.move(1300, 450);
+  await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'closed');
 }
 
 for (const scheme of ['light', 'dark'] as const) {
