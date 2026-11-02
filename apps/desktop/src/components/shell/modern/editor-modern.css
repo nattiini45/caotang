@@ -154,3 +154,422 @@
 :root[data-shell='modern'] .modern-page .editor-host .ProseMirror {
   min-block-size: 0;
 }
+
+/* ======================================================================================================================================
+ * Stageshow polish, the write surfaces (#361). Classic's markup on Modern's page, restyled here; the kit (controls-modern.css) draws
+ * the controls themselves. Icons that the markup cannot carry (it is Classic's) are the ornaments' 24-unit strokes as CSS masks; the
+ * chevron is the kit's own (--k-chevron), turned.
+ * ====================================================================================================================================== */
+:root[data-shell='modern'] {
+  --w-pin: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4.5h6M10 4.5v5.5l-3 3.5h10l-3-3.5V4.5M12 13.5V20'/%3E%3C/svg%3E");
+  --w-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");
+}
+
+/* ---- The ghost bar and the review bar: one raised surface in the UI type, the words at the start and the actions at the end; no
+   accent edge. Accept (Apply) is the one primary; Previous and Next are chevrons; the rest is in the More disclosure. ---- */
+:root[data-shell='modern'] .modern-page :is(.ghost-bar, .review-bar) {
+  display: grid;
+  /* The words keep a reading measure; the actions take at most two thirds and wrap within it. */
+  grid-template-columns: minmax(min(14rem, 100%), 1fr) fit-content(66%);
+  align-items: center;
+  column-gap: var(--space-5);
+  margin-block-start: var(--space-6);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--raised);
+  box-shadow: 0 0 0 1px var(--line), var(--elev-glass);
+  color: var(--ink);
+  font: 400 15px/1.4 var(--ui);
+}
+
+:root[data-shell='modern'] .modern-page .review-bar {
+  inset-block-end: var(--space-6);
+  z-index: 2;
+}
+
+:root[data-shell='modern'] .modern-page :is(.ghost-bar, .review-bar) > p {
+  grid-column: 1;
+  margin: 0;
+}
+
+:root[data-shell='modern'] .modern-page .review-bar > .review-current {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+:root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+/* Previous and Next: a chevron each, the word kept as their name. */
+:root[data-shell='modern'] .modern-page .review-actions > .button:nth-child(-n + 2) {
+  inline-size: var(--target-min);
+  padding: 0;
+  font-size: 0;
+}
+
+:root[data-shell='modern'] .modern-page .review-actions > .button:nth-child(-n + 2)::before {
+  content: '';
+  inline-size: 20px;
+  block-size: 20px;
+  background: currentColor;
+  mask: var(--k-chevron) no-repeat center / 20px;
+  transform: rotate(90deg);
+}
+
+:root[data-shell='modern'] .modern-page .review-actions > .button:nth-child(2)::before,
+:root[data-shell='modern'][dir='rtl'] .modern-page .review-actions > .button:nth-child(1)::before {
+  transform: rotate(-90deg);
+}
+
+:root[data-shell='modern'][dir='rtl'] .modern-page .review-actions > .button:nth-child(2)::before {
+  transform: rotate(90deg);
+}
+
+/* Below the page's reading width the actions go under the words. */
+@media (max-width: 720px) {
+  :root[data-shell='modern'] .modern-page :is(.ghost-bar, .review-bar) {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-4);
+  }
+
+  :root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) {
+    grid-column: 1;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+}
+
+/* No "Start the scene…" placeholder over a draft: the empty scene's hint goes while the ghost region shows one. */
+:root[data-shell='modern'] .editor-host:has(.caotang-editor-ghost:not([hidden], :empty)) .caotang-editor-focus p.is-editor-empty::before {
+  content: none;
+}
+
+/* ---- Scene info: Keep open is a pin and Close an ×, icon buttons with a surface at rest; the pin is the accent while it is on.
+   Their words stay their names. The disclosures line up with the fields. ---- */
+:root[data-shell='modern'] .scene-info-head > .modern-capsule {
+  flex: none;
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  padding: 0;
+  border-radius: 50%;
+  background: var(--k-fill);
+  color: var(--ink);
+  font-size: 0;
+}
+
+:root[data-shell='modern'] .scene-info-head > .modern-capsule:hover {
+  background: var(--k-fill-hover);
+}
+
+:root[data-shell='modern'] .scene-info-head > .modern-capsule::before {
+  content: '';
+  inline-size: 20px;
+  block-size: 20px;
+  background: currentColor;
+  mask: var(--w-close) no-repeat center / 20px;
+}
+
+:root[data-shell='modern'] .scene-info-head > .modern-capsule[aria-pressed]::before {
+  mask-image: var(--w-pin);
+}
+
+:root[data-shell='modern'] .scene-info-head > .modern-capsule[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+:root[data-shell='modern'] .scene-info .inspector-head > .eyebrow {
+  display: none;
+}
+
+:root[data-shell='modern'] .scene-info .inspector-disclosure > summary {
+  padding-inline: var(--space-5);
+}
+
+/* ---- Codex: the list in one column on the page's edge, the filters in their disclosure, sentence-case group heads; the entry's
+   fields at a reading width, Include as a segmented control, the name said once (the field). ---- */
+:root[data-shell='modern'] .modern-page .codex {
+  gap: var(--space-5);
+}
+
+:root[data-shell='modern'] .modern-page .codex-search {
+  max-inline-size: 40rem;
+}
+
+:root[data-shell='modern'] .codex-filter > summary {
+  inline-size: fit-content;
+}
+
+:root[data-shell='modern'] .codex-filter > summary:not([data-on='0'])::after {
+  content: attr(data-on);
+  padding-inline: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: 600 12px/20px var(--ui);
+}
+
+:root[data-shell='modern'] .codex-filter[open] {
+  display: grid;
+  gap: var(--space-4);
+  padding-block-end: var(--space-4);
+}
+
+:root[data-shell='modern'] .codex-filter .codex-chips {
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+/* Each chip row says what it filters: its group's own name, visible. */
+:root[data-shell='modern'] .codex-filter .codex-chips::before {
+  content: attr(aria-label);
+  flex: 0 0 100%;
+  color: var(--k-help-ink);
+  font: 600 13px/1.3 var(--ui);
+}
+
+:root[data-shell='modern'] .codex .chip-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+:root[data-shell='modern'] .modern-page .codex-group-title {
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--ink-soft);
+  font: 600 13px/1.3 var(--ui);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+:root[data-shell='modern'] .modern-page .codex-rows {
+  margin-inline: calc(-1 * var(--space-5));
+}
+
+:root[data-shell='modern'] .modern-page .codex-row {
+  min-block-size: var(--target-min);
+  padding-inline: var(--space-5);
+  border: 0;
+  border-radius: var(--radius-inner);
+  font: 400 15px/1.3 var(--ui);
+}
+
+:root[data-shell='modern'] .modern-page .codex-row:hover {
+  background: var(--k-quiet);
+}
+
+:root[data-shell='modern'] .modern-page .codex-row-policy {
+  border: 0;
+  background: var(--k-track);
+  color: var(--ink-soft);
+  font: 600 12px/20px var(--ui);
+}
+
+:root[data-shell='modern'] .modern-page .codex-entry {
+  max-inline-size: 40rem;
+}
+
+/* The entry's name is said by its field, and the pictures board's by the capsule: their headings are for assistive technology. */
+:root[data-shell='modern'] :is(.modern-page .codex-entry-title, .pb-title) {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] .codex-entry .policy-options {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  inline-size: fit-content;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--k-track);
+}
+
+:root[data-shell='modern'] .codex-entry .policy-option {
+  position: relative;
+  min-block-size: var(--target-min);
+  padding-inline: 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  font: 500 14px/1.3 var(--ui);
+  cursor: pointer;
+}
+
+/* The radio stays the control (keys, its name and checked state); the segment is its picture. */
+:root[data-shell='modern'] .codex-entry .policy-option > input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] .codex-entry .policy-option:has(> input:checked) {
+  background: var(--k-thumb);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+:root[data-shell='modern'] .codex-entry .policy-option:has(> input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+/* ---- Board: a card's grip, synopsis and footer share its 12 px start edge; the synopsis is the card's text at rest (the kit's field
+   only while it is edited). ---- */
+:root[data-shell='modern'] .card {
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-5);
+}
+
+:root[data-shell='modern'] .card .card-head {
+  gap: 0;
+}
+
+:root[data-shell='modern'] .card .card-grip {
+  justify-content: flex-start;
+  letter-spacing: 0;
+}
+
+:root[data-shell='modern'] .card .card-title {
+  font: 600 15px/1.3 var(--ui);
+}
+
+:root[data-shell='modern'] .card .synopsis {
+  min-block-size: var(--target-min);
+  padding: 0;
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font: 400 14px/1.45 var(--ui);
+}
+
+:root[data-shell='modern'] .card .synopsis:focus {
+  padding: var(--space-2) var(--space-3);
+  margin-inline: calc(-1 * var(--space-3));
+  inline-size: calc(100% + 2 * var(--space-3));
+  border-radius: var(--space-4);
+  background: var(--raised);
+}
+
+:root[data-shell='modern'] .card .card-foot {
+  color: var(--muted);
+  font: 400 12px/1.3 var(--ui);
+}
+
+/* ---- Timeline: the part's name sits above the day labels instead of over them, a scene's name ends in an ellipsis instead of a
+   cut, the axis count never wraps, and the toolbar's controls share one line height. ---- */
+:root[data-shell='modern'] .tl-zone-label {
+  transform: translateY(-5px);
+}
+
+:root[data-shell='modern'] .tl-tick text {
+  transform: translateY(5px);
+}
+
+:root[data-shell='modern'] .tl-chip > :not(.tl-glyph, .tl-pnum, .tl-badge, .tl-count) {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+:root[data-shell='modern'] .tl-toolbar {
+  align-items: center;
+  gap: var(--space-4) var(--space-5);
+}
+
+:root[data-shell='modern'] .tl-segmented {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+:root[data-shell='modern'] .tl-segmented-item {
+  flex: none;
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] .tl-field {
+  gap: var(--space-4);
+  color: var(--ink-soft);
+  font: 500 13px/1.3 var(--ui);
+}
+
+/* ---- Pictures: the filters sit on the page, not in a box; a tile's words share the picture's start edge. ---- */
+
+:root[data-shell='modern'] .pb-head {
+  justify-content: flex-start;
+}
+
+:root[data-shell='modern'] .pb-filters {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+:root[data-shell='modern'] .pb-tile {
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-5);
+  border-radius: var(--radius-inner);
+}
+
+:root[data-shell='modern'] .pb-thumb {
+  border-radius: calc(var(--radius-inner) - var(--space-3));
+}
+
+:root[data-shell='modern'] .pb-meta {
+  gap: var(--space-3);
+  padding-inline: var(--space-3);
+}
+
+:root[data-shell='modern'] .pb-caption {
+  font: 500 14px/1.3 var(--ui);
+}
+
+/* ---- A comic page's header: the reading direction is said by its select, so not again as a badge; the tools keep their words on one
+   line; the help is the kit's quiet help at a reading width. An empty panel is its number on a tinted
+   panel: the sentence ran out of narrow panels. ---- */
+:root[data-shell='modern'] .comic-view .media-head > div > .badge:nth-child(2) {
+  display: none;
+}
+
+:root[data-shell='modern'] .comic-tools {
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+:root[data-shell='modern'] .comic-tools .button {
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] .comic-note {
+  max-inline-size: 46rem;
+  color: var(--k-help-ink);
+  font: 400 13px/1.45 var(--ui);
+}
+
+:root[data-shell='modern'] .comic-panel-note.is-empty {
+  display: none;
+}
+
+:root[data-shell='modern'] .comic-panel-placeholder {
+  fill: var(--panel);
+}

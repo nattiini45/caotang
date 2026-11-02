@@ -111,6 +111,11 @@
     align-self: stretch;
   }
 
+  /* The timeline or the pictures, shown as a fourth view while the page shows it (#361): the group grows by one tab. */
+  :root[data-shell='modern'] .modern-stage .is-bottom .modern-views:has(> :nth-child(5)) {
+    flex-grow: 4;
+  }
+
   :root[data-shell='modern'] .modern-stage .is-bottom .modern-capsule {
     position: relative;
     flex: 1 1 0;

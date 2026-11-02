@@ -12,6 +12,7 @@
  * its own, and it follows the text as the text is saved.
  */
 
+import { isModern } from '../app/interface.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 import { defaultTitleOf, isolate } from '@caotang/i18n';
 import { plural, t } from '@lingui/core/macro';
@@ -122,6 +123,7 @@ function CodexList({
   useLingui();
   const report = useReport();
   const [filter, setFilter] = useState<CodexFilter>(NO_FILTER);
+  const modern = isModern();
   const totals = totalsOf(session.state, session.mentions, entries);
   const visible = entries.filter((entry) => matchesFilter(entry, filter));
   const groups = groupByType(visible, session.state.manifest.project.language);
@@ -145,26 +147,8 @@ function CodexList({
     return next;
   };
 
-  return (
-    <div className="codex">
-      {/* With no entries the empty state below carries the one action, so the toolbar does not repeat it. */}
-      {entries.length > 0 ? (
-        <div className="codex-toolbar">
-          <button type="button" className="button is-primary" onClick={create}>
-            <Trans>New entry</Trans>
-          </button>
-        </div>
-      ) : null}
-
-      <input
-        type="search"
-        className="codex-search"
-        aria-label={t`Search the codex`}
-        placeholder={t`Search names, aliases and descriptions`}
-        value={filter.query}
-        onChange={(event) => setFilter({ ...filter, query: event.target.value })}
-      />
-
+  const chipRows = (
+    <>
       <div className="codex-chips" role="group" aria-label={t`Filter by type`}>
         {CODEX_TYPES.map((type) => (
           <button
@@ -191,6 +175,39 @@ function CodexList({
           </button>
         ))}
       </div>
+    </>
+  );
+
+  return (
+    <div className="codex">
+      {/* With no entries the empty state below carries the one action, so the toolbar does not repeat it. */}
+      {entries.length > 0 ? (
+        <div className="codex-toolbar">
+          <button type="button" className="button is-primary" onClick={create}>
+            <Trans>New entry</Trans>
+          </button>
+        </div>
+      ) : null}
+
+      <input
+        type="search"
+        className="codex-search"
+        aria-label={t`Search the codex`}
+        placeholder={t`Search names, aliases and descriptions`}
+        value={filter.query}
+        onChange={(event) => setFilter({ ...filter, query: event.target.value })}
+      />
+
+      {/* Modern keeps the ten chips in a Filter disclosure, with the count of chips on (#361); Classic shows them as they are. */}
+      {modern ? (
+        <details className="codex-filter">
+          {/* The count of chips on is drawn from data-on by CSS, and hidden at 0. */}
+          <summary data-on={filter.types.size + filter.policies.size}>{t`Filter`}</summary>
+          {chipRows}
+        </details>
+      ) : (
+        chipRows
+      )}
 
       {entries.length === 0 ? (
         <EmptyState
@@ -610,7 +627,7 @@ function AttachmentsField({
       <h3 className="field-label"><Trans>Attached to</Trans></h3>
       {attached.length === 0 ? (
         <p className="field-help">
-          <Trans>Attached to no items yet. A Manual entry is sent only in the items it is attached to (codex.md §5).</Trans>
+          <Trans>Attached to no items yet. A Manual entry is sent only in the items it is attached to.</Trans>
         </p>
       ) : (
         <ul className="keyword-list" aria-label={t`Attachments`}>
