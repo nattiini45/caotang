@@ -167,6 +167,12 @@ export async function openMore(page: Page): Promise<Locator> {
   return menu;
 }
 
+/** An item of **⋯** by its name: a command, or one of Appearance's radio and checkbox items (#306). */
+function menuItem(menu: Locator, name: string): Locator {
+  const exact = { name, exact: true } as const;
+  return menu.getByRole('menuitem', exact).or(menu.getByRole('menuitemradio', exact)).or(menu.getByRole('menuitemcheckbox', exact)).first();
+}
+
 function paletteOf(page: Page): Locator {
   return page.getByRole('dialog', { name: 'Search and commands' });
 }
@@ -223,10 +229,10 @@ async function provoke(page: Page, what: Extract<Step, { provoke: unknown }>['pr
 export async function runStep(page: Page, step: Step): Promise<void> {
   if ('more' in step) {
     const menu = await openMore(page);
-    await withDownload(page, step.download, () => menu.getByRole('menuitem', { name: step.more, exact: true }).click());
+    await withDownload(page, step.download, () => menuItem(menu, step.more).click());
   } else if ('menuHas' in step) {
     const menu = await openMore(page);
-    await expect(menu.getByRole('menuitem', { name: step.menuHas, exact: true })).toBeVisible();
+    await expect(menuItem(menu, step.menuHas)).toBeVisible();
     await page.keyboard.press('Escape');
   } else if ('palette' in step) {
     const option = await paletteOption(page, step.palette, step.option ?? step.palette);

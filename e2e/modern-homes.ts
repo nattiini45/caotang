@@ -91,7 +91,7 @@ const binderTree: Target = { role: 'tree', name: 'Binder' };
 const sceneInfo: Target = { role: 'dialog', name: 'Scene info' };
 const agent: Target = { role: 'complementary', name: 'Agent' };
 const corkboard: Target = { css: '#modern-page .corkboard' };
-const codexOnPage: Target = { role: 'region', name: 'Codex entries', within: page };
+const codexOnPage: Target = { role: 'searchbox', name: 'Search the codex', within: page };
 const bottom: Target = { role: 'navigation', name: 'Views and tools' };
 const titleCapsule: Target = { testId: 'modern-title-capsule' };
 const binderBar: Target = { role: 'navigation', name: 'Binder' };
@@ -231,20 +231,14 @@ export const MODERN_HOMES: readonly Home[] = [
       {
         via: '⋯ › Appearance › Dark',
         steps: [{ more: 'Dark' }, see({ css: "html[data-theme='dark']" })],
-        pending: 306,
-        why: '⋯’s Appearance section (Light, Dark, Reduce transparency, Interface) is #306’s',
       },
       {
         via: '⋯ › Appearance › Reduce transparency',
         steps: [{ more: 'Reduce transparency' }, see({ css: "html[data-transparency='reduced']" })],
-        pending: 306,
-        why: '⋯’s Appearance section is #306’s',
       },
       {
         via: '⋯ › Appearance › the Classic interface',
         steps: [{ more: 'Use the Classic interface' }, see({ css: "html[data-shell='classic']" })],
-        pending: 306,
-        why: '⋯’s Appearance section is #306’s',
       },
       { via: 'palette › Switch to the Classic interface', steps: [{ palette: 'Switch to the Classic interface' }, see({ css: "html[data-shell='classic']" })] },
     ],
@@ -260,8 +254,6 @@ export const MODERN_HOMES: readonly Home[] = [
       {
         via: 'the title capsule’s ring and dot',
         steps: [see({ testId: 'modern-title-capsule' })],
-        pending: 306,
-        why: 'the title capsule (ring, dot) is #306’s',
       },
     ],
   },
@@ -373,8 +365,8 @@ export const MODERN_HOMES: readonly Home[] = [
     modern: 'The Codex view: the page morphs to the codex (same CodexPanel); a mention chip opens it',
     setup: 'scene',
     routes: [
-      { via: 'Codex in the bottom ornament', steps: [{ click: { role: 'radio', name: 'Codex', within: bottom } }, see(codexOnPage)], pending: 306, why: 'the Codex view is #306’s' },
-      { via: 'palette › Codex', steps: [{ palette: 'Codex', option: 'Codex' }, see(codexOnPage)], pending: 306, why: 'the Codex view on the page is #306’s' },
+      { via: 'Codex in the bottom ornament', steps: [{ click: { role: 'radio', name: 'Codex', within: bottom } }, see(codexOnPage)] },
+      { via: 'palette › Codex', steps: [{ palette: 'Codex', option: 'Codex' }, see(codexOnPage)] },
     ],
   },
   ...(['Activity', 'Trace', 'Findings'] as const).map(
@@ -389,7 +381,7 @@ export const MODERN_HOMES: readonly Home[] = [
         { via: `Panels › ${tab}`, steps: [{ click: panels }, { click: sidebarTab(tab) }, see({ role: 'tabpanel', within: { testId: 'modern-sidebar' } })], pending: 307, why: 'the tab bar’s Panels is #307’s' },
         ...(tab === 'Findings'
           ? [
-              { via: 'the count on the title capsule’s dot', steps: [see({ testId: 'modern-title-dot' })], pending: 306 as const, why: 'the title capsule is #306’s' },
+              { via: 'the count on the title capsule’s dot', steps: [see({ testId: 'modern-title-dot' })], pending: 313 as const, why: 'the dot shows only with open findings, and the walk does not yet raise one' },
               {
                 via: 'Scene info › Show in Findings',
                 steps: [{ palette: 'Scene info' }, see({ role: 'button', name: 'Show in Findings', within: sceneInfo })],
@@ -411,7 +403,7 @@ export const MODERN_HOMES: readonly Home[] = [
     setup: 'scene',
     routes: [
       { via: 'the centre radios keep their ids', steps: [{ click: { css: '#center-corkboard' } }, see(corkboard), { click: { css: '#center-editor' } }, see(editor)] },
-      { via: 'Write and Board by name', steps: [{ click: { role: 'radio', name: 'Board', within: bottom } }, see(corkboard), { click: { role: 'radio', name: 'Write', within: bottom } }, see(editor)], pending: 306, why: 'Write / Board / Codex are #306’s' },
+      { via: 'Write and Board by name', steps: [{ click: { role: 'radio', name: 'Board', within: bottom } }, see(corkboard), { click: { role: 'radio', name: 'Write', within: bottom } }, see(editor)] },
       { via: 'palette › Board', steps: [{ palette: 'Board', option: 'Board' }, see(corkboard)] },
     ],
   },
@@ -455,7 +447,7 @@ export const MODERN_HOMES: readonly Home[] = [
     setup: 'scene',
     routes: [
       { via: 'Scene info › Progress', steps: [{ palette: 'Scene info' }, see({ testId: 'scene-info-progress', within: sceneInfo })] },
-      { via: 'the ring on the title capsule', steps: [see(titleCapsule)], pending: 306, why: 'the title capsule is #306’s' },
+      { via: 'the ring on the title capsule', steps: [see(titleCapsule)] },
     ],
   },
   {
@@ -472,7 +464,7 @@ export const MODERN_HOMES: readonly Home[] = [
         // The first card on the page: the Board's scope is wherever the writer left it (a reopened project starts at the manuscript).
         steps: [{ click: { css: '#center-corkboard' } }, { press: 'Shift+F10', focus: { css: '#modern-page article.card' } }, see({ role: 'menu', pattern: '^Actions for ' })],
       },
-      { via: 'the zoom in the top ornament', steps: [{ click: { role: 'radio', name: 'Board', within: bottom } }, see({ role: 'radiogroup', pattern: 'zoom|Zoom', within: { testId: 'modern-top-ornament' } })], pending: 306, why: 'the Board’s controls in the top ornament are #306’s' },
+      { via: 'the zoom in the top ornament', steps: [{ click: { role: 'radio', name: 'Board', within: bottom } }, see({ role: 'radiogroup', pattern: 'zoom|Zoom', within: { testId: 'modern-top-ornament' } })], pending: 306, why: '#306 landed without the Board’s zoom in the top ornament (§7.3); it is still to be placed' },
     ],
   },
   {
@@ -519,7 +511,7 @@ export const MODERN_HOMES: readonly Home[] = [
     routes: [
       { via: 'Ctrl+J from the text', steps: [{ press: 'ControlOrMeta+j', on: editor }, see(agent), see({ role: 'group', name: 'Mode', within: agent }), see({ testId: 'agent-close', within: agent })] },
       { via: 'palette › Ask the agent', steps: [{ palette: 'Ask the agent' }, see(agent)] },
-      { via: 'Ask in the bottom ornament', steps: [{ click: { role: 'button', name: 'Ask', within: bottom } }, see(agent)], pending: 306, why: 'Ask is #306’s' },
+      { via: 'Ask in the bottom ornament', steps: [{ click: { role: 'button', name: 'Ask', within: bottom } }, see(agent)] },
     ],
   },
   {
@@ -554,7 +546,7 @@ export const MODERN_HOMES: readonly Home[] = [
     setup: 'scene',
     routes: [
       { via: 'palette › Scene info', steps: [{ palette: 'Scene info' }, see({ css: '#inspector-synopsis', within: sceneInfo }), see({ role: 'heading', name: SCENE, within: sceneInfo })] },
-      { via: 'the title capsule', steps: [{ click: titleCapsule }, see(sceneInfo)], pending: 306, why: 'the title capsule is #306’s' },
+      { via: 'the title capsule', steps: [{ click: titleCapsule }, see(sceneInfo)] },
     ],
   },
   {
@@ -634,6 +626,7 @@ export const MODERN_HOMES: readonly Home[] = [
     modern: 'Unchanged; Ctrl+K and Ctrl+J added (§8.11)',
     setup: 'scene',
     routes: [
+      { via: 'Search in the bottom ornament opens the palette', steps: [{ click: { role: 'button', name: 'Search', within: bottom } }, see({ role: 'dialog', name: 'Search and commands' })] },
       { via: 'Ctrl+K opens the palette, Escape closes it', steps: [{ press: 'ControlOrMeta+k', on: editor }, see({ role: 'dialog', name: 'Search and commands' }), { press: 'Escape' }, see({ role: 'dialog', name: 'Search and commands' }, { gone: true })] },
       {
         via: 'Ctrl+Shift+Y in a screenplay opens Scene info on the synopsis',
