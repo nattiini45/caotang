@@ -564,3 +564,57 @@
     display: none;
   }
 }
+
+/* ---- Import and Export (#363). Dialogs that hold text to read are opaque: Firefox drew the page through the glass of the sheet. Their
+   actions stay pinned at the foot while the body scrolls, on the sheet's own surface, out to its edges. ---- */
+:root[data-shell='modern'] dialog:is(.export-dialog, .import-preview) {
+  background: var(--m-solid);
+  backdrop-filter: none;
+}
+
+:root[data-shell='modern'] dialog.confirm .confirm-actions,
+:root[data-shell='modern'] dialog.export-dialog .export-footer {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  margin-block-end: -18px;
+  margin-inline: -22px;
+  padding: 12px 22px 18px;
+  background: var(--mat-sheet-bg);
+}
+
+:root[data-shell='modern'] dialog.export-dialog .export-footer {
+  margin-block-end: -22px;
+  padding-block-end: 22px;
+  background: var(--m-solid);
+}
+
+/* The chosen format is lifted on its own surface, not ringed in the accent with a tinted halo. */
+:root[data-shell='modern'] .export-option.is-chosen {
+  border-color: var(--line-strong);
+  background: var(--raised);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Settings for this recipe: one line that opens. Its legend still names the group for a screen reader. */
+:root[data-shell='modern'] .export-recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* "Save these settings as a new recipe" on its own line, the field and Save as recipe under it at one height. */
+:root[data-shell='modern'] .export-save-new {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+:root[data-shell='modern'] .export-save-new > label {
+  display: contents;
+}
+
+:root[data-shell='modern'] .export-save-new > label > span {
+  grid-column: 1 / -1;
+}
