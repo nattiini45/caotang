@@ -163,6 +163,13 @@ export async function showBinder(page: Page): Promise<void> {
   await expect(tree).toBeVisible();
 }
 
+/** Closes the sidebar with Manuscript, as a writer does who opened it so. */
+export async function closeBinder(page: Page): Promise<void> {
+  const nav = page.getByTestId('modern-binder');
+  if ((await nav.getAttribute('data-state')) === 'open') await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await expect(nav).toHaveAttribute('data-state', 'closed');
+}
+
 /** **⋯**: the top ornament's More (M4's provisional one, or #306's). */
 export async function openMore(page: Page): Promise<Locator> {
   await page.getByTestId('modern-top-ornament').getByRole('button', { name: 'More', exact: true }).click();
@@ -224,6 +231,9 @@ async function provoke(page: Page, what: Extract<Step, { provoke: unknown }>['pr
       await page.getByRole('menu', { name: 'Actions for Chapter 1' }).getByRole('menuitem', { name: item }).click();
       // The new node's title is in rename mode; Escape keeps its name.
       await page.keyboard.press('Escape');
+      // Then Manuscript closes the sidebar it opened, so the route starts on the new item's page with the sidebar shut, as a writer
+      // who goes on to work in it would have it (a pointer that left through the row's menu does not close it by itself).
+      await closeBinder(page);
       return;
     }
   }

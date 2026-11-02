@@ -102,6 +102,8 @@ const sidebarTab = (name: string): Target => ({ role: 'tab', name, within: sideb
 /** A sidebar tab that is the chosen one. */
 const selectedTab = (name: string): Target => ({ css: '[role="tab"][aria-selected="true"]', pattern: `^${name}`, within: sidebar });
 const goals: Target = { role: 'button', name: 'Goals and sprint', within: sidebar };
+/** The tab bar of a closed sidebar: a route that must open the sidebar itself starts from it closed, not from one still closing. */
+const sidebarClosed: Target = { css: '[data-testid="modern-binder"][data-state="closed"] [data-testid="modern-binder-bar"]' };
 /** The scene the `scene` setup opens. */
 export const SCENE = 'The Landing';
 const sceneRow: Target = { css: '.row-title', pattern: `^${SCENE}$` };
@@ -647,7 +649,9 @@ export const MODERN_HOMES: readonly Home[] = [
       },
       {
         via: 'Ctrl+Shift+S in a screenplay opens the sidebar on its section, in Board',
-        steps: [{ provoke: 'screenplay' }, { click: { role: 'radio', name: 'Source', within: page } }, { press: 'Control+Shift+KeyS', on: { role: 'textbox', name: 'Fountain source' } }, see(corkboard), see(selectedTab('Binder')), see({ css: '.binder-tree [role="treeitem"]:focus', within: sidebar })],
+        steps: [{ provoke: 'screenplay' }, { click: { role: 'radio', name: 'Source', within: page } }, see(sidebarClosed), { press: 'Control+Shift+KeyS', on: { role: 'textbox', name: 'Fountain source' } }, see(corkboard), see(selectedTab('Binder')), see({ css: '.binder-tree [role="treeitem"]:focus', within: sidebar })],
+        pending: 313,
+        why: 'Ctrl+Shift+S selects the section and turns the page to Board, but a closed sidebar stays shut: Workspace’s showSceneSection sets the rail to Binder, which it already is, and binder-sidebar.tsx opens only on a rail change, Ctrl+Alt+F or Manuscript/Panels, so the section row it focuses is inert',
       },
     ],
   },
