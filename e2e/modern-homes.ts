@@ -13,7 +13,7 @@
  */
 
 /** The issue that builds a home still in flight; 313 is a gap this issue closes. */
-export type Pending = 306 | 311 | 312 | 313;
+export type Pending = 306 | 311 | 313;
 
 /** How the walk starts: on the projects screen, in a project with nothing in it, or in a project with one scene open. */
 export type Setup = 'home' | 'empty' | 'scene';
@@ -48,6 +48,8 @@ export type Step =
   | { readonly type: string }
   /** Shows the binder: Manuscript in the tab bar opens the sidebar on it (#307); nothing when it is open already. */
   | { readonly binder: true }
+  /** Sizes the window as a writer narrows it (a phone, half a screen): below 960 px Modern takes its narrow layout (§13, #312). */
+  | { readonly viewport: { readonly width: number; readonly height: number } }
   /** Sets something up a route needs that no control shows by itself. */
   | { readonly provoke: 'storage-banner' | 'deleted-scene' | 'screenplay' | 'storyboard' | 'dialogue' }
   /** Expects a target: visible (default), focused, or gone. */
@@ -114,6 +116,11 @@ const sceneRow: Target = { css: '.row-title', pattern: `^${SCENE}$` };
 const sceneItem: Target = { role: 'treeitem', pattern: `^${SCENE}` };
 /** A chapter row's name starts with its Collapse button's label, so it is matched anywhere in the name. */
 const chapterItem: Target = { role: 'treeitem', pattern: 'Chapter 1' };
+
+/** A phone's window (390 by 844, as e2e/modern-mobile-shell.spec.ts takes it): the narrow layout (§13, #312). */
+const phone: Step = { viewport: { width: 390, height: 844 } };
+const narrowBinder: Target = { testId: 'modern-narrow-binder' };
+const drawer: Target = { testId: 'modern-drawer' };
 
 const see = (target: Target, extra: { focused?: boolean; gone?: boolean } = {}): Step => ({ see: target, ...extra });
 
@@ -318,7 +325,11 @@ export const MODERN_HOMES: readonly Home[] = [
     classic: 'Narrow toolbar (Binder, Inspector, More)',
     modern: '§13: the compact top ornament, the bottom tab bar, the drawer and sheets',
     setup: 'scene',
-    routes: [{ via: 'the narrow Modern layout', steps: [see({ testId: 'modern-narrow' })], pending: 312, why: 'the narrow Modern layout is #312’s' }],
+    routes: [
+      { via: 'on a phone, the binder’s button opens the drawer', steps: [phone, see(bottom), { click: narrowBinder }, see({ ...binderTree, within: drawer })] },
+      { via: 'on a phone, the title opens Scene info as a sheet', steps: [phone, { click: titleCapsule }, see(sceneInfo)] },
+      { via: 'on a phone, Ask opens the agent over the page', steps: [phone, { click: { css: '#modern-ask' } }, see(agent)] },
+    ],
   },
 
   // ---- §7.2 The rail ----
@@ -510,7 +521,12 @@ export const MODERN_HOMES: readonly Home[] = [
     classic: '"Open on desktop" notices',
     modern: '§13',
     setup: 'scene',
-    routes: [{ via: 'Board on a phone', steps: [see({ testId: 'modern-narrow' })], pending: 312, why: 'the narrow Modern layout is #312’s' }],
+    routes: [
+      {
+        via: 'Board on a phone',
+        steps: [phone, { click: { role: 'radio', name: 'Board', within: bottom } }, see({ role: 'heading', name: 'Open on desktop: the corkboard', within: page })],
+      },
+    ],
   },
 
   // ---- §7.4 The agent drawer ----

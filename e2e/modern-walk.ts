@@ -274,6 +274,10 @@ export async function runStep(page: Page, step: Step): Promise<void> {
     await showBinder(page);
   } else if ('provoke' in step) {
     await provoke(page, step.provoke);
+  } else if ('viewport' in step) {
+    await page.setViewportSize(step.viewport);
+    // Below 960 px the stage takes the narrow layout and loads its panels' chunk (#312): the walk goes on once its button is there.
+    if (step.viewport.width < 960) await expect(page.getByTestId('modern-narrow-binder')).toBeVisible();
   } else {
     const target = locate(page, step.see);
     if (step.gone === true) await expect(target).toHaveCount(0);

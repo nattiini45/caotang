@@ -80,7 +80,18 @@ export const SURFACES: readonly Surface[] = [
   { id: 'Settings', setup: 'scene', open: [{ palette: 'Settings' }], scope: '[data-testid="settings"]' },
   { id: 'the Export dialog', setup: 'scene', open: [{ palette: 'Compile…' }], scope: 'dialog.export-dialog' },
   { id: 'the projects screen', setup: 'home', open: [], scope: '.home' },
-  { id: 'the narrow layout', setup: 'scene', open: [], scope: '[data-testid="modern-stage"]', pending: 312, why: 'the narrow Modern layout is #312’s' },
+  // Below 960 px (§13, #312): the stage on a phone (the compact capsule, the binder's button, the page, the tab bar), then its drawer.
+  { id: 'the narrow layout', setup: 'scene', open: [{ viewport: { width: 390, height: 844 } }], scope: '[data-testid="modern-stage"]' },
+  {
+    id: 'the narrow drawer',
+    setup: 'scene',
+    open: [
+      { viewport: { width: 390, height: 844 } },
+      { click: { testId: 'modern-narrow-binder' } },
+      { see: { role: 'tree', name: 'Binder', within: { testId: 'modern-drawer' } } },
+    ],
+    scope: '[data-testid="modern-drawer"]',
+  },
 ];
 
 const SCHEMES = ['light', 'dark'] as const;
