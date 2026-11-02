@@ -294,6 +294,11 @@
   inset-inline-start: 0;
 }
 
+/* An option card or pill (Compile's formats, the codex policy) keeps its own layout; its row is still 44 px. */
+:root[data-shell='modern'] label:is(.export-option, .policy-option) {
+  min-block-size: var(--target-min);
+}
+
 /* A switch sits at the end of its row, as a setting does. */
 :root[data-shell='modern'] label:has(> input:is([role='switch'], .k-switch)) {
   padding-inline: 0 48px;
