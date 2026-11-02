@@ -26,6 +26,7 @@ import type { ShellRegions } from '../regions.js';
 import { modernLayout, type ModernView } from './layout.js';
 import { installMorph, morphPage } from './morph.js';
 import { useSceneInfo } from './scene-info-store.js';
+import { currentBinderPinned, subscribeBinderPinned } from './sidebar-model.js';
 import { MODERN_SLOTS, type ModernSlot, type ModernSlots } from './slots.js';
 import { Page, Stage, type StageGeometry } from './stage.js';
 import { modernViewOf } from './views.js';
@@ -66,6 +67,8 @@ export function ModernShell({
 }): ReactNode {
   const { view } = regions;
   const sidebar = slots.sidebar !== null && !view.hideRails && !view.narrow;
+  // The sidebar slot is #307's tab bar, which always takes its room; the sidebar beside it moves the page over only while pinned.
+  const pinned = useSyncExternalStore(subscribeBinderPinned, currentBinderPinned);
   const current = modernViewOf(view.rail, view.center);
   const size = useSyncExternalStore(subscribeViewport, readViewport);
   // The windows at the inline-end edge, as their own components decide whether they show (focus mode hides both): the agent window
@@ -74,7 +77,7 @@ export function ModernShell({
   const sceneInfo = useSceneInfo();
   const agent = slots.companion !== null && view.agentOpen && !view.hideRails;
   const info = slots.sceneInfo !== null && sceneInfo.open && sceneInfo.docked && !view.hideRails;
-  const layout = modernLayout({ viewport: size, view: current, sidebar, agent, info });
+  const layout = modernLayout({ viewport: size, view: current, sidebar: sidebar && pinned, binderBar: sidebar, agent, info });
   const placed = geometry ?? layout.geometry;
   const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={regions} pageId={PAGE_ID} />);
   const skip = (event: ReactMouseEvent<HTMLAnchorElement>): void => {

@@ -141,6 +141,9 @@ test('an empty state’s agent request opens the window out of its button, and t
   const area = page.locator('.modern-page-area');
   await expect.poll(() => area.evaluate((element) => getComputedStyle(element).insetInlineEnd)).toBe('0px');
 
+  // The empty manuscript's buttons are the binder's own, so in Modern they sit in the sidebar: open it first (§8.5). The pointer
+  // stays on the button, so the sidebar stays open while focus moves into the window, and Escape can hand focus back to it.
+  await openBinder(page);
   const ask = page.getByRole('button', { name: 'Let the agent structure it', exact: true });
   await ask.click();
   const pane = companion(page);

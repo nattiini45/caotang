@@ -15,6 +15,7 @@ import type { ShellAction } from '../../app/shell-actions.js';
 import type { CenterMode } from '../Binder.js';
 import type { SettingsSection } from '../Settings.js';
 import type { MenuAnchor } from '../shared.js';
+import type { MinimapDot } from './minimap.js';
 
 /** What the agent is doing: a turn working, a card waiting for the writer's answer, or nothing. */
 export type AgentActivity = 'idle' | 'working' | 'waiting';
@@ -44,6 +45,10 @@ export interface ShellView {
   readonly overflow: MenuAnchor | null;
   readonly openOverflow: (event: ReactMouseEvent<HTMLButtonElement>) => void;
   readonly closeOverflow: () => void;
+  /** Counts the filter chord's requests (Ctrl+Alt+F): a shell whose binder floats (Modern's sidebar) opens it on a new one. */
+  readonly filterRequest: number;
+  /** Counts the documents chosen in the binder (a row, or **Open in editor**): Modern closes an unpinned sidebar on each. */
+  readonly binderChoice: number;
 }
 
 /**
@@ -87,8 +92,13 @@ export interface ShellRegions {
   /** The shell actions (app/shell-actions.ts), in order. */
   readonly actions: readonly ShellAction[];
   readonly view: ShellView;
-  /** The rail's tab panels: the binder with its footer, the codex, findings, activity and the trace. */
+  /** The rail's tab panels: the binder (its toolbar, import actions, filter bar and tree), the codex, findings, activity and the trace. */
   readonly binder: ReactNode;
+  /** The binder's footer (saved filters, goals, the sprint timer, totals, History, kept words): under the tree in Classic, under
+   *  **Goals and sprint** in Modern's sidebar. */
+  readonly binderFooter: ReactNode;
+  /** The manuscript's scenes as status dots, for Modern's decorative minimap on the binder tab bar. */
+  readonly minimap: readonly MinimapDot[];
   readonly codex: ReactNode;
   readonly findings: ReactNode;
   /** The open findings, which the Findings tab shows as a count. */

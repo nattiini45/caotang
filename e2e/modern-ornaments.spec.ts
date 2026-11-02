@@ -11,7 +11,8 @@ import { createProject, selectionOf, waitForSaved } from './support.js';
  * control is at least 44 px. Under reduced motion nothing moves.
  */
 
-test.use({ storageState: NO_PIN });
+// A step that cannot happen fails in 15 s instead of at the test timeout (#307's lesson).
+test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
@@ -22,6 +23,9 @@ async function modernScene(page: Page, name = 'Ferry Book'): Promise<Locator> {
   await page.goto('/');
   await createProject(page, name);
   await expect(page.getByTestId('modern-stage')).toBeVisible();
+  // The binder is in #307's sidebar, closed and inert until Manuscript in the tab bar opens it.
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Lin’s ticket');
@@ -30,6 +34,10 @@ async function modernScene(page: Page, name = 'Ferry Book'): Promise<Locator> {
   await surface.click();
   await page.keyboard.type('Alpha beta.');
   await waitForSaved(page);
+  // Choosing the scene closed the unpinned sidebar on the editor; the pointer leaves it too, so nothing lies over the page.
+  const size = page.viewportSize() ?? { width: 1440, height: 900 };
+  await page.mouse.move(size.width - 60, Math.round(size.height / 2));
+  await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'closed');
   // The storage notice sits at the top centre, over the title capsule, until #311 places notices.
   const banner = page.getByTestId('storage-banner');
   if (await banner.isVisible()) {
