@@ -411,6 +411,12 @@ button.chip {
   display: none;
 }
 
+/* The disclosure's content box too (its own rule: a browser without ::details-content drops only this one), so its children stay the
+   items of the binder's and the filter bar's flex column and keep their gaps. */
+:root:not([data-shell='modern']) .k-more::details-content {
+  display: contents;
+}
+
 /* ------------------------------------------------------------------ *
  * The binder
  * ------------------------------------------------------------------ */
