@@ -517,16 +517,34 @@ describe('the user guide’s reviewed claims match the code', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain('<legend>{t`Interface`}</legend>');
     expect(section).toContain("onChange={() => chooseShell('classic')} /> <Trans>Classic</Trans>");
-    expect(section).toContain('{MODERN_DEFAULT_FOR_NEW_USERS ? t`Modern` : t`Modern (Preview)`}');
-    // While the parity gate is closed every writer starts in Classic, which is what the guide and the changelog say.
+    expect(section).toContain("onChange={() => chooseShell('modern')} />{' '}\n          {t`Modern`}");
+    expect(section).not.toContain('Modern (Preview)');
+    expect(section).toContain('New writers start in Modern; if you used Caotang before, it stays Classic until you choose.');
+    // The parity gate is gone (#313): a fresh profile resolves to Modern, and any sign of earlier use to Classic.
     const resolver = read('apps/desktop/src/app/interface.ts');
-    expect(resolver).toContain('export const MODERN_DEFAULT_FOR_NEW_USERS = false;');
-    expect(resolver).toContain("return modernForNewUsers ? 'modern' : 'classic';");
-    expect(guide).toContain('**Interface**: **Classic** or **Modern (Preview)**.');
-    expect(guide).toContain('it is what Caotang opens in until you choose');
-    expect(changelog).toContain('**An Interface setting: Classic or Modern (Preview).** **Settings › Appearance › Interface**');
-    expect(changelog).toContain('Caotang opens in Classic until you choose, whether you have used it before or not.');
+    expect(resolver).not.toContain('MODERN_DEFAULT_FOR_NEW_USERS');
+    expect(resolver).toContain("return facts.projects || facts.settingsRecord ? 'classic' : 'modern';");
+    expect(guide).toContain('**Interface**: **Classic** or **Modern** (see [The Modern interface](#the-modern-interface)).');
+    expect(guide).toContain('A new writer starts in Modern, and anyone who used Caotang in this browser before stays on Classic until they choose.');
+    expect(guide).toContain('## The Modern interface');
+    expect(guide).not.toContain('Modern (Preview)');
+    expect(changelog).toContain('**The Modern interface, and it is where new writers start.** **Settings › Appearance › Interface**');
+    expect(changelog).toContain('A new writer starts in Modern; anyone who used Caotang in this browser before');
+    expect(changelog).not.toContain('Modern (Preview)');
   });
+
+  it('describes Modern in the words its controls show', () => {
+    const start = guide.indexOf('## The Modern interface');
+    const modern = guide.slice(start, guide.indexOf('\n## ', start + 1));
+    for (const words of ['**⋯**', '**Write**', '**Board**', '**Codex**', '**Ask**', '**Search**', '**Manuscript**', '**Panels**', '**Keep open**', '**Goals and sprint**', '**Show in Findings**', '**Leave focus mode**', '**Use the Classic interface**', '**Switch to the Classic interface**', 'Ctrl+K', 'Ctrl+J', 'Ctrl+Shift+F', 'Ctrl+Alt+F', '960 px']) {
+      expect(modern, words).toContain(words);
+    }
+    const shell = read('apps/desktop/src/components/shell/modern/top-ornament.tsx') + read('apps/desktop/src/app/palette-model.ts');
+    for (const label of ['Use the Classic interface', 'Switch to the Classic interface']) expect(shell, label).toContain(label);
+    expect(read('apps/desktop/src/components/shell/modern/scene-findings.tsx')).toContain('Show in Findings');
+    expect(read('apps/desktop/src/components/shell/modern/focus-mode.tsx')).toContain('Leave focus mode');
+  });
+
 
   it('names the permission modes and their controls in the words the panel and Settings show', () => {
     const panel = read('apps/desktop/src/components/AgentPanel.tsx');
