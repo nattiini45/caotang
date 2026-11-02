@@ -145,7 +145,7 @@
   /* As wide as its longest label, so each action keeps one line, but never wider than the screen: a long status or label name
      wraps inside the menu instead of pushing its actions out of reach. */
   inline-size: max-content;
-  min-inline-size: 264px;
+  min-inline-size: min(264px, calc(100dvw - 2 * var(--space-4)));
   max-inline-size: calc(100dvw - 2 * var(--space-4));
   max-block-size: calc(100dvh - var(--overlay-top) - var(--overlay-bottom));
   overflow-y: auto;
