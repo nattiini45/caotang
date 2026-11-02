@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { currentInterface } from '../app/interface.js';
 import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { accessibleText } from '../i18n/accessible-text.js';
@@ -107,9 +108,20 @@ export interface MenuAnchor {
 }
 
 /**
- * A positioned list of actions. Arrow keys move, Enter or Space chooses, Escape or a
- * click outside closes. It takes focus on open, so the keyboard works without a click.
+ * Advanced settings folded under one line in Modern (#363): a `<details>` with the kit's summary row. Classic shows the children as
+ * they always were, unwrapped.
  */
+export function ModernFold({ label, className, children }: { label: string; className: string; children: ReactNode }): ReactNode {
+  return currentInterface() === 'modern' ? (
+    <details className={className}>
+      <summary>{label}</summary>
+      {children}
+    </details>
+  ) : (
+    children
+  );
+}
+
 /**
  * The band an overlay stays in, in viewport px: in Modern, below the top ornament and above the bottom one (`--overlay-top` and
  * `--overlay-bottom`, registered lengths in tokens/modern.css); in Classic, which has neither, the window less a 4 px margin at the top.
@@ -138,6 +150,10 @@ export function placeMenu(menu: HTMLElement, anchor: MenuAnchor): void {
   menu.style.left = `${left - rect.left + anchor.x}px`;
 }
 
+/**
+ * A positioned list of actions. Arrow keys move, Enter or Space chooses, Escape or a
+ * click outside closes. It takes focus on open, so the keyboard works without a click.
+ */
 export function Menu({
   label,
   anchor,

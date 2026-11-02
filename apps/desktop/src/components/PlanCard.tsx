@@ -49,7 +49,7 @@ import {
   type StepPreviewView,
   type TranscriptionPreviewView,
 } from '../app/plan-preview.js';
-import { formatCount } from './shared.js';
+import { formatCount, ModernFold } from './shared.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 import { UserText } from '../i18n/UserText.js';
 
@@ -169,7 +169,7 @@ export function PlanCard({ card, live, drafts, project, session, transcriptionRo
       ) : null}
       {planCost !== undefined ? <p className="plan-cost">{t`About ${{ cost: formatUsd(planCost) }} for the whole plan, at this profile’s prices.`}</p> : null}
 
-      {/* A card the mode approved has nothing left to decide. */}
+      {/* A card the mode approved has nothing left to decide. In Modern's window a settled card shows none either (companion.css). */}
       <div className="plan-actions" hidden={auto}>
         <button type="button" className="button is-primary" disabled={!approvable} onClick={approve}>
           {needsSecond && armed ? t`Click again to send this text` : card.kind === 'confirm' ? t`Approve` : t`Approve plan`}
@@ -327,7 +327,12 @@ function StepRow({
         ) : null,
       )}
 
-      {!done ? <ParamFields step={step} live={live} onEdit={onEdit} /> : null}
+      {/* Modern folds a step's raw parameters under "Arguments" (#363), as a tool call's are. */}
+      {done ? null : (
+        <ModernFold label={t`Arguments`} className="plan-step-edit">
+          <ParamFields step={step} live={live} onEdit={onEdit} />
+        </ModernFold>
+      )}
 
       {preview !== undefined ? (
         <StepPreviewBlock
