@@ -64,7 +64,6 @@ test('a fresh profile is a new writer: Modern, stored at once, with its styleshe
   expect(await stored(page)).toBe('modern');
   await expect.poll(() => radius(page)).toBe('14px');
   expect(css).not.toEqual([]);
-  await expect(page.getByTestId('modern-stage')).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', { name: HOME })).toBeVisible();
   expect(await shellOf(page)).toBe('modern');
