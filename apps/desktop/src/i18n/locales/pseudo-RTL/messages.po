@@ -3053,6 +3053,7 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: the agent's companion window.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -3062,6 +3063,7 @@ msgstr ""
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/shell/modern/companion.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Agent"
 msgstr ""
 
@@ -6465,9 +6467,11 @@ msgid "Expected: <0/>"
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/Home.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Export"
 msgstr ""
 
@@ -11024,11 +11028,13 @@ msgid "Progress toward the manuscript"
 msgstr ""
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Project"
 msgstr ""
 
@@ -17309,9 +17315,11 @@ msgid "Verified"
 msgstr ""
 
 #. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "View"
 msgstr ""
 
