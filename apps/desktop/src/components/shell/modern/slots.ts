@@ -9,7 +9,7 @@
  * |------------------|-------|----------------------------------------------------|----------------------------------------|
  * | `notices`        | #311  | `ModernNotices` (#311's toasts, built)             | after the skip link                    |
  * | `topOrnament`    | #306  | `TopOrnament` (title capsule, ⋯; built by #306)    | before the binder                      |
- * | `sidebar`        | #307  | `InterimSidebar` (the binder on paper)             | before the page                        |
+ * | `sidebar`        | #307  | `BinderSidebar` (built: binder-sidebar.tsx)        | before the page                        |
  * | `bottomOrnament` | #306  | `BottomOrnament` (Write/Board/Codex, Ask, Search)  | after the page                         |
  * | `sceneInfo`      | #308  | `SceneInfo` (built by #308; scene-info.tsx)        | after the bottom ornament              |
  * | `companion`      | #309  | `CompanionWindow` (built, companion.tsx)           | after Scene info                       |
@@ -24,10 +24,10 @@
 import type { ComponentType } from 'react';
 
 import type { ShellRegions } from '../regions.js';
+import { BinderSidebar } from './binder-sidebar.js';
 import { BottomOrnament } from './bottom-ornament.js';
-import { ModernNotices } from './notices.js';
-import { InterimSidebar } from './interim-sidebar.js';
 import { CompanionWindow } from './companion.js';
+import { ModernNotices } from './notices.js';
 import { Palette } from './palette.js';
 import { SceneInfo } from './scene-info.js';
 import { TopOrnament } from './top-ornament.js';
@@ -62,7 +62,7 @@ export interface ModernSlots {
 export const MODERN_SLOTS: ModernSlots = {
   notices: ModernNotices,
   topOrnament: TopOrnament,
-  sidebar: InterimSidebar,
+  sidebar: BinderSidebar,
   bottomOrnament: BottomOrnament,
   sceneInfo: SceneInfo,
   companion: CompanionWindow,

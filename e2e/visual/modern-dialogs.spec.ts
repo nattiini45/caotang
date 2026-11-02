@@ -97,7 +97,8 @@ for (const scheme of ['light', 'dark'] as const) {
     await start(page, scheme);
     await project(page);
     await openBinder(page);
-    await page.getByRole('treeitem', { name: /The Landing/ }).click();
+    // Focused, not clicked: a click chooses the scene, and choosing one closes an unpinned sidebar (#307).
+    await page.getByRole('treeitem', { name: /The Landing/ }).focus();
     await page.keyboard.press('Delete');
     await expect(page.getByRole('dialog', { name: 'Delete “The Landing”?' })).toBeVisible();
     await shot(page, `modern-${scheme}-glass-confirm`);

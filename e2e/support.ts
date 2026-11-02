@@ -45,7 +45,8 @@ export async function createProject(page: Page, name = 'The Lighthouse Keeper'):
   await page.goto('/');
   await page.getByLabel('Project name').fill(name);
   await page.getByRole('button', { name: 'Create project' }).click();
-  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  // Classic shows the binder's tree; Modern keeps it in a sidebar that is closed (and inert) until opened, and shows its tab bar.
+  await expect(page.getByRole('tree', { name: 'Binder' }).or(page.getByTestId('modern-binder-bar')).first()).toBeVisible();
   await waitForSaved(page);
 }
 
