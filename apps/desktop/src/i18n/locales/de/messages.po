@@ -451,8 +451,10 @@ msgstr "{already, plural, one {# ist bereits eine Arbeitskopie.} other {# sind b
 msgid "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 msgstr "{already, plural, one {# Bild war bereits vorhanden.} other {# Bilder waren bereits vorhanden.}}"
 
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 msgid "{badge, plural, one {# open} other {# open}}"
 msgstr "{badge, plural, one {# offen} other {# offen}}"
 
@@ -2744,12 +2746,15 @@ msgid "Active profile"
 msgstr "Aktives Profil"
 
 #. Interpolated values: source, summary
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/ActivityPanel.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 msgid "Activity"
 msgstr "Aktivität"
 
@@ -3818,6 +3823,11 @@ msgid "bestTake.vendorParams.{key} is not text or a number"
 msgstr "bestTake.vendorParams.{key} ist weder Text noch eine Zahl"
 
 #. Modern interface, provisional binder panel.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
@@ -3826,6 +3836,7 @@ msgstr "bestTake.vendorParams.{key} ist weder Text noch eine Zahl"
 #: apps/desktop/src/components/Binder.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/interim-sidebar.tsx
+#: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 msgid "Binder"
 msgstr "Binder"
 
@@ -4794,8 +4805,11 @@ msgstr "Inspektor schließen"
 msgid "Close other tabs and try again, or choose a smaller picture."
 msgstr "Schließen Sie andere Registerkarten und versuchen Sie es erneut, oder wählen Sie ein kleineres Bild."
 
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 msgid "Close panels"
 msgstr "Bereiche schließen"
 
@@ -6795,6 +6809,8 @@ msgstr "Feststellungsstatus geändert"
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
@@ -6805,6 +6821,7 @@ msgstr "Feststellungsstatus geändert"
 #: apps/desktop/src/components/FindingsPanel.tsx
 #: apps/desktop/src/components/InspectorDialogue.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Findings"
@@ -10490,8 +10507,10 @@ msgstr "In diesem Panel ist die Panel-Art platziert."
 msgid "Panel border"
 msgstr "Panel-Rahmen"
 
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 msgid "Panels"
 msgstr "Panels"
 
@@ -16714,11 +16733,14 @@ msgstr "Tools von {name}"
 msgid "Top of the body"
 msgstr "Beginn des Textkörpers"
 
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/ClassicShell.tsx
+#: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 msgid "Trace"
 msgstr "Ablauf"
 

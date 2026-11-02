@@ -1,0 +1,303 @@
+/*
+ * Modern's narrow layout below 960 px (docs/architecture/modern-interface.md §13, §9.5, §9.7; M11, #312). In the `modern-shell` chunk's
+ * stylesheet, loaded only while Modern is on. Every selector starts with :root[data-shell='modern'] and only logical properties are used
+ * (test/modern-css.test.ts).
+ *
+ * The page fills the width with an 8 px margin. The top bar holds the binder's button and the compact capsule (title, ⋯); the bottom
+ * tab bar holds Write, Board, Codex, Ask and Search; both clear of the page's edges and of the safe areas (env(safe-area-inset-*)).
+ * The binder is a drawer from the inline-start edge, Scene info a bottom sheet of at most 80% of the height, the agent window a
+ * full-height sheet, one at a time over one scrim (narrow-panels.tsx). Thick glass only, and less of it. Every target is at least
+ * 44 px (styles.css's narrow rule covers every control; the bars here are taller still). The sizes mirror layout.ts (NARROW_*).
+ *
+ * The rules that change another slot's own (the ornaments, Scene info, the companion window) lead with `.modern-stage` so they win
+ * over that slot's stylesheet whatever order the chunk's sheets arrive in.
+ */
+
+:root[data-shell='modern'] .modern-narrow-binder,
+:root[data-shell='modern'] .modern-drawer,
+:root[data-shell='modern'] .modern-narrow-scrim {
+  display: none;
+}
+
+@media (max-width: 959px) {
+  :root[data-shell='modern'] .modern-stage {
+    --narrow-top-bar: 56px;
+    --narrow-tab-bar: 64px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    /* The side insets are physical in the environment; the larger of the two on both sides keeps either edge clear in either direction. */
+    --safe-side: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    inset-block-end: auto;
+    block-size: 100dvh;
+  }
+
+  /* Thick glass only, and less of it (§13): every glass surface takes the thick material. */
+  :root[data-shell='modern'] .modern-stage .mat-glass {
+    background: var(--mat-thick-bg);
+    backdrop-filter: blur(var(--mat-thick-blur)) saturate(var(--mat-glass-saturate));
+  }
+
+  /* ---- The page: full-bleed with the small margin, between the two bars. ---- */
+  :root[data-shell='modern'] .modern-stage > .modern-page-area {
+    inset-block: calc(var(--page-top) + var(--safe-top)) calc(var(--page-bottom) + var(--safe-bottom));
+    inset-inline: var(--safe-side);
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-page {
+    inline-size: calc(100% - 2 * var(--page-gutter));
+    padding-block: var(--space-4);
+  }
+
+  /* ---- The top bar: the compact capsule (title, ⋯) centred, the binder's button at the inline-start end. ---- */
+  :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top {
+    inset-block-start: calc(var(--page-gutter) + var(--safe-top));
+    inset-inline: calc(var(--safe-side) + 2 * var(--page-gutter) + var(--narrow-top-bar));
+    block-size: var(--narrow-top-bar);
+    max-inline-size: none;
+    inline-size: fit-content;
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-top .modern-ornament-state,
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-top .modern-title-crumb {
+    display: none;
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-top .modern-title {
+    max-inline-size: none;
+  }
+
+  :root[data-shell='modern'] .modern-stage > .modern-narrow-binder {
+    position: absolute;
+    inset-block-start: calc(var(--page-gutter) + var(--safe-top));
+    inset-inline-start: calc(var(--page-gutter) + var(--safe-side));
+    z-index: 2;
+    display: inline-flex;
+    inline-size: var(--narrow-top-bar);
+    block-size: var(--narrow-top-bar);
+    border-radius: var(--radius-ornament);
+    background: var(--mat-thick-bg);
+  }
+
+  :root[data-shell='modern'] .modern-stage > .modern-narrow-binder[aria-expanded='true'] {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  /* ---- The bottom tab bar: five equal tabs, each an icon over its word, above the bottom safe area. ---- */
+  :root[data-shell='modern'] .modern-stage > .modern-ornament.is-bottom {
+    inset-block-end: calc(var(--page-gutter) + var(--safe-bottom));
+    inset-inline: calc(var(--page-gutter) + var(--safe-side));
+    margin-inline: 0;
+    inline-size: auto;
+    max-inline-size: none;
+    block-size: var(--narrow-tab-bar);
+    gap: 2px;
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-bottom .modern-views {
+    flex: 3 1 0;
+    align-self: stretch;
+    min-inline-size: 0;
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-bottom .modern-capsule {
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 2px;
+    align-self: stretch;
+    min-inline-size: var(--target-min);
+    padding-inline: var(--space-1);
+    font: 600 12px/1.1 var(--ui);
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-bottom .modern-label {
+    white-space: nowrap;
+  }
+
+  /* The shortcut is a keyboard's: a phone's tab bar has no room for it, and the button's title still says it. */
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-bottom .modern-kbd {
+    display: none;
+  }
+
+  /* Ask's dot sits at the icon's corner, not beside the word. */
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-bottom .modern-ask {
+    position: relative;
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-bottom .modern-ask-dot {
+    position: absolute;
+    inset-block-start: var(--space-3);
+    inset-inline-start: calc(50% + 8px);
+  }
+
+  /* ---- Notices sit below the top bar, over the page. ---- */
+  :root[data-shell='modern'] .modern-stage > .modern-notices {
+    inset-block-start: calc(var(--page-top) + var(--safe-top) + var(--space-4));
+  }
+
+  /* ---- The binder drawer, from the inline-start edge. ---- */
+  :root[data-shell='modern'] .modern-stage > .modern-drawer {
+    --drawer-shift: calc(-100% - 2 * var(--page-gutter) - var(--safe-side));
+    position: absolute;
+    inset-block: calc(var(--page-gutter) + var(--safe-top)) calc(var(--page-gutter) + var(--safe-bottom));
+    inset-inline-start: calc(var(--page-gutter) + var(--safe-side));
+    z-index: 7;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    inline-size: min(360px, 100% - 56px);
+    min-block-size: 0;
+    padding: var(--sheet-pad);
+    border-radius: var(--radius-sheet);
+    visibility: hidden;
+    transform: translateX(var(--drawer-shift));
+    /* Closing: slides back out, then leaves the accessibility tree. */
+    transition:
+      transform var(--dur-2) var(--ease-standard),
+      visibility 0s linear var(--dur-2);
+  }
+
+  :root[data-shell='modern'][dir='rtl'] .modern-stage > .modern-drawer {
+    --drawer-shift: calc(100% + 2 * var(--page-gutter) + var(--safe-side));
+  }
+
+  :root[data-shell='modern'] .modern-stage > .modern-drawer.is-open {
+    visibility: visible;
+    transform: none;
+    transition:
+      transform var(--dur-3) var(--ease-spring),
+      visibility 0s;
+  }
+
+  /* The head: the drawer's name (the navigation's own, so hidden from assistive technology) and Close; the tabs on a row of their own. */
+  :root[data-shell='modern'] .modern-drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding-inline-start: var(--space-4);
+  }
+
+  :root[data-shell='modern'] .modern-drawer-title {
+    font: 600 17px/1.3 var(--ui);
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-drawer-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    min-inline-size: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: var(--scrim);
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-drawer-tabs .rail-tab {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    padding-inline: var(--space-1);
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--on-glass);
+    font: 600 13px/1.1 var(--ui);
+    white-space: nowrap;
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-drawer-tabs .rail-tab.is-current {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-drawer-tabs .rail-tab:focus-visible,
+  :root[data-shell='modern'] .modern-stage > .modern-narrow-binder:focus-visible {
+    outline: var(--focus-width) solid var(--focus);
+    outline-offset: calc(-1 * var(--focus-width));
+  }
+
+  /* The panels inside sit on a solid pane, so the binder's muted text keeps 4.5:1 whatever is behind the glass (§9.3). */
+  :root[data-shell='modern'] .modern-drawer-panel {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-block-size: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: var(--radius-inner);
+    background: var(--m-solid);
+    color: var(--ink);
+  }
+
+  /* ---- The one scrim, under the open panel; a tap on it closes the panel. Always drawn, so a closing tap never falls through. ---- */
+  :root[data-shell='modern'] .modern-stage > .modern-narrow-scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: block;
+    background: var(--scrim);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-2) var(--ease-standard);
+  }
+
+  :root[data-shell='modern'] .modern-stage > .modern-narrow-scrim.is-open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* The companion window's own scrim gives way to the one scrim. */
+  :root[data-shell='modern'] .modern-stage > .modern-companion-scrim {
+    display: none;
+  }
+
+  /* ---- The agent window: a full-height sheet over the scrim. ---- */
+  :root[data-shell='modern'] .modern-stage > .modern-companion {
+    inset-block: calc(var(--page-gutter) + var(--safe-top)) calc(var(--page-gutter) + var(--safe-bottom));
+    inset-inline: calc(var(--page-gutter) + var(--safe-side));
+    z-index: 7;
+    inline-size: auto;
+  }
+
+  /* ---- Scene info: the bottom sheet, at most 80% of the height, rising from the bottom edge. ---- */
+  :root[data-shell='modern'] .modern-stage > .scene-info.is-sheet {
+    position: absolute;
+    inset-block: auto calc(var(--page-gutter) + var(--safe-bottom));
+    inset-inline: calc(var(--page-gutter) + var(--safe-side));
+    z-index: 7;
+    inline-size: auto;
+    max-block-size: min(80dvh, 100dvh - 2 * var(--page-gutter) - var(--safe-top) - var(--safe-bottom));
+    transform-origin: 50% 100%;
+  }
+}
+
+/* Reduced motion (system or Settings): the drawer and the scrim appear and go at once (§5.5). */
+@media (max-width: 959px) and (prefers-reduced-motion: reduce) {
+  :root[data-shell='modern'] .modern-stage > .modern-drawer,
+  :root[data-shell='modern'] .modern-stage > .modern-drawer.is-open,
+  :root[data-shell='modern'] .modern-stage > .modern-narrow-scrim {
+    transition: none;
+  }
+}
+
+@media (max-width: 959px) {
+  :root[data-shell='modern'][data-motion='reduced'] .modern-stage > .modern-drawer,
+  :root[data-shell='modern'][data-motion='reduced'] .modern-stage > .modern-drawer.is-open,
+  :root[data-shell='modern'][data-motion='reduced'] .modern-stage > .modern-narrow-scrim {
+    transition: none;
+  }
+}
+
+@media (max-width: 959px) and (forced-colors: active) {
+  :root[data-shell='modern'] .modern-stage > .modern-drawer,
+  :root[data-shell='modern'] .modern-drawer-panel {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  :root[data-shell='modern'] .modern-stage > .modern-narrow-scrim.is-open {
+    background: Canvas;
+    opacity: 0.6;
+  }
+}

@@ -637,7 +637,9 @@ export function Workspace({
     shownPanel.current = openPanel;
     if (openPanel === 'rail') document.getElementById(railTabId(rail))?.focus();
     else if (openPanel === 'inspector') document.getElementById('narrow-close-inspector')?.focus();
-    else if (before !== null) {
+    // Modern's agent sheet moves focus in and back itself (the companion window, to and from Ask).
+    else if (openPanel === 'agent') return;
+    else if (before !== null && before !== 'agent') {
       const active = document.activeElement;
       const left = document.getElementById(before === 'rail' ? 'narrow-rail' : 'narrow-sheet');
       if (active === null || active === document.body || left?.contains(active)) document.getElementById(`narrow-toggle-${before}`)?.focus();

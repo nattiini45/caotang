@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react';
 
-export type IconName = 'write' | 'board' | 'codex' | 'ask' | 'search' | 'more' | 'check';
+export type IconName = 'write' | 'board' | 'codex' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close';
 
 const PATHS: Readonly<Record<IconName, ReactNode>> = {
   write: (
@@ -48,6 +48,14 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
     </>
   ),
   check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
+  // The narrow layout's binder button (#312): a panel at the start edge, and its close.
+  binder: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M9.5 4.5v15M5.5 8.5h2M5.5 11.5h2" />
+    </>
+  ),
+  close: <path d="M6 6l12 12M18 6L6 18" />,
 };
 
 export function Icon({ name }: { name: IconName }): ReactNode {

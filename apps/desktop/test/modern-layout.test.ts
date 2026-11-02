@@ -12,12 +12,20 @@ import {
   GUTTER,
   INFO_WIDTH,
   MIN_PAGE_WIDTH,
+  DRAWER_LEAVES,
+  DRAWER_WIDTH,
   NARROW_GUTTER,
+  NARROW_PAGE_BOTTOM,
+  NARROW_PAGE_TOP,
+  NARROW_TAB_BAR,
+  NARROW_TOP_BAR,
   ORNAMENT_HEIGHT,
   SIDEBAR_WIDTH,
   VIEW_WIDTH,
   modernLayout,
+  narrowPanels,
   type Box,
+  type NarrowPanels,
   type ModernView,
 } from '../src/components/shell/modern/layout.js';
 import { companionAreaEnd } from '../src/components/shell/modern/companion-model.js';
@@ -167,6 +175,73 @@ describe('modernLayout', () => {
     expect(layout.overlay).toBe(true);
     expect(layout.page.width).toBe(700 - 2 * NARROW_GUTTER);
     expect(layout.geometry).toEqual({ pageWidth: 684, pageTop: 72, pageBottom: 88, areaStart: 0, areaEnd: 0, infoEnd: NARROW_GUTTER });
+  });
+
+  // The narrow layout (§13, #312): full-bleed page between the two bars, the three panels' boxes, at phone and tablet sizes.
+  for (const [width, height] of [
+    [320, 568],
+    [375, 812],
+    [390, 844],
+    [720, 450],
+    [768, 1024],
+    [959, 700],
+  ] as const) {
+    for (const view of VIEWS) {
+      it(`narrow at ${width} by ${height} px, ${view}: the page fills the width between the top bar and the tab bar`, () => {
+        const layout = modernLayout({ viewport: { width, height }, view, sidebar: true, agent: true, info: true });
+        expect(layout.narrow).toBe(true);
+        expect(layout.sidebar).toBeNull();
+        // Full-bleed with the small margin, whatever the view asks for.
+        expect(layout.page.start).toBe(NARROW_GUTTER);
+        expect(layout.page.width).toBe(width - 2 * NARROW_GUTTER);
+        expect(layout.page.top).toBe(NARROW_PAGE_TOP);
+        expect(layout.page.top + layout.page.height).toBe(height - NARROW_PAGE_BOTTOM);
+        expect(layout.geometry).toEqual({
+          pageWidth: width - 2 * NARROW_GUTTER,
+          pageTop: NARROW_PAGE_TOP,
+          pageBottom: NARROW_PAGE_BOTTOM,
+          areaStart: 0,
+          areaEnd: 0,
+          infoEnd: NARROW_GUTTER,
+        });
+        // The compact capsule in the top bar, above the page; the tab bar below it, the page's width.
+        expect(layout.topOrnament.top + layout.topOrnament.height).toBeLessThanOrEqual(layout.page.top);
+        const panels = layout.narrowPanels as NarrowPanels;
+        expect(panels).not.toBeNull();
+        expect(panels.tabBar.top).toBeGreaterThanOrEqual(layout.page.top + layout.page.height);
+        expect(panels.tabBar.top + panels.tabBar.height).toBe(height - NARROW_GUTTER);
+        expect(panels.tabBar.width).toBe(width - 2 * NARROW_GUTTER);
+        expect(panels.tabBar.height).toBe(NARROW_TAB_BAR);
+        expect(layout.bottomOrnament.top).toBe(panels.tabBar.top);
+        // The binder's button shares the top bar and never meets the capsule's room.
+        expect(panels.binderButton.top).toBe(NARROW_GUTTER);
+        expect(panels.binderButton.height).toBe(NARROW_TOP_BAR);
+        expect(panels.binderButton.width).toBeGreaterThanOrEqual(44);
+        // Drawer: from the inline-start edge, at most 360 px, leaving the page in sight beside it.
+        expect(panels.drawer.start).toBe(NARROW_GUTTER);
+        expect(panels.drawer.width).toBe(Math.min(DRAWER_WIDTH, width - DRAWER_LEAVES - NARROW_GUTTER));
+        expect(end(panels.drawer)).toBeLessThan(width);
+        expect(panels.drawer.height).toBe(height - 2 * NARROW_GUTTER);
+        // Scene info's sheet: at the bottom, at most 80% of the height.
+        expect(panels.sheet.height).toBeLessThanOrEqual(Math.round(height * 0.8));
+        expect(panels.sheet.top + panels.sheet.height).toBe(height - NARROW_GUTTER);
+        expect(panels.sheet.width).toBe(width - 2 * NARROW_GUTTER);
+        // The agent: the window's full height.
+        expect(panels.agent).toEqual({ start: NARROW_GUTTER, top: NARROW_GUTTER, width: width - 2 * NARROW_GUTTER, height: height - 2 * NARROW_GUTTER });
+      });
+    }
+  }
+
+  it('has no narrow panels from 960 px', () => {
+    expect(modernLayout({ viewport: { width: 960, height: 800 }, view: 'write', sidebar: false, agent: false, info: false }).narrowPanels).toBeNull();
+    expect(modernLayout({ viewport: { width: 959, height: 800 }, view: 'write', sidebar: false, agent: false, info: false }).narrowPanels).not.toBeNull();
+  });
+
+  it('at 200% zoom a 1,440 by 900 window is 720 by 450 CSS px and gets the narrow layout (§9.7)', () => {
+    const layout = modernLayout({ viewport: { width: 1440 / 2, height: 900 / 2 }, view: 'write', sidebar: false, agent: false, info: false });
+    expect(layout.narrow).toBe(true);
+    expect(layout.page.height).toBeGreaterThan(0);
+    expect(narrowPanels(720, 450).sheet.height).toBe(360);
   });
 
   it('never returns a negative size', () => {

@@ -18,8 +18,11 @@
  *   beside it, never over each other (`geometry.infoEnd` places the panel). Above 1,280 px the docked panel takes room too, unless
  *   the page would then shrink below {@link MIN_PAGE_WIDTH}; then it lies over the page instead (`sheets.info`). The page shrinks
  *   before anything overlaps it, and stops shrinking where it would stop being a page.
- * - Below 960 px (the narrow layout, §13, is #312's) the gutters and the ornaments' room are smaller, so the page takes nearly the
- *   whole width; there is no sidebar beside the page, and a window is a sheet.
+ * - Below 960 px (the narrow layout, §13, M11 #312) the page goes full-bleed with an 8 px margin: the compact top capsule (title,
+ *   **⋯**) sits above it and the bottom tab bar (Write, Board, Codex, Ask, Search) below it, each in a bar of its own, not over the
+ *   page's edge. Nothing sits beside the page: the binder is a drawer from the inline-start edge, Scene info a bottom sheet of at most
+ *   80% of the height, and the agent window a full-height sheet ({@link NarrowPanels}), one at a time over a scrim. The bottom safe
+ *   area (`env(safe-area-inset-*)`) is the stylesheet's to add: a pure function cannot read it.
  */
 
 import { COMPANION_WIDTH, companionAreaEnd } from './companion-model.js';
@@ -67,8 +70,25 @@ export interface ModernLayout {
   readonly overlay: boolean;
   /** Which window lies over the page: the agent window from 1,280 px down; Scene info then too, or where docking it would leave the page too narrow. */
   readonly sheets: { readonly agent: boolean; readonly info: boolean };
+  /** Below 960 px: where the narrow layout's panels open (§13); `null` in a wide window. */
+  readonly narrowPanels: NarrowPanels | null;
   /** What the stage needs to place the page (ModernShell's `geometry`). */
   readonly geometry: StageGeometry;
+}
+
+/**
+ * The narrow layout's panels (§13), each the box it takes while open: the binder **drawer** from the inline-start edge, Scene info's
+ * bottom **sheet** (its height a maximum: it is as tall as its content, up to 80% of the window) and the **agent** sheet, the window's
+ * full height. The binder's button and the compact top capsule share the top bar; the tab bar is the bottom one.
+ */
+export interface NarrowPanels {
+  readonly drawer: Box;
+  readonly sheet: Box;
+  readonly agent: Box;
+  /** The binder's button at the top bar's inline-start end. */
+  readonly binderButton: Box;
+  /** The bottom tab bar, the page's width. */
+  readonly tabBar: Box;
 }
 
 /** The width each view asks for. */
@@ -94,8 +114,17 @@ export const INFO_WIDTH = 380;
 export const PAGE_TOP_MIN = 84;
 export const PAGE_TOP_SHARE = 0.11;
 export const PAGE_BOTTOM = 112;
-export const NARROW_PAGE_TOP = 72;
-export const NARROW_PAGE_BOTTOM = 88;
+/** Narrow: the top bar (the binder's button, the compact capsule) is this tall at the gutter, and the page starts a gutter below it. */
+export const NARROW_TOP_BAR = 56;
+export const NARROW_PAGE_TOP = NARROW_GUTTER + NARROW_TOP_BAR + NARROW_GUTTER;
+/** Narrow: the bottom tab bar's height; it sits a gutter above the bottom safe area, and the page ends two gutters above it. */
+export const NARROW_TAB_BAR = 64;
+export const NARROW_PAGE_BOTTOM = NARROW_GUTTER + NARROW_TAB_BAR + 2 * NARROW_GUTTER;
+/** Narrow: the drawer's width, at most, leaving at least this much of the page in sight beside it. */
+export const DRAWER_WIDTH = 360;
+export const DRAWER_LEAVES = 48;
+/** Narrow: Scene info's bottom sheet is at most this share of the window's height (§13). */
+export const SHEET_MAX_SHARE = 0.8;
 /** An ornament's height: twice its radius (`--radius-ornament`, 30 px), so it floats half over the page's edge. */
 export const ORNAMENT_HEIGHT = 60;
 
@@ -124,7 +153,8 @@ export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInp
   const areaEnd = agentRoom + infoRoom;
 
   const areaWidth = Math.max(0, width - areaStart - areaEnd);
-  const pageWidth = Math.max(0, Math.min(VIEW_WIDTH[view], areaWidth - 2 * gutter));
+  // Narrow: full-bleed with the small margin, whatever width the view would ask for.
+  const pageWidth = Math.max(0, narrow ? areaWidth - 2 * gutter : Math.min(VIEW_WIDTH[view], areaWidth - 2 * gutter));
   const pageStart = areaStart + (areaWidth - pageWidth) / 2;
   const centre = pageStart + pageWidth / 2;
 
@@ -139,14 +169,36 @@ export function modernLayout({ viewport, view, sidebar, agent, info }: LayoutInp
 
   return {
     narrow,
+    narrowPanels: narrow ? narrowPanels(width, height) : null,
     page: { start: round(pageStart), top: pageTop, width: round(pageWidth), height: columnHeight },
-    topOrnament: { centre: round(centre), top: pageTop - ORNAMENT_HEIGHT / 2, height: ORNAMENT_HEIGHT },
-    bottomOrnament: { centre: round(centre), top: pageTop + columnHeight - ORNAMENT_HEIGHT / 2, height: ORNAMENT_HEIGHT },
+    // Narrow: the compact capsule in the top bar and the tab bar at the bottom, each in its own bar, clear of the page's edges.
+    topOrnament: narrow
+      ? { centre: round(centre), top: NARROW_GUTTER, height: NARROW_TOP_BAR }
+      : { centre: round(centre), top: pageTop - ORNAMENT_HEIGHT / 2, height: ORNAMENT_HEIGHT },
+    bottomOrnament: narrow
+      ? { centre: round(width / 2), top: Math.max(0, height - NARROW_GUTTER - NARROW_TAB_BAR), height: NARROW_TAB_BAR }
+      : { centre: round(centre), top: pageTop + columnHeight - ORNAMENT_HEIGHT / 2, height: ORNAMENT_HEIGHT },
     sidebar: hasSidebar ? { start: gutter, top: pageTop, width: SIDEBAR_WIDTH, height: columnHeight } : null,
     agent: agentBox,
     info: infoBox,
     overlay,
     sheets,
     geometry: { pageWidth: round(pageWidth), pageTop, pageBottom, areaStart, areaEnd, infoEnd },
+  };
+}
+
+/** The narrow layout's panel boxes for a window below 960 px (§13). */
+export function narrowPanels(width: number, height: number): NarrowPanels {
+  const g = NARROW_GUTTER;
+  const inner = Math.max(0, width - 2 * g);
+  const tall = Math.max(0, height - 2 * g);
+  const drawerWidth = Math.max(0, Math.min(DRAWER_WIDTH, width - DRAWER_LEAVES - g));
+  const sheetHeight = Math.min(tall, round(height * SHEET_MAX_SHARE));
+  return {
+    drawer: { start: g, top: g, width: round(drawerWidth), height: tall },
+    sheet: { start: g, top: round(height - g - sheetHeight), width: inner, height: sheetHeight },
+    agent: { start: g, top: g, width: inner, height: tall },
+    binderButton: { start: g, top: g, width: NARROW_TOP_BAR, height: NARROW_TOP_BAR },
+    tabBar: { start: g, top: Math.max(0, height - g - NARROW_TAB_BAR), width: inner, height: NARROW_TAB_BAR },
   };
 }

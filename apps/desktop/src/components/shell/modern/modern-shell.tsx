@@ -25,6 +25,7 @@ import type { ShellRegions } from '../regions.js';
 import { modernLayout, type ModernView } from './layout.js';
 import { installMorph, morphPage } from './morph.js';
 import { useSceneInfo } from './scene-info-store.js';
+import { NarrowPanels } from './narrow-panels.js';
 import { MODERN_SLOTS, type ModernSlot, type ModernSlots } from './slots.js';
 import { Page, Stage, type StageGeometry } from './stage.js';
 import { modernViewOf } from './views.js';
@@ -89,6 +90,8 @@ export function ModernShell({
       {slot(slots.notices)}
       {slot(slots.topOrnament)}
       {sidebar ? slot(slots.sidebar) : null}
+      {/* Below 960 px (§13, #312): the binder's button and drawer, the one scrim, and the one-panel-at-a-time rule. */}
+      {view.narrow ? <NarrowPanels regions={regions} pageId={PAGE_ID} /> : null}
       <Page id={PAGE_ID} label={regions.projectName} view={current}>
         <PageContent regions={regions} view={current} agentOnPage={slots.companion === null} />
       </Page>

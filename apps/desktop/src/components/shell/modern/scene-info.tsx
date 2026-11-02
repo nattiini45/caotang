@@ -71,7 +71,11 @@ export function SceneInfo({ regions }: ModernSlotProps): ReactNode {
 
   // Focus mode hides Scene info with the rails (§8.8); its state stays, so leaving focus mode brings a docked one back.
   const shown = info.open && !regions.view.hideRails;
-  return shown ? <SceneInfoPanel regions={regions} docked={info.docked} focus={info.focus} request={info.request} /> : null;
+  // Below 960 px it is the narrow layout's bottom sheet (§13, #312): never docked beside a page that fills the width.
+  const narrow = regions.view.narrow;
+  return shown ? (
+    <SceneInfoPanel regions={regions} docked={info.docked && !narrow} sheet={narrow} focus={info.focus} request={info.request} />
+  ) : null;
 }
 
 /** The opener's box, for anchoring and the morph. */
@@ -104,11 +108,14 @@ function reducedMotionFade(element: HTMLElement): number {
 function SceneInfoPanel({
   regions,
   docked,
+  sheet,
   focus,
   request,
 }: {
   regions: ShellRegions;
   docked: boolean;
+  /** The narrow layout's bottom sheet (§13): placed by the stylesheet, at most 80% of the height, closed by the scrim. */
+  sheet: boolean;
   focus: SceneInfoFocus;
   request: number;
 }): ReactNode {
@@ -120,7 +127,7 @@ function SceneInfoPanel({
   useLayoutEffect(() => {
     const element = panel.current;
     if (element === null) return;
-    if (docked) {
+    if (docked || sheet) {
       applyPlacement(element, null);
       return;
     }
@@ -129,7 +136,7 @@ function SceneInfoPanel({
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
-  }, [docked]);
+  }, [docked, sheet]);
 
   // The entrance, once per opening (§8.3): a FLIP morph from the opener's box through the Web Animations API, or a fade in place
   // under reduced motion. Nothing waits for it: the panel is interactive and focused at once.
@@ -141,6 +148,17 @@ function SceneInfoPanel({
     const kind = entranceOf(openMs, anchor !== null);
     element.dataset['entrance'] = kind;
     if (typeof element.animate !== 'function') return;
+    // The narrow sheet rises from the bottom edge (§13); under reduced motion it fades in place.
+    if (sheet) {
+      element.dataset['entrance'] = openMs === 0 ? 'fade' : 'rise';
+      if (openMs === 0) {
+        element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reducedMotionFade(element), easing: 'ease-out' });
+        return;
+      }
+      const rise = getComputedStyle(element).getPropertyValue('--ease-spring').trim() || 'ease-out';
+      element.animate([{ transform: 'translateY(100%)' }, { transform: 'none' }], { duration: openMs, easing: rise });
+      return;
+    }
     if (kind === 'fade' || anchor === null) {
       element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reducedMotionFade(element), easing: 'ease-out' });
       return;
@@ -152,7 +170,7 @@ function SceneInfoPanel({
     // The content fades in after the first third of the morph.
     const body = element.querySelector<HTMLElement>('.scene-info-content');
     body?.animate([{ opacity: 0 }, { opacity: 0, offset: 0.33 }, { opacity: 1 }], { duration: openMs, easing: 'linear' });
-  }, []);
+  }, [sheet]);
 
   // Focus moves in as it opens (§8.2, §9.2): to the synopsis, the first field, or the dialog itself when nothing is selected. A second
   // request while open (a route) moves it again.
@@ -166,8 +184,10 @@ function SceneInfoPanel({
 
   // A click outside closes the popover, and focus stays where the writer clicked (§8.2). Not docked: a docked panel stays. A click in
   // the opener is the opener's own toggle, and one in a modal dialog opened from here (a vocabulary editor) is not outside.
+  // The narrow sheet leaves this to its scrim (narrow-panels.tsx): everything else is inert, and a close on the press would let the
+  // release land on the page under the scrim.
   useEffect(() => {
-    if (docked) return;
+    if (docked || sheet) return;
     const onDown = (event: PointerEvent): void => {
       const target = event.target;
       if (!(target instanceof Node)) return;
@@ -178,7 +198,7 @@ function SceneInfoPanel({
     };
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
-  }, [docked]);
+  }, [docked, sheet]);
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     // A menu, a picker or the target form inside answers its own Escape first; an input method's Escape is its own.
@@ -206,7 +226,7 @@ function SceneInfoPanel({
       aria-modal="false"
       aria-labelledby={titleId}
       tabIndex={-1}
-      className={`scene-info${docked ? ' is-docked' : ' is-popover'}`}
+      className={`scene-info${sheet ? ' is-sheet' : docked ? ' is-docked' : ' is-popover'}`}
       data-testid="scene-info"
       onKeyDown={onKeyDown}
     >
@@ -218,15 +238,18 @@ function SceneInfoPanel({
           <h2 id={titleId} className="scene-info-heading">
             <Trans>Scene info</Trans>
           </h2>
-          <button
-            type="button"
-            className="modern-capsule"
-            aria-pressed={docked}
-            title={t`Keep Scene info open beside the page`}
-            onClick={() => setSceneInfoDocked(!docked)}
-          >
-            <Trans>Keep open</Trans>
-          </button>
+          {/* No page to keep it beside in the narrow layout. */}
+          {sheet ? null : (
+            <button
+              type="button"
+              className="modern-capsule"
+              aria-pressed={docked}
+              title={t`Keep Scene info open beside the page`}
+              onClick={() => setSceneInfoDocked(!docked)}
+            >
+              <Trans>Keep open</Trans>
+            </button>
+          )}
           <button type="button" className="modern-capsule" onClick={() => closeSceneInfo()}>
             <Trans>Close</Trans>
           </button>
