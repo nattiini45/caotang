@@ -18,6 +18,7 @@ import { Suspense, lazy, useLayoutEffect, useRef, useSyncExternalStore, type Mou
 import '../../../tokens/modern.css';
 import './shell-modern.css';
 import './surfaces-modern.css';
+import './controls-modern.css';
 import './editor-modern.css';
 
 import { NARROW_QUERY } from '../../../app/narrow-model.js';

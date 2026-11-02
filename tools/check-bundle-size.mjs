@@ -12,7 +12,7 @@
  *   - a lazy chunk on BUDGET.lazy over its own raw cap, missing from the build, or in the first load (Modern's `modern-shell`,
  *     modern-interface.md §12, loads only while Modern is on);
  *   - the entry stylesheet (the stylesheet links in index.html) more than BUDGET.css.entryMargin over BUDGET.css.entry, or a lazy
- *     stylesheet over its cap on BUDGET.css.caps (Modern's, 50 kB raw);
+ *     stylesheet over its cap on BUDGET.css.caps (Modern's, 62 kB raw);
  *   - "Modern first load" (the first load plus `modern-shell`'s JS and CSS, gzip) more than BUDGET.modernFirstLoadDelta over Classic's
  *     first load.
  *
@@ -163,14 +163,20 @@ export const BUDGET = {
     entry: 105_500,
     entryMargin: 0.01,
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
-    caps: { 'modern-shell': 50_000 } // raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this one on-use sheet, about 6 kB gzip; it never loads for Classic,
+    // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
+    // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
+    // about 5%. Raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this
+    // one on-use sheet; it never loads for Classic.
+    caps: { 'modern-shell': 62_000 },
   },
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
    * Their panels are lazy chunks already; what is left is the slots' wiring in `modern-shell` (§12).
+   * Stageshow polish #357: 28.0 kB measured with the control kit, all of it CSS (Modern's stylesheet grew 2.4 kB gzip; no JS moved);
+   * the allowance is its first cut (27.7 kB) plus about 0.6 kB.
    */
-  modernFirstLoadDelta: 25_900,
+  modernFirstLoadDelta: 28_300,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */
