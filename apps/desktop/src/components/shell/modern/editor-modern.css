@@ -126,3 +126,31 @@
   margin-block: -10px;
   margin-inline: -10px -16px;
 }
+
+/*
+ * The page's scroll edges (#358): the text fades out under the title capsule and over the bottom ornament rather than being cut at a
+ * line, so a line half past either edge, a descender of the footer's words too, reads as more to scroll, never as a clip. The mask is
+ * on the scroller, so the paper itself and its corners stay put.
+ */
+:root[data-shell='modern'] .modern-page .editor-pane {
+  mask-image: linear-gradient(transparent, #000 20px, #000 calc(100% - 28px), transparent);
+}
+
+/* A short scene's column fills the page (and a long one grows past it, never shrunk to it, so its foot keeps its padding), so the footer sits at the page's foot, whole and above the fade, instead of half past it. */
+:root[data-shell='modern'] .modern-page .editor-column {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-block-size: 100%;
+}
+
+/* The text takes the room left instead of Classic's 50vh floors (they would push the footer past the page), so a click below a short
+   scene still lands in it. */
+:root[data-shell='modern'] .modern-page .editor-column > .editor-host {
+  flex: 1 0 auto;
+  min-block-size: 8rem;
+}
+
+:root[data-shell='modern'] .modern-page .editor-host .ProseMirror {
+  min-block-size: 0;
+}

@@ -21,6 +21,19 @@
  * further from the middle than the concept's.
  */
 
+/* The overlay band's edges are lengths, so script reads them resolved (shared.tsx's Menu clamps a context menu into the band). */
+@property --overlay-top {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --overlay-bottom {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
 /* 1. Scheme-free: geometry, density, motion, materials. */
 :root[data-shell='modern'] {
   /* Concentric radii (§5.5): inner = outer − padding. */
@@ -70,6 +83,23 @@
   --mat-rim: var(--m-rim);
   --mat-glow: var(--m-glow);
   --wallpaper: var(--m-wallpaper);
+
+  /* Overlays (Stageshow polish, #358): the band a popover, a menu, the palette or a dialog stays inside, clear of the top ornament's
+     foot and the bottom ornament's top by a gap. The defaults mirror layout.ts (PAGE_TOP_MIN, PAGE_TOP_SHARE, PAGE_BOTTOM); the stage
+     restates them from its own geometry (shell-modern.css) and the narrow layout from its bars and the safe areas (below). */
+  --overlay-top: calc(max(84px, 11dvh) + var(--radius-ornament) + var(--space-4));
+  --overlay-bottom: calc(112px + var(--radius-ornament) + var(--space-4));
+  --overlay-side: 16px;
+}
+
+/* Below 960 px the bars are the narrow layout's (narrow-modern.css, layout.ts NARROW_*): the top bar and the tab bar, each a gutter in
+   from the safe area. */
+@media (max-width: 959px) {
+  :root[data-shell='modern'] {
+    --overlay-top: calc(8px + env(safe-area-inset-top, 0px) + 56px + var(--space-4));
+    --overlay-bottom: calc(8px + env(safe-area-inset-bottom, 0px) + 64px + var(--space-4));
+    --overlay-side: calc(8px + max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px)));
+  }
 }
 
 /* 2a. Light (dawn harbour). */

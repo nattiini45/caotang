@@ -27,6 +27,25 @@
   --area-start: calc(var(--binder-inset) + var(--binder-bar-w) + var(--binder-gap) + var(--binder-sidebar-w));
 }
 
+/* Open but not pinned (#358), above 1,280 px and with nothing docked at the inline-end edge, the page and its ornaments slide over to
+   start a gap clear of the sidebar's edge (--binder-clear) when the page keeps its whole --page-w there; the slide is all or nothing
+   (the clamp's ×1000 is a step). Everywhere else (1,280 px and down, the agent window or a docked Scene info open, or a page wider
+   than the room left) nothing moves, and the sidebar overlaps the page as a sheet of the dense float material (below). The stage's
+   geometry is inline, so this is the one --area-start that is marked important. */
+@media (min-width: 1281px) {
+  :root[data-shell='modern'] .modern-stage:has(> .modern-binder.is-open:not(.is-pinned)):not(:has(> .modern-companion.is-open, > .scene-info.is-docked)) {
+    --binder-base: calc(var(--binder-inset) + var(--binder-bar-w));
+    --binder-clear: calc(var(--binder-base) + 3 * var(--binder-gap) + var(--binder-sidebar-w));
+    /* The start that puts the centred page's edge at the clear line, and the most the start may be with the page still whole. */
+    --binder-to: max(var(--binder-base), 2 * var(--binder-clear) - 100vw + var(--area-end) + var(--page-w));
+    --binder-cap: calc(100vw - var(--area-end) - var(--page-w) - 2 * var(--page-gutter));
+    --area-start: calc(
+      var(--binder-base) +
+        clamp(0px, var(--binder-to) - var(--binder-base) + 1000 * (var(--binder-cap) - var(--binder-to)), var(--binder-to) - var(--binder-base))
+    ) !important;
+  }
+}
+
 /* ---- The tab bar: glass, its labels on scrims (§5.3), every control at least 44 px (§9.5). ---- */
 :root[data-shell='modern'] .modern-binder-bar {
   position: absolute;
@@ -168,6 +187,21 @@
     opacity var(--dur-fade) var(--ease-standard),
     transform var(--dur-3) var(--ease-spring),
     visibility 0s;
+}
+
+/* Not pinned, the sidebar is a sheet that may lie over the page: the dense float material, so the page never reads through its head and
+   tabs (#358). Pinned, nothing is under it but the wallpaper, and it keeps the thick glass. */
+:root[data-shell='modern'] .modern-binder:not(.is-pinned) .modern-sidebar.mat-thick {
+  background: var(--mat-float-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
+}
+
+/* From 1,280 px down (a tablet in landscape, a small window) the ornaments can sit over the sidebar's ends: it stays between them,
+   below the title capsule and above the tab bar. */
+@media (max-width: 1280px) {
+  :root[data-shell='modern'] .modern-sidebar {
+    inset-block: var(--overlay-top) var(--overlay-bottom);
+  }
 }
 
 :root[data-shell='modern'] .modern-sidebar-head {

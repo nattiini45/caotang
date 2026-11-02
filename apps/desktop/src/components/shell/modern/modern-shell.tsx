@@ -107,7 +107,9 @@ export function ModernShell({
   const sceneInfo = useSceneInfo();
   const agent = slots.companion !== null && view.agentOpen && !view.hideRails;
   const info = slots.sceneInfo !== null && sceneInfo.open && sceneInfo.docked && !view.hideRails;
-  const layout = modernLayout({ viewport: size, view: current, sidebar: sidebar && pinned, binderBar: sidebar, agent, info });
+  // Focus mode fades the tab bar (and a pinned sidebar) but keeps them, so the page keeps their room and never jumps sideways (#358).
+  const bar = slots.sidebar !== null && !view.narrow;
+  const layout = modernLayout({ viewport: size, view: current, sidebar: bar && pinned, binderBar: bar, agent, info });
   const placed = geometry ?? layout.geometry;
   // Focus mode (§8.8) fades the ornaments, the binder, Scene info and the agent window rather than taking them away (focus-mode.tsx), so
   // they get the view as if the rails were shown; the page keeps focus mode's room above.
@@ -132,7 +134,7 @@ export function ModernShell({
         </LazyBoundary>
       ) : null}
       {slot(slots.topOrnament)}
-      {sidebar || (view.hideRails && slots.sidebar !== null && !view.narrow) ? slot(slots.sidebar) : null}
+      {bar ? slot(slots.sidebar) : null}
       {/* Below 960 px (§13, #312): the binder's button and drawer, the one scrim, and the one-panel-at-a-time rule. */}
       {view.narrow ? (
         <LazyBoundary label={t`the binder`} variant="toast">
