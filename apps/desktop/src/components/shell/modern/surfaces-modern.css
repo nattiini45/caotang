@@ -197,12 +197,18 @@
   outline-offset: calc(-1 * var(--focus-width));
 }
 
-:root[data-shell='modern'] .menu-item.is-checked {
+/* A menu that can hold a check keeps its column on every row, so the labels line up (#360). */
+:root[data-shell='modern'] .menu:has([role='menuitemradio']) .menu-item {
   padding-inline-start: 36px;
 }
 
 :root[data-shell='modern'] .menu-item.is-checked::before {
-  inset-inline-start: 14px;
+  content: '';
+  inset-inline-start: 12px;
+  inline-size: 20px;
+  block-size: 20px;
+  background: currentColor;
+  mask: var(--k-tick) center / 20px no-repeat;
 }
 
 :root[data-shell='modern'] .menu-key {

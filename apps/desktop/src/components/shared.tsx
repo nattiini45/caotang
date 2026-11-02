@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { currentInterface } from '../app/interface.js';
 import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { accessibleText } from '../i18n/accessible-text.js';
@@ -560,6 +561,19 @@ export function EmptyState({
       {children ? <div className="empty-text">{children}</div> : null}
       {actions ? <div className="empty-actions">{actions}</div> : null}
     </section>
+  );
+}
+
+/**
+ * Help or advanced controls on demand (Stageshow polish, #360): a `<details>` with the kit's summary in Modern. Classic shows it open
+ * with its summary hidden and the box laid out as if it were not there (styles.css `.k-more`), so Classic's panels do not change.
+ */
+export function More({ summary, className = '', children }: { summary: ReactNode; className?: string; children: ReactNode }): ReactNode {
+  return (
+    <details className={`k-more ${className}`} open={currentInterface() === 'classic'}>
+      <summary>{summary}</summary>
+      {children}
+    </details>
   );
 }
 

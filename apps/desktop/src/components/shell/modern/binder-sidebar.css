@@ -71,12 +71,12 @@
   gap: var(--space-2);
   min-block-size: 64px;
   min-inline-size: var(--target-min);
-  padding: var(--space-4) var(--space-2);
+  padding: var(--space-4);
   border: 0;
   border-radius: var(--radius-control);
   background: var(--scrim);
   color: var(--on-glass);
-  font: 600 12px/1.2 var(--ui);
+  font: 600 11px/1.3 var(--ui);
   text-align: center;
   cursor: pointer;
   transition:
@@ -84,8 +84,7 @@
     transform var(--dur-1) var(--ease-spring);
 }
 
-:root[data-shell='modern'] .modern-binder-button:hover,
-:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab:hover {
+:root[data-shell='modern'] .modern-binder-button:hover {
   background: var(--mat-thick-bg);
 }
 
@@ -93,9 +92,7 @@
   transform: scale(0.97);
 }
 
-:root[data-shell='modern'] .modern-binder-button[aria-expanded='true'],
-:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab[aria-selected='true'],
-:root[data-shell='modern'] .modern-sidebar-pin[aria-pressed='true'] {
+:root[data-shell='modern'] .modern-binder-button[aria-expanded='true'] {
   background: var(--accent);
   color: var(--accent-ink);
 }
@@ -104,12 +101,6 @@
   /* Words wrap between words, never inside one (§10). */
   overflow-wrap: normal;
   hyphens: manual;
-}
-
-:root[data-shell='modern'] .modern-binder-icon {
-  inline-size: 22px;
-  block-size: 22px;
-  flex: none;
 }
 
 /* An open finding: a dot on Panels, as the title capsule has one (§6). The count itself is on the Findings tab. */
@@ -126,10 +117,9 @@
 /* The minimap: decorative status dots (§9.1), the open scene ringed. */
 :root[data-shell='modern'] .modern-minimap {
   display: grid;
-  grid-template-columns: repeat(4, 8px);
-  justify-content: center;
+  grid-template-columns: repeat(auto-fill, 8px);
   gap: 6px;
-  padding-block: var(--space-4);
+  padding: var(--space-4) var(--space-5);
   overflow: hidden;
 }
 
@@ -206,43 +196,88 @@
 
 :root[data-shell='modern'] .modern-sidebar-head {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-:root[data-shell='modern'] .modern-sidebar-tabs {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  padding: 0;
-  border: 0;
 }
 
-:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab,
+/* The four tabs are one segmented control on one row (#360), shared with the narrow drawer: the kit's opaque track and thumb, each tab
+   as wide as its words, and none ever wraps or pushes Keep open off the row. */
+:root[data-shell='modern'] :is(.modern-sidebar-tabs, .modern-drawer-tabs) {
+  display: flex;
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+  padding: 3px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--k-track);
+}
+
+:root[data-shell='modern'] .modern-sidebar-head > .modern-sidebar-tabs {
+  flex: 1 1 auto;
+}
+
+:root[data-shell='modern'] :is(.modern-sidebar-tabs, .modern-drawer-tabs) .rail-tab {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  min-block-size: var(--target-min);
+  padding-block: 0;
+  padding-inline: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  font: 600 13px/1.3 var(--ui);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] :is(.modern-sidebar-tabs .rail-tab, .modern-drawer-tabs .rail-tab, .modern-sidebar-pin):hover {
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] :is(.modern-sidebar-tabs, .modern-drawer-tabs) .rail-tab[aria-selected='true'] {
+  background: var(--k-thumb);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* The open count: 11/600 on the accent's soft step, its digits centred on their caps, 4 px from the word. */
+:root[data-shell='modern'] :is(.modern-sidebar-tabs, .modern-drawer-tabs) .rail-badge {
+  flex: none;
+  min-inline-size: 18px;
+  margin: 0;
+  padding: 3px 5px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font: 600 11px/1 var(--ui);
+  text-box: trim-both cap alphabetic;
+}
+
+/* Keep open: an icon toggle at the end of the tab row, on the track's surface; pressed, the accent's soft step. */
 :root[data-shell='modern'] .modern-sidebar-pin {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  min-block-size: var(--target-min);
-  padding: 0 var(--space-5);
+  justify-content: center;
   border: 0;
-  border-radius: var(--radius-control);
-  background: var(--scrim);
-  color: var(--on-glass);
-  font: 600 13px/1 var(--ui);
-}
-:root[data-shell='modern'] .modern-sidebar-tabs .rail-tab {
-  min-inline-size: var(--target-min);
+  background: var(--k-track);
+  color: var(--ink-soft);
+  cursor: pointer;
   transition: background-color var(--dur-1) var(--ease-standard);
 }
 
-
-
-:root[data-shell='modern'] .modern-sidebar-pin {
-  align-self: flex-start;
-  cursor: pointer;
+:root[data-shell='modern'] .modern-sidebar-pin[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
-
 
 :root[data-shell='modern'] .modern-sidebar-panel {
   flex: 1;
@@ -252,6 +287,301 @@
   border-radius: var(--radius-inner);
   background: var(--m-solid);
   color: var(--ink);
+}
+
+/* The panel scrolls under the head: a line passing its top edge fades out rather than being cut (#360). A sticky band in the panel's
+   own ground, not a mask, so a menu or dialog the panel holds is never clipped to it. */
+:root[data-shell='modern'] .modern-drawer-panel {
+  padding: var(--space-5);
+}
+
+:root[data-shell='modern'] :is(.modern-sidebar-panel, .modern-drawer-panel)::before {
+  content: '';
+  position: sticky;
+  inset-block-start: calc(-1 * var(--space-5));
+  z-index: 1;
+  display: block;
+  block-size: var(--space-5);
+  margin-block-start: calc(-1 * var(--space-5));
+  background: linear-gradient(var(--m-solid), transparent);
+  pointer-events: none;
+}
+
+/* ---- The panels' content (Stageshow polish, #360): say it once, advanced controls behind a disclosure (shared.tsx `More`), rows
+   instead of cards. The controls are the kit's (controls-modern.css); these rules only lay the panels out. ---- */
+:root[data-shell='modern'] .k-more {
+  display: block;
+  min-inline-size: 0;
+}
+
+:root[data-shell='modern'] .k-more > summary {
+  inline-size: fit-content;
+  padding-inline-end: var(--space-4);
+  border-radius: var(--radius-pill);
+}
+
+:root[data-shell='modern'] .k-more > summary:hover {
+  color: var(--accent);
+}
+
+:root[data-shell='modern'] .k-more[open] > summary {
+  margin-block-end: var(--space-3);
+}
+
+/* Binder: [New document][New folder] and Import… on one row; Import… wraps to the row's end only when the words do not fit. */
+:root[data-shell='modern'] .binder {
+  flex-flow: row wrap;
+  gap: var(--space-5) var(--space-3);
+}
+
+:root[data-shell='modern'] .binder > * {
+  flex: 1 1 100%;
+  min-inline-size: 0;
+}
+
+:root[data-shell='modern'] .binder > .binder-toolbar {
+  flex: 1 1 auto;
+  gap: var(--space-3);
+  padding: 0;
+}
+
+
+:root[data-shell='modern'] :is(.binder-toolbar .button + .button, .row-toggle, .row-actions)::before {
+  content: '';
+  inline-size: 20px;
+  block-size: 20px;
+  background: currentColor;
+  mask: var(--sb-icon) center / 20px no-repeat;
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+
+/* New folder is an icon, a folder with a plus in the ornaments' stroke; its words stay its name for assistive technology. */
+:root[data-shell='modern'] .binder-toolbar .button + .button {
+  inline-size: var(--target-min);
+  padding: 0;
+  font-size: 0;
+  --sb-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2zM12 11v5M9.5 13.5h5'/%3E%3C/svg%3E");
+}
+
+/* The tree's Collapse / Expand and a row's Actions: the icon set's chevron and "more" at 20 px, not type characters. */
+:root[data-shell='modern'] :is(.row-toggle, .row-actions) {
+  --sb-icon: var(--k-chevron);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root[data-shell='modern'] .row-actions {
+  --sb-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='6' cy='12' r='1.6'/%3E%3Ccircle cx='12' cy='12' r='1.6'/%3E%3Ccircle cx='18' cy='12' r='1.6'/%3E%3C/svg%3E");
+}
+
+:root[data-shell='modern'] :is(.row-toggle, .row-actions) > span {
+  font-size: 0;
+}
+
+:root[data-shell='modern'] .row[aria-expanded='false'] .row-toggle::before {
+  transform: rotate(calc(-90deg * var(--dir, 1)));
+}
+
+/* Import…: a capsule at the row's end; open, a menu of the five imports and the line-id switch over the tree. */
+:root[data-shell='modern'] .binder > .binder-import {
+  position: relative;
+  flex: none;
+  margin-inline-start: auto;
+}
+
+:root[data-shell='modern'] .binder-import > summary {
+  margin: 0;
+  padding-inline: var(--space-5);
+  background: var(--k-fill);
+  font-weight: 500;
+  font-size: 15px;
+}
+
+:root[data-shell='modern'] .binder-import > summary::before {
+  display: none;
+}
+
+:root[data-shell='modern'] .binder-import[open] > summary {
+  background: var(--k-fill-hover);
+}
+
+:root[data-shell='modern'] .binder-import > .k-more-body {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-3));
+  inset-inline-end: 0;
+  z-index: 2;
+  display: grid;
+  inline-size: 280px;
+  max-inline-size: calc(100vw - 48px);
+  padding: var(--space-3);
+  border-radius: var(--radius-inner);
+  background: var(--raised);
+  box-shadow: var(--elev-glass);
+}
+
+:root[data-shell='modern'] .binder-import .script-import {
+  flex-flow: column;
+  gap: var(--space-2);
+  padding: 0;
+}
+
+:root[data-shell='modern'] .binder-import .script-import + .script-import {
+  padding-block-start: var(--space-2);
+  border-block-start: 1px solid var(--line);
+}
+
+:root[data-shell='modern'] .binder-import .script-import .button {
+  justify-content: flex-start;
+  background: none;
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] .binder-import .script-import .button:hover {
+  background: var(--k-quiet);
+}
+
+:root[data-shell='modern'] .binder-import .script-import-ids {
+  padding-inline-start: var(--space-6);
+  border-block-start: 1px solid var(--line);
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+/* Filters: only the search field shows; the rest is under Filters, with the count of what is set. */
+:root[data-shell='modern'] .binder-filters {
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+}
+
+:root[data-shell='modern'] .filter-more {
+  display: grid;
+  gap: var(--space-4);
+}
+
+:root[data-shell='modern'] .filter-more[open] > summary {
+  margin: 0;
+}
+
+:root[data-shell='modern'] .filter-more :is(.filter-keywords, .filter-dates) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:root[data-shell='modern'] .filter-more .filter-dates .filter-field {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+:root[data-shell='modern'] .filter-more .filter-days input {
+  flex: none;
+  inline-size: 72px;
+}
+
+/* Findings: the buttons, a break, then Scope and Show side by side (their words stay their names for assistive technology). A group of
+   one says its message once, on the finding, with Show on timeline after it; a finding is a row on the panel, not a card. */
+:root[data-shell='modern'] .findings {
+  padding: 0;
+}
+
+:root[data-shell='modern'] .findings-actions {
+  gap: var(--space-4) var(--space-3);
+}
+
+:root[data-shell='modern'] .findings-actions > .button {
+  order: -1;
+}
+
+:root[data-shell='modern'] .findings-actions::before {
+  content: '';
+  flex-basis: 100%;
+  margin-block-start: calc(-1 * var(--space-4));
+}
+
+:root[data-shell='modern'] .findings-filter {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+:root[data-shell='modern'] .findings-filter:last-child {
+  flex: 0 1 auto;
+}
+
+:root[data-shell='modern'] .findings-filter > span {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+:root[data-shell='modern'] .findings-filter select {
+  --k-pad-end: 36px;
+  inline-size: 100%;
+  field-sizing: content;
+}
+
+:root[data-shell='modern'] .finding-group {
+  display: grid;
+  gap: var(--space-3);
+}
+
+:root[data-shell='modern'] .finding-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+:root[data-shell='modern'] .finding-group:has(> .finding:only-of-type) .finding-group-heading {
+  display: none;
+}
+
+:root[data-shell='modern'] .finding-group:has(> .finding:only-of-type) > .finding-group-head {
+  order: 1;
+}
+
+/* The status chip says what Show already says while it shows Open findings. */
+:root[data-shell='modern'] .findings:has(.findings-filter option[value='open']:checked) .finding .status-chip,
+:root[data-shell='modern'] .activity-row .badge.is-source-native {
+  display: none;
+}
+
+:root[data-shell='modern'] .finding-type {
+  font: 600 12px/1.3 var(--ui);
+}
+
+:root[data-shell='modern'] .finding-quote {
+  border-inline-start-color: var(--line-strong);
+}
+
+/* Activity and Trace: rows on the panel parted by a hairline, the source badge only when it is not the app itself; the toolbars stack. */
+:root[data-shell='modern'] :is(.finding, .activity-row) {
+  gap: var(--space-3);
+  padding: var(--space-5) 0 0;
+  border: 0;
+  border-block-start: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+:root[data-shell='modern'] .activity-row {
+  padding-block-end: var(--space-5);
+}
+
+:root[data-shell='modern'] .activity-list {
+  gap: 0;
+}
+
+:root[data-shell='modern'] :is(.activity-toolbar, .trace-toolbar) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+:root[data-shell='modern'] :is(.activity-toolbar, .trace-toolbar) > label {
+  align-self: stretch;
 }
 
 /* Goals and sprint: the binder footer in one disclosure under the tree (§7.2). */
@@ -281,16 +611,18 @@
   background: var(--accent-soft);
 }
 
-:root[data-shell='modern'] .modern-sidebar-chevron {
-  inline-size: 16px;
-  block-size: 16px;
+:root[data-shell='modern'] .modern-sidebar-disclosure::before {
+  content: '';
   flex: none;
-  transform: scaleX(var(--dir, 1));
-  transition: transform var(--dur-1) var(--ease-standard);
+  inline-size: 20px;
+  block-size: 20px;
+  background: var(--k-chevron) no-repeat center / 20px;
+  transform: rotate(calc(-90deg * var(--dir, 1)));
+  transition: transform var(--dur-2) var(--ease-spring);
 }
 
-:root[data-shell='modern'] .modern-sidebar-disclosure[aria-expanded='true'] .modern-sidebar-chevron {
-  transform: rotate(90deg);
+:root[data-shell='modern'] .modern-sidebar-disclosure[aria-expanded='true']::before {
+  transform: none;
 }
 
 /* The two-tone focus ring (§9.2) on every control of the bar and the sidebar's head. */
@@ -309,7 +641,7 @@
   :root[data-shell='modern'] .modern-sidebar,
   :root[data-shell='modern'] .modern-sidebar-panel,
   :root[data-shell='modern'] .modern-binder-button,
-  :root[data-shell='modern'] .modern-sidebar-tabs .rail-tab,
+  :root[data-shell='modern'] :is(.modern-sidebar-tabs, .modern-drawer-tabs) .rail-tab,
   :root[data-shell='modern'] .modern-sidebar-pin {
     border: 1px solid CanvasText;
     background: Canvas;
@@ -319,7 +651,7 @@
   }
 
   :root[data-shell='modern'] .modern-binder-button[aria-expanded='true'],
-  :root[data-shell='modern'] .modern-sidebar-tabs .rail-tab[aria-selected='true'],
+  :root[data-shell='modern'] :is(.modern-sidebar-tabs, .modern-drawer-tabs) .rail-tab[aria-selected='true'],
   :root[data-shell='modern'] .modern-sidebar-pin[aria-pressed='true'] {
     background: Highlight;
     color: HighlightText;

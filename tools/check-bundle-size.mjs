@@ -148,7 +148,9 @@ export const BUDGET = {
   // 7,754.4 kB measured on the merge of #351 (focus mode, Show in Findings) into #312 (the narrow layout): narrow layout + focus mode,
   // #312/#351; Classic unchanged. Both are lazy chunks (`narrow-panels`, `focus-mode`) and the slots they touch; Classic's first load
   // did not move. The ceiling is that plus about 0.6 kB.
-  totalJs: 7_755_000,
+  // Stageshow polish wave 2 (#360–#364), approved by Caspar 2026-11-02: every wave-2 PR adds JS (the panels' disclosures, menus and
+  // rows) against 7,754,996 bytes measured on W's branch (#361); the ceiling rises to 7,760,000.
+  totalJs: 7_760_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -169,7 +171,9 @@ export const BUDGET = {
     // one on-use sheet; it never loads for Classic.
     // Stageshow polish #358: dense materials, overlay band, menu columns. 67,121 bytes raw (10.9 kB gzip) measured on top of #357's
     // control kit (+6,746 bytes); the cap is that plus about 2%.
-    caps: { 'modern-shell': 68_500 },
+    // Stageshow polish #360: the sidebar's segmented tab head, the panels' disclosures, rows and the Import… menu. 74,448 bytes raw
+    // (12.0 kB gzip) measured on top of #358 (+7,327 bytes, all CSS; no JS cap moves); the cap is that plus about 1.5%.
+    caps: { 'modern-shell': 75_600 },
   },
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
@@ -179,8 +183,10 @@ export const BUDGET = {
    * the allowance is its first cut (27.7 kB) plus about 0.6 kB.
    * Stageshow polish #358: dense materials, overlay band, menu columns. 29,164 bytes measured, nearly all of it Modern's stylesheet
    * (the JS caps do not move); the allowance is that plus about 1%.
+   * Stageshow polish #360: the sidebar's segmented tab head, disclosures and rows. 30,144 bytes measured, all of it Modern's stylesheet
+   * (the JS caps do not move); the allowance is that plus about 1.5%.
    */
-  modernFirstLoadDelta: 29_500,
+  modernFirstLoadDelta: 30_600,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */
