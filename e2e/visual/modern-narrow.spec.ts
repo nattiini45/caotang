@@ -13,7 +13,7 @@ import { waitForSaved } from '../support.js';
 // A missing step fails in 15 s instead of holding the job until it is cancelled.
 test.use({ storageState: NO_PIN, actionTimeout: 15_000 });
 
-const NOW = new Date('Mon 2026-06-01 11:00 AM CEST (UTC+02:00)');
+const NOW = new Date(Date.UTC(2026, 5, 1, 9, 0, 0));
 const PHONE = { width: 390, height: 844 };
 
 type Scheme = 'light' | 'dark';
