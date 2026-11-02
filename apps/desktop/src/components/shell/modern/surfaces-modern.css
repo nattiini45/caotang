@@ -141,7 +141,11 @@
    band (shared.tsx clamps its top), scrolling inside with soft edges (shell-modern.css) when it is taller. ---- */
 :root[data-shell='modern'] .menu {
   --fade-to: var(--mat-float-bg);
+  /* As wide as its longest label, so each action keeps one line, but never wider than the screen: a long status or label name
+     wraps inside the menu instead of pushing its actions out of reach. */
+  inline-size: max-content;
   min-inline-size: 240px;
+  max-inline-size: calc(100dvw - 2 * var(--space-4));
   max-block-size: calc(100dvh - var(--overlay-top) - var(--overlay-bottom));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -176,8 +180,9 @@
   padding-inline: 14px;
   border-radius: calc(var(--radius-lg) - var(--space-3));
   font-size: 15px;
-  /* One line per action: the menu grows to its longest label (the overlay band and the right edge still hold it) instead of wrapping. */
-  white-space: nowrap;
+  /* One line per action: the menu grows to its longest label (the overlay band and the right edge still hold it); only a label
+     wider than the screen wraps. */
+  overflow-wrap: anywhere;
   transition: background-color var(--dur-1) var(--ease-standard);
 }
 
@@ -263,7 +268,8 @@
     max-block-size: none;
     max-inline-size: none;
     padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
-    padding-inline: env(safe-area-inset-left, 0px) env(safe-area-inset-right, 0px);
+    /* The larger side inset on both sides, as the narrow layout does, so a right-to-left Settings never swaps a notch's side. */
+    padding-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   }
 }
 
