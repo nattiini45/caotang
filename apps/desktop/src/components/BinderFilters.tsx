@@ -11,7 +11,7 @@ import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNo
 import { isolate } from '@caotang/i18n';
 import type { SavedFilter } from '@caotang/furniture';
 
-import { filterResultFor, furnitureFor, isEmptyDraft, tagsOf } from '../app/furniture-store.js';
+import { criteriaOf, filterResultFor, furnitureFor, isEmptyDraft, tagsOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
 import { More, useComposingEnter, useSession } from './shared.js';
 
@@ -72,8 +72,9 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
   // while the criteria still filter by it (binder-filters §5: the bar and the tree must agree).
   const unknownStatus = draft.statusId !== '' && !statuses.some((status) => status.id === draft.statusId);
   const unknownLabel = draft.labelId !== '' && !labels.some((label) => label.id === draft.labelId);
-  // The criteria under Filters (#360), counted on its summary so a closed disclosure still says the binder is filtered.
-  const setCount = [draft.statusId, draft.labelId, draft.minWords, draft.maxWords, draft.keywordsAll, draft.keywordsAny, draft.modifiedWithinDays, draft.createdWithinDays].filter((value) => value.trim()).length;
+  // The criteria under Filters (#360), counted on its summary so a closed disclosure still says the binder is filtered. They are
+  // counted as criteria, so a field that applies nothing (only commas, a word count that is not a number) adds nothing to the badge.
+  const setCount = Object.keys(criteriaOf({ ...draft, text: '' })).length;
 
   const submitName = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
