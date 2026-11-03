@@ -513,13 +513,13 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                     </span>
                   </div>
                   <div className="project-actions">
-                    <button type="button" className="button is-primary" disabled={busy !== null} onClick={() => open(project.id)}>
+                    <button type="button" className="button is-primary k-tonal" disabled={busy !== null} onClick={() => open(project.id)}>
                       <Trans>Open</Trans>
                     </button>
                     {folders.get(project.id) !== undefined ? (
                       <button
                         type="button"
-                        className="button"
+                        className="button k-quiet"
                         disabled={busy !== null}
                         aria-label={t`Reopen folder of ${{ name: accessibleText(project.name) }}`}
                         onClick={() => {
@@ -532,7 +532,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                     ) : null}
                     <button
                       type="button"
-                      className="button"
+                      className="button k-quiet"
                       disabled={busy !== null}
                       aria-label={t`Rename ${{ name: accessibleText(project.name) }}`}
                       onClick={() => setRenaming({ id: project.id, text: project.name })}
@@ -541,7 +541,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                     </button>
                     <button
                       type="button"
-                      className="button"
+                      className="button k-quiet"
                       disabled={busy !== null}
                       aria-label={t`Export ${{ name: accessibleText(project.name) }} as a bundle`}
                       onClick={() => exportOne(project.id, project.name)}

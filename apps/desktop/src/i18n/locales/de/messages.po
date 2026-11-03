@@ -2841,6 +2841,7 @@ msgstr "Szene hinzufügen, der diese folgt…"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Add a server"
 msgstr "Server hinzufügen"
@@ -13112,7 +13113,7 @@ msgstr "Namen, Aliasse und Beschreibungen durchsuchen"
 #. Modern interface: the search and commands palette (Ctrl+K).
 #: apps/desktop/src/components/shell/modern/palette.tsx
 msgid "Search scenes, codex and commands"
-msgstr "Szenen, Kodex und Befehle durchsuchen"
+msgstr "Szenen, Kodex, Befehle suchen"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx

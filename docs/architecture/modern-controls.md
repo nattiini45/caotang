@@ -35,6 +35,7 @@ These are set by the kit, with light values and a dark override in both dark blo
 | `--k-chevron`, `--k-search`, `--k-tick` | The icon images (`--k-tick-dark` holds the dark tick) |
 | `--k-pad-start`, `--k-pad-end` | A field's inline padding. Search sets the start and select sets the end, so a surface rule that sets `padding` cannot hide the icon behind the text |
 | `--k-radius-field`, `--k-mark` | 12 px field radius; 20 px mark |
+| `--k-tonal-ink` | A tonal button's ink: deep accent on `--accent-soft`, 4.5:1 in both schemes |
 
 ## Classes and what they style
 
@@ -42,7 +43,8 @@ These are set by the kit, with light values and a dark override in both dark blo
 |---|---|---|---|
 | Button, secondary | `.button`, `.tl-save` (the timeline's Calendar and Save image), `.thread-actions > button` (Scene info's Add thread) | — | Tonal pill, 15/500, 44 px, 16 px inline padding |
 | Button, primary | `.button.is-primary` | — | Accent fill. Use **one per surface** |
-| Button, quiet | `.button.is-quiet` | — | Lighter surface at rest, `--ink-soft` text |
+| Button, quiet | `.button.is-quiet` | `.k-quiet` | Lighter surface at rest, `--ink-soft` text. `k-quiet` gives Modern's quiet weight to markup that stays a plain secondary in Classic |
+| Button, tonal | — | `.k-tonal` | `--accent-soft` with `--k-tonal-ink`, 600. A row's own action, or one of a card's several, beside the surface's one primary. On `.is-primary` markup it keeps Classic's look in Classic and steps down in Modern |
 | Button, danger | `.button.is-danger` | — | Danger text on the button's own surface. In a Confirm (`.confirm`) it stays filled, as in Classic |
 | Icon button | `.button.is-icon` | `.k-icon-button` | 44 × 44 circle; its `svg` is 20 px. Give it an `aria-label` |
 | Text field | `input` of type text, email, url, password, tel, date or time, untyped `input`, `.keyword-input`, `textarea` | — | 12 px radius, `--line-strong` edge, `--raised` fill, 15 px text. A code box (`.skills-editor`, `.mcp-export`, `.tl-calendar-box`) keeps monospace. The palette's query and a source field's `.src-input` (it must match its highlight layer) are left out |
@@ -65,6 +67,18 @@ These are set by the kit, with light values and a dark override in both dark blo
 | Empty state | `.empty-state` | `.k-empty` | No dashed box: centred words on the surface, 32 px block padding, 15/600 title |
 
 Focus is the two-tone ring (`--focus` outside, `--focus-halo` inside) on every kit control. Forced colours draws `ButtonText` edges, removes the images, and gives checks and radios their system look.
+
+## Menus
+
+`⋯` (`.modern-menu`, shell-modern.css) and the context menus (`.menu`, surfaces-modern.css) read one set of tokens, set on `:root[data-shell='modern']` in shell-modern.css. Don't restyle a menu locally; change the token.
+
+| Token | Use |
+|---|---|
+| `--menu-radius` | The menu's corner (`--radius-sheet`) |
+| `--menu-item-radius` | An item's highlight corner (`--radius-inner`) |
+| `--menu-hover` | Hover and focus highlight (`--accent-soft`, as the palette's chosen option) |
+| `--menu-text-inset` | Where an item's words start: after the check column and its gap, with or without a tick |
+| `--menu-check` | The tick image of a checked item |
 
 ## Surface layouts the kit settles
 

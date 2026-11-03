@@ -375,7 +375,8 @@ test('the Recovery and Encoding dialogs a bundle import asks are glass, keep the
   await page.getByTestId('bundle-input').setInputFiles(await changedBundle(testInfo, bundle, 'encoding'));
   const encoding = page.getByTestId('encoding-dialog');
   await expect(encoding.getByRole('heading', { name: 'One file is not UTF-8 text' })).toBeVisible();
-  // Focus is inside (expectModernDialog); which control holds it is Classic's own behaviour and is not asserted here.
+  // Focus starts on Cancel, the safe answer, in every engine (#347): Firefox's showModal() alone would take the first radio.
+  await expect(encoding.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await expectModernDialog(page, encoding, '[data-testid="encoding-dialog"]');
   await page.keyboard.press('Escape');
   await expect(encoding).toBeHidden();
@@ -395,8 +396,9 @@ test('a Choice dialog (the Final Draft import question) is glass, keeps the focu
   ].join('\n');
   await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({ name: 'harbour.fdx', mimeType: 'application/xml', buffer: Buffer.from(fdx, 'utf8') });
   const choice = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
-  // Focus is inside (expectModernDialog). Which control holds it is Classic's behaviour, the same in both interfaces, so it is not
-  // asserted here: in Firefox showModal() focuses the first answer, not the autoFocus Cancel.
+  // Focus starts on Cancel in every engine (#347), so Enter never takes an answer; the first answer is the one filled primary (#362).
+  await expect(choice.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expect(choice.getByRole('button', { name: 'Import' })).toHaveClass(/is-primary/);
   await expectModernDialog(page, choice, 'dialog.confirm[open]');
   await page.keyboard.press('Escape');
   await expect(choice).toBeHidden();

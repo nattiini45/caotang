@@ -393,11 +393,16 @@ export function ChoiceDialog({
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      // Firefox's showModal() focuses the first answer, not the autoFocus Cancel (#347): Cancel takes it here, in every engine.
+      cancel.current?.focus();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
@@ -415,12 +420,18 @@ export function ChoiceDialog({
         <h2>{title}</h2>
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
-          {choices.map((choice) => (
-            <button key={choice.label} type="button" className={choice.danger === true ? 'button is-danger' : 'button'} onClick={choice.onChoose}>
+          {choices.map((choice, index) => (
+            <button
+              key={choice.label}
+              type="button"
+              // One primary (#362): the first answer that writes over nothing; an answer that does stays danger.
+              className={choice.danger === true ? 'button is-danger' : index === choices.findIndex((other) => other.danger !== true) ? 'button is-primary' : 'button'}
+              onClick={choice.onChoose}
+            >
               {choice.label}
             </button>
           ))}
-          <button type="button" className="button" autoFocus onClick={onCancel}>
+          <button ref={cancel} type="button" className="button" autoFocus onClick={onCancel}>
             <Trans>Cancel</Trans>
           </button>
         </div>
