@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react';
 
-export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'scene';
+export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'manuscript' | 'pin' | 'scene';
 
 const PATHS: Readonly<Record<IconName, ReactNode>> = {
   write: (
@@ -60,6 +60,9 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
     </>
   ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  // The binder bar's Manuscript (a page) and the sidebar's Keep open (a pin), #360.
+  manuscript: <path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4M10 12h5M10 15h5M10 18h3" />,
+  pin: <path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7" />,
   // A scene or document: a page with its corner turned (the palette's scene results).
   scene: <path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4" />,
 };

@@ -23,7 +23,7 @@ import { requestInkCompiler } from '../app/ink-compiler.js';
 import { readXmlFileText } from '../app/xml-file.js';
 import type { ProjectSession } from '../app/session.js';
 import { importLineIdsSentence } from '../media/ink-model.js';
-import { useReport, useSession } from './shared.js';
+import { More, useReport, useSession } from './shared.js';
 import { FdxImportDialog, seedFlagged } from './FdxImportDialog.js';
 import { TweeImportDialog } from './TweeImportDialog.js';
 
@@ -44,7 +44,11 @@ function scanSentenceOf(fileName: string, text: string): string[] {
   return sentence === undefined ? [] : [sentence];
 }
 
-export function ScriptImportActions({ session }: { session: ProjectSession }): ReactNode {
+/**
+ * `children` are the binder's other import actions (ManuscriptImport.tsx). In Modern every import sits in one **Import…** disclosure
+ * (#360); the dialogs an import opens stay outside it, so a closed disclosure never hides a question the import is asking.
+ */
+export function ScriptImportActions({ session, children }: { session: ProjectSession; children?: ReactNode }): ReactNode {
   useSession(session);
   const report = useReport();
   const scriptFile = useRef<HTMLInputElement>(null);
@@ -182,56 +186,63 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
   };
 
   return (
-    <div className="script-import" role="group" aria-label={t`Import a script, an Ink story or a Twee story`}>
-      <button type="button" className="button is-quiet" onClick={() => scriptFile.current?.click()}>
-        <Trans>Import script</Trans>
-      </button>
-      <button type="button" className="button is-quiet" onClick={() => inkFile.current?.click()}>
-        <Trans>Import Ink</Trans>
-      </button>
-      <button type="button" className="button is-quiet" onClick={() => tweeFile.current?.click()}>
-        <Trans>Import Twee</Trans>
-      </button>
-      <label className="script-import-ids">
-        <input type="checkbox" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
-        <Trans>Add line ids to the imported containers (one time)</Trans>
-      </label>
-      <input
-        ref={scriptFile}
-        type="file"
-        hidden
-        accept=".fountain,.fdx"
-        aria-label={t`Script file`}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = '';
-          if (file !== undefined) void importScript(file);
-        }}
-      />
-      <input
-        ref={inkFile}
-        type="file"
-        hidden
-        accept=".ink"
-        aria-label={t`Ink file`}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = '';
-          if (file !== undefined) void importInk(file);
-        }}
-      />
-      <input
-        ref={tweeFile}
-        type="file"
-        hidden
-        accept=".twee,.tw"
-        aria-label={t`Twee file`}
-        onChange={(event) => {
-          const file = event.currentTarget.files?.[0];
-          event.currentTarget.value = '';
-          if (file !== undefined) void planTwee(file);
-        }}
-      />
+    <>
+      <More summary={t`Import…`} className="binder-import">
+        <div className="k-more-body">
+          {children}
+          <div className="script-import" role="group" aria-label={t`Import a script, an Ink story or a Twee story`}>
+            <button type="button" className="button is-quiet" onClick={() => scriptFile.current?.click()}>
+              <Trans>Import script</Trans>
+            </button>
+            <button type="button" className="button is-quiet" onClick={() => inkFile.current?.click()}>
+              <Trans>Import Ink</Trans>
+            </button>
+            <button type="button" className="button is-quiet" onClick={() => tweeFile.current?.click()}>
+              <Trans>Import Twee</Trans>
+            </button>
+            <label className="script-import-ids">
+              <input type="checkbox" className="k-switch" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
+              <Trans>Add line ids to the imported containers (one time)</Trans>
+            </label>
+            <input
+              ref={scriptFile}
+              type="file"
+              hidden
+              accept=".fountain,.fdx"
+              aria-label={t`Script file`}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file !== undefined) void importScript(file);
+              }}
+            />
+            <input
+              ref={inkFile}
+              type="file"
+              hidden
+              accept=".ink"
+              aria-label={t`Ink file`}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file !== undefined) void importInk(file);
+              }}
+            />
+            <input
+              ref={tweeFile}
+              type="file"
+              hidden
+              accept=".twee,.tw"
+              aria-label={t`Twee file`}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file !== undefined) void planTwee(file);
+              }}
+            />
+          </div>
+        </div>
+      </More>
       <FdxImportDialog
         fileName={pendingFdx?.fileName ?? null}
         script={pendingFdx?.script ?? null}
@@ -246,6 +257,6 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
         onImport={() => void importTwee()}
         onCancel={() => setPendingTwee(null)}
       />
-    </div>
+    </>
   );
 }

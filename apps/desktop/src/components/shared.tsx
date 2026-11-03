@@ -590,5 +590,18 @@ export function EmptyState({
   );
 }
 
+/**
+ * Help or advanced controls on demand (Stageshow polish, #360): a `<details>` with the kit's summary in Modern. Classic shows it open
+ * with its summary hidden and the box laid out as if it were not there (styles.css `.k-more`), so Classic's panels do not change.
+ */
+export function More({ summary, className = '', children }: { summary: ReactNode; className?: string; children: ReactNode }): ReactNode {
+  return (
+    <details className={`k-more ${className}`} open={currentInterface() === 'classic'}>
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  );
+}
+
 /** A count as a panel shows it, grouped by the formatter locale. Defined in the model layer so a test can pin it. */
 export { documentsLabel, formatCount, wordsLabel } from '../app/counts.js';

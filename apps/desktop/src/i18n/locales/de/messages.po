@@ -5414,8 +5414,6 @@ msgstr "Tagversatz"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
-#. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
-#. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "days"
 msgstr "Tage"
@@ -6791,6 +6789,11 @@ msgstr "Den Binder filtern"
 msgid "Filter the binder by text"
 msgstr "Den Binder nach Text filtern"
 
+#. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
+#: apps/desktop/src/components/BinderFilters.tsx
+msgid "Filters"
+msgstr "Filter"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Final Draft (.fdx)"
@@ -7501,6 +7504,11 @@ msgstr "Das bereitgestellte Bild importieren"
 msgid "Import Twee"
 msgstr "Twee importieren"
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import…"
+msgstr "Importieren…"
+
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -7972,6 +7980,7 @@ msgstr "Beim Text vor Kapitel 1 behalten"
 
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 msgid "Keep open"
@@ -8042,6 +8051,10 @@ msgstr "Aus einem gestoppten Tab behalten"
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "Kept from before a reload"
 msgstr "Von vor einem Neuladen behalten"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Kept in this tab only"
+msgstr "Nur in diesem Tab gehalten"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -17486,6 +17499,11 @@ msgstr "Wofür die Pointe ist"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "What the prompt left out"
 msgstr "Was der Prompt ausgelassen hat"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "What the quick scan checks"
+msgstr "Was der Schnellscan prüft"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts

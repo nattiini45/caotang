@@ -299,6 +299,8 @@ test('every control of the tab bar and the sidebar, and every tree row, is at le
   await modernProject(page);
   await manuscript(page).click();
   await sidebar(page).getByRole('button', { name: 'Goals and sprint' }).click();
+  // Measure the settled sizes, not a frame of the sidebar's opening transform or a tab's colour transition.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
   const targets = [
     manuscript(page),
     panels(page),

@@ -37,6 +37,7 @@ import { useReport } from '../../shared.js';
 import { RailTabButton, keyStep, railTabId } from '../ClassicShell.js';
 import type { RailTab } from '../regions.js';
 import './binder-sidebar.css';
+import { Icon } from './icons.js';
 import {
   CLOSE_DELAY_MS,
   HOVER_OPEN_MS,
@@ -340,7 +341,7 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
           aria-controls={SIDEBAR_ID}
           onClick={() => press('binder', MANUSCRIPT_ID)}
         >
-          <ManuscriptIcon />
+          <Icon name="manuscript" />
           <span className="modern-binder-label">
             <Trans>Manuscript</Trans>
           </span>
@@ -353,7 +354,7 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
           aria-controls={SIDEBAR_ID}
           onClick={() => press(panelsTab(lastOther), PANELS_ID)}
         >
-          <PanelsIcon />
+          <Icon name="binder" />
           <span className="modern-binder-label">
             <Trans>Panels</Trans>
           </span>
@@ -372,13 +373,19 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
       </div>
 
       <div id={SIDEBAR_ID} className="modern-sidebar mat-thick" data-testid="modern-sidebar" inert={!shown}>
+        {/* One row (#360): the four tabs as one segmented control, and Keep open as an icon toggle at its end. */}
         <div className="modern-sidebar-head">
           <SidebarTabList tab={tab} findingsBadge={regions.findingsBadge} onSelect={choose} />
-          <button type="button" className="modern-sidebar-pin" aria-pressed={pinned} data-testid="modern-binder-pin" onClick={togglePin}>
-            <PinIcon />
-            <span>
-              <Trans>Keep open</Trans>
-            </span>
+          <button
+            type="button"
+            className="modern-sidebar-pin k-icon-button"
+            aria-pressed={pinned}
+            aria-label={t`Keep open`}
+            title={t`Keep open`}
+            data-testid="modern-binder-pin"
+            onClick={togglePin}
+          >
+            <Icon name="pin" />
           </button>
         </div>
         <SidebarPanel regions={regions} tab={tab} goalsOpen={goalsOpen} onToggleGoals={() => setGoalsOpen((was) => !was)} />
@@ -444,7 +451,6 @@ export function SidebarPanel({
           {regions.binder}
           <div className="modern-sidebar-goals">
             <button type="button" className="modern-sidebar-disclosure" aria-expanded={goalsOpen} aria-controls={GOALS_ID} onClick={onToggleGoals}>
-              <ChevronIcon />
               <Trans>Goals and sprint</Trans>
             </button>
             <div id={GOALS_ID} hidden={!goalsOpen}>
@@ -460,41 +466,5 @@ export function SidebarPanel({
         <LazyBoundary label={t`Activity`}>{regions.activity}</LazyBoundary>
       )}
     </div>
-  );
-}
-
-/* Icons: inline SVG drawn by React (§11), decorative beside their words. */
-
-function ManuscriptIcon(): ReactNode {
-  return (
-    <svg className="modern-binder-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M7 3h7l4 4v14H7z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M14 3v4h4M9.5 11h6M9.5 14h6M9.5 17h4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function PanelsIcon(): ReactNode {
-  return (
-    <svg className="modern-binder-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M10 4v16" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
-function PinIcon(): ReactNode {
-  return (
-    <svg className="modern-binder-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function ChevronIcon(): ReactNode {
-  return (
-    <svg className="modern-sidebar-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   );
 }
