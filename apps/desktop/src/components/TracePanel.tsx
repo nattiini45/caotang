@@ -7,6 +7,7 @@
  * manuscript said. The trace is kept in memory only, so the panel says so, and the only way out is Export trace.
  */
 
+import { t } from '@lingui/core/macro';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { TRACE_REVIEWS, type TraceTurn } from '@caotang/harness';
@@ -15,7 +16,7 @@ import { downloadBytes } from '../app/download.js';
 import type { AppServices } from '../app/services.js';
 import { barSentence, turnTimeline, type TraceCallRow, type TraceMessageView, type TraceRow, type TraceTimeline, type TraceToolRow } from '../app/trace-model.js';
 import { traceFileName } from '../app/trace-store.js';
-import { EmptyState, formatCount, useReport } from './shared.js';
+import { EmptyState, More, formatCount, useReport } from './shared.js';
 
 /** The sentence the export dialog carries: what the file holds, and how far its scrubbing goes. */
 export const EXPORT_WARNING =
@@ -314,7 +315,7 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
     <div className="trace" data-testid="trace-panel">
       <div className="trace-toolbar">
         <label className="check">
-          <input type="checkbox" checked={kept} data-testid="trace-keep" onChange={(event) => void services.settings.update({ agent: { keepTraces: event.target.checked } })} />
+          <input type="checkbox" className="k-switch" checked={kept} data-testid="trace-keep" onChange={(event) => void services.settings.update({ agent: { keepTraces: event.target.checked } })} />
           Keep agent traces for this tab
         </label>
         <div className="trace-actions">
@@ -326,10 +327,12 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
           </button>
         </div>
       </div>
-      <p className="trace-faint">
-        The trace holds the prompts and manuscript text sent to the model. It stays in this tab’s memory: a reload or closing the tab loses it, and nothing
-        is saved or sent anywhere unless you export it.
-      </p>
+      <More summary={t`Kept in this tab only`} className="trace-help">
+        <p className="trace-faint">
+          The trace holds the prompts and manuscript text sent to the model. It stays in this tab’s memory: a reload or closing the tab loses it, and nothing
+          is saved or sent anywhere unless you export it.
+        </p>
+      </More>
 
       {!kept ? (
         <EmptyState title="Traces are off">Turn on “Keep agent traces for this tab” to see what each turn sent and got back. Nothing is recorded while it is off.</EmptyState>

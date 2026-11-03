@@ -80,6 +80,10 @@ These live in `styles.css`, because they were Classic bugs that Modern inherited
 - `.filter-days` doesn't wrap, so "days" never breaks into "da / ys".
 - `label.settings-check` is a row (the box at the start, the words beside it), not a column under the box. `.settings-radios` that holds `.settings-check` rows is a column.
 
+## Disclosures in shared panels (#360)
+
+`More` (`components/shared.tsx`) is the disclosure for help or advanced controls on a panel both interfaces render: `<details class="k-more">` with the kit's summary. Modern starts it closed. Classic renders it open with its summary hidden, and `styles.css` lays `.k-more` (and a `.k-more-body` wrapper inside it) out as `display: contents`, so Classic's panel is the one it had. The sidebar uses it for the binder's **Import…** menu and **Filters**, what the quick scan checks, and the trace's privacy note. A dialog an action inside it opens stays outside it, so a closed disclosure never hides a question.
+
 ## For wave-2 work
 
 - Use the classes above and don't restyle a control per surface. If a surface needs a variant, add it here, with a token, so every surface gets it.

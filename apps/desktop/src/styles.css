@@ -402,6 +402,21 @@ button.chip {
   outline-offset: var(--focus-offset);
 }
 
+/* A Modern disclosure (shared.tsx `More`, #360) is open in Classic, its summary hidden and its box laid out as if it were not there. */
+:root:not([data-shell='modern']) :is(.k-more, .k-more-body) {
+  display: contents;
+}
+
+:root:not([data-shell='modern']) .k-more > summary {
+  display: none;
+}
+
+/* The disclosure's content box too (its own rule: a browser without ::details-content drops only this one), so its children stay the
+   items of the binder's and the filter bar's flex column and keep their gaps. */
+:root:not([data-shell='modern']) .k-more::details-content {
+  display: contents;
+}
+
 /* ------------------------------------------------------------------ *
  * The binder
  * ------------------------------------------------------------------ */

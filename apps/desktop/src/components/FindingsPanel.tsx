@@ -35,7 +35,7 @@ import { UserText } from '../i18n/UserText.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
 import { KnowledgeList } from './KnowledgeList.js';
-import { EmptyState, formatCount, useReport, useSession } from './shared.js';
+import { EmptyState, More, formatCount, useReport, useSession } from './shared.js';
 import { uiLocale } from '../i18n/format-locale.js';
 
 /* lingui-set comment="Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose." */
@@ -285,7 +285,10 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           </select>
         </label>
       </div>
-      <p className="field-note findings-coverage" data-testid="findings-coverage">{scanCoverageLine(settings.enabledChecks)}</p>
+      {/* What the scan checks is help on demand (#360): one line, the list behind it. */}
+      <More summary={t`What the quick scan checks`} className="findings-help">
+        <p className="field-note findings-coverage" data-testid="findings-coverage">{scanCoverageLine(settings.enabledChecks)}</p>
+      </More>
       {mockOnly ? <p className="field-note" role="status"><Trans>The model review needs a provider. Connect one in Settings to read the story for plot and character problems.</Trans></p> : null}
       {plan !== null ? (
         <section className="findings-plan" aria-label={t`The model review plan`} data-testid="review-plan">
