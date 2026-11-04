@@ -121,8 +121,8 @@ export function keyFacts(event: KeyEventLike): KeyFacts {
 
 /**
  * The key a chord compares, lower-cased when it is one character. `key` wins, so the key labelled Z is undo on QWERTY, QWERTZ
- * and AZERTY alike. Only a character outside ASCII (`'я'`, `'ζ'`, `'ז'`, `'ئ'`) falls back to the physical key: `KeyZ` reads
- * as `'z'` and `Digit1` as `'1'`. ASCII punctuation keeps its own key, so a layout that types `;` or `[` on a letter key
+ * and AZERTY alike. Only a character outside ASCII (`'я'`, `'ζ'`, `'ז'`, `'ئ'`) falls back to the physical key, and only a letter or digit key
+ * (`KeyZ` reads as `'z'`, `Digit1` as `'1'`); any other code keeps its own key. ASCII punctuation keeps its own key, so a layout that types `;` or `[` on a letter key
  * (Dvorak, AltGr on Hungarian) never borrows that letter's chord.
  */
 export function chordKey(key: string, code: string): string {
