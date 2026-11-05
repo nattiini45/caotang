@@ -12,11 +12,17 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(__dirname, '..');
 const read = (path: string): string => readFileSync(resolve(root, path), 'utf8').split('\r\n').join('\n');
 /** Text with its markup removed and its whitespace collapsed, as a reader sees it. */
-const plain = (html: string): string =>
-  html
-    .replace(/<[^>]+>/g, '')
-    .replace(/[<>]/g, '')
-    .replace(/\s+/g, ' ');
+function plain(html: string): string {
+  // A character scan rather than a tag-stripping regex: everything from a '<' to the next '>' is markup, and so is a '<' left open.
+  let text = '';
+  let inTag = false;
+  for (const char of html) {
+    if (char === '<') inTag = true;
+    else if (char === '>' && inTag) inTag = false;
+    else if (!inTag) text += char;
+  }
+  return text.replace(/\s+/g, ' ');
+}
 
 const REQUIRED = 'Free code signing provided by SignPath.io, certificate by SignPath Foundation';
 const PRIVACY =
