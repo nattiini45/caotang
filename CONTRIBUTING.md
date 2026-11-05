@@ -82,9 +82,10 @@ CI's `office-interop` job opens the `.xlsx` files the app writes in openpyxl and
 CAOTANG_XLSX_OUT=/tmp/xlsx pnpm exec vitest run packages/exporter/test/xlsx-write-corpus.test.ts   # writes the corpus and expected.json
 python3 tools/office-interop/check_xlsx.py /tmp/xlsx --skip-libreoffice                             # package parts and openpyxl
 python3 tools/office-interop/check_xlsx.py /tmp/xlsx                                                # also LibreOffice (soffice on PATH)
+python3 tools/office-interop/xlsx_negative_controls.py /tmp/xlsx                                    # three broken copies the checker must reject
 ```
 
-The corpus test writes nothing without `CAOTANG_XLSX_OUT`, so `pnpm verify` is unchanged. The checker needs `pip install openpyxl==3.1.5`, and LibreOffice is CI-only (`apt-get install libreoffice-calc`); a missing `soffice` fails the run unless you pass `--skip-libreoffice`. Excel and Numbers cannot run in CI: the by-hand list and its results table are in [docs/testing/office-interop.md](docs/testing/office-interop.md).
+The corpus test writes nothing without `CAOTANG_XLSX_OUT`, so `pnpm verify` is unchanged. The checker needs `pip install openpyxl==3.1.5`, and LibreOffice is CI-only (`apt-get install libreoffice-calc`); a missing `soffice` fails the run unless you pass `--skip-libreoffice`. The job also runs the negative controls, so a checker that has stopped failing cannot pass. Excel and Numbers cannot run in CI: the by-hand list and its results table are in [docs/testing/office-interop.md](docs/testing/office-interop.md).
 
 ## Prompts and evals
 
