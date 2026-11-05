@@ -1,0 +1,111 @@
+# Type and area labels on every issue. GitHub cannot make a label required, so this gets as close as it can:
+#   - The issue forms (.github/ISSUE_TEMPLATE/) set the type label themselves and ask a required, multi-choice Area question.
+#     Blank issues are off (config.yml), so every issue a contributor opens comes from a form.
+#   - When an issue is opened, edited or reopened, this workflow reads the form's "### Area" section and adds each area:* label
+#     it names that exists in the repository. It only adds area labels: it never removes one, so a maintainer's own labelling
+#     stands. On labeled/unlabeled events it leaves the Area answer alone, so an area label a maintainer removes stays removed.
+#   - An open issue still missing a type label or an area:* label afterwards gets `needs-triage`, and loses it once it has both.
+#     It labels only and never comments. `needs-triage` is created if the repository does not have it yet; when two runs race
+#     to create it, the loser confirms it exists and carries on.
+#
+# Details that are load-bearing:
+#   - Labels added with GITHUB_TOKEN do not start another workflow run, so the labeled/unlabeled triggers cannot loop on this
+#     workflow's own changes; they exist so a maintainer adding a label by hand clears `needs-triage`.
+#   - The issue body is read only inside the script, never interpolated into a shell or an expression.
+#   - permissions: only `issues: write` (labels are part of the Issues API). The action is pinned to a commit SHA.
+#   - The type labels are listed in TYPE_LABELS below; test/issue-labels.test.ts keeps them and the forms in step.
+name: issue-labels
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled, reopened]
+
+permissions: {}
+
+concurrency:
+  group: issue-labels-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  labels:
+    name: issue labels
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TYPE_LABELS: bug,enhancement,tech-debt,documentation,roadmap,known-limit,accessibility
+          TRIAGE_LABEL: needs-triage
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.issue.number;
+            const typeLabels = process.env.TYPE_LABELS.split(',');
+            const triage = process.env.TRIAGE_LABEL;
+
+            // The labels the repository has, so an Area answer can only add a label that exists.
+            const repoLabels = await github.paginate(github.rest.issues.listLabelsForRepo, { owner, repo, per_page: 100 });
+            const repoAreas = new Set(repoLabels.map((l) => l.name).filter((n) => n.startsWith('area:')));
+
+            // The form renders the dropdown as "### Area" followed by the chosen options, comma-separated.
+            // Each option starts with its label name, e.g. "area:editor — Editor, binder, agent UI".
+            const body = context.payload.issue.body || '';
+            const section = /^###\s+Area\s*$([\s\S]*?)(?=^###\s|(?![\s\S]))/m.exec(body);
+            const named = section ? [...section[1].matchAll(/\barea:[a-z0-9][a-z0-9-]*/g)].map((m) => m[0]) : [];
+            // Only an opened, edited or reopened issue takes its Area answer; a labeled/unlabeled event must not restore an area
+            // label a maintainer just removed by hand.
+            const applyAreas = ['opened', 'edited', 'reopened'].includes(context.payload.action);
+            const wanted = applyAreas ? [...new Set(named)].filter((n) => repoAreas.has(n)) : [];
+            const unknown = [...new Set(named)].filter((n) => !repoAreas.has(n));
+            if (unknown.length) core.warning(`Area answer names labels this repository does not have: ${unknown.join(', ')}`);
+
+            // Read the labels now rather than from the payload: the form's own label and this run's may have landed since.
+            const current = async () =>
+              (await github.paginate(github.rest.issues.listLabelsOnIssue, { owner, repo, issue_number, per_page: 100 })).map(
+                (l) => l.name,
+              );
+            let labels = await current();
+
+            const toAdd = wanted.filter((n) => !labels.includes(n));
+            if (toAdd.length) {
+              core.info(`Adding area labels: ${toAdd.join(', ')}`);
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: toAdd });
+              labels = await current();
+            }
+
+            const hasType = labels.some((n) => typeLabels.includes(n));
+            const hasArea = labels.some((n) => n.startsWith('area:'));
+            const complete = hasType && hasArea;
+            const open = context.payload.issue.state === 'open';
+            core.info(`type label: ${hasType}, area label: ${hasArea}`);
+
+            if (!complete && open && !labels.includes(triage)) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: triage });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                core.info(`Creating the ${triage} label`);
+                try {
+                  await github.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name: triage,
+                    color: 'fbca04',
+                    description: 'Missing a type label or an area:* label',
+                  });
+                } catch (createError) {
+                  // Another run (another issue opened at the same moment) created it first: confirm it exists and go on.
+                  if (createError.status !== 422) throw createError;
+                  await github.rest.issues.getLabel({ owner, repo, name: triage });
+                }
+              }
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [triage] });
+            } else if (complete && labels.includes(triage)) {
+              try {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name: triage });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
