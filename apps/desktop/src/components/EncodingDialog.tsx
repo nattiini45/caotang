@@ -211,6 +211,7 @@ function IssueCard({
 export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: EncodingDialogProps): ReactNode {
   useLingui();
   const ref = useRef<HTMLDialogElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   // One pending per mount — answering unmounts the dialog before the open continues — so the
   // panels start as placeholders and the effect below fills each with its file's bytes.
@@ -222,7 +223,11 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
   // never asked for again while the dialog is open.
   useEffect(() => {
     const dialog = ref.current;
-    if (dialog !== null && !dialog.open) dialog.showModal();
+    if (dialog !== null && !dialog.open) {
+      dialog.showModal();
+      // Firefox's showModal() focuses the first control (a radio), not the autoFocus Cancel (#347).
+      cancel.current?.focus();
+    }
     return () => {
       if (dialog !== null && dialog.open) dialog.close();
     };
@@ -345,7 +350,7 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
           ))}
         </div>
         <div className="confirm-actions">
-          <button type="button" className="button" autoFocus disabled={busy} onClick={onCancel}>
+          <button ref={cancel} type="button" className="button" autoFocus disabled={busy} onClick={onCancel}>
             <Trans>Cancel</Trans>
           </button>
           <button type="button" className="button is-primary" disabled={busy} onClick={finish}>

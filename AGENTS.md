@@ -1,6 +1,6 @@
 # AGENTS.md — Caotang
 
-Caotang is a **local-first writing studio** for long-form work: novels and other long fiction first, and the scripts and serials a writer makes from them — screenplays, comics, podcasts, narrated video and newsletters. It is a browser app where the manuscript lives on your own machine (a project folder or the browser), an AI agent works in it under your approval, and a compile step exports Word, EPUB, Markdown, Fountain, Ink and storyboards. Pictures, comics, a timeline, interface languages and web publishing are specified and not built, and AV scripts are built only as far as their model and parser; `docs/ROADMAP.md` says which.
+Caotang is a **local-first writing studio** for long-form work: novels and other long fiction first, and the scripts and serials a writer makes from them — screenplays, comics, podcasts, narrated video and newsletters. It is a browser app where the manuscript lives on your own machine (a project folder or the browser), an AI agent works in it under your approval, and a compile step exports Word, EPUB, Markdown, Fountain, Ink and storyboards. Pictures, comics, a timeline and interface languages are built; web publishing is specified and not built, and AV scripts are built only as far as their model and parser; `docs/ROADMAP.md` says which.
 
 There is **no backend server, no account, no telemetry**. The app is static files; the model provider is the only network dependency, plus any MCP server you connect yourself.
 
@@ -16,7 +16,7 @@ There is **no backend server, no account, no telemetry**. The app is static file
 | E2E | Playwright `1.63` (Chromium, Firefox and WebKit on pull requests; Firefox and WebKit nightly) |
 | Lint | ESLint `9` + typescript-eslint |
 
-Workspace globs (`pnpm-workspace.yaml`): `apps/*`, `packages/*`, `vendor/*`.
+Workspace globs (`pnpm-workspace.yaml`): `apps/*`, `packages/*`, `vendor/*`, `site`.
 
 ## Setup
 
@@ -49,6 +49,9 @@ pnpm --filter @caotang/mcp-server build   # → packages/mcp-server/dist/caotang
 pnpm --filter @caotang/mcp-server run pack # → caotang-mcp-0.1.0.mcpb
 
 node tools/third-party-notices.mjs --write   # regenerate THIRD-PARTY-NOTICES.md
+
+node tools/build-site.mjs                    # the landing page → site/dist/
+node tools/check-site-size.mjs               # the landing page's HTML, CSS and asset caps, and no JavaScript
 ```
 
 Gotchas that bite:
@@ -98,7 +101,7 @@ vendor/noto-emoji/       @caotang/font-noto-emoji
 vendor/noto-color-emoji/ @caotang/font-noto-color-emoji (the colour emoji, compiled offline to PDF operators)
 vendor/noto-sans-arabic/ @caotang/font-noto-arabic
 vendor/noto-sans-hebrew/ @caotang/font-noto-hebrew
-site/                    the marketing landing page (GitHub Pages root)
+site/                    the landing page; the workspace package `@caotang/site`, built from `site/` into `site/dist/` by `node tools/build-site.mjs`
 e2e/                     Playwright specs; e2e/unit/ holds the pure model specs
 test/                    repo-level vitest guards (lockfile, toolchain floor, guide claims, …)
 tools/                   third-party-notices.mjs
@@ -151,4 +154,4 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 
 ## Deploy
 
-`.github/workflows/pages.yml` publishes [caotang.app](https://caotang.app/): the landing page in `site/` at the origin root, and the app built with `CAOTANG_BASE=/app/` at `/app/`. The build must be served from the **root of its origin** unless `CAOTANG_BASE` is used, and over **HTTPS** (WebCrypto key sealing and folder access need a secure origin). The CSP travels in the built `index.html` as a `<meta>` tag; no `_headers` file ships in the tree. For hosts that can send headers (Netlify, Cloudflare Pages), the deployer creates one — `README.md` shows the file to write.
+`.github/workflows/pages.yml` publishes [caotang.app](https://caotang.app/): the landing page, built from `site/` into `site/dist`, at the origin root, and the app built with `CAOTANG_BASE=/app/` at `/app/`. CI runs `node tools/build-site.mjs` and `node tools/check-site-size.mjs` beside the app build, and the page ships no JavaScript (its CSP keeps `script-src 'none'`; `docs/architecture/landing.md` is its spec). The build must be served from the **root of its origin** unless `CAOTANG_BASE` is used, and over **HTTPS** (WebCrypto key sealing and folder access need a secure origin). The CSP travels in the built `index.html` as a `<meta>` tag; no `_headers` file ships in the tree. For hosts that can send headers (Netlify, Cloudflare Pages), the deployer creates one — `README.md` shows the file to write.

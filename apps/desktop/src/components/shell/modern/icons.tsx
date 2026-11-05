@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react';
 
-export type IconName = 'write' | 'board' | 'codex' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close';
+export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'manuscript' | 'pin' | 'scene';
 
 const PATHS: Readonly<Record<IconName, ReactNode>> = {
   write: (
@@ -28,12 +28,16 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
       <path d="M5 16.5a3 3 0 0 1 3-3h10" />
     </>
   ),
-  ask: (
+  // The timeline and the pictures, shown in the bottom ornament while the page shows them (#361).
+  timeline: <path d="M4 7h9M8 12h12M4 17h7" />,
+  pictures: (
     <>
-      <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8L12 3z" />
-      <path d="M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
+      <rect x="3.5" y="4.5" width="17" height="15" rx="3" />
+      <path d="M3.5 16l5-5 4.5 4.5 3-3 4.5 4.5" />
     </>
   ),
+  // Ask is a speech bubble: what the agent does is answer (Stageshow: no sparkle for AI, #361).
+  ask: <path d="M6.5 4.5h11a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H11l-4.5 3.5v-3.5a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3z" />,
   search: (
     <>
       <circle cx="10.5" cy="10.5" r="6" />
@@ -56,6 +60,11 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
     </>
   ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  // The binder bar's Manuscript (a page) and the sidebar's Keep open (a pin), #360.
+  manuscript: <path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4M10 12h5M10 15h5M10 18h3" />,
+  pin: <path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7" />,
+  // A scene or document: a page with its corner turned (the palette's scene results).
+  scene: <path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4" />,
 };
 
 export function Icon({ name }: { name: IconName }): ReactNode {

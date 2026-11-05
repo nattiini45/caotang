@@ -60,6 +60,8 @@ test('the demo: a three-chapter story, an agent draft approved in the agent pane
   const problems: string[] = [];
   page.on('pageerror', (error) => problems.push(error.message));
   page.on('console', (message) => {
+    // WebKit doesn't know the viewport's interactive-widget key (#364) and says so once; that notice is not a problem.
+    if (/Viewport argument key "interactive-widget" not recognized/.test(message.text())) return;
     if (message.type() === 'error' || message.type() === 'warning') problems.push(message.text());
   });
 

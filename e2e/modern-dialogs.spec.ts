@@ -133,11 +133,18 @@ async function axeProblems(page: Page, selector: string): Promise<string[]> {
   );
 }
 
-/** A dialog in Modern: glass, focus inside, every control 44 px, axe clean. */
-async function expectModernDialog(page: Page, dialog: Locator, selector: string): Promise<void> {
+/**
+ * A dialog in Modern: glass, focus inside, every control 44 px, axe clean. A dialog that holds text to read (Export, Import) is an
+ * opaque sheet with the same corner instead (#363).
+ */
+async function expectModernDialog(page: Page, dialog: Locator, selector: string, opaque = false): Promise<void> {
   await expect(dialog).toBeVisible();
   await settle(page);
-  await expectGlass(dialog, '32px');
+  if (opaque) {
+    const look = await material(dialog);
+    expect(alphaOf(look.background), `background ${look.background}`).toBe(1);
+    expect(look.radius).toBe('32px');
+  } else await expectGlass(dialog, '32px');
   expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
   expect(await undersized(dialog)).toEqual([]);
   expect(await axeProblems(page, selector)).toEqual([]);
@@ -244,17 +251,17 @@ test('the More menu is glass with 44 px rows, and each dialog it opens is glass,
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
 
-  const dialogs: readonly { item: string; dialog: Locator; selector: string }[] = [
+  const dialogs: readonly { item: string; dialog: Locator; selector: string; opaque?: boolean }[] = [
     { item: 'Project details', dialog: page.locator('dialog.project-dialog'), selector: 'dialog.project-dialog' },
     { item: 'Skills', dialog: page.getByRole('dialog', { name: /Skills/ }), selector: 'dialog.skills-dialog' },
     { item: 'Instructions', dialog: page.locator('dialog.skills-dialog'), selector: 'dialog.skills-dialog' },
-    { item: 'Compile…', dialog: page.locator('dialog.export-dialog'), selector: 'dialog.export-dialog' },
+    { item: 'Compile…', dialog: page.locator('dialog.export-dialog'), selector: 'dialog.export-dialog', opaque: true },
     { item: 'Settings', dialog: page.getByTestId('settings'), selector: '[data-testid="settings"]' },
   ];
-  for (const { item, dialog, selector } of dialogs) {
+  for (const { item, dialog, selector, opaque } of dialogs) {
     await clearAnimations(page);
     await openFromMore(page, item);
-    await expectModernDialog(page, dialog.first(), selector);
+    await expectModernDialog(page, dialog.first(), selector, opaque);
     await expectMorphed(page);
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
@@ -368,7 +375,8 @@ test('the Recovery and Encoding dialogs a bundle import asks are glass, keep the
   await page.getByTestId('bundle-input').setInputFiles(await changedBundle(testInfo, bundle, 'encoding'));
   const encoding = page.getByTestId('encoding-dialog');
   await expect(encoding.getByRole('heading', { name: 'One file is not UTF-8 text' })).toBeVisible();
-  // Focus is inside (expectModernDialog); which control holds it is Classic's own behaviour and is not asserted here.
+  // Focus starts on Cancel, the safe answer, in every engine (#347): Firefox's showModal() alone would take the first radio.
+  await expect(encoding.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await expectModernDialog(page, encoding, '[data-testid="encoding-dialog"]');
   await page.keyboard.press('Escape');
   await expect(encoding).toBeHidden();
@@ -388,8 +396,9 @@ test('a Choice dialog (the Final Draft import question) is glass, keeps the focu
   ].join('\n');
   await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({ name: 'harbour.fdx', mimeType: 'application/xml', buffer: Buffer.from(fdx, 'utf8') });
   const choice = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
-  // Focus is inside (expectModernDialog). Which control holds it is Classic's behaviour, the same in both interfaces, so it is not
-  // asserted here: in Firefox showModal() focuses the first answer, not the autoFocus Cancel.
+  // Focus starts on Cancel in every engine (#347), so Enter never takes an answer; the first answer is the one filled primary (#362).
+  await expect(choice.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expect(choice.getByRole('button', { name: 'Import' })).toHaveClass(/is-primary/);
   await expectModernDialog(page, choice, 'dialog.confirm[open]');
   await page.keyboard.press('Escape');
   await expect(choice).toBeHidden();

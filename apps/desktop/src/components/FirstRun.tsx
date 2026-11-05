@@ -47,7 +47,7 @@ export function FirstRun({ onRun, onDismiss, onAddKey, busy }: FirstRunProps): R
       </p>
       <div className="first-run-actions" role="group" aria-label={t`Demo intents`}>
         {DEMO_CHOICES.map((choice) => (
-          <button key={choice.intent} type="button" className="button is-primary" disabled={busy} onClick={() => onRun(choice.intent)}>
+          <button key={choice.intent} type="button" className="button is-primary k-tonal" disabled={busy} onClick={() => onRun(choice.intent)}>
             {choice.label}
           </button>
         ))}

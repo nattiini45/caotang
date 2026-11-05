@@ -1,0 +1,694 @@
+/*
+ * Modern's control kit (docs/architecture/modern-controls.md; Stageshow polish #357). Classic's own markup (.button, native fields,
+ * selects, checks, radios, .segmented, <details>, .badge, help lines, .empty-state) takes Modern's look by selector, so Settings, the
+ * dialogs, the sidebar, Scene info, Codex, Timeline, Pictures, the agent and import/export pick it up with no change to their TSX. New
+ * markup can name a kit class (k-switch, k-icon-button, k-segmented, k-help, k-badge, k-empty) where no Classic class fits.
+ *
+ * Rules, as for every Modern sheet (test/modern-css.test.ts): every selector starts with :root[data-shell='modern'], only logical
+ * properties. The kit sits one class above the prefix, so a surface's own Modern rule (scene-info.css, companion.css …) still wins, and
+ * a Classic rule of one class loses. Every control is at least 44 px (§9.5): a check, radio or switch counts with its label row.
+ */
+
+/* ---- Tokens: opaque steps, so nothing translucent sits under a label. Edges meet 3:1 on paper, raised and panel. The chevron and
+   magnifier are the icon set's strokes in one grey that keeps 3:1 in both schemes; the tick takes the accent's ink. ---- */
+:root[data-shell='modern'] {
+  --k-radius-field: 12px;
+  --k-mark: 20px;
+  --k-help-ink: var(--muted);
+  --k-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23878290' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E");
+  --k-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23878290' stroke-width='1.75' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6'/%3E%3Cpath d='M15 15l5 5'/%3E%3C/svg%3E");
+  --k-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8'/%3E%3C/svg%3E");
+  --k-tick-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2312102a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4L18 8'/%3E%3C/svg%3E");
+  --k-fill: #f1ebe4;
+  --k-fill-hover: #e9e2da;
+  --k-quiet: #f7f3ee;
+  --k-track: #ebe5dd;
+  --k-thumb: #ffffff;
+  --k-edge: #857e74;
+  --k-tonal-ink: #3730a3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) {
+    --k-fill: #34323b;
+    --k-fill-hover: #3d3b45;
+    --k-quiet: #2a2930;
+    --k-track: #2e2c35;
+    --k-thumb: #4a4752;
+    --k-edge: #868190;
+    --k-tick: var(--k-tick-dark);
+    --k-tonal-ink: #d4d0ff;
+  }
+}
+
+:root[data-shell='modern'][data-theme='dark'] {
+  --k-fill: #34323b;
+  --k-fill-hover: #3d3b45;
+  --k-quiet: #2a2930;
+  --k-track: #2e2c35;
+  --k-thumb: #4a4752;
+  --k-edge: #868190;
+  --k-tick: var(--k-tick-dark);
+  --k-tonal-ink: #d4d0ff;
+}
+
+/* ---- Buttons: primary (the one action), secondary (tonal), quiet (a lighter step, still a surface at rest), icon. The timeline's
+   Calendar and Save image (.tl-save) and Scene info's Add thread (a bare button) are secondary buttons too (#361). ---- */
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+  padding-block: 0;
+  padding-inline: 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--k-fill);
+  color: var(--ink);
+  font: 500 15px/1.3 var(--ui);
+  text-decoration: none;
+  transition: background-color var(--dur-1) var(--ease-standard), transform var(--dur-1) var(--ease-spring);
+}
+
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button):hover:not(:disabled) {
+  background: var(--k-fill-hover);
+}
+
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button):active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+:root[data-shell='modern'] :is(.button, .tl-save, .thread-actions > button):disabled {
+  opacity: 0.5;
+}
+
+/* A disabled primary is the neutral fill with muted ink, not a faded accent that reads as pressed (#363). */
+:root[data-shell='modern'] .button.is-primary:disabled {
+  background: var(--k-fill);
+  color: var(--muted);
+  opacity: 1;
+}
+
+:root[data-shell='modern'] .button.is-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+:root[data-shell='modern'] .button.is-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  filter: none;
+}
+
+:root[data-shell='modern'] .button:is(.is-quiet, .k-quiet) {
+  background: var(--k-quiet);
+  color: var(--ink-soft);
+}
+
+:root[data-shell='modern'] .button:is(.is-quiet, .k-quiet):hover:not(:disabled) {
+  background: var(--k-fill);
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] .button.is-danger {
+  color: var(--danger);
+}
+
+/* Tonal: a row's own action, or one of a card's several, beside the surface's one filled primary. The accent's soft step with a deep
+   accent ink (both schemes keep 4.5:1). `k-tonal` and `k-quiet` set Modern's weight on markup whose Classic class (`is-primary`, or a
+   plain secondary) stays Classic's look. */
+:root[data-shell='modern'] .button.k-tonal {
+  background: var(--accent-soft);
+  color: var(--k-tonal-ink);
+  font-weight: 600;
+}
+
+:root[data-shell='modern'] .button.k-tonal:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-soft) 84%, var(--accent));
+}
+
+/* A Confirm's destructive answer stays filled (Classic's .confirm rule), its ink the one Classic picks for each scheme. */
+:root[data-shell='modern'] .confirm .button.is-danger {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+:root[data-shell='modern'] .confirm .button.is-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 88%, var(--ink));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) .confirm .button.is-danger {
+    color: #1b0f0c;
+  }
+}
+
+:root[data-shell='modern'] :is(.k-icon-button, .button.is-icon) {
+  inline-size: var(--target-min);
+  block-size: var(--target-min);
+  padding: 0;
+  border-radius: 50%;
+}
+
+:root[data-shell='modern'] :is(.button, .k-icon-button) svg {
+  flex: none;
+  inline-size: 20px;
+  block-size: 20px;
+}
+
+/* ---- Fields: text, search, number, date, textarea and select share one shape. ---- */
+/* Two fields draw themselves and stay out: the palette's query (palette.css) and a source field's input, which must match the highlight
+   layer under it (SourceField). :where() keeps the kit's weight where it was. */
+:root[data-shell='modern'] :is(select, textarea, .keyword-input, .picker-button, input:is(:not([type]), [type='text'], [type='search'], [type='email'], [type='url'], [type='password'], [type='tel'], [type='number'], [type='date'], [type='time'], [type='datetime-local'])):where(:not(.modern-palette-field > input, .src-input)) {
+  min-block-size: var(--target-min);
+  padding-block: 0;
+  padding-inline: var(--k-pad-start, 12px) var(--k-pad-end, 12px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--k-radius-field);
+  background-color: var(--raised);
+  color: var(--ink);
+  font: 400 15px/1.3 var(--ui);
+  transition: border-color var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] textarea {
+  padding-block: 11px;
+  line-height: 1.45;
+}
+
+/* A code or list box (a skill's text, the MCP server list, a calendar box) keeps its monospace face. */
+:root[data-shell='modern'] textarea:is(.skills-editor, .mcp-export, .tl-calendar-box) {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 13px;
+}
+
+:root[data-shell='modern'] :is(select, textarea, input):hover:not(:disabled, :focus, [type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']):where(:not(.modern-palette-field > input, .src-input)) {
+  border-color: var(--k-edge);
+}
+
+:root[data-shell='modern'] :is(select, textarea, input, .button, .k-icon-button, summary, .segmented-item, .tl-segmented-item):focus-visible:where(:not(.modern-palette-field > input, .src-input)) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
+}
+
+:root[data-shell='modern'] :is(textarea, input):where(:not(.modern-palette-field > input, .src-input))::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+:root[data-shell='modern'] :is(select, textarea, input):disabled {
+  opacity: 0.55;
+}
+
+/* Search: the icon set's magnifier at the start. */
+:root[data-shell='modern'] input[type='search'] {
+  --k-pad-start: 40px;
+  background-image: var(--k-search);
+  background-repeat: no-repeat;
+  background-size: 20px;
+  background-position: 12px 50%;
+}
+
+:root[data-shell='modern'][dir='rtl'] input[type='search'] {
+  background-position: calc(100% - 12px) 50%;
+}
+
+:root[data-shell='modern'] input[type='search']::-webkit-search-decoration {
+  appearance: none;
+}
+
+/* Number: no spinners (the arrow keys still step), digits that line up. */
+:root[data-shell='modern'] input[type='number'] {
+  min-inline-size: calc(4ch + 26px);
+  appearance: textfield;
+  font-variant-numeric: tabular-nums;
+}
+
+:root[data-shell='modern'] input[type='number']::-webkit-inner-spin-button,
+:root[data-shell='modern'] input[type='number']::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+/* Select: the native element, drawn as a field with the icon set's chevron at the end. Its list stays the system's. A picker button
+   (a menu of the same choices, as Scene info's Status and Label) looks the same. */
+:root[data-shell='modern'] :is(select, .picker-button) {
+  --k-pad-end: 40px;
+  appearance: none;
+  background-image: var(--k-chevron);
+  background-repeat: no-repeat;
+  background-size: 20px;
+  background-position: calc(100% - 12px) 50%;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+:root[data-shell='modern'][dir='rtl'] :is(select, .picker-button) {
+  background-position: 12px 50%;
+}
+
+:root[data-shell='modern'] select:is([multiple], [size]:not([size='1'])) {
+  --k-pad-end: 12px;
+  padding-block: var(--space-3);
+  background-image: none;
+}
+
+/* ---- Check, radio, switch: 20 px marks with a 3:1 edge; the label is the row, the mark hangs at its start and the words wrap under
+   themselves, whatever else the label holds (a <code>, a hint). Replaces the label flex rules that broke text into columns. ---- */
+:root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']) {
+  appearance: none;
+  flex: none;
+  inline-size: var(--k-mark);
+  block-size: var(--k-mark);
+  margin: 0;
+  border: 1.5px solid var(--k-edge);
+  border-radius: 6px;
+  background: var(--raised) no-repeat center / 100%;
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-standard), border-color var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] input[type='radio'] {
+  border-radius: 50%;
+}
+
+:root[data-shell='modern'] input[type='checkbox']:is(:checked, :indeterminate) {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-image: var(--k-tick);
+}
+
+:root[data-shell='modern'] input[type='checkbox']:indeterminate {
+  background-image: linear-gradient(var(--accent-ink), var(--accent-ink));
+  background-size: 10px 2px;
+}
+
+:root[data-shell='modern'] input[type='radio']:checked {
+  border-color: var(--accent);
+  background: radial-gradient(circle, var(--accent-ink) 0 4px, var(--accent) 4.5px);
+}
+
+:root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']):disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+:root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']):focus-visible {
+  outline-offset: 2px;
+}
+
+/* Switch: role="switch" or k-switch. Off is a track with a thumb at the start; on is the accent with the thumb at the end. */
+:root[data-shell='modern'] input[type='checkbox']:is([role='switch'], .k-switch) {
+  inline-size: 36px;
+  block-size: 22px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(circle closest-side, var(--k-thumb) 0 calc(100% - 0.5px), transparent 100%) no-repeat 2px 50% / 18px 18px, var(--k-edge);
+  transition: background-position var(--dur-2) var(--ease-spring), background-color var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] input[type='checkbox']:is([role='switch'], .k-switch):checked {
+  background: radial-gradient(circle closest-side, #fff 0 calc(100% - 0.5px), transparent 100%) no-repeat calc(100% - 2px) 50% / 18px 18px, var(--accent);
+}
+
+:root[data-shell='modern'][dir='rtl'] input[type='checkbox']:is([role='switch'], .k-switch) {
+  background-position: calc(100% - 2px) 50%, 0 0;
+}
+
+:root[data-shell='modern'][dir='rtl'] input[type='checkbox']:is([role='switch'], .k-switch):checked {
+  background-position: 2px 50%, 0 0;
+}
+
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) {
+  display: block;
+  position: relative;
+  min-block-size: var(--target-min);
+  padding-block: 12px;
+  padding-inline: calc(var(--k-mark) + 12px) 0;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 20px;
+  text-align: start;
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > input {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-start: 0;
+}
+
+/* A picture tile's select mark stays the overlay on its thumbnail (pictures.css), with a 24 px target. */
+:root[data-shell='modern'] label.pb-select {
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 24px;
+  min-block-size: 24px;
+  cursor: pointer;
+}
+
+/* An option card or pill (Compile's formats, the codex policy) keeps its own layout; its row is still 44 px. */
+:root[data-shell='modern'] label:is(.export-option, .policy-option) {
+  min-block-size: var(--target-min);
+}
+
+/* An option card's name is its title, not Classic's small muted `label > span` caption, which set it below its own help. */
+:root[data-shell='modern'] label.export-option > span {
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+/* ---- Segmented radios (#363): a radio group whose labels are the segments, on the kit's track and thumb. The radios stay, covering each
+   segment unseen, so the group is still a radiogroup to assistive tech. The agent's Mode (a fieldset whose legend is read, not shown;
+   four names that wrap to two even rows when a language's do not fit one) and the Export Preview's Draft and Proof (two even halves,
+   each a name over its few words). ---- */
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 24px;
+  background: var(--k-track);
+}
+
+:root[data-shell='modern'] .export-preview-views {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-recipe) legend {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option) {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-block-size: var(--target-min);
+  padding: 0 10px;
+  border: 0;
+  border-radius: 21px;
+  background: none;
+  color: var(--ink-soft);
+  font: 500 14px/1.25 var(--ui);
+  text-align: center;
+  white-space: nowrap;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option) > input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option):hover {
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option):has(> input:checked) {
+  background: var(--k-thumb);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+:root[data-shell='modern'] .agent-mode > label:has(> input:checked) {
+  font-weight: 600;
+}
+
+:root[data-shell='modern'] :is(.agent-mode, .export-preview-views) > label:is(.agent-mode-option, .export-option):has(> input:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+
+:root[data-shell='modern'] .export-preview-views .export-option-help {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* The saved-filter menu keeps its whole name; Save moves to the next line when the two do not fit. */
+:root[data-shell='modern'] .filter-row select {
+  flex: 1 1 auto;
+}
+
+/* A switch sits at the end of its row, as a setting does. */
+:root[data-shell='modern'] label:has(> input:is([role='switch'], .k-switch)) {
+  padding-inline: 0 48px;
+}
+
+:root[data-shell='modern'] label:has(> input:is([role='switch'], .k-switch)) > input {
+  inset-block-start: 11px;
+  inset-inline: auto 0;
+}
+
+/* Classic's `label > span` (a small muted caption) does not apply inside a check's row: the words are the label. */
+:root[data-shell='modern'] label:where(:not(.export-option, .policy-option, .pb-select)):has(> input:is([type='checkbox'], [type='radio'])) > span {
+  display: inline;
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+:root[data-shell='modern'] fieldset {
+  min-inline-size: 0;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+}
+
+:root[data-shell='modern'] legend {
+  padding: 0;
+  margin-block-end: var(--space-2);
+  color: var(--ink);
+  font: 600 13px/1.3 var(--ui);
+}
+
+/* A link reads as one: the accent, underlined, in Classic's sentences and help lines (no UA blue). */
+:root[data-shell='modern'] a:where(:not([class])) {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Radio groups are a column of rows: long hints wrap under their own option, never into a column beside it. */
+:root[data-shell='modern'] .settings-radios {
+  flex-direction: column;
+  gap: 0;
+  margin-block: var(--space-5);
+}
+
+/* ---- Segmented control: Classic's .segmented / .tl-segmented (role=radiogroup, aria-checked items); k-segmented is the same container
+   for new markup, with .segmented-item buttons. ---- */
+:root[data-shell='modern'] :is(.segmented, .tl-segmented, .k-segmented) {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: 3px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--k-track);
+  overflow: visible;
+}
+
+:root[data-shell='modern'] :is(.segmented-item, .tl-segmented-item) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+  padding-block: 0;
+  padding-inline: 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink-soft);
+  font: 500 14px/1.3 var(--ui);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard);
+}
+
+:root[data-shell='modern'] :is(.segmented-item, .tl-segmented-item):hover {
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] :is(.segmented-item, .tl-segmented-item):is([aria-checked='true'], [aria-pressed='true'], [aria-selected='true']) {
+  background: var(--k-thumb);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* ---- Disclosure: <details>/<summary>, a 44 px row with the icon set's chevron at the start, turned when open. ---- */
+:root[data-shell='modern'] summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-block-size: var(--target-min);
+  list-style: none;
+  color: var(--ink);
+  font: 600 14px/1.3 var(--ui);
+  cursor: pointer;
+}
+
+:root[data-shell='modern'] summary::-webkit-details-marker {
+  display: none;
+}
+
+:root[data-shell='modern'] summary::before {
+  content: '';
+  flex: none;
+  inline-size: 20px;
+  block-size: 20px;
+  background: var(--k-chevron) no-repeat center / 20px;
+  transform: rotate(-90deg);
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+
+:root[data-shell='modern'][dir='rtl'] summary::before {
+  transform: rotate(90deg);
+}
+
+:root[data-shell='modern'] details[open] > summary::before {
+  transform: none;
+}
+
+/* ---- Help: a quiet ink, never the warning colour. A complaint or an alert keeps the danger colour. ---- */
+:root[data-shell='modern'] :is(.field-help, .field-note, .settings-note, .project-dialog-help, .export-note, .export-option-help, .k-help) {
+  color: var(--k-help-ink);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+:root[data-shell='modern'] .field-note:is(.is-complaint, .is-error, [role='alert']) {
+  color: var(--danger);
+}
+
+/* Scene info is thick glass over the wallpaper, where --muted is not 4.5:1; its help keeps a deeper ink until the surface is opaque. */
+:root[data-shell='modern']:not([data-theme='dark']) .scene-info {
+  --k-help-ink: #33302c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-shell='modern']:not([data-theme='light']) .scene-info {
+    --k-help-ink: var(--ink);
+  }
+}
+
+:root[data-shell='modern'][data-theme='dark'] .scene-info {
+  --k-help-ink: var(--ink);
+}
+
+/* ---- Badge: tonal, sentence case. ---- */
+:root[data-shell='modern'] :is(.badge, .k-badge) {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 2px;
+  padding-inline: 8px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--k-track);
+  color: var(--ink-soft);
+  font: 600 12px/1.3 var(--ui);
+  letter-spacing: normal;
+  text-transform: none;
+  text-box: trim-both cap alphabetic;
+}
+
+:root[data-shell='modern'] :is(.badge, .k-badge):is(.is-warn, .is-source-mcp) {
+  background: color-mix(in srgb, var(--warn) 16%, var(--raised));
+  color: var(--ink);
+}
+
+:root[data-shell='modern'] :is(.badge, .k-badge).is-accent {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* ---- Empty state: words on the surface, no dashed box. ---- */
+:root[data-shell='modern'] :is(.empty-state, .k-empty) {
+  padding-block: 32px;
+  padding-inline: var(--space-5);
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+}
+
+:root[data-shell='modern'] :is(.empty-state, .k-empty) :is(h2, h3) {
+  font: 600 15px/1.3 var(--ui);
+}
+
+/* ---- Forced colours: system colours and real edges. ---- */
+@media (forced-colors: active) {
+  :root[data-shell='modern'] :is(.button, select, textarea, input, .segmented, .tl-segmented, .k-segmented, .badge, .k-badge) {
+    border: 1px solid ButtonText;
+    background-image: none;
+  }
+
+  /* Native selects get their own indicator back once the chevron goes. */
+  :root[data-shell='modern'] select:is(:enabled, :disabled) {
+    appearance: auto;
+  }
+
+  /* Listed at the checked and switch rules' weight so their fixed-colour artwork goes too. */
+  :root[data-shell='modern'] :is(input[type='checkbox'], input[type='radio']),
+  :root[data-shell='modern'] input[type='checkbox']:is(:checked, :indeterminate),
+  :root[data-shell='modern'] input[type='radio']:checked,
+  :root[data-shell='modern'] input[type='checkbox']:is([role='switch'], .k-switch):is(:checked, :not(:checked)) {
+    appearance: auto;
+    background-image: none;
+  }
+
+  :root[data-shell='modern'] summary::before {
+    forced-color-adjust: none;
+    background: none;
+    content: '›';
+  }
+}
+
+/* ---- More: a disclosure that holds a surface's secondary actions beside its one primary (the ghost bar, the review bar, #361). Its
+   summary is a quiet button (a surface at rest, the chevron at the start); opened, the actions follow it on the same line. ---- */
+:root[data-shell='modern'] .k-more {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* A closed disclosure shows only its summary, whatever display its children are given (the Codex Filter too). */
+:root[data-shell='modern'] :is(.k-more, .codex-filter):not([open]) > :not(summary) {
+  display: none;
+}
+
+:root[data-shell='modern'] .k-more > summary {
+  gap: var(--space-2);
+  padding-inline: 10px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--k-quiet);
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+:root[data-shell='modern'] .k-more > summary:hover {
+  background: var(--k-fill-hover);
+}
+
+:root[data-shell='modern'] .k-more[open] > summary {
+  background: var(--k-fill);
+  color: var(--ink);
+}

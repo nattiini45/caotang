@@ -24,6 +24,8 @@ pnpm dev        # the app at http://127.0.0.1:5173
 ```sh
 pnpm verify                             # lint, typecheck and the unit tests
 pnpm build                              # the production build in apps/desktop/dist/
+node tools/build-site.mjs               # the landing page, built from site/ into site/dist/
+node tools/check-site-size.mjs          # the landing page's HTML, CSS and asset caps, and no JavaScript
 pnpm exec playwright install chromium      # once, for the pull-request end-to-end tests
 pnpm test:e2e                              # Chromium suite, including a production-build smoke test
 pnpm exec playwright install firefox webkit # optional, for the nightly cross-browser suite
@@ -43,6 +45,10 @@ If your change adds or upgrades a dependency, regenerate the licence notices wit
 After `pnpm build`, run `node tools/check-bundle-size.mjs`. It prints every JS chunk (raw and gzip) and fails when a chunk is over 500 kB and not on its allow-list, when an allow-listed chunk is over its own cap (fontkit, one library that loads only for CJK and emoji text in a PDF, may reach 750 kB), when the first load (the entry and what `index.html` preloads with it) is over its gzip budget, or when all JS is over its ceiling. CI runs it right after the build. Vite's own 500 kB warning is turned down to the highest cap, so this script is the gate.
 
 The numbers are in one object, `BUDGET`, at the top of `tools/check-bundle-size.mjs`. A heavy library that only some writers use (the MCP SDK, the Ink compiler, docx, fontkit) is loaded where it is used, not in the first paint. Code that compiles Ink needs the compiler loaded first: a Node entry awaits `loadInkCompiler()` before it opens a project, the vitest setup file (`test/setup-ink-compiler.ts`) does it for tests, and `compileInk` throws `InkCompilerNotLoaded` until it has. If your change makes the build grow past a number, load the new code on use if you can. If it cannot be, raise the number in the same change: build, run the script, put the new size plus about 5% in `BUDGET`, and say why in the commit. An allow-list entry is debt, and the script fails once its chunk is back under 500 kB, so remove the entry then.
+
+### The landing page
+
+`site` is a workspace package (`@caotang/site`): the landing page at caotang.app, built from `site/` into `site/dist`. React is a build-time dependency only, and the page ships no JavaScript. Build it with `node tools/build-site.mjs`, which fails when the page would carry a script, an inline style or an event handler, then gate it with `node tools/check-site-size.mjs`, which fails on any JavaScript file and on HTML, CSS or asset bytes over the caps in its `BUDGET` (112,000 B HTML, 69,000 B CSS and 31,400 B assets raw; JavaScript is 0 B). CI runs both beside the app build on every pull request. The spec is [docs/architecture/landing.md](docs/architecture/landing.md), and [site/REHEARSAL.md](site/REHEARSAL.md) records how each picture was checked.
 
 ### Translation guards
 

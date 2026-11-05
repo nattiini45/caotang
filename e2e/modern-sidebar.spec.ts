@@ -237,7 +237,10 @@ test('choosing a scene in an unpinned sidebar closes it on the editor', async ({
   await expect(page.locator('.modern-minimap-dot').first()).toHaveClass(/is-current/);
 });
 
-test('Keep open pins the sidebar, the page moves over, a scene chosen keeps it, and the pin survives a reload', async ({ page }) => {
+test('Keep open pins the sidebar, the page moves over, a scene chosen keeps it, and the pin survives a reload', async ({ page, browserName }) => {
+  // Pin, reload, reopen the project from the list and unpin: CI's WebKit, which draws the sidebar's blurred material in software, runs
+  // the walk past the 30 s default (it timed out twice on #367 between steps, never on an assertion).
+  test.slow(browserName === 'webkit', 'a reload and a reopen in software-rendered WebKit');
   await modernProject(page);
   const page0 = await page.locator('#modern-page').boundingBox();
   await manuscript(page).click();
@@ -296,6 +299,8 @@ test('every control of the tab bar and the sidebar, and every tree row, is at le
   await modernProject(page);
   await manuscript(page).click();
   await sidebar(page).getByRole('button', { name: 'Goals and sprint' }).click();
+  // Measure the settled sizes, not a frame of the sidebar's opening transform or a tab's colour transition.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
   const targets = [
     manuscript(page),
     panels(page),

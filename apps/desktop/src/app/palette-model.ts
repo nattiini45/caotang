@@ -382,11 +382,23 @@ function collatorStarts(collator: Intl.Collator, head: readonly string[], query:
   return false;
 }
 
+/**
+ * An action's detail line says only what its label does not (Stageshow polish #362): a hint that opens with the label keeps what
+ * follows ("Project details: title, author…" shows "title, author…"), and a bracketed shortcut goes, because the chip shows it.
+ */
+export function actionDetail(action: Pick<PaletteAction, 'label' | 'hint' | 'shortcut'>): string | undefined {
+  const { hint, label } = action;
+  if (hint === undefined || !hint.startsWith(label)) return hint;
+  const rest = hint.slice(label.length).replace(/^[\s:：]+/u, '');
+  return rest === '' || (action.shortcut !== undefined && /^[(（]/u.test(rest)) ? undefined : rest;
+}
+
 function actionItem(action: PaletteAction): PaletteItem {
+  const detail = actionDetail(action);
   return {
     id: `action-${action.id}`,
     label: action.label,
-    ...(action.hint === undefined ? {} : { detail: action.hint }),
+    ...(detail === undefined ? {} : { detail }),
     icon: 'command',
     target: { kind: 'action', actionId: action.id },
     ...(action.disabled ? { disabled: true } : {}),

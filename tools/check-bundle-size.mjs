@@ -12,7 +12,7 @@
  *   - a lazy chunk on BUDGET.lazy over its own raw cap, missing from the build, or in the first load (Modern's `modern-shell`,
  *     modern-interface.md §12, loads only while Modern is on);
  *   - the entry stylesheet (the stylesheet links in index.html) more than BUDGET.css.entryMargin over BUDGET.css.entry, or a lazy
- *     stylesheet over its cap on BUDGET.css.caps (Modern's, 50 kB raw);
+ *     stylesheet over its cap on BUDGET.css.caps (Modern's, 94.5 kB raw);
  *   - "Modern first load" (the first load plus `modern-shell`'s JS and CSS, gzip) more than BUDGET.modernFirstLoadDelta over Classic's
  *     first load.
  *
@@ -148,7 +148,12 @@ export const BUDGET = {
   // 7,754.4 kB measured on the merge of #351 (focus mode, Show in Findings) into #312 (the narrow layout): narrow layout + focus mode,
   // #312/#351; Classic unchanged. Both are lazy chunks (`narrow-panels`, `focus-mode`) and the slots they touch; Classic's first load
   // did not move. The ceiling is that plus about 0.6 kB.
-  totalJs: 7_755_000,
+  // Stageshow polish wave 2 (#360–#364), approved by Caspar 2026-11-02. #363 alone measured 7,755,027 bytes (+535 on 7,754,492: the
+  // Modern folds, Add a provider, and interface.ts moving from the entry into the `shared` chunk).
+  // With #364 merged on #363: 7,755,060 bytes measured.
+  // #361 (the write surfaces) merged on #363 and #364: 7,756,925 bytes measured; the ceiling stays 7,760,000.
+  // #360 (the sidebar) merged on #363, #364, #361 and the rest of wave 2: 7,756,908 bytes measured; the ceiling stays 7,760,000.
+  totalJs: 7_760_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -162,15 +167,47 @@ export const BUDGET = {
      */
     entry: 105_500,
     entryMargin: 0.01,
+    // Current: 94,500 B raw for `modern-shell`'s stylesheet, the cap the owner recorded and asked no trim of (docs/decisions.md, "[owner 2026-11-05]").
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
-    caps: { 'modern-shell': 50_000 } // raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this one on-use sheet, about 6 kB gzip; it never loads for Classic,
+    // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
+    // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
+    // about 5%. Raised from 30 kB at #311: every Modern surface (ornaments, sidebar, Scene info, companion, palette, dialogs) is in this
+    // one on-use sheet; it never loads for Classic.
+    // Stageshow polish #358: dense materials, overlay band, menu columns. 67,121 bytes raw (10.9 kB gzip) measured on top of #357's
+    // control kit (+6,746 bytes); the cap is that plus about 2%.
+    // Stageshow polish #363: the agent window, Import and Export (header row, folded Recurring tasks and plan actions, the Export recipe
+    // fold, Import's rule grid, opaque reading dialogs). 72,615 bytes raw measured (+5,367 on 67,248).
+    // Stageshow polish #364: 44 px targets on coarse pointers at every width, the tablet sidebar's room, the agent sheet kept in the
+    // overlay band and the touch picture checkbox. 73,752 bytes raw measured with #363 and #364 merged (68,508 for #364 alone on #358's).
+    // Stageshow polish #361: the write surfaces (ghost and review bars, Codex, board, timeline, pictures, comic page, Scene info, the
+    // More disclosure). 83,185 bytes raw measured with #363, #364 and #361 merged (+9.4 kB on 73,752).
+    // Stageshow polish #360: the sidebar's segmented tab head, the panels' disclosures, rows and the Import… menu. 90,565 bytes raw
+    // measured merged on #363, #364 and #361 (all CSS; no JS cap moves).
+    // Stageshow polish wave 2 (#360–#364): plus calm dialogs, Settings, Home and the palette (one menu style, Compile's rows, Home at
+    // 390 px, k-tonal and k-quiet). 93,531 bytes raw measured on the merge; the cap is that plus about 1%.
+    caps: { 'modern-shell': 94_500 },
   },
+  // Current: 33,230 B gzip over Classic's first load, the cap the owner recorded and asked no trim of (docs/decisions.md, "[owner 2026-11-05]").
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
    * Their panels are lazy chunks already; what is left is the slots' wiring in `modern-shell` (§12).
+   * Stageshow polish #357: 28.0 kB measured with the control kit, all of it CSS (Modern's stylesheet grew 2.4 kB gzip; no JS moved);
+   * the allowance is its first cut (27.7 kB) plus about 0.6 kB.
+   * Stageshow polish #358: dense materials, overlay band, menu columns. 29,164 bytes measured, nearly all of it Modern's stylesheet
+   * (the JS caps do not move); the allowance is that plus about 1%.
+   * Stageshow polish #363: the agent window, Import and Export. 29,950 bytes measured (+0.8 kB on 29,164 at the base, nearly all of it
+   * Modern's stylesheet); the allowance was that plus about 0.5%.
+   * Stageshow polish #364: phones and tablets (coarse 44 px targets, the tablet sidebar, the kept agent and Scene info sheets), merged on
+   * #363. 30,079 bytes measured, nearly all of it Modern's stylesheet (the JS caps do not move).
+   * Stageshow polish #361: the write surfaces, merged on #363 and #364. 31,546 bytes measured, nearly all of it Modern's stylesheet; the
+   * allowance was that plus about 1%.
+   * Stageshow polish #360: the sidebar's tab head, disclosures and rows, merged on #363, #364 and #361. 32,448 bytes measured, nearly
+   * all of it Modern's stylesheet (the JS caps do not move).
+   * Stageshow polish wave 2 (#360–#364): plus calm dialogs, Settings, Home and the palette. 32,898 bytes measured on the merge,
+   * nearly all of it Modern's stylesheet; the allowance is that plus about 1%.
    */
-  modernFirstLoadDelta: 25_900,
+  modernFirstLoadDelta: 33_230,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */

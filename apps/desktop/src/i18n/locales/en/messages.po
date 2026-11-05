@@ -2816,7 +2816,9 @@ msgstr "Add a phrase and press Enter"
 msgid "Add a picture"
 msgstr "Add a picture"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Add a provider"
 msgstr "Add a provider"
@@ -2836,6 +2838,7 @@ msgstr "Add a scene this follows"
 msgid "Add a scene this follows…"
 msgstr "Add a scene this follows…"
 
+#. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -3053,6 +3056,7 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: the agent's companion window.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -3062,6 +3066,7 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/shell/modern/companion.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Agent"
 msgstr "Agent"
 
@@ -3331,6 +3336,11 @@ msgstr "Apply"
 msgid "Apply selected ({count})"
 msgstr "Apply selected ({count})"
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
+msgstr "Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
+
 #: apps/desktop/src/app/agent-model.ts
 msgid "Applying"
 msgstr "Applying"
@@ -3431,7 +3441,9 @@ msgid "AR"
 msgstr "AR"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/PlanCard.tsx
 msgid "Arguments"
 msgstr "Arguments"
 
@@ -3558,8 +3570,8 @@ msgstr "Attached to <0/>"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
-msgid "Attached to no items yet. A Manual entry is sent only in the items it is attached to (codex.md §5)."
-msgstr "Attached to no items yet. A Manual entry is sent only in the items it is attached to (codex.md §5)."
+msgid "Attached to no items yet. A Manual entry is sent only in the items it is attached to."
+msgstr "Attached to no items yet. A Manual entry is sent only in the items it is attached to."
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
@@ -5401,8 +5413,6 @@ msgstr "Day offset"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
-#. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
-#. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "days"
 msgstr "days"
@@ -5935,13 +5945,13 @@ msgstr "Draft dialogue in “{doc}”"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
-msgid "Draft for “{title}”: {words}, cut off at the model’s output limit. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
-msgstr "Draft for “{title}”: {words}, cut off at the model’s output limit. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
+msgid "Draft for “{title}”: {words}, cut off at the model’s output limit."
+msgstr "Draft for “{title}”: {words}, cut off at the model’s output limit."
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
-msgid "Draft for “{title}”: {words}. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
-msgstr "Draft for “{title}”: {words}. Apply writes it into the scene. Retry drafts it again. Discard leaves the scene as it is."
+msgid "Draft for “{title}”: {words}."
+msgstr "Draft for “{title}”: {words}."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -6465,9 +6475,11 @@ msgid "Expected: <0/>"
 msgstr "Expected: <0/>"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/Home.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Export"
 msgstr "Export"
 
@@ -6738,6 +6750,11 @@ msgstr "Filling the synopsis of “{doc}”"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
+msgid "Filter"
+msgstr "Filter"
+
+#. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
+#: apps/desktop/src/components/CodexPanel.tsx
 msgid "Filter by include policy"
 msgstr "Filter by include policy"
 
@@ -6770,6 +6787,11 @@ msgstr "Filter the binder"
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "Filter the binder by text"
 msgstr "Filter the binder by text"
+
+#. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
+#: apps/desktop/src/components/BinderFilters.tsx
+msgid "Filters"
+msgstr "Filters"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -7481,6 +7503,11 @@ msgstr "Import the staged picture"
 msgid "Import Twee"
 msgstr "Import Twee"
 
+#. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import…"
+msgstr "Import…"
+
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -7952,6 +7979,7 @@ msgstr "Keep it with the text before chapter 1"
 
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
 msgid "Keep open"
@@ -8022,6 +8050,10 @@ msgstr "Kept from a stopped tab"
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "Kept from before a reload"
 msgstr "Kept from before a reload"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Kept in this tab only"
+msgstr "Kept in this tab only"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -8901,11 +8933,14 @@ msgstr "Month starts on"
 msgid "Monthly"
 msgstr "Monthly"
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/ReviewBar.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "More"
@@ -9139,8 +9174,10 @@ msgstr "New day for change {n}"
 msgid "New dialogue here"
 msgstr "New dialogue here"
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
+#: apps/desktop/src/components/EditorPane.tsx
 msgid "New document"
 msgstr "New document"
 
@@ -11024,11 +11061,13 @@ msgid "Progress toward the manuscript"
 msgstr "Progress toward the manuscript"
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Project"
 msgstr "Project"
 
@@ -13323,6 +13362,7 @@ msgstr "Settings"
 msgid "Settings › Writing"
 msgstr "Settings › Writing"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Settings for this recipe"
@@ -17309,9 +17349,11 @@ msgid "Verified"
 msgstr "Verified"
 
 #. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "View"
 msgstr "View"
 
@@ -17456,6 +17498,11 @@ msgstr "What the payoff is for"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "What the prompt left out"
 msgstr "What the prompt left out"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "What the quick scan checks"
+msgstr "What the quick scan checks"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts

@@ -9,7 +9,10 @@
  * Sheet glass. A dialog holds Classic's text as it is: muted notes, danger and accent words, as well as ink. On the spec's thick glass
  * (.40 light, .64 dark) over the wallpaper, muted text falls to about 2.3:1, so dialogs, menus and toasts take a denser glass, settled
  * by the computed test in e2e/unit/modern-surfaces.spec.ts (§9.3): a dialog's sheet sits over its own veil (the ::backdrop tint, which
- * the sheet's blur samples), a menu or a toast has no veil and so is denser still. Both are still blurred, see-through glass.
+ * the sheet's blur samples), a menu or a toast has no veil and so is denser still. Both are still blurred glass, but dense: they hold
+ * text over the page, and nothing translucent sits under text (Stageshow polish, #358), so the page's words never read through even
+ * where a browser drops the blur. The float material is also every popover's, Scene info's, the palette's, the agent window's as a
+ * sheet over the page, and the binder sidebar's while it is not pinned. Glass stays on the chrome over the wallpaper.
  */
 
 /* ---- Tokens. The scheme blocks set the primitives (--m-*); the --mat-* names are what the rules read and what a fallback changes. ---- */
@@ -22,24 +25,24 @@
 }
 
 :root[data-shell='modern']:not([data-theme='dark']) {
-  --m-sheet: rgba(255, 252, 250, 0.78);
-  --m-float: rgba(255, 252, 250, 0.84);
+  --m-sheet: rgba(255, 252, 250, 0.97);
+  --m-float: rgba(255, 252, 250, 0.97);
   --m-veil: rgba(250, 244, 240, 0.4);
   --m-sheet-rim: rgba(255, 255, 255, 0.7);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-shell='modern']:not([data-theme='light']) {
-    --m-sheet: rgba(26, 24, 36, 0.86);
-    --m-float: rgba(26, 24, 36, 0.91);
+    --m-sheet: rgba(26, 24, 36, 0.97);
+    --m-float: rgba(26, 24, 36, 0.97);
     --m-veil: rgba(8, 6, 16, 0.5);
     --m-sheet-rim: rgba(255, 255, 255, 0.14);
   }
 }
 
 :root[data-shell='modern'][data-theme='dark'] {
-  --m-sheet: rgba(26, 24, 36, 0.86);
-  --m-float: rgba(26, 24, 36, 0.91);
+  --m-sheet: rgba(26, 24, 36, 0.97);
+  --m-float: rgba(26, 24, 36, 0.97);
   --m-veil: rgba(8, 6, 16, 0.5);
   --m-sheet-rim: rgba(255, 255, 255, 0.14);
 }
@@ -93,6 +96,17 @@
     inset 0 -1px 0 var(--mat-glass-edge-lo);
 }
 
+/* A modal dialog stays in the overlay band (tokens/modern.css), centred in it, and scrolls inside rather than covering the title capsule
+   or the bottom ornament; on a phone that band is between the top bar and the tab bar, clear of the safe areas. Settings on a phone
+   fills the screen instead (below). */
+:root[data-shell='modern'] dialog:where(:not(.modern-palette)):modal {
+  inset-block: var(--overlay-top) var(--overlay-bottom);
+  max-block-size: calc(100dvh - var(--overlay-top) - var(--overlay-bottom));
+  max-inline-size: calc(100dvw - 2 * var(--overlay-side));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 :root[data-shell='modern'] dialog:where(:not(.modern-palette))::backdrop {
   background: var(--mat-veil, rgba(20, 19, 17, 0.35));
 }
@@ -123,12 +137,23 @@
   pointer-events: none;
 }
 
-/* ---- Context menus (§7.6, §8.2): float glass, rows of at least 44 px, a highlight capsule on the row in focus. ---- */
+/* ---- Context menus (§7.6, §8.2): float glass, rows of at least 44 px, a highlight capsule on the row in focus. Kept in the overlay
+   band (shared.tsx clamps its top), scrolling inside with soft edges (shell-modern.css) when it is taller. One menu style with ⋯
+   (shell-modern.css, #362): the same corner, insets, type, check column and highlight, read from the --menu-* tokens there. ---- */
 :root[data-shell='modern'] .menu {
-  min-inline-size: 240px;
-  padding: var(--space-3);
+  --fade-to: var(--mat-float-bg);
+  /* As wide as its longest label, so each action keeps one line, but never wider than the screen: a long status or label name
+     wraps inside the menu instead of pushing its actions out of reach. */
+  inline-size: max-content;
+  min-inline-size: min(264px, calc(100dvw - 2 * var(--space-4)));
+  max-inline-size: calc(100dvw - 2 * var(--space-4));
+  max-block-size: calc(100dvh - var(--overlay-top) - var(--overlay-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block: 0;
+  padding-inline: var(--space-3);
   border: 1px solid var(--mat-sheet-rim);
-  border-radius: var(--radius-lg);
+  border-radius: var(--menu-radius);
   background: var(--mat-float-bg);
   backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
   box-shadow:
@@ -148,20 +173,26 @@
 }
 
 :root[data-shell='modern'] .menu-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-5);
   min-block-size: var(--target-min);
   padding-block: var(--space-3);
-  padding-inline: 14px;
-  border-radius: calc(var(--radius-lg) - var(--space-3));
-  font-size: 15px;
+  /* Every row keeps the check column, checked or not, so the words of all rows start on one edge, as in ⋯. */
+  padding-inline: var(--menu-text-inset) var(--space-5);
+  border-radius: var(--menu-item-radius);
+  font: 500 15px/1.2 var(--ui);
+  /* One line per action: the menu grows to its longest label (the overlay band and the right edge still hold it); only a label
+     wider than the screen wraps, whatever white-space the menu's opener would hand it. */
+  white-space: normal;
+  overflow-wrap: anywhere;
   transition: background-color var(--dur-1) var(--ease-standard);
 }
 
 :root[data-shell='modern'] .menu-item:hover:not(:disabled),
 :root[data-shell='modern'] .menu-item:focus-visible {
-  background: var(--accent-soft);
+  background: var(--menu-hover);
 }
 
 :root[data-shell='modern'] .menu-item:focus-visible {
@@ -170,11 +201,18 @@
 }
 
 :root[data-shell='modern'] .menu-item.is-checked {
-  padding-inline-start: 36px;
+  padding-inline-start: var(--menu-text-inset);
 }
 
+/* The tick is ⋯'s check (icons.tsx), drawn in the row's ink in the check column. */
 :root[data-shell='modern'] .menu-item.is-checked::before {
-  inset-inline-start: 14px;
+  content: '';
+  inset-block-start: calc(50% - 10px);
+  inset-inline-start: var(--space-3);
+  inline-size: 20px;
+  block-size: 20px;
+  background: currentColor;
+  mask: var(--menu-check) center / 20px no-repeat;
 }
 
 :root[data-shell='modern'] .menu-key {
@@ -188,7 +226,7 @@
 
 :root[data-shell='modern'] .menu-rule {
   margin-block: var(--space-2);
-  margin-inline: 14px;
+  margin-inline: var(--space-4);
 }
 
 /* ---- Controls inside these surfaces: every one at least 44 px (§9.5). A checkbox or radio counts with its label; a link inside a
@@ -219,13 +257,6 @@
   border-radius: 12px;
 }
 
-:root[data-shell='modern'] :is(dialog:where(:not(.modern-palette)), .home) label:has(> input:is([type='checkbox'], [type='radio'])) {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  min-block-size: var(--target-min);
-}
-
 :root[data-shell='modern'] dialog:where(:not(.modern-palette)) .settings-nav-item {
   display: flex;
   align-items: center;
@@ -236,6 +267,76 @@
   outline: var(--focus-width) solid var(--focus);
   outline-offset: var(--focus-offset);
   box-shadow: 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus-halo);
+}
+
+/* Settings on a phone fills the screen (styles.css): its head and its last row clear the status bar, the island and the home
+   indicator, and a notch in landscape. Nothing of the page is left to see beside it, so it is solid, not glass. */
+@media (max-width: 959px) {
+  :root[data-shell='modern'] dialog.settings:modal {
+    background: var(--m-solid);
+    backdrop-filter: none;
+    inset-block: 0;
+    max-block-size: none;
+    max-inline-size: none;
+    padding-block: env(safe-area-inset-top, 0px) env(safe-area-inset-bottom, 0px);
+    /* The larger side inset on both sides, as the narrow layout does, so a right-to-left Settings never swaps a notch's side. */
+    padding-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  }
+}
+
+/* ---- Settings forms (#362): a form's buttons hug their words at the start of the column, never a 520 px bar; a number field is
+   as wide as its digits. MCP's add form, behind its disclosure while the switch is off, is titled by the summary alone. ---- */
+:root[data-shell='modern'] :is(.settings-form, .mcp-add, .mcp-io) > .button {
+  justify-self: start;
+}
+
+:root[data-shell='modern'] .settings-form input[type='number'] {
+  align-self: flex-start;
+  inline-size: 12ch;
+}
+
+:root[data-shell='modern'] .mcp-add-off:not(.is-on) > .mcp-add > h4,
+:root[data-shell='modern'] .mcp-add-off.is-on > summary {
+  display: none;
+}
+
+/* ---- Compile's choices (#362): a compact list, not a card per format. Each choice is a row with its mark at the start and no edge;
+   the chosen one sits on the accent's soft step, with no ring. A format's one-line help shows on the chosen row only, so the list
+   reads as names. The scope and the recipe's checks are the same rows. ---- */
+:root[data-shell='modern'] label.export-option {
+  align-items: flex-start;
+  gap: 12px;
+  padding-block: 12px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: var(--radius-inner);
+  line-height: 20px;
+}
+
+/* A field after the rows parts from them by more than the rows part from each other. */
+:root[data-shell='modern'] .export-group > label.export-option + .export-field {
+  margin-block-start: var(--space-4);
+}
+
+:root[data-shell='modern'] label.export-option > input {
+  flex: none;
+  margin: 0;
+}
+
+:root[data-shell='modern'] label.export-option.is-chosen {
+  background: var(--accent-soft);
+}
+
+:root[data-shell='modern'] label.export-option .export-option-label {
+  font-weight: 500;
+}
+
+:root[data-shell='modern'] label.export-option.is-chosen .export-option-label {
+  font-weight: 600;
+}
+
+:root[data-shell='modern'] .export-group:has(> label > input[name='export-format']) > label.export-option:not(.is-chosen) .export-option-help {
+  display: none;
 }
 
 /* ---- Notices (§8.6): toast capsules of float glass at the top centre of the page, with the same roles, text and buttons. They sit
@@ -297,7 +398,9 @@
 
 :root[data-shell='modern'] .modern-toast > .storage-banner {
   align-items: center;
+  /* No close button at its end, unlike a status line: its words keep the same 22 px from both edges. */
   padding-block: var(--space-5);
+  padding-inline-end: 22px;
 }
 
 :root[data-shell='modern'] .modern-toast > .status-line.is-error {
@@ -321,8 +424,9 @@
   max-inline-size: none;
   min-block-size: 100dvh;
   margin: 0;
-  padding-block: 56px 80px;
-  padding-inline: max(24px, calc((100% - 46rem) / 2));
+  /* Clear of the safe areas (an island, a home indicator, a notch in landscape) under viewport-fit=cover. */
+  padding-block: max(56px, env(safe-area-inset-top, 0px) + 16px) max(80px, env(safe-area-inset-bottom, 0px) + 24px);
+  padding-inline: max(24px, env(safe-area-inset-left, 0px) + 16px, env(safe-area-inset-right, 0px) + 16px, calc((100% - 46rem) / 2));
   background-color: var(--surface-app);
   background-image: var(--wallpaper);
   background-position: center;
@@ -346,10 +450,19 @@
   margin-block-start: 0;
 }
 
-:root[data-shell='modern'] .home > .home-section.first-run {
-  box-shadow:
-    var(--elev-glass),
-    inset 0 0 0 2px var(--accent-soft);
+/* The first-run card's three requests are tonal rows of one column at every width, so none is left alone on a second line. */
+:root[data-shell='modern'] .home .first-run-actions {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Section titles are sentence case in the ink, one weight step over the text; Classic's tracked capitals stay Classic's. */
+:root[data-shell='modern'] .home-section > h2 {
+  margin-block: 0 var(--space-5);
+  color: var(--ink);
+  font: 600 15px/1.3 var(--ui);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 :root[data-shell='modern'] .home > .status-line {
@@ -366,12 +479,62 @@
 }
 
 :root[data-shell='modern'] .home .project-list {
-  border-radius: var(--radius-inner);
-  background: var(--surface-page);
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
+/* Rows part with a hairline inside the section's own inset: the name and its meta at the reading edge, the actions at the end. */
 :root[data-shell='modern'] .home .project-row {
   min-block-size: 64px;
+  padding-inline: 0;
+}
+
+/* A phone (#362): the row takes two lines, the name and its meta on the first and the actions on the second, Open first; nothing
+   scrolls sideways and the name keeps its width. The new-project field takes its own line, so its placeholder is whole. */
+@media (max-width: 599px) {
+  :root[data-shell='modern'] .home {
+    padding-inline: max(16px, env(safe-area-inset-left, 0px) + 16px, env(safe-area-inset-right, 0px) + 16px);
+  }
+
+  :root[data-shell='modern'] .home > :is(.home-head, .home-section, .storage-banner, .status-line) {
+    padding-inline: 20px;
+  }
+
+  :root[data-shell='modern'] .home .project-row {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0 var(--space-4);
+  }
+
+  :root[data-shell='modern'] .home .project-meta {
+    flex: 1 1 0;
+  }
+
+  /* The actions join the row's own flow: Open stays beside the name, a break follows it, and the quiet actions take the next line,
+     wrapping further only when their words need it (a longer language, Reopen folder). */
+  :root[data-shell='modern'] .home .project-row:not(.is-renaming) > .project-actions {
+    display: contents;
+  }
+
+  :root[data-shell='modern'] .home .project-row:not(.is-renaming)::after {
+    content: '';
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  :root[data-shell='modern'] .home .project-row:not(.is-renaming) > .project-actions > .button:not(:first-child) {
+    order: 2;
+    margin-block-start: var(--space-4);
+  }
+
+  :root[data-shell='modern'] .home .new-project {
+    flex-wrap: wrap;
+  }
+
+  :root[data-shell='modern'] .home .new-project label {
+    flex: 1 1 100%;
+  }
 }
 
 /* ---- Forced colours: system colours, a 1 px CanvasText border on every container, no shadows, no blur. ---- */
@@ -392,7 +555,66 @@
     background: Canvas;
   }
 
+  :root[data-shell='modern'] .menu-item.is-checked::before {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+
   :root[data-shell='modern'] .modern-morph-ghost {
     display: none;
   }
+}
+
+/* ---- Import and Export (#363). Dialogs that hold text to read are opaque: Firefox drew the page through the glass of the sheet. Their
+   actions stay pinned at the foot while the body scrolls, on the sheet's own surface, out to its edges. ---- */
+:root[data-shell='modern'] dialog:is(.export-dialog, .import-preview) {
+  background: var(--m-solid);
+  backdrop-filter: none;
+}
+
+:root[data-shell='modern'] dialog.confirm .confirm-actions,
+:root[data-shell='modern'] dialog.export-dialog .export-footer {
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 1;
+  margin-block-end: -18px;
+  margin-inline: -22px;
+  padding: 12px 22px 18px;
+  background: var(--mat-sheet-bg);
+}
+
+:root[data-shell='modern'] dialog.export-dialog .export-footer {
+  margin-block-end: -22px;
+  padding-block-end: 22px;
+  background: var(--m-solid);
+}
+
+/* The chosen format is lifted on its own surface, not ringed in the accent with a tinted halo. */
+:root[data-shell='modern'] .export-option.is-chosen {
+  border-color: var(--line-strong);
+  background: var(--raised);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Settings for this recipe: one line that opens. Its legend still names the group for a screen reader. */
+:root[data-shell='modern'] .export-recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* "Save these settings as a new recipe" on its own line, the field and Save as recipe under it at one height. */
+:root[data-shell='modern'] .export-save-new {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+:root[data-shell='modern'] .export-save-new > label {
+  display: contents;
+}
+
+:root[data-shell='modern'] .export-save-new > label > span {
+  grid-column: 1 / -1;
 }

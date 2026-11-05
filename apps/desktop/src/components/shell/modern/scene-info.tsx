@@ -12,8 +12,9 @@
  *   as everywhere else), then closes, and focus returns to the opener (§8.2). A menu or form inside that answers Escape itself keeps
  *   it.
  * - **Keep open** docks it beside the page as a companion panel: a click outside no longer closes it, Escape gives focus back to the
- *   opener and leaves it open. The page moves over for it; from 1,280 px down it overlaps the page as a sheet (§8.4). Focus mode hides
- *   it, as the Writing setting hides Classic's inspector (§8.8).
+ *   opener and leaves it open. The page moves over for it; from 1,280 px down it overlaps the page as a sheet (§8.4); below 960 px it
+ *   is a bottom sheet with no scrim, the page live above it (#364). Focus mode hides it, as the Writing setting hides Classic's
+ *   inspector (§8.8).
  *
  * The title capsule is #306's: it registers itself through `useSceneInfoOpener` (scene-info-store.ts), and nothing here changes when it
  * does. Until then the routes open Scene info at the top centre, and focus goes back to where the writer was, or to the page.
@@ -40,6 +41,7 @@ import { saveStateWords } from '../../../app/integrity-model.js';
 import { onInspectorRequest } from '../../../app/inspector-request.js';
 import type { InspectorGrouping } from '../../Inspector.js';
 import { TargetQuickSet } from '../../TargetQuickSet.js';
+import { overlayBand } from '../../shared.js';
 import type { ShellRegions } from '../regions.js';
 import { SceneFindings } from './scene-findings.js';
 import { SCENE_INFO_ID, durationMs, entranceOf, morphFrom, placePopover, type Box, type Placement } from './scene-info-model.js';
@@ -72,10 +74,9 @@ export function SceneInfo({ regions }: ModernSlotProps): ReactNode {
 
   // Focus mode hides Scene info with the rails (§8.8); its state stays, so leaving focus mode brings a docked one back.
   const shown = info.open && !regions.view.hideRails;
-  // Below 960 px it is the narrow layout's bottom sheet (§13, #312): never docked beside a page that fills the width.
-  const narrow = regions.view.narrow;
+  // Below 960 px it is the narrow layout's bottom sheet (§13, #312). Kept open there, it stays below the page with no scrim (#364).
   return shown ? (
-    <SceneInfoPanel regions={regions} docked={info.docked && !narrow} sheet={narrow} focus={info.focus} request={info.request} />
+    <SceneInfoPanel regions={regions} docked={info.docked} sheet={regions.view.narrow} focus={info.focus} request={info.request} />
   ) : null;
 }
 
@@ -115,7 +116,7 @@ function SceneInfoPanel({
 }: {
   regions: ShellRegions;
   docked: boolean;
-  /** The narrow layout's bottom sheet (§13): placed by the stylesheet, at most 80% of the height, closed by the scrim. */
+  /** The narrow layout's bottom sheet (§13): placed by the stylesheet, at most 80% of the height, closed by the scrim unless kept open. */
   sheet: boolean;
   focus: SceneInfoFocus;
   request: number;
@@ -134,7 +135,7 @@ function SceneInfoPanel({
       return;
     }
     const place = (): void =>
-      applyPlacement(element, placePopover(boxOf(sceneInfoOpener()), { width: window.innerWidth, height: window.innerHeight }));
+      applyPlacement(element, placePopover(boxOf(sceneInfoOpener()), { width: window.innerWidth, height: overlayBand(element).bottom }));
     place();
     window.addEventListener('resize', place);
     return () => window.removeEventListener('resize', place);
@@ -230,7 +231,7 @@ function SceneInfoPanel({
       aria-modal="false"
       aria-labelledby={titleId}
       tabIndex={-1}
-      className={`scene-info${sheet ? ' is-sheet' : docked ? ' is-docked' : ' is-popover'}`}
+      className={`scene-info${sheet ? (docked ? ' is-sheet is-kept' : ' is-sheet') : docked ? ' is-docked' : ' is-popover'}`}
       data-testid="scene-info"
       onKeyDown={onKeyDown}
     >
@@ -242,18 +243,15 @@ function SceneInfoPanel({
           <h2 id={titleId} className="scene-info-heading">
             <Trans>Scene info</Trans>
           </h2>
-          {/* No page to keep it beside in the narrow layout. */}
-          {sheet ? null : (
-            <button
-              type="button"
-              className="modern-capsule"
-              aria-pressed={docked}
-              title={t`Keep Scene info open beside the page`}
-              onClick={() => setSceneInfoDocked(!docked)}
-            >
-              <Trans>Keep open</Trans>
-            </button>
-          )}
+          <button
+            type="button"
+            className="modern-capsule"
+            aria-pressed={docked}
+            title={t`Keep Scene info open beside the page`}
+            onClick={() => setSceneInfoDocked(!docked)}
+          >
+            <Trans>Keep open</Trans>
+          </button>
           <button type="button" className="modern-capsule" onClick={() => closeSceneInfo()}>
             <Trans>Close</Trans>
           </button>

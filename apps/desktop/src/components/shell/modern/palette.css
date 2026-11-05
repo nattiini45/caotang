@@ -7,15 +7,17 @@
  * the tokens this reads, so nothing here repeats them; forced colours draws its own border and highlight.
  */
 
-/* The native modal dialog in the top layer. `.mat-thick` makes its element relative, so the dialog states its own placement. */
+/* The native modal dialog in the top layer. `.mat-thick` makes its element relative, so the dialog states its own placement. It opens
+   in the overlay band (tokens/modern.css), below the title capsule or the top bar and the safe area, and ends above the bottom
+   ornament or the tab bar, with the keyboard up too. It holds text over the page, so its material is the dense float (#358). */
 :root[data-shell='modern'] dialog.modern-palette {
   position: fixed;
-  inset-block: max(56px, 12dvh) auto;
+  inset-block: max(var(--overlay-top), 12dvh) auto;
   inset-inline: 0;
   margin-inline: auto;
   margin-block: 0;
-  inline-size: min(640px, calc(100% - 32px));
-  max-block-size: calc(100dvh - max(56px, 12dvh) - 24px);
+  inline-size: min(640px, calc(100% - 2 * var(--overlay-side)));
+  max-block-size: calc(100dvh - max(var(--overlay-top), 12dvh) - var(--overlay-bottom));
   padding: 0;
   border: 0;
   border-radius: var(--radius-sheet);
@@ -32,6 +34,11 @@
     opacity: 0;
     transform: translateY(-8px) scale(0.98);
   }
+}
+
+:root[data-shell='modern'] dialog.modern-palette.mat-thick {
+  background: var(--mat-float-bg);
+  backdrop-filter: blur(var(--mat-sheet-blur)) saturate(var(--mat-glass-saturate));
 }
 
 :root[data-shell='modern'] dialog.modern-palette::backdrop {
@@ -61,8 +68,8 @@
 }
 
 :root[data-shell='modern'] .modern-palette-glass {
-  font-size: 20px;
-  line-height: 1;
+  display: inline-flex;
+  flex: none;
 }
 
 :root[data-shell='modern'] .modern-palette-field input {
@@ -101,8 +108,30 @@
   font: 600 12px/1.4 var(--ui);
 }
 
+/* On a phone or under touch the field's Esc keycap goes, so the placeholder keeps its words; so do the options' chords. */
+@media (max-width: 479px), (pointer: coarse) {
+  :root[data-shell='modern'] .modern-palette-field .modern-palette-kbd {
+    display: none;
+  }
+}
+
+/* A phone's field is a step smaller and the field's own inset is the only one, so the English placeholder fits whole at 390 px. */
+@media (max-width: 479px) {
+  :root[data-shell='modern'] .modern-palette-field input {
+    padding-inline: 0;
+    font-size: 15px;
+  }
+}
+
+@media (pointer: coarse) {
+  :root[data-shell='modern'] .modern-palette-option .modern-palette-kbd {
+    display: none;
+  }
+}
+
 /* ---- The grouped listbox. ---- */
 :root[data-shell='modern'] .modern-palette-list {
+  --fade-to: var(--mat-float-bg);
   flex: 1 1 auto;
   min-block-size: 0;
   max-block-size: min(56dvh, 480px);
@@ -117,10 +146,8 @@
 :root[data-shell='modern'] .modern-palette-heading {
   padding-block: 8px 4px;
   padding-inline: 14px;
-  color: var(--on-glass);
-  font: 700 12px/1.3 var(--ui);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--muted);
+  font: 600 13px/1.3 var(--ui);
 }
 
 :root[data-shell='modern'] .modern-palette-option {
@@ -135,27 +162,26 @@
   cursor: pointer;
 }
 
+/* The option the keys are on is the accent's soft step, as a menu's row is, not a saturated fill heavier than anything else on screen.
+   A disabled one is faint, never struck through. */
 :root[data-shell='modern'] .modern-palette-option[aria-selected='true'] {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 
 :root[data-shell='modern'] .modern-palette-option[aria-disabled='true'] {
   cursor: default;
-  text-decoration: line-through;
+  opacity: 0.5;
 }
 
+/* The glyph column (icons.tsx at 20 px, one stroke), kept for every option so the labels share one reading edge; no tile. */
 :root[data-shell='modern'] .modern-palette-icon {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  inline-size: 28px;
-  block-size: 28px;
-  border-radius: 9px;
-  background: var(--scrim);
-  font-size: 15px;
-  line-height: 1;
+  inline-size: 20px;
+  block-size: 20px;
 }
 
 :root[data-shell='modern'] .modern-palette-words {

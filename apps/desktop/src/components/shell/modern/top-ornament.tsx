@@ -221,9 +221,16 @@ interface Entry {
   readonly run: () => void;
 }
 
-/** The menu's sections: the shell actions as Classic's More menu groups them, the views between the outputs and Settings. */
-function actionSections(actions: readonly ShellAction[]): Entry[][] {
+/** A group of the menu, under its subhead when it has more than one kind of thing to say (Settings stands alone). */
+interface Section {
+  readonly head?: string;
+  readonly entries: Entry[];
+}
+
+/** The menu's sections: the shell actions as Classic's More menu groups them, each under its subhead (#358). */
+function actionSections(actions: readonly ShellAction[]): Section[] {
   const sectionOf = (group: ShellActionGroup): number => CLASSIC_MENU_SECTIONS.findIndex((groups) => groups.includes(group));
+  const heads = [t`Project`, t`Agent`, t`Export`];
   const sections: Entry[][] = CLASSIC_MENU_SECTIONS.map(() => []);
   for (const action of actions) {
     if (action.id === 'theme') continue; // Appearance's Light and Dark.
@@ -238,7 +245,7 @@ function actionSections(actions: readonly ShellAction[]): Entry[][] {
       run: action.run,
     });
   }
-  return sections.filter((section) => section.length > 0);
+  return sections.flatMap((entries, at) => (entries.length > 0 ? [{ head: heads[at], entries }] : []));
 }
 
 function MoreMenu({
@@ -266,7 +273,7 @@ function MoreMenu({
     run: () => chooseView(view, name),
   }));
   // The views go before the app's own section (Settings).
-  sections.splice(Math.max(0, sections.length - 1), 0, views);
+  sections.splice(Math.max(0, sections.length - 1), 0, { head: t`View`, entries: views });
   const appearance: Entry[] = [
     { key: 'light', role: 'menuitemradio', label: t`Light`, checked: !dark, run: () => (dark ? theme?.run() : undefined) },
     { key: 'dark', role: 'menuitemradio', label: t`Dark`, checked: dark, run: () => (dark ? undefined : theme?.run()) },
@@ -316,13 +323,15 @@ function MoreMenu({
     list[next]?.focus();
   };
 
+  // A roving tab stop on the first item that can be chosen, so the menu, which can scroll, is reachable by keyboard (axe).
+  const first = sections.flatMap(({ entries }) => entries).find((entry) => entry.disabled !== true)?.key;
   const render = (entry: Entry): ReactNode => (
     <button
       key={entry.key}
       type="button"
       role={entry.role}
       className="modern-menu-item"
-      tabIndex={-1}
+      tabIndex={entry.key === first ? 0 : -1}
       disabled={entry.disabled}
       aria-checked={entry.role === 'menuitem' ? undefined : entry.checked === true}
       title={entry.title}
@@ -341,21 +350,21 @@ function MoreMenu({
     </button>
   );
 
+  sections.push({ head: t`Appearance`, entries: appearance });
+
   return (
     <div ref={ref} id="modern-more-menu" role="menu" aria-label={t`More`} className="modern-menu" onKeyDown={onKeyDown}>
-      {sections.map((section, index) => (
-        <div key={section[0]?.key ?? index} role="group" className="modern-menu-section">
+      {sections.map(({ head, entries }, index) => (
+        <div key={entries[0]?.key ?? index} role="group" aria-labelledby={head === undefined ? undefined : `modern-menu-head-${index}`} className="modern-menu-section">
           {index === 0 ? null : <div role="separator" className="modern-menu-rule" />}
-          {section.map(render)}
+          {head === undefined ? null : (
+            <div id={`modern-menu-head-${index}`} className="modern-menu-heading" role="presentation">
+              {head}
+            </div>
+          )}
+          {entries.map(render)}
         </div>
       ))}
-      <div role="group" aria-labelledby="modern-menu-appearance" className="modern-menu-section">
-        <div role="separator" className="modern-menu-rule" />
-        <div id="modern-menu-appearance" className="modern-menu-heading" role="presentation">
-          {t`Appearance`}
-        </div>
-        {appearance.map(render)}
-      </div>
     </div>
   );
 }

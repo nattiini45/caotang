@@ -11,6 +11,7 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
 
 import { uiIsRtl } from '../../../i18n/direction.js';
+import { overlayBand } from '../../shared.js';
 import { morph } from './morph.js';
 
 export interface Placement {
@@ -93,17 +94,21 @@ export function GlassPopover({
     if (element === null || anchor === null) return;
     const place = (): void => {
       const box = anchor.getBoundingClientRect();
+      // Inside the overlay band (#358): clear of the top ornament's foot, and above the bottom ornament, so a long menu scrolls
+      // inside rather than running over it.
+      const band = overlayBand(element);
       const placed = placePopover({
         anchor: box,
         size: { width: element.offsetWidth, height: element.scrollHeight },
-        viewport: { width: window.innerWidth, height: window.innerHeight },
+        viewport: { width: window.innerWidth, height: band.bottom },
         prefer,
         align,
         rtl: uiIsRtl(),
       });
+      const top = Math.max(placed.y, band.top);
       element.style.left = `${placed.x}px`;
-      element.style.top = `${placed.y}px`;
-      element.style.maxHeight = `${placed.maxHeight}px`;
+      element.style.top = `${top}px`;
+      element.style.maxHeight = `${placed.maxHeight - top + placed.y}px`;
       element.dataset['side'] = placed.side;
     };
     place();

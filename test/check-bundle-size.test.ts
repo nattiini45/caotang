@@ -184,12 +184,12 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     ]);
   });
 
-  it('holds Modern’s caps in the real budget: 70 kB of JS and 50 kB of CSS, within 25.9 kB gzip of Classic (narrow layout + focus mode, #312/#351)', () => {
+  it('holds Modern’s caps in the real budget: 70 kB of JS and 94.5 kB of CSS (the control kit #357, polish #358, Stageshow polish wave 2 #360–#364), within 33.23 kB gzip of Classic', () => {
     expect(BUDGET.lazy?.['modern-shell']).toBe(70_000);
-    expect(BUDGET.css?.caps['modern-shell']).toBe(50_000);
+    expect(BUDGET.css?.caps['modern-shell']).toBe(94_500);
     expect(BUDGET.css?.entryMargin).toBe(0.01);
-    expect(BUDGET.modernFirstLoadDelta).toBe(25_900);
-    expect(BUDGET.totalJs).toBe(7_755_000);
+    expect(BUDGET.modernFirstLoadDelta).toBe(33_230);
+    expect(BUDGET.totalJs).toBe(7_760_000);
   });
 });
 

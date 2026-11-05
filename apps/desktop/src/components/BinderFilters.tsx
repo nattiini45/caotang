@@ -11,9 +11,9 @@ import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNo
 import { isolate } from '@caotang/i18n';
 import type { SavedFilter } from '@caotang/furniture';
 
-import { filterResultFor, furnitureFor, isEmptyDraft, tagsOf } from '../app/furniture-store.js';
+import { criteriaOf, filterResultFor, furnitureFor, isEmptyDraft, tagsOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
-import { useComposingEnter, useSession } from './shared.js';
+import { More, useComposingEnter, useSession } from './shared.js';
 
 
 /* lingui-set comment="The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number." */
@@ -72,6 +72,9 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
   // while the criteria still filter by it (binder-filters §5: the bar and the tree must agree).
   const unknownStatus = draft.statusId !== '' && !statuses.some((status) => status.id === draft.statusId);
   const unknownLabel = draft.labelId !== '' && !labels.some((label) => label.id === draft.labelId);
+  // The criteria under Filters (#360), counted on its summary so a closed disclosure still says the binder is filtered. They are
+  // counted as criteria, so a field that applies nothing (only commas, a word count that is not a number) adds nothing to the badge.
+  const setCount = Object.keys(criteriaOf({ ...draft, text: '' })).length;
 
   const submitName = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -98,150 +101,158 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
         value={text}
         onChange={(event) => setText(event.target.value)}
       />
-      <div className="filter-fields">
-        <select aria-label={t`Status filter`} value={draft.statusId} onChange={(event) => store.setDraft({ statusId: event.target.value })}>
-          <option value=""><Trans>Any status</Trans></option>
-          {statuses.map((status) => (
-            <option key={status.id} value={status.id}>
-              {status.name}
-            </option>
-          ))}
-          {unknownStatus ? (
-            <option value={draft.statusId} disabled>
-              <Trans>Unknown status</Trans>
-            </option>
-          ) : null}
-        </select>
-        <select aria-label={t`Label filter`} value={draft.labelId} onChange={(event) => store.setDraft({ labelId: event.target.value })}>
-          <option value=""><Trans>Any label</Trans></option>
-          {labels.map((label) => (
-            <option key={label.id} value={label.id}>
-              {label.name}
-            </option>
-          ))}
-          {unknownLabel ? (
-            <option value={draft.labelId} disabled>
-              <Trans>Unknown label</Trans>
-            </option>
-          ) : null}
-        </select>
-        <input
-          type="number"
-          min={0}
-          aria-label={t`Minimum words`}
-          placeholder={t`Min words`}
-          value={draft.minWords}
-          onChange={(event) => store.setDraft({ minWords: event.target.value })}
-        />
-        <input
-          type="number"
-          min={0}
-          aria-label={t`Maximum words`}
-          placeholder={t`Max words`}
-          value={draft.maxWords}
-          onChange={(event) => store.setDraft({ maxWords: event.target.value })}
-        />
-      </div>
-
-      <div className="filter-fields filter-keywords">
-        <label className="filter-field">
-          <span><Trans>Has all of these keywords</Trans></span>
+      <More
+        className="filter-more"
+        summary={
+          <>
+            <Trans>Filters</Trans>
+            {setCount > 0 ? <span className="badge is-accent">{setCount}</span> : null}
+          </>
+        }
+      >
+        <div className="filter-fields">
+          <select aria-label={t`Status filter`} value={draft.statusId} onChange={(event) => store.setDraft({ statusId: event.target.value })}>
+            <option value=""><Trans>Any status</Trans></option>
+            {statuses.map((status) => (
+              <option key={status.id} value={status.id}>
+                {status.name}
+              </option>
+            ))}
+            {unknownStatus ? (
+              <option value={draft.statusId} disabled>
+                <Trans>Unknown status</Trans>
+              </option>
+            ) : null}
+          </select>
+          <select aria-label={t`Label filter`} value={draft.labelId} onChange={(event) => store.setDraft({ labelId: event.target.value })}>
+            <option value=""><Trans>Any label</Trans></option>
+            {labels.map((label) => (
+              <option key={label.id} value={label.id}>
+                {label.name}
+              </option>
+            ))}
+            {unknownLabel ? (
+              <option value={draft.labelId} disabled>
+                <Trans>Unknown label</Trans>
+              </option>
+            ) : null}
+          </select>
           <input
-            type="text"
-            aria-label={t`Keywords, all of these`}
-            placeholder={t`sea, grief`}
-            maxLength={600}
-            value={draft.keywordsAll}
-            onChange={(event) => store.setDraft({ keywordsAll: event.target.value })}
+            type="number"
+            min={0}
+            aria-label={t`Minimum words`}
+            placeholder={t`Min words`}
+            value={draft.minWords}
+            onChange={(event) => store.setDraft({ minWords: event.target.value })}
           />
-        </label>
-        <label className="filter-field">
-          <span><Trans>Has any of these keywords</Trans></span>
           <input
-            type="text"
-            aria-label={t`Keywords, any of these`}
-            placeholder={t`sea, storm`}
-            maxLength={600}
-            value={draft.keywordsAny}
-            onChange={(event) => store.setDraft({ keywordsAny: event.target.value })}
+            type="number"
+            min={0}
+            aria-label={t`Maximum words`}
+            placeholder={t`Max words`}
+            value={draft.maxWords}
+            onChange={(event) => store.setDraft({ maxWords: event.target.value })}
           />
-        </label>
-      </div>
-      {allTags.length + anyTags.length > 0 ? (
-        <p className="filter-chips" aria-label={t`Keyword criteria`}>
-          {allTags.map((tag) => (
-            <span key={`all-${tag}`} className="filter-chip" data-kind="all">
-              {tag}
-            </span>
-          ))}
-          {anyTags.map((tag) => (
-            <span key={`any-${tag}`} className="filter-chip" data-kind="any">
-              {tag}
-            </span>
-          ))}
-        </p>
-      ) : null}
+        </div>
 
-      <div className="filter-fields filter-dates">
-        <label className="filter-field">
-          <span><Trans>Changed in the last</Trans></span>
-          <span className="filter-days">
+        <div className="filter-fields filter-keywords">
+          <label className="filter-field">
+            <span><Trans>Has all of these keywords</Trans></span>
             <input
-              type="number"
-              min={1}
-              placeholder={t`days`}
-              value={draft.modifiedWithinDays}
-              onChange={(event) => store.setDraft({ modifiedWithinDays: event.target.value })}
+              type="text"
+              aria-label={t`Keywords, all of these`}
+              placeholder={t`sea, grief`}
+              maxLength={600}
+              value={draft.keywordsAll}
+              onChange={(event) => store.setDraft({ keywordsAll: event.target.value })}
             />
-            <Trans>days</Trans>
-          </span>
-        </label>
-        <label className="filter-field">
-          <span><Trans>Created in the last</Trans></span>
-          <span className="filter-days">
+          </label>
+          <label className="filter-field">
+            <span><Trans>Has any of these keywords</Trans></span>
             <input
-              type="number"
-              min={1}
-              placeholder={t`days`}
-              value={draft.createdWithinDays}
-              onChange={(event) => store.setDraft({ createdWithinDays: event.target.value })}
+              type="text"
+              aria-label={t`Keywords, any of these`}
+              placeholder={t`sea, storm`}
+              maxLength={600}
+              value={draft.keywordsAny}
+              onChange={(event) => store.setDraft({ keywordsAny: event.target.value })}
             />
-            <Trans>days</Trans>
-          </span>
-        </label>
-      </div>
+          </label>
+        </div>
+        {allTags.length + anyTags.length > 0 ? (
+          <p className="filter-chips" aria-label={t`Keyword criteria`}>
+            {allTags.map((tag) => (
+              <span key={`all-${tag}`} className="filter-chip" data-kind="all">
+                {tag}
+              </span>
+            ))}
+            {anyTags.map((tag) => (
+              <span key={`any-${tag}`} className="filter-chip" data-kind="any">
+                {tag}
+              </span>
+            ))}
+          </p>
+        ) : null}
 
-      <div className="filter-row">
-        <select
-          aria-label={t`Saved filters`}
-          value={applied?.savedId ?? ''}
-          onChange={(event) => {
-            const saved = furniture.filters.find((filter) => filter.id === event.target.value);
-            if (saved !== undefined) store.applySaved(saved);
-            else store.clearFilter();
-          }}
-        >
-          <option value="">{furniture.filters.length === 0 ? t`No saved filters yet` : t`Saved filters`}</option>
-          {furniture.filters.map((filter) => (
-            <option key={filter.id} value={filter.id}>
-              {filter.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className="button is-quiet"
-          disabled={nothingSet}
-          onClick={() => setNaming({ id: applied?.savedId ?? null, name: applied?.name ?? '' })}
-        >
-          {applied?.savedId ? t`Update saved filter…` : t`Save current…`}
-        </button>
-        {nothingSet && applied === null ? null : (
-          <button type="button" className="button is-quiet" aria-label={t`Clear the filter`} onClick={() => store.clearFilter()}>
-            <Trans>Clear</Trans>
+        <div className="filter-fields filter-dates">
+          <label className="filter-field">
+            <span><Trans>Changed in the last</Trans></span>
+            <span className="filter-days">
+              <input
+                type="number"
+                min={1}
+                value={draft.modifiedWithinDays}
+                onChange={(event) => store.setDraft({ modifiedWithinDays: event.target.value })}
+              />
+              <Trans>days</Trans>
+            </span>
+          </label>
+          <label className="filter-field">
+            <span><Trans>Created in the last</Trans></span>
+            <span className="filter-days">
+              <input
+                type="number"
+                min={1}
+                value={draft.createdWithinDays}
+                onChange={(event) => store.setDraft({ createdWithinDays: event.target.value })}
+              />
+              <Trans>days</Trans>
+            </span>
+          </label>
+        </div>
+
+        <div className="filter-row">
+          <select
+            aria-label={t`Saved filters`}
+            value={applied?.savedId ?? ''}
+            onChange={(event) => {
+              const saved = furniture.filters.find((filter) => filter.id === event.target.value);
+              if (saved !== undefined) store.applySaved(saved);
+              else store.clearFilter();
+            }}
+          >
+            <option value="">{furniture.filters.length === 0 ? t`No saved filters yet` : t`Saved filters`}</option>
+            {furniture.filters.map((filter) => (
+              <option key={filter.id} value={filter.id}>
+                {filter.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="button is-quiet"
+            disabled={nothingSet}
+            onClick={() => setNaming({ id: applied?.savedId ?? null, name: applied?.name ?? '' })}
+          >
+            {applied?.savedId ? t`Update saved filter…` : t`Save current…`}
           </button>
-        )}
-      </div>
+          {nothingSet && applied === null ? null : (
+            <button type="button" className="button is-quiet" aria-label={t`Clear the filter`} onClick={() => store.clearFilter()}>
+              <Trans>Clear</Trans>
+            </button>
+          )}
+        </div>
+      </More>
 
       {applied !== null && matches !== null ? (
         <p className="filter-status" role="status" data-testid="filter-status">

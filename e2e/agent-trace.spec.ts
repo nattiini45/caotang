@@ -31,7 +31,8 @@ test('a demo turn is a timeline in the Trace tab, and a model call opens to its 
   await expect(turns).toHaveCount(1);
   const turn = turns.first();
   await expect(turn.getByRole('button', { expanded: true })).toContainText(DEMO_INTENTS.continuity);
-  await expect(page.getByText('Kept in this tab', { exact: false }).or(page.getByText('stays in this tab', { exact: false })).first()).toBeVisible();
+  // Modern says it on the disclosure's summary (#360), Classic in the open sentence under it (its summary hidden): one of them shows.
+  await expect(page.getByText('Kept in this tab', { exact: false }).or(page.getByText('stays in this tab', { exact: false })).filter({ visible: true }).first()).toBeVisible();
 
   const call = turn.getByTestId('trace-call').first();
   await expect(call).toContainText('Model call 1');

@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { currentInterface } from '../app/interface.js';
 import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { accessibleText } from '../i18n/accessible-text.js';
@@ -107,6 +108,49 @@ export interface MenuAnchor {
 }
 
 /**
+ * Advanced settings folded under one line in Modern (#363): a `<details>` with the kit's summary row. Classic shows the children as
+ * they always were, unwrapped.
+ */
+export function ModernFold({ label, className, children }: { label: string; className: string; children: ReactNode }): ReactNode {
+  return currentInterface() === 'modern' ? (
+    <details className={className}>
+      <summary>{label}</summary>
+      {children}
+    </details>
+  ) : (
+    children
+  );
+}
+
+/**
+ * The band an overlay stays in, in viewport px: in Modern, below the top ornament and above the bottom one (`--overlay-top` and
+ * `--overlay-bottom`, registered lengths in tokens/modern.css); in Classic, which has neither, the window less a 4 px margin at the top.
+ */
+export function overlayBand(element: Element): { top: number; bottom: number } {
+  const style = getComputedStyle(element);
+  const edge = (name: string): number => Number.parseFloat(style.getPropertyValue(name)) || 0;
+  return { top: Math.max(4, edge('--overlay-top')), bottom: window.innerHeight - edge('--overlay-bottom') };
+}
+
+/**
+ * Puts an open menu at its anchor, kept on screen inside the overlay band. Exported so a test can call it twice and see the same place.
+ */
+export function placeMenu(menu: HTMLElement, anchor: MenuAnchor): void {
+  // Keep the menu on screen, inside the overlay band: open upward when it would run past its foot, and shift it in from the
+  // right edge. A fixed menu is not scrolled into view by anything else. It is placed by the viewport: a filtered ancestor (Modern's
+  // glass sidebar) is the containing block of a fixed box, so its offset is taken back. The menu goes back to its anchor before it
+  // is measured, so an effect that runs again (React's strict mode, a re-placed anchor) reads that offset, not its own last move.
+  menu.style.top = `${anchor.y}px`;
+  menu.style.left = `${anchor.x}px`;
+  const rect = menu.getBoundingClientRect();
+  const band = overlayBand(menu);
+  const top = anchor.y + rect.height > band.bottom ? anchor.y - rect.height - 36 : anchor.y;
+  const left = anchor.x + rect.width > window.innerWidth ? Math.max(4, window.innerWidth - rect.width - 8) : anchor.x;
+  menu.style.top = `${Math.max(band.top, top) - rect.top + anchor.y}px`;
+  menu.style.left = `${left - rect.left + anchor.x}px`;
+}
+
+/**
  * A positioned list of actions. Arrow keys move, Enter or Space chooses, Escape or a
  * click outside closes. It takes focus on open, so the keyboard works without a click.
  */
@@ -142,15 +186,7 @@ export function Menu({
   useEffect(() => {
     const menu = ref.current;
     if (!menu) return;
-    // Keep the menu on screen: open upward when it would run off the bottom, and shift it in
-    // from the right edge. A fixed menu is not scrolled into view by anything else.
-    const rect = menu.getBoundingClientRect();
-    if (rect.bottom > window.innerHeight) {
-      menu.style.top = `${Math.max(4, anchor.y - rect.height - 36)}px`;
-    }
-    if (rect.right > window.innerWidth) {
-      menu.style.left = `${Math.max(4, window.innerWidth - rect.width - 8)}px`;
-    }
+    placeMenu(menu, { x: anchor.x, y: anchor.y });
     // Focus the first item that can be chosen. A menu whose only entry is disabled takes
     // focus itself, so Escape still reaches it.
     const first = menu.querySelector<HTMLElement>('[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled])');
@@ -357,11 +393,16 @@ export function ChoiceDialog({
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
+  const cancel = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      // Firefox's showModal() focuses the first answer, not the autoFocus Cancel (#347): Cancel takes it here, in every engine.
+      cancel.current?.focus();
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
@@ -379,12 +420,18 @@ export function ChoiceDialog({
         <h2>{title}</h2>
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
-          {choices.map((choice) => (
-            <button key={choice.label} type="button" className={choice.danger === true ? 'button is-danger' : 'button'} onClick={choice.onChoose}>
+          {choices.map((choice, index) => (
+            <button
+              key={choice.label}
+              type="button"
+              // One primary (#362): the first answer that writes over nothing; an answer that does stays danger.
+              className={choice.danger === true ? 'button is-danger' : index === choices.findIndex((other) => other.danger !== true) ? 'button is-primary' : 'button'}
+              onClick={choice.onChoose}
+            >
               {choice.label}
             </button>
           ))}
-          <button type="button" className="button" autoFocus onClick={onCancel}>
+          <button ref={cancel} type="button" className="button" autoFocus onClick={onCancel}>
             <Trans>Cancel</Trans>
           </button>
         </div>
@@ -540,6 +587,19 @@ export function EmptyState({
       {children ? <div className="empty-text">{children}</div> : null}
       {actions ? <div className="empty-actions">{actions}</div> : null}
     </section>
+  );
+}
+
+/**
+ * Help or advanced controls on demand (Stageshow polish, #360): a `<details>` with the kit's summary in Modern. Classic shows it open
+ * with its summary hidden and the box laid out as if it were not there (styles.css `.k-more`), so Classic's panels do not change.
+ */
+export function More({ summary, className = '', children }: { summary: ReactNode; className?: string; children: ReactNode }): ReactNode {
+  return (
+    <details className={`k-more ${className}`} open={currentInterface() === 'classic'}>
+      <summary>{summary}</summary>
+      {children}
+    </details>
   );
 }
 

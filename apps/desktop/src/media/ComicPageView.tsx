@@ -917,7 +917,7 @@ export function ComicPageView({ session, node }: ComicPageViewProps): ReactNode 
                   <rect className="comic-panel-placeholder" x={rect.x} y={rect.y} width={rect.width} height={rect.height} />
                 )}
                 {panel !== undefined && panel.assetId === undefined ? (
-                  <text className="comic-panel-note" x={rect.x + rect.width / 2} y={rect.y + rect.height / 2} textAnchor="middle">
+                  <text className="comic-panel-note is-empty" x={rect.x + rect.width / 2} y={rect.y + rect.height / 2} textAnchor="middle">
                     {t`Empty panel — a placeholder, not art`}
                   </text>
                 ) : null}

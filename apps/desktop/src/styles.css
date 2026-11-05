@@ -45,8 +45,9 @@ h3 {
 .button {
   font: inherit;
   font-size: var(--text-lg);
-  line-height: 1.2;
-  padding: var(--space-3) var(--control-pad-x);
+  /* The line box holds the font's full height (a 1.2 line cut it, 29.6 px of box for 31 px of content); the padding gives the pixel back. */
+  line-height: 1.35;
+  padding: 5px var(--control-pad-x);
   border-radius: var(--radius-sm);
   border: 1px solid var(--line-strong);
   background: var(--raised);
@@ -399,6 +400,21 @@ button.chip {
 .status-link:focus-visible {
   outline: var(--focus-width) solid var(--accent);
   outline-offset: var(--focus-offset);
+}
+
+/* A Modern disclosure (shared.tsx `More`, #360) is open in Classic, its summary hidden and its box laid out as if it were not there. */
+:root:not([data-shell='modern']) :is(.k-more, .k-more-body) {
+  display: contents;
+}
+
+:root:not([data-shell='modern']) .k-more > summary {
+  display: none;
+}
+
+/* The disclosure's content box too (its own rule: a browser without ::details-content drops only this one), so its children stay the
+   items of the binder's and the filter bar's flex column and keep their gaps. */
+:root:not([data-shell='modern']) .k-more::details-content {
+  display: contents;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1717,6 +1733,7 @@ dialog.transcription-review-dialog::backdrop {
   align-items: center;
   gap: var(--space-3);
   min-width: 0;
+  white-space: nowrap;
 }
 
 .filter-days input {
@@ -2337,6 +2354,7 @@ dialog.confirm:has(.folder-file-preview) {
 }
 
 .project-meta .project-name {
+  margin: 0;
   font-weight: 600;
 }
 
@@ -2689,6 +2707,29 @@ dialog.confirm:has(.folder-file-preview) {
   border: none;
   padding: 0;
   margin: var(--space-4) 0;
+}
+
+/* A check or radio and its words are one row: the box at the start, the words wrapping beside it. A block label's caption span, the
+   form's column labels and a radio group's row put the box above its words, or split a long hint into narrow columns. */
+label.settings-check {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.settings-check > input {
+  flex: none;
+  margin: 1px 0 0;
+}
+
+.settings-check > span {
+  margin-bottom: 0;
+}
+
+.settings-radios:has(> .settings-check) {
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .storage-row p {

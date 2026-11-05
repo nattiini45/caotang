@@ -192,12 +192,13 @@ test('⋯ is a menu of every shell action, the other views and Appearance; Escap
   await expect(page.locator('html')).toHaveAttribute('data-transparency', 'reduced');
   await expect(menu(page)).toHaveCount(0);
 
-  // The other views: the timeline, with no radio of the ornament checked and Write the group's tab stop.
+  // The other views: the timeline, shown in the ornament as a fourth radio, checked and the group's tab stop (#361).
   await button.click();
   await menu(page).getByRole('menuitemradio', { name: 'Timeline' }).click();
   await expect(page.locator('#modern-page')).toHaveAttribute('data-view', 'timeline');
-  await expect(views(page).getByRole('radio', { checked: true })).toHaveCount(0);
-  await expect(views(page).getByRole('radio', { name: 'Write' })).toHaveAttribute('tabindex', '0');
+  await expect(views(page).getByRole('radio', { checked: true })).toHaveAccessibleName('Timeline');
+  await expect(views(page).getByRole('radio', { name: 'Timeline' })).toHaveAttribute('tabindex', '0');
+  await expect(views(page).getByRole('radio', { name: 'Write' })).toHaveAttribute('tabindex', '-1');
   await expect(menu(page)).toHaveCount(0);
 
   // An action runs its own handler: Settings opens Settings.

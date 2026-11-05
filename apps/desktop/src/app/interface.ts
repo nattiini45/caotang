@@ -144,6 +144,14 @@ export function subscribeInterface(listener: () => void): () => void {
   };
 }
 
+/**
+ * Whether the page is in Modern now, read from `data-shell`, for a Classic component that Modern restructures (the Stageshow polish,
+ * #361). Switching the interface remounts the workspace, so a component reads it once as it renders.
+ */
+export function isModern(): boolean {
+  return document.documentElement.dataset['shell'] === 'modern';
+}
+
 let pending = false;
 
 /** Whether the default still waits for the stores (the page shows no workspace until {@link settleInterface}). */

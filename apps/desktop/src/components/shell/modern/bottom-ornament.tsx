@@ -4,7 +4,8 @@
  * `center-corkboard`, and `center-codex`) with a glass lens that slides to the chosen one, then **Ask** and **Search**.
  *
  * Keys (APG radio): Tab enters the group on the chosen view; the arrow keys, Home and End choose and move; Tab goes on to Ask and
- * Search. When the page shows the timeline or the pictures (chosen in **⋯**), no radio is checked and Tab enters on Write.
+ * Search. When the page shows the timeline or the pictures (chosen in **⋯**), the group shows that view too, as a fourth radio, checked,
+ * so the ornament always says which view is on (Stageshow polish, #361); it goes when another view is chosen.
  *
  * **Ask** opens and closes the agent's companion window (#309, companion-actions.ts): `id` {@link ASK_ID}, so Escape and **Close** give
  * focus back to it and Ctrl+J grows the window out of it; `aria-controls` the window, `aria-expanded` while it is open, and a dot
@@ -23,14 +24,13 @@ import { Icon } from './icons.js';
 import { openPalette } from './requests.js';
 import type { ModernSlotProps } from './slots.js';
 import { viewName } from './top-ornament.js';
-import { ORNAMENT_VIEWS, chooseView, modernViewOf, viewControlId, type OrnamentView } from './views.js';
-
-const ICONS: Readonly<Record<OrnamentView, 'write' | 'board' | 'codex'>> = { write: 'write', board: 'board', codex: 'codex' };
+import type { ModernView } from './layout.js';
+import { ORNAMENT_VIEWS, chooseView, modernViewOf, viewControlId } from './views.js';
 
 export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode {
   const { view } = regions;
-  const current = modernViewOf(view.rail, view.center);
-  const chosen: OrnamentView | null = (ORNAMENT_VIEWS as readonly string[]).includes(current) ? (current as OrnamentView) : null;
+  const chosen = modernViewOf(view.rail, view.center);
+  const shown: readonly ModernView[] = (ORNAMENT_VIEWS as readonly string[]).includes(chosen) ? ORNAMENT_VIEWS : [...ORNAMENT_VIEWS, chosen];
   const group = useRef<HTMLDivElement>(null);
   const lens = useRef<HTMLSpanElement>(null);
 
@@ -41,7 +41,7 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
     const glass = lens.current;
     if (root === null || glass === null) return;
     const place = (): void => {
-      const target = chosen === null ? null : root.querySelector<HTMLElement>(`#${viewControlId(chosen)}`);
+      const target = root.querySelector<HTMLElement>(`#${viewControlId(chosen)}`);
       if (target === null) {
         glass.dataset['shown'] = 'false';
         return;
@@ -64,7 +64,7 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
   }, [chosen]);
 
   const onKey = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    const next = keyStep(ORNAMENT_VIEWS, chosen ?? 'write', event.key);
+    const next = keyStep(shown, chosen, event.key);
     if (next === null) return;
     event.preventDefault();
     chooseView(view, next);
@@ -78,7 +78,7 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
     <nav className="modern-ornament is-bottom mat-glass" aria-label={t`Views and tools`} data-testid="modern-bottom-ornament">
       <div ref={group} className="modern-views" role="radiogroup" aria-label={t`View`} onKeyDown={onKey}>
         <span ref={lens} className="modern-lens" aria-hidden="true" data-testid="modern-lens" />
-        {ORNAMENT_VIEWS.map((name) => {
+        {shown.map((name) => {
           const checked = chosen === name;
           return (
             <button
@@ -88,11 +88,11 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
               role="radio"
               aria-checked={checked}
               aria-controls={pageId}
-              tabIndex={checked || (chosen === null && name === 'write') ? 0 : -1}
+              tabIndex={checked ? 0 : -1}
               className="modern-capsule modern-view"
               onClick={() => chooseView(view, name)}
             >
-              <Icon name={ICONS[name]} />
+              <Icon name={name} />
               <span className="modern-label">{viewName(name)}</span>
             </button>
           );

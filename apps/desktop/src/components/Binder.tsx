@@ -443,6 +443,7 @@ export function Binder(props: BinderProps): ReactNode {
       items.push({
         key: 'synopsis',
         label: t`Edit synopsis`,
+        separatorBefore: items.length > 0,
         onSelect: () => {
           choose(node.id);
           onFocusSynopsis();
@@ -475,7 +476,7 @@ export function Binder(props: BinderProps): ReactNode {
     if (isMovable(node)) {
       // The keyboard's moves, as menu entries, so a writer who does not use Alt+arrow still reorders (ui-modules §0.4).
       items.push(
-        { key: 'move-up', label: t`Move up`, onSelect: () => keyboardMove(node.id, 'up') },
+        { key: 'move-up', label: t`Move up`, separatorBefore: true, onSelect: () => keyboardMove(node.id, 'up') },
         { key: 'move-down', label: t`Move down`, onSelect: () => keyboardMove(node.id, 'down') },
         { key: 'move-out', label: t`Move out of folder`, onSelect: () => keyboardMove(node.id, 'out') },
         { key: 'move-in', label: t`Move into folder above`, onSelect: () => keyboardMove(node.id, 'in') },
@@ -545,8 +546,9 @@ export function Binder(props: BinderProps): ReactNode {
           <Trans>New folder</Trans>
         </button>
       </div>
-      <ManuscriptImportActions />
-      <ScriptImportActions session={session} />
+      <ScriptImportActions session={session}>
+        <ManuscriptImportActions />
+      </ScriptImportActions>
       <BinderFilterBar session={session} />
       {filtered !== null && filtered.matchCount === 0 ? (
         <EmptyState
