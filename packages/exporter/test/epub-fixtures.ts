@@ -5,6 +5,7 @@
 
 import { addDocument, type ProjectState } from '@caotang/store';
 import { strFromU8, unzipSync } from 'fflate/browser';
+import { boilerplateFor } from '../src/boilerplate.js';
 import { figureSourcesOf, resolveFigures } from '../src/figures.js';
 import { flatten } from '../src/flatten.js';
 import { epubSpec } from '../src/picture-profile.js';
@@ -53,9 +54,13 @@ export function epubInput(overrides: Partial<EpubInput> = {}, state: ProjectStat
     template: DEFAULT_TEMPLATE,
     toc: true,
   };
+  const language = overrides.language ?? 'en';
   return {
     ...base,
-    language: 'en',
+    language,
+    // The compile resolves the heading from the project language and the recipe's override (exporter.ts, i18n.md §7.1);
+    // the fixture does the same, so a corpus book is the book the app writes.
+    contentsLabel: boilerplateFor(language).contents,
     identifier: EPUB_IDENTIFIER,
     modified: '2026-10-08T09:30:00Z',
     mtime: MTIME,

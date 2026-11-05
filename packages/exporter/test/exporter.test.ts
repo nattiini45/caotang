@@ -694,3 +694,33 @@ describe('the contents heading follows the project language (i18n.md §7.1)', ()
     expect(await navOf('ja', '   ')).toContain('<h1>目次</h1>');
   });
 });
+
+describe('the DOCX contents heading follows the project language (i18n.md §7.1)', () => {
+  const documentOf = async (language: string, recipeLabel?: string): Promise<string> => {
+    const r = rig({ bytes: true, metadata: { language } });
+    await r.exporter.ready();
+    if (recipeLabel !== undefined) {
+      holdRecipe(r, { name: 'House style', includeRootIds: ['manuscript'], format: 'docx', options: { contentsLabel: recipeLabel } });
+    }
+    const params = recipeLabel === undefined ? { format: 'docx' } : { format: 'docx', recipeName: 'House style' };
+    const output = (okValue(r.run('export.compile', params)).result as { output: string }).output;
+    await r.exporter.idle();
+    const files = unzipSync(r.bytes.get(output) ?? new Uint8Array());
+    return strFromU8(files['word/document.xml'] ?? new Uint8Array());
+  };
+
+  it('writes the German and Japanese word into word/document.xml, never the English one', async () => {
+    const de = await documentOf('de');
+    expect(de).toContain('Inhalt');
+    expect(de).not.toContain('Contents');
+    const ja = await documentOf('ja');
+    expect(ja).toContain('目次');
+    expect(ja).not.toContain('Contents');
+  });
+
+  it('lets the recipe’s own contents label win over the language’s word', async () => {
+    const overridden = await documentOf('de', 'Sommaire');
+    expect(overridden).toContain('Sommaire');
+    expect(overridden).not.toContain('Inhalt');
+  });
+});

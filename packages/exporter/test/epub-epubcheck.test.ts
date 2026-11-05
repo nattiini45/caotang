@@ -24,8 +24,16 @@ import { ID_A, ID_B, ID_F, jpgFile, pngFile, solidJpeg, solidPng } from './figur
 import { makePartsProject } from './parts-fixture.js';
 import { webpFixture } from './webp-fixtures.js';
 
-/** The six fixtures epub-metadata.md names for the metadata floor, the picture cases, and the compiled book. */
-const CORPUS: readonly { readonly name: string; readonly build: () => Promise<Uint8Array>; readonly images?: number }[] = [
+/**
+ * The six fixtures epub-metadata.md names for the metadata floor, the picture cases, and the compiled book.
+ * A `contents` entry is the contents heading the book's project language must produce (i18n.md §7.1).
+ */
+const CORPUS: readonly {
+  readonly name: string;
+  readonly build: () => Promise<Uint8Array>;
+  readonly images?: number;
+  readonly contents?: string;
+}[] = [
   {
     name: 'fixture 1: zero-config minimal book (no cover, no ISBN)',
     build: () => bytesOf(epubInput({ author: '' })),
@@ -47,8 +55,9 @@ const CORPUS: readonly { readonly name: string; readonly build: () => Promise<Ui
     build: () => bytesOf(epubInput({ modified: '2026-10-09T18:00:00Z' })),
   },
   {
-    name: 'fixture 6: a language other than English',
+    name: 'fixture 6: a German project — the contents page reads Inhalt',
     build: () => bytesOf(epubInput({ language: 'de', author: 'M. Ortega' })),
+    contents: 'Inhalt',
   },
   {
     name: 'fixture 7: a PNG figure',
@@ -121,6 +130,11 @@ const CORPUS: readonly { readonly name: string; readonly build: () => Promise<Ui
     },
     images: 1,
   },
+  {
+    name: 'fixture 13: a Japanese project — the contents page reads 目次',
+    build: () => bytesOf(epubInput({ language: 'ja', author: 'M. Ortega' })),
+    contents: '目次',
+  },
 ];
 
 /** The bytes of one render, from the input the fixture builds. */
@@ -166,6 +180,17 @@ describe('the epubcheck gate — EPUB 3.3, zero errors on the corpus', () => {
       const chapters = names.filter((name) => /OEBPS\/chapter-\d+\.xhtml$/.test(name));
       expect(chapters.length, book.name).toBeGreaterThan(0);
       expect(strFromU8(files['mimetype'] ?? new Uint8Array()), book.name).toBe('application/epub+zip');
+    }
+  });
+
+  it('writes the project language’s contents heading in every corpus book that has one (de Inhalt, ja 目次)', async () => {
+    const localised = CORPUS.filter((book) => book.contents !== undefined);
+    expect(localised.map((book) => book.contents)).toEqual(['Inhalt', '目次']);
+    for (const book of localised) {
+      const files = unzipSync(await book.build());
+      const nav = strFromU8(files['OEBPS/nav.xhtml'] ?? new Uint8Array());
+      expect(nav, book.name).toContain(`<h1>${book.contents ?? ''}</h1>`);
+      expect(nav, book.name).not.toContain('<h1>Contents</h1>');
     }
   });
 
