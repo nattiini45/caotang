@@ -34,8 +34,8 @@ This program will not transfer any information to other networked systems unless
 ## Releases and approval
 
 1. A version tag starts the desktop release workflow, which builds the packages from source in CI and uploads them as workflow artifacts.
-2. With signing enabled, the workflow submits the Windows artifact to SignPath. The request waits until an approver approves it by hand in SignPath; nothing is signed automatically.
-3. SignPath checks that the artifact came from this repository's workflow, signs it and returns it to the workflow.
+2. With signing enabled, the workflow signs Windows in two passes, because the installer contains `Caotang.exe` and SignPath cannot sign inside an installer: it submits `Caotang.exe` to SignPath, builds the installer around the signed `Caotang.exe`, then submits the installer. Each request waits until an approver approves it by hand in SignPath; nothing is signed automatically.
+3. SignPath checks that each artifact came from this repository's workflow, signs it and returns it to the workflow, which publishes the signed installer with the SHA-256 of the signed file.
 
 ## Uninstalling
 

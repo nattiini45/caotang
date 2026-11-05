@@ -12,7 +12,11 @@ import { describe, expect, it } from 'vitest';
 const root = resolve(__dirname, '..');
 const read = (path: string): string => readFileSync(resolve(root, path), 'utf8').split('\r\n').join('\n');
 /** Text with its markup removed and its whitespace collapsed, as a reader sees it. */
-const plain = (html: string): string => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
+const plain = (html: string): string =>
+  html
+    .replace(/<[^>]+>/g, '')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ');
 
 const REQUIRED = 'Free code signing provided by SignPath.io, certificate by SignPath Foundation';
 const PRIVACY =
@@ -66,20 +70,41 @@ describe('the desktop release workflow', () => {
     expect(workflow).not.toMatch(/tags: \['v\*'\]/);
   });
 
+  const SIGNING_JOBS = ['sign-windows-exe', 'sign-windows-installer'];
+
   it('keeps signing switched off until SIGNPATH_ENABLED is true', () => {
-    const sign = jobBlock(workflow, 'sign-windows');
-    expect(sign).toContain("if: ${{ vars.SIGNPATH_ENABLED == 'true' }}");
-    expect(sign).toContain('needs: build-windows');
+    for (const id of SIGNING_JOBS) expect(jobBlock(workflow, id), id).toContain("if: ${{ vars.SIGNPATH_ENABLED == 'true' }}");
+    expect(jobBlock(workflow, 'sign-windows-exe')).toContain('needs: build-windows');
   });
 
-  it('pins the SignPath action to a full commit SHA and gives its job no write access', () => {
-    const sign = jobBlock(workflow, 'sign-windows');
-    const uses = /uses: signpath\/github-action-submit-signing-request@(\S+)/.exec(sign);
-    expect(uses?.[1]).toMatch(/^[0-9a-f]{40}$/);
-    expect(sign).not.toMatch(/: write/);
-    expect(sign).toContain('environment: code-signing');
-    expect(sign).toContain('api-token: ${{ secrets.SIGNPATH_API_TOKEN }}');
-    expect(sign).toContain('wait-for-completion: true');
+  it('pins the SignPath action to a full commit SHA and gives its jobs no write access', () => {
+    for (const id of SIGNING_JOBS) {
+      const sign = jobBlock(workflow, id);
+      const uses = /uses: signpath\/github-action-submit-signing-request@(\S+)/.exec(sign);
+      expect(uses?.[1], id).toMatch(/^[0-9a-f]{40}$/);
+      expect(sign, id).not.toMatch(/: write/);
+      expect(sign, id).toContain('environment: code-signing');
+      expect(sign, id).toContain('api-token: ${{ secrets.SIGNPATH_API_TOKEN }}');
+      expect(sign, id).toContain('wait-for-completion: true');
+    }
+  });
+
+  it('signs Caotang.exe before the installer is built around it, then signs the installer and writes its SHA-256 again', () => {
+    expect(jobBlock(workflow, 'sign-windows-exe')).toContain('github-artifact-id: ${{ needs.build-windows.outputs.exe-artifact-id }}');
+    const installer = jobBlock(workflow, 'package-windows-installer');
+    expect(installer).toContain('needs: [build-windows, sign-windows-exe]');
+    expect(installer).toContain("needs.sign-windows-exe.result == 'success' || (needs.sign-windows-exe.result == 'skipped' && vars.SIGNPATH_ENABLED != 'true')");
+    expect(installer).toContain('name: caotang-windows-exe-signed');
+    const sign = jobBlock(workflow, 'sign-windows-installer');
+    expect(sign).toContain('needs: [build-windows, package-windows-installer]');
+    expect(sign).toContain('github-artifact-id: ${{ needs.package-windows-installer.outputs.installer-artifact-id }}');
+    expect(sign.indexOf('sha256sum')).toBeGreaterThan(sign.indexOf('signpath/github-action-submit-signing-request'));
+  });
+
+  it('hashes the macOS and Linux packages with a Bash glob, not GNU-only find options', () => {
+    const build = jobBlock(workflow, 'build-mac-linux');
+    expect(build).toContain('packages=(*.dmg *.AppImage)');
+    expect(build).not.toMatch(/\bfind\b.*-print0/);
   });
 
   it('holds only read permission at the workflow level and in the build jobs', () => {
@@ -87,6 +112,7 @@ describe('the desktop release workflow', () => {
     expect(header).toContain('permissions:\n  contents: read');
     expect(jobBlock(workflow, 'build-windows')).not.toContain('permissions:');
     expect(jobBlock(workflow, 'build-mac-linux')).not.toContain('permissions:');
+    expect(jobBlock(workflow, 'package-windows-installer')).not.toContain('permissions:');
   });
 });
 

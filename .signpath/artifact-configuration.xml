@@ -9,16 +9,17 @@
 
   Electron's and Chromium's own DLLs inside the installer are upstream binaries and are not signed here.
 
-  Open point (#401 decides it): the NSIS installer embeds Caotang.exe, and SignPath cannot sign inside an NSIS installer.
-  So the release signs in two passes with this one configuration: first win-unpacked/Caotang.exe (before the installer
-  is built from it), then the installer. Each entry is optional (min-matches="0") so either pass validates.
+  The NSIS installer embeds Caotang.exe, and SignPath cannot sign inside an NSIS installer, so the release signs in two
+  passes with this one configuration (.github/workflows/desktop-release.yml): first Caotang.exe from the unpacked app, alone
+  at the root of its artifact; then the installer, built from the unpacked app with the signed Caotang.exe in it, alone at
+  the root of its artifact. Each entry is optional (min-matches="0") so either pass validates.
 -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <parameters>
     <parameter name="version" required="true" />
   </parameters>
   <zip-file>
-    <pe-file path="win-unpacked/Caotang.exe" min-matches="0" product-name="Caotang" product-version="${version}">
+    <pe-file path="Caotang.exe" min-matches="0" product-name="Caotang" product-version="${version}">
       <authenticode-sign />
     </pe-file>
     <pe-file path="Caotang-Setup-${version}.exe" min-matches="0" product-name="Caotang" product-version="${version}">
