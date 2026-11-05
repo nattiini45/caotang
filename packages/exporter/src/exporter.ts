@@ -436,6 +436,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
     const pictures = picturesPlanOf(state, request, flat.blocks, request.base);
     notes.push(...pictures.notes);
 
+    const boilerplate = boilerplateFor(metadata.language, { contents: request.options.contentsLabel });
     const input: RenderInput = {
       blocks: flat.blocks,
       title,
@@ -443,7 +444,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
       date,
       template,
       toc: tocIncluded && request.format !== 'epub',
-      contentsLabel: boilerplateFor(metadata.language, { contents: request.options.contentsLabel }).contents,
+      contentsLabel: boilerplate.contents,
+      boilerplate,
       ...(pictures.mode === undefined ? {} : { pictures: pictures.mode }),
       ...(pictures.assetsDir === undefined ? {} : { assetsDir: pictures.assetsDir }),
     };
@@ -581,7 +583,10 @@ export function createExporter(options: ExporterOptions): ExporterService {
       const state = options.readState();
       requireKnownNodes(state, selection.includeRootIds);
       const label = selection.includeRootIds.includes('manuscript') ? 'manuscript' : 'selection';
-      const base = fileStem(outputTitle(state, selection.includeRootIds, state.manifest.project.name));
+      const base = fileStem(
+        outputTitle(state, selection.includeRootIds, state.manifest.project.name),
+        boilerplateFor(state.manifest.project.language).untitled,
+      );
       const compiled = plan(state, {
         selection,
         format,
@@ -735,7 +740,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
     // so its file is the book's title, which is what a compile without a recipe has always been named. A part is named for what it
     // holds, so a recipe does not rename it.
     const namedByRecipe = recipe !== undefined && request.selection.kind === 'manuscript' && recipe.name !== DEFAULT_RECIPE.name;
-    const base = namedByRecipe ? fileStem(recipe.name) : fileStem(outputTitle(state, includeRootIds, state.manifest.project.name));
+    const untitled = boilerplateFor(state.manifest.project.language).untitled;
+    const base = namedByRecipe ? fileStem(recipe.name) : fileStem(outputTitle(state, includeRootIds, state.manifest.project.name), untitled);
 
     return {
       format,

@@ -153,7 +153,11 @@ export const BUDGET = {
   // With #364 merged on #363: 7,755,060 bytes measured.
   // #361 (the write surfaces) merged on #363 and #364: 7,756,925 bytes measured; the ceiling stays 7,760,000.
   // #360 (the sidebar) merged on #363, #364, #361 and the rest of wave 2: 7,756,908 bytes measured; the ceiling stays 7,760,000.
-  totalJs: 7_760_000,
+  // 7,761.9 kB measured with the EPUB landmarks navigation and the localised boilerplate (#200), against 7,757.7 kB before it: the
+  // 20-language table's landmark, begin-reading, cover and untitled words and its chapter pattern, plus `cover.xhtml`, in the
+  // lazily loaded exporter chunk. The first load did not move (1,027.0 kB gzip, as before). The ceiling rises once, by the measured
+  // amount rounded up to the thousand: 7,760,000 + 6,000.
+  totalJs: 7_766_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

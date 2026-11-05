@@ -3,7 +3,7 @@
  * inputs and the packing helper, so importing it registers no suites.
  */
 
-import { addDocument, type ProjectState } from '@caotang/store';
+import { addDocument, addFolder, createEmptyManifest, createProjectState, type ProjectState } from '@caotang/store';
 import { strFromU8, unzipSync } from 'fflate/browser';
 import { boilerplateFor } from '../src/boilerplate.js';
 import { figureSourcesOf, resolveFigures } from '../src/figures.js';
@@ -14,7 +14,7 @@ import { renderEpub, type EpubCover, type EpubInput } from '../src/render-epub.j
 import type { RenderInput } from '../src/render-input.js';
 import { DEFAULT_TEMPLATE } from '../src/template.js';
 import type { FlatBlock } from '../src/types.js';
-import { IDS, makeProject, OPENED, PROJECT_NAME } from './fixture.js';
+import { BODIES, IDS, makeProject, OPENED, PROJECT_NAME } from './fixture.js';
 
 /** A `urn:uuid:` identifier, as the store mints one. */
 export const EPUB_IDENTIFIER = 'urn:uuid:3f2a9c1e-8b4d-4a5e-9c7f-2d1e0a9b8c7d';
@@ -55,12 +55,14 @@ export function epubInput(overrides: Partial<EpubInput> = {}, state: ProjectStat
     toc: true,
   };
   const language = overrides.language ?? 'en';
+  const boilerplate = boilerplateFor(language);
   return {
     ...base,
     language,
     // The compile resolves the heading from the project language and the recipe's override (exporter.ts, i18n.md §7.1);
     // the fixture does the same, so a corpus book is the book the app writes.
-    contentsLabel: boilerplateFor(language).contents,
+    contentsLabel: boilerplate.contents,
+    boilerplate,
     identifier: EPUB_IDENTIFIER,
     modified: '2026-10-08T09:30:00Z',
     mtime: MTIME,
@@ -85,6 +87,24 @@ export function figureBody(file: string, alt: string, caption: string): string {
 export function figureProject(body: string): ProjectState {
   const state = makeProject();
   addDocument(state, { parentId: IDS.chapterOne, title: 'The Pier', body, now: OPENED, id: 'n_PIERC00001' });
+  return state;
+}
+
+/**
+ * A project that exercises the words a compile generates (i18n.md §7.1): a loose scene with no title, a folder-chapter with no
+ * title, and a typed title that must come out exactly as the writer wrote it, in every language.
+ */
+export function untitledProject(): ProjectState {
+  const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED));
+  state.manifest.project.id = 'p_9XK2M4Q7RZ';
+
+  addDocument(state, { parentId: 'manuscript', title: '', body: BODIES.prologue, now: OPENED, id: 'n_LOOSE00001' });
+  addFolder(state, { parentId: 'manuscript', title: '', now: OPENED, id: 'n_CHAPTER001' });
+  addDocument(state, { parentId: 'n_CHAPTER001', title: 'The Harbour', body: 'The ferry came in.', now: OPENED, id: 'n_HARBOUR001' });
+  addFolder(state, { parentId: 'manuscript', title: 'The Harbour', now: OPENED, id: 'n_CHAPTER002' });
+  addDocument(state, { parentId: 'n_CHAPTER002', title: '', body: 'Light, at last.', now: OPENED, id: 'n_SECTION001' });
+  const section = state.manifest.tree.find((node) => node.id === 'n_SECTION001');
+  if (section !== undefined) section.style = 'section';
   return state;
 }
 

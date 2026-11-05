@@ -19,7 +19,8 @@
  */
 
 import { anchorOf } from './template.js';
-import { chapterHeadings, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
+import { generatedChapterHeading } from './boilerplate.js';
+import { boilerplateOf, chapterHeadings, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, plainProse } from './prose.js';
 import { rewriteMarkdownImages, type MarkdownPicturesMode } from './markdown-pictures.js';
 
@@ -38,6 +39,7 @@ function bodyOf(input: RenderInput, body: string, notes: string[]): string {
 export function renderMarkdown(input: RenderInput, notes: string[] = []): string {
   const lines: string[] = [];
   const headings = chapterHeadings(input);
+  const words = boilerplateOf(input);
   let contentsWritten = false;
 
   const writeContents = (): void => {
@@ -72,7 +74,7 @@ export function renderMarkdown(input: RenderInput, notes: string[] = []): string
         break;
       }
       case 'scene': {
-        const section = sectionTitle(block);
+        const section = sectionTitle(block, words.untitled);
         if (section !== undefined) lines.push(`${hashes(depth + 2)} ${section}`, '');
         // The body *is* Markdown, so it is written as the author wrote it. Only the blank lines that would leave a gap
         // under the heading are dropped and the file's own trailing newlines are trimmed; the leading indentation of the
@@ -100,6 +102,7 @@ export function renderText(input: RenderInput): string {
   const lines: string[] = [];
   const separator = input.template.separator.plain;
   const byBlock = headingsByBlock(input);
+  const words = boilerplateOf(input);
 
   input.blocks.forEach((block, index) => {
     switch (block.kind) {
@@ -110,16 +113,20 @@ export function renderText(input: RenderInput): string {
           lines.push(input.date, '');
         }
         break;
-      case 'chapter':
-        lines.push(
-          block.part === true
-            ? (byBlock.get(index)?.label ?? block.title).toUpperCase()
-            : `CHAPTER ${block.number}. ${block.title.toUpperCase()}`,
-          '',
-        );
+      case 'chapter': {
+        // The house style is capitals, and the chapter word is the project language's (i18n.md §7.1): "KAPITEL 1", "1章".
+        // A title the writer typed is only uppercased; a title left blank leaves the generated heading alone.
+        if (block.part === true) {
+          lines.push((byBlock.get(index)?.label ?? block.title).toUpperCase(), '');
+          break;
+        }
+        const head = generatedChapterHeading(words, block.number).toUpperCase();
+        const title = block.title.trim().toUpperCase();
+        lines.push(title === '' ? head : `${head}. ${title}`, '');
         break;
+      }
       case 'scene': {
-        const section = sectionTitle(block);
+        const section = sectionTitle(block, words.untitled);
         if (section !== undefined) lines.push(section.toUpperCase(), '');
         // A figure is the `[Picture: caption]` line unless the recipe drops pictures (pictures.md §4).
         const pictures = input.pictures === 'drop' ? 'drop' : 'placeholder';

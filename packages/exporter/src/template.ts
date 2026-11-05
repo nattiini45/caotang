@@ -109,8 +109,9 @@ function trimEndDotsAndSpaces(text: string): string {
  * artifact folder may be synced to. Reserved characters and control characters
  * become spaces; trailing dots and spaces go (Windows drops them); the stem is
  * capped; and the three-letter device names get a leading underscore.
+ * A title with nothing left is the project language's word for an untitled document (i18n.md §7.1), "Untitled" by default.
  */
-export function fileStem(title: string): string {
+export function fileStem(title: string, untitled = 'Untitled'): string {
   const collapsed = [...title]
     .map((ch) => (ch.charCodeAt(0) < 32 || FORBIDDEN_IN_FILENAME.includes(ch) ? ' ' : ch))
     .join('')
@@ -119,7 +120,7 @@ export function fileStem(title: string): string {
   const cleaned = trimEndDotsAndSpaces(collapsed)
     .slice(0, 120)
     .trim();
-  if (cleaned.length === 0) return 'Untitled';
+  if (cleaned.length === 0) return untitled;
   return RESERVED_WINDOWS_NAME.test(cleaned) ? `_${cleaned}` : cleaned;
 }
 

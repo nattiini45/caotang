@@ -189,7 +189,8 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     expect(BUDGET.css?.caps['modern-shell']).toBe(94_500);
     expect(BUDGET.css?.entryMargin).toBe(0.01);
     expect(BUDGET.modernFirstLoadDelta).toBe(33_230);
-    expect(BUDGET.totalJs).toBe(7_760_000);
+    // 7,766,000 after #200 raised the ceiling by the exporter boilerplate table's measured 4.2 kB (the first load did not move).
+    expect(BUDGET.totalJs).toBe(7_766_000);
   });
 });
 
