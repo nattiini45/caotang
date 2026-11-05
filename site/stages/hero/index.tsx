@@ -11,9 +11,9 @@ import { Glyph } from '../icons'
 // payoff). The page is the hero: inset from both sides, it runs off the stage's foot into the page below. The agent window is the
 // satellite over the page's right margin, whole, never over the words.
 //
-// The ghost capsule is drawn as the Modern spec intends it (modern-interface.md §7.3, e2e/modern-homes.ts "ghost-bar": a glass capsule
-// pinned inside the page above the bottom ornament, one primary, Apply). Today's app still draws Classic's bar there; re-check this
-// still after #361 lands so the picture never shows a better UI than the product.
+// The ghost capsule is drawn as Modern's bar (e2e/modern-homes.ts "ghost-bar": a glass capsule pinned inside the page above the bottom
+// ornament, one primary, Apply). Its buttons are the known drift in site/REHEARSAL.md: the app keeps Retry and Discard under More, and
+// the picture stays as it was drawn (owner decision, docs/decisions.md).
 //
 // Each label sits in its own span inside its pill or button, so the words are measured from the pill they sit in.
 //

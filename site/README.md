@@ -1,6 +1,8 @@
 # caotang.app, the landing page
 
 Static HTML and CSS. No script runs on the page: its Content-Security-Policy keeps `script-src 'none'` and `style-src 'self'`.
+That is the owner's decision rather than an unfinished step: there is no script, no film and no motion on the landing, and the stills
+are the final pictures ([docs/architecture/landing.md](../docs/architecture/landing.md), `docs/decisions.md`).
 
 - `index.html`, `landing.css`, `llms.txt`, `robots.txt`, `sitemap.xml`, `favicon.svg`: the page, published as they are.
 - `stages/`: the product pictures, each a Stageshow stage (React) built with the vendored kit in `stageshow-kit/`. They are rendered to

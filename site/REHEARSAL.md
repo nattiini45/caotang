@@ -1,14 +1,16 @@
 # Rehearsal: caotang.app product pictures (#359)
 
 Eight stills on one page, rendered at build time (no script): the hero (wide and compact), the Board (wide and compact), and the
-Local-first, Binder, Export and Codex & Findings tiles. Every one is a poster: there is no motion on this page until the owner relaxes
-`script-src 'none'` (PLAN.md, L2), so there are no beats, no loop and no reduced-motion difference to film.
+Local-first, Binder, Export and Codex & Findings tiles. Every one is a poster: the page runs no script and gets none (owner decision,
+`docs/decisions.md`; `docs/architecture/landing.md` §D), so there are no beats, no loop and no reduced-motion difference to film.
 
-**Motion is L2.** Caspar agreed (2026-11-02) that the landing may later run its own self-hosted script (about 100 kB) for animated demos; that is a separate follow-up, and these stills become its poster frames and no-JS fallback (each stage is rendered with `renderToString` into a `[data-stage]` root, and `stages/render.tsx` exports the `STAGES` map a client entry would hydrate).
+**These stills are the final pictures.** Motion is not planned: the owner withdrew the self-hosted script that was once considered,
+and nothing on the page waits for one. A change to a picture is a change to the picture.
 
-**hero: re-check after #361 and #363.** The hero draws the ghost capsule and the agent window as the Modern spec intends them; the app
-still draws Classic's bar there (#361) and the agent window is being reworked (#363). Re-film it against the app once both land, so
-the picture never shows a better UI than the product.
+**Known drift: the hero's capsule.** The hero draws Retry and Discard as buttons beside Apply, and a glass capsule with a word count
+("Draft · 51 words"). The app since #373 shows Apply, with Retry and Discard under a More disclosure, on one raised surface
+(`editor-modern.css`, the ghost bar). The picture keeps the older bar; it was not re-filmed by owner decision (D2), and the landing
+ship records it as a deferred issue.
 
 ## Gold
 
@@ -64,7 +66,8 @@ dark. The hero (wide, compact) stops at the two `uneven gutters` lines above in 
 
 ## Assumptions
 
-- The hero shows the Modern spec's ghost capsule (modern-interface.md §7.3) and agent window, not today's app (see the top).
+- The hero's capsule and agent window follow Modern's spec (`modern-interface.md` §7); the capsule's buttons are the known drift
+  above, kept as the picture was drawn.
 - Cursor positions in the hero and Board stills are fixed in CSS from the built layout (the page runs no script to measure them).
 
 ## Unresolved
@@ -76,4 +79,4 @@ dark. The hero (wide, compact) stops at the two `uneven gutters` lines above in 
 - Chromium and WebKit rendering of the page (Firefox only here; CI does not film the landing).
 - A real phone (390 is a desktop Firefox viewport).
 - Reduced transparency and forced colours on the landing (the page has no such switch; the pictures use the system's colour scheme only).
-- Motion: none exists yet.
+- Motion: none is planned (owner decision, `docs/decisions.md`).

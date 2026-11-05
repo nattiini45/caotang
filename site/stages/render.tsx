@@ -26,8 +26,8 @@ export const CSS_FILES = [
 ]
 
 /**
- * Every stage by the name its marker uses. L2's motion island imports this same map in the browser and hydrates each
- * `[data-stage]` root the build wrote (hydrateRoot(root, <STAGES[name] />)), so the stills are its poster frames and no-JS fallback.
+ * Every stage by the name its marker uses, so `tools/build-site.mjs` can put each one where `site/index.html` has its
+ * `<!-- stage:name -->` marker.
  */
 export const STAGES: Record<string, () => ReactElement> = {
   hero: Hero,
@@ -42,7 +42,7 @@ export const STAGES: Record<string, () => ReactElement> = {
 
 /**
  * Each stage's markup, by the name its `<!-- stage:name -->` marker in site/index.html uses. renderToString rather than static markup,
- * so the HTML is what React can hydrate later (L2); today nothing does.
+ * so each picture is one component rendered once at build time.
  */
 export function renderAll(): Record<string, string> {
   return Object.fromEntries(Object.entries(STAGES).map(([name, Component]) => [name, renderToString(<Component />)]))
