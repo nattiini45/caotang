@@ -84,4 +84,9 @@ describe('the issue-labels workflow', () => {
     expect(workflow).toContain('TRIAGE_LABEL: needs-triage');
     expect(workflow).not.toMatch(/createComment|removeAllLabels|setLabels/);
   });
+
+  it('takes the Area answer only when an issue is opened, edited or reopened, so a label removed by hand stays removed', () => {
+    expect(workflow).toContain("const applyAreas = ['opened', 'edited', 'reopened'].includes(context.payload.action);");
+    expect(workflow).toContain('const wanted = applyAreas ?');
+  });
 });
