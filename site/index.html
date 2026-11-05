@@ -335,6 +335,27 @@
           </div>
         </div>
       </section>
+
+      <section id="code-signing" class="band">
+        <div class="wrap">
+          <h2>Code signing policy</h2>
+          <p>
+            Free code signing provided by <a href="https://about.signpath.io">SignPath.io</a>, certificate by
+            <a href="https://signpath.org">SignPath Foundation</a>. This covers the Windows builds of Caotang for desktop, which is not released
+            yet; until SignPath Foundation accepts the project, those builds ship unsigned with SHA-256 checksums.
+          </p>
+          <p>
+            Authors, reviewers and approvers: <a href="https://github.com/nattiini45">@nattiini45</a>, who reviews every pull request from
+            anyone else and approves each signing request by hand. Only binaries built by the repository's own CI from its public source are signed.
+          </p>
+          <p>
+            Privacy: this program will not transfer any information to other networked systems unless specifically requested by the user or
+            the person installing or operating it. Calls to an AI provider go only to the provider you set up, with your own key, and MCP
+            connections go only to the servers you configure. The full policy is in
+            <a href="https://github.com/nattiini45/caotang/blob/main/docs/CODE-SIGNING.md">CODE-SIGNING.md</a>.
+          </p>
+        </div>
+      </section>
     </main>
 
     <footer>
@@ -345,7 +366,8 @@
           <a href="https://github.com/nattiini45/caotang/blob/main/docs/ROADMAP.md">Roadmap</a> ·
           <a href="https://github.com/nattiini45/caotang/blob/main/CHANGELOG.md">Changelog</a> ·
           <a href="/llms.txt">llms.txt</a> ·
-          <a href="/notices.txt">Notices</a>
+          <a href="/notices.txt">Notices</a> ·
+          <a href="#code-signing">Code signing policy</a>
         </span>
       </div>
     </footer>

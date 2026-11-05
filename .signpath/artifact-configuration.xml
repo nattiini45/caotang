@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DRAFT (#409). The SignPath artifact configuration for Caotang for desktop on Windows; docs/CODE-SIGNING.md is the policy it serves.
+  Paste it into the SignPath project once SignPath Foundation accepts the project. Nothing reads this file in CI.
+
+  The root is a <zip-file> because actions/upload-artifact uploads a ZIP. The workflow passes `version` (the tag without
+  `desktop-v`, e.g. 0.1.0), so every signed file must carry that exact product version and the product name "Caotang"
+  (SignPath Foundation's file metadata restrictions).
+
+  Electron's and Chromium's own DLLs inside the installer are upstream binaries and are not signed here.
+
+  Open point (#401 decides it): the NSIS installer embeds Caotang.exe, and SignPath cannot sign inside an NSIS installer.
+  So the release signs in two passes with this one configuration: first win-unpacked/Caotang.exe (before the installer
+  is built from it), then the installer. Each entry is optional (min-matches="0") so either pass validates.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="win-unpacked/Caotang.exe" min-matches="0" product-name="Caotang" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="Caotang-Setup-${version}.exe" min-matches="0" product-name="Caotang" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

@@ -665,9 +665,10 @@ section[id] {
   }
 }
 
-/* Who makes it: the same reading edge as every section, the measure kept on the paragraphs. */
+/* Who makes it and the code signing policy: the same reading edge as every section, the measure kept on the paragraphs. */
 
-#who p {
+#who p,
+#code-signing p {
   max-width: 72ch;
   color: var(--ink-soft);
 }
