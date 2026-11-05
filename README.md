@@ -303,6 +303,10 @@ The agent can also run from a Node script, a CLI or CI, against a project folder
 
 Caotang was built with AI coding agents under the owner's direction. Every decision tagged [owner] in [docs/decisions.md](docs/decisions.md) was made by a person.
 
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). It will cover the Windows builds of Caotang for desktop once SignPath Foundation accepts the project. Authors, reviewers and approvers: [@nattiini45](https://github.com/nattiini45). This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. [docs/CODE-SIGNING.md](docs/CODE-SIGNING.md) is the full policy.
+
 ## License
 
 Caotang is released under the MIT License. See [LICENSE](LICENSE). [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists the third-party packages in the builds, with their licenses. Run `node tools/third-party-notices.mjs --write` to regenerate it. A test fails when the committed copy no longer matches the lockfile.

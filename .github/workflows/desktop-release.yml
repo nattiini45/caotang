@@ -1,0 +1,341 @@
+# DRAFT (#401, #409). Builds the Caotang for desktop packages from the tagged source when a desktop-v<version> tag is pushed, and
+# submits the Windows files to SignPath for signing once signing is switched on. docs/CODE-SIGNING.md is the policy it serves.
+#
+# Details that are load-bearing rather than tidy:
+#   - The desktop shell (apps/desktop-shell, #399/#400) does not exist yet. Until it does, the build job stops at its first check with
+#     a plain error, so a stray tag publishes nothing. #401 fills in the packaging commands (electron-builder: NSIS, DMG, AppImage)
+#     where this file says so, and adds the draft GitHub release; this file only fixes the shape signing needs.
+#   - Tags are desktop-v<version>, never v<version>: release.yml owns v* tags for the MCP and command-line bundles, and the two
+#     releases must not start each other. The version must equal apps/desktop-shell/package.json's, because SignPath enforces it as
+#     every signed file's product version (.signpath/artifact-configuration.xml).
+#   - Everything that is signed is built here, on GitHub-hosted runners, from the tagged commit; SignPath's GitHub connector checks
+#     that, and SignPath Foundation requires it. Nothing built elsewhere is submitted.
+#   - Windows signs in two passes, because the NSIS installer embeds Caotang.exe and SignPath cannot sign inside an NSIS installer:
+#     build-windows packages the unpacked app; sign-windows-exe signs its Caotang.exe; package-windows-installer builds the
+#     installer from the unpacked app with that signed Caotang.exe in it; sign-windows-installer signs the installer and writes the
+#     SHA-256 of the signed file. With signing off, both signing jobs are skipped and package-windows-installer builds the unsigned
+#     installer from the unsigned Caotang.exe.
+#   - The `sign-windows-exe` and `sign-windows-installer` jobs run only when the repository variable SIGNPATH_ENABLED is 'true',
+#     which stays unset until SignPath Foundation has accepted the project and the SignPath project exists. Until then they are
+#     skipped and the packages stay unsigned. Their one third-party action, signpath/github-action-submit-signing-request, is pinned
+#     to a full commit SHA (v3.0, published 2026-09-10). Each holds `actions: read` and `contents: read` and nothing else: no write
+#     access to the repository. They run in the `code-signing` environment, which holds the SIGNPATH_API_TOKEN secret, so no other
+#     job can read the token.
+#   - Each signing request waits for an approver to approve it by hand in SignPath (SignPath Foundation's rule); each signing job
+#     waits up to an hour for that and then fails, so an unapproved release does not ship half-signed.
+#   - The organization id, the project slug, the signing policy slug and the artifact configuration slug are repository variables
+#     (SIGNPATH_ORGANIZATION_ID, SIGNPATH_PROJECT_SLUG, SIGNPATH_SIGNING_POLICY_SLUG, SIGNPATH_ARTIFACT_CONFIGURATION_SLUG), not
+#     values written here, so turning signing on needs no change to this file.
+name: desktop-release
+
+on:
+  push:
+    tags: ['desktop-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Windows has its own jobs so artifact ids and the version reach the signing jobs as plain outputs (a matrix job's outputs come
+  # from whichever leg finishes last).
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      exe-artifact-id: ${{ steps.upload-exe.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check that the desktop shell exists (#399, #400)
+        shell: bash
+        run: |
+          if [ ! -f apps/desktop-shell/package.json ]; then
+            echo "::error::apps/desktop-shell does not exist yet (#399, #400), so there is nothing to package. Nothing was released."
+            exit 1
+          fi
+
+      - name: Check that the tag names the desktop shell's version
+        id: version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#desktop-v}"
+          shell_version="$(node -p "require('./apps/desktop-shell/package.json').version")"
+          if [ "$version" != "$shell_version" ]; then
+            echo "::error::The tag $TAG names $version, but apps/desktop-shell/package.json is $shell_version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, typecheck, unit tests
+        run: pnpm verify
+
+      # #401 replaces this step with the electron-builder call that packages the app without an installer (--dir). It must leave
+      # apps/desktop-shell/release/win-unpacked/ with Caotang.exe in it.
+      - name: Package the unpacked app (filled in by #401)
+        shell: bash
+        run: pnpm --filter @caotang/desktop-shell run "package:win:dir"
+
+      # Only Caotang.exe goes to SignPath, at the root of its artifact, where .signpath/artifact-configuration.xml expects it.
+      - name: Upload the unsigned Caotang.exe (what the first signing pass is given)
+        id: upload-exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: caotang-windows-exe-unsigned
+          path: apps/desktop-shell/release/win-unpacked/Caotang.exe
+          if-no-files-found: error
+
+      - name: Upload the unpacked app (the installer is built from it)
+        uses: actions/upload-artifact@v7
+        with:
+          name: caotang-windows-unpacked
+          path: apps/desktop-shell/release/win-unpacked/
+          if-no-files-found: error
+
+  sign-windows-exe:
+    needs: build-windows
+    # Off until SignPath Foundation has accepted the project (docs/CODE-SIGNING.md, "Turning signing on").
+    if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    environment: code-signing
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Submit Caotang.exe to SignPath and wait for a person to approve it
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ needs.build-windows.outputs.exe-artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+          parameters: |
+            version: ${{ toJSON(needs.build-windows.outputs.version) }}
+
+      - name: Upload the signed Caotang.exe
+        uses: actions/upload-artifact@v7
+        with:
+          name: caotang-windows-exe-signed
+          path: signed/Caotang.exe
+          if-no-files-found: error
+
+  # Builds the installer from the unpacked app: with the signed Caotang.exe when signing is on, the unsigned one when it is off.
+  # It must not run when signing is on but the first pass failed, so an installer never embeds an unsigned Caotang.exe by accident.
+  package-windows-installer:
+    needs: [build-windows, sign-windows-exe]
+    if: ${{ !cancelled() && needs.build-windows.result == 'success' && (needs.sign-windows-exe.result == 'success' || (needs.sign-windows-exe.result == 'skipped' && vars.SIGNPATH_ENABLED != 'true')) }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    outputs:
+      installer-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Download the unpacked app
+        uses: actions/download-artifact@v8
+        with:
+          name: caotang-windows-unpacked
+          path: apps/desktop-shell/release/win-unpacked
+
+      - name: Put the signed Caotang.exe into the unpacked app
+        if: ${{ needs.sign-windows-exe.result == 'success' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: caotang-windows-exe-signed
+          path: apps/desktop-shell/release/win-unpacked
+
+      # #401 replaces this step with the electron-builder call that builds the NSIS installer from the unpacked app
+      # (--prepackaged apps/desktop-shell/release/win-unpacked). It must leave apps/desktop-shell/release/Caotang-Setup-<version>.exe.
+      - name: Build the installer from the unpacked app (filled in by #401)
+        shell: bash
+        run: pnpm --filter @caotang/desktop-shell run "package:win:installer"
+
+      - name: Write the SHA-256 of the installer
+        shell: bash
+        working-directory: apps/desktop-shell/release
+        env:
+          VERSION: ${{ needs.build-windows.outputs.version }}
+        run: |
+          shasum -a 256 "Caotang-Setup-$VERSION.exe" > SHA256SUMS
+          cat SHA256SUMS
+
+      # The installer alone, at the root of its artifact, is what the second signing pass is given; with signing off, this artifact
+      # and its SHA256SUMS are the release.
+      - name: Upload the installer
+        id: upload-installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: caotang-windows-installer-unsigned
+          path: apps/desktop-shell/release/Caotang-Setup-${{ needs.build-windows.outputs.version }}.exe
+          if-no-files-found: error
+
+      - name: Upload the installer's SHA-256
+        uses: actions/upload-artifact@v7
+        with:
+          name: caotang-windows-installer-unsigned-sha256
+          path: apps/desktop-shell/release/SHA256SUMS
+          if-no-files-found: error
+
+  sign-windows-installer:
+    needs: [build-windows, package-windows-installer]
+    # Off until SignPath Foundation has accepted the project (docs/CODE-SIGNING.md, "Turning signing on").
+    if: ${{ vars.SIGNPATH_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    environment: code-signing
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Submit the installer to SignPath and wait for a person to approve it
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3.0
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ needs.package-windows-installer.outputs.installer-artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+          parameters: |
+            version: ${{ toJSON(needs.build-windows.outputs.version) }}
+
+      # Signing changes the installer's bytes, so its SHA-256 is written again from the signed file.
+      - name: Write the SHA-256 of the signed installer
+        working-directory: signed
+        env:
+          VERSION: ${{ needs.build-windows.outputs.version }}
+        run: |
+          sha256sum "Caotang-Setup-$VERSION.exe" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload the signed Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: caotang-windows-signed
+          path: |
+            signed/Caotang-Setup-${{ needs.build-windows.outputs.version }}.exe
+            signed/SHA256SUMS
+          if-no-files-found: error
+
+  build-mac-linux:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    # Linux (AppImage) is best-effort and non-blocking (docs/decisions.md, desktop app); macOS is signed and notarised by Apple's
+    # tools, not SignPath (#409).
+    continue-on-error: ${{ matrix.target == 'linux' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: mac
+          - os: ubuntu-latest
+            target: linux
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Check that the desktop shell exists (#399, #400)
+        shell: bash
+        run: |
+          if [ ! -f apps/desktop-shell/package.json ]; then
+            echo "::error::apps/desktop-shell does not exist yet (#399, #400), so there is nothing to package. Nothing was released."
+            exit 1
+          fi
+
+      - name: Check that the tag names the desktop shell's version
+        id: version
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#desktop-v}"
+          shell_version="$(node -p "require('./apps/desktop-shell/package.json').version")"
+          if [ "$version" != "$shell_version" ]; then
+            echo "::error::The tag $TAG names $version, but apps/desktop-shell/package.json is $shell_version."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, typecheck, unit tests
+        run: pnpm verify
+
+      # #401 replaces this step with the electron-builder call for each target.
+      - name: Package (filled in by #401)
+        shell: bash
+        run: pnpm --filter @caotang/desktop-shell run "package:${{ matrix.target }}"
+
+      # A Bash glob rather than find, so the same step runs on macOS's BSD tools and on Linux; the glob expands in sorted order.
+      - name: Write the SHA-256 of the packages
+        shell: bash
+        working-directory: apps/desktop-shell/release
+        run: |
+          shopt -s nullglob
+          packages=(*.dmg *.AppImage)
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "::error::No .dmg or .AppImage package in apps/desktop-shell/release."
+            exit 1
+          fi
+          shasum -a 256 "${packages[@]}" > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload the unsigned packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: caotang-${{ matrix.target }}-unsigned
+          path: |
+            apps/desktop-shell/release/*.dmg
+            apps/desktop-shell/release/*.AppImage
+            apps/desktop-shell/release/SHA256SUMS
+          if-no-files-found: error
