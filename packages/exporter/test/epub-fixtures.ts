@@ -3,13 +3,17 @@
  * inputs and the packing helper, so importing it registers no suites.
  */
 
+import { addDocument, type ProjectState } from '@caotang/store';
 import { strFromU8, unzipSync } from 'fflate/browser';
+import { figureSourcesOf, resolveFigures } from '../src/figures.js';
 import { flatten } from '../src/flatten.js';
+import { epubSpec } from '../src/picture-profile.js';
+import { processPictureInNode } from '../src/picture-process-node.js';
 import { renderEpub, type EpubCover, type EpubInput } from '../src/render-epub.js';
 import type { RenderInput } from '../src/render-input.js';
 import { DEFAULT_TEMPLATE } from '../src/template.js';
 import type { FlatBlock } from '../src/types.js';
-import { makeProject, PROJECT_NAME } from './fixture.js';
+import { IDS, makeProject, OPENED, PROJECT_NAME } from './fixture.js';
 
 /** A `urn:uuid:` identifier, as the store mints one. */
 export const EPUB_IDENTIFIER = 'urn:uuid:3f2a9c1e-8b4d-4a5e-9c7f-2d1e0a9b8c7d';
@@ -38,9 +42,9 @@ export function pngHeaderOf(width: number, height: number): Uint8Array {
   return bytes;
 }
 
-/** The EPUB input the exporter builds, from the shared fixture, with the test's overrides on top. */
-export function epubInput(overrides: Partial<EpubInput> = {}): EpubInput {
-  const flat: readonly FlatBlock[] = flatten(makeProject(), { includeRootIds: ['manuscript'] }, { titlePage: true }).blocks;
+/** The EPUB input the exporter builds, from a project fixture, with the test's overrides on top. */
+export function epubInput(overrides: Partial<EpubInput> = {}, state: ProjectState = makeProject()): EpubInput {
+  const flat: readonly FlatBlock[] = flatten(state, { includeRootIds: ['manuscript'] }, { titlePage: true }).blocks;
   const base: RenderInput = {
     blocks: flat,
     title: PROJECT_NAME,
@@ -65,4 +69,33 @@ export async function pack(input: EpubInput): Promise<{ files: Record<string, Ui
   const text: Record<string, string> = {};
   for (const [name, data] of Object.entries(files)) text[name] = strFromU8(data);
   return { files, text };
+}
+
+/** A scene body that places one picture from `assets/`, the way the editor writes an inline picture (pictures.md §3). */
+export function figureBody(file: string, alt: string, caption: string): string {
+  return `The pier at dusk.\n\n![${alt}](../assets/${file} "${caption}")\n\nThe ferry came in.`;
+}
+
+/** The shared fixture with one more pictured scene in Chapter One. */
+export function figureProject(body: string): ProjectState {
+  const state = makeProject();
+  addDocument(state, { parentId: IDS.chapterOne, title: 'The Pier', body, now: OPENED, id: 'n_PIERC00001' });
+  return state;
+}
+
+/**
+ * The input with its figures resolved the way a compile resolves them: the EPUB picture profile against the files an `assets/`
+ * folder holds, through Node's own codecs. `keepWebp` is the recipe's "Apple Books only" opt-in.
+ */
+export async function withFigures(
+  input: EpubInput,
+  files: Readonly<Record<string, Uint8Array>>,
+  options: { readonly keepWebp?: boolean } = {},
+): Promise<EpubInput> {
+  const figures = await resolveFigures(
+    figureSourcesOf(input.blocks),
+    { readAsset: async (path) => files[path] ?? null, process: processPictureInNode, records: new Map() },
+    { ...epubSpec(options), embed: true },
+  );
+  return { ...input, figures };
 }

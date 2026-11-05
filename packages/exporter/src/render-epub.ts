@@ -389,10 +389,10 @@ function proseXhtml(block: ProseBlock, separator: string, figures: FigurePack | 
 }
 
 /**
- * A figure as `<figure><img alt/><figcaption>` (pictures.md §4). The image sits at
- * `../images/<file>` from a chapter file; a decorative picture writes `alt=""`; a placement whose
- * file is missing, or whose payload the host could not prepare, degrades to its caption as a
- * paragraph — never a broken embed.
+ * A figure as `<figure><img alt/><figcaption>` (pictures.md §4). The image sits at `images/<file>` beside
+ * the chapter file, both under `OEBPS/`; a decorative picture writes `alt=""`; a placement whose file is
+ * missing, or whose payload the host could not prepare, degrades to its caption as a paragraph — never a
+ * broken embed.
  */
 function figureXhtml(block: Extract<ProseBlock, { kind: 'figure' }>, figures: FigurePack | undefined): string[] {
   const figure: ResolvedFigure | undefined = figures?.figures.get(block.image.url);
@@ -401,7 +401,7 @@ function figureXhtml(block: Extract<ProseBlock, { kind: 'figure' }>, figures: Fi
     return text === '' ? [] : [`<p>${escapeXml(text)}</p>`];
   }
   const alt = figure.decorative ? '' : figure.alt;
-  const img = `<img src="../images/${escapeXml(figure.image.name)}" alt="${escapeXml(alt)}"/>`;
+  const img = `<img src="images/${escapeXml(figure.image.name)}" alt="${escapeXml(alt)}"/>`;
   const caption = figure.caption === '' ? '' : `<figcaption>${escapeXml(figure.caption)}</figcaption>`;
   return [`<figure>${img}${caption}</figure>`];
 }
