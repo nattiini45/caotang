@@ -12,7 +12,7 @@
  *   - a lazy chunk on BUDGET.lazy over its own raw cap, missing from the build, or in the first load (Modern's `modern-shell`,
  *     modern-interface.md §12, loads only while Modern is on);
  *   - the entry stylesheet (the stylesheet links in index.html) more than BUDGET.css.entryMargin over BUDGET.css.entry, or a lazy
- *     stylesheet over its cap on BUDGET.css.caps (Modern's, 62 kB raw);
+ *     stylesheet over its cap on BUDGET.css.caps (Modern's, 94.5 kB raw);
  *   - "Modern first load" (the first load plus `modern-shell`'s JS and CSS, gzip) more than BUDGET.modernFirstLoadDelta over Classic's
  *     first load.
  *
@@ -167,6 +167,7 @@ export const BUDGET = {
      */
     entry: 105_500,
     entryMargin: 0.01,
+    // Current: 94,500 B raw for `modern-shell`'s stylesheet, the cap the owner recorded and asked no trim of (docs/decisions.md, "[owner 2026-11-05]").
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
     // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
@@ -186,6 +187,7 @@ export const BUDGET = {
     // 390 px, k-tonal and k-quiet). 93,531 bytes raw measured on the merge; the cap is that plus about 1%.
     caps: { 'modern-shell': 94_500 },
   },
+  // Current: 33,230 B gzip over Classic's first load, the cap the owner recorded and asked no trim of (docs/decisions.md, "[owner 2026-11-05]").
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
