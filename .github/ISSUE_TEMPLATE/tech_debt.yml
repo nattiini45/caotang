@@ -1,0 +1,57 @@
+# Type label: `labels` below. Area labels: a workflow (.github/workflows/issue-labels.yml) reads the Area answer.
+# Keep the Area options identical in every form; test/issue-labels.test.ts checks it.
+name: Tech debt
+description: A refactor or cleanup with no user-facing change.
+labels: [tech-debt]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: 'Area'
+      description: >-
+        Which parts of Caotang does this touch? Pick every one that applies.
+        A workflow adds the matching area labels after you submit.
+      multiple: true
+      options:
+        - 'area:ci — CI, tests, build'
+        - 'area:codex — Codex entries, details, references and relations'
+        - 'area:coherence — Coherence and continuity checks and findings'
+        - 'area:comics — Comic books: pages, panels, balloons, comic script and exports'
+        - 'area:editor — Editor, binder, agent UI'
+        - 'area:export — Exporters other than PDF (docx, epub, fdx, xlsx, yarn)'
+        - 'area:gateway — Model gateway: providers, routing, local models, pricing'
+        - 'area:harness — Agent harness: tools, loop, context, orchestration'
+        - 'area:i18n — Interface languages, project languages and script shaping (RTL, Indic)'
+        - 'area:import — Importers (Scrivener, docx, markdown, fdx and more) and the import dialog'
+        - 'area:mcp — MCP server and client'
+        - 'area:pdf — Screenplay PDF and storyboard contact sheet'
+        - 'area:pictures — Pictures, attachments, image assets and vision input'
+        - 'area:platform — Desktop (Tauri), hosted instance and mobile apps'
+        - 'area:scripts — Screenplay (Fountain/FDX), dialogue (Ink/Yarn) and AV scripts'
+        - 'area:site — Landing page, docs site and llms.txt on caotang.app'
+        - 'area:store — Project store: manifest, assets on disk, storage use'
+        - 'area:timeline — Story timeline view, layout package and timeline.apply'
+        - 'area:ui — General interface: layout, theme and controls no other area covers'
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 'What to change'
+      description: 'Which code, and what should it look like afterwards?'
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 'Why'
+      description: 'What does it cost today: bugs, slow changes, duplicated code?'
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: 'Risk and scope'
+      description: 'What could break, and how would we check it did not?'
+    validations:
+      required: false
