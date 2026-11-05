@@ -226,7 +226,7 @@ v0.1 is a browser app. Browsers cannot hold a user-visible folder as the working
 - **Background tasks are not part of the project.** A plan sent to the background and the drafts staged for it are kept in the app database under `task:<projectId>:<id>` (apps/desktop `task-store.ts`; ids are `task_` and 10 Crockford base32 characters). They hold text drawn from the manuscript and never a credential. A folder, a bundle and an export carry none of them, and removing the project removes its tasks.
 - **Agent run logs are not part of the project.** An agent turn is logged in the app database in two stores, `runs` and `runEvents` (agent-harness §5.1), so a reload leaves a record the writer can resume or discard. They hold the turn's messages and the documents' revisions, never a credential. A folder, a bundle and an export carry none of them, and removing the project removes its runs.
 - **Acceptance test (hard):** open artifact → mutate → export → diff against in-memory project state = empty; round-trip twice with a reorg in between = identical docs content. This test guards the "files are ownable" principle (ARCHITECTURE §1.2) without pretending the browser is a filesystem.
-- A native desktop wrap (Tauri) would promote the artifact folder to the *primary* store; this spec is already written so no format change is needed — the runtime store is a cache/view in that world, matching Principle 2 exactly.
+- A native desktop wrap (Electron) would promote the artifact folder to the *primary* store; this spec is already written so no format change is needed — the runtime store is a cache/view in that world, matching Principle 2 exactly.
 
 ## 9. Assumptions & open questions
 
