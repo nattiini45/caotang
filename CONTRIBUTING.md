@@ -122,6 +122,12 @@ The export dialog shows a refused compile beside Compile.
 
 Not "Fix bug" or "Update exporter". Use the body for the reason, when the subject does not make it obvious. One logical change per commit.
 
+## Issues
+
+Open an issue from one of the forms: Bug report, Feature request, Documentation or Tech debt. Blank issues are turned off. Each form sets the issue's type label, and asks which areas the issue touches; that answer is required, and you can pick more than one.
+
+GitHub cannot make a label required, so `.github/workflows/issue-labels.yml` does the rest. When an issue is opened or edited, it adds the `area:*` label for each area you picked. An open issue that still has no type label (`bug`, `enhancement`, `tech-debt`, `documentation`, `roadmap`, `known-limit` or `accessibility`) or no `area:*` label gets `needs-triage`, and loses it as soon as it has both. The workflow only adds area labels and never comments; a maintainer can add or remove any label by hand. To add an area, create the `area:*` label and add it to the Area options of every form (`test/issue-labels.test.ts` checks the forms agree).
+
 ## Pull requests
 
 - Keep a pull request to one change you can describe in a sentence or two.

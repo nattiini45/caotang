@@ -1,0 +1,6 @@
+# Every issue starts from a form, so it carries a type label and an Area answer (see .github/workflows/issue-labels.yml).
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/nattiini45/caotang/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue (SECURITY.md).
