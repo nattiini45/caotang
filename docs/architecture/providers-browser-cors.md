@@ -31,27 +31,30 @@ The registry's `cors` field records the swept answer; presets that cannot answer
 
 ## 3. The real-key round
 
-Preflights prove reachability, not that a provider actually answers a real account. `e2e/provider-smoke.spec.ts` is the credential check — env-gated, skipped silently without its variables, and run only locally or by a maintainer's manual dispatch in CI, never on a pull request.
+Preflights prove reachability, not that a provider actually answers a real account. `e2e/provider-smoke.spec.ts` is the credential check — opt-in behind `CAOTANG_SMOKE=1`, skipped silently without its keys, and run only locally or by a maintainer's manual dispatch in CI, never on a pull request.
 
 ```sh
-CAOTANG_SMOKE_ANTHROPIC=sk-ant-... CAOTANG_SMOKE_OPENAI=sk-... pnpm exec playwright test e2e/provider-smoke.spec.ts
+CAOTANG_SMOKE=1 CAOTANG_SMOKE_ANTHROPIC=sk-ant-... CAOTANG_SMOKE_OPENAI=sk-... pnpm exec playwright test e2e/provider-smoke.spec.ts --project=smoke
 ```
+
+The gate comes first. Without `CAOTANG_SMOKE=1`, `playwright.config.ts` adds no `smoke` project and the default projects (`chromium`, `firefox`, `webkit`, `mobile`, `production-preview`) list none of this spec, so a plain `pnpm test:e2e` never runs it; the spec itself also returns before reading any key, so it never opens the gitignored `caotang.env`. A key file on the machine therefore cannot make a normal `pnpm test:e2e` spend. Only the `smoke` project, which exists only under the gate, lists the spec.
 
 One `CAOTANG_SMOKE_<PRESET>` variable per provider, named by preset id uppercased with `-` as `_` (`CAOTANG_SMOKE_OPENROUTER`, `CAOTANG_SMOKE_ZHIPU_ZAI`, …); an empty value counts as unset. `CAOTANG_ONLY_PRESETS="anthropic deepseek"` (ids separated by spaces or commas, lowercase letters, digits and hyphens only; anything else is refused) limits the round to those presets. The spec runs in the Node worker, so it tests credentials and wire formats, not CORS. `CAOTANG_E2E_NO_SERVER=1` makes `playwright.config.ts` start no web server, which this spec does not need. For each preset with a key, the round checks, in order:
 
 1. **Model list** — `GET {baseUrl}/models` answers with the key in the preset's auth header and the parsed list is non-empty; a preset with no listing route passes on its table.
 2. **Streamed completion** — a one-line prompt streams to `stop` on the preset's default model and writes text.
 3. **Native tools** — on models whose capability row claims `tools`: a one-line prompt with a `lookup` tool declared comes back with at least one tool call. The result is not sent back.
-4. **Thinking** — on models whose row lists effort levels: every level but `off` is sent and accepted with a reply (a 400 naming the effort field is a row bug, not a provider quirk — fix the table). On Anthropic's `low`, a streamed reply must also be logged as accepted and return a readable thinking summary.
-5. **Key redaction** — the request log shows the calls, and the key appears in no log entry.
+4. **Thinking** — on models whose row lists effort levels: every level but `off` is sent and accepted with a reply (a 400 naming the effort field is a row bug, not a provider quirk — fix the table). On Anthropic's `low`, a streamed reply must also be logged as accepted. The thinking summary there is informational: a call the endpoint accepted may summarise nothing, so the round asserts on a summary only when one arrives, and its length is recorded in the job summary either way.
+5. **Prompt cache** — on models whose row caches (`explicit` or `automatic`): a long identical prefix is sent once and then up to three more times, and one of those reads part of the prompt from the provider's cache, as the usage breakdown reports it. An implicit cache is best-effort, so a write that lands on another node is not a failure.
+6. **Key redaction** — the request log shows the calls, and the key appears in no log entry.
 
 Reasoning replay, JSON mode and vision are not checked here.
 
-Keys live only in `caotang.env` (gitignored), the shell, or the `provider-smoke` environment's secrets. The spec never prints them; a local failure prints the provider and the stage, never the credential.
+Keys live only in `caotang.env` (gitignored), the shell, or the `provider-smoke` environment's secrets, and are read only with `CAOTANG_SMOKE=1`. The spec never prints them; a local failure prints the provider and the stage, never the credential.
 
 ### In CI
 
-`.github/workflows/provider-smoke.yml` runs the same spec by manual dispatch only, on `main`, from the `provider-smoke` environment's secrets (one `CAOTANG_SMOKE_<PRESET>` secret per provider, set on the one step that runs the spec):
+`.github/workflows/provider-smoke.yml` runs the same spec by manual dispatch only, on `main`, from the `provider-smoke` environment's secrets (one `CAOTANG_SMOKE_<PRESET>` secret per provider, set on the one step that runs the spec; the same step sets `CAOTANG_SMOKE: '1'` and runs `--project=smoke`):
 
 ```sh
 gh workflow run provider-smoke.yml -f presets="anthropic deepseek"   # blank presets = every preset with a secret

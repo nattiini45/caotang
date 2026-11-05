@@ -14,15 +14,20 @@ import {
   filteredWithoutKey,
   nothingRanText,
   parsePresetFilter,
+  smokeKeys,
+  summaryNote,
   type SmokeStage,
 } from './provider-smoke-lib.js';
 
 /**
- * The real-key round (providers-browser-cors.md §3). For every `CAOTANG_SMOKE_<PRESET>` variable set — in the shell or in
- * the gitignored `caotang.env` — this runs the provider end to end through the app's own service: the model list, a
- * streamed reply, a native tool call where the capability row claims one, thinking levels where offered, and the
- * request log's key-redaction. Without any of these variables the suite skips. It runs locally, or in CI only by the manual
- * dispatch of .github/workflows/provider-smoke.yml, never on a pull request.
+ * The real-key round (providers-browser-cors.md §3). It exists only with `CAOTANG_SMOKE=1`: playwright.config.ts then adds the
+ * `smoke` project that runs this file, and no other project matches it. Without the gate this module reads no key and never
+ * opens the gitignored `caotang.env`, so a normal `pnpm test:e2e` cannot spend even when a key file is sitting on the machine.
+ *
+ * For every `CAOTANG_SMOKE_<PRESET>` variable set — in the shell or in `caotang.env` — it runs the provider end to end through
+ * the app's own service: the model list, a streamed reply, a native tool call where the capability row claims one, thinking
+ * levels where offered, the prompt cache where the row caches, and the request log's key-redaction. It runs locally, or in CI
+ * only by the manual dispatch of .github/workflows/provider-smoke.yml, never on a pull request.
  *
  * `CAOTANG_ONLY_PRESETS` (space or comma separated ids) limits the round to those presets. Under GitHub Actions a failure
  * names the preset, the stage and the HTTP status only, and each preset appends its stage table to the job summary.
@@ -36,29 +41,15 @@ function summarize(markdown: string): void {
   if (summaryFile !== undefined && summaryFile !== '') appendFileSync(summaryFile, markdown + '\n');
 }
 
-/** `caotang.env` values fill in for variables the shell did not set; the file itself stays out of every output. */
-function smokeKeys(): ReadonlyMap<string, string> {
-  const fromFile = new Map<string, string>();
+/**
+ * The keys, through the gate: `smokeKeys` returns an empty map and calls nothing below unless `CAOTANG_SMOKE=1`, so the file is
+ * never opened by a normal suite. `caotang.env` fills in for variables the shell did not set; the file itself stays out of
+ * every output.
+ */
+const keyed = smokeKeys(process.env, () => {
   const envFile = resolve('caotang.env');
-  if (existsSync(envFile)) {
-    // Strip a BOM and tolerate `export NAME=value` lines — both are everyday Windows/editor artifacts
-    // that would otherwise silently drop a variable.
-    const text = readFileSync(envFile, 'utf8').replace(/^\uFEFF/, '');
-    for (const line of text.split(/\r?\n/)) {
-      const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
-      if (match === null) continue;
-      const value = match[2]!.replace(/^['"]|['"]$/g, '');
-      if (match[1]!.startsWith('CAOTANG_SMOKE_')) fromFile.set(match[1]!, value);
-    }
-  }
-  const keys = new Map<string, string>();
-  for (const name of new Set([...fromFile.keys(), ...Object.keys(process.env)])) {
-    if (!name.startsWith('CAOTANG_SMOKE_')) continue;
-    const value = process.env[name] ?? fromFile.get(name);
-    if (value !== undefined && value !== '') keys.set(name.slice('CAOTANG_SMOKE_'.length).toLowerCase().replace(/_/g, '-'), value);
-  }
-  return keys;
-}
+  return existsSync(envFile) ? readFileSync(envFile, 'utf8') : undefined;
+});
 
 /** The ids `CAOTANG_ONLY_PRESETS` names, if set. A malformed value throws here, before any test is registered. */
 const only = parsePresetFilter(process.env[ONLY_PRESETS_VAR]);
@@ -82,9 +73,11 @@ function memoryDb(): AppDb {
   };
 }
 
-const keyed = smokeKeys();
 const configured = applyPresetFilter(keyed, only);
-const nothingToRun = configured.size === 0 ? `no CAOTANG_SMOKE_* variables set${only === undefined ? '' : ' for the presets asked for'} — the real-key round is manual` : '';
+const nothingToRun =
+  configured.size === 0
+    ? `no CAOTANG_SMOKE_* variables set${only === undefined ? '' : ' for the presets asked for'} — the real-key round runs only with CAOTANG_SMOKE=1 and a key`
+    : '';
 
 // An empty `configured` map would register no tests at all, which Playwright reports as "No tests
 // found"; the sentinel keeps the file a clean skip instead.
@@ -201,7 +194,11 @@ test.describe('real-key round', () => {
             }
             expect(reply.length, 'thinking: low answers').toBeGreaterThan(0);
             expect(service.requests.entries().at(-1)?.outcome, 'thinking: low is accepted').toBe('ok');
-            expect(reasoning.join('').length, 'thinking: low returns a readable summary').toBeGreaterThan(0);
+            // The endpoint can accept the call and still summarise nothing (seen on thinking: low), so the summary is
+            // informational: when one arrives it must read, and its length is recorded in the row either way.
+            const summary = reasoning.join('');
+            if (summary.length > 0) expect(summary.trim().length, 'a thinking summary that arrives reads').toBeGreaterThan(0);
+            report.observe('thinking', summaryNote(summary.length));
           });
         } else report.notClaimed('thinking');
 

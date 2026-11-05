@@ -10,6 +10,60 @@
 /** The filter variable. It must not start with `CAOTANG_SMOKE_`, or the spec would read it as a preset named "only". */
 export const ONLY_PRESETS_VAR = 'CAOTANG_ONLY_PRESETS';
 
+/**
+ * The opt-in gate (issue 15). The real-key round is not part of the suite at all unless this variable is exactly `1`:
+ * playwright.config.ts adds the `smoke` project only then, and the spec below reads no key and opens no key file without it.
+ */
+export const SMOKE_GATE_VAR = 'CAOTANG_SMOKE';
+
+/** Whether the real-key round is asked for. Only the exact value `1` opens the gate; `true`, `yes` and an empty value leave it shut. */
+export function smokeEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
+  return env[SMOKE_GATE_VAR] === '1';
+}
+
+const SMOKE_KEY_PREFIX = 'CAOTANG_SMOKE_';
+
+/**
+ * The `CAOTANG_SMOKE_<PRESET>` keys, from the shell and — only behind the gate — from the gitignored `caotang.env`. The gate is
+ * checked before `readEnvFile` is called, so on a normal `pnpm test:e2e` a key file on the machine cannot make the suite spend,
+ * and a `CAOTANG_SMOKE_<PRESET>` variable in the shell alone does not open the round either. A shell value wins over the file's;
+ * an empty value counts as unset.
+ */
+export function smokeKeys(
+  env: Readonly<Record<string, string | undefined>>,
+  readEnvFile: () => string | undefined,
+): ReadonlyMap<string, string> {
+  if (!smokeEnabled(env)) return new Map();
+
+  // `caotang.env` fills in for variables the shell did not set; the file itself stays out of every output. Strip a BOM and
+  // tolerate `export NAME=value` lines — both are everyday Windows/editor artifacts that would otherwise silently drop a variable.
+  const fromFile = new Map<string, string>();
+  const text = readEnvFile();
+  if (text !== undefined) {
+    for (const line of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+      const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/.exec(line);
+      if (match === null) continue;
+      const value = match[2]!.replace(/^['"]|['"]$/g, '');
+      if (match[1]!.startsWith(SMOKE_KEY_PREFIX)) fromFile.set(match[1]!, value);
+    }
+  }
+  const keys = new Map<string, string>();
+  for (const name of new Set([...fromFile.keys(), ...Object.keys(env)])) {
+    if (!name.startsWith(SMOKE_KEY_PREFIX)) continue;
+    const value = env[name] ?? fromFile.get(name);
+    if (value !== undefined && value !== '') keys.set(name.slice(SMOKE_KEY_PREFIX.length).toLowerCase().replace(/_/g, '-'), value);
+  }
+  return keys;
+}
+
+/**
+ * How a report row records the thinking summary it observed. A call the endpoint accepted may summarise nothing (seen on
+ * `thinking: low`), so the length is recorded either way and an empty summary is not a failure.
+ */
+export function summaryNote(length: number): string {
+  return `summary ${length} chars`;
+}
+
 /** The stages the spec runs, in order. The summary lists only these. */
 export const SMOKE_STAGES = ['model list', 'streamed completion', 'native tools', 'thinking', 'prompt cache', 'key redaction'] as const;
 export type SmokeStage = (typeof SMOKE_STAGES)[number];
@@ -56,8 +110,17 @@ type StageState = { readonly result: 'pass' } | { readonly result: 'fail'; reado
 /** One preset's progress through the stages, and the Markdown it leaves in the job summary. */
 export class SmokeReport {
   private readonly states = new Map<SmokeStage, StageState>();
+  private readonly notes = new Map<SmokeStage, string>();
 
   constructor(readonly preset: string) {}
+
+  /**
+   * Records what a stage observed, beside its result, such as the thinking summary's length. It never decides pass or fail:
+   * a call the endpoint accepted may summarise nothing, and the row then reads `pass (summary 0 chars)`.
+   */
+  observe(stage: SmokeStage, note: string): void {
+    this.notes.set(stage, note);
+  }
 
   begin(stage: SmokeStage): void {
     this.states.set(stage, { result: 'running' });
@@ -86,6 +149,8 @@ export class SmokeReport {
       else if (state?.result === 'fail') cell = state.status === undefined ? 'fail' : `fail (HTTP ${state.status})`;
       else if (state?.result === 'running') cell = 'fail';
       else if (state?.result === 'not claimed') cell = 'not claimed';
+      const note = this.notes.get(stage);
+      if (note !== undefined) cell = `${cell} (${note})`;
       return `| ${this.preset} | ${stage} | ${cell} |`;
     });
     return ['| Preset | Stage | Result |', '| --- | --- | --- |', ...rows, ''].join('\n');

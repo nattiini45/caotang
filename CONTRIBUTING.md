@@ -27,7 +27,7 @@ pnpm build                              # the production build in apps/desktop/d
 node tools/build-site.mjs               # the landing page, built from site/ into site/dist/
 node tools/check-site-size.mjs          # the landing page's HTML, CSS and asset caps, and no JavaScript
 pnpm exec playwright install chromium      # once, for the pull-request end-to-end tests
-pnpm test:e2e                              # Chromium suite, including a production-build smoke test
+pnpm test:e2e                              # Chromium suite and a production-build smoke test, never the opt-in real-key round
 pnpm exec playwright install firefox webkit # optional, for the nightly cross-browser suite
 CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit
 ```
@@ -36,7 +36,7 @@ These checks must pass before a pull request is merged. CI runs `pnpm verify`, t
 
 CI on a pull request from a fork runs with a read-only token (`permissions: contents: read`), so a workflow run cannot change the repository. If this is your first contribution, a maintainer approves your pull request's first CI run before it starts; this is a repository setting, and it only means the checks wait a little.
 
-Tests run against the built-in mock and demo providers. They never need a real provider key, and no test may require one. The real-key provider round (`e2e/provider-smoke.spec.ts`) is separate and opt-in: it skips without keys, and in CI it runs only when a maintainer dispatches the `provider-smoke` workflow from `main`, never on a pull request. To run the end-to-end suite beside another copy of Caotang, set `CAOTANG_E2E_PORT` (see the README).
+Tests run against the built-in mock and demo providers. They never need a real provider key, and no test may require one. The real-key provider round (`e2e/provider-smoke.spec.ts`) is separate and opt-in: it runs only with `CAOTANG_SMOKE=1`, which adds the `smoke` Playwright project, and a plain `pnpm test:e2e` lists none of it. Without that gate the spec reads no key and never opens the gitignored `caotang.env`, so a key file on your machine cannot make `pnpm test:e2e` spend. In CI it runs only when a maintainer dispatches the `provider-smoke` workflow from `main`, never on a pull request. To run the end-to-end suite beside another copy of Caotang, set `CAOTANG_E2E_PORT` (see the README).
 
 If your change adds or upgrades a dependency, regenerate the licence notices with `node tools/third-party-notices.mjs --write`; a test fails when they no longer match the lockfile.
 
