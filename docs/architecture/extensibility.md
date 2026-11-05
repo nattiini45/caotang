@@ -8,7 +8,7 @@
 | Capability | Ships | Gate / rationale |
 |---|---|---|
 | **Minimal MCP client** — Streamable-HTTP-only, panel-first config, Tier-2 search-then-load | **v0.2** | registry stable; the Claude-connector shape (URL-based) is the market's most-used path |
-| **stdio transport** (child-process servers) | desktop build (Tauri) | structurally impossible in a browser tab; desktop shell makes it trivial and keeps tool I/O local |
+| **stdio transport** (child-process servers) | desktop build (Electron main process, MCP SDK stdio transport) | structurally impossible in a browser tab; desktop shell makes it trivial and keeps tool I/O local |
 | **Caotang as an MCP server** (registry exposed outward) | **post-v0.2** | needs the registry stable and the app running as a host process (desktop); SDK/packaging mechanics in §9 |
 | **Skills** (writer-owned instructions for the agent) | **built, in part** | **the open SKILL.md standard, in the project's `.agents/skills/` only (§10)**; no Caotang pack format (a planned extension bundle wraps these folders and adds no skill format, [extensions.md](extensions.md)); installs and edits are the writer's alone (§4 rule 7). `skill.read`, `allowed-tools` enforcement, personal skills and running scripts are not in this build |
 | **Macros** (writer-authored plan templates) | **built, in part** | **plan data over the registry's own native tools, in the manifest's `macros[]` (§10)**; run only by the writer, from Settings › Macros or a plan card's "Save as macro…"; not registry rows, not model-visible, not offered by the MCP server. Script macros (a sandboxed interpreter) and model-callable macros are not in this build (§12 D21) |

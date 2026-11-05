@@ -109,7 +109,7 @@ goalProgress(goal: ProjectGoal, wordsOf(nodeId: string): number): {
 |---|---|---|
 | A1 | Words-only metric covers v0.1 | Explicit; validated (the surveyed tools' goals are all word-shaped); other metrics = v0.2 menu, **resolved (§9)**: chars-first widening + weekly/monthly kinds. |
 | A2 | Folder/root attachment (no per-scene goals) suffices | Explicit; the Ulysses sheet-goal use case maps to Caotang folder goals for all but micro-scheduling. |
-| A3 | Device-local calendar day for "today" | Explicit; a browser app cannot honestly know a preferred timezone; a native desktop wrap (Tauri) could expose a timezone setting without schema change. |
+| A3 | Device-local calendar day for "today" | Explicit; a browser app cannot honestly know a preferred timezone; a native desktop wrap (Electron) could expose a timezone setting without schema change. |
 | A4 | No streaks/shame mechanics in v0.1 | Explicit posture; completion notification only. |
 | A5 | Live-computed pace (no snapshots) answers v0.1 | **Resolved** — the historical "was I on track" surface is a v0.2 UI over `sessions.jsonl` (jsonl reconstruction; §9); snapshots are never needed. Zero new artifacts. |
 
