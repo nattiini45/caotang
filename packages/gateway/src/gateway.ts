@@ -44,6 +44,7 @@ import { adapterFor } from './adapters/index.js';
 import { effectiveOutput, nominalThinkingTokens } from './adapters/effort.js';
 import { modelRowFor, presetFor, resolveRoute } from './presets/index.js';
 import type { AdapterContext, CallSecrets, ProviderAdapter } from './adapters/types.js';
+import { decodingParser, encodeToolNames, toolNameCodec, toolNamesOf } from './tool-names.js';
 import type {
   ChatChunk,
   ChatRequest,
@@ -280,8 +281,10 @@ export function createGateway(options: GatewayOptions): Gateway {
     });
     // Prompt caching (§3): the request's policy, else the profile's, against what the model's row says the route does.
     const cache = cacheSettingsFor(policyOf(req.cache, profile.promptCache), ctx.caps, profile.id, req);
+    // Tool names go out in their wire-safe form and the assembled calls come back by their registry names (tool-names.ts).
+    const names = toolNameCodec(toolNamesOf(req));
     const body = adapter.buildBody({
-      req,
+      req: encodeToolNames(req, names),
       ctx,
       temperature: req.temperature ?? profile.temperature ?? 0.7,
       effective,
@@ -304,7 +307,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       // The redaction list carries the key and headers as before, plus every image's base64 form:
       // a provider that echoes the request body in an error has the image scrubbed like a secret.
       secrets: [...revealed.redact, ...imageBase64Of(req.messages)],
-      createParser: () => adapter.createStreamParser(ctx),
+      createParser: () => decodingParser(adapter.createStreamParser(ctx), names),
       promptTokens: usageFor(req.messages, '', adapter.id).promptTokens,
       ...(onAttempt === undefined ? {} : { onAttempt }),
       ...localCall(profile),
