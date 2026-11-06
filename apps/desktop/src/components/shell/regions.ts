@@ -11,6 +11,7 @@ import type { ProjectState } from '@caotang/store';
 import type { ZoomLevel } from '../../app/corkboard-model.js';
 import type { FindingView } from '../../app/findings-model.js';
 import type { NarrowPanel } from '../../app/narrow-model.js';
+import type { NewKind } from '../../app/new-menu.js';
 import type { SaveState } from '../../app/session.js';
 import type { TargetProgress } from '../../app/session-progress.js';
 import type { ShellAction } from '../../app/shell-actions.js';
@@ -95,7 +96,21 @@ export interface ShellSearch {
   readonly openSceneInfo: () => void;
 }
 
+/** The one New (app/new-menu.ts, #477): where new things go and how to make one. */
+export interface ShellCreate {
+  /** The chapter New puts things into, by title; `null` when a chapter is made first. */
+  readonly target: string | null;
+  /** Makes one item of `kind` (and its chapter first when there is none), then opens it. */
+  readonly make: (kind: NewKind) => void;
+  /** A hall's preferred order of the kinds (#430); none keeps the base order. */
+  readonly order?: readonly string[];
+}
+
 export interface ShellRegions {
+  /** The New menu's model and its one action (#477). */
+  readonly create: ShellCreate;
+  /** A hall's preferred order of the views (#430, #482); none keeps Write, Board, Timeline, Codex, Pictures. */
+  readonly viewOrder?: readonly string[];
   readonly projectName: string;
   /** The shell actions (app/shell-actions.ts), in order. */
   readonly actions: readonly ShellAction[];

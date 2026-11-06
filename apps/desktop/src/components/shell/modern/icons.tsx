@@ -5,7 +5,7 @@
 
 import type { ReactNode } from 'react';
 
-export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'manuscript' | 'pin' | 'scene';
+export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'manuscript' | 'pin' | 'scene' | 'plus' | 'findings' | 'agent';
 
 const PATHS: Readonly<Record<IconName, ReactNode>> = {
   write: (
@@ -65,6 +65,10 @@ const PATHS: Readonly<Record<IconName, ReactNode>> = {
   pin: <path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7" />,
   // A scene or document: a page with its corner turned (the palette's scene results).
   scene: <path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4" />,
+  // + New (#477), and the sidebar's Findings (a flag) and Agent (a pulse) tabs (#479).
+  plus: <path d="M12 5v14M5 12h14" />,
+  findings: <path d="M6 20.5v-16M6 4.5h11l-2.5 4 2.5 4H6" />,
+  agent: <path d="M3.5 12h4l2-5 4 10 2-5h5" />,
 };
 
 export function Icon({ name }: { name: IconName }): ReactNode {

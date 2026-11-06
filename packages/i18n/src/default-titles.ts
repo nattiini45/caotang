@@ -4,7 +4,7 @@
  * vocabulary the store, the exporter and the app share, so the store never imports the exporter.
  */
 
-export type DefaultTitleKind = 'document' | 'entry' | 'scene' | 'section' | 'shot' | 'dialogue' | 'storyboard' | 'comic' | 'comicPage';
+export type DefaultTitleKind = 'document' | 'entry' | 'scene' | 'section' | 'shot' | 'dialogue' | 'storyboard' | 'comic' | 'comicPage' | 'chapter';
 
 type Titles = Readonly<Record<DefaultTitleKind, string>>;
 
@@ -18,15 +18,17 @@ const ENGLISH: Titles = {
   storyboard: 'Storyboard',
   comic: 'Untitled comic',
   comicPage: 'New page',
+  /** A chapter New makes when there is none to go into; New numbers it ("Chapter 3"). */
+  chapter: 'Chapter',
 };
 
 /** By language subtag. A language not listed reads as English. */
 const TABLE: Readonly<Record<string, Titles>> = {
   en: ENGLISH,
-  de: { document: 'Ohne Titel', entry: 'Eintrag ohne Titel', scene: 'Szene ohne Titel', section: 'Abschnitt ohne Titel', shot: 'Neue Einstellung', dialogue: 'Dialog ohne Titel', storyboard: 'Storyboard', comic: 'Comic ohne Titel', comicPage: 'Neue Seite' },
-  fr: { document: 'Sans titre', entry: 'Entrée sans titre', scene: 'Scène sans titre', section: 'Section sans titre', shot: 'Nouveau plan', dialogue: 'Dialogue sans titre', storyboard: 'Storyboard', comic: 'Bande dessinée sans titre', comicPage: 'Nouvelle page' },
-  es: { document: 'Sin título', entry: 'Entrada sin título', scene: 'Escena sin título', section: 'Sección sin título', shot: 'Plano nuevo', dialogue: 'Diálogo sin título', storyboard: 'Guion gráfico', comic: 'Cómic sin título', comicPage: 'Página nueva' },
-  ja: { document: '無題', entry: '無題の項目', scene: '無題のシーン', section: '無題のセクション', shot: '新しいショット', dialogue: '無題の会話', storyboard: 'ストーリーボード', comic: '無題のコミック', comicPage: '新しいページ' },
+  de: { document: 'Ohne Titel', entry: 'Eintrag ohne Titel', scene: 'Szene ohne Titel', section: 'Abschnitt ohne Titel', shot: 'Neue Einstellung', dialogue: 'Dialog ohne Titel', storyboard: 'Storyboard', comic: 'Comic ohne Titel', comicPage: 'Neue Seite', chapter: 'Kapitel' },
+  fr: { document: 'Sans titre', entry: 'Entrée sans titre', scene: 'Scène sans titre', section: 'Section sans titre', shot: 'Nouveau plan', dialogue: 'Dialogue sans titre', storyboard: 'Storyboard', comic: 'Bande dessinée sans titre', comicPage: 'Nouvelle page', chapter: 'Chapitre' },
+  es: { document: 'Sin título', entry: 'Entrada sin título', scene: 'Escena sin título', section: 'Sección sin título', shot: 'Plano nuevo', dialogue: 'Diálogo sin título', storyboard: 'Guion gráfico', comic: 'Cómic sin título', comicPage: 'Página nueva', chapter: 'Capítulo' },
+  ja: { document: '無題', entry: '無題の項目', scene: '無題のシーン', section: '無題のセクション', shot: '新しいショット', dialogue: '無題の会話', storyboard: 'ストーリーボード', comic: '無題のコミック', comicPage: '新しいページ', chapter: '章' },
 };
 
 const ALL: readonly Titles[] = Object.values(TABLE);

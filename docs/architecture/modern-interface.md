@@ -190,9 +190,9 @@ Motion: `--dur-1` 120 ms (hover, press), `--dur-2` 240 ms (close), `--dur-3` 520
 |---|---|---|
 | Frame | A grid: toolbar, rail, centre, inspector | A **stage**: the wallpaper, and everything floating on it |
 | Page | The centre column | One floating **page** of paper, centred in the space left by the sidebar and the agent window; its width follows the view (Write about 780 px, Board about 1,120 px, Codex about 1,000 px, clamped to the space) and its height the window (top about 11% of the height, at least 84 px; bottom leaving room for the bottom ornament) |
-| Top ornament | — | A glass capsule centred on the page's top edge: the **title capsule** (project name, the breadcrumb of the scene, today's target ring, a dot for an open finding or a save problem), which opens **Scene info**, and **⋯**. In Board it adds the board's own view controls; in Codex it shows the codex heading |
-| Bottom ornament | The centre's Editor / Corkboard radio group, and the toolbar | A glass capsule centred on the page's bottom edge: **Write**, **Board**, **Codex** (one radio group, a glass lens sliding to the current one), then **Ask** and **Search** with its shortcut |
-| Binder | The rail, always shown | A slim glass **tab bar** at the inline-start edge (Manuscript, Panels, and a decorative minimap of scene status dots) that grows into a **sidebar** the page's height; **Keep open** pins it |
+| Top ornament | — | A glass capsule centred on the page's top edge: the **title capsule** (project name, the breadcrumb of the scene, today's target ring, a dot for an open finding or a save problem), which opens **Scene info**, **+ New** (the surface's one primary; §7.8) and **⋯**. In Board it adds the board's own view controls; in Codex it shows the codex heading |
+| Bottom ornament | The centre's Editor / Corkboard radio group, and the toolbar | A glass capsule centred on the page's bottom edge: **Write**, **Board**, **Timeline**, **Codex**, **Pictures** (one radio group, always visible, a glass lens sliding to the current one; below 1,180 px icons with tooltips; a hall may reorder them, never drop one), then **Ask** and **Search** with its shortcut |
+| Binder | The rail, always shown | A slim glass **tab bar** at the inline-start edge (**Binder**, **Findings** with its open count, **Agent**, and a decorative minimap of scene status dots) that grows into a **sidebar** the page's height; **Keep open** pins it |
 | Inspector | The right column, always shown | **Scene info**, a thick-glass popover from the title capsule; **Keep open** docks it as a companion panel beside the page |
 | Status line, word count, save state | The editor's footer, the toolbar's save state, the status line at the bottom | Counts and the save state in Scene info and the title capsule's ring; messages in a **toast** capsule at the top centre (§8.6); a failed or conflicting save is never only in a popover (§8.6) |
 | Agent | A drawer at the bottom of the centre | A **companion window** of thick glass beside the page, which moves over to make room |
@@ -243,6 +243,7 @@ Every row must stay reachable. "Same" means the same component and handlers in a
 | Status line (messages, inline link, **Dismiss**) | Toast capsule with the same text, link and **Dismiss** (§8.6) |
 | Storage banner (**Export a backup**, **Learn why**, **Dismiss**) | A glass notice above the page with the same words and buttons |
 | Stale-tab notice, folder-save questions, delete confirm, not-empty folder | Same dialogs, thick glass |
+| Binder's media items (New screenplay scene, storyboard, dialogue or comic here) | **+ New** in the top ornament (§7.8); Ctrl+Shift+N; palette › New; the binder's menu keeps them |
 | Narrow toolbar (**Binder**, **Inspector**, **More**) | §13 |
 
 ### 7.2 The rail
@@ -258,13 +259,13 @@ Every row must stay reachable. "Same" means the same component and handlers in a
 | **Trace** tab and its export | Sidebar › Trace |
 | **Findings** tab (scan, model review, groups, history, knowledge, dismissal picker), with its count | Sidebar › Findings, with the count on the tab and the title capsule's dot; Scene info lists the open findings of the scene with **Show in Findings** |
 
-The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**, a tablist with Classic's keys. The tab bar's **Manuscript** button opens it on Binder, **Panels** on the last other tab used.
+The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**, a tablist with Classic's keys. The tab bar's **Binder** button opens it on Binder, **Findings** on Findings (its count shown on the closed bar), and **Agent** on whichever of Activity and Trace was used last (#479).
 
 ### 7.3 The centre
 
 | Classic surface | Modern home |
 |---|---|
-| **Editor** / **Corkboard** radio | **Write** / **Board** in the bottom ornament (same radio semantics; **Codex** is the third) |
+| **Editor** / **Corkboard** / **Timeline** / **Pictures** radio | **Write** / **Board** / **Timeline** / **Pictures** in the bottom ornament (same radio semantics, with **Codex** between Timeline and Pictures; #475). **⋯**'s View section only points to the bar for one release |
 | Editor: the scene, its title, the load banner, the empty state (**New document**, **New chapter**) | The page in Write (same `EditorPane`) |
 | Ghost bar (draft preview: apply, discard) | Same, on the page under the draft as one raised surface: **Apply** is the one primary, **Retry** and **Discard** are in its **More** disclosure (`.k-more`), and the words say only what the draft is (#361) |
 | Review bar (**Previous**, **Next**, **Accept**, **Reject**, **Accept all**, **Reject all**) | Same bar on the page: **Previous** and **Next** as chevrons, **Accept** the one primary, **Reject** beside it, **Accept all** and **Reject all** in its **More** disclosure (`.k-more`, #361); optionally also near the focused change (§8.7) |
@@ -307,6 +308,16 @@ Built (M10, #311): every dialog, Settings, the context menus and Home are sheet 
 ### 7.7 Keys
 
 Every chord in ui-modules §2.5 and §5.6 and the screenplay chords keeps its meaning in Modern (§8.9).
+
+### 7.8 Creation: one **+ New** (#477)
+
+One pure model, `app/new-menu.ts`, lists what a writer can make: **Write** (Scene, Chapter) and **Script and story** (Screenplay scene, Dialogue (Ink), Storyboard, Comic), each with one short line. It feeds the top ornament's **+ New** (`components/shell/modern/new-menu.tsx`, test id `new-menu`, items `new-<kind>`), the palette's **New** group, and Classic's **New document ▾**. The binder's context menu keeps its "… here" items as shortcuts.
+
+- **Target chapter:** the chapter the selection is in, else the open document's, else none, and then a new chapter (`Chapter N`) is made first, so no create stops at "needs a chapter". A chapter is a plain folder in the manuscript, never a storyboard or a comic book. A new chapter goes beside the target. The menu's last line says where things go.
+- The new item is selected and opened (a document or dialogue in Write, a folder on the Board); a refusal from the bus reaches the status line.
+- **Ctrl+Shift+N** (Cmd+Shift+N) opens the menu in Modern where the browser yields the chord (Chrome keeps it for a private window); the palette's New group is the path there.
+- Halls (#430) reorder the kinds (`orderNewKinds`) and the views (`orderViews`) through `ShellRegions.create.order` and `viewOrder`; nothing is removed.
+- Not yet: imports inside the menu, a **Change** parent picker, Shot/Page first inside a storyboard or comic, and per-document modes in the top ornament (#476).
 
 ## 8. Interaction model
 
@@ -401,7 +412,7 @@ Beside the token test (`e2e/unit/modern-tokens.spec.ts`), the gate computes the 
 
 ### 9.5 Size and count
 
-Every control in Modern, including tree rows, menu items, tabs, chips that act and toast buttons, is at least 44 by 44 px; a checkbox or radio counts with its label; a link inside a sentence keeps its line. On the default Write screen, with nothing open and no notice, at most ten controls are reachable outside the page: the title capsule, **⋯**, **Write**, **Board**, **Codex**, **Ask**, **Search**, and the tab bar's **Manuscript** and **Panels**, nine. A notice adds its own buttons while it shows. Tests measure both (§15.3).
+Every control in Modern, including tree rows, menu items, tabs, chips that act and toast buttons, is at least 44 by 44 px; a checkbox or radio counts with its label; a link inside a sentence keeps its line. On the default Write screen, with nothing open and no notice, at most ten tab stops are reachable outside the page: the title capsule, **+ New**, **⋯**, the views (one radio group, one stop, its five radios visible), **Ask**, **Search**, and the tab bar's **Binder**, **Findings** and **Agent**, nine (the navigation redesign, #474, counts the radio group once; docs/decisions.md 2026-11-06). A notice adds its own buttons while it shows. Tests measure both (§15.3).
 
 Built (#313): the editor's toolbar and footer, a draft's ghost bar and the review bar, Scene info's fields, the agent window's Mode and New task, the Board's New card and card sizes, the Codex's buttons, chips, search and entry view, a Board card's grip and rename, and the Binder tab's buttons, filter fields and a row's Collapse/Expand are 44 px; the gate measures every Modern surface and `GAPS` is empty.
 
@@ -459,7 +470,7 @@ Changes to `tools/check-bundle-size.mjs` (M4): a cap map for named lazy chunks; 
 
 Below 960 px (`NARROW_QUERY`), Modern has its own narrow layout, with the narrow layout's rules (ui-modules §1) unchanged in substance:
 
-- The page fills the width with a small margin and a smaller radius. The top ornament becomes a compact capsule (title, **⋯**); the bottom ornament becomes a tab bar (**Write**, **Board**, **Codex**, **Ask**, **Search**) above the bottom safe area.
+- The page fills the width with a small margin and a smaller radius. The top ornament becomes a compact capsule (title, **+** New, **⋯**); the bottom ornament becomes a tab bar (**Write**, **Binder**, **Views**, **Ask**, **Search**; #480) above the bottom safe area. **Views** names the view on the page when it is not Write and opens a menu of Board (desktop), Timeline, Codex and Pictures; **Binder** (`#narrow-toggle-rail`) opens the drawer.
 - The binder is the drawer from the inline-start edge, Scene info is the bottom sheet (at most 80% of the height), and the agent window is a full-height sheet. At most one is open (`NarrowPanel` gains `'agent'`); while one is open the rest is `inert` behind a scrim; Close, a tap on the scrim, or Escape closes it, and focus returns to its button.
 - What a phone leaves to a desktop says so in the same words (`DESKTOP_FEATURES`): **Board** on a prose chapter shows "Open on desktop: the corkboard"; a storyboard, a dialogue graph, screenplay Pages, MCP & tools and the other export formats likewise. Nothing is hidden silently.
 - Thick glass only, and less of it; `prefers-reduced-transparency` gives solid surfaces.

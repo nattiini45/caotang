@@ -26,6 +26,7 @@ import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 import { childrenOf, enclosingFolders, isSectionId, synopsisPreview } from './binder-model.js';
 import { TYPE_LABELS } from './codex-model.js';
 import type { KeyAction } from './keymap.js';
+import { newGroups, type NewKind } from './new-menu.js';
 import type { ShellAction, ShellActionId } from './shell-actions.js';
 import { namesCollator } from '../i18n/locale.js';
 
@@ -62,13 +63,15 @@ export type PaletteTarget =
   | { readonly kind: 'agent' }
   | { readonly kind: 'settings'; readonly section: PaletteSettingsSection }
   | { readonly kind: 'classic' }
+  /** Make a new item through the one New (app/new-menu.ts, #478). */
+  | { readonly kind: 'new'; readonly newKind: NewKind }
   /** No match: the agent opens with `text` in its Intent box, not sent. */
   | { readonly kind: 'ask'; readonly text: string };
 
-export type PaletteGroupId = 'recent' | 'scenes' | 'codex' | 'commands' | 'places' | 'settings' | 'ask';
+export type PaletteGroupId = 'recent' | 'new' | 'scenes' | 'codex' | 'commands' | 'places' | 'settings' | 'ask';
 
 /** What an item is, so the shell can give it an icon. */
-export type PaletteIcon = 'scene' | 'folder' | 'codex' | 'command' | 'view' | 'tab' | 'info' | 'agent' | 'settings' | 'interface';
+export type PaletteIcon = 'new' | 'scene' | 'folder' | 'codex' | 'command' | 'view' | 'tab' | 'info' | 'agent' | 'settings' | 'interface';
 
 export interface PaletteItem {
   /** Unique within one result and safe as a DOM id suffix. */
@@ -107,6 +110,8 @@ export interface PaletteSources {
   readonly actions: readonly PaletteAction[];
   /** The scene open in the editor, listed first among the recent ones. */
   readonly activeDocId?: string | null;
+  /** A hall's order of the New kinds (#430, #482); none keeps the base order. */
+  readonly newOrder?: readonly string[];
 }
 
 /** How many of each long list one query shows; the writer narrows the query for more. */
@@ -114,6 +119,7 @@ export const PALETTE_LIMITS = { recent: 5, scenes: 8, codex: 8 } as const;
 
 const GROUP_LABELS = {
   recent: msg`Recent scenes`,
+  new: msg`New`,
   scenes: msg`Scenes and folders`,
   codex: msg`Codex`,
   commands: msg`Commands`,
@@ -224,6 +230,8 @@ export function stepActive(results: PaletteResults, active: number, key: string)
 function emptyGroups(sources: PaletteSources): PaletteGroup[] {
   return [
     { id: 'recent', label: paletteGroupLabel('recent'), items: recentScenes(sources).map((node) => nodeItem(sources.state, node)) },
+    { id: 'places', label: paletteGroupLabel('places'), items: viewItems().map(({ item }) => item) },
+    { id: 'new', label: paletteGroupLabel('new'), items: newItems(sources.newOrder).map(({ item }) => item) },
     { id: 'commands', label: paletteGroupLabel('commands'), items: sources.actions.map(actionItem) },
   ];
 }
@@ -251,6 +259,7 @@ export function recentScenes(sources: PaletteSources): TreeNode[] {
 function matchedGroups(query: string, sources: PaletteSources): PaletteGroup[] {
   return [
     { id: 'scenes', label: paletteGroupLabel('scenes'), items: matchScenes(query, sources.state) },
+    { id: 'new', label: paletteGroupLabel('new'), items: rank(query, newItems(sources.newOrder)) },
     { id: 'codex', label: paletteGroupLabel('codex'), items: matchCodex(query, sources.state) },
     { id: 'commands', label: paletteGroupLabel('commands'), items: rank(query, commandItems(sources.actions)) },
     { id: 'places', label: paletteGroupLabel('places'), items: rank(query, placeItems()) },
@@ -417,15 +426,31 @@ function commandItems(actions: readonly PaletteAction[]): Searchable[] {
   ];
 }
 
+/** Everything the one New makes (#478), in the hall's order, each found by its name or by "New". */
+function newItems(order?: readonly string[]): Searchable[] {
+  const word = t`New`;
+  return newGroups(order)
+    .flatMap((group) => group.entries)
+    .map((entry) => ({
+      item: { id: `new-${entry.kind}`, label: entry.label, detail: entry.detail, icon: 'new' as const, target: { kind: 'new' as const, newKind: entry.kind } },
+      words: [entry.label, word],
+    }));
+}
+
+/** The views, each a place to go. */
+function viewItems(): Searchable[] {
+  const view = t`View`;
+  return PALETTE_VIEWS.map((id) => ({
+    item: { id: `view-${id}`, label: paletteViewLabel(id), detail: view, icon: 'view' as const, target: { kind: 'view' as const, view: id } },
+    words: [paletteViewLabel(id), view],
+  }));
+}
+
 /** The views, the sidebar's tabs, Scene info and the agent. */
 function placeItems(): Searchable[] {
-  const view = t`View`;
   const sidebar = t`Sidebar`;
   return [
-    ...PALETTE_VIEWS.map((id) => ({
-      item: { id: `view-${id}`, label: paletteViewLabel(id), detail: view, icon: 'view' as const, target: { kind: 'view' as const, view: id } },
-      words: [paletteViewLabel(id), view],
-    })),
+    ...viewItems(),
     ...PALETTE_TABS.map((id) => ({
       item: { id: `tab-${id}`, label: paletteTabLabel(id), detail: sidebar, icon: 'tab' as const, target: { kind: 'tab' as const, tab: id } },
       words: [paletteTabLabel(id), sidebar],

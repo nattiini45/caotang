@@ -110,8 +110,8 @@ function PaletteDialog({ regions, onClose }: { regions: ShellRegions; onClose: (
 
   const { search, actions } = regions;
   const results = useMemo(
-    () => paletteResults(query, { state: search.state, actions, activeDocId: search.activeDocId }),
-    [query, search.state, search.activeDocId, actions],
+    () => paletteResults(query, { state: search.state, actions, activeDocId: search.activeDocId, ...(regions.create.order === undefined ? {} : { newOrder: regions.create.order }) }),
+    [query, search.state, search.activeDocId, actions, regions.create.order],
   );
   const current = results.items[Math.min(active, results.items.length - 1)];
 
@@ -261,7 +261,7 @@ function PaletteDialog({ regions, onClose }: { regions: ShellRegions; onClose: (
  * Decorative glyphs from the ornaments' set (icons.tsx), for the things a result opens: a scene, a folder, a codex entry and Ask. A
  * command, a view, a tab or a setting has none; its words say it, and the empty column keeps every label on one reading edge.
  */
-const ICONS: Partial<Record<PaletteItem['icon'], IconName>> = { scene: 'scene', folder: 'binder', codex: 'codex', agent: 'ask' };
+const ICONS: Partial<Record<PaletteItem['icon'], IconName>> = { new: 'plus', scene: 'scene', folder: 'binder', codex: 'codex', agent: 'ask' };
 
 function PaletteGlyph({ icon }: { icon: PaletteItem['icon'] }): ReactNode {
   const name = ICONS[icon];
@@ -303,6 +303,9 @@ function runTarget(target: PaletteTarget, regions: ShellRegions): void {
       return;
     case 'settings':
       search.openSettings(target.section);
+      return;
+    case 'new':
+      regions.create.make(target.newKind);
       return;
     case 'classic':
       void applyInterface('classic').catch(() => undefined);

@@ -113,8 +113,13 @@ export function GlassPopover({
     };
     place();
     morph(element, anchor, 'open');
+    // Once more after the first frame: web fonts and the items' own layout can still change its width after the first measure.
+    const again = requestAnimationFrame(place);
     window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    return () => {
+      cancelAnimationFrame(again);
+      window.removeEventListener('resize', place);
+    };
   }, [opener, prefer, align]);
 
   // A click outside, or Escape from anywhere, dismisses it; the opener's own click toggles it, so it is not "outside".

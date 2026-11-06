@@ -37,6 +37,7 @@ export type KeyAction =
   | 'agent-steer'
   | 'agent-stop'
   | 'agent-toggle'
+  | 'new-menu'
   | 'palette';
 
 export interface KeyFacts {
@@ -167,6 +168,9 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   // Classic (D10, D11). Ctrl+K (Cmd+K) opens the palette; Ctrl+J (Cmd+J) toggles the agent's companion window.
   if (context.shell === 'modern' && cmd && !facts.alt && !facts.shift && key === 'k') return 'palette';
   if (context.shell === 'modern' && cmd && !facts.alt && !facts.shift && key === 'j') return 'agent-toggle';
+  // Ctrl+Shift+N (Cmd+Shift+N) opens Modern's + New menu (#483), where the browser lets the chord through; Chrome keeps it for a
+  // private window, so the palette's New group is the path there.
+  if (context.shell === 'modern' && cmd && !facts.alt && facts.shift && key === 'n') return 'new-menu';
 
   if (cmd && !facts.alt && key === 'n' && !facts.shift) return 'new-document';
   if (cmd && !facts.alt && key === 'z' && !facts.shift) return context.inTextField ? null : 'undo';
@@ -315,6 +319,7 @@ const CHORDS: Partial<Record<KeyAction, Chord>> = {
   'agent-toggle': [['ctrl'], { printed: 'j' }],
   undo: [['ctrl'], { printed: 'z' }],
   palette: [['ctrl'], { printed: 'k' }],
+  'new-menu': [['ctrl', 'shift'], { printed: 'n' }],
   escape: [[], { named: 'escape' }],
 };
 

@@ -152,9 +152,8 @@ test.describe('the Modern narrow layout at 390 and 768 px', () => {
       await expect(top.locator('.modern-ornament-state')).toBeHidden();
       const topBox = await top.boundingBox();
       expect((topBox?.y ?? 0) + (topBox?.height ?? 0)).toBeLessThanOrEqual(paper?.y ?? 0);
-      // The binder's button shares the top bar and never meets the capsule.
-      const button = await binderButton(page).boundingBox();
-      expect((button?.x ?? 0) + (button?.width ?? 0)).toBeLessThanOrEqual(topBox?.x ?? 0);
+      // The binder is a tab of the bottom bar (#480), and the top bar holds + New.
+      await expect(top.getByTestId('new-menu')).toBeVisible();
 
       // The tab bar: five tabs in a row, below the page, the page's width, above the bottom edge.
       const bar = await tabBar(page).boundingBox();
@@ -163,7 +162,7 @@ test.describe('the Modern narrow layout at 390 and 768 px', () => {
       expect(Math.round(bar?.width ?? 0)).toBe(size.width - 2 * GUTTER);
       const tabs = tabBar(page).locator('button');
       await expect(tabs).toHaveCount(5);
-      await expect(tabs).toHaveText([/Write/, /Board/, /Codex/, /Ask/, /Search/]);
+      await expect(tabs).toHaveText([/Write/, /Binder/, /Views/, /Ask/, /Search/]);
       const tops = await tabs.evaluateAll((buttons) => buttons.map((element) => Math.round(element.getBoundingClientRect().top)));
       expect(new Set(tops).size).toBe(1);
 
@@ -176,7 +175,8 @@ test.describe('the Modern narrow layout at 390 and 768 px', () => {
     await newProject(page, ZOOMED);
     expect(await sidewaysOverflow(page)).toBeLessThanOrEqual(0);
     for (const control of [binderButton(page), capsule(page), tabBar(page), pageMain(page)]) expect(await onScreen(page, control)).toBe(true);
-    for (const name of ['Write', 'Board', 'Codex']) await expect(tabBar(page).getByRole('radio', { name })).toBeVisible();
+    await expect(tabBar(page).getByRole('radio', { name: 'Write' })).toBeVisible();
+    await expect(tabBar(page).getByTestId('modern-narrow-views')).toBeVisible();
     expect(await smallTargets(page)).toEqual([]);
   });
 
@@ -272,9 +272,10 @@ test.describe('the Modern binder drawer', () => {
     expect(await smallTargets(page)).toEqual([]);
   });
 
-  test('the keyboard reaches it from the top bar: Tab from the title capsule goes on to the binder’s button, in reading order', async ({ page }) => {
+  test('the keyboard reaches it from the tab bar: Tab from Write goes on to the binder’s button, in reading order', async ({ page }) => {
     await newProject(page);
-    await capsule(page).focus();
+    // The phone's bar is Write · Binder · Views · Ask · Search (#480): the binder's button follows the Write radio.
+    await tabBar(page).getByRole('radio', { name: 'Write' }).focus();
     await page.keyboard.press('Tab');
     await expect(binderButton(page)).toBeFocused();
     await page.keyboard.press('Space');
@@ -419,7 +420,7 @@ test.describe('a tablet in landscape (1,024 by 768, the wide layout) by touch', 
     expect(await smallTargets(page)).toEqual([]);
 
     // Manuscript opens the sidebar, unpinned; the page narrows beside it instead of lying under it.
-    await press(page, page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }));
+    await press(page, page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }));
     const side = page.getByTestId('modern-sidebar');
     await expect(side).toBeVisible();
     await settled(pageMain(page));
@@ -518,12 +519,15 @@ test.describe('the tab bar', () => {
   test('Board on a prose chapter says "Open on desktop: the corkboard", and Write comes back', async ({ page }) => {
     await newProject(page);
     await sceneInDrawer(page, 'Opening');
-    await press(page, tabBar(page).getByRole('radio', { name: 'Board' }));
+    // Board, Timeline, Codex and Pictures are in the Views sheet on a phone (#480).
+    await press(page, page.getByTestId('modern-narrow-views'));
+    await press(page, page.getByTestId('modern-views-board'));
     await expect(page.getByTestId('open-on-desktop')).toHaveAttribute('data-feature', 'corkboard');
     await expect(page.getByRole('heading', { name: 'Open on desktop: the corkboard' })).toBeVisible();
     await press(page, tabBar(page).getByRole('radio', { name: 'Write' }));
     await expect(page.getByRole('textbox', { name: 'Document text' })).toBeVisible();
-    await press(page, tabBar(page).getByRole('radio', { name: 'Codex' }));
+    await press(page, page.getByTestId('modern-narrow-views'));
+    await press(page, page.getByTestId('modern-views-codex'));
     await expect(pageMain(page)).toHaveAttribute('data-view', 'codex');
     // The Codex is the page's view, not a panel: nothing opened over it.
     await expect(scrim(page)).toHaveAttribute('data-panel', 'none');

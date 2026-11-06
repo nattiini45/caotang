@@ -536,7 +536,7 @@ describe('the user guide’s reviewed claims match the code', () => {
   it('describes Modern in the words its controls show', () => {
     const start = guide.indexOf('## The Modern interface');
     const modern = guide.slice(start, guide.indexOf('\n## ', start + 1));
-    for (const words of ['**⋯**', '**Write**', '**Board**', '**Codex**', '**Ask**', '**Search**', '**Manuscript**', '**Panels**', '**Keep open**', '**Goals and sprint**', '**Show in Findings**', '**Leave focus mode**', '**Use the Classic interface**', '**Switch to the Classic interface**', 'Ctrl+K', 'Ctrl+J', 'Ctrl+Shift+F', 'Ctrl+Alt+F', '960 px']) {
+    for (const words of ['**⋯**', '**Write**', '**Board**', '**Codex**', '**Ask**', '**Search**', '**Timeline**', '**Pictures**', '**+ New**', '**Binder**', '**Findings**', '**Agent**', '**Views**', '**Keep open**', '**Goals and sprint**', '**Show in Findings**', '**Leave focus mode**', '**Use the Classic interface**', '**Switch to the Classic interface**', 'Ctrl+K', 'Ctrl+J', 'Ctrl+Shift+N', 'Ctrl+Shift+F', 'Ctrl+Alt+F', '960 px']) {
       expect(modern, words).toContain(words);
     }
     const shell = read('apps/desktop/src/components/shell/modern/top-ornament.tsx') + read('apps/desktop/src/app/palette-model.ts');

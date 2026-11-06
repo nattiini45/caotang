@@ -73,7 +73,7 @@ export const SURFACES: readonly Surface[] = [
   {
     id: 'the sidebar',
     setup: 'scene',
-    open: [{ click: { role: 'button', name: 'Manuscript', within: { role: 'navigation', name: 'Binder' } } }],
+    open: [{ click: { role: 'button', name: 'Binder', within: { role: 'navigation', name: 'Binder' } } }],
     scope: '[data-testid="modern-binder-bar"], [data-testid="modern-sidebar"]',
   },
   { id: 'a toast', setup: 'scene', open: [{ provoke: 'deleted-scene' }, { see: { testId: 'modern-toast', pattern: 'Deleted' } }], scope: '[data-testid="modern-notices"]' },
@@ -361,6 +361,8 @@ test.describe('the default Write screen', () => {
       [...document.querySelectorAll('[data-testid="modern-stage"] *')]
         .filter((element) => element.matches('button, a[href], input, select, textarea, summary, [role=button], [role=radio], [role=tab], [tabindex="0"]'))
         .filter((element) => element.closest('#modern-page, [inert], [hidden], [aria-hidden="true"], .modern-skip') === null)
+        // A radio group is one control (one tab stop, §9.5): only its checked radio counts.
+        .filter((element) => element.getAttribute('role') !== 'radio' || element.getAttribute('aria-checked') === 'true')
         .filter((element) => {
           const box = element.getBoundingClientRect();
           return box.width > 1 && box.height > 1 && getComputedStyle(element).visibility !== 'hidden';
@@ -368,7 +370,7 @@ test.describe('the default Write screen', () => {
         .map((element) => element.getAttribute('aria-label') ?? (element.textContent ?? '').trim()),
     );
     expect(controls.length, controls.join(' · ')).toBeLessThanOrEqual(10);
-    for (const name of ['More', 'Write', 'Board', 'Codex', 'Ask', 'Search', 'Manuscript', 'Panels']) expect(controls.some((control) => control.startsWith(name)), name).toBe(true);
+    for (const name of ['More', 'New', 'Write', 'Ask', 'Search', 'Binder', 'Findings', 'Agent']) expect(controls.some((control) => control.startsWith(name)), name).toBe(true);
   });
 
   test('keyboard only: the skip link first, then every stop in reading order, each shown with its ring', async ({ page }) => {

@@ -56,6 +56,7 @@ import type { ProjectSession } from '../app/session.js';
 import { BinderFilterBar } from './BinderFilters.js';
 import { ACCESS_LABELS, ACCESS_MARKERS, accessOf, effectiveAccess } from '../app/agent-rules-model.js';
 import { mediaCreateItems, type MediaCreateSpec } from '../media/create-menu.js';
+import { newGroups, type NewKind } from '../app/new-menu.js';
 import { openDialog } from './dialog-requests.js';
 import { useNarrow } from './narrow.js';
 import { EmptyState, InlineText, Menu, useReport, useSession, wordsLabel, type MenuAnchor, type MenuItem } from './shared.js';
@@ -89,6 +90,8 @@ export interface BinderProps {
   readonly onFocusSynopsis: () => void;
   /** Sends a plain-language request to the agent: the empty states' next step (ui-modules §0.3). Opens the agent panel. */
   readonly onAgentIntent: (intent: string) => void;
+  /** The one New (app/new-menu.ts): Classic's **New document ▾** lists it (#481). Modern's own **+ New** is in the top ornament. */
+  readonly onNew?: (kind: NewKind) => void;
 }
 
 interface Hover {
@@ -104,7 +107,7 @@ type Picker =
 
 export function Binder(props: BinderProps): ReactNode {
   useLingui();
-  const { session, renaming, onRename, onAskDelete, onShowCenter, onOpened, onFocusSynopsis, onAgentIntent } = props;
+  const { session, renaming, onRename, onAskDelete, onShowCenter, onOpened, onFocusSynopsis, onAgentIntent, onNew } = props;
   useSession(session);
   const narrow = useNarrow();
   const report = useReport();
@@ -125,6 +128,7 @@ export function Binder(props: BinderProps): ReactNode {
   const [dragging, setDragging] = useState<string | null>(null);
   const [hover, setHover] = useState<Hover | null>(null);
   const [picker, setPicker] = useState<Picker | null>(null);
+  const [newMenu, setNewMenu] = useState<MenuAnchor | null>(null);
   const treeRef = useRef<HTMLDivElement>(null);
 
   // Read only from event handlers: the row elements are found in the tree when focus moves.
@@ -542,6 +546,23 @@ export function Binder(props: BinderProps): ReactNode {
         <button type="button" className="button" onClick={() => create(parentForNew, 'document')} aria-keyshortcuts="Control+N">
           <Trans>New document</Trans>
         </button>
+        {onNew === undefined ? null : (
+          <button
+            type="button"
+            className="button binder-new-more"
+            aria-label={t`More things to make`}
+            title={t`More things to make`}
+            aria-haspopup="menu"
+            aria-expanded={newMenu !== null}
+            data-testid="binder-new-more"
+            onClick={(event) => {
+              const box = event.currentTarget.getBoundingClientRect();
+              setNewMenu({ x: box.left, y: box.bottom });
+            }}
+          >
+            ▾
+          </button>
+        )}
         <button type="button" className="button" onClick={() => create(parentForNewFolder, 'folder')}>
           <Trans>New folder</Trans>
         </button>
@@ -650,6 +671,21 @@ export function Binder(props: BinderProps): ReactNode {
         </EmptyState>
       ) : null}
 
+      {newMenu !== null && onNew !== undefined ? (
+        <Menu
+          label={t`New`}
+          anchor={newMenu}
+          items={newGroups().flatMap((group, at) =>
+            group.entries.map((entry, index) => ({
+              key: entry.testId,
+              label: entry.label,
+              onSelect: () => onNew(entry.kind),
+              ...(at > 0 && index === 0 ? { separatorBefore: true } : {}),
+            })),
+          )}
+          onClose={() => setNewMenu(null)}
+        />
+      ) : null}
       {picker && openPickerNode ? (
         <Menu
           label={
