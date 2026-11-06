@@ -18,7 +18,12 @@ import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
 import { newMenuChannel } from './requests.js';
 
-export function NewButton({ create, narrow }: { create: ShellCreate; narrow: boolean }): ReactNode {
+/**
+ * **+ New** and its popover, returned apart: the button goes in the top ornament's toolbar, the popover beside the toolbar as **⋯**'s
+ * does. Inside the toolbar the glass's backdrop filter would be the popover's containing block (it was placed from the ornament's
+ * edge, not the window's, and ran off the right side) and its menu items would join the toolbar's roving tab stops.
+ */
+export function useNewMenu({ create, narrow }: { create: ShellCreate; narrow: boolean }): { button: ReactNode; popover: ReactNode } {
   const button = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
   const [opening, setOpening] = useState(0);
@@ -39,8 +44,8 @@ export function NewButton({ create, narrow }: { create: ShellCreate; narrow: boo
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const chord = shortcutLabel('new-menu');
-  return (
-    <>
+  return {
+    button: (
       <button
         ref={button}
         type="button"
@@ -62,7 +67,9 @@ export function NewButton({ create, narrow }: { create: ShellCreate; narrow: boo
         <Icon name="plus" />
         <span className="modern-label">{t`New`}</span>
       </button>
-      {menu === 'closed' ? null : (
+    ),
+    popover:
+      menu === 'closed' ? null : (
         <GlassPopover
           key={opening}
           opener={button}
@@ -84,9 +91,8 @@ export function NewButton({ create, narrow }: { create: ShellCreate; narrow: boo
             onClose={() => setMenu('closing')}
           />
         </GlassPopover>
-      )}
-    </>
-  );
+      ),
+  };
 }
 
 function NewMenu({

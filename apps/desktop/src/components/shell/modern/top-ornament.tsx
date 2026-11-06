@@ -40,7 +40,7 @@ import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
 import type { ModernSlotProps } from './slots.js';
 import { useSceneInfoOpener } from './scene-info-store.js';
-import { NewButton } from './new-menu.js';
+import { useNewMenu } from './new-menu.js';
 import { modernViewOf } from './views.js';
 import type { ModernView } from './layout.js';
 
@@ -125,6 +125,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   const findings = regions.findingsBadge;
   // The corkboard is on the page (not a storyboard's shot board, which has its own size, nor the narrow "Open on desktop").
   const boardZoom = current === 'board' && regions.media === null && !view.narrow;
+  const newMenu = useNewMenu({ create: regions.create, narrow: view.narrow });
 
   // Each opening is a fresh popover (its key), so ⋯ pressed while the last one is still shrinking opens a new one at once.
   const [opening, setOpening] = useState(0);
@@ -169,7 +170,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
         </button>
         <span className="modern-ornament-state">{regions.saveState}</span>
         {boardZoom ? <ZoomControl zoom={view.zoom} onZoom={view.setZoom} className="modern-zoom" itemClassName="modern-capsule" /> : null}
-        <NewButton create={regions.create} narrow={view.narrow} />
+        {newMenu.button}
         <button
           ref={more}
           type="button"
@@ -192,6 +193,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           <Icon name="more" />
         </button>
       </div>
+      {newMenu.popover}
       {menu === 'closed' ? null : (
         <GlassPopover
           key={opening}
