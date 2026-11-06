@@ -93,7 +93,7 @@ test('a skill is imported, read, approved and listed, and the agent is told of i
     const before = endpoint.seen.map((request) => `${request.system}\n${request.user}`).join('\n');
     expect(before).not.toContain('- close-third:');
     expect(before).not.toContain(STYLE);
-    expect(endpoint.seen.some((request) => request.tools?.includes('skill.load'))).toBe(false);
+    expect(endpoint.seen.some((request) => request.tools?.includes('skill__load'))).toBe(false);
 
     // Read it: every file, as it is, in plain text, with the scripts named and not run.
     panel = await openSkills(page);
@@ -117,7 +117,8 @@ test('a skill is imported, read, approved and listed, and the agent is told of i
     const after = endpoint.seen.slice(from);
     expect(after[0]?.user).toContain('- close-third: Draft scenes in close third person, past tense.');
     expect(after[0]?.system).not.toContain('close-third');
-    expect(after[0]?.tools).toContain('skill.load');
+    // The endpoint sees wire-safe tool names (#486): skill.load goes out as skill__load.
+    expect(after[0]?.tools).toContain('skill__load');
     expect(after.slice(1).map((request) => `${request.user}\n${request.tool}`).join('\n')).toContain(STYLE);
     await expect(page.getByTestId('agent-step')).toHaveCount(0, { timeout: 15_000 });
 
