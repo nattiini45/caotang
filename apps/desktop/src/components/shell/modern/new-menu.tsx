@@ -37,6 +37,8 @@ export function useNewMenu({ create, narrow }: { create: ShellCreate; narrow: bo
     const onKey = (event: KeyboardEvent): void => {
       const inTextField = event.target instanceof HTMLElement && (event.target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(event.target.tagName));
       if (resolveKey({ ...keyFacts(event), composing: isImeEnter(event) }, { inTextField, inBinder: false, shell: 'modern' }) !== 'new-menu') return;
+      // Every dialog is opened with showModal(), so an open one is modal: leave its focus and its view alone (as the palette does).
+      if (Array.from(document.getElementsByTagName('dialog')).some((dialog) => dialog.open)) return;
       event.preventDefault();
       open();
     };

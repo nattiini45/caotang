@@ -9,7 +9,7 @@ import { resolveKey, shortcutLabel, type KeyContext, type KeyFacts } from '../..
  *
  * The matrix walks every key below with every modifier combination, in every context the app passes, three ways: no shell (every
  * caller today), Classic, and Modern. Classic must equal no shell everywhere; Modern must equal it everywhere except Modern's own
- * chords, listed in MODERN_CHORDS (Ctrl+J, the agent window; Ctrl+K, #310's palette).
+ * chords, listed in MODERN_CHORDS (Ctrl+J, the agent window; Ctrl+K, #310's palette) and MODERN_SHIFT_CHORDS (Ctrl+Shift+N, + New).
  */
 
 const KEYS = [
@@ -43,13 +43,15 @@ const CONTEXTS: Readonly<Record<string, KeyContext>> = {
   'agent intent, typed': { inTextField: true, inBinder: false, inAgent: true, inAgentIntent: true, agentIntentEmpty: false },
 };
 
-/** Modern's own chords: the letter, with the command modifier alone, and the action. */
+/** Modern's own chords: the letter with the command modifier alone, and the action. */
 const MODERN_CHORDS: Readonly<Record<string, string>> = { j: 'agent-toggle', k: 'palette' };
+/** Modern's own chords with the command modifier and Shift: Ctrl+Shift+N (Cmd+Shift+N) opens + New (#483). */
+const MODERN_SHIFT_CHORDS: Readonly<Record<string, string>> = { n: 'new-menu' };
 
 function isModernChord(facts: KeyFacts): string | null {
   const command = facts.ctrl || facts.meta;
-  if (!command || facts.alt || facts.shift || facts.altGraph || facts.composing === true) return null;
-  return MODERN_CHORDS[facts.key.toLowerCase()] ?? null;
+  if (!command || facts.alt || facts.altGraph || facts.composing === true) return null;
+  return (facts.shift ? MODERN_SHIFT_CHORDS : MODERN_CHORDS)[facts.key.toLowerCase()] ?? null;
 }
 
 test.describe('the keymap in both shells', () => {
@@ -88,9 +90,9 @@ test.describe('the keymap in both shells', () => {
       }
     }
     expect(changed).toEqual([]);
-    // Each of Modern's chords (Ctrl+J, Ctrl+K) as Ctrl, Cmd and Ctrl+Cmd, lower and upper case, in every context: the matrix did
-    // reach every new chord.
-    expect(added).toBe(Object.keys(CONTEXTS).length * Object.keys(MODERN_CHORDS).length * 2 * 3);
+    // Each of Modern's chords (Ctrl+J, Ctrl+K, Ctrl+Shift+N) as Ctrl, Cmd and Ctrl+Cmd, lower and upper case, in every context: the
+    // matrix did reach every new chord.
+    expect(added).toBe(Object.keys(CONTEXTS).length * (Object.keys(MODERN_CHORDS).length + Object.keys(MODERN_SHIFT_CHORDS).length) * 2 * 3);
   });
 
   test('the existing chords keep their meaning in both shells', () => {

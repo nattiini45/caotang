@@ -272,9 +272,10 @@ test.describe('the Modern binder drawer', () => {
     expect(await smallTargets(page)).toEqual([]);
   });
 
-  test('the keyboard reaches it from the top bar: Tab from the title capsule goes on to the binder’s button, in reading order', async ({ page }) => {
+  test('the keyboard reaches it from the tab bar: Tab from Write goes on to the binder’s button, in reading order', async ({ page }) => {
     await newProject(page);
-    await capsule(page).focus();
+    // The phone's bar is Write · Binder · Views · Ask · Search (#480): the binder's button follows the Write radio.
+    await tabBar(page).getByRole('radio', { name: 'Write' }).focus();
     await page.keyboard.press('Tab');
     await expect(binderButton(page)).toBeFocused();
     await page.keyboard.press('Space');
@@ -518,12 +519,15 @@ test.describe('the tab bar', () => {
   test('Board on a prose chapter says "Open on desktop: the corkboard", and Write comes back', async ({ page }) => {
     await newProject(page);
     await sceneInDrawer(page, 'Opening');
-    await press(page, tabBar(page).getByRole('radio', { name: 'Board' }));
+    // Board, Timeline, Codex and Pictures are in the Views sheet on a phone (#480).
+    await press(page, page.getByTestId('modern-narrow-views'));
+    await press(page, page.getByTestId('modern-views-board'));
     await expect(page.getByTestId('open-on-desktop')).toHaveAttribute('data-feature', 'corkboard');
     await expect(page.getByRole('heading', { name: 'Open on desktop: the corkboard' })).toBeVisible();
     await press(page, tabBar(page).getByRole('radio', { name: 'Write' }));
     await expect(page.getByRole('textbox', { name: 'Document text' })).toBeVisible();
-    await press(page, tabBar(page).getByRole('radio', { name: 'Codex' }));
+    await press(page, page.getByTestId('modern-narrow-views'));
+    await press(page, page.getByTestId('modern-views-codex'));
     await expect(pageMain(page)).toHaveAttribute('data-view', 'codex');
     // The Codex is the page's view, not a panel: nothing opened over it.
     await expect(scrim(page)).toHaveAttribute('data-panel', 'none');

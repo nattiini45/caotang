@@ -682,6 +682,7 @@
 }
 
 /* Classic's New document ▾ (#481): Modern has its own + New in the top ornament, so the binder does not say it twice. */
-:root[data-shell='modern'] .binder-new-more {
+/* Specific enough to beat the control kit's `:is(.button, …, .thread-actions > button)` display. */
+:root[data-shell='modern'] .binder-toolbar > .binder-new-more {
   display: none;
 }

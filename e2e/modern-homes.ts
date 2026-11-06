@@ -447,8 +447,8 @@ export const MODERN_HOMES: readonly Home[] = [
   {
     id: 'views',
     section: '7.3',
-    classic: 'Editor / Corkboard radio',
-    modern: 'Write / Board in the bottom ornament (Codex is the third)',
+    classic: 'Editor / Corkboard / Timeline / Pictures radio',
+    modern: 'Write / Board / Timeline / Pictures in the bottom ornament (Codex between Timeline and Pictures, #475)',
     setup: 'scene',
     routes: [
       { via: 'the centre radios keep their ids', steps: [{ click: { css: '#center-corkboard' } }, see(corkboard), { click: { css: '#center-editor' } }, see(editor)] },
@@ -582,8 +582,13 @@ export const MODERN_HOMES: readonly Home[] = [
     setup: 'scene',
     routes: [
       {
-        via: 'Board on a phone',
-        steps: [phone, { click: { role: 'radio', name: 'Board', within: bottom } }, see({ role: 'heading', name: 'Open on desktop: the corkboard', within: page })],
+        via: 'Board on a phone (Views › Board, #480)',
+        steps: [
+          phone,
+          { click: { testId: 'modern-narrow-views' } },
+          { click: { testId: 'modern-views-board' } },
+          see({ role: 'heading', name: 'Open on desktop: the corkboard', within: page }),
+        ],
       },
     ],
   },
