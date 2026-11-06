@@ -79,87 +79,101 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
   const searchKey = shortcutLabel('palette');
   const askKey = shortcutLabel('agent-toggle');
   const ask = askState(view);
+  // The sheet renders beside the ornament, not inside its glass: a `backdrop-filter` makes the ornament the containing block of
+  // the fixed popover, so it would be placed from the ornament's edge (off screen in WebKit), as + New's was.
+  const viewsMenu = useViewsMenu({ views: ordered.filter((name) => name !== 'write'), chosen, onChoose: (name) => chooseView(view, name) });
   return (
-    <nav className="modern-ornament is-bottom mat-glass" aria-label={t`Views and tools`} data-testid="modern-bottom-ornament">
-      <div ref={group} className="modern-views" role="radiogroup" aria-label={t`View`} onKeyDown={onKey}>
-        <span ref={lens} className="modern-lens" aria-hidden="true" data-testid="modern-lens" />
-        {shown.map((name) => {
-          const checked = chosen === name;
-          return (
+    <>
+      <nav className="modern-ornament is-bottom mat-glass" aria-label={t`Views and tools`} data-testid="modern-bottom-ornament">
+        <div ref={group} className="modern-views" role="radiogroup" aria-label={t`View`} onKeyDown={onKey}>
+          <span ref={lens} className="modern-lens" aria-hidden="true" data-testid="modern-lens" />
+          {shown.map((name) => {
+            const checked = chosen === name;
+            return (
+              <button
+                key={name}
+                type="button"
+                id={viewControlId(name)}
+                role="radio"
+                aria-checked={checked}
+                aria-controls={pageId}
+                tabIndex={checked ? 0 : -1}
+                className="modern-capsule modern-view"
+                title={viewName(name)}
+                onClick={() => chooseView(view, name)}
+              >
+                <Icon name={name} />
+                <span className="modern-label">{viewName(name)}</span>
+              </button>
+            );
+          })}
+        </div>
+        {view.narrow ? (
+          <>
             <button
-              key={name}
               type="button"
-              id={viewControlId(name)}
-              role="radio"
-              aria-checked={checked}
-              aria-controls={pageId}
-              tabIndex={checked ? 0 : -1}
-              className="modern-capsule modern-view"
-              title={viewName(name)}
-              onClick={() => chooseView(view, name)}
+              id={BINDER_BUTTON_ID}
+              className="modern-capsule"
+              aria-expanded={view.openPanel === 'rail'}
+              aria-controls={DRAWER_ID}
+              data-testid="modern-narrow-binder"
+              onClick={() => view.setPanel(view.openPanel === 'rail' ? null : 'rail')}
             >
-              <Icon name={name} />
-              <span className="modern-label">{viewName(name)}</span>
+              <Icon name="binder" />
+              <span className="modern-label">{t`Binder`}</span>
             </button>
-          );
-        })}
-      </div>
-      {view.narrow ? (
-        <>
-          <button
-            type="button"
-            id={BINDER_BUTTON_ID}
-            className="modern-capsule"
-            aria-expanded={view.openPanel === 'rail'}
-            aria-controls={DRAWER_ID}
-            data-testid="modern-narrow-binder"
-            onClick={() => view.setPanel(view.openPanel === 'rail' ? null : 'rail')}
-          >
-            <Icon name="binder" />
-            <span className="modern-label">{t`Binder`}</span>
-          </button>
-          <ViewsButton views={ordered.filter((name) => name !== 'write')} chosen={chosen} onChoose={(name) => chooseView(view, name)} />
-        </>
-      ) : null}
-      <button
-        type="button"
-        id={ASK_ID}
-        className="modern-capsule modern-ask"
-        data-testid="modern-ask"
-        title={t`Ask the agent (${{ shortcut: askKey }})`}
-        aria-controls={COMPANION_ID}
-        aria-expanded={ask.expanded}
-        data-activity={ask.activity}
-        onClick={(event) => toggleCompanion(view, event.currentTarget)}
-      >
-        <Icon name="ask" />
-        <span className="modern-label">{t`Ask`}</span>
-        {ask.activity === 'idle' || ask.expanded ? null : (
-          <span className="modern-ask-dot" data-testid="modern-ask-activity">
-            <span className="visually-hidden">{ask.activity === 'working' ? t`The agent is working` : t`The agent is waiting for you`}</span>
-          </span>
-        )}
-      </button>
-      <button
-        type="button"
-        className="modern-capsule"
-        data-testid="modern-search"
-        title={t`Search and commands (${{ shortcut: searchKey }})`}
-        aria-haspopup="dialog"
-        onClick={(event) => openPalette(event.currentTarget)}
-      >
-        <Icon name="search" />
-        <span className="modern-label">{t`Search`}</span>
-        <kbd className="modern-kbd" aria-hidden="true">
-          {searchKey}
-        </kbd>
-      </button>
-    </nav>
+            {viewsMenu.button}
+          </>
+        ) : null}
+        <button
+          type="button"
+          id={ASK_ID}
+          className="modern-capsule modern-ask"
+          data-testid="modern-ask"
+          title={t`Ask the agent (${{ shortcut: askKey }})`}
+          aria-controls={COMPANION_ID}
+          aria-expanded={ask.expanded}
+          data-activity={ask.activity}
+          onClick={(event) => toggleCompanion(view, event.currentTarget)}
+        >
+          <Icon name="ask" />
+          <span className="modern-label">{t`Ask`}</span>
+          {ask.activity === 'idle' || ask.expanded ? null : (
+            <span className="modern-ask-dot" data-testid="modern-ask-activity">
+              <span className="visually-hidden">{ask.activity === 'working' ? t`The agent is working` : t`The agent is waiting for you`}</span>
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          className="modern-capsule"
+          data-testid="modern-search"
+          title={t`Search and commands (${{ shortcut: searchKey }})`}
+          aria-haspopup="dialog"
+          onClick={(event) => openPalette(event.currentTarget)}
+        >
+          <Icon name="search" />
+          <span className="modern-label">{t`Search`}</span>
+          <kbd className="modern-kbd" aria-hidden="true">
+            {searchKey}
+          </kbd>
+        </button>
+      </nav>
+      {view.narrow ? viewsMenu.popover : null}
+    </>
   );
 }
 
 /** The phone's **Views** tab (#480): named for the view on the page when it is not Write, and a sheet of the other views. */
-function ViewsButton({ views, chosen, onChoose }: { views: readonly ModernView[]; chosen: ModernView; onChoose: (view: ModernView) => void }): ReactNode {
+function useViewsMenu({
+  views,
+  chosen,
+  onChoose,
+}: {
+  views: readonly ModernView[];
+  chosen: ModernView;
+  onChoose: (view: ModernView) => void;
+}): { button: ReactNode; popover: ReactNode } {
   const button = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
@@ -180,8 +194,8 @@ function ViewsButton({ views, chosen, onChoose }: { views: readonly ModernView[]
     event.preventDefault();
     items[next]?.focus();
   };
-  return (
-    <>
+  return {
+    button: (
       <button
         ref={button}
         type="button"
@@ -195,7 +209,9 @@ function ViewsButton({ views, chosen, onChoose }: { views: readonly ModernView[]
         <Icon name={on ? chosen : 'board'} />
         <span className="modern-label">{on ? viewName(chosen) : t`Views`}</span>
       </button>
-      {menu === 'closed' ? null : (
+    ),
+    popover:
+      menu === 'closed' ? null : (
         <GlassPopover
           opener={button}
           prefer="above"
@@ -229,7 +245,6 @@ function ViewsButton({ views, chosen, onChoose }: { views: readonly ModernView[]
             ))}
           </div>
         </GlassPopover>
-      )}
-    </>
-  );
+      ),
+  };
 }
