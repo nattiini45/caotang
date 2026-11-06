@@ -1,9 +1,9 @@
 /**
  * Modern's narrow layout (modern-interface.md §13, §9.2, §9.5, §9.7; M11, #312): below 960 px (`NARROW_QUERY`) the page fills the
- * width, the top ornament is a compact capsule (title, **⋯**) and the bottom ornament a tab bar (Write, Board, Codex, Ask, Search),
- * which narrow-modern.css draws. This component adds what only the narrow layout has:
+ * width, the top ornament is a compact capsule (title, **+**, **⋯**) and the bottom ornament a tab bar (Write, Binder, Views, Ask,
+ * Search; #480), which narrow-modern.css draws; the bottom ornament draws the Binder tab, which opens the drawer here. This component adds what only the narrow layout has:
  *
- * - The **binder's button** at the top bar's inline-start end, and the binder as a **drawer** from that edge, built from #307's sidebar
+ * - The binder as a **drawer** from the inline-start edge (opened by the tab bar's **Binder**), built from #307's sidebar
  *   (binder-sidebar.tsx's tablist and panel, sidebar-model.ts's tabs): Binder, Findings, Activity, Trace with Classic's ids, over the
  *   same panels, the binder footer in the same **Goals and sprint** disclosure. The Codex is the page's own view here too.
  * - Scene info as a **bottom sheet** (scene-info.tsx, at most 80% of the height) and the agent window as a **full-height sheet**
@@ -33,14 +33,14 @@ import type { RailTab, ShellRegions } from '../regions.js';
 import { ASK_ID, COMPANION_ID } from './companion-actions.js';
 import { SidebarPanel, SidebarTabList } from './binder-sidebar.js';
 import { Icon } from './icons.js';
+import { BINDER_BUTTON_ID, DRAWER_ID } from './narrow-ids.js';
 import { shownPanel, syncNarrow, type NarrowState } from './narrow-sync.js';
 import { SCENE_INFO_ID } from './scene-info-model.js';
 import { closeSceneInfo, openSceneInfo, sceneInfoReturnTarget, sceneInfoState, subscribeSceneInfo } from './scene-info-store.js';
 import { SIDEBAR_TABS, isSidebarTab, sidebarTabFor, type SidebarTab } from './sidebar-model.js';
 
-/** The drawer's id and its button's: Classic's narrow ids, so the workspace's own focus rule for the rail drawer finds them. */
-export const DRAWER_ID = 'narrow-rail';
-export const BINDER_BUTTON_ID = 'narrow-toggle-rail';
+/** The drawer's id and its button's (narrow-ids.ts): Classic's narrow ids, so the workspace's own focus rule for the rail drawer finds them. */
+export { BINDER_BUTTON_ID, DRAWER_ID };
 /** The drawer's tabs, in the arrow keys' order: #307's sidebar tabs (sidebar-model.ts); the Codex is the page's view. */
 export const DRAWER_TABS: readonly SidebarTab[] = SIDEBAR_TABS;
 /** The tab the drawer shows for the workspace's rail: #307's rule, its own tab or Binder while the page shows the Codex. */
@@ -176,19 +176,6 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   if (view.hideRails) return null;
   return (
     <>
-      <button
-        type="button"
-        id={BINDER_BUTTON_ID}
-        className="modern-capsule is-icon modern-narrow-binder mat-thick"
-        aria-label={t`Binder`}
-        title={t`Binder`}
-        aria-expanded={drawerOpen}
-        aria-controls={DRAWER_ID}
-        data-testid="modern-narrow-binder"
-        onClick={() => setPanel(drawerOpen ? null : 'rail')}
-      >
-        <Icon name="binder" />
-      </button>
       <nav
         ref={drawer}
         id={DRAWER_ID}

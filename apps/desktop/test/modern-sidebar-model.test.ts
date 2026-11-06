@@ -1,6 +1,6 @@
 /**
  * The binder tab bar and sidebar's rules (components/shell/modern/sidebar-model.ts; modern-interface.md §7.2, §8.5) and the minimap's
- * dots (components/shell/minimap.ts): the tabs and their keys, which tab Manuscript and Panels open, the delays, when the sidebar may
+ * dots (components/shell/minimap.ts): the tabs and their keys, which tab Binder, Findings and Agent open, the delays, when the sidebar may
  * close, and the pin kept in local storage.
  */
 import type { ProjectState, TreeNode } from '@caotang/store';
@@ -16,7 +16,8 @@ import {
   currentBinderPinned,
   isSidebarTab,
   mayClose,
-  panelsTab,
+  agentTab,
+  openerOf,
   readBinderPinned,
   setBinderPinned,
   sidebarTabFor,
@@ -53,11 +54,18 @@ describe('the sidebar tabs', () => {
     expect(keyStep(SIDEBAR_TABS, 'findings', 'a')).toBeNull();
   });
 
-  it('Panels opens the last other tab shown, and Findings the first time', () => {
-    expect(panelsTab(null)).toBe('findings');
-    expect(panelsTab('binder')).toBe('findings');
-    expect(panelsTab('trace')).toBe('trace');
-    expect(panelsTab('activity')).toBe('activity');
+  it('Agent opens the agent log shown last, and Activity the first time (#479)', () => {
+    expect(agentTab(null)).toBe('activity');
+    expect(agentTab('binder')).toBe('activity');
+    expect(agentTab('trace')).toBe('trace');
+    expect(agentTab('activity')).toBe('activity');
+  });
+
+  it('each tab belongs to one opener: Binder, Findings, or Agent for both logs', () => {
+    expect(openerOf('binder')).toBe('binder');
+    expect(openerOf('findings')).toBe('findings');
+    expect(openerOf('activity')).toBe('agent');
+    expect(openerOf('trace')).toBe('agent');
   });
 });
 

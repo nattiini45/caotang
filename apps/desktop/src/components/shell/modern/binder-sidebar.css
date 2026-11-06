@@ -118,15 +118,18 @@
   hyphens: manual;
 }
 
-/* An open finding: a dot on Panels, as the title capsule has one (§6). The count itself is on the Findings tab. */
-:root[data-shell='modern'] .modern-binder-dot {
+/* Open findings: the count on Findings (#479), visible while the sidebar is closed. */
+:root[data-shell='modern'] .modern-binder-count {
   position: absolute;
-  inset-block-start: var(--space-3);
-  inset-inline-end: var(--space-3);
-  inline-size: 8px;
-  block-size: 8px;
-  border-radius: 50%;
-  background: var(--danger);
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  min-inline-size: 18px;
+  padding-inline: 5px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font: 600 11px/18px var(--ui);
+  text-align: center;
 }
 
 /* The minimap: decorative status dots (§9.1), the open scene ringed. */
@@ -676,4 +679,9 @@
   :root[data-shell='modern'] .modern-minimap-dot {
     background: CanvasText;
   }
+}
+
+/* Classic's New document ▾ (#481): Modern has its own + New in the top ornament, so the binder does not say it twice. */
+:root[data-shell='modern'] .binder-new-more {
+  display: none;
 }

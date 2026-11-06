@@ -57,3 +57,6 @@ export const sidebarChannel: Channel<{ readonly tab: RailTab }> = createChannel<
 
 /** Show a view on the page (#306 listens; the codex is a view in Modern). */
 export const viewChannel: Channel<{ readonly view: PaletteView }> = createChannel<{ readonly view: PaletteView }>();
+
+/** Open the **+ New** menu (#477 listens); Ctrl+Shift+N and the palette send it. */
+export const newMenuChannel: Channel<Record<string, never>> = createChannel<Record<string, never>>();

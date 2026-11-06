@@ -103,8 +103,9 @@ const titleCapsule: Target = { testId: 'modern-title-capsule' };
 const ghostBar: Target = { testId: 'ghost-bar', within: page };
 const reviewBar: Target = { testId: 'review-bar', within: page };
 const binderBar: Target = { role: 'navigation', name: 'Binder' };
-const manuscript: Target = { role: 'button', name: 'Manuscript', within: binderBar };
-const panels: Target = { role: 'button', name: 'Panels', within: binderBar };
+const manuscript: Target = { role: 'button', name: 'Binder', within: binderBar };
+const findingsOpener: Target = { role: 'button', pattern: '^Findings', within: binderBar };
+const agentOpener: Target = { role: 'button', name: 'Agent', within: binderBar };
 const sidebar: Target = { testId: 'modern-sidebar' };
 const sidebarTab = (name: string): Target => ({ role: 'tab', name, within: sidebar });
 /** A sidebar tab that is the chosen one. */
@@ -157,6 +158,21 @@ export const MODERN_HOMES: readonly Home[] = [
         steps: [{ palette: 'Scene info' }, { click: { role: 'button', pattern: 'Gate Book', within: sceneInfo } }, see({ role: 'dialog', name: 'Project' })],
       },
     ]),
+  },
+  {
+    id: 'new-menu',
+    section: '7.1',
+    keys: ['new-menu'],
+    classic: "Binder's media items (New screenplay scene, storyboard, dialogue or comic here)",
+    modern: "+ New in the top ornament (§7.8); Ctrl+Shift+N; palette › New; the binder's menu keeps them",
+    setup: 'scene',
+    routes: [
+      {
+        via: '+ New › Comic',
+        steps: [{ click: { testId: 'new-menu' } }, { click: { testId: 'new-comic' } }, { binder: true }, see({ role: 'treeitem', pattern: 'Untitled comic' })],
+      },
+      { via: 'palette › New › Comic', steps: [{ palette: 'new comic', option: 'Comic' }, { binder: true }, see({ role: 'treeitem', pattern: 'Untitled comic' })] },
+    ],
   },
   {
     id: 'undo',
@@ -407,7 +423,7 @@ export const MODERN_HOMES: readonly Home[] = [
       setup: 'scene',
       routes: [
         { via: `palette › ${tab}`, steps: [{ palette: tab, option: tab }, see(selectedTab(tab))] },
-        { via: `Panels › ${tab}`, steps: [{ click: panels }, { click: sidebarTab(tab) }, see(selectedTab(tab)), see({ role: 'tabpanel', within: sidebar })] },
+        { via: `${tab === 'Findings' ? 'Findings' : 'Agent'} › ${tab}`, steps: [{ click: tab === 'Findings' ? findingsOpener : agentOpener }, { click: sidebarTab(tab) }, see(selectedTab(tab)), see({ role: 'tabpanel', within: sidebar })] },
         ...(tab === 'Findings'
           ? [
               { via: 'the count on the title capsule’s dot', setup: 'findings' as const, steps: [see({ testId: 'modern-title-dot', pattern: 'open finding' })] },

@@ -4,7 +4,7 @@ import { NO_PIN } from './classic-pin.js';
 import { waitForSaved } from './support.js';
 
 /**
- * Modern's binder tab bar and sidebar (M6, #307; modern-interface.md §7.2, §8.5, §9.5, §9.6): the glass tab bar with Manuscript, Panels
+ * Modern's binder tab bar and sidebar (M6, #307; modern-interface.md §7.2, §8.5, §9.5, §9.6): the glass tab bar with Binder, Findings, Agent
  * and the minimap grows into the sidebar with Binder, Findings, Activity and Trace. A hover held for 140 ms opens it without moving focus,
  * and it closes 420 ms after the pointer leaves; a click, Enter or Space opens it with focus on the current row; Escape closes it and
  * returns focus; Ctrl+Alt+F opens it on the filter; Keep open pins it, the page moves over and the pin survives a reload; a scene chosen
@@ -29,8 +29,9 @@ function cspViolations(page: Page): Promise<string[] | undefined> {
 
 const binder = (page: Page): Locator => page.getByRole('navigation', { name: 'Binder' });
 const sidebar = (page: Page): Locator => page.getByTestId('modern-sidebar');
-const manuscript = (page: Page): Locator => binder(page).getByRole('button', { name: 'Manuscript' });
-const panels = (page: Page): Locator => binder(page).getByRole('button', { name: 'Panels' });
+const manuscript = (page: Page): Locator => binder(page).getByRole('button', { name: 'Binder', exact: true });
+const findingsOpener = (page: Page): Locator => binder(page).getByRole('button', { name: /^Findings/ });
+const agentOpener = (page: Page): Locator => binder(page).getByRole('button', { name: 'Agent', exact: true });
 const keepOpen = (page: Page): Locator => sidebar(page).getByRole('button', { name: 'Keep open' });
 const editorText = (page: Page): Locator => page.getByRole('main').getByRole('textbox', { name: 'Document text' });
 
@@ -72,23 +73,26 @@ async function modernProject(page: Page, pinned = false): Promise<void> {
   }
 }
 
-test('the tab bar shows Manuscript, Panels and a decorative minimap; closed, the sidebar is inert and Tab never reaches it', async ({ page }) => {
+test('the tab bar shows Binder, Findings, Agent and a decorative minimap; closed, the sidebar is inert and Tab never reaches it', async ({ page }) => {
   await watchCsp(page);
   await modernProject(page);
   await expect(page.getByTestId('modern-binder-bar')).toBeVisible();
   await expect(manuscript(page)).toHaveAttribute('aria-expanded', 'false');
   await expect(manuscript(page)).toHaveAttribute('aria-controls', 'modern-sidebar');
-  await expect(panels(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(findingsOpener(page)).toHaveAttribute('aria-expanded', 'false');
+  await expect(agentOpener(page)).toHaveAttribute('aria-expanded', 'false');
   const minimap = page.getByTestId('modern-minimap');
   await expect(minimap).toHaveAttribute('aria-hidden', 'true');
   await expect(minimap.locator('.modern-minimap-dot')).toHaveCount(2);
   await expect(minimap.locator('.modern-minimap-dot.is-current')).toHaveCount(1);
   await expect(sidebar(page)).toHaveAttribute('inert', '');
 
-  // Tab from Manuscript goes to Panels and then leaves the binder: no hidden row or tab takes a stop.
+  // Tab from Binder goes to Findings, then Agent, and then leaves the binder: no hidden row or tab takes a stop.
   await manuscript(page).focus();
   await page.keyboard.press('Tab');
-  await expect(panels(page)).toBeFocused();
+  await expect(findingsOpener(page)).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(agentOpener(page)).toBeFocused();
   await page.keyboard.press('Tab');
   expect(await page.evaluate(() => document.getElementById('modern-sidebar')?.contains(document.activeElement) ?? false)).toBe(false);
   expect(await cspViolations(page)).toEqual([]);
@@ -155,18 +159,18 @@ test('a click, Enter or Space opens it with focus on the current row; Escape clo
   await page.keyboard.press('Escape');
   await expectClosed(page);
 
-  // Panels opens on Findings the first time, with focus on that tab; pressed again it closes.
-  await panels(page).click();
+  // Findings opens on Findings, with focus on that tab; pressed again it closes.
+  await findingsOpener(page).click();
   await expectOpen(page);
   const findings = sidebar(page).getByRole('tab', { name: /^Findings/ });
   await expect(findings).toHaveAttribute('aria-selected', 'true');
   await expect(findings).toBeFocused();
-  await expect(panels(page)).toHaveAttribute('aria-expanded', 'true');
-  await panels(page).click();
+  await expect(findingsOpener(page)).toHaveAttribute('aria-expanded', 'true');
+  await findingsOpener(page).click();
   await expectClosed(page);
 });
 
-test('the sidebar’s tabs are a tablist with Classic’s keys and ids, and Panels comes back to the last other tab', async ({ page }) => {
+test('the sidebar’s tabs are a tablist with Classic’s keys and ids, and Agent comes back to the last agent log', async ({ page }) => {
   await modernProject(page);
   await manuscript(page).click();
   const tablist = sidebar(page).getByRole('tablist', { name: 'Panels' });
@@ -197,7 +201,7 @@ test('the sidebar’s tabs are a tablist with Classic’s keys and ids, and Pane
   await manuscript(page).click();
   await expect(tab('Binder')).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('Escape');
-  await panels(page).click();
+  await agentOpener(page).click();
   await expect(tab('Activity')).toHaveAttribute('aria-selected', 'true');
 });
 
@@ -303,7 +307,8 @@ test('every control of the tab bar and the sidebar, and every tree row, is at le
   await page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))));
   const targets = [
     manuscript(page),
-    panels(page),
+    findingsOpener(page),
+    agentOpener(page),
     ...['Binder', 'Findings', 'Activity', 'Trace'].map((name) => sidebar(page).getByRole('tab', { name: new RegExp(`^${name}`) })),
     keepOpen(page),
     sidebar(page).getByRole('button', { name: 'Goals and sprint' }),

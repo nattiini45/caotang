@@ -29,6 +29,7 @@ import { pictureStorageReport, type ProjectState, type RuntimeStore, type SweepC
 
 import type { AgentController, SubmitOptions } from '../app/agent.js';
 import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
+import { newPlan, newTarget, type NewKind } from '../app/new-menu.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
@@ -918,7 +919,36 @@ export function Workspace({
   );
 
   // The regions a shell arranges (modern-interface.md §4.1): the feature elements, built once here, and the view state.
+  const newTargetNode = newTarget(state, selected, view.activeDocId);
+  const makeNew = (kind: NewKind): void => {
+    const plan = newPlan(state, kind, newTargetNode, state.manifest.project.language);
+    let chapterId: string | undefined;
+    let made: string | undefined;
+    for (const [at, step] of plan.entries()) {
+      const parentId = step.parentId === '$chapter' ? chapterId : step.parentId;
+      if (parentId === undefined) return;
+      const { spec } = step;
+      const outcome =
+        spec.kind === 'comic'
+          ? session.dispatch('comic.createBook', { parentId, title: spec.title, pages: 1 })
+          : session.dispatch('binder.create', { parentId, type: spec.type, title: spec.title, ...(spec.kind === undefined ? {} : { kind: spec.kind }) });
+      if (!outcome.ok) {
+        report({ text: explain(outcome.error), tone: 'error' });
+        return;
+      }
+      made = createdNodeId(outcome);
+      if (at === 0 && plan.length > 1) chapterId = made;
+    }
+    if (made === undefined) return;
+    const node = nodeById(session.state, made);
+    selectNode(session, made);
+    setPanel(null);
+    if (rail === 'codex') setRail('binder');
+    showCenter(node?.type === 'document' || node?.type === 'dialogue' ? 'editor' : 'corkboard');
+  };
+
   const regions: ShellRegions = {
+    create: { target: newTargetNode?.title ?? null, make: makeNew },
     projectName: state.manifest.project.name,
     actions,
     view: {
@@ -960,6 +990,7 @@ export function Workspace({
           focusSoon('#inspector-synopsis');
         }}
         onAgentIntent={runAgentIntent}
+        onNew={(kind) => makeNew(kind)}
       />
     ),
     binderFooter: <BinderFooter session={session} runtime={store} target={target} />,

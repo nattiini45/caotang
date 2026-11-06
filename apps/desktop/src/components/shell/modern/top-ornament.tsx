@@ -1,7 +1,8 @@
 /**
  * Modern's top ornament (modern-interface.md §6, §7.1, §8.1, §8.2): a glass capsule centred on the page's top edge, a toolbar named
- * "Scene". It holds the **title capsule** (the project's name, the view when it is not Write, and a dot while a finding is open) and
- * **⋯**, the menu of every shell action (app/shell-actions.ts) with the two other centre views and **Appearance** inside. The save state
+ * "Scene". It holds the **title capsule** (the project's name, the view when it is not Write, and a dot while a finding is open),
+ * **+ New** (new-menu.tsx, #477; the surface's one primary) and **⋯**, the menu of every shell action (app/shell-actions.ts) with
+ * **Appearance** inside. The views live in the bottom ornament (#475); ⋯'s View section only points there for one release. The save state
  * sits beside the title (Scene info's Progress repeats it), so a failed save's **Export a backup** is never out of reach until the
  * notices (#311) show it as a persistent toast.
  *
@@ -35,12 +36,12 @@ import { CLASSIC_MENU_SECTIONS, type ShellAction, type ShellActionGroup } from '
 import { activeTheme } from '../../../app/theme.js';
 import { inlineKey } from '../../../i18n/direction.js';
 import { ZoomControl } from '../../ZoomControl.js';
-import type { ShellView } from '../regions.js';
 import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
 import type { ModernSlotProps } from './slots.js';
 import { useSceneInfoOpener } from './scene-info-store.js';
-import { MENU_VIEWS, chooseView, modernViewOf } from './views.js';
+import { NewButton } from './new-menu.js';
+import { modernViewOf } from './views.js';
 import type { ModernView } from './layout.js';
 
 const VIEW_NAMES: Readonly<Record<ModernView, () => string>> = {
@@ -168,6 +169,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
         </button>
         <span className="modern-ornament-state">{regions.saveState}</span>
         {boardZoom ? <ZoomControl zoom={view.zoom} onZoom={view.setZoom} className="modern-zoom" itemClassName="modern-capsule" /> : null}
+        <NewButton create={regions.create} narrow={view.narrow} />
         <button
           ref={more}
           type="button"
@@ -202,7 +204,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           onClosed={() => setMenu('closed')}
           testId="modern-more-popover"
         >
-          <MoreMenu actions={actions} view={view} current={current} onClose={() => setMenu('closing')} />
+          <MoreMenu actions={actions} onClose={() => setMenu('closing')} />
         </GlassPopover>
       )}
     </>
@@ -248,31 +250,16 @@ function actionSections(actions: readonly ShellAction[]): Section[] {
   return sections.flatMap((entries, at) => (entries.length > 0 ? [{ head: heads[at], entries }] : []));
 }
 
-function MoreMenu({
-  actions,
-  view,
-  current,
-  onClose,
-}: {
-  actions: readonly ShellAction[];
-  view: ShellView;
-  current: ModernView;
-  onClose: () => void;
-}): ReactNode {
+function MoreMenu({ actions, onClose }: { actions: readonly ShellAction[]; onClose: () => void }): ReactNode {
   const ref = useRef<HTMLDivElement>(null);
   const theme = actions.find((action) => action.id === 'theme');
   const dark = activeTheme() === 'dark';
   const solid = readModernPreferences().reduceTransparency;
 
   const sections = actionSections(actions);
-  const views: Entry[] = MENU_VIEWS.map((name) => ({
-    key: `view-${name}`,
-    role: 'menuitemradio',
-    label: viewName(name),
-    checked: current === name,
-    run: () => chooseView(view, name),
-  }));
-  // The views go before the app's own section (Settings).
+  // The views moved to the bottom ornament (#475). For one release the View section only says so (docs/decisions.md 2026-11-06).
+  const views: Entry[] = [{ key: 'view-moved', role: 'menuitem', label: t`Views are in the bar below`, disabled: true, run: () => undefined }];
+  // The pointer goes before the app's own section (Settings).
   sections.splice(Math.max(0, sections.length - 1), 0, { head: t`View`, entries: views });
   const appearance: Entry[] = [
     { key: 'light', role: 'menuitemradio', label: t`Light`, checked: !dark, run: () => (dark ? theme?.run() : undefined) },

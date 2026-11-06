@@ -1,36 +1,41 @@
 /**
  * Modern's bottom ornament (modern-interface.md §6, §7.3, §8.1): a glass capsule centred on the page's bottom edge, a `nav` named
- * "Views and tools". It holds **Write**, **Board** and **Codex** as one radio group (Classic's ids, `center-editor` and
- * `center-corkboard`, and `center-codex`) with a glass lens that slides to the chosen one, then **Ask** and **Search**.
+ * "Views and tools". It holds **Write**, **Board**, **Timeline**, **Codex** and **Pictures** as one radio group, always visible
+ * (#475; Classic's ids `center-editor`, `center-corkboard`, `center-timeline`, `center-pictures`, and `center-codex`), with a glass
+ * lens that slides to the chosen one, then **Ask** and **Search**. A hall may reorder the views (`viewOrder`, #482); none is dropped.
+ * Below 1180 px the view labels give way to their icons and a tooltip.
  *
  * Keys (APG radio): Tab enters the group on the chosen view; the arrow keys, Home and End choose and move; Tab goes on to Ask and
- * Search. When the page shows the timeline or the pictures (chosen in **⋯**), the group shows that view too, as a fourth radio, checked,
- * so the ornament always says which view is on (Stageshow polish, #361); it goes when another view is chosen.
+ * Search.
  *
  * **Ask** opens and closes the agent's companion window (#309, companion-actions.ts): `id` {@link ASK_ID}, so Escape and **Close** give
  * focus back to it and Ctrl+J grows the window out of it; `aria-controls` the window, `aria-expanded` while it is open, and a dot
  * while the agent works or waits for an answer with the window closed (`data-activity`, §8.10). **Search** opens the palette (#310,
  * `openPalette` in requests.ts), as Ctrl+K (Cmd+K) does.
  */
-/* lingui-set comment="Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search." */
+/* lingui-set comment="Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search." */
 
 import { t } from '@lingui/core/macro';
-import { useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { shortcutLabel } from '../../../app/keymap.js';
 import { keyStep } from '../ClassicShell.js';
 import { ASK_ID, COMPANION_ID, askState, toggleCompanion } from './companion-actions.js';
+import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
+import { BINDER_BUTTON_ID, DRAWER_ID } from './narrow-ids.js';
 import { openPalette } from './requests.js';
 import type { ModernSlotProps } from './slots.js';
 import { viewName } from './top-ornament.js';
 import type { ModernView } from './layout.js';
-import { ORNAMENT_VIEWS, chooseView, modernViewOf, viewControlId } from './views.js';
+import { chooseView, modernViewOf, orderViews, viewControlId } from './views.js';
 
 export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode {
   const { view } = regions;
   const chosen = modernViewOf(view.rail, view.center);
-  const shown: readonly ModernView[] = (ORNAMENT_VIEWS as readonly string[]).includes(chosen) ? ORNAMENT_VIEWS : [...ORNAMENT_VIEWS, chosen];
+  const ordered = orderViews(regions.viewOrder);
+  // On a phone (#480) the bar is Write · Binder · Views · Ask · Search: the other views are in the Views sheet.
+  const shown: readonly ModernView[] = view.narrow ? ['write'] : ordered;
   const group = useRef<HTMLDivElement>(null);
   const lens = useRef<HTMLSpanElement>(null);
 
@@ -90,6 +95,7 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
               aria-controls={pageId}
               tabIndex={checked ? 0 : -1}
               className="modern-capsule modern-view"
+              title={viewName(name)}
               onClick={() => chooseView(view, name)}
             >
               <Icon name={name} />
@@ -98,6 +104,23 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
           );
         })}
       </div>
+      {view.narrow ? (
+        <>
+          <button
+            type="button"
+            id={BINDER_BUTTON_ID}
+            className="modern-capsule"
+            aria-expanded={view.openPanel === 'rail'}
+            aria-controls={DRAWER_ID}
+            data-testid="modern-narrow-binder"
+            onClick={() => view.setPanel(view.openPanel === 'rail' ? null : 'rail')}
+          >
+            <Icon name="binder" />
+            <span className="modern-label">{t`Binder`}</span>
+          </button>
+          <ViewsButton views={ordered.filter((name) => name !== 'write')} chosen={chosen} onChoose={(name) => chooseView(view, name)} />
+        </>
+      ) : null}
       <button
         type="button"
         id={ASK_ID}
@@ -132,5 +155,81 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
         </kbd>
       </button>
     </nav>
+  );
+}
+
+/** The phone's **Views** tab (#480): named for the view on the page when it is not Write, and a sheet of the other views. */
+function ViewsButton({ views, chosen, onChoose }: { views: readonly ModernView[]; chosen: ModernView; onChoose: (view: ModernView) => void }): ReactNode {
+  const button = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
+  const on = views.includes(chosen);
+  useLayoutEffect(() => {
+    if (menu === 'open') list.current?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus();
+  }, [menu]);
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const items = Array.from(list.current?.querySelectorAll<HTMLElement>('[role="menuitemradio"]') ?? []);
+    const at = items.indexOf(event.target as HTMLElement);
+    const next = event.key === 'ArrowDown' ? (at + 1) % items.length : event.key === 'ArrowUp' ? (at - 1 + items.length) % items.length : null;
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      setMenu('closing');
+      return;
+    }
+    if (next === null) return;
+    event.preventDefault();
+    items[next]?.focus();
+  };
+  return (
+    <>
+      <button
+        ref={button}
+        type="button"
+        className="modern-capsule"
+        aria-haspopup="menu"
+        aria-expanded={menu === 'open'}
+        aria-pressed={on}
+        data-testid="modern-narrow-views"
+        onClick={() => setMenu(menu === 'open' ? 'closing' : 'open')}
+      >
+        <Icon name={on ? chosen : 'board'} />
+        <span className="modern-label">{on ? viewName(chosen) : t`Views`}</span>
+      </button>
+      {menu === 'closed' ? null : (
+        <GlassPopover
+          opener={button}
+          prefer="above"
+          align="end"
+          className="modern-menu-popover"
+          closing={menu === 'closing'}
+          onDismiss={() => setMenu((state) => (state === 'open' ? 'closing' : state))}
+          onClosed={() => setMenu('closed')}
+          testId="modern-views-popover"
+        >
+          <div ref={list} role="menu" aria-label={t`Views`} className="modern-menu" onKeyDown={onKeyDown}>
+            {views.map((name, index) => (
+              <button
+                key={name}
+                type="button"
+                role="menuitemradio"
+                aria-checked={chosen === name}
+                tabIndex={index === 0 ? 0 : -1}
+                className="modern-menu-item"
+                data-testid={`modern-views-${name}`}
+                onClick={() => {
+                  setMenu('closing');
+                  onChoose(name);
+                }}
+              >
+                <span className="modern-menu-check" aria-hidden="true">
+                  {chosen === name ? <Icon name="check" /> : null}
+                </span>
+                <span className="modern-menu-label">{name === 'board' ? t`${{ view: viewName(name) }} (desktop)` : viewName(name)}</span>
+              </button>
+            ))}
+          </div>
+        </GlassPopover>
+      )}
+    </>
   );
 }

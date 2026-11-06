@@ -24,7 +24,7 @@ async function modernScene(page: Page, name = 'Ferry Book'): Promise<Locator> {
   await createProject(page, name);
   await expect(page.getByTestId('modern-stage')).toBeVisible();
   // The binder is in #307's sidebar, closed and inert until Manuscript in the tab bar opens it.
-  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
   await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
@@ -74,7 +74,7 @@ test('Write, Board and Codex are one radio group with a lens; the keys choose, a
   const before = await selectionOf(page);
 
   const group = views(page).getByRole('radiogroup', { name: 'View' });
-  await expect(group.getByRole('radio')).toHaveText(['Write', 'Board', 'Codex']);
+  await expect(group.getByRole('radio')).toHaveText(['Write', 'Board', 'Timeline', 'Codex', 'Pictures']);
   const write = group.getByRole('radio', { name: 'Write' });
   const board = group.getByRole('radio', { name: 'Board' });
   const codex = group.getByRole('radio', { name: 'Codex' });
@@ -145,7 +145,10 @@ test('⋯ is a menu of every shell action, the other views and Appearance; Escap
   const actions = ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', ...(folder ? ['Save to folder'] : []), 'Settings'];
   for (const name of actions) await expect(list.getByRole('menuitem', { name, exact: true })).toHaveCount(1);
   await expect(list.getByRole('menuitem', { name: 'Undo', exact: true })).toBeEnabled();
-  for (const name of ['Timeline', 'Pictures', 'Light', 'Dark']) await expect(list.getByRole('menuitemradio', { name, exact: true })).toHaveCount(1);
+  for (const name of ['Light', 'Dark']) await expect(list.getByRole('menuitemradio', { name, exact: true })).toHaveCount(1);
+  // The views moved to the bottom bar (#475); for one release ⋯ only says so.
+  await expect(list.getByRole('menuitem', { name: 'Views are in the bar below' })).toBeDisabled();
+  await expect(list.getByRole('menuitemradio', { name: 'Timeline' })).toHaveCount(0);
   await expect(list.getByRole('group', { name: 'Appearance' })).toBeVisible();
   await expect(list.getByRole('menuitemcheckbox', { name: 'Reduce transparency' })).toHaveAttribute('aria-checked', 'false');
   await expect(list.getByRole('menuitem', { name: 'Use the Classic interface' })).toBeVisible();
@@ -192,9 +195,8 @@ test('⋯ is a menu of every shell action, the other views and Appearance; Escap
   await expect(page.locator('html')).toHaveAttribute('data-transparency', 'reduced');
   await expect(menu(page)).toHaveCount(0);
 
-  // The other views: the timeline, shown in the ornament as a fourth radio, checked and the group's tab stop (#361).
-  await button.click();
-  await menu(page).getByRole('menuitemradio', { name: 'Timeline' }).click();
+  // Every view is in the bottom bar (#475): the timeline is one click, checked and the group's tab stop.
+  await views(page).getByRole('radio', { name: 'Timeline' }).click();
   await expect(page.locator('#modern-page')).toHaveAttribute('data-view', 'timeline');
   await expect(views(page).getByRole('radio', { checked: true })).toHaveAccessibleName('Timeline');
   await expect(views(page).getByRole('radio', { name: 'Timeline' })).toHaveAttribute('tabindex', '0');

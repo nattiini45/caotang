@@ -99,11 +99,20 @@ const groupIds = (results: PaletteResults) => results.groups.map((group) => grou
 const labels = (results: PaletteResults, group: string) => results.groups.find((candidate) => candidate.id === group)?.items.map((item) => item.label) ?? [];
 
 describe('the empty palette', () => {
-  it('shows the recent scenes, newest first, then every shell action', () => {
+  it('shows the recent scenes, newest first, then the views, New, and every shell action', () => {
     const results = paletteResults('', sources());
-    expect(groupIds(results)).toEqual(['recent', 'commands']);
+    expect(groupIds(results)).toEqual(['recent', 'places', 'new', 'commands']);
     expect(labels(results, 'recent')).toEqual(['The harbour', 'Zoë at the pier', 'Lin’s ticket', '林在码头']);
-    expect(results.groups[1]?.items.map((item) => item.target)).toEqual(
+    expect(labels(results, 'places')).toEqual(['Write', 'Board', 'Codex', 'Timeline', 'Pictures']);
+    expect(results.groups[2]?.items.map((item) => item.target)).toEqual([
+      { kind: 'new', newKind: 'scene' },
+      { kind: 'new', newKind: 'chapter' },
+      { kind: 'new', newKind: 'screenplay' },
+      { kind: 'new', newKind: 'dialogue' },
+      { kind: 'new', newKind: 'storyboard' },
+      { kind: 'new', newKind: 'comic' },
+    ]);
+    expect(results.groups[3]?.items.map((item) => item.target)).toEqual(
       SHELL_ACTION_IDS.map((actionId) => ({ kind: 'action', actionId })),
     );
     expect(results.noMatch).toBe(false);
@@ -124,8 +133,13 @@ describe('the empty palette', () => {
     expect(new Set(recent).size).toBe(recent.length);
   });
 
+  it('finds what New makes by its name or by "new" (#478)', () => {
+    expect(labels(paletteResults('new comic', sources()), 'new')).toEqual(['Comic']);
+    expect(labels(paletteResults('screenplay', sources()), 'new')).toEqual(['Screenplay scene']);
+  });
+
   it('treats a query of spaces as empty', () => {
-    expect(groupIds(paletteResults('   ', sources()))).toEqual(['recent', 'commands']);
+    expect(groupIds(paletteResults('   ', sources()))).toEqual(['recent', 'places', 'new', 'commands']);
   });
 
   it('marks an action that cannot run now as disabled, and carries its chord', () => {
@@ -333,7 +347,7 @@ describe('stepActive', () => {
 
   it('jumps between groups with PageDown and PageUp', () => {
     expect(stepActive(results, 0, 'PageDown')).toBe(recent);
-    expect(stepActive(results, recent, 'PageDown')).toBe(count - 1);
+    expect(stepActive(results, recent, 'PageDown')).toBe(recent + (results.groups[1]?.items.length ?? 0));
     expect(stepActive(results, recent + 2, 'PageUp')).toBe(recent);
     expect(stepActive(results, recent, 'PageUp')).toBe(0);
   });

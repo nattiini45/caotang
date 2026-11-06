@@ -973,6 +973,11 @@ msgstr "{degree, select, least {at least} most {at most} other {about}} {count} 
 msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
 msgstr "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
 
+#. Modern interface, the + New menu in the top ornament.
+#: apps/desktop/src/components/shell/modern/new-menu.tsx
+msgid "{detail} · opens on desktop"
+msgstr "{detail} · opens on desktop"
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "{documents, plural, one {# document} other {# documents}}"
@@ -1932,6 +1937,11 @@ msgstr "{used} of {limit} characters"
 msgid "{value} (not in the list)"
 msgstr "{value} (not in the list)"
 
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "{view} (desktop)"
+msgstr "{view} (desktop)"
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "{waiting, plural, one {# skill is waiting for you to read and approve it.} other {# skills are waiting for you to read and approve them.}}"
@@ -2234,6 +2244,10 @@ msgstr "a character that is gone"
 msgid "A codex entry is never named in the manuscript"
 msgstr "A codex entry is never named in the manuscript"
 
+#: apps/desktop/src/app/new-menu.ts
+msgid "A comic book with its first page"
+msgstr "A comic book with its first page"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "A comic page belongs to a comic book. Move it into one, or choose another item."
@@ -2347,6 +2361,10 @@ msgstr "A fixed-layout EPUB with one picture per comic page and the balloon text
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "A folder for each part"
 msgstr "A folder for each part"
+
+#: apps/desktop/src/app/new-menu.ts
+msgid "A folder for scenes"
+msgstr "A folder for scenes"
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -2497,6 +2515,10 @@ msgstr "a prologue or epilogue line"
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "A prompt of about {whole} tokens: {l2} tokens for the codex entries, {l4} tokens for the story so far, {l5} tokens for the focus document, and the rest for the instruction and the reply. The plan card shows this split for each request before you approve it."
 msgstr "A prompt of about {whole} tokens: {l2} tokens for the codex entries, {l4} tokens for the story so far, {l5} tokens for the focus document, and the rest for the instruction and the reply. The plan card shows this split for each request before you approve it."
+
+#: apps/desktop/src/app/new-menu.ts
+msgid "A prose scene"
+msgstr "A prose scene"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -3058,6 +3080,7 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: the agent's companion window.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -3065,6 +3088,7 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/components/shell/modern/companion.tsx
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Agent"
@@ -3464,7 +3488,7 @@ msgstr "Arrow keys move between scenes. Enter opens a scene, Space marks it, and
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/AgentModeSettings.tsx
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
@@ -3482,7 +3506,7 @@ msgstr "Ask it to draft a scene, fill the synopses of a chapter, or check the ma
 msgid "Ask the agent"
 msgstr "Ask the agent"
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "Ask the agent ({shortcut})"
 msgstr "Ask the agent ({shortcut})"
@@ -3836,10 +3860,10 @@ msgstr "bestTake.vendorParams is not an object"
 msgid "bestTake.vendorParams.{key} is not text or a number"
 msgstr "bestTake.vendorParams.{key} is not text or a number"
 
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
 #. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
-#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
-#. Modern interface, the narrow layout below 960 px: the binder's button and drawer.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -3850,6 +3874,7 @@ msgstr "bestTake.vendorParams.{key} is not text or a number"
 #: apps/desktop/src/components/Binder.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 #: apps/desktop/src/components/shell/modern/narrow-panels.tsx
 msgid "Binder"
 msgstr "Binder"
@@ -3902,6 +3927,10 @@ msgstr "Both margins"
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Branch graph"
 msgstr "Branch graph"
+
+#: apps/desktop/src/app/new-menu.ts
+msgid "Branching, with a graph"
+msgstr "Branching, with a graph"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -4390,6 +4419,7 @@ msgid "harness.progress.picturesAttach.active"
 msgstr "Changing the picture placements"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
+#: apps/desktop/src/app/new-menu.ts
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Chapter"
 msgstr "Chapter"
@@ -4926,6 +4956,10 @@ msgstr "Colour of {name}"
 #: apps/desktop/src/components/timeline/TimelineMedia.tsx
 msgid "comic"
 msgstr "comic"
+
+#: apps/desktop/src/app/new-menu.ts
+msgid "Comic"
+msgstr "Comic"
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
@@ -5665,6 +5699,10 @@ msgstr "dialogue"
 #: apps/desktop/src/media/element-menu.ts
 msgid "Dialogue"
 msgstr "Dialogue"
+
+#: apps/desktop/src/app/new-menu.ts
+msgid "Dialogue (Ink)"
+msgstr "Dialogue (Ink)"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
@@ -6825,6 +6863,7 @@ msgstr "Finding status changed"
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. Modern interface: the binder tab bar and the sidebar beside it.
+#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
@@ -7043,6 +7082,10 @@ msgstr "Fountain (.fountain)"
 msgid "Fountain source"
 msgstr "Fountain source"
 
+#: apps/desktop/src/app/new-menu.ts
+msgid "Fountain, with Pages"
+msgstr "Fountain, with Pages"
+
 #. Words on the story timeline's axis and in a scene's accessible name. Interpolated values: days, count, n, text, span, anchor, lower, rest, dayLabel, endLabel, durationDays, openFindings, title, part, name, names, folder.
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "frame"
@@ -7151,6 +7194,16 @@ msgstr "Goals"
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 msgid "Goals and sprint"
 msgstr "Goals and sprint"
+
+#. Modern interface, the + New menu in the top ornament.
+#: apps/desktop/src/components/shell/modern/new-menu.tsx
+msgid "Goes into {chapter}"
+msgstr "Goes into {chapter}"
+
+#. Modern interface, the + New menu in the top ornament.
+#: apps/desktop/src/components/shell/modern/new-menu.tsx
+msgid "Goes into a new chapter"
+msgstr "Goes into a new chapter"
 
 #: apps/desktop/src/components/FirstRun.tsx
 msgid "Got it"
@@ -8603,10 +8656,8 @@ msgstr "Making the bundle"
 msgid "Manual"
 msgstr "Manual"
 
-#. Modern interface: the binder tab bar and the sidebar beside it.
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
-#: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Manuscript"
 msgstr "Manuscript"
@@ -8951,6 +9002,12 @@ msgstr "More"
 msgid "More than 20 pages are selected. Review them in smaller batches if the request budget is tight."
 msgstr "More than 20 pages are selected. Review them in smaller batches if the request budget is tight."
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "More things to make"
+msgstr "More things to make"
+
 #. Interpolated values: MAX_FINDINGS_CAP, max
 #: apps/desktop/src/components/CoherenceSettings.tsx
 msgid "Most findings one model review may add (1–{MAX_FINDINGS_CAP})"
@@ -9147,6 +9204,22 @@ msgstr "Never named"
 #: apps/desktop/src/app/codex-model.ts
 msgid "Never sent. Use it for private notes and spoilers."
 msgstr "Never sent. Use it for private notes and spoilers."
+
+#. Modern interface, the + New menu in the top ornament.
+#. Modern interface, the + New menu in the top ornament.
+#. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
+#. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/app/palette-model.ts
+#: apps/desktop/src/components/Binder.tsx
+#: apps/desktop/src/components/shell/modern/new-menu.tsx
+msgid "New"
+msgstr "New"
+
+#. Modern interface, the + New menu in the top ornament.
+#: apps/desktop/src/components/shell/modern/new-menu.tsx
+msgid "New ({shortcut})"
+msgstr "New ({shortcut})"
 
 #. Interpolated values: name
 #: apps/desktop/src/components/VocabularyEditor.tsx
@@ -10547,7 +10620,6 @@ msgstr "Panel art is placed in this panel."
 msgid "Panel border"
 msgstr "Panel border"
 
-#. Modern interface: the binder tab bar and the sidebar beside it.
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
@@ -12881,6 +12953,7 @@ msgstr "Scanning for continuity problems"
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#: apps/desktop/src/app/new-menu.ts
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
@@ -13001,6 +13074,7 @@ msgid "Screenplay PDF (.pdf)"
 msgstr "Screenplay PDF (.pdf)"
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
+#: apps/desktop/src/app/new-menu.ts
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Screenplay scene"
 msgstr "Screenplay scene"
@@ -13021,6 +13095,10 @@ msgstr "Script"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Script after this step"
 msgstr "Script after this step"
+
+#: apps/desktop/src/app/new-menu.ts
+msgid "Script and story"
+msgstr "Script and story"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -13083,7 +13161,7 @@ msgstr "sea, grief"
 msgid "sea, storm"
 msgstr "sea, storm"
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "Search"
 msgstr "Search"
@@ -13093,7 +13171,7 @@ msgstr "Search"
 msgid "Search and commands"
 msgstr "Search and commands"
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "Search and commands ({shortcut})"
 msgstr "Search and commands ({shortcut})"
@@ -13480,6 +13558,10 @@ msgstr "shots"
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Shots"
 msgstr "Shots"
+
+#: apps/desktop/src/app/new-menu.ts
+msgid "Shots and an animatic"
+msgstr "Shots and an animatic"
 
 #. Storyboard board text and refusals. Interpolated values: sceneTitle is a scene title the writer wrote; shotId and folderId are ids; field and the quoted value come from the shot record; count is a number.
 #: apps/desktop/src/media/storyboard-model.ts
@@ -14109,6 +14191,7 @@ msgid "story time and reading order"
 msgstr "story time and reading order"
 
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
+#: apps/desktop/src/app/new-menu.ts
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Storyboard"
 msgstr "Storyboard"
@@ -14617,12 +14700,12 @@ msgstr "The agent is busy with another turn. Let it finish, then fix the finding
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "The agent is not ready for this project yet. Open the agent panel, then try again."
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "The agent is waiting for you"
 msgstr "The agent is waiting for you"
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "The agent is working"
 msgstr "The agent is working"
@@ -17348,7 +17431,7 @@ msgstr "Vendor template"
 msgid "Verified"
 msgstr "Verified"
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
@@ -17375,10 +17458,21 @@ msgstr "View larger"
 msgid "View of the scene"
 msgstr "View of the scene"
 
-#. Modern interface, the bottom ornament: the Write, Board and Codex views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
+#: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
+msgid "Views"
+msgstr "Views"
+
+#. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
 msgid "Views and tools"
 msgstr "Views and tools"
+
+#. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
+#: apps/desktop/src/components/shell/modern/top-ornament.tsx
+msgid "Views are in the bar below"
+msgstr "Views are in the bar below"
 
 #. Interpolated values: parent, title
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -17677,6 +17771,7 @@ msgstr "Working…"
 
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
+#: apps/desktop/src/app/new-menu.ts
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/shell/modern/top-ornament.tsx
 msgid "Write"

@@ -152,9 +152,8 @@ test.describe('the Modern narrow layout at 390 and 768 px', () => {
       await expect(top.locator('.modern-ornament-state')).toBeHidden();
       const topBox = await top.boundingBox();
       expect((topBox?.y ?? 0) + (topBox?.height ?? 0)).toBeLessThanOrEqual(paper?.y ?? 0);
-      // The binder's button shares the top bar and never meets the capsule.
-      const button = await binderButton(page).boundingBox();
-      expect((button?.x ?? 0) + (button?.width ?? 0)).toBeLessThanOrEqual(topBox?.x ?? 0);
+      // The binder is a tab of the bottom bar (#480), and the top bar holds + New.
+      await expect(top.getByTestId('new-menu')).toBeVisible();
 
       // The tab bar: five tabs in a row, below the page, the page's width, above the bottom edge.
       const bar = await tabBar(page).boundingBox();
@@ -163,7 +162,7 @@ test.describe('the Modern narrow layout at 390 and 768 px', () => {
       expect(Math.round(bar?.width ?? 0)).toBe(size.width - 2 * GUTTER);
       const tabs = tabBar(page).locator('button');
       await expect(tabs).toHaveCount(5);
-      await expect(tabs).toHaveText([/Write/, /Board/, /Codex/, /Ask/, /Search/]);
+      await expect(tabs).toHaveText([/Write/, /Binder/, /Views/, /Ask/, /Search/]);
       const tops = await tabs.evaluateAll((buttons) => buttons.map((element) => Math.round(element.getBoundingClientRect().top)));
       expect(new Set(tops).size).toBe(1);
 
@@ -176,7 +175,8 @@ test.describe('the Modern narrow layout at 390 and 768 px', () => {
     await newProject(page, ZOOMED);
     expect(await sidewaysOverflow(page)).toBeLessThanOrEqual(0);
     for (const control of [binderButton(page), capsule(page), tabBar(page), pageMain(page)]) expect(await onScreen(page, control)).toBe(true);
-    for (const name of ['Write', 'Board', 'Codex']) await expect(tabBar(page).getByRole('radio', { name })).toBeVisible();
+    await expect(tabBar(page).getByRole('radio', { name: 'Write' })).toBeVisible();
+    await expect(tabBar(page).getByTestId('modern-narrow-views')).toBeVisible();
     expect(await smallTargets(page)).toEqual([]);
   });
 
@@ -419,7 +419,7 @@ test.describe('a tablet in landscape (1,024 by 768, the wide layout) by touch', 
     expect(await smallTargets(page)).toEqual([]);
 
     // Manuscript opens the sidebar, unpinned; the page narrows beside it instead of lying under it.
-    await press(page, page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }));
+    await press(page, page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }));
     const side = page.getByTestId('modern-sidebar');
     await expect(side).toBeVisible();
     await settled(pageMain(page));

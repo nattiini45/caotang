@@ -1,14 +1,14 @@
 /**
  * Modern's binder tab bar and sidebar (M6, #307; modern-interface.md §6, §7.2, §8.5, §9.1, §9.5, §9.6). The `sidebar` slot.
  *
- * A slim glass **tab bar** at the inline-start edge holds **Manuscript**, **Panels** and a decorative minimap of the scenes' status
- * dots. It grows into the **sidebar** beside it, the page's height, with its own tabs **Binder**, **Findings** (with the open count),
+ * A slim glass **tab bar** at the inline-start edge holds **Binder**, **Findings** (its open count always visible) and **Agent**
+ * (the agent's Activity and Trace logs; #479), and a decorative minimap of the scenes' status dots. It grows into the **sidebar** beside it, the page's height, with its own tabs **Binder**, **Findings** (with the open count),
  * **Activity** and **Trace**: a tablist with Classic's keys and ids (`railTabId`, `keyStep`), over the same panels Classic's rail shows.
  * The Binder tab is the same `Binder` (toolbar, script import actions, filter bar, tree), and under it the same `BinderFooter` in one
  * disclosure, **Goals and sprint**.
  *
  * Opening (§8.5): a hover held for 140 ms opens it without moving focus; a click, Enter or Space opens it and moves focus to the current
- * row (Manuscript) or the current tab (Panels); Ctrl+Alt+F opens it on the filter. It closes 420 ms after the pointer leaves, unless it
+ * row (Binder) or the current tab (Findings, Agent); Ctrl+Alt+F opens it on the filter. It closes 420 ms after the pointer leaves, unless it
  * is pinned or focus is inside; Escape closes it and returns focus to the button that opened it. **Keep open** (`aria-pressed`) pins
  * it, and the page moves over; the pin is kept in this browser (sidebar-model.ts). A scene chosen in an unpinned sidebar closes it on
  * the editor. Nothing is hover-only: a tap opens it as a click does. Closed, the sidebar is `inert`, so Tab never reaches a hidden row.
@@ -45,7 +45,8 @@ import {
   currentBinderPinned,
   isSidebarTab,
   mayClose,
-  panelsTab,
+  agentTab,
+  openerOf,
   setBinderPinned,
   sidebarTabFor,
   subscribeBinderPinned,
@@ -55,11 +56,13 @@ import type { ModernSlotProps } from './slots.js';
 
 /** The sidebar's id, which the tab bar's buttons control. */
 export const SIDEBAR_ID = 'modern-sidebar';
+/** The tab bar's openers (#479). Binder keeps the id Manuscript had, so a link or a test that found it still does. */
 export const MANUSCRIPT_ID = 'modern-binder-manuscript';
-export const PANELS_ID = 'modern-binder-panels';
+export const FINDINGS_OPENER_ID = 'modern-binder-findings';
+export const AGENT_OPENER_ID = 'modern-binder-agent';
 const GOALS_ID = 'modern-binder-goals';
 
-type Opener = typeof MANUSCRIPT_ID | typeof PANELS_ID;
+type Opener = typeof MANUSCRIPT_ID | typeof FINDINGS_OPENER_ID | typeof AGENT_OPENER_ID;
 type FocusTarget = 'row' | 'tab' | 'opener' | 'page' | 'kept';
 
 interface FocusRequest {
@@ -84,7 +87,7 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
   // Opened by a hover: focus stayed where it was, and a click on the tab bar takes the sidebar over rather than closing it.
   const [hovered, setHovered] = useState(false);
   const [opener, setOpener] = useState<Opener>(MANUSCRIPT_ID);
-  const [lastOther, setLastOther] = useState<SidebarTab | null>(null);
+  const [lastAgent, setLastAgent] = useState<SidebarTab | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -94,7 +97,7 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
 
   const tab = sidebarTabFor(view.rail);
   const shown = pinned || open;
-  if (tab !== 'binder' && tab !== lastOther) setLastOther(tab);
+  if (openerOf(tab) === 'agent' && tab !== lastAgent) setLastAgent(tab);
 
   const requestFocus = (target: FocusTarget, id = ''): void =>
     setFocusRequest((previous) => ({ target, id, serial: (previous?.serial ?? 0) + 1 }));
@@ -190,7 +193,7 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
     view.setRail(next);
   };
 
-  /** Manuscript and Panels: open on their tab and move focus in, or close a sidebar they opened when pressed again. */
+  /** Binder, Findings and Agent: open on their tab and move focus in, or close a sidebar they opened when pressed again. */
   const press = (next: SidebarTab, from: Opener): void => {
     clearHover();
     clearClose();
@@ -337,28 +340,45 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
           type="button"
           id={MANUSCRIPT_ID}
           className="modern-binder-button"
-          aria-expanded={shown && tab === 'binder'}
+          aria-expanded={shown && openerOf(tab) === 'binder'}
           aria-controls={SIDEBAR_ID}
           onClick={() => press('binder', MANUSCRIPT_ID)}
         >
           <Icon name="manuscript" />
           <span className="modern-binder-label">
-            <Trans>Manuscript</Trans>
+            <Trans>Binder</Trans>
           </span>
         </button>
         <button
           type="button"
-          id={PANELS_ID}
+          id={FINDINGS_OPENER_ID}
           className="modern-binder-button"
-          aria-expanded={shown && tab !== 'binder'}
+          aria-expanded={shown && openerOf(tab) === 'findings'}
           aria-controls={SIDEBAR_ID}
-          onClick={() => press(panelsTab(lastOther), PANELS_ID)}
+          onClick={() => press('findings', FINDINGS_OPENER_ID)}
         >
-          <Icon name="binder" />
+          <Icon name="findings" />
           <span className="modern-binder-label">
-            <Trans>Panels</Trans>
+            <Trans>Findings</Trans>
           </span>
-          {regions.findingsBadge > 0 ? <span className="modern-binder-dot" aria-hidden="true" /> : null}
+          {regions.findingsBadge > 0 ? (
+            <span className="modern-binder-count" data-testid="modern-binder-findings-count">
+              {regions.findingsBadge}
+            </span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          id={AGENT_OPENER_ID}
+          className="modern-binder-button"
+          aria-expanded={shown && openerOf(tab) === 'agent'}
+          aria-controls={SIDEBAR_ID}
+          onClick={() => press(agentTab(lastAgent), AGENT_OPENER_ID)}
+        >
+          <Icon name="agent" />
+          <span className="modern-binder-label">
+            <Trans>Agent</Trans>
+          </span>
         </button>
         {/* Decorative (§9.1): the scenes' status dots, the open scene marked. Hidden from assistive technology. */}
         <div className="modern-minimap" aria-hidden="true" data-testid="modern-minimap">
