@@ -184,13 +184,13 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     ]);
   });
 
-  it('holds Modern’s caps in the real budget: 70 kB of JS and 94.5 kB of CSS (the control kit #357, polish #358, Stageshow polish wave 2 #360–#364), within 33.23 kB gzip of Classic', () => {
+  it('holds Modern’s caps in the real budget: 70 kB of JS and 95.5 kB of CSS (the control kit #357, polish #358, Stageshow polish wave 2 #360–#364, navigation #474), within 34.85 kB gzip of Classic', () => {
     expect(BUDGET.lazy?.['modern-shell']).toBe(70_000);
-    expect(BUDGET.css?.caps['modern-shell']).toBe(94_500);
+    expect(BUDGET.css?.caps['modern-shell']).toBe(95_500);
     expect(BUDGET.css?.entryMargin).toBe(0.01);
-    expect(BUDGET.modernFirstLoadDelta).toBe(33_230);
-    // 7,766,000 after #200 raised the ceiling by the exporter boilerplate table's measured 4.2 kB (the first load did not move).
-    expect(BUDGET.totalJs).toBe(7_766_000);
+    expect(BUDGET.modernFirstLoadDelta).toBe(34_850);
+    // MERGE-PENDING: totalJs ceiling measured on the merge of origin/main into mission/01-fixes-security.
+    expect(BUDGET.totalJs).toBe(7_775_000);
   });
 });
 

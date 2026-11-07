@@ -85,7 +85,8 @@ async function openBook(page: Page, testInfo: TestInfo, spec: BookSpec): Promise
 async function openTimeline(page: Page): Promise<Locator> {
   await page.locator('#center-timeline').click();
   const view = page.getByTestId('timeline-view');
-  await expect(view).toBeVisible();
+  // The view is a lazy chunk: on a cold dev server, behind a 2,000-scene binder on a loaded Firefox runner, it can take past 5 s.
+  await expect(view).toBeVisible({ timeout: 20_000 });
   return view;
 }
 

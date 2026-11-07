@@ -37,7 +37,7 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await page.getByRole('button', { name: 'Create project' }).click();
   await expect(page.getByTestId('modern-stage')).toBeVisible();
   // The binder is in the sidebar (#307), inert while closed: open it from the tab bar to make the chapter and the scene.
-  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
   await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
   await page.getByTestId('modern-sidebar').getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();

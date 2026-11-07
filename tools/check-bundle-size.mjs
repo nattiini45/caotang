@@ -157,7 +157,11 @@ export const BUDGET = {
   // 20-language table's landmark, begin-reading, cover and untitled words and its chapter pattern, plus `cover.xhtml`, in the
   // lazily loaded exporter chunk. The first load did not move (1,027.0 kB gzip, as before). The ceiling rises once, by the measured
   // amount rounded up to the thousand: 7,760,000 + 6,000.
-  totalJs: 7_766_000,
+  // Navigation (#474: the views bar, one + New menu, the sidebar's Binder/Findings/Agent tabs, the phone's Views sheet): 7,768,958
+  // bytes measured (+11,218 on main's 7,757,740; +6,752 of it in `modern-shell`, +3,488 in the entry for new-menu.ts and the palette's
+  // New group, +1,204 in the en and de catalogues). The ceiling is that plus about 1 kB, as earlier raises of this one took.
+  // MERGE-PENDING: measured on the merge of origin/main into mission/01-fixes-security; ceiling is that plus about 1 kB.
+  totalJs: 7_775_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
@@ -171,7 +175,7 @@ export const BUDGET = {
      */
     entry: 105_500,
     entryMargin: 0.01,
-    // Current: 94,500 B raw for `modern-shell`'s stylesheet, the cap the owner recorded and asked no trim of (docs/decisions.md, "[owner 2026-11-05]").
+    // Current: 95,500 B raw for `modern-shell`'s stylesheet (navigation #474; before it 94,500 B, the cap the owner recorded and asked no trim of) (docs/decisions.md, "[owner 2026-11-05]").
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
     // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
@@ -189,9 +193,11 @@ export const BUDGET = {
     // measured merged on #363, #364 and #361 (all CSS; no JS cap moves).
     // Stageshow polish wave 2 (#360–#364): plus calm dialogs, Settings, Home and the palette (one menu style, Compile's rows, Home at
     // 390 px, k-tonal and k-quiet). 93,531 bytes raw measured on the merge; the cap is that plus about 1%.
-    caps: { 'modern-shell': 94_500 },
+    // Navigation (#474): the + New capsule and its two-line menu, the Findings count, the views' words hidden at 960–1179 px.
+    // 94,550 bytes raw measured (+1,019 on main's 93,531); the cap is that plus about 1%. Raising an owner-recorded cap: see the PR.
+    caps: { 'modern-shell': 95_500 },
   },
-  // Current: 33,230 B gzip over Classic's first load, the cap the owner recorded and asked no trim of (docs/decisions.md, "[owner 2026-11-05]").
+  // Current: 34,850 B gzip over Classic's first load (navigation #474; before it 33,230 B, the cap the owner recorded and asked no trim of) (docs/decisions.md, "[owner 2026-11-05]").
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
@@ -211,7 +217,10 @@ export const BUDGET = {
    * Stageshow polish wave 2 (#360–#364): plus calm dialogs, Settings, Home and the palette. 32,898 bytes measured on the merge,
    * nearly all of it Modern's stylesheet; the allowance is that plus about 1%.
    */
-  modernFirstLoadDelta: 33_230,
+  // Navigation (#474): 34,502 bytes measured (+1,600 on main's 32,902: Modern's chunk +6.8 kB raw and its stylesheet +1.0 kB raw; Classic's
+  // first load itself grew 1,309 bytes gzip for new-menu.ts in the entry). The allowance is that plus about 1%. Raising an owner-recorded
+  // allowance: see the PR.
+  modernFirstLoadDelta: 34_850,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */

@@ -1,6 +1,6 @@
 /**
  * The binder tab bar and sidebar's rules (modern-interface.md §7.2, §8.5), pure so the unit specs read them without React: the
- * sidebar's tabs and their order, which tab **Manuscript** and **Panels** open, the hover-intent and close delays, when a pointer
+ * sidebar's tabs and their order, which tab **Binder**, **Findings** and **Agent** open (#479), the hover-intent and close delays, when a pointer
  * leaving closes the sidebar, and the pin, a view preference kept in this browser (`caotang.modern.binderPinned`).
  *
  * The pin is also a tiny store (subscribe and read), so the stage's layout (#306's `modernLayout`) can move the page over for a pinned
@@ -32,9 +32,17 @@ export function sidebarTabFor(rail: RailTab): SidebarTab {
   return isSidebarTab(rail) ? rail : 'binder';
 }
 
-/** The tab **Panels** opens: the last tab other than Binder that was shown, or Findings the first time (§7.2). */
-export function panelsTab(lastOther: SidebarTab | null): SidebarTab {
-  return lastOther === null || lastOther === 'binder' ? 'findings' : lastOther;
+/** The tab bar's three openers (#479): Binder, Findings and Agent, the agent's two logs (Activity and Trace) behind one. */
+export type SidebarOpener = 'binder' | 'findings' | 'agent';
+
+/** The opener a tab belongs to. */
+export function openerOf(tab: SidebarTab): SidebarOpener {
+  return tab === 'activity' || tab === 'trace' ? 'agent' : tab;
+}
+
+/** The tab **Agent** opens: the agent log shown last, or Activity the first time. */
+export function agentTab(lastAgent: SidebarTab | null): SidebarTab {
+  return lastAgent === 'trace' ? 'trace' : 'activity';
 }
 
 /** Whether a sidebar that is open may close now: never while pinned, while focus is inside, or while the pointer is over it. */

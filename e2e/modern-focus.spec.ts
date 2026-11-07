@@ -31,7 +31,7 @@ async function modernScene(page: Page, name: string): Promise<Locator> {
   await page.goto('/');
   await createProject(page, name);
   await expect(stage(page)).toBeVisible();
-  await binder(page).getByRole('button', { name: 'Manuscript' }).click();
+  await binder(page).getByRole('button', { name: 'Binder', exact: true }).click();
   await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   for (const title of ['The ferry', 'The ticket']) {
@@ -124,7 +124,7 @@ test('keyboard focus in the faded ornaments holds them, a key outside the text s
   // Shift+Tab from the page reaches the tab bar where it is, and shows the chrome while focus stays there.
   await page.locator('#modern-page').focus();
   await page.keyboard.press('Shift+Tab');
-  await expect(binder(page).getByRole('button', { name: 'Panels' })).toBeFocused();
+  await expect(binder(page).getByRole('button', { name: 'Agent', exact: true })).toBeFocused();
   await expect(stage(page)).toHaveAttribute('data-focus', 'shown');
   await page.waitForTimeout(1_000);
   await expect(stage(page)).toHaveAttribute('data-focus', 'shown');

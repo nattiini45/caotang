@@ -56,6 +56,7 @@ const CHORDS: Readonly<Record<KeyAction, true>> = {
   'agent-steer': true,
   'agent-stop': true,
   'agent-toggle': true,
+  'new-menu': true,
   palette: true,
 };
 

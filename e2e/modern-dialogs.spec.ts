@@ -174,7 +174,7 @@ async function openFromMore(page: Page, item: string): Promise<void> {
 async function openBinder(page: Page): Promise<void> {
   if ((await page.getByTestId('modern-binder-bar').count()) === 0) return;
   if (await page.getByRole('tree', { name: 'Binder' }).isVisible()) return;
-  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
 }
 

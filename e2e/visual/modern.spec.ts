@@ -41,7 +41,7 @@ async function start(page: Page, scheme: Scheme, solid: boolean): Promise<void> 
   await expect(page.getByTestId('modern-stage')).toBeVisible();
   // The binder is in the sidebar (#307), inert while closed: open it from the tab bar, make the chapter and the scene, and let it close
   // as the pointer leaves.
-  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
   await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
   await page.getByTestId('modern-sidebar').getByRole('button', { name: 'Create Chapter 1' }).click();
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
@@ -81,7 +81,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width: 1440, height: 900 });
         await start(page, scheme, solid);
         const binder = page.getByRole('navigation', { name: 'Binder' });
-        await binder.getByRole('button', { name: 'Manuscript' }).click();
+        await binder.getByRole('button', { name: 'Binder', exact: true }).click();
         if (pinned) {
           await binder.getByRole('button', { name: 'Keep open' }).click();
           await page.mouse.move(1300, 450);

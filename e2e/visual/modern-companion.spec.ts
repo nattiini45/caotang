@@ -27,7 +27,7 @@ function masks(page: Page): Locator[] {
 async function openBinder(page: Page): Promise<void> {
   // Keyed on #307's tab bar itself: a navigation named "Binder" exists before it too (the binder's own), without Manuscript.
   if ((await page.getByTestId('modern-binder-bar').count()) === 0) return;
-  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
   await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
 }
 

@@ -215,7 +215,7 @@ export async function showBinder(page: Page): Promise<void> {
   const tree = page.getByRole('tree', { name: 'Binder' });
   const nav = page.getByTestId('modern-binder');
   await page.getByTestId('modern-binder-bar').hover();
-  if ((await nav.getAttribute('data-state')) !== 'open') await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' }).click();
+  if ((await nav.getAttribute('data-state')) !== 'open') await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
   await expect(nav).toHaveAttribute('data-state', 'open');
   await expect(tree).toBeVisible();
 }
@@ -227,7 +227,7 @@ export async function showBinder(page: Page): Promise<void> {
  */
 export async function closeBinder(page: Page): Promise<void> {
   const nav = page.getByTestId('modern-binder');
-  const manuscript = page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Manuscript' });
+  const manuscript = page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true });
   await expect(async () => {
     if ((await nav.getAttribute('data-state')) === 'open') await manuscript.click();
     await expect(nav).toHaveAttribute('data-state', 'closed', { timeout: 1_000 });

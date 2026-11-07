@@ -135,6 +135,15 @@ export {
   type UsageTotals,
   type UsageSnapshot,
 } from './ledger.js';
+export {
+  WIRE_TOOL_NAME,
+  wireToolName,
+  toolNameCodec,
+  toolNamesOf,
+  encodeToolNames,
+  decodingParser,
+  type ToolNameCodec,
+} from './tool-names.js';
 export { RequestLog, REQUEST_LOG_CAP, type RequestLogEntry, type RequestOutcome } from './request-log.js';
 
 export {

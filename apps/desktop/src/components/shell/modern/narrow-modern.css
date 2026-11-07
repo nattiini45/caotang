@@ -53,10 +53,10 @@
     padding-block: var(--space-4);
   }
 
-  /* ---- The top bar: the compact capsule (title, ⋯) centred, the binder's button at the inline-start end. ---- */
+  /* ---- The top bar: the compact capsule (title, +, ⋯) across the top; the binder is a tab of the bottom bar (#480). ---- */
   :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top {
     inset-block-start: var(--n-top);
-    inset-inline: calc(var(--n-side) + var(--page-gutter) + var(--narrow-top-bar));
+    inset-inline: calc(var(--n-side) + var(--page-gutter));
     block-size: var(--narrow-top-bar);
     max-inline-size: none;
   }
@@ -72,21 +72,6 @@
     max-inline-size: none;
   }
 
-  :root[data-shell='modern'] .modern-narrow-binder {
-    position: absolute;
-    inset-block-start: var(--n-top);
-    inset-inline-start: var(--n-side);
-    z-index: 2;
-    inline-size: var(--narrow-top-bar);
-    block-size: var(--narrow-top-bar);
-    border-radius: var(--radius-ornament);
-    background: var(--mat-thick-bg);
-  }
-
-  :root[data-shell='modern'] .modern-narrow-binder[aria-expanded='true'] {
-    background: var(--accent);
-    color: var(--accent-ink);
-  }
 
   /* The skip link is a 44 px target too (§9.1, §9.5). */
   :root[data-shell='modern'] .modern-stage .modern-skip {
@@ -106,14 +91,20 @@
     gap: 2px;
   }
 
+  /* Write alone in the group (#480); the other views are in the Views sheet. */
   :root[data-shell='modern'] .modern-stage .is-bottom .modern-views {
-    flex: 3 1 0;
+    flex: 1 1 0;
     align-self: stretch;
   }
 
-  /* The timeline or the pictures, shown as a fourth view while the page shows it (#361): the group grows by one tab. */
-  :root[data-shell='modern'] .modern-stage .is-bottom .modern-views:has(> :nth-child(5)) {
-    flex-grow: 4;
+  /* + New is an icon on a phone; its name stays its accessible name. */
+  :root[data-shell='modern'] .modern-stage .modern-new .modern-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   :root[data-shell='modern'] .modern-stage .is-bottom .modern-capsule {
@@ -181,8 +172,7 @@
 
   /* The drawer's tabs are the wide sidebar's segmented control (binder-sidebar.css, #360). */
 
-  :root[data-shell='modern'] .modern-drawer-tabs .rail-tab:focus-visible,
-  :root[data-shell='modern'] .modern-narrow-binder:focus-visible {
+  :root[data-shell='modern'] .modern-drawer-tabs .rail-tab:focus-visible {
     outline: var(--focus-width) solid var(--focus);
     outline-offset: calc(-1 * var(--focus-width));
   }
