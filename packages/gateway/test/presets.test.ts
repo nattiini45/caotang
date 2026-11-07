@@ -175,6 +175,44 @@ describe('resolveRoute', () => {
   });
 });
 
+describe('resolveRoute pins first-party hosts to their native route (provider-gateway §2)', () => {
+  // GPT-6 models answer Chat Completions with 400 "Function tools with reasoning_effort are not supported"; Responses
+  // works on every model. Anthropic's OpenAI-compatible chat endpoint is a compatibility layer, so Messages is pinned too.
+  const presets = [undefined, 'gone-provider', 'generic', 'deepseek'] as const;
+  const openaiBases = ['https://api.openai.com/v1', 'https://api.openai.com', 'https://api.openai.com/v1/', 'https://API.OpenAI.com/v1'];
+  const anthropicBases = ['https://api.anthropic.com/v1', 'https://api.anthropic.com', 'https://api.anthropic.com/v1/', 'https://API.Anthropic.COM/v1'];
+  const at = (preset: string | undefined, baseUrl: string) => (preset === undefined ? { baseUrl } : { preset, baseUrl });
+
+  it.each(presets.flatMap((preset) => openaiBases.map((baseUrl) => [preset ?? '(none)', baseUrl, preset] as const)))(
+    'preset %s at %s speaks openai-responses with the openai preset’s quirks and rows',
+    (_label, baseUrl, preset) => {
+      const route = resolveRoute(at(preset, baseUrl), 'gpt-6-sol');
+      expect(route.adapter).toBe('openai-responses');
+      expect(route.quirks).toEqual({ store: true, stateless: true });
+      expect(route.caps.effortStyle).toBe('reasoning.effort');
+      expect(route.caps.replayStyle).toBe('items');
+    },
+  );
+
+  it.each(presets.flatMap((preset) => anthropicBases.map((baseUrl) => [preset ?? '(none)', baseUrl, preset] as const)))(
+    'preset %s at %s speaks anthropic-messages with the anthropic preset’s quirks and rows',
+    (_label, baseUrl, preset) => {
+      const route = resolveRoute(at(preset, baseUrl), 'claude-sonnet-5-5');
+      expect(route.adapter).toBe('anthropic-messages');
+      expect(route.quirks.browserAccess).toBe(true);
+      expect(route.caps.thinkingShape).toBe('adaptive');
+    },
+  );
+
+  it('keeps every other host on its own route', () => {
+    expect(resolveRoute({ baseUrl: 'https://x.example/v1' }, 'gpt-6-sol').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'generic', baseUrl: 'https://proxy.example/openai/v1' }, 'gpt-6-sol').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'generic', baseUrl: 'https://api.openai.com.evil.example/v1' }, 'gpt-6-sol').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'deepseek', baseUrl: 'https://api.deepseek.com' }, 'deepseek-chat').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'gone-provider', baseUrl: 'not a url' }, 'm').adapter).toBe('openai-chat');
+  });
+});
+
 describe('modelRowFor', () => {
   it('prefers an exact id over a glob, and a glob over the default row', () => {
     const opencode = presetFor('opencode')!;
