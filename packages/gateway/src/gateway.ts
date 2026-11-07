@@ -246,7 +246,8 @@ export function createGateway(options: GatewayOptions): Gateway {
   /**
    * The route a (profile, model) pair speaks: the preset's adapter, overridden by the
    * preset's per-model route map (OpenCode), with the model's capability row. A
-   * profile with no preset resolves to the generic OpenAI-Chat route.
+   * profile at api.openai.com or api.anthropic.com takes that host's preset; any other
+   * profile with no known preset resolves to the generic OpenAI-Chat route.
    */
   const routeOf = (profile: ProfileView, model: string): { adapter: ProviderAdapter; ctx: AdapterContext } => {
     const spec = resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, model);

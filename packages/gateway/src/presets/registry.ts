@@ -771,13 +771,22 @@ export function modelRowFor(preset: PresetDef, model: string): ModelRow | undefi
 
 /**
  * What a (profile-ish, model) pair speaks: the preset's adapter (overridden by its
- * `modelRoutes`), its quirks, and the matched model row's caps. No known preset — an
- * endpoint profile older than the registry, or one whose `preset` names nothing —
- * falls back to the generic OpenAI-Chat route with empty caps.
+ * `modelRoutes`), its quirks, and the matched model row's caps. A base URL at
+ * api.openai.com or api.anthropic.com answers with that host's preset. Otherwise no known preset — an endpoint
+ * profile older than the registry, or one whose `preset` names nothing — falls back to
+ * the generic OpenAI-Chat route with empty caps.
  */
 export function resolveRoute(profile: { readonly preset?: string; readonly baseUrl: string }, model: string): RouteSpec {
-  if (profile.preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: {} };
-  const preset = presetFor(profile.preset);
+  let host = '';
+  try {
+    host = new URL(profile.baseUrl).hostname;
+  } catch {
+    // not a URL: no pin
+  }
+  // First-party hosts take their own preset whatever the profile names (provider-gateway §2): OpenAI's newer models
+  // refuse function tools with reasoning on Chat Completions, and Anthropic's chat endpoint is a compatibility layer.
+  const id = host === 'api.openai.com' ? 'openai' : host === 'api.anthropic.com' ? 'anthropic' : profile.preset;
+  const preset = BY_ID.get(id ?? '');
   if (preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: {} };
   const row = modelRowFor(preset, model);
   return {
