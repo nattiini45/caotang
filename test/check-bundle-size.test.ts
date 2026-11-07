@@ -189,7 +189,7 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     expect(BUDGET.css?.caps['modern-shell']).toBe(95_500);
     expect(BUDGET.css?.entryMargin).toBe(0.01);
     expect(BUDGET.modernFirstLoadDelta).toBe(34_850);
-    // MERGE-PENDING: totalJs ceiling measured on the merge of origin/main into mission/01-fixes-security.
+    // totalJs ceiling: 7,774,178 bytes measured on the merge of origin/main into mission/01-fixes-security, plus about 1 kB.
     expect(BUDGET.totalJs).toBe(7_775_000);
   });
 });

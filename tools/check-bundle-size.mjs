@@ -160,7 +160,8 @@ export const BUDGET = {
   // Navigation (#474: the views bar, one + New menu, the sidebar's Binder/Findings/Agent tabs, the phone's Views sheet): 7,768,958
   // bytes measured (+11,218 on main's 7,757,740; +6,752 of it in `modern-shell`, +3,488 in the entry for new-menu.ts and the palette's
   // New group, +1,204 in the en and de catalogues). The ceiling is that plus about 1 kB, as earlier raises of this one took.
-  // MERGE-PENDING: measured on the merge of origin/main into mission/01-fixes-security; ceiling is that plus about 1 kB.
+  // 7,774,178 bytes measured on the merge of origin/main into mission/01-fixes-security (+5,220 on #474's 7,768,958: this
+  // branch's #200 exporter growth and the M01 rules/pack fixes, in lazy chunks). The ceiling is that plus about 1 kB.
   totalJs: 7_775_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
