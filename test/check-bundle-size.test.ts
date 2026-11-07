@@ -189,7 +189,7 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
     expect(BUDGET.css?.caps['modern-shell']).toBe(95_500);
     expect(BUDGET.css?.entryMargin).toBe(0.01);
     expect(BUDGET.modernFirstLoadDelta).toBe(34_850);
-    expect(BUDGET.totalJs).toBe(7_770_000);
+    expect(BUDGET.totalJs).toBe(8_000_000);
   });
 });
 

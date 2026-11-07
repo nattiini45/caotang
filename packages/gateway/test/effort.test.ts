@@ -169,14 +169,13 @@ describe('applyEffort per style and xhigh', () => {
   });
 
   it('sends xhigh as itself on the styles that take the whole scale', () => {
-    expect(written('max_effort', 'xhigh')).toEqual({ max_effort: 'xhigh' });
     expect(written('thinking.type', 'xhigh')).toEqual({ thinking: { type: 'enabled' } });
     expect(written('enable_thinking+budget', 'xhigh')).toEqual({ enable_thinking: true, thinking_budget: 24_576 });
   });
 
   it('sends nothing for xhigh where the row does not list it', () => {
     const noXhigh: ModelCaps = { effortLevels: ['low', 'medium', 'high', 'max'] };
-    for (const style of ['reasoning_effort', 'reasoning.effort', 'thinking.type', 'thinking.type+effort', 'enable_thinking+budget', 'reasoning.enabled', 'max_effort'] as const) {
+    for (const style of ['reasoning_effort', 'reasoning.effort', 'thinking.type', 'thinking.type+effort', 'enable_thinking+budget', 'reasoning.enabled'] as const) {
       expect(written(style, 'xhigh', noXhigh)).toEqual({});
     }
   });

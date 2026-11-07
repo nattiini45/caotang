@@ -24,6 +24,7 @@ import type {
   ChatMessage,
   ContentPart,
   FinishReason,
+  ModelCaps,
   ModelInfo,
   ReasoningBlock,
   ToolCall,
@@ -135,11 +136,12 @@ function authHeaders(ctx: AdapterContext, secrets: CallSecrets): Record<string, 
 }
 
 /** Chat-Completions tools are nested under `function`. */
-function wireTools(req: BodyInput['req']): unknown[] | undefined {
+function wireTools(req: BodyInput['req'], caps: ModelCaps): unknown[] | undefined {
   if (req.tools === undefined || req.tools.length === 0) return undefined;
+  const strict = caps.toolStrict === undefined ? {} : { strict: caps.toolStrict };
   return req.tools.map((tool) => ({
     type: 'function',
-    function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+    function: { name: tool.name, description: tool.description, parameters: tool.parameters, ...strict },
   }));
 }
 
@@ -317,7 +319,7 @@ export const openaiChatAdapter: ProviderAdapter = {
     }
     if (req.stop !== undefined && req.stop.length > 0 && !deny.has('stop')) body.stop = [...req.stop];
     if (jsonObject && ctx.caps.jsonObject !== false) body.response_format = { type: 'json_object' };
-    const tools = wireTools(req);
+    const tools = wireTools(req, ctx.caps);
     if (tools !== undefined && !deny.has('tools')) {
       body.tools = tools;
       body.tool_choice = req.toolChoice === 'none' ? 'none' : 'auto';

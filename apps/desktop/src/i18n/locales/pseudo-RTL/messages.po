@@ -1258,6 +1258,11 @@ msgstr ""
 msgid "{missing, plural, one {This writes an id tag into # line that has none. The ids stay with their lines when the text around them changes.} other {This writes an id tag into # lines that have none. The ids stay with their lines when the text around them changes.}}"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "{model} takes no temperature, so none is sent."
+msgstr ""
+
 #. Interpolated values: count, n
 #: apps/desktop/src/app/counts.ts
 msgid "{n, plural, one {# document} other {# documents}}"
@@ -3042,6 +3047,11 @@ msgstr ""
 msgid "Address"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Advanced request parameters"
+msgstr ""
+
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "After"
@@ -4734,6 +4744,11 @@ msgstr ""
 msgid "Choose the photographed pages"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Choose the values sent"
+msgstr ""
+
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -6194,6 +6209,11 @@ msgstr ""
 msgid "Each picture is pointed at the file with the same bytes. Nothing is matched by name."
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Each setting follows what {provider} accepts for the model until you change it."
+msgstr ""
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Each shot as a card with its picture, number, camera details and action, with the animatic total on every page."
@@ -6667,6 +6687,8 @@ msgid "External tool servers are connected by you, one at a time. Caotang does n
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Extra high"
 msgstr ""
@@ -6989,6 +7011,13 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Follow chat"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#. Interpolated values: model, provider, values
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Follow the model"
 msgstr ""
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
@@ -7360,6 +7389,8 @@ msgid "Hide the prompt for a scene"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "High"
 msgstr ""
@@ -8551,6 +8582,8 @@ msgid "Lost their paragraph"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Low"
 msgstr ""
@@ -8712,6 +8745,8 @@ msgid "Match case"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Max"
 msgstr ""
@@ -8766,6 +8801,8 @@ msgid "Media with no scene"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Medium"
 msgstr ""
@@ -9199,6 +9236,16 @@ msgstr ""
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "Never named"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Never send"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Never send these fields"
 msgstr ""
 
 #: apps/desktop/src/app/codex-model.ts
@@ -10164,12 +10211,19 @@ msgid "Numbered"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: model, provider, values
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
+#: apps/desktop/src/components/RequestParamsFields.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Off"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Off (strict: false)"
 msgstr ""
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
@@ -10185,6 +10239,11 @@ msgstr ""
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "On"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "On (strict: true)"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -12915,6 +12974,11 @@ msgstr ""
 msgid "Saving…"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Say what your endpoint accepts. Left alone, a request carries a temperature only when a feature asks for one, and no strict flag or thinking level."
+msgstr ""
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.coherenceScan.content"
@@ -13307,9 +13371,29 @@ msgstr ""
 msgid "Send"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Send a value"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Send none"
+msgstr ""
+
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
 msgid "Send with Cancel"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Sent as strict: false, so optional tool parameters stay optional."
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Sent as: {values}"
 msgstr ""
 
 #: apps/desktop/src/app/codex-model.ts
@@ -14221,6 +14305,11 @@ msgstr ""
 msgid "Storyboard: {title}"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Strict tool schemas"
+msgstr ""
+
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Structure"
@@ -14431,6 +14520,16 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Task roles"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Temperature"
+msgstr ""
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Temperature must be a number from 0 to 2."
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
@@ -16044,6 +16143,11 @@ msgstr ""
 msgid "The usage totals could not be read: {error}"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "The value sent for each level. Leave a level empty to not offer it."
+msgstr ""
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "The week starts on {weekday, select, sun {Sunday} mon {Monday} tue {Tuesday} wed {Wednesday} thu {Thursday} fri {Friday} sat {Saturday} other {Monday}}."
@@ -16229,6 +16333,11 @@ msgstr ""
 #. Interpolated values: completion, count, levels, prompt, window
 #: apps/desktop/src/app/provider-details.ts
 msgid "thinking always streams"
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Thinking levels"
 msgstr ""
 
 #. Interpolated values: completion, count, levels, prompt, window
@@ -16877,6 +16986,11 @@ msgstr ""
 msgid "Top of the body"
 msgstr ""
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "top_p, stop"
+msgstr ""
+
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -17394,6 +17508,11 @@ msgstr ""
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Using the folder’s version replaces this browser’s copy with it. This browser’s copy is not kept, so export it first if you may want it. Keeping this browser’s version saves it to the folder, and asks first about any document it would write over. A separate copy leaves both as they are, and cannot be saved into that folder."
+msgstr ""
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Value, from 0 to 2"
 msgstr ""
 
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.

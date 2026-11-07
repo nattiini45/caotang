@@ -202,7 +202,7 @@ function anthropicEffort(body: Record<string, unknown>, input: BodyInput): void 
     if (budget === undefined) return;
     body.thinking = { type: 'enabled', budget_tokens: budget };
   }
-  body.output_config = { effort: level };
+  body.output_config = { effort: input.ctx.caps.effortWire?.[level] ?? level };
 }
 
 interface BlockAcc {
@@ -403,7 +403,12 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
     const deny = new Set(ctx.caps.denylist ?? []);
     const tools =
       req.tools !== undefined && req.tools.length > 0 && !deny.has('tools')
-        ? req.tools.map((tool): Record<string, unknown> => ({ name: tool.name, description: tool.description, input_schema: tool.parameters }))
+        ? req.tools.map((tool): Record<string, unknown> => ({
+            name: tool.name,
+            description: tool.description,
+            input_schema: tool.parameters,
+            ...(ctx.caps.toolStrict === undefined ? {} : { strict: ctx.caps.toolStrict }),
+          }))
         : undefined;
     const toolChars = tools === undefined ? 0 : JSON.stringify(tools).length;
     const { system, systemChars, messages } = wireMessages(req, cache, toolChars);

@@ -53,7 +53,6 @@ describe('complete() — the happy path', () => {
       model: 'openai/gpt-4.1-mini',
       stream: true,
       stream_options: { include_usage: true },
-      temperature: 0.7,
       max_tokens: 4096,
       messages: [
         { role: 'system', content: 'be terse' },
@@ -61,6 +60,8 @@ describe('complete() — the happy path', () => {
       ],
     });
     expect(body).not.toHaveProperty('response_format');
+    // No built-in sampling default: neither the request nor the profile set a temperature, so none is sent.
+    expect(body).not.toHaveProperty('temperature');
   });
 
   it('lets the request override the model, temperature, output limit, and stop sequences', async () => {

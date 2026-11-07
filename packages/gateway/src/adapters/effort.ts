@@ -26,6 +26,12 @@ const BUDGETS: Record<Exclude<ThinkingLevel, 'off'>, number> = {
 /** Anthropic's smallest thinking budget; the other budget routes are held to it too. */
 const MIN_BUDGET = 1_024;
 
+/**
+ * The output cap a thinking call on an effort route (no budget) gets when nobody set one: the reasoning shares `max_tokens`
+ * with the answer, and the 4,096 default left DeepSeek v4-pro under 500 tokens for a scene. Held to the model's maximum.
+ */
+const THINKING_OUTPUT_FLOOR = 16_384;
+
 /** What a call is actually sent: the output cap, and the thinking level and budget that fit under it. */
 export interface EffectiveOutput {
   /** The max_tokens actually sent. */
@@ -69,7 +75,9 @@ function takesBudget(style: string | undefined, caps: ModelCaps): boolean {
  * and a `reasoningBudget` stands in for a missing level. On a budget route the cap is raised to the budget plus the
  * caller's own cap (the room left for the answer), held to the model's documented maximum; when that clamp would leave the
  * budget at or above the cap, or the answer short of room, the budget is lowered (never below the minimum) rather than sent
- * into a 400. If even the minimum does not fit, thinking is left off. `off` and routes without a budget keep the cap as it is.
+ * into a 400. If even the minimum does not fit, thinking is left off. `off` keeps the cap as it is. On an effort route (no
+ * budget) a call that thinks, at a level or at the provider's default, is lifted to {@link THINKING_OUTPUT_FLOOR} (never above
+ * the model's maximum) when the cap is only the default (`capIsDefault`); a cap the profile or request set is kept.
  */
 export function effectiveOutput(input: {
   readonly cap: number;
@@ -79,14 +87,22 @@ export function effectiveOutput(input: {
   readonly modelMaxOutput?: number;
   /** The effort style when the route supplies one the row does not state (a Messages route is 'anthropic'). */
   readonly style?: string;
+  /** The cap is the gateway's default, set by neither the profile nor the request, so a thinking call may raise it. */
+  readonly capIsDefault?: boolean;
 }): EffectiveOutput {
   const { cap, caps } = input;
   const levels = caps.effortLevels ?? [];
   if (input.level === 'off') return levels.includes('off') ? { maxTokens: cap, level: 'off' } : { maxTokens: cap };
   const asked = input.budget !== undefined && Number.isFinite(input.budget) && input.budget > 0 ? Math.floor(input.budget) : undefined;
   const level = input.level !== undefined && levels.includes(input.level) ? input.level : asked === undefined ? undefined : levelForBudget(asked, levels);
+  const style = input.style ?? caps.effortStyle;
+  if (!takesBudget(style, caps)) {
+    // Room for the reasoning: the provider's default thinks too wherever the row offers an on-level.
+    const thinks = level === undefined ? levels.some((l) => l !== 'off') : level !== 'off';
+    const lifted = input.capIsDefault === true && thinks && cap > 0 ? Math.max(cap, Math.min(THINKING_OUTPUT_FLOOR, input.modelMaxOutput ?? THINKING_OUTPUT_FLOOR)) : cap;
+    return level === undefined || level === 'off' ? { maxTokens: lifted } : { maxTokens: lifted, level };
+  }
   if (level === undefined || level === 'off') return { maxTokens: cap };
-  if (!takesBudget(input.style ?? caps.effortStyle, caps)) return { maxTokens: cap, level };
 
   let budget = Math.max(MIN_BUDGET, asked ?? BUDGETS[level]);
   // A cap of 0 is "send none": there is no limit for the budget to exceed.
@@ -99,9 +115,40 @@ export function effectiveOutput(input: {
   return { maxTokens, level, budget };
 }
 
-/** The wire value of a level on the `reasoning_effort` family, which tops out at 'high' and calls off 'none'. */
-function highest(level: ThinkingLevel): string {
+/**
+ * The wire value of a level on the `reasoning_effort` family: the row's own value when it names one (`effortWire`), else the
+ * family's default, which tops out at 'high' and calls off 'none'.
+ */
+function wireLevel(level: ThinkingLevel, caps: ModelCaps): string {
+  const own = caps.effortWire?.[level];
+  if (own !== undefined && own !== '') return own;
   return level === 'max' || level === 'xhigh' ? 'high' : level === 'off' ? 'none' : level;
+}
+
+/**
+ * The value `level` goes out as under `style`, as {@link applyEffort} writes it: the effort string, the `thinking.type`
+ * ('enabled' unless the row names another, such as MiniMax's 'adaptive'; 'disabled' for off), the budget on a budget route, or
+ * the toggle. The provider form's "Sent as" line reads this, so it never disagrees with the body.
+ */
+export function effortWireValue(level: ThinkingLevel, caps: ModelCaps, style: string | undefined = caps.effortStyle): string {
+  const on = level !== 'off';
+  const own = caps.effortWire?.[level];
+  switch (style) {
+    case 'reasoning_effort':
+    case 'reasoning.effort':
+      return wireLevel(level, caps);
+    case 'thinking.type':
+      return on ? (own !== undefined && own !== '' ? own : 'enabled') : 'disabled';
+    case 'thinking.type+effort':
+      return on ? wireLevel(level, caps) : 'disabled';
+    case 'enable_thinking+budget':
+      return on ? String(BUDGETS[level]) : 'false';
+    case 'reasoning.enabled':
+      return on ? 'true' : 'false';
+    default:
+      // 'anthropic': output_config.effort, and thinking disabled for off.
+      return on ? (own !== undefined && own !== '' ? own : level) : 'disabled';
+  }
 }
 
 /**
@@ -124,21 +171,18 @@ export function applyEffort(
 
   switch (style) {
     case 'reasoning_effort':
-      body.reasoning_effort = highest(level);
+      body.reasoning_effort = wireLevel(level, caps);
       break;
     case 'reasoning.effort':
-      body.reasoning = { effort: highest(level) };
-      break;
-    case 'max_effort':
-      // Qwen3.8-max's level scale already spans low..max; 'off' is omitted (not a value it takes).
-      if (on) body.max_effort = level;
+      body.reasoning = { effort: wireLevel(level, caps) };
       break;
     case 'thinking.type':
-      body.thinking = { type: on ? (levels.length <= 2 ? 'adaptive' : 'enabled') : 'disabled' };
+      // 'enabled' unless the row names its own on-value (MiniMax M3: `{ high: 'adaptive' }`).
+      body.thinking = { type: effortWireValue(level, caps, style) };
       break;
     case 'thinking.type+effort':
       body.thinking = { type: on ? 'enabled' : 'disabled' };
-      if (on) body.reasoning_effort = highest(level);
+      if (on) body.reasoning_effort = wireLevel(level, caps);
       break;
     case 'enable_thinking+budget':
       body.enable_thinking = on;

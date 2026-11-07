@@ -2598,6 +2598,23 @@ dialog.confirm:has(.folder-file-preview) {
   color: var(--ink);
 }
 
+/* The advanced request parameters: a help line sits close under its field (4px), and each next field keeps a 12px gap above
+   its label, so a help line never runs into the next label. */
+.request-params > :is(label, fieldset) {
+  margin-block-start: var(--space-5);
+}
+
+.request-params > .field-help {
+  margin-block-start: var(--space-2);
+}
+
+/* The thinking values editor in the advanced request parameters: one short field per level. */
+.effort-wire {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: var(--space-3);
+}
+
 /* The custom-headers editor: one row per header, value masked like the key. */
 .header-row {
   display: flex;

@@ -16,7 +16,6 @@ import { isolate } from '@caotang/i18n';
 import {
   PRESETS,
   isLocalBase,
-  modelRowFor,
   presetFor,
   type CachePolicy,
   type ModelInfo,
@@ -54,6 +53,8 @@ import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js'
 import languageStats from '../i18n/locales/stats.json';
 import { timeLabel } from '../app/activity-model.js';
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
+import { BLANK_PARAMS, paramsDraftOf, paramsFromDraft, type ParamsDraft } from '../app/request-params-form.js';
+import { RequestParamsFields } from './RequestParamsFields.js';
 import { capsLine, modelDetails } from '../app/provider-details.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
@@ -240,6 +241,8 @@ interface FormState {
   readonly cacheOn: boolean;
   /** Anthropic only: how long the provider keeps a cached prompt. */
   readonly cacheTtl: '5m' | '1h';
+  /** The advanced request parameters (provider-gateway §2, "Request parameters"); each follows the model row until changed. */
+  readonly params: ParamsDraft;
 }
 
 const BLANK: FormState = {
@@ -256,6 +259,7 @@ const BLANK: FormState = {
   completionPrice: '',
   cacheOn: true,
   cacheTtl: '5m',
+  params: BLANK_PARAMS,
 };
 
 function formFor(view: ProfileView): FormState {
@@ -273,6 +277,7 @@ function formFor(view: ProfileView): FormState {
     completionPrice: view.pricePer1k === undefined ? '' : String(view.pricePer1k.completion),
     cacheOn: view.promptCache?.mode !== 'off',
     cacheTtl: view.promptCache?.ttl ?? '5m',
+    params: paramsDraftOf(view),
   };
 }
 
@@ -382,7 +387,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const choosePreset = (presetId: string): void => {
     if (form === null) return;
     const next = presetFor(presetId);
-    setForm({ ...form, preset: presetId, baseUrl: next?.local === undefined ? '' : next.baseUrl, model: next?.defaultModel ?? '', fields: fieldDefaults(next), headers: [], headersTouched: false });
+    setForm({ ...form, preset: presetId, baseUrl: next?.local === undefined ? '' : next.baseUrl, model: next?.defaultModel ?? '', fields: fieldDefaults(next), headers: [], headersTouched: false, params: BLANK_PARAMS });
   };
 
   const setField = (key: string, value: string): void => {
@@ -416,6 +421,12 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       setMessage({ text: price.message, tone: 'error' });
       return;
     }
+    // The request parameters are named before anything is saved too: a temperature that does not read keeps the form open.
+    const request = paramsFromDraft(form.params);
+    if (!request.ok) {
+      setMessage({ text: t`Temperature must be a number from 0 to 2.`, tone: 'error' });
+      return;
+    }
     const headers = headerPatch();
     void run(async () => {
       if (form.id === null) {
@@ -431,6 +442,8 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
           ...(price.price === undefined ? {} : { pricePer1k: price.price }),
           promptCache: cachePolicyOf(form),
+          ...(request.params === undefined ? {} : { params: request.params }),
+          ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         });
         setForm(null);
         if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
@@ -458,6 +471,8 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
         ...(priceChange === undefined ? {} : { pricePer1k: priceChange }),
         ...(isMock === true ? {} : { promptCache: cachePolicyOf(form) }),
+        // Following the model or never sending clears a saved temperature, so only what the form shows is sent.
+        ...(isMock === true ? {} : { params: request.params ?? null, temperature: request.temperature ?? null }),
       });
       setForm(null);
       if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
@@ -835,6 +850,16 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
               ) : null}
             </fieldset>
           ) : null}
+          {isMock !== true ? (
+            <RequestParamsFields
+              draft={form.params}
+              preset={form.preset}
+              baseUrl={form.baseUrl}
+              model={form.model}
+              providerName={preset?.name ?? ''}
+              onChange={(params) => setForm({ ...form, params })}
+            />
+          ) : null}
           <div className="profile-form-actions">
             <button type="submit" className="button is-primary" disabled={busy}>
               <Trans>Save profile</Trans>
@@ -965,7 +990,8 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
           const pinned = profiles.find((entry) => entry.id === draft.profileId);
           const preset = presetFor(pinned?.kind === 'mock' ? 'mock' : pinned?.preset);
           const modelId = draft.model.trim() !== '' ? draft.model.trim() : (pinned?.defaultModel ?? '');
-          const levels = preset !== undefined && modelId !== '' ? (modelRowFor(preset, modelId)?.caps.effortLevels ?? []) : [];
+          // The levels the profile resolves to: the row's, with the profile's own request parameters over them.
+          const levels = pinned !== undefined && modelId !== '' ? (providers.gateway.modelCaps(pinned.id, modelId).effortLevels ?? []) : [];
           return (
             <div className="role-row" key={id}>
               <span className="role-title">

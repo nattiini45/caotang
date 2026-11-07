@@ -40,7 +40,7 @@ function parseStream(text: string, c: AdapterContext = CTX): { pieces: StreamPie
   return { pieces, terminal: parser.finish() };
 }
 
-const EFFORT_FIELDS = ['reasoning_effort', 'reasoning', 'thinking', 'enable_thinking', 'thinking_budget', 'max_effort'] as const;
+const EFFORT_FIELDS = ['reasoning_effort', 'reasoning', 'thinking', 'enable_thinking', 'thinking_budget'] as const;
 
 /** Builds a body for one (style, level) pair and returns the effort fields it wrote. */
 function effortFields(style: string, level: ThinkingLevel | undefined, caps: ModelCaps = {}): Record<string, unknown> {
@@ -149,10 +149,11 @@ describe('openai-chat effort mapping', () => {
     expect(effortFields('reasoning.effort', 'off')).toEqual({ reasoning: { effort: 'none' } });
   });
 
-  it('thinking.type: enabled when the row lists more than two levels, adaptive when it lists two', () => {
+  it('thinking.type: enabled whatever the level count, or the row’s own on-value', () => {
     expect(effortFields('thinking.type', 'high')).toEqual({ thinking: { type: 'enabled' } });
     expect(effortFields('thinking.type', 'off')).toEqual({ thinking: { type: 'disabled' } });
-    expect(effortFields('thinking.type', 'low', { effortLevels: ['off', 'low'] })).toEqual({ thinking: { type: 'adaptive' } });
+    expect(effortFields('thinking.type', 'high', { effortLevels: ['off', 'high'] })).toEqual({ thinking: { type: 'enabled' } });
+    expect(effortFields('thinking.type', 'high', { effortLevels: ['off', 'high'], effortWire: { high: 'adaptive' } })).toEqual({ thinking: { type: 'adaptive' } });
   });
 
   it('thinking.type+effort: writes both fields; off disables without an effort', () => {
@@ -172,12 +173,6 @@ describe('openai-chat effort mapping', () => {
   it('reasoning.enabled: writes the boolean switch', () => {
     expect(effortFields('reasoning.enabled', 'low')).toEqual({ reasoning: { enabled: true } });
     expect(effortFields('reasoning.enabled', 'off')).toEqual({ reasoning: { enabled: false } });
-  });
-
-  it('max_effort: writes the level verbatim, and omits off entirely', () => {
-    expect(effortFields('max_effort', 'max')).toEqual({ max_effort: 'max' });
-    expect(effortFields('max_effort', 'low')).toEqual({ max_effort: 'low' });
-    expect(effortFields('max_effort', 'off')).toEqual({});
   });
 
   it('anthropic: maps nothing on the chat route — the Messages adapter owns that pair', () => {

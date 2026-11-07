@@ -29,7 +29,7 @@ import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from
 import { ProfileError } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
 import { presetFor, type PresetDef } from './presets/index.js';
-import type { CachePolicy, NewProfile, ProfileKind, ProfilePatch, ProfileView, ResponseFormatProbe } from './types.js';
+import type { CachePolicy, NewProfile, ProfileKind, ProfilePatch, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
 
 export interface ProfileStore {
   create(input: NewProfile): Promise<ProfileView>;
@@ -87,6 +87,7 @@ interface StoredProfile {
   defaultModel: string;
   temperature?: number;
   maxOutputTokens?: number;
+  params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
   promptCache?: CachePolicy;
   isActive: boolean;
@@ -103,6 +104,7 @@ interface CheckedFields {
   customHeaders?: Record<string, string>;
   temperature?: number;
   maxOutputTokens?: number;
+  params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
   promptCache?: CachePolicy;
 }
@@ -116,6 +118,7 @@ interface RawFields {
   customHeaders?: Readonly<Record<string, string>> | null;
   temperature?: number;
   maxOutputTokens?: number;
+  params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
   promptCache?: CachePolicy;
 }
@@ -226,7 +229,52 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     checked.pricePer1k = { prompt, completion };
   }
   if (raw.promptCache !== undefined) checked.promptCache = checkCachePolicy(raw.promptCache);
+  if (raw.params !== undefined) {
+    const params = checkParams(raw.params);
+    if (params !== undefined) checked.params = params;
+  }
   return checked;
+}
+
+const THINKING_LEVELS: ReadonlySet<string> = new Set(['off', 'low', 'medium', 'high', 'xhigh', 'max']);
+/** A wire value or a field name: a short identifier, never free text that could reshape a body. */
+const WIRE_WORD = /^[A-Za-z0-9_.-]{1,40}$/;
+const MAX_DENIED = 24;
+
+/**
+ * A profile's request parameters, checked (provider-gateway §2, "Request parameters"): booleans stay booleans, effort keys are
+ * thinking levels and their values short wire words, denied fields are field names. An object with nothing set is no override.
+ */
+function checkParams(raw: RequestParams): RequestParams | undefined {
+  if (typeof raw !== 'object' || raw === null) throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+  const out: { -readonly [K in keyof RequestParams]: RequestParams[K] } = {};
+  if (raw.temperature !== undefined) {
+    if (typeof raw.temperature !== 'boolean') throw new ProfileError('invalid', 'Sending a temperature is either on or off.', 'params');
+    out.temperature = raw.temperature;
+  }
+  if (raw.toolStrict !== undefined) {
+    if (typeof raw.toolStrict !== 'boolean') throw new ProfileError('invalid', 'Strict tool schemas are either on or off.', 'params');
+    out.toolStrict = raw.toolStrict;
+  }
+  if (raw.effort !== undefined) {
+    const effort: Partial<Record<ThinkingLevel, string>> = {};
+    for (const [level, value] of Object.entries(raw.effort)) {
+      if (value === undefined || value.trim() === '') continue;
+      if (!THINKING_LEVELS.has(level) || !WIRE_WORD.test(value.trim())) {
+        throw new ProfileError('invalid', `"${value}" is not a thinking value a request can carry.`, 'params');
+      }
+      effort[level as ThinkingLevel] = value.trim();
+    }
+    out.effort = effort;
+  }
+  if (raw.deny !== undefined) {
+    const deny = [...new Set(raw.deny.map((field) => field.trim()).filter((field) => field !== ''))];
+    if (deny.length > MAX_DENIED) throw new ProfileError('invalid', `At most ${MAX_DENIED} fields can be left out.`, 'params');
+    const bad = deny.find((field) => !WIRE_WORD.test(field));
+    if (bad !== undefined) throw new ProfileError('invalid', `"${bad}" is not a request field name.`, 'params');
+    if (deny.length > 0) out.deny = deny;
+  }
+  return Object.keys(out).length === 0 ? undefined : out;
 }
 
 /** A profile's caching policy, checked: `off` or `auto`, and Anthropic's lifetime `5m` or `1h`. Anything else is refused. */
@@ -259,6 +307,15 @@ function requireKeyFor(hasKey: boolean, keyOptional: boolean): void {
   if (!hasKey && !keyOptional) throw new ProfileError('invalid', 'Enter the API key for this endpoint.', 'apiKey');
 }
 
+/** A copy a caller cannot mutate the record through. */
+function copyParams(params: RequestParams): RequestParams {
+  return {
+    ...params,
+    ...(params.effort === undefined ? {} : { effort: { ...params.effort } }),
+    ...(params.deny === undefined ? {} : { deny: [...params.deny] }),
+  };
+}
+
 function toView(rec: StoredProfile): ProfileView {
   const view: ProfileView = {
     id: rec.id,
@@ -273,6 +330,7 @@ function toView(rec: StoredProfile): ProfileView {
   };
   if (rec.temperature !== undefined) view.temperature = rec.temperature;
   if (rec.maxOutputTokens !== undefined) view.maxOutputTokens = rec.maxOutputTokens;
+  if (rec.params !== undefined) view.params = copyParams(rec.params);
   if (rec.pricePer1k !== undefined) view.pricePer1k = { ...rec.pricePer1k };
   if (rec.promptCache !== undefined) view.promptCache = { ...rec.promptCache };
   if (rec.responseFormat !== undefined) view.responseFormat = { ...rec.responseFormat };
@@ -325,6 +383,7 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         defaultModel: fields.defaultModel,
         ...(fields.temperature === undefined ? {} : { temperature: fields.temperature }),
         ...(fields.maxOutputTokens === undefined ? {} : { maxOutputTokens: fields.maxOutputTokens }),
+        ...(fields.params === undefined ? {} : { params: fields.params }),
         ...(fields.pricePer1k === undefined ? {} : { pricePer1k: fields.pricePer1k }),
         ...(fields.promptCache === undefined ? {} : { promptCache: fields.promptCache }),
         isActive: activate,
@@ -348,8 +407,10 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
         fields: mergedFields,
         // `null` clears the headers; an absent field keeps what is sealed.
         customHeaders: patch.customHeaders === null ? undefined : patch.customHeaders,
-        temperature: patch.temperature ?? rec.temperature,
+        // `null` clears the temperature and the parameters; an absent field keeps what is saved.
+        temperature: patch.temperature === null ? undefined : (patch.temperature ?? rec.temperature),
         maxOutputTokens: patch.maxOutputTokens ?? rec.maxOutputTokens,
+        params: patch.params === null ? undefined : (patch.params ?? rec.params),
         pricePer1k: price,
         promptCache: patch.promptCache ?? rec.promptCache,
       });
@@ -409,6 +470,8 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       Object.assign(rec, stored, { hasKey });
       // `Object.assign` cannot clear a key it was not given, so a cleared price is removed from the record here.
       if (fields.pricePer1k === undefined) delete rec.pricePer1k;
+      if (fields.temperature === undefined) delete rec.temperature;
+      if (fields.params === undefined) delete rec.params;
       if (fields.fields === undefined) delete rec.fields;
       // §5's probe is about one endpoint and one model with one key. Any of those
       // changing makes the cached answer a guess, so it goes.

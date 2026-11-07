@@ -45,7 +45,8 @@ describe('an Anthropic profile with a thinking level', () => {
         expect(body.output_config).toEqual({ effort: thinking });
         expect(JSON.stringify(body)).not.toContain('budget_tokens');
         expect(body).not.toHaveProperty('temperature');
-        expect(body.max_tokens).toBe(4_096);
+        // Adaptive thinking shares max_tokens with the answer: the default cap is lifted to the effort floor.
+        expect(body.max_tokens).toBe(16_384);
       }
     }
   });
@@ -71,7 +72,7 @@ describe('an Anthropic profile with a thinking level', () => {
     const h = harness({ net });
     await anthropic(h);
     await collect(h.gateway.complete({ ...hi, reasoningBudget: 25_000 }));
-    expect(net.bodyOf(0)).toMatchObject({ thinking: { type: 'adaptive' }, output_config: { effort: 'xhigh' }, max_tokens: 4_096 });
+    expect(net.bodyOf(0)).toMatchObject({ thinking: { type: 'adaptive' }, output_config: { effort: 'xhigh' }, max_tokens: 16_384 });
   });
 
   it('lists off only on Haiku 5.5, and xhigh between high and max on all four rows', () => {
@@ -113,6 +114,32 @@ describe('a budget route', () => {
     await collect(h.gateway.complete(hi));
     expect(net.bodyOf(0).max_tokens).toBe(4_096);
     expect(h.gateway.requestLog.entries().at(-1)?.maxTokens).toBe(4_096);
+  });
+});
+
+describe('an effort route that thinks (no budget)', () => {
+  const deepseek = (h: ReturnType<typeof harness>, overrides = {}) =>
+    addEndpoint(h, { preset: 'deepseek', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-pro', ...overrides });
+
+  it('lifts the default cap to 16,384 at a level and at the provider default, and keeps it when thinking is off', async () => {
+    const net = new ScriptedFetch();
+    const h = harness({ net });
+    await deepseek(h);
+    for (const [thinking, cap] of [['max', 16_384], [undefined, 16_384], ['off', 4_096]] as const) {
+      net.push(() => sseResponse([stop, '[DONE]']));
+      await collect(h.gateway.complete({ ...hi, ...(thinking === undefined ? {} : { thinking }) }));
+      expect(net.bodyOf(net.calls.length - 1).max_tokens).toBe(cap);
+    }
+  });
+
+  it('keeps a cap the profile or the request set', async () => {
+    const net = new ScriptedFetch().push(() => sseResponse([stop, '[DONE]'])).push(() => sseResponse([stop, '[DONE]']));
+    const h = harness({ net });
+    await deepseek(h, { maxOutputTokens: 2_000 });
+    await collect(h.gateway.complete({ ...hi, thinking: 'high' }));
+    await collect(h.gateway.complete({ ...hi, thinking: 'high', maxOutputTokens: 3_000 }));
+    expect(net.bodyOf(0).max_tokens).toBe(2_000);
+    expect(net.bodyOf(1).max_tokens).toBe(3_000);
   });
 });
 

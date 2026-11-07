@@ -207,6 +207,9 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   };
 
+  /** The temperature field of a body input: present only when one was set. */
+  const temperatureOf = (value: number | undefined): { temperature?: number } => (value === undefined ? {} : { temperature: value });
+
   /** The profile a request targets: the one named, else the active one. Never a silent fallback. */
   const targetOf = (profileId: string | undefined): ProfileView => {
     if (profileId !== undefined) {
@@ -250,7 +253,7 @@ export function createGateway(options: GatewayOptions): Gateway {
    * profile with no known preset resolves to the generic OpenAI-Chat route.
    */
   const routeOf = (profile: ProfileView, model: string): { adapter: ProviderAdapter; ctx: AdapterContext } => {
-    const spec = resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, model);
+    const spec = resolveRoute(profile, model);
     return {
       adapter: adapterFor(spec.adapter),
       ctx: {
@@ -274,6 +277,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const { adapter, ctx } = route;
     const effective = effectiveOutput({
       cap: req.maxOutputTokens ?? profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+      capIsDefault: req.maxOutputTokens === undefined && profile.maxOutputTokens === undefined,
       ...(req.thinking === undefined ? {} : { level: req.thinking }),
       ...(req.reasoningBudget === undefined ? {} : { budget: req.reasoningBudget }),
       caps: ctx.caps,
@@ -287,7 +291,9 @@ export function createGateway(options: GatewayOptions): Gateway {
     const body = adapter.buildBody({
       req: encodeToolNames(req, names),
       ctx,
-      temperature: req.temperature ?? profile.temperature ?? 0.7,
+      // No built-in default (provider-gateway §2, "Request parameters"): a temperature goes out only when the request or the
+      // profile sets one, and the adapter drops it where the caps deny it.
+      ...temperatureOf(req.temperature ?? profile.temperature),
       effective,
       jsonObject,
       ...(cache === undefined ? {} : { cache }),
@@ -452,13 +458,14 @@ export function createGateway(options: GatewayOptions): Gateway {
       }
 
       const resolved = route ?? routeOf(profile, model);
-      // The §5 probe answer governs, and a capability row that names jsonObject false
-      // can refuse it — but a row that says nothing leaves the probe to decide.
+      // On Chat Completions the §5 probe answer governs, and a capability row that names jsonObject false can refuse it — but a
+      // row that says nothing leaves the probe to decide. The other routes have no probe: their row says it.
+      const asksJson = sent.responseFormat !== undefined && sent.responseFormat !== 'text';
       const jsonObject =
-        sent.responseFormat !== undefined &&
-        sent.responseFormat !== 'text' &&
-        profile.responseFormat?.supportsJsonObject === true &&
-        resolved.ctx.caps.jsonObject !== false;
+        asksJson &&
+        (resolved.adapter.id === 'openai-chat'
+          ? profile.responseFormat?.supportsJsonObject === true && resolved.ctx.caps.jsonObject !== false
+          : resolved.ctx.caps.jsonObject === true);
       assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
       const revealed = await secretsFor(profile);
       trace?.request(revealed.redact);
@@ -560,7 +567,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const modelMaxOutputTokens = info?.maxOutputTokens ?? row?.maxOutputTokens;
     let thinkingTokens: number | undefined;
     if (thinking !== undefined && row !== undefined) {
-      const spec = resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, modelId);
+      const spec = resolveRoute(profile, modelId);
       const settled = effectiveOutput({
         cap: maxOutputTokens,
         level: thinking,
@@ -571,7 +578,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       if (settled.level !== undefined && settled.level !== 'off') thinkingTokens = settled.budget ?? nominalThinkingTokens(settled.level);
     }
     // The forecast's cache terms (§3, "Prompt caching"): only when this profile caches and the row says how a read is priced.
-    const route = row === undefined ? undefined : resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, modelId);
+    const route = row === undefined ? undefined : resolveRoute(profile, modelId);
     const policy = policyOf(undefined, profile.promptCache);
     const caching =
       route !== undefined && policy.mode === 'auto' && (route.caps.cache === 'explicit' || route.caps.cache === 'automatic')
@@ -604,12 +611,13 @@ export function createGateway(options: GatewayOptions): Gateway {
       return true;
     }
 
-    // `response_format` is a Chat Completions concept: only an openai-chat route can
-    // carry it, so other routes answer false without spending a request.
+    // `response_format` is a Chat Completions concept: only an openai-chat route is probed. The other routes answer from the
+    // model row without spending a request (Responses takes JSON mode as `text.format`; Messages has none).
     const route = routeOf(profile, profile.defaultModel);
     if (route.adapter.id !== 'openai-chat') {
-      profiles.recordProbe(profile.id, { supportsJsonObject: false, probedAt: clock.now() });
-      return false;
+      const supported = route.ctx.caps.jsonObject === true;
+      profiles.recordProbe(profile.id, { supportsJsonObject: supported, probedAt: clock.now() });
+      return supported;
     }
 
     const path = route.adapter.completePath(profile.defaultModel);

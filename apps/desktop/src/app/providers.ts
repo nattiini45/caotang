@@ -325,6 +325,7 @@ export class ProviderService {
             ...(payload?.customHeaders === undefined ? {} : { customHeaders: payload.customHeaders }),
             ...(record.temperature === undefined ? {} : { temperature: record.temperature }),
             ...(record.maxOutputTokens === undefined ? {} : { maxOutputTokens: record.maxOutputTokens }),
+            ...(record.params === undefined ? {} : { params: record.params }),
             ...(record.pricePer1k === undefined ? {} : { pricePer1k: record.pricePer1k }),
             ...(record.promptCache === undefined ? {} : { promptCache: record.promptCache }),
           });

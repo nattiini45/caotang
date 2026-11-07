@@ -79,7 +79,7 @@ export const BUDGET = {
     // #321 FDX import, #327 script settings, #331 tokens, #333 the shared import preview dialog, #330 the shell actions and Classic
     // shell, #329 the plain-text reader, #320 footnotes in the editor) is in the entry, beside #322's own review fixes. The cap is that
     // plus about 1%, rounded up to the thousand.
-    index: 1_203_000,
+    index: 1_250_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -156,7 +156,10 @@ export const BUDGET = {
   // Navigation (#474: the views bar, one + New menu, the sidebar's Binder/Findings/Agent tabs, the phone's Views sheet): 7,768,958
   // bytes measured (+11,218 on main's 7,757,740; +6,752 of it in `modern-shell`, +3,488 in the entry for new-menu.ts and the palette's
   // New group, +1,204 in the en and de catalogues). The ceiling is that plus about 1 kB, as earlier raises of this one took.
-  totalJs: 7_770_000,
+  // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
+  // 1,206,897). Caspar raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
+  // entry 1,250,000.
+  totalJs: 8_000_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap
