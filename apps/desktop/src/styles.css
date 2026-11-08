@@ -2384,12 +2384,12 @@ dialog.confirm:has(.folder-file-preview) {
     flex-flow: column;
   }
 
-  .home-section:has(.project-list) {
+  .home > :has(.project-list) {
     order: -1;
     margin: 0;
   }
 
-  .home:has(.project-list) > .home-head {
+  .home:has(.project-list) > header {
     margin-block: 36px 0;
   }
 }
@@ -3943,6 +3943,7 @@ label.settings-check {
   }
 
   .settings-nav-item {
+    flex: none;
     white-space: nowrap;
     scroll-snap-align: start;
   }

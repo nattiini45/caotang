@@ -54,6 +54,10 @@ for (const shell of ['classic', 'modern'] as const) {
       expect(await nav.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
       const tops = await sections.evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
       expect(Math.max(...tops) - Math.min(...tops)).toBeLessThan(1);
+      expect(await sections.evaluateAll((buttons) => buttons.every((button, index) => {
+        const next = buttons[index + 1];
+        return next === undefined || button.getBoundingClientRect().right <= next.getBoundingClientRect().left;
+      }))).toBe(true);
       expect(await sections.evaluateAll((buttons) => buttons.every((button) => getComputedStyle(button).scrollSnapAlign === 'start'))).toBe(true);
 
       const providers = nav.getByRole('button', { name: 'Providers', exact: true });
