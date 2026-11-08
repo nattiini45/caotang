@@ -2381,16 +2381,16 @@ dialog.confirm:has(.folder-file-preview) {
 @media (max-width: 599px) {
   .home {
     display: flex;
-    flex-direction: column;
+    flex-flow: column;
   }
 
   .home-section:has(.project-list) {
     order: -1;
-    margin-block-start: 0;
+    margin: 0;
   }
 
   .home:has(.project-list) > .home-head {
-    margin-block-start: 36px;
+    margin-block: 36px 0;
   }
 }
 
@@ -3935,21 +3935,19 @@ label.settings-check {
   }
 
   .settings-nav {
-    flex-direction: row;
-    flex-wrap: nowrap;
+    flex-flow: row nowrap;
     overflow-x: auto;
-    scroll-snap-type: x proximity;
+    scroll-snap-type: x;
     border-inline-end: none;
     border-bottom: 1px solid var(--line);
   }
 
   .settings-nav-item {
-    flex: none;
     white-space: nowrap;
     scroll-snap-align: start;
   }
 
-  .settings-nav-item.is-current {
+  .settings-nav .is-current {
     border-radius: 999px;
   }
 
