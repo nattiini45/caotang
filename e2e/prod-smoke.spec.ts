@@ -391,6 +391,26 @@ test('the Ink compiler is a chunk of its own: a project with no dialogue never f
   expect(await violations(page)).toEqual([]);
 });
 
+test('the comic page and its notes load only when a comic opens, under the policy', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await createProject(page, 'Comic Room');
+  expect(chunks()).not.toContain('ComicPageView');
+  const chapter = await firstChapter(page);
+  await binderTitle(page, chapter).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'New comic here', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Expand Untitled comic' }).click();
+  await binderTitle(page, 'Page 1').click();
+  await page.getByRole('radio', { name: 'Editor', exact: true }).click();
+  const note = page.locator('.comic-panel-empty').first();
+  await expect(note).toHaveText('This panel is empty. Drop, paste or choose a picture to add art.');
+  await expect(note).toHaveCSS('display', 'grid');
+  expect(chunks()).toContain('ComicPageView');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+});
+
 test('Settings that cannot be fetched say so with a way out, and the page stays usable', async ({ page }) => {
   await page.route('**/assets/Settings-*.js', (route) => route.abort());
   await page.goto('/');

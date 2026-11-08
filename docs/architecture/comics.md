@@ -98,6 +98,8 @@ The deferred native tool rows are `comic.derive`, `comic.letter` and `comic.scri
 
 Empty panels in both interfaces say **This panel is empty. Drop, paste or choose a picture to add art.** The sentence is translated, German included, and wraps inside the panel rather than being hidden in Modern or running outside a narrow panel (#383).
 
+The comic page editor and its panel-note stylesheet load on first opening a comic page, through the same lazy boundary as the other media editors. Their loading and retry states belong to that boundary; a prose project downloads neither the editor nor its notes' styles.
+
 ### 3.4 Paper round trip
 
 The storyboard's `paperFrames` idea carries over: print blank panel layouts, draw, photograph, drop the photographs back; each lands by its file-name number (`0012.jpg` = page 12) via `asset.importBatch`, one undo step, never by reading the photograph.

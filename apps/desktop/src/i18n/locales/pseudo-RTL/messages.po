@@ -6367,11 +6367,6 @@ msgstr ""
 msgid "Empty documents are left out and listed in the compile log. Undo removes the file again."
 msgstr ""
 
-#. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/media/ComicPageView.tsx
-#~ msgid "Empty panel — a placeholder, not art"
-#~ msgstr ""
-
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Enable"

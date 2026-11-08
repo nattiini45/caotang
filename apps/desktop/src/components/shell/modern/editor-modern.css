@@ -34,7 +34,7 @@
   padding-inline: var(--space-5);
 }
 
-:root[data-shell='modern'] .modern-page .editor-toolbar > .button:first-child {
+:root[data-shell='modern'] .editor-toolbar > .button {
   margin-inline-start: -16px;
 }
 

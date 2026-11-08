@@ -18,6 +18,8 @@ import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
+import './comic-page.css';
+
 import {
   BALLOON_KINDS,
   BANGERS_FAMILY,
