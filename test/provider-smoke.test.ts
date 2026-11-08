@@ -7,9 +7,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PRESETS } from '../packages/gateway/src/index.js';
 import {
+  SMOKE_GATE_VAR,
   SMOKE_STAGES,
   SmokeReport,
   applyPresetFilter,
@@ -18,6 +19,9 @@ import {
   httpStatus,
   nothingRanText,
   parsePresetFilter,
+  smokeEnabled,
+  smokeKeys,
+  summaryNote,
 } from '../e2e/provider-smoke-lib.js';
 
 const root = resolve(__dirname, '..');
@@ -72,6 +76,37 @@ describe('applyPresetFilter', () => {
   });
 });
 
+describe('the opt-in gate', () => {
+  it('opens only for the exact value 1', () => {
+    expect(smokeEnabled({})).toBe(false);
+    expect(smokeEnabled({ [SMOKE_GATE_VAR]: '1' })).toBe(true);
+    for (const value of ['', '0', 'true', 'yes', ' 1 ']) expect(smokeEnabled({ [SMOKE_GATE_VAR]: value }), value).toBe(false);
+  });
+
+  it('reads no key and opens no file without the gate, even with keys in the shell', () => {
+    let reads = 0;
+    const readEnvFile = () => {
+      reads += 1;
+      return 'CAOTANG_SMOKE_ANTHROPIC=sk-file\n';
+    };
+    for (const value of [undefined, '', '0', 'true']) {
+      const env = value === undefined ? { CAOTANG_SMOKE_ANTHROPIC: 'sk-shell' } : { CAOTANG_SMOKE: value, CAOTANG_SMOKE_ANTHROPIC: 'sk-shell' };
+      expect([...smokeKeys(env, readEnvFile).keys()], String(value)).toEqual([]);
+    }
+    expect(reads, 'the key file is never opened').toBe(0);
+  });
+
+  it('reads the file behind the gate and lets the shell win', () => {
+    const readEnvFile = () =>
+      '\uFEFFexport CAOTANG_SMOKE_ANTHROPIC="sk-file"\nCAOTANG_SMOKE_OPENROUTER=sk-file-2\nCAOTANG_OTHER=not-a-key\n';
+    const keys = smokeKeys({ CAOTANG_SMOKE: '1', CAOTANG_SMOKE_ANTHROPIC: 'sk-shell' }, readEnvFile);
+    expect([...keys]).toEqual([
+      ['anthropic', 'sk-shell'],
+      ['openrouter', 'sk-file-2'],
+    ]);
+  });
+});
+
 describe('failure text', () => {
   it('names the preset, the stage and the HTTP status, and nothing from the error', () => {
     const error = Object.assign(new Error('401 {"error":"invalid key sk-ant-abcdef"}'), { status: 401 });
@@ -121,6 +156,17 @@ describe('SmokeReport', () => {
       '| deepseek | key redaction | not reached |',
       '',
     ]);
+  });
+
+  it('records a zero-length thinking summary on an accepted call as a pass', () => {
+    // The endpoint accepted the call and summarised nothing (the thinking: low case): the row still passes and says how long
+    // the summary was, so the length is evidence in the job summary rather than an assertion that fails the run.
+    const report = new SmokeReport('anthropic');
+    report.begin('thinking');
+    report.observe('thinking', summaryNote(0));
+    report.pass('thinking');
+    expect(summaryNote(0)).toBe('summary 0 chars');
+    expect(report.markdown()).toContain('| anthropic | thinking | pass (summary 0 chars) |');
   });
 
   it('counts a stage still running at the end (a timeout) as failed', () => {
@@ -207,6 +253,18 @@ describe('provider-smoke.yml', () => {
     expect(text).toContain("CAOTANG_E2E_NO_SERVER: '1'");
   });
 
+  it('runs the spec in the smoke project, under the gate, on that one step', () => {
+    expect(text).toContain('--project=smoke');
+    expect(text).not.toContain('--project=chromium');
+    const lines = code;
+    const step = lines.findIndex((line) => line.includes('e2e/provider-smoke.spec.ts'));
+    const next = lines.findIndex((line, i) => i > step && line.startsWith('      - '));
+    const end = next === -1 ? lines.length : next;
+    const gate = lines.findIndex((line) => line.trim() === "CAOTANG_SMOKE: '1'");
+    expect(gate, 'the gate is set').toBeGreaterThan(step);
+    expect(gate, 'the gate is on the spec step').toBeLessThan(end);
+  });
+
   it('has a secret line for every real preset, named for its id', () => {
     // A server on this computer has no account to put a secret on, so the real-key round is for the hosted providers.
     const real = PRESETS.filter((preset) => preset.local === undefined).map((preset) => preset.id).filter((id) => id !== 'generic' && id !== 'mock');
@@ -220,6 +278,70 @@ describe('provider-smoke.yml', () => {
   });
 });
 
+describe('playwright.config.ts', () => {
+  type Project = { readonly name: string; readonly testIgnore?: readonly RegExp[]; readonly testMatch?: RegExp };
+  type Config = { readonly projects: readonly Project[] };
+
+  const spec = resolve(root, 'e2e/provider-smoke.spec.ts');
+  const ignores = (project: Project): boolean => (project.testIgnore ?? []).some((pattern) => pattern.test(spec));
+
+  /**
+   * The config as Playwright builds it for one environment. The variables that decide which projects exist are cleared first,
+   * so a developer's own `CAOTANG_E2E_BROWSERS` or `CAOTANG_VISUAL` cannot change the answer, and every one is restored after.
+   */
+  async function configWith(env: Readonly<Record<string, string | undefined>>): Promise<Config> {
+    const names = ['CAOTANG_SMOKE', 'CAOTANG_E2E_BROWSERS', 'CAOTANG_VISUAL', 'CAOTANG_E2E_MODERN_GATE'] as const;
+    const saved = new Map(names.map((name) => [name, process.env[name]]));
+    for (const name of names) delete process.env[name];
+    for (const [name, value] of Object.entries(env)) process.env[name] = value;
+    vi.resetModules();
+    try {
+      const module = await import('../playwright.config.js');
+      return module.default as unknown as Config;
+    } finally {
+      for (const name of names) {
+        const value = saved.get(name);
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+      vi.resetModules();
+    }
+  }
+
+  it('leaves the real-key round out of every default project', async () => {
+    const config = await configWith({});
+    expect(config.projects.map((project) => project.name)).not.toContain('smoke');
+    const chromium = config.projects.find((project) => project.name === 'chromium');
+    expect(chromium, 'chromium').toBeDefined();
+    expect(ignores(chromium!), 'chromium ignores the real-key round').toBe(true);
+  });
+
+  it('adds exactly one smoke project, and only for CAOTANG_SMOKE=1', async () => {
+    const off = await configWith({ CAOTANG_SMOKE: 'true' });
+    expect(off.projects.filter((project) => project.name === 'smoke')).toHaveLength(0);
+
+    const on = await configWith({ CAOTANG_SMOKE: '1' });
+    const smoke = on.projects.filter((project) => project.name === 'smoke');
+    expect(smoke, 'one smoke project').toHaveLength(1);
+    expect(smoke[0]!.testMatch?.test(spec), 'smoke runs the real-key round').toBe(true);
+    for (const name of ['chromium', 'mobile', 'mobile-iphone-size', 'production-preview']) {
+      const project = on.projects.find((candidate) => candidate.name === name)!;
+      expect(project.testMatch?.test(spec) ?? false, name).toBe(false);
+      if (name === 'chromium') expect(ignores(project), name).toBe(true);
+    }
+  });
+
+  it('keeps Firefox and WebKit on the cross-browser run out of it too', async () => {
+    const all = await configWith({ CAOTANG_SMOKE: '1', CAOTANG_E2E_BROWSERS: 'all' });
+    for (const name of ['firefox', 'webkit']) {
+      const project = all.projects.find((candidate) => candidate.name === name);
+      expect(project, name).toBeDefined();
+      expect(ignores(project!), name).toBe(true);
+    }
+    expect(all.projects.filter((project) => project.testMatch?.test(spec) ?? false).map((project) => project.name)).toEqual(['smoke']);
+  });
+});
+
 describe('where the round is described', () => {
   it('no longer says it never runs in CI', () => {
     for (const path of ['docs/decisions.md', 'CHANGELOG.md', 'docs/architecture/providers-browser-cors.md', 'e2e/provider-smoke.spec.ts']) {
@@ -229,5 +351,15 @@ describe('where the round is described', () => {
         expect(line, path).not.toMatch(/never (run )?in ci|nothing here runs in ci/);
       }
     }
+  });
+
+  it('says the round needs CAOTANG_SMOKE=1, and that a local key file cannot make the suite spend', () => {
+    for (const path of ['README.md', 'CONTRIBUTING.md', 'docs/architecture/providers-browser-cors.md']) {
+      const text = read(path);
+      expect(text, path).toContain('CAOTANG_SMOKE=1');
+      expect(text.toLowerCase(), path).toContain('caotang.env');
+      expect(text.toLowerCase(), path).toMatch(/cannot make|does not make|can never make/);
+    }
+    expect(read('CHANGELOG.md')).toMatch(/CAOTANG_SMOKE=1/);
   });
 });

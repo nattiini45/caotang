@@ -7,6 +7,7 @@
 
 import type { ExportTemplate } from './template.js';
 import { chapterLabel, partLabel, type EnclosingPart } from './template.js';
+import { boilerplateFor, generatedChapterHeading, type Boilerplate } from './boilerplate.js';
 import type { FlatBlock } from './types.js';
 import type { FigurePack } from './figures.js';
 import type { PictureExportMode } from './types.js';
@@ -24,6 +25,12 @@ export interface RenderInput {
   /** The contents heading in the project's language, or the recipe's own. Absent: "Contents". */
   readonly contentsLabel?: string;
   /**
+   * The words the renderer generates, in the project's language (i18n.md §7.1): the contents heading, a chapter heading for a
+   * folder with no title, an empty title, and the landmark labels. The compile resolves it once for every format; a direct
+   * renderer call without it reads English.
+   */
+  readonly boilerplate?: Boilerplate;
+  /**
    * How this compile treats the pictures placed in the bodies (pictures.md §4): `copy` and `link`
    * are the Markdown modes, `placeholder` and `drop` the plain-text ones. Absent: the format's
    * default (Markdown `copy`, text `placeholder`), or no rewriting at all when there are no
@@ -38,7 +45,12 @@ export interface RenderInput {
 
 /** The heading the contents list carries. */
 export function contentsHeading(input: RenderInput): string {
-  return input.contentsLabel ?? 'Contents';
+  return input.contentsLabel ?? boilerplateOf(input).contents;
+}
+
+/** The words this renderer generates, in the project's language; English when the caller gave none. */
+export function boilerplateOf(input: RenderInput): Boilerplate {
+  return input.boilerplate ?? boilerplateFor(undefined);
 }
 
 export interface ChapterHeading {
@@ -57,17 +69,24 @@ export interface ChapterHeading {
 /**
  * Every heading in document order, parts and chapters, with the label each renders under. A chapter's label is filled with the
  * part it sits in: the nearest part heading above it at a lower level, so a prologue after a part's last chapter is in no part.
+ * A folder the writer left untitled is headed in the project language ("Chapter 1", "Kapitel 1"), never "1. ".
  */
 export function chapterHeadings(input: RenderInput): ChapterHeading[] {
   const out: ChapterHeading[] = [];
+  const words = boilerplateOf(input);
   const openParts: (EnclosingPart & { readonly level: number })[] = [];
   input.blocks.forEach((block, blockIndex) => {
     if (block.kind !== 'chapter') return;
     while (openParts.length > 0 && (openParts[openParts.length - 1]?.level ?? 0) >= block.level) openParts.pop();
     const part = block.part === true;
-    const label = part
-      ? partLabel(input.template, block.number, block.title)
-      : chapterLabel(input.template, block.number, block.title, openParts[openParts.length - 1]);
+    const untitled = block.title.trim() === '';
+    const label = untitled
+      ? part
+        ? words.untitled
+        : generatedChapterHeading(words, block.number)
+      : part
+        ? partLabel(input.template, block.number, block.title)
+        : chapterLabel(input.template, block.number, block.title, openParts[openParts.length - 1]);
     if (part) openParts.push({ number: block.number, title: block.title, level: block.level });
     out.push({ label, number: block.number, title: block.title, level: block.level, part, blockIndex });
   });
@@ -84,9 +103,15 @@ export function hasParts(input: RenderInput): boolean {
   return input.blocks.some((block) => block.kind === 'chapter' && block.part === true);
 }
 
-/** The heading a `section` scene prints, or `undefined` for any other scene or a section with a blank title. */
-export function sectionTitle(block: FlatBlock): string | undefined {
-  return block.kind === 'scene' && block.style === 'section' && block.title.trim() !== '' ? block.title.trim() : undefined;
+/**
+ * The heading a `section` scene prints: its own title, or — when the writer left it blank — the project's word for an untitled
+ * document, so the heading is never empty. `undefined` for any other scene, and for a blank title when the caller gave no word.
+ */
+export function sectionTitle(block: FlatBlock, untitled?: string): string | undefined {
+  if (block.kind !== 'scene' || block.style !== 'section') return undefined;
+  const title = block.title.trim();
+  if (title !== '') return title;
+  return untitled;
 }
 
 export interface ContentsEntry {
@@ -102,6 +127,7 @@ export interface ContentsEntry {
 export function contentsEntries(input: RenderInput): ContentsEntry[] {
   const out: ContentsEntry[] = [];
   const headings = headingsByBlock(input);
+  const words = boilerplateOf(input);
   let depth = 1;
   input.blocks.forEach((block, index) => {
     const heading = headings.get(index);
@@ -109,7 +135,7 @@ export function contentsEntries(input: RenderInput): ContentsEntry[] {
       depth = heading.level;
       out.push({ label: heading.label, level: heading.level });
     }
-    const section = sectionTitle(block);
+    const section = sectionTitle(block, words.untitled);
     if (section !== undefined) out.push({ label: section, level: depth + 1 });
   });
   return out;

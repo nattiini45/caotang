@@ -67,5 +67,7 @@ export {
   type ReadPictureOptions,
 } from './pictures.js';
 export { MCP_VOICE, type FolderVoice } from './voice.js';
+// The project's agent rules as a headless host reads them, so the SDK and the MCP server cannot drift on the posture (agent-harness §4).
+export { projectRules } from './rules.js';
 // The dialogue module's facts for a coherence scan, so a host that reads a folder without the agent (`caotang scan`) runs the branch checks too.
 export { dialogueFactsOf } from '@caotang/harness';

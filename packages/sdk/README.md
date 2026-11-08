@@ -26,6 +26,17 @@ console.log(report.status, report.summary);
 - `project.save()` writes the folder, and `project.close()` (or `await using`) saves if the project is open for writing and releases the lock.
 - `project.state` is a read-only view of the project. Every change goes through `run()` or `call()`, and so through the command bus and its hard-deny list.
 
+## The project's agent rules
+
+A project folder may carry the writer's rules for the agent in `caotang.json` (`agent.rules`), and the SDK holds every turn and every `call()` to them, exactly as the app and the MCP server do. The rules travel with the folder, so a script cannot step around what the writer set in the app.
+
+- A `deny` with `read` (or `any`) access keeps its subtree out of **every** model request the SDK makes: the binder, the document bodies, and the codex entries attached only to it. `doc.read`, `notes.read`, a scan and a delegate that name one are refused with the rule's note, and the refusal never names the title or quotes the text. The other documents still read.
+- A `deny` with `write` access refuses the step before its draft is made, so no model call is spent on it and nothing is written.
+- An `ask` rule forces a card even for a call that would otherwise run at once (`meta.set`), so `'auto'` and `'read-only'` cancel it and nothing reaches the folder. `'approve-all'` approves it as shown, as it approves any card.
+- A plan you write runs without a card when every step is a read: a read needs no approval, and a headless host has nobody to give one. A read a rule refuses is a refused step in the report, and the plan's other reads still run.
+
+A rules file that cannot be read fails closed. The app shows the writer a warning for a rule the load had to drop, so a lost rule is visible there; a script has nobody to tell, and a lost rule is a restriction nobody hears about. So when `agent` is not an object, `rules` is not a list, or one rule was dropped, the SDK treats the rules as **unreadable**: every call that changes the project is refused (`permission-denied`, `the rules could not be read`) until the file is put right. Reads still work, and the rules that were read fine still withhold.
+
 ## Approval policy
 
 The loop asks for a decision on every card and does nothing until it is answered. `approval` says who answers.
@@ -146,6 +157,7 @@ Look at `diff()` before you set `write: true` on a project you care about.
 |---|---|
 | `src/open.ts` | `openProject`: the folder, the product harness, the provider, the agent session and the turn queue. |
 | `src/approval.ts` | The approval policies, and what a cancelled card reports. |
+| `src/rules.ts` | The folder's agent rules as a headless host reads them, shared with the MCP server: a rule the load dropped, or a manifest that cannot be read, fails closed. |
 | `src/providers.ts` | One profile over an in-memory key store and a gateway that sends every role through it. |
 | `src/run.ts` | The event queue behind `AgentRun`. |
 | `src/diff.ts` | What a save would change, compared with the folder. |

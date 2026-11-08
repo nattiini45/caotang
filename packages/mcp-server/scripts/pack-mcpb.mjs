@@ -19,7 +19,7 @@
  *     packages/exporter/src/picture-transcoder-node.ts), `manifest.json`,
  *     `THIRD-PARTY-NOTICES.md` for this bundle's production dependencies (tools/third-party-notices.mjs), and the repository's
  *     LICENSE.
- *  2. Check the manifest against what the bundle is: the version, the entry point, the settings the arguments read, and the
+ *  2. Check the manifest against what the bundle is: the version, the Node runtime, the entry point, the settings the arguments read, and the
  *     write switch. Writes are not put on the command line, because a bundle cannot pass a flag conditionally; the manifest
  *     sets `CAOTANG_MCP_ALLOW_WRITES` from the user's "Allow changes" setting instead.
  *  3. Validate the manifest with the MCPB CLI this package pins (`@anthropic-ai/mcpb`).
@@ -54,7 +54,8 @@ export const WRITE_VARIABLE = 'CAOTANG_MCP_ALLOW_WRITES';
  * checks are the ones a wrong manifest would fail at install time, so they run here before the CLI sees the file.
  *
  * @param {unknown} manifest the parsed manifest.json
- * @param {{ version: string; files: readonly string[] }} bundle the version the package declares, and the files staged
+ * @param {{ version: string; files: readonly string[]; nodeRange?: string }} bundle the version the package declares, the files staged,
+ *   and the Node range the repository supports (when the check should hold the manifest to it)
  * @returns {string[]}
  */
 export function manifestProblems(manifest, bundle) {
@@ -66,6 +67,15 @@ export function manifestProblems(manifest, bundle) {
     problems.push(`version is ${JSON.stringify(manifest['version'])}, but the package is ${bundle.version}`);
   }
   if (!isRecord(manifest['author']) || typeof manifest['author']['name'] !== 'string') problems.push('author.name is required');
+
+  const compatibility = isRecord(manifest['compatibility']) ? manifest['compatibility'] : undefined;
+  const runtimes = compatibility === undefined ? undefined : isRecord(compatibility['runtimes']) ? compatibility['runtimes'] : undefined;
+  const node = runtimes === undefined ? undefined : runtimes['node'];
+  if (typeof node !== 'string' || node.trim() === '') {
+    problems.push('compatibility.runtimes.node is required: a host needs to know which Node version runs this server');
+  } else if (bundle.nodeRange !== undefined && node !== bundle.nodeRange) {
+    problems.push(`compatibility.runtimes.node is ${JSON.stringify(node)}, but the repository supports ${bundle.nodeRange}`);
+  }
 
   const server = isRecord(manifest['server']) ? manifest['server'] : undefined;
   if (server === undefined) return [...problems, 'server is required'];
@@ -109,12 +119,12 @@ export function manifestProblems(manifest, bundle) {
  * Writes the staged bundle folder. The bundle and the notices are copied in; the manifest is checked before it is copied,
  * so a wrong manifest never reaches the staging folder.
  *
- * @param {{ outDir: string; serverBundle: string; manifestPath: string; version: string; notices: string; license: string; fonts?: readonly string[]; serverFiles?: readonly string[] }} input
+ * @param {{ outDir: string; serverBundle: string; manifestPath: string; version: string; notices: string; license: string; fonts?: readonly string[]; serverFiles?: readonly string[]; nodeRange?: string }} input
  * @returns {{ staging: string; files: string[] }}
  */
 export function stageBundle(input) {
   const manifest = JSON.parse(readFileSync(input.manifestPath, 'utf8'));
-  const problems = manifestProblems(manifest, { version: input.version, files: [BUNDLE_ENTRY, BUNDLE_MANIFEST] });
+  const problems = manifestProblems(manifest, { version: input.version, files: [BUNDLE_ENTRY, BUNDLE_MANIFEST], nodeRange: input.nodeRange });
   if (problems.length > 0) throw new Error(`the manifest is not valid for this bundle:\n  - ${problems.join('\n  - ')}`);
 
   const staging = join(input.outDir, 'mcpb');
@@ -180,9 +190,28 @@ function isRecord(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** The Node range the repository supports, when its root package.json can be read beside this package. */
+function supportedNodeRange() {
+  try {
+    const root = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
+    return typeof root?.engines?.node === 'string' ? root.engines.node : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function main() {
   const { version } = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8'));
   const outDir = join(PACKAGE_DIR, 'dist');
+  const manifestPath = join(PACKAGE_DIR, BUNDLE_MANIFEST);
+  const nodeRange = supportedNodeRange();
+  // The manifest is checked before the build is looked for, so a manifest a host cannot run from is refused in its own words.
+  const problems = manifestProblems(JSON.parse(readFileSync(manifestPath, 'utf8')), {
+    version,
+    files: [BUNDLE_ENTRY, BUNDLE_MANIFEST],
+    nodeRange,
+  });
+  if (problems.length > 0) throw new Error(`the manifest is not valid for this bundle:\n  - ${problems.join('\n  - ')}`);
   const serverBundle = join(outDir, 'caotang-mcp.mjs');
   if (!existsSync(serverBundle)) {
     throw new Error(`${serverBundle} is missing: run the bundle build first (pnpm --filter @caotang/mcp-server build)`);
@@ -192,8 +221,9 @@ async function main() {
   const result = packBundle({
     outDir,
     serverBundle,
-    manifestPath: join(PACKAGE_DIR, BUNDLE_MANIFEST),
+    manifestPath,
     version,
+    nodeRange,
     notices,
     license: join(REPO_ROOT, 'LICENSE'),
     serverFiles: [createRequire(import.meta.url).resolve('@jsquash/webp/codec/dec/webp_dec.wasm')],

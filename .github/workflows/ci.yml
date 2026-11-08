@@ -290,6 +290,9 @@ jobs:
       - name: Check the corpus (package parts, openpyxl, LibreOffice CSV and re-saved XLSX)
         run: '"$RUNNER_TEMP/venv/bin/python" tools/office-interop/check_xlsx.py "$CAOTANG_XLSX_OUT"'
 
+      - name: Prove the checker fails on a broken workbook (three negative controls)
+        run: '"$RUNNER_TEMP/venv/bin/python" tools/office-interop/xlsx_negative_controls.py "$CAOTANG_XLSX_OUT"'
+
       - name: Upload the corpus and the LibreOffice logs on failure
         if: failure()
         uses: actions/upload-artifact@v7

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { defaultTitleOf } from '@caotang/i18n';
 
-import { boilerplateFor } from '../src/boilerplate.js';
+import { boilerplateFor, generatedChapterHeading } from '../src/boilerplate.js';
 
 describe('boilerplateFor', () => {
   it('names the contents list in each language it has a word for', () => {
@@ -29,5 +30,37 @@ describe('boilerplateFor', () => {
     expect(boilerplateFor('de', { contents: ' Kapitel ' }).contents).toBe('Kapitel');
     expect(boilerplateFor('de', { contents: '  ' }).contents).toBe('Inhalt');
     expect(boilerplateFor('de', {}).contents).toBe('Inhalt');
+  });
+
+  it('names a chapter the writer left untitled, with the number where each language puts it', () => {
+    expect(generatedChapterHeading(boilerplateFor('en'), 3)).toBe('Chapter 3');
+    expect(generatedChapterHeading(boilerplateFor('de'), 3)).toBe('Kapitel 3');
+    expect(generatedChapterHeading(boilerplateFor('ja'), 3)).toBe('3章');
+    expect(generatedChapterHeading(boilerplateFor('zh'), 3)).toBe('第3章');
+    expect(generatedChapterHeading(boilerplateFor('zh-Hant'), 3)).toBe('第3章');
+    expect(generatedChapterHeading(boilerplateFor('tlh'), 3)).toBe('Chapter 3');
+  });
+
+  it('names a blank title and the landmarks in each language', () => {
+    expect(boilerplateFor('en')).toMatchObject({
+      untitled: 'Untitled',
+      landmarks: 'Landmarks',
+      beginReading: 'Begin Reading',
+      cover: 'Cover',
+    });
+    expect(boilerplateFor('de')).toMatchObject({
+      untitled: 'Ohne Titel',
+      landmarks: 'Orientierungspunkte',
+      beginReading: 'Textbeginn',
+      cover: 'Umschlag',
+    });
+    expect(boilerplateFor('ja')).toMatchObject({ untitled: '無題', landmarks: 'ランドマーク', beginReading: '本文へ', cover: '表紙' });
+    expect(boilerplateFor('tlh').untitled).toBe('Untitled');
+  });
+
+  it('agrees with the default titles the store writes, wherever both have a word', () => {
+    for (const language of ['en', 'de', 'fr', 'es', 'ja', 'de-AT', 'ja-JP']) {
+      expect(boilerplateFor(language).untitled, language).toBe(defaultTitleOf('document', language));
+    }
   });
 });

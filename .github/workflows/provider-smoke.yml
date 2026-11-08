@@ -8,6 +8,8 @@
 # Details that are load-bearing rather than tidy:
 #   - Dispatch is the only trigger. No pull request, push, timer or other workflow starts it, and the guard test
 #     test/provider-smoke.test.ts fails if one is added. Never use pull_request_target to "test PRs with keys".
+#   - CAOTANG_SMOKE=1 is what adds the `smoke` Playwright project and lets the spec read a key. A local `caotang.env` and a local
+#     `pnpm test:e2e` never set it, so neither can spend.
 #   - Secrets are set on the one step that runs the spec. The install step runs dependency lifecycle scripts and gets none.
 #   - `presets` reaches the spec through the environment, never through the shell command line, and the spec rejects any
 #     value outside lowercase letters, digits, hyphens, spaces and commas.
@@ -62,8 +64,9 @@ jobs:
         run: pnpm exec playwright install chromium
 
       - name: Real-key round
-        run: pnpm exec playwright test e2e/provider-smoke.spec.ts --project=chromium --retries=0 --reporter=list --trace off
+        run: pnpm exec playwright test e2e/provider-smoke.spec.ts --project=smoke --retries=0 --reporter=list --trace off
         env:
+          CAOTANG_SMOKE: '1'
           CAOTANG_E2E_NO_SERVER: '1'
           CAOTANG_ONLY_PRESETS: ${{ inputs.presets }}
           CAOTANG_SMOKE_ANTHROPIC: ${{ secrets.CAOTANG_SMOKE_ANTHROPIC }}

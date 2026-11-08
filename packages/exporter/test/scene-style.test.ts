@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { createEmptyManifest, validateManifest } from '@caotang/store';
+import { boilerplateFor } from '../src/boilerplate.js';
 import { flatten } from '../src/flatten.js';
 import { renderMarkdown, renderText } from '../src/render-text.js';
 import { droppedStyleNotes, SCENE_STYLE_ROWS } from '../src/scene-style.js';
@@ -59,10 +60,14 @@ describe('a section scene', () => {
     expect(renderMarkdown(inputOf(state))).not.toContain('[The Landing]');
   });
 
-  it('prints nothing for a blank title', () => {
+  it('prints the project’s word for an untitled document, never an empty heading', () => {
     const blank = withSceneStyle(makeProject(), IDS.landing, 'section');
     blank.manifest.tree.find((node) => node.id === IDS.landing)!.title = '  ';
-    expect(renderMarkdown(inputOf(blank))).not.toContain('###');
+    const md = renderMarkdown(inputOf(blank));
+    expect(md).toContain('### Untitled');
+    expect(md).not.toContain('### \n');
+    expect(renderMarkdown({ ...inputOf(blank), boilerplate: boilerplateFor('de') })).toContain('### Ohne Titel');
+    expect(renderText({ ...inputOf(blank), boilerplate: boilerplateFor('de') })).toContain('OHNE TITEL');
   });
 });
 

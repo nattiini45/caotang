@@ -95,12 +95,14 @@ describe('the package document — the metadata floor and the spine', () => {
     expect((await pack(epubInput({ author: '' }))).text['OEBPS/content.opf']).not.toContain('dc:creator');
   });
 
-  it('declares the navigation document and the NCX, and keeps the navigation out of the spine', async () => {
+  it('declares the navigation document and the NCX, and keeps the navigation out of the reading order', async () => {
     const opf = (await pack(epubInput())).text['OEBPS/content.opf'] ?? '';
     expect(opf).toContain('<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>');
     expect(opf).toContain('<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>');
     expect(opf).toContain('<spine toc="ncx">');
-    expect(opf).not.toContain('<itemref idref="nav"');
+    // The navigation is an auxiliary spine item: the `toc` landmark links to it, and EPUBCheck RSC-011 requires a hyperlink's
+    // target to be in the spine. `linear="no"` keeps it out of the pages a reader turns through.
+    expect(opf).toContain('<itemref idref="nav" linear="no"/>');
   });
 
   it('spines the title page and then one file per section, in book order', async () => {

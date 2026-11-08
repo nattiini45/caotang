@@ -1,7 +1,8 @@
 # Office interop: opening Caotang's files in real applications
 
 The `.xlsx` files are written by hand (`packages/exporter/src/render-xlsx.ts`), with no spreadsheet library. Unit tests read the
-parts back with a reader of our own, which can forgive what a real application does not. Two checks open the files elsewhere.
+parts back with a reader of our own, which can forgive what a real application does not. Two checks open the files elsewhere, and
+a third breaks copies of them on purpose to prove the checker can fail.
 
 ## In CI: LibreOffice and openpyxl
 
@@ -28,6 +29,32 @@ To run it yourself (LibreOffice and `pip install openpyxl==3.1.5` are not part o
 CAOTANG_XLSX_OUT=/tmp/xlsx pnpm exec vitest run packages/exporter/test/xlsx-write-corpus.test.ts
 python3 tools/office-interop/check_xlsx.py /tmp/xlsx                         # package, openpyxl and LibreOffice
 python3 tools/office-interop/check_xlsx.py /tmp/xlsx --skip-libreoffice      # without LibreOffice
+```
+
+### Negative controls
+
+A checker that always passes proves nothing. After the positive check, the same job runs
+`tools/office-interop/xlsx_negative_controls.py`: it copies `expected.json` and every workbook into a temporary folder, breaks one
+copy three times, and requires `check_xlsx.py` to reject each broken copy, naming the workbook and what failed. The corpus itself
+is not touched.
+
+- **A string cell without `t="inlineStr"`.** Every string cell in `dialogue.xlsx` keeps its `<is>` but loses the type attribute,
+  so openpyxl reads the text as gone. The checker must fail, naming `dialogue.xlsx` and the string cell.
+- **No styles relationship.** The styles relationship is deleted from `dialogue.xlsx`'s `xl/_rels/workbook.xml.rels`, so the
+  package no longer names `xl/styles.xml`. The checker must fail, naming `dialogue.xlsx` and the styles part.
+- **A number written as text.** The first shot number in `shot-list.xlsx` is written as a text cell holding the same digits, so
+  it reads back as text rather than a number. The checker must fail, naming `shot-list.xlsx` and the cell type.
+
+The job runs the controls after the positive check, with the same interpreter and LibreOffice on `PATH`. The script exits 0 only
+when all three broken copies are rejected. It exits non-zero when the checker accepts one, and also when a run fails for another
+reason, so a broken control cannot pass as a working one. A stub checker that always exits 0 proves the control itself: with
+`--checker <path>` the script exits 1.
+
+Run the controls yourself after writing the corpus:
+
+```sh
+python3 tools/office-interop/xlsx_negative_controls.py /tmp/xlsx
+python3 tools/office-interop/xlsx_negative_controls.py /tmp/xlsx --skip-libreoffice   # without LibreOffice
 ```
 
 This is not a check in Excel or Numbers. Excel's "repair" prompt cannot be scripted.
