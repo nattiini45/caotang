@@ -53,8 +53,18 @@ for (const scheme of ['light', 'dark'] as const) {
     const panel = page.locator('.modern-sidebar-panel');
     await panel.getByRole('heading', { name: 'Das Manuskript ist leer', exact: true }).scrollIntoViewIfNeeded();
     await expect(panel).toHaveAttribute('data-scroll-edges', /top/);
-    await page.mouse.move(430, 190);
+    await page.mouse.move(118, 400);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-empty.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Auf Kontinuitätsprobleme prüfen', exact: true }).click();
+    await expect(page.getByTestId('modern-binder-findings-count')).toHaveText(/[1-9]/);
+    await expect(page.locator('.agent-report-text')).toHaveCount(1);
+    await page.locator('.modern-companion .agent-close').click();
+    await page.getByRole('navigation', { name: 'Binder', exact: true }).getByRole('button', { name: 'Binder', exact: true }).click();
+    await expect(page.getByTestId('modern-sidebar').getByRole('tab')).toHaveCount(4);
+    await page.mouse.move(118, 400);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(page).toHaveScreenshot(`modern-${scheme}-german-sidebar-count.png`, { animations: 'disabled', caret: 'hide', mask: [page.getByTestId('save-state'), page.locator('time')], maxDiffPixels: 0 });
   });
 }
