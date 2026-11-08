@@ -8,9 +8,20 @@
 
 import { describe, expect, it } from 'vitest';
 import { EpubCheck } from '@likecoin/epubcheck-ts';
+import { addDocument, addFolder, createEmptyManifest, createProjectState, type ProjectState } from '@caotang/store';
 import { boilerplateFor, generatedChapterHeading } from '../src/boilerplate.js';
 import { renderEpub } from '../src/render-epub.js';
 import { COVER_PNG, epubInput, pack, untitledProject } from './epub-fixtures.js';
+import { OPENED, PROJECT_NAME } from './fixture.js';
+
+/** A book in parts: the manuscript holds a part, the part a chapter, the chapter a scene, so the part's divider has no text. */
+function partProject(): ProjectState {
+  const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED));
+  addFolder(state, { parentId: 'manuscript', title: 'Part One', now: OPENED, id: 'n_PART000001' });
+  addFolder(state, { parentId: 'n_PART000001', title: 'The Harbour', now: OPENED, id: 'n_CHAPTER001' });
+  addDocument(state, { parentId: 'n_CHAPTER001', title: 'Arrival', body: 'The ferry came in.', now: OPENED, id: 'n_ARRIVAL001' });
+  return state;
+}
 
 interface Landmark {
   readonly type: string;
@@ -51,6 +62,15 @@ describe('the EPUB landmarks navigation (exporter.md §3a)', () => {
     expect(links[0]?.href).toBe('nav.xhtml#toc');
     expect(links[1]?.text).toBe('Begin Reading');
     expect(links[1]?.href).toBe('chapter-001.xhtml');
+  });
+
+  it('begins reading at the first section that holds a scene, not at an empty part divider before it', async () => {
+    const { text } = await pack(epubInput({}, partProject()));
+    expect(text['OEBPS/chapter-001.xhtml']).toContain('epub:type="part"');
+    expect(text['OEBPS/chapter-001.xhtml']).not.toContain('The ferry came in.');
+    expect(text['OEBPS/chapter-002.xhtml']).toContain('The ferry came in.');
+    const links = linksOf(landmarksOf(text['OEBPS/nav.xhtml'] ?? ''));
+    expect(links.find((link) => link.type === 'bodymatter')?.href).toBe('chapter-002.xhtml');
   });
 
   it('resolves every landmark to a manifest item, and every fragment to an id in its file', async () => {

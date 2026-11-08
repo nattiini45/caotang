@@ -299,8 +299,10 @@ function navXhtml(input: EpubInput, sections: readonly Section[]): string {
   const heading = contentsHeading(input);
   const first = sections[0];
   if (first === undefined) throw new Error('an EPUB navigation was built with no sections');
-  // The hidden landmarks nav (EPUB 3, #200): the contents, where the text begins, and the cover when the book has one. Every
-  // target is a manifest item, so a reading system can offer the book's way around without counting on the contents nav alone.
+  const begin = sections.find((section) => section.blocks.some((block) => block.kind === 'scene')) ?? first;
+  // The hidden landmarks nav (EPUB 3, #200): the contents, where the text begins (the first section that holds a scene, so an
+  // empty part divider is passed over), and the cover when the book has one. Every target is a manifest item, so a reading
+  // system can offer the book's way around without counting on the contents nav alone.
   const words = boilerplateOf(input);
   const landmarks: string[] = [
     '<nav epub:type="landmarks" id="landmarks" hidden="">',
@@ -310,7 +312,7 @@ function navXhtml(input: EpubInput, sections: readonly Section[]): string {
       ? []
       : [`    <li><a epub:type="cover" href="${COVER_PAGE_FILE}">${escapeXml(words.cover)}</a></li>`]),
     `    <li><a epub:type="toc" href="${NAV_FILE}#toc">${escapeXml(heading)}</a></li>`,
-    `    <li><a epub:type="bodymatter" href="${escapeXml(first.file)}">${escapeXml(words.beginReading)}</a></li>`,
+    `    <li><a epub:type="bodymatter" href="${escapeXml(begin.file)}">${escapeXml(words.beginReading)}</a></li>`,
     '  </ol>',
     '</nav>',
   ];
