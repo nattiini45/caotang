@@ -31,9 +31,11 @@ export interface FirstRunProps {
   readonly onDismiss: () => void;
   readonly onAddKey: () => void;
   readonly busy: boolean;
+  readonly dismissing: boolean;
+  readonly error: string | null;
 }
 
-export function FirstRun({ onRun, onDismiss, onAddKey, busy }: FirstRunProps): ReactNode {
+export function FirstRun({ onRun, onDismiss, onAddKey, busy, dismissing, error }: FirstRunProps): ReactNode {
   return (
     <section className="home-section first-run" aria-labelledby="home-first-run" data-testid="first-run">
       <h2 id="home-first-run">
@@ -61,7 +63,8 @@ export function FirstRun({ onRun, onDismiss, onAddKey, busy }: FirstRunProps): R
           . It is kept in this browser, encrypted, and is checked when you save it.
         </Trans>
       </p>
-      <button type="button" className="button is-quiet" onClick={onDismiss}>
+      {error === null ? null : <p role="alert">{error}</p>}
+      <button type="button" className="button is-quiet" onClick={onDismiss} disabled={dismissing} aria-busy={dismissing}>
         <Trans>Got it</Trans>
       </button>
     </section>

@@ -97,7 +97,7 @@ export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode 
                 role="radio"
                 aria-checked={checked}
                 aria-controls={pageId}
-                tabIndex={checked ? 0 : -1}
+                tabIndex={view.narrow || checked ? 0 : -1}
                 className="modern-capsule modern-view"
                 title={viewName(name)}
                 onClick={() => chooseView(view, name)}

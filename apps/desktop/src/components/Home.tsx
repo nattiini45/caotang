@@ -7,7 +7,7 @@
 
 import { select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { isolate } from '@caotang/i18n';
 import type { RuntimeStore } from '@caotang/store';
 
@@ -123,6 +123,15 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   // The project whose name is being changed from this list, and the name as typed so far. Nothing is written until Save.
   const [renaming, setRenaming] = useState<{ readonly id: string; readonly text: string } | null>(null);
   const [settings, setSettings] = useState<SettingsSection | null>(null);
+  const [dismissing, setDismissing] = useState(false);
+  const [dismissError, setDismissError] = useState<string | null>(null);
+  const [phone, setPhone] = useState(() => window.matchMedia('(max-width: 599px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 599px)');
+    const changed = (): void => setPhone(query.matches);
+    query.addEventListener('change', changed);
+    return () => query.removeEventListener('change', changed);
+  }, []);
   // Both forms here submit on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from creating or renaming.
   const newProjectIme = useComposingEnter();
   const renameIme = useComposingEnter();
@@ -395,8 +404,8 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     });
   };
 
-  return (
-    <div className="home">
+  const introduction = (
+    <Fragment key="introduction">
       <header className="home-head">
         <div className="home-title">
           <h1><Trans>Caotang</Trans></h1>
@@ -409,9 +418,18 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
       {showFirstRun ? (
         <FirstRun
-          busy={busy !== null}
+          busy={busy !== null || dismissing}
+          dismissing={dismissing}
+          error={dismissError}
           onRun={(intent) => onRunDemo(intent)}
-          onDismiss={() => void services.settings.update({ firstRun: { dismissed: true } })}
+          onDismiss={() => {
+            setDismissing(true);
+            setDismissError(null);
+            void services.settings.update({ firstRun: { dismissed: true } }, { publishAfterSave: true }).then((refusal) => {
+              setDismissError(refusal);
+              setDismissing(false);
+            });
+          }}
           onAddKey={() => setSettings('providers')}
         />
       ) : null}
@@ -457,113 +475,120 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
           </div>
         </aside>
       ) : null}
-
-      <section className="home-section" aria-labelledby="home-projects">
-        <h2 id="home-projects"><Trans>Projects in this browser</Trans></h2>
-        {projects === null ? (
-          <p className="muted"><Trans>Looking for your projects…</Trans></p>
-        ) : projects.length === 0 ? (
-          <EmptyState title={t`No projects here yet`}>
-            <Trans>Create one above, or bring in a bundle you exported before. Projects stay in this browser until you remove them.</Trans>
-          </EmptyState>
-        ) : (
-          <ul className="project-list">
-            {projects.map((project) =>
-              renaming !== null && renaming.id === project.id ? (
-                <li key={project.id} className="project-row is-renaming">
-                  <form
-                    className="project-rename"
-                    aria-label={t`New name for ${{ name: accessibleText(project.name) }}`}
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      if (renameIme.takesSubmit()) return;
-                      renameProject(project.id, renaming.text);
-                    }}
-                    onKeyDown={(event) => {
-                      renameIme.noteKey(event);
-                      if (event.key === 'Escape') setRenaming(null);
-                    }}
-                  >
-                    <label>
-                      <span><Trans>New name</Trans></span>
-                      <input
-                        type="text"
-                        value={renaming.text}
-                        maxLength={200}
-                        autoFocus
-                        onChange={(event) => setRenaming({ id: project.id, text: event.target.value })}
-                      />
-                    </label>
-                    <div className="project-actions">
-                      <button type="submit" className="button is-primary" disabled={busy !== null || renaming.text.trim() === ''}>
-                        <Trans>Save the name</Trans>
-                      </button>
-                      <button type="button" className="button is-quiet" onClick={() => setRenaming(null)}>
-                        <Trans>Cancel</Trans>
-                      </button>
-                    </div>
-                  </form>
-                </li>
-              ) : (
-                <li key={project.id} className="project-row">
-                  <div className="project-meta">
-                    <span className="project-name">{project.name}</span>
-                    <span className="muted">
-                      {t`${{ documents: documentsLabel(project.documents) }} · ${{ words: wordsLabel(project.words) }}`}
-                    </span>
-                  </div>
+    </Fragment>
+  );
+  const projectSection = (
+    <section key="projects" className="home-section" aria-labelledby="home-projects">
+      <h2 id="home-projects"><Trans>Projects in this browser</Trans></h2>
+      {projects === null ? (
+        <p className="muted"><Trans>Looking for your projects…</Trans></p>
+      ) : projects.length === 0 ? (
+        <EmptyState title={t`No projects here yet`}>
+          <Trans>Create one above, or bring in a bundle you exported before. Projects stay in this browser until you remove them.</Trans>
+        </EmptyState>
+      ) : (
+        <ul className="project-list">
+          {projects.map((project) =>
+            renaming !== null && renaming.id === project.id ? (
+              <li key={project.id} className="project-row is-renaming">
+                <form
+                  className="project-rename"
+                  aria-label={t`New name for ${{ name: accessibleText(project.name) }}`}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    if (renameIme.takesSubmit()) return;
+                    renameProject(project.id, renaming.text);
+                  }}
+                  onKeyDown={(event) => {
+                    renameIme.noteKey(event);
+                    if (event.key === 'Escape') setRenaming(null);
+                  }}
+                >
+                  <label>
+                    <span><Trans>New name</Trans></span>
+                    <input
+                      type="text"
+                      value={renaming.text}
+                      maxLength={200}
+                      autoFocus
+                      onChange={(event) => setRenaming({ id: project.id, text: event.target.value })}
+                    />
+                  </label>
                   <div className="project-actions">
-                    <button type="button" className="button is-primary k-tonal" disabled={busy !== null} onClick={() => open(project.id)}>
-                      <Trans>Open</Trans>
+                    <button type="submit" className="button is-primary" disabled={busy !== null || renaming.text.trim() === ''}>
+                      <Trans>Save the name</Trans>
                     </button>
-                    {folders.get(project.id) !== undefined ? (
-                      <button
-                        type="button"
-                        className="button k-quiet"
-                        disabled={busy !== null}
-                        aria-label={t`Reopen folder of ${{ name: accessibleText(project.name) }}`}
-                        onClick={() => {
-                          const remembered = folders.get(project.id);
-                          if (remembered !== undefined) reopenFolder(remembered);
-                        }}
-                      >
-                        <Trans>Reopen folder</Trans>
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="button k-quiet"
-                      disabled={busy !== null}
-                      aria-label={t`Rename ${{ name: accessibleText(project.name) }}`}
-                      onClick={() => setRenaming({ id: project.id, text: project.name })}
-                    >
-                      <Trans>Rename</Trans>
-                    </button>
-                    <button
-                      type="button"
-                      className="button k-quiet"
-                      disabled={busy !== null}
-                      aria-label={t`Export ${{ name: accessibleText(project.name) }} as a bundle`}
-                      onClick={() => exportOne(project.id, project.name)}
-                    >
-                      <Trans>Export</Trans>
-                    </button>
-                    <button
-                      type="button"
-                      className="button is-quiet is-danger"
-                      disabled={busy !== null}
-                      aria-label={t`Remove ${{ name: accessibleText(project.name) }} from this browser`}
-                      onClick={() => askRemove(project)}
-                    >
-                      <Trans>Remove</Trans>
+                    <button type="button" className="button is-quiet" onClick={() => setRenaming(null)}>
+                      <Trans>Cancel</Trans>
                     </button>
                   </div>
-                </li>
-              ),
-            )}
-          </ul>
-        )}
-      </section>
+                </form>
+              </li>
+            ) : (
+              <li key={project.id} className="project-row">
+                <div className="project-meta">
+                  <span className="project-name">{project.name}</span>
+                  <span className="muted">
+                    {t`${{ documents: documentsLabel(project.documents) }} · ${{ words: wordsLabel(project.words) }}`}
+                  </span>
+                </div>
+                <div className="project-actions">
+                  <button type="button" className="button is-primary k-tonal" disabled={busy !== null} onClick={() => open(project.id)}>
+                    <Trans>Open</Trans>
+                  </button>
+                  {folders.get(project.id) !== undefined ? (
+                    <button
+                      type="button"
+                      className="button k-quiet"
+                      disabled={busy !== null}
+                      aria-label={t`Reopen folder of ${{ name: accessibleText(project.name) }}`}
+                      onClick={() => {
+                        const remembered = folders.get(project.id);
+                        if (remembered !== undefined) reopenFolder(remembered);
+                      }}
+                    >
+                      <Trans>Reopen folder</Trans>
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="button k-quiet"
+                    disabled={busy !== null}
+                    aria-label={t`Rename ${{ name: accessibleText(project.name) }}`}
+                    onClick={() => setRenaming({ id: project.id, text: project.name })}
+                  >
+                    <Trans>Rename</Trans>
+                  </button>
+                  <button
+                    type="button"
+                    className="button k-quiet"
+                    disabled={busy !== null}
+                    aria-label={t`Export ${{ name: accessibleText(project.name) }} as a bundle`}
+                    onClick={() => exportOne(project.id, project.name)}
+                  >
+                    <Trans>Export</Trans>
+                  </button>
+                  <button
+                    type="button"
+                    className="button is-quiet is-danger"
+                    disabled={busy !== null}
+                    aria-label={t`Remove ${{ name: accessibleText(project.name) }} from this browser`}
+                    onClick={() => askRemove(project)}
+                  >
+                    <Trans>Remove</Trans>
+                  </button>
+                </div>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+    </section>
+  );
+
+  return (
+    <div className="home">
+      {phone && projects !== null && projects.length > 0 ? [projectSection, introduction] : [introduction, projectSection]}
 
       <section className="home-section" aria-labelledby="home-bring">
         <h2 id="home-bring"><Trans>Bring a project in</Trans></h2>

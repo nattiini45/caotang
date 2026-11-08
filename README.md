@@ -43,6 +43,8 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 - **A browser.** The app is written for current browsers. End-to-end tests gate every pull request in Chromium, Firefox and WebKit; the Firefox and WebKit suite also runs nightly and on demand. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
 - **A window at least 960 px wide** for the desktop layout. Under 1100 px the toolbar wraps onto a second row and the side panels narrow. Under 960 px (a phone or a tablet held upright) Caotang uses a narrow layout: the binder is a drawer, the inspector a sheet, and the corkboard, storyboards, dialogue branch graphs, the screenplay Pages view, MCP & tools and compile formats other than Markdown and plain text say "Open on desktop". It is tested in an emulated Chromium, not on real phones, and there is no sync, so export a backup.
 
+On a phone, returning projects come first in Home's reading and keyboard order too. Modern keeps New and More visible beside long titles, and Tab can return to Write from another view. Screenplay Source keeps a full writing area on touch screens. Home's Got it waits for the dismissal to save and shows an error if you need to try again.
+
 ## Install and run
 
 From the repository root, after you clone it:

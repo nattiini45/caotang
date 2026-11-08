@@ -19,6 +19,7 @@ import { DEFAULT_SETTINGS, applyPatch, mcpLoadWarnings, normalizeSettings, type 
 export class SettingsStore {
   private value: AppSettings;
   private readonly listeners = new Set<() => void>();
+  private writes: Promise<string | null> = Promise.resolve(null);
 
   constructor(
     private readonly db: AppDb | null,
@@ -37,8 +38,17 @@ export class SettingsStore {
     };
   };
 
-  /** Applies a patch, announces it, and stores it. Returns why the store refused, or `null` when it was kept. */
-  async update(patch: SettingsPatch): Promise<string | null> {
+  /** Applies a patch and stores it. `publishAfterSave` waits for the commit before notifying. Returns a refusal or `null`. */
+  async update(patch: SettingsPatch, options: { readonly publishAfterSave?: boolean } = {}): Promise<string | null> {
+    if (options.publishAfterSave) {
+      return this.enqueue(async () => {
+        const error = await this.write(applyPatch(this.value, patch));
+        if (error !== null) return error;
+        this.value = applyPatch(this.value, patch);
+        for (const listener of this.listeners) listener();
+        return null;
+      });
+    }
     this.value = applyPatch(this.value, patch);
     for (const listener of this.listeners) listener();
     return this.persist();
@@ -46,9 +56,18 @@ export class SettingsStore {
 
   /** Writes the current value. Never throws: a failed write is returned as text for the status line. */
   async persist(): Promise<string | null> {
+    return this.enqueue(() => this.write(this.value));
+  }
+
+  private enqueue(write: () => Promise<string | null>): Promise<string | null> {
+    this.writes = this.writes.then(write);
+    return this.writes;
+  }
+
+  private async write(value: AppSettings): Promise<string | null> {
     if (this.db === null) return null;
     try {
-      await this.db.put(APP_KEYS.settings, this.value);
+      await this.db.put(APP_KEYS.settings, value);
       return null;
     } catch (error) {
       const errorText = error instanceof Error ? error.message : String(error);

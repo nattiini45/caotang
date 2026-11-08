@@ -426,6 +426,8 @@ Built (#313): the editor's toolbar and footer, a draft's ghost bar and the revie
 
 ### 9.6 Pointer and touch
 
+The target minimum is a floor, not a replacement for an editor's own height. Source fields retain their writing-area minimum on coarse pointers at every width, including the screenplay Source field's 60vh in both shells; their transparent input and syntax layer keep matching typography and dimensions (#502).
+
 Nothing is hover-only: the sidebar opens on click and key, the review capsule on focus, tooltips repeat an accessible name. Drag and drop keeps its keyboard equivalents.
 
 ### 9.7 Zoom and right-to-left
@@ -479,6 +481,8 @@ Changes to `tools/check-bundle-size.mjs` (M4): a cap map for named lazy chunks; 
 ## 13. Narrow and mobile
 
 Below 960 px (`NARROW_QUERY`), Modern has its own narrow layout, with the narrow layout's rules (ui-modules §1) unchanged in substance:
+
+The top ornament fills its safe-area allocation. Its title capsule shrinks and ellipsizes without shortening its accessible name, reserving at least 44 px each for New and More even with a 200-character project name (#497). In the bottom bar, Write remains a Tab entry when a different view is selected; Space or Enter selects it and leaves focus on it. Desktop retains the chosen-view-only roving Tab entry (#498).
 
 - The page fills the width with a small margin and a smaller radius. The top ornament becomes a compact capsule (title, **+** New, **⋯**); the bottom ornament becomes a tab bar (**Write**, **Binder**, **Views**, **Ask**, **Search**; #480) above the bottom safe area. **Views** names the view on the page when it is not Write and opens a menu of Board (desktop), Timeline, Codex and Pictures; **Binder** (`#narrow-toggle-rail`) opens the drawer.
 - The binder is the drawer from the inline-start edge, Scene info is the bottom sheet (at most 80% of the height), and the agent window is a full-height sheet. At most one is open (`NarrowPanel` gains `'agent'`); while one is open the rest is `inert` behind a scrim; Close, a tap on the scrim, or Escape closes it, and focus returns to its button.
