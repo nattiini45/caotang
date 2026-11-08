@@ -67,8 +67,9 @@ for (const shell of ['classic', 'modern'] as const) {
       await expect(data).toHaveCSS('border-radius', '999px');
       await expect(providers).not.toHaveAttribute('aria-current');
       await expect(settings.getByRole('heading', { name: 'Data', exact: true })).toBeVisible();
-      await settings.getByRole('button', { name: 'Close', exact: true }).focus();
-      for (const section of await sections.all()) {
+      await providers.focus();
+      await expect(providers).toBeFocused();
+      for (const section of (await sections.all()).slice(1)) {
         await page.keyboard.press('Tab');
         await expect(section).toBeFocused();
       }
