@@ -9292,6 +9292,11 @@ msgstr ""
 msgid "New card"
 msgstr ""
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "New chapter"
+msgstr ""
+
 #: apps/desktop/src/media/create-menu.ts
 msgid "New comic here"
 msgstr ""
@@ -10433,6 +10438,16 @@ msgstr ""
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Open the binder"
+msgstr ""
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Open the binder and choose a document. Scenes are written here."
+msgstr ""
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Open the binder and choose a document. Scenes are written here. A scene goes in a chapter, so make the chapter first."
 msgstr ""
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.

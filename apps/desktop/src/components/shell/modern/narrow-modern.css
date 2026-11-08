@@ -58,6 +58,7 @@
     inset-block-start: var(--n-top);
     inset-inline: calc(var(--n-side) + var(--page-gutter));
     block-size: var(--narrow-top-bar);
+    inline-size: auto;
     max-inline-size: none;
   }
 
@@ -69,6 +70,8 @@
   }
 
   :root[data-shell='modern'] .modern-stage .modern-title {
+    flex: 1;
+    min-inline-size: 0;
     max-inline-size: none;
   }
 

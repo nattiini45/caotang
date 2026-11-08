@@ -47,10 +47,6 @@
           "hash": "bcdec977",
           "anchor": "der-inspektor"
         },
-        "the-editor": {
-          "hash": "be05ace1",
-          "anchor": "der-editor"
-        },
         "writing-a-screenplay": {
           "hash": "952ebb2f",
           "anchor": "ein-drehbuch-schreiben"
@@ -122,10 +118,6 @@
         "using-caotang-on-a-phone-or-tablet": {
           "hash": "34b31ae7",
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
-        },
-        "the-modern-interface": {
-          "hash": "981dd95b",
-          "anchor": "die-moderne-oberfläche"
         },
         "settings": {
           "hash": "517e8dc0",

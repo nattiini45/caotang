@@ -64,6 +64,7 @@ import { IMAGE_ACCEPT } from '../media/shot-image-model.js';
 import { EmptyState, useReport, useSession, wordsLabel } from './shared.js';
 import { TargetQuickSet } from './TargetQuickSet.js';
 import { editorLabels } from './editor-labels.js';
+import { useNarrow } from './narrow.js';
 
 /** The review bar and the hold on the marks are fetched only by an editor in review mode (Settings > Writing), so the default path does not carry them. */
 const ReviewSide = lazy(() => import('./ReviewSide.js').then((module) => ({ default: module.ReviewSide })));
@@ -125,6 +126,7 @@ export function EditorPane({
   useLingui();
   useSession(session);
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
+  const narrow = useNarrow();
   const node = docId === null ? undefined : nodeById(session.state, docId);
 
   if (docId === null || node === undefined || node.type !== 'document') {
@@ -139,14 +141,18 @@ export function EditorPane({
               </button>
             ) : (
               <button type="button" className="button is-primary" onClick={onNewChapter}>
-                New chapter
+                {t`New chapter`}
               </button>
             )
           }
         >
-          {onNewChapter === undefined
-            ? t`Select a document in the binder, then press ${{ shortcut: shortcutLabel('open-in-editor', keyboardLayout) }} or choose Open in editor. Scenes are written here.`
-            : t`Select a document in the binder, then press ${{ shortcut: shortcutLabel('open-in-editor', keyboardLayout) }} or choose Open in editor. Scenes are written here. A scene goes in a chapter, so make the chapter first.`}
+          {narrow
+            ? onNewChapter === undefined
+              ? t`Open the binder and choose a document. Scenes are written here.`
+              : t`Open the binder and choose a document. Scenes are written here. A scene goes in a chapter, so make the chapter first.`
+            : onNewChapter === undefined
+              ? t`Select a document in the binder, then press ${{ shortcut: shortcutLabel('open-in-editor', keyboardLayout) }} or choose Open in editor. Scenes are written here.`
+              : t`Select a document in the binder, then press ${{ shortcut: shortcutLabel('open-in-editor', keyboardLayout) }} or choose Open in editor. Scenes are written here. A scene goes in a chapter, so make the chapter first.`}
         </EmptyState>
       </div>
     );
