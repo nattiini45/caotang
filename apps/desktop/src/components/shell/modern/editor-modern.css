@@ -13,7 +13,7 @@
  * Insert picture (the toolbar), Add footnote and the daily target (the footer), the target's own form when it is open, and the
  * buttons of a draft's ghost bar and of the review bar (#313's walk).
  */
-:root[data-shell='modern'] .modern-page .editor-toolbar .button,
+:root[data-shell='modern'] .editor-toolbar .button,
 :root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button),
 :root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) .button,
 :root[data-shell='modern'] .modern-page .editor-status .target-quick-set input {
@@ -21,7 +21,7 @@
   min-inline-size: var(--target-min);
 }
 
-:root[data-shell='modern'] .modern-page .editor-toolbar .button,
+:root[data-shell='modern'] .editor-toolbar .button,
 :root[data-shell='modern'] .modern-page :is(.ghost-actions, .review-actions) .button,
 :root[data-shell='modern'] .modern-page .editor-status :is(.button, .target-button) {
   display: inline-flex;

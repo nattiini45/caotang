@@ -18,12 +18,12 @@ async function start(page: Page, width = 390): Promise<void> {
   if (await banner.isVisible()) await banner.getByRole('button', { name: 'Dismiss', exact: true }).click();
 }
 
-for (const width of [390, 1280]) {
+for (const width of [390, 1280, 320]) {
   test(`Import stays on the binder action row at ${width} px`, async ({ page }) => {
     await start(page, width);
-    if (width === 390) await page.getByTestId('modern-narrow-binder').click();
+    if (width < 960) await page.getByTestId('modern-narrow-binder').click();
     else await page.getByTestId('modern-binder').getByRole('button', { name: 'Binder', exact: true }).click();
-    const panel = page.getByTestId(width === 390 ? 'modern-drawer' : 'modern-sidebar');
+    const panel = page.getByTestId(width < 960 ? 'modern-drawer' : 'modern-sidebar');
     const create = panel.getByRole('button', { name: 'New document', exact: true });
     const summary = panel.locator('.binder-import > summary');
     const first = await create.boundingBox();
@@ -31,8 +31,14 @@ for (const width of [390, 1280]) {
     const bounds = await panel.locator('.binder').boundingBox();
     expect(first).not.toBeNull();
     expect(last).not.toBeNull();
-    expect(Math.abs(first!.y - last!.y)).toBeLessThanOrEqual(1);
+    const gap = await panel.locator('.binder').evaluate((element) => parseFloat(getComputedStyle(element).rowGap));
+    expect(last!.y).toBeGreaterThanOrEqual(first!.y - 1);
+    expect(last!.y).toBeLessThanOrEqual(first!.y + first!.height + gap + 1);
+    if (width === 320) expect(last!.y).toBeGreaterThanOrEqual(first!.y + first!.height);
+    expect(last!.x).toBeGreaterThanOrEqual(bounds!.x - 1);
     expect(last!.x + last!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width + 1);
+    expect(last!.width).toBeGreaterThanOrEqual(44);
+    expect(last!.height).toBeGreaterThanOrEqual(44);
     await summary.click();
     await expect(panel.locator('.binder-import')).toHaveAttribute('open', '');
     await expect(panel.getByRole('button', { name: 'Import script', exact: true })).toBeVisible();
@@ -97,6 +103,7 @@ test('WebKit hides the phone tab bar when only the visual viewport shrinks for t
     await viewport(height);
     await page.getByTestId('modern-narrow-binder').click();
     const filter = page.getByRole('searchbox', { name: 'Filter the binder by text' });
+    await expect(filter).toHaveCSS('font-size', '16px');
     await filter.focus();
     await viewport(500);
     await expect(bar).toBeHidden();
@@ -106,6 +113,28 @@ test('WebKit hides the phone tab bar when only the visual viewport shrinks for t
     await page.setViewportSize({ width: 1280, height: 844 });
     await expect(bar).toBeVisible();
     await expect(page.getByTestId('modern-stage')).not.toHaveAttribute('data-visual-keyboard');
+  } finally {
+    await context.close();
+  }
+});
+
+test('WebKit phone agent and source fields keep focus-zoom-safe type and matched highlight metrics', async ({ browser, browserName, baseURL }) => {
+  test.skip(browserName !== 'webkit', 'Safari focus zoom is the path under test.');
+  const context = await browser.newContext({ ...devices['iPhone 14'], baseURL, locale: 'en-US', storageState: NO_PIN });
+  try {
+    const page = await context.newPage();
+    await start(page);
+    await page.getByTestId('modern-ask').click();
+    await expect(page.getByRole('combobox', { name: 'Intent' })).toHaveCSS('font-size', '16px');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('new-menu').click();
+    await page.getByTestId('new-screenplay').click();
+    await page.getByRole('toolbar', { name: 'Scene', exact: true }).getByRole('radio', { name: 'Source', exact: true }).click();
+    const source = page.getByRole('textbox', { name: 'Fountain source' });
+    await expect(source).toHaveCSS('font-size', '16px');
+    const layer = page.locator('.src-layer');
+    await expect(layer).toHaveCSS('font-size', '16px');
+    expect(await source.evaluate((element) => getComputedStyle(element).font)).toBe(await layer.evaluate((element) => getComputedStyle(element).font));
   } finally {
     await context.close();
   }

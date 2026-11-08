@@ -490,6 +490,8 @@ Built (M11, #312): below 960 px (`NARROW_QUERY`) the stage uses `100dvh` and the
 
 On iOS Safari, which ignores `interactive-widget`, the narrow-only `useVisualKeyboard` hook observes `visualViewport.resize` and focus changes (#374). With a text field focused inside the stage, a coarse pointer, scale 1 and more than 150 px lost from the layout height, the tab bar hides and the page and overlay band end at the bottom safe area. Restored height or blur removes the mark. Small browser-chrome changes and pinch zoom do not count; leaving the narrow layout removes the listeners and mark. `e2e/modern-phone-layout.spec.ts` runs this path in WebKit at 390 by 844 by changing only the visual viewport, not the layout viewport; it also checks Import on the binder action row at 390 and 1,280 px and Timeline's phone label and hidden lens after #485.
 
+On narrow coarse-pointer screens, the stage's native text-entry fields use 16 px text so iOS Safari does not zoom on focus and bypass that scale-1 keyboard detection. A mirrored source input and its highlight layer use the same 16 px metrics. The viewport meta never disables user zoom; an actual pinch still leaves the bar alone (#501 review F1).
+
 ## 14. Classic
 
 Classic is the current shell and stays the contract of ui-modules.md, with three additions: Settings › Appearance › **Interface**; the shell-actions list behind its toolbar and More menu; and token names behind its literals. None changes a pixel or a behaviour outside Settings, which the snapshots prove (§15.4).

@@ -173,7 +173,7 @@
   transition: border-color var(--dur-1) var(--ease-standard);
 }
 
-:root[data-shell='modern'] textarea {
+:root[data-shell='modern'] textarea:where(:not(.src-input)) {
   padding-block: 11px;
   line-height: 1.45;
 }

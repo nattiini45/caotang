@@ -102,6 +102,8 @@ interface AssetLink {
 
 ### 2.2 Caption and alt; placement-level text in the body
 
+In Classic and Modern, the **Insert picture** toolbar label shares the manuscript text's logical start edge, including in right-to-left interfaces. Its padded hit target stays intact (#383).
+
 `alt` and `caption` are separate fields. An inline placement keeps its own text in the body, `![alt](../assets/a_….png "caption")`, using Markdown's standard alt and title slots, so the body still renders everywhere. The registry values are the defaults a new placement starts from; the same sketch can carry different captions in different chapters, and the exporter reads the body first. With no alt anywhere, the caption is used as alt and the compile log notes it. With `decorative`, export writes `alt=""`.
 
 #### 2.2.1 The placement title suffix, versioned and escaped (v1)
@@ -174,8 +176,6 @@ One transcoder path (the `PictureTranscoder` port) with per-target profiles. All
 | Fountain / FDX / Ink | Pictures in those bodies are not exported. | none |
 
 ## 5. UI surfaces
-
-In Classic and Modern, the **Insert picture** toolbar label shares the manuscript text's logical start edge, including in right-to-left interfaces. Its padded hit target stays intact (#383).
 
 - **Inspector › Pictures** (`InspectorSections.tsx`): a thumbnail strip of the selected node's links, with drop, paste and *Choose files…*; caption, alt, tags, *Make card picture*, "Used in" chips, *Open on board*. With an editor selection, *Attach to this paragraph* captures the anchor. A **"Lost their paragraph"** list shows orphaned links with the captured quote struck through, *Re-pin* and *Make document-level*; `moved` links carry a small "confirm" chip. *Make document-level* is one undoable compound command, including when it merges with an existing placement on the item.
 - **Picture board** (`apps/desktop/src/media/PictureBoard.tsx`, a peer of `StoryboardView.tsx`): the project gallery, grid S/M/L like the corkboard, filters (transcription text, tag, attached to, unused, has transcription, source, lost their paragraph), multi-select batch tag and link, the `ShotLightbox.tsx` lightbox. Opened from the binder's Research root ("Pictures") and the project panel. A **size meter** shows each picture's bytes and pixels, the project total and its largest ten, with *Store working copies* as a bulk action. A free-form spatial moodboard is parked.
