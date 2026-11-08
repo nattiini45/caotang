@@ -271,6 +271,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const cost = costDetail?.totalUsd;
   const documentCount = plan?.scopeDocIds.length ?? 0;
   const extractCalls = plan?.estimate.extractCalls ?? 0;
+  const noOpenFindings = filter === 'open' && runs.length > 0 && open === 0;
 
   return (
     <div className="findings" data-testid="findings-panel">
@@ -344,7 +345,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
       {sections.length === 0 && !running && failure === null && status.saveFailure === null ? (
         <EmptyState
           title={file === undefined || file.findings.length === 0 ? (runs.length === 0 ? t`No findings yet` : t`No findings recorded`) : select(filter, { open: 'No open findings', dismissed: 'No dismissed findings', fixed: 'No marked fixed findings', all: 'No all findings', other: 'No findings' })}
-          glyph={<Icon name={runs.length > 0 && open === 0 ? 'check' : 'findings'} label={runs.length > 0 && open === 0 ? t`No open findings` : t`No findings to show`} />}
+          glyph={<Icon name={noOpenFindings ? 'check' : 'findings'} label={noOpenFindings ? t`No open findings` : t`No findings to show`} />}
         >
           {file === undefined || file.findings.length === 0
             ? t`Run a scan to check the manuscript against the codex, the scene declarations and the screenplay and storyboard. Nothing changes in the text.`

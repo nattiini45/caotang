@@ -20,6 +20,13 @@ test('sidebar panels explain real empty and disabled states with named glyphs', 
   await sidebar.getByRole('button', { name: 'Scan the manuscript' }).click();
   await expect(sidebar.getByRole('heading', { name: 'No findings recorded' })).toBeVisible();
   await expect(sidebar.getByRole('img', { name: 'No open findings', exact: true })).toBeVisible();
+  for (const filter of ['dismissed', 'fixed', 'all']) {
+    await sidebar.getByRole('combobox', { name: 'Show findings with status' }).selectOption(filter);
+    await expect(sidebar.getByRole('img', { name: 'No findings to show', exact: true })).toBeVisible();
+    await expect(sidebar.getByRole('img', { name: 'No open findings', exact: true })).toHaveCount(0);
+  }
+  await sidebar.getByRole('combobox', { name: 'Show findings with status' }).selectOption('open');
+  await expect(sidebar.getByRole('img', { name: 'No open findings', exact: true })).toBeVisible();
   await sidebar.getByRole('tab', { name: 'Trace' }).click();
   await expect(sidebar.getByRole('img', { name: 'No recorded turns', exact: true })).toBeVisible();
   await sidebar.getByRole('switch', { name: 'Keep agent traces for this tab' }).uncheck();
@@ -159,5 +166,24 @@ test('Activity explains an Undo refused because pending typing became a later ch
   await expect(failure).toContainText('later changes');
   await expect(failure.getByRole('button', { name: 'Try Undo again' })).toBeDisabled();
   await rows.getByRole('listitem').first().getByRole('button', { name: 'Undo' }).click();
+  await expect(failure).toHaveCount(0);
+});
+
+test('Activity drops a failed Undo alert when global Undo takes back that group', async ({ page }) => {
+  await createProject(page, 'Global Undo states');
+  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+  await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+  await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Scene');
+  await page.keyboard.press('Enter');
+  await page.clock.install();
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+  await page.getByRole('textbox', { name: 'Document text' }).fill('Typing that has not reached the autosave timer.');
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  await page.getByRole('list', { name: 'Activity' }).getByRole('button', { name: 'Undo: Renamed' }).first().click();
+  const failure = page.getByRole('alert').filter({ has: page.getByRole('img', { name: 'Undo failed' }) });
+  await expect(failure).toContainText('later changes');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(failure.getByRole('button', { name: 'Try Undo again' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(failure).toHaveCount(0);
 });

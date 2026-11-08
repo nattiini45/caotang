@@ -81,7 +81,7 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
           <Icon name="loading" label={t`Undo in progress`} /> <Trans>Undoing the change. Wait before undoing another.</Trans>
         </p>
       ) : null}
-      {undoFailure !== null ? (
+      {undoFailure !== null && session.undo.group(undoFailure.id) !== undefined ? (
         <div className="form-message is-error" role="alert" data-panel-state="error">
           <Icon name="error" label={t`Undo failed`} />
           <p>{undoFailure.message}</p>
