@@ -80,7 +80,7 @@ const announcedStops = new Set<string>();
 
 type Timer = ReturnType<typeof setTimeout>;
 
-export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
+export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotProps): ReactNode {
   const { view } = regions;
   const report = useReport();
   const pinned = useSyncExternalStore(subscribeBinderPinned, currentBinderPinned);
@@ -88,7 +88,6 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
   // Opened by a hover: focus stayed where it was, and a click on the tab bar takes the sidebar over rather than closing it.
   const [hovered, setHovered] = useState(false);
   const [opener, setOpener] = useState<Opener>(MANUSCRIPT_ID);
-  const [lastAgent, setLastAgent] = useState<SidebarTab | null>(null);
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const navRef = useRef<HTMLElement>(null);
@@ -98,7 +97,6 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
 
   const tab = sidebarTabFor(view.rail);
   const shown = pinned || open;
-  if (openerOf(tab) === 'agent' && tab !== lastAgent) setLastAgent(tab);
 
   const requestFocus = (target: FocusTarget, id = ''): void =>
     setFocusRequest((previous) => ({ target, id, serial: (previous?.serial ?? 0) + 1 }));

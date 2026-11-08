@@ -126,6 +126,25 @@ test('the palette reaches every view and reopens Binder, Findings and the last A
   await expect(page.getByTestId('modern-drawer')).toHaveAttribute('data-state', 'open');
 });
 
+test('the last Agent log survives resizing in both directions', async ({ page }) => {
+  test.setTimeout(90_000);
+  await createProject(page, 'Navigation book');
+  await modern(page);
+  await go(page, 'sidebar Agent', 'Agent Sidebar');
+  await page.getByRole('tab', { name: 'Trace', exact: true }).click();
+  await go(page, 'sidebar Binder', 'Binder Sidebar');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId('modern-narrow-binder')).toBeVisible();
+  await go(page, 'sidebar Agent', 'Agent Sidebar');
+  await expect(page.getByRole('tab', { name: 'Trace', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Activity', exact: true }).click();
+  await go(page, 'sidebar Binder', 'Binder Sidebar');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.locator('#modern-binder-agent')).toBeVisible();
+  await go(page, 'sidebar Agent', 'Agent Sidebar');
+  await expect(page.getByRole('tab', { name: 'Activity', exact: true })).toHaveAttribute('aria-selected', 'true');
+});
+
 test('German document modes fit the narrow ornament and translate dialogue controls', async ({ page }) => {
   test.setTimeout(90_000);
   await media(page, 'New screenplay scene here');

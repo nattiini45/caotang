@@ -70,7 +70,7 @@ function returnTarget(panel: NarrowPanel): HTMLElement | null {
   return reachable(back) ? back : document.querySelector<HTMLElement>('[data-testid="modern-title-capsule"]');
 }
 
-export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageId: string }): ReactNode {
+export function NarrowPanels({ regions, pageId, lastAgent = null }: { regions: ShellRegions; pageId: string; lastAgent?: SidebarTab | null }): ReactNode {
   const { view } = regions;
   const info = useSyncExternalStore(subscribeSceneInfo, sceneInfoState, sceneInfoState);
   const drawer = useRef<HTMLElement>(null);
@@ -80,8 +80,6 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   // Scene info kept open (Keep open) is not modal: no scrim, and the page stays live above it (#364).
   const modal = shown === 'inspector' && info.docked ? null : shown;
   const tab = drawerTabFor(view.rail);
-  const [lastAgent, setLastAgent] = useState<SidebarTab | null>(null);
-  if ((tab === 'activity' || tab === 'trace') && tab !== lastAgent) setLastAgent(tab);
   useLayoutEffect(() => sidebarChannel.listen(({ tab: requested }) => {
     const next = requested === 'agent' ? agentTab(lastAgent) : requested;
     view.setRail(next);

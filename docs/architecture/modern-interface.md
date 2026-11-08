@@ -259,7 +259,7 @@ Every row must stay reachable. "Same" means the same component and handlers in a
 | **Trace** tab and its export | Sidebar › Trace |
 | **Findings** tab (scan, model review, groups, history, knowledge, dismissal picker), with its count | Sidebar › Findings, with the count on the tab and the title capsule's dot; Scene info lists the open findings of the scene with **Show in Findings** |
 
-The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**, a tablist with Classic's keys. The tab bar's **Binder** button opens it on Binder, **Findings** on Findings (its count shown on the closed bar), and **Agent** on whichever of Activity and Trace was used last (#479).
+The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**, a tablist with Classic's keys. The tab bar's **Binder** button opens it on Binder, **Findings** on Findings (its count shown on the closed bar), and **Agent** on whichever of Activity and Trace was used last (#479). Modern's shell keeps that last log while its wide sidebar and narrow drawer remount on resize.
 
 ### 7.3 The centre
 
@@ -448,7 +448,7 @@ The policy does not change. Modern stays inside it:
 
 ## 12. Bundle budget
 
-Navigation completion (#476, #483) measures 35,022 B gzip over Classic for Modern's initial chunk and stylesheet; the owner-approved ceiling is 35,400 B, pinned in `test/check-bundle-size.test.ts` (2026-11-08). Deduplicating sidebar opening, removing unused view/Scene info/New request channels and the unused codex handler, and keeping toolbar listeners stable avoids extra code and repeated setup. Loading the screenplay editor on demand reduces Classic's initial payload from 1,030.4 to 1,022.5 kB gzip and Modern's from 1,065.4 to 1,057.5 kB; its existing loading/error boundary covers the first open. An on-demand mode-outlet/style split instead measured 36,258 B because its import wiring outweighed the moved surface, so those controls use the simpler shared container. No dependency was added.
+Navigation completion (#476, #483) measures 35,050 B gzip over Classic for Modern's initial chunk and stylesheet; the owner-approved ceiling is 35,400 B, pinned in `test/check-bundle-size.test.ts` (2026-11-08). Deduplicating sidebar opening, removing unused view/Scene info/New request channels and the unused codex handler, and keeping toolbar listeners stable avoids extra code and repeated setup. Loading the screenplay editor on demand reduces Classic's initial payload from 1,030.4 to 1,022.5 kB gzip and Modern's from 1,065.4 to 1,057.5 kB; its existing loading/error boundary covers the first open. An on-demand mode-outlet/style split instead measured 36,258 B because its import wiring outweighed the moved surface, so those controls use the simpler shared container. No dependency was added.
 
 Numbers against `main`'s budget (`index` 1,565,000 B raw, first load 886,000 B gzip, all JS 6,265,000 B raw). Each pull request measures and records its real numbers, as the gate requires.
 

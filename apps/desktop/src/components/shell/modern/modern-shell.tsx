@@ -13,7 +13,7 @@
 
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { Suspense, lazy, useLayoutEffect, useRef, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { Suspense, lazy, useLayoutEffect, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 
 import '../../../tokens/modern.css';
 import './shell-modern.css';
@@ -29,7 +29,7 @@ import type { ShellRegions } from '../regions.js';
 import { modernLayout, type ModernView } from './layout.js';
 import { installMorph, morphPage } from './morph.js';
 import { useSceneInfo } from './scene-info-store.js';
-import { currentBinderPinned, subscribeBinderPinned } from './sidebar-model.js';
+import { currentBinderPinned, subscribeBinderPinned, type SidebarTab } from './sidebar-model.js';
 import { MODERN_SLOTS, type ModernSlot, type ModernSlots } from './slots.js';
 import { Page, Stage, type StageGeometry } from './stage.js';
 import { modernViewOf } from './views.js';
@@ -98,6 +98,8 @@ export function ModernShell({
   geometry?: StageGeometry;
 }): ReactNode {
   const { view } = regions;
+  const [lastAgent, setLastAgent] = useState<SidebarTab | null>(null);
+  if ((view.rail === 'activity' || view.rail === 'trace') && view.rail !== lastAgent) setLastAgent(view.rail);
   const sidebar = slots.sidebar !== null && !view.hideRails && !view.narrow;
   // The sidebar slot is #307's tab bar, which always takes its room; the sidebar beside it moves the page over only while pinned.
   const pinned = useSyncExternalStore(subscribeBinderPinned, currentBinderPinned);
@@ -116,7 +118,7 @@ export function ModernShell({
   // Focus mode (§8.8) fades the ornaments, the binder, Scene info and the agent window rather than taking them away (focus-mode.tsx), so
   // they get the view as if the rails were shown; the page keeps focus mode's room above.
   const chrome: ShellRegions = view.hideRails ? { ...regions, view: { ...view, hideRails: false } } : regions;
-  const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={chrome} pageId={PAGE_ID} />);
+  const slot = (Slot: ModernSlot | null): ReactNode => (Slot === null ? null : <Slot regions={chrome} pageId={PAGE_ID} lastAgent={lastAgent} />);
   const skip = (event: ReactMouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault();
     document.getElementById(PAGE_ID)?.focus();
@@ -141,7 +143,7 @@ export function ModernShell({
         {/* Below 960 px (§13, #312): the binder's button and drawer, the one scrim, and the one-panel-at-a-time rule. */}
         {view.narrow ? (
           <LazyBoundary label={t`the binder`} variant="toast">
-            <NarrowPanels regions={regions} pageId={PAGE_ID} />
+            <NarrowPanels regions={regions} pageId={PAGE_ID} lastAgent={lastAgent} />
           </LazyBoundary>
         ) : null}
         <Page id={PAGE_ID} label={regions.projectName} view={current}>
