@@ -101,10 +101,10 @@ test('a model list the browser will not let the page read is reported as that, n
   const saving = service.addProfile({ name: 'Claude', kind: 'endpoint', preset: 'anthropic', apiKey: 'sk-ant-placeholder-0000000000', defaultModel: 'claude-sonnet-5-5' }).then((result) => {
     outcome = result;
   });
-  for (let turn = 0; turn < 20 && outcome === undefined; turn++) {
-    await new Promise((resolve) => setImmediate(resolve));
+  await expect.poll(() => {
     clock.advance(5_000);
-  }
+    return outcome;
+  }).toBeDefined();
   await saving;
 
   // The profile is saved and unverified, and the sentence is true of what happened: the list was not read, chat is untested.

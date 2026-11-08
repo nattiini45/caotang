@@ -201,7 +201,7 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
               <Trans>Import Twee</Trans>
             </button>
             <label className="script-import-ids">
-              <input type="checkbox" className="k-switch" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
+              <input type="checkbox" role="switch" className="k-switch" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
               <Trans>Add line ids to the imported containers (one time)</Trans>
             </label>
             <input

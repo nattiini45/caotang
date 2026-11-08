@@ -191,6 +191,118 @@ async function projectWithScene(page: Page, name: string): Promise<void> {
   await waitForSaved(page);
 }
 
+test('Import and More disclosures dismiss without swallowing the next action or the sidebar’s Escape', async ({ page }) => {
+  await start(page);
+  await projectWithScene(page, 'Disclosure Book');
+  await openBinder(page);
+  const imports = page.locator('details.binder-import');
+  const importSummary = imports.locator(':scope > summary');
+  const filters = page.locator('details.filter-more');
+  const filterSummary = filters.locator(':scope > summary');
+  await importSummary.click();
+  await imports.getByRole('button', { name: 'Import script', exact: true }).focus();
+  await page.keyboard.press('Escape');
+  await expect(imports).not.toHaveAttribute('open');
+  await expect(importSummary).toBeFocused();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+
+  await page.keyboard.press('Enter');
+  await expect(imports).toHaveAttribute('open', '');
+  const pin = page.getByRole('button', { name: 'Keep open', exact: true });
+  await pin.click();
+  await expect(imports).not.toHaveAttribute('open');
+  await expect(pin).toHaveAttribute('aria-pressed', 'true');
+  await filterSummary.click();
+  await expect(filters).toHaveAttribute('open', '');
+  const status = filters.getByRole('combobox', { name: 'Status filter' });
+  await status.focus();
+  await page.keyboard.press('Tab');
+  await expect(filters).toHaveAttribute('open', '');
+  const search = page.getByRole('searchbox', { name: 'Filter the binder by text' });
+  await search.click();
+  await expect(filters).not.toHaveAttribute('open');
+  await expect(search).toBeFocused();
+
+  await importSummary.click();
+  const fdx = '<FinalDraft DocumentType="Script" Version="3"><Content><Paragraph Type="Scene Heading"><Text>INT. HARBOUR - NIGHT</Text></Paragraph></Content></FinalDraft>';
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({ name: 'harbour.fdx', mimeType: 'application/xml', buffer: Buffer.from(fdx) });
+  const dialog = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(imports).toHaveAttribute('open', '');
+  await page.keyboard.press('Escape');
+  await expect(imports).not.toHaveAttribute('open');
+  await expect(importSummary).toBeFocused();
+});
+
+test('Escape from a closed filter select closes its disclosure', async ({ page }) => {
+  await start(page);
+  await projectWithScene(page, 'Closed Picker Book');
+  await openBinder(page);
+  const filters = page.locator('details.filter-more');
+  const summary = filters.locator(':scope > summary');
+  await summary.click();
+  await filters.getByRole('combobox', { name: 'Status filter' }).focus();
+  await page.keyboard.press('Escape');
+  await expect(filters).not.toHaveAttribute('open');
+  await expect(summary).toBeFocused();
+});
+
+test('a native filter picker gets Escape before the containing disclosure', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium exposes its native picker open state in the headless backend.');
+  await start(page);
+  await projectWithScene(page, 'Native Picker Book');
+  await openBinder(page);
+  await page.getByRole('button', { name: 'Keep open', exact: true }).click();
+  const filters = page.locator('details.filter-more');
+  const summary = filters.locator(':scope > summary');
+  await summary.click();
+  const status = filters.getByRole('combobox', { name: 'Status filter' });
+  await status.click();
+  await expect.poll(() => status.evaluate((element) => element.matches(':open'))).toBe(true);
+  await status.dispatchEvent('keydown', { key: 'Escape', bubbles: true });
+  await expect(filters).toHaveAttribute('open', '');
+  await expect.poll(() => status.evaluate((element) => element.matches(':open'))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(() => status.evaluate((element) => element.matches(':open'))).toBe(false);
+  await expect(filters).toHaveAttribute('open', '');
+  await expect(status).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(filters).not.toHaveAttribute('open');
+  await expect(summary).toBeFocused();
+});
+
+test('the Codex Filter dismisses on Escape and an outside click', async ({ page }) => {
+  await start(page);
+  await projectWithScene(page, 'Codex Disclosure Book');
+  await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Codex', exact: true }).click();
+  const filter = page.locator('details.codex-filter');
+  const summary = filter.locator(':scope > summary');
+  await summary.click();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Escape');
+  await expect(filter).not.toHaveAttribute('open');
+  await expect(summary).toBeFocused();
+  await page.keyboard.press('Enter');
+  await moreButton(page).click();
+  await expect(filter).not.toHaveAttribute('open');
+  await expect(page.getByRole('menu', { name: 'More', exact: true })).toBeVisible();
+});
+
+test('Classic keeps its permanently expanded More controls visible after outside actions and Escape', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('caotang.interface', 'classic'));
+  await page.goto('/');
+  await page.getByLabel('Project name').fill('Classic Disclosure Book');
+  await page.getByRole('button', { name: 'Create project' }).click();
+  const imports = page.locator('details.binder-import');
+  await expect(imports.getByRole('button', { name: 'Import script', exact: true })).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Filter the binder by text' }).click();
+  await page.keyboard.press('Escape');
+  await expect(imports).toHaveAttribute('open', '');
+  await expect(imports.getByRole('button', { name: 'Import script', exact: true })).toBeVisible();
+});
+
 test('Home is on the wallpaper with its sections on paper, and every control on it is 44 px', async ({ page }) => {
   await start(page);
   const home = page.locator('.home');
@@ -291,6 +403,7 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
   await expectModernDialog(page, confirm, 'dialog.confirm[open]');
   await expectMorphed(page);
   await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expect(confirm.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Delete']);
   await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
 
   const toast = page.getByTestId('modern-notices').getByRole('status').filter({ hasText: /Deleted/ });
@@ -399,6 +512,10 @@ test('a Choice dialog (the Final Draft import question) is glass, keeps the focu
   // Focus starts on Cancel in every engine (#347), so Enter never takes an answer; the first answer is the one filled primary (#362).
   await expect(choice.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await expect(choice.getByRole('button', { name: 'Import' })).toHaveClass(/is-primary/);
+  await expect(choice.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Import']);
+  const cancelBox = await choice.getByRole('button', { name: 'Cancel' }).boundingBox();
+  const importBox = await choice.getByRole('button', { name: 'Import', exact: true }).boundingBox();
+  expect(importBox?.x).toBeGreaterThan((cancelBox?.x ?? 0) + (cancelBox?.width ?? 0));
   await expectModernDialog(page, choice, 'dialog.confirm[open]');
   await page.keyboard.press('Escape');
   await expect(choice).toBeHidden();
@@ -448,6 +565,30 @@ test('Reduce transparency makes every dialog and menu an opaque sheet', async ({
   const look = await material(settings);
   expect(alphaOf(look.background)).toBe(1);
   expect(look.backdrop === '' || look.backdrop === 'none' || look.backdrop.includes('blur(0px)')).toBe(true);
+});
+
+test('Classic Confirm and Choice dialogs put Cancel first and keep the action on the trailing edge', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('caotang.interface', 'classic'));
+  await page.goto('/');
+  await page.getByLabel('Project name').fill('Classic Order');
+  await page.getByRole('button', { name: 'Create project' }).click();
+  const fdx = '<FinalDraft DocumentType="Script" Version="3"><Content><Paragraph Type="Scene Heading"><Text>INT. HARBOUR - NIGHT</Text></Paragraph></Content></FinalDraft>';
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({ name: 'harbour.fdx', mimeType: 'application/xml', buffer: Buffer.from(fdx) });
+  const choice = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
+  await expect(choice.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Import']);
+  await expect(choice.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expect(choice.getByRole('button', { name: 'Import', exact: true })).toHaveClass(/is-primary/);
+  const cancelBox = await choice.getByRole('button', { name: 'Cancel' }).boundingBox();
+  const importBox = await choice.getByRole('button', { name: 'Import', exact: true }).boundingBox();
+  expect(importBox?.x).toBeGreaterThan((cancelBox?.x ?? 0) + (cancelBox?.width ?? 0));
+  await page.keyboard.press('Tab');
+  await expect(choice.getByRole('button', { name: 'Import', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Projects', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove Classic Order from this browser', exact: true }).click();
+  const confirm = page.locator('dialog.confirm[open]');
+  await expect(confirm.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Remove']);
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
 });
 
 test('Classic dialogs keep Classic’s look: no glass, no morph', async ({ page }) => {

@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';
 import { parseTrace } from '../packages/harness/src/agent/trace.js';
+import { showBinder, switchToModern } from './modern-walk.js';
 
 /**
  * The Trace tab (agent-harness §5.2) on the demo provider, so no key is needed: a turn appears as a timeline, a model call opens to what
@@ -110,24 +111,39 @@ test('Leave out manuscript text exports the structure with every text replaced b
   expect(text).toContain('"gen_ai.usage.input_tokens"');
 });
 
-test('Clear trace empties the tab, and with the setting off a new turn records nothing', async ({ page }) => {
-  await openSample(page);
-  await openTrace(page);
-  await expect(page.getByTestId('trace-turn')).toHaveCount(1);
+for (const shell of ['classic', 'modern'] as const) {
+  test(`Clear trace in ${shell}: the named switch stops recording and Space turns it back on`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openSample(page);
+    if (shell === 'modern') {
+      await switchToModern(page);
+      await showBinder(page);
+      await page.getByTestId('modern-sidebar').getByRole('button', { name: 'Keep open' }).click();
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-shell', shell);
+    await openTrace(page);
+    await expect(page.getByTestId('trace-turn')).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Clear trace' }).click();
-  await expect(page.getByRole('heading', { name: 'No turns traced yet' })).toBeVisible();
+    await page.getByRole('button', { name: 'Clear trace' }).click();
+    await expect(page.getByRole('heading', { name: 'No turns traced yet' })).toBeVisible();
 
-  await page.getByTestId('trace-keep').uncheck();
-  await expect(page.getByRole('heading', { name: 'Traces are off' })).toBeVisible();
-  const field = page.getByRole('combobox', { name: 'Intent' });
-  await field.fill(DEMO_INTENTS.continuity);
-  await page.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect(page.locator('.agent-report-text').nth(1)).toBeVisible();
+    const keepName = 'Keep agent traces for this tab';
+    const keep = page.getByRole('switch', { name: keepName, exact: true });
+    await expect(page.locator('label').getByText(keepName, { exact: true })).toBeVisible();
+    await expect(keep).toBeChecked();
+    await keep.press('Space');
+    await expect(keep).not.toBeChecked();
+    await expect(page.getByRole('heading', { name: 'Traces are off' })).toBeVisible();
+    const field = page.getByRole('combobox', { name: 'Intent' });
+    await field.fill(DEMO_INTENTS.continuity);
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.locator('.agent-report-text').nth(1)).toBeVisible();
 
-  await page.getByTestId('trace-keep').check();
-  await expect(page.getByRole('heading', { name: 'No turns traced yet' })).toBeVisible();
-});
+    await keep.press('Space');
+    await expect(keep).toBeChecked();
+    await expect(page.getByRole('heading', { name: 'No turns traced yet' })).toBeVisible();
+  });
+}
 
 test('a reload loses the trace', async ({ page }) => {
   await openSample(page);

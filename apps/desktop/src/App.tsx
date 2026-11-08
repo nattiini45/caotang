@@ -26,6 +26,7 @@ import type { ProjectSession } from './app/session.js';
 import { installTestHook } from './app/test-hook.js';
 import { Home } from './components/Home.js';
 import { Workspace } from './components/Workspace.js';
+import { useDisclosureDismissal } from './components/shared.js';
 
 /** A demo run waiting for the shell it starts in: the intent to submit once the agent panel is there. */
 export interface StartIntent {
@@ -35,6 +36,7 @@ export interface StartIntent {
 }
 
 export function App(): ReactNode {
+  useDisclosureDismissal();
   const [store, setStore] = useState<RuntimeStore | null>(null);
   const [services, setServices] = useState<AppServices | null>(null);
   const [failure, setFailure] = useState<string | null>(null);

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, type Page } from '@playwright/test';
 
 import type { Pending, Setup, Step } from './modern-homes.js';
-import { cspViolations, runStep, setUp, test, watchCsp } from './modern-walk.js';
+import { cspViolations, PROJECT, runStep, setUp, showBinder, test, watchCsp } from './modern-walk.js';
 
 /**
  * The Modern accessibility gate (M12, #313; modern-interface.md §9, §11, §15.3). Every Modern surface, in both schemes and on glass
@@ -351,6 +351,40 @@ for (const surface of SURFACES) {
         });
       }
     }
+  });
+}
+
+for (const shell of ['classic', 'modern'] as const) {
+  test(`shared panel switches in ${shell}: visible labels name switches operable with Space`, async ({ page }) => {
+    if (shell === 'modern') {
+      await setUp(page, 'scene');
+      await showBinder(page);
+      await page.getByTestId('modern-sidebar').getByRole('button', { name: 'Keep open' }).click();
+      await page.locator('.binder-import > summary').click();
+    } else {
+      await page.goto('/');
+      await page.getByRole('listitem').filter({ hasText: PROJECT }).getByRole('button', { name: 'Open' }).click();
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-shell', shell);
+
+    const idsName = 'Add line ids to the imported containers (one time)';
+    const ids = page.getByRole('switch', { name: idsName, exact: true });
+    await expect(page.locator('label').getByText(idsName, { exact: true })).toBeVisible();
+    await expect(ids).not.toBeChecked();
+    await ids.press('Space');
+    await expect(ids).toBeChecked();
+    await ids.press('Space');
+    await expect(ids).not.toBeChecked();
+
+    await page.getByRole('tab', { name: 'Activity', exact: true }).click();
+    const viewsName = 'Show view changes';
+    const views = page.getByRole('switch', { name: viewsName, exact: true });
+    await expect(page.locator('label').getByText(viewsName, { exact: true })).toBeVisible();
+    await expect(views).not.toBeChecked();
+    await views.press('Space');
+    await expect(views).toBeChecked();
+    await views.press('Space');
+    await expect(views).not.toBeChecked();
   });
 }
 

@@ -492,11 +492,17 @@ Bei **Prompt-Paket (Video)** wählen Sie die **Anbieter-Vorlage**, für die das 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ## Die moderne Oberfläche
-<!-- source: 978679b5 -->
+<!-- source: 2321a51d -->
 
 Caotang hat zwei Oberflächen, **Klassisch** und **Modern**, und beide können dasselbe. Wer neu beginnt, startet in Modern. Haben Sie Caotang in diesem Browser schon genutzt, bleibt es bei Klassisch, bis Sie wechseln; Ihre Projekte und Einstellungen sind in beiden dieselben. Gewählt wird unter **Einstellungen › Erscheinungsbild › Oberfläche**, und der Wechsel geschieht sofort; eine ungespeicherte Szene und ein laufender Durchlauf des Agenten bleiben erhalten.
 
 Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Das Manuskript ist eine Seite Papier, die über einem Hafen-Hintergrundbild schwebt (Morgendämmerung im hellen Design, Nacht im dunklen), mit gläsernen Bedienelementen an ihren Rändern.
+
+**Importieren…**, **Filter** im Binder und Kodex sowie **Mehr** schließen sich, wenn Sie außerhalb klicken oder Escape drücken. Escape setzt den Fokus auf die Überschrift des aufgeklappten Bereichs zurück; ein zweites Escape kann die Seitenleiste schließen. Ein Klick innerhalb oder ein Wechsel zwischen den Bedienelementen mit Tab lässt den Bereich offen. Die stets sichtbaren Bedienelemente in Klassisch bleiben unverändert.
+
+Ist die Auswahlliste eines Filters offen, schließt Escape zuerst diese Liste. Drücken Sie danach erneut Escape, um **Filter** zu schließen.
+
+Auf einem Telefon steht eine gefüllte Liste **Projekte in diesem Browser** auf der Startseite optisch zuerst, vor der Demo und dem Formular für ein neues Projekt. Die Reihenfolge für Bildschirmleser und die Tastaturnavigation bleibt unverändert; diese Einschränkung ist in #496 erfasst. Die Bereiche der Einstellungen bleiben in einer Zeile: Wischen oder scrollen Sie seitwärts, um die übrigen zu erreichen. Das gilt für beide Oberflächen. Bestätigungs- und Auswahldialoge zeigen **Abbrechen** zuerst und die Aktionen danach; beim Öffnen liegt der Fokus auf Abbrechen.
 
 Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen bei einem Drehbuch **Skript · Quelle · Seiten**, bei einem Dialog **Graph · Ink**. Graph zeigt Verzweigungen, Gliederung und Feststellungen; Ink gibt dem Quelleditor die Breite der Seite. Wer einen Graphknoten wählt, öffnet Ink an dieser Zeile. Ein Moduswechsel behält Ihren Text. In einem schmalen Fenster stehen die Drehbuchmodi in einer zweiten Zeile unter dem Titel. Klassisch behält die Drehbuchmodi im Seitenkopf und den Dialoggraphen neben dem Quelltext.
 

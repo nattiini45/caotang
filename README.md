@@ -129,6 +129,12 @@ A real-key check of the provider presets, `e2e/provider-smoke.spec.ts`, runs onl
 
 The scripted demo is [`e2e/demo.spec.ts`](e2e/demo.spec.ts). It builds a three-chapter story, has the agent draft a scene and approve the draft, reorders the story on the corkboard, and compiles it to Word. Then it unzips the file and checks its structure. The demo runs on the built-in demo provider, with no key.
 
+In Modern, **Import…**, **Filters**, the Codex's **Filter** and **More** disclosures close on an outside click or Escape; Escape returns focus to their heading. Classic's always-visible controls stay visible.
+
+An open native filter picker keeps its first Escape before **Filters** closes.
+
+On phones, Home shows existing projects first visually and Settings' sections scroll sideways on one row, in either interface. Home's screen-reader and keyboard order are unchanged (#496). Confirm and Choice dialogs consistently put Cancel before their actions.
+
 ## Your key and your privacy
 
 - **Bring your own key.** Add a provider in **Settings › Providers**: pick a preset (its address and authentication are filled in) or a generic endpoint of your own, choose a model, and paste the key. When you save, Caotang lists the provider's models to check it works.

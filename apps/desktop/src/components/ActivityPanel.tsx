@@ -62,7 +62,7 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
     <div className="activity">
       <div className="activity-toolbar">
         <label className="check">
-          <input type="checkbox" className="k-switch" checked={showViews} onChange={(event) => setShowViews(event.target.checked)} />
+          <input type="checkbox" role="switch" className="k-switch" checked={showViews} onChange={(event) => setShowViews(event.target.checked)} />
           <Trans>Show view changes</Trans>
         </label>
         <button type="button" className="button is-quiet" onClick={onExport}>
