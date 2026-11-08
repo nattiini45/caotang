@@ -88,6 +88,32 @@ for (const shell of ['classic', 'modern']) {
 }
 
 for (const locale of ['en-US', 'de-DE']) {
+  for (const shell of ['classic', 'modern']) {
+    test(`${shell} empty Write gives phone steps in ${locale} and retains the desktop shortcut`, async ({ browser, baseURL }) => {
+      const context = await browser.newContext({ baseURL, locale, viewport: { width: 390, height: 844 }, storageState: NO_PIN });
+      try {
+        const page = await context.newPage();
+        await create(page, shell);
+        const empty = page.locator('.editor-pane.is-empty');
+        const steps = locale === 'de-DE'
+          ? 'Öffnen Sie den Binder und wählen Sie ein Dokument. Hier schreiben Sie Szenen.'
+          : 'Open the binder and choose a document. Scenes are written here.';
+        await expect(empty).toContainText(steps);
+        await expect(empty).not.toContainText(/Ctrl|Strg/);
+        const chapter = empty.getByRole('button', { name: locale === 'de-DE' ? 'Neues Kapitel' : 'New chapter', exact: true });
+        await expect(chapter).toBeVisible();
+        await page.setViewportSize({ width: 1280, height: 844 });
+        await expect(empty).toContainText(/Ctrl|Strg/);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await expect(empty).toContainText(steps);
+        await chapter.click();
+        await expect(empty.locator('.empty-text')).toHaveText(steps);
+        await expect(empty).not.toContainText(/Ctrl|Strg/);
+      } finally {
+        await context.close();
+      }
+    });
+  }
   for (const colorScheme of ['light', 'dark'] as const) {
     test(`Modern long phone titles reserve New and More in ${locale}, ${colorScheme}`, async ({ browser, baseURL }, testInfo) => {
       const context = await browser.newContext({ baseURL, locale, colorScheme, viewport: { width: 390, height: 844 }, storageState: NO_PIN });

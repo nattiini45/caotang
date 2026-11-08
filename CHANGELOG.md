@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Phone writing instructions.** Empty Write directs you to the binder rather than asking for Ctrl+Enter. Its guidance and New chapter action are available in English and German; desktop keeps the keyboard shortcut.
+
 - **Phone reading and writing (#496–#498, #502, #503).** Returning Home projects now come first for screen readers and keyboards as well as visually. Modern keeps New and More visible with long titles and makes Write reachable by Tab from every view. Screenplay Source retains its full writing height on touch screens in both shells. Got it waits for the first-run dismissal to save; a storage error leaves the card available to retry.
 
 - **Picture and comic guidance (#383).** Insert picture lines up with the manuscript text in Classic and Modern, including in right-to-left layouts. Empty comic panels now explain how to add art in Modern too, with wrapping text and a German translation.

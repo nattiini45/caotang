@@ -45,6 +45,8 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 
 On a phone, returning projects come first in Home's reading and keyboard order too. Modern keeps New and More visible beside long titles, and Tab can return to Write from another view. Screenplay Source keeps a full writing area on touch screens. Home's Got it waits for the dismissal to save and shows an error if you need to try again.
 
+The empty phone editor gives binder steps instead of asking for a keyboard shortcut. Desktop keeps its shortcut hint, and the phone guidance is available in English and German.
+
 ## Install and run
 
 From the repository root, after you clone it:

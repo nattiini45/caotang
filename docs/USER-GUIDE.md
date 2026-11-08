@@ -174,6 +174,8 @@ Select a scene in the binder to write in it.
 - When the agent drafts a scene, its words appear in the scene as they are written, and a draft preview bar offers **Apply**, **Retry** and **Discard**. See [The agent](#the-agent).
 - At 960 px and wider the layout is the desktop one: under 1100 px the toolbar wraps onto a second row, and the side panels narrow. Narrower windows get the phone layout, described in [Using Caotang on a phone or tablet](#using-caotang-on-a-phone-or-tablet).
 
+When no document is open, the phone editor directs you to open the binder and choose a document. On desktop it also gives the Open in editor keyboard shortcut. If the project has no chapter yet, choose **New chapter** first.
+
 ## Writing a screenplay
 
 Choose **New screenplay scene here** from a folder's menu. A screenplay scene is written in Fountain, a plain-text screenplay format. Its view has three tabs:

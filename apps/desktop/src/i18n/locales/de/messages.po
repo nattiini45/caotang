@@ -9293,6 +9293,11 @@ msgstr "Neu {kind, select, status {status} label {label} other {status}}"
 msgid "New card"
 msgstr "Neue Karte"
 
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "New chapter"
+msgstr "Neues Kapitel"
+
 #: apps/desktop/src/media/create-menu.ts
 msgid "New comic here"
 msgstr "Neuer Comic hier"
@@ -10435,6 +10440,16 @@ msgstr "Szene öffnen"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Open the binder"
 msgstr "Binder öffnen"
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Open the binder and choose a document. Scenes are written here."
+msgstr "Öffnen Sie den Binder und wählen Sie ein Dokument. Hier schreiben Sie Szenen."
+
+#. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Open the binder and choose a document. Scenes are written here. A scene goes in a chapter, so make the chapter first."
+msgstr "Öffnen Sie den Binder und wählen Sie ein Dokument. Hier schreiben Sie Szenen. Eine Szene gehört in ein Kapitel. Legen Sie daher zuerst das Kapitel an."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
