@@ -2384,7 +2384,7 @@ dialog.confirm:has(.folder-file-preview) {
     flex-direction: column;
   }
 
-  .home > .home-section:has(.project-list) {
+  .home-section:has(.project-list) {
     order: -1;
     margin-block-start: 0;
   }
@@ -3934,7 +3934,7 @@ label.settings-check {
     grid-template-rows: auto minmax(0, 1fr);
   }
 
-  dialog.settings .settings-nav {
+  .settings-nav {
     flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -3943,14 +3943,13 @@ label.settings-check {
     border-bottom: 1px solid var(--line);
   }
 
-  dialog.settings .settings-nav-item {
-    flex: 0 0 auto;
-    min-block-size: 44px;
+  .settings-nav-item {
+    flex: none;
     white-space: nowrap;
     scroll-snap-align: start;
   }
 
-  dialog.settings .settings-nav-item.is-current {
+  .settings-nav-item.is-current {
     border-radius: 999px;
   }
 
