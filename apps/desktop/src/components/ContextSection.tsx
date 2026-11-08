@@ -139,7 +139,8 @@ function ContextPromptPreview({ view }: { view: ContextPreviewView }): ReactNode
 
 /**
  * The room a request keeps for the reply, read-only (context-assembly §5): the output cap the Chat role's profile sends with (its own, or
- * the gateway's default when it sets none), plus the thinking budget the role's level adds. It is not part of the prompt's budget.
+ * the gateway's default when it sets none), plus the thinking the sent request carries — the role's level when it pins one, the
+ * provider's default thinking otherwise. It is not part of the prompt's budget.
  */
 function ReplyReserve({ services }: { services: AppServices }): ReactNode {
   const resolved = services.providers.resolveForRole('chat');
@@ -149,7 +150,7 @@ function ReplyReserve({ services }: { services: AppServices }): ReactNode {
   const cap = limits.maxOutputTokens;
   const thinking = limits.thinkingTokens ?? 0;
   const capWords = resolved.profile.maxOutputTokens === undefined ? `Caotang’s default reply cap, since “${name}” sets none` : `the reply cap of “${name}”`;
-  const parts = thinking > 0 ? `: ${WORDS_OF(cap)} for the answer (${capWords}) and ${WORDS_OF(thinking)} for thinking at the Chat role’s thinking level` : `, ${capWords}`;
+  const parts = thinking > 0 ? `: ${WORDS_OF(cap)} for the answer (${capWords}) and ${WORDS_OF(thinking)} for the thinking the request is sent with` : `, ${capWords}`;
   const windowNote = limits.contextWindow === undefined ? '' : ` The model’s window is ${WORDS_OF(limits.contextWindow)} tokens.`;
   return (
     <p className="muted" data-testid="context-reserve">

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { PRESETS } from '../../packages/gateway/src/index.js';
+import { PRESETS, presetForProfile } from '../../packages/gateway/src/index.js';
 import { capsLine, modelDetails } from '../../apps/desktop/src/app/provider-details.js';
 
 /**
@@ -33,4 +33,13 @@ test('a capability line groups its window by the formatter locale, in the senten
   if (anthropic === undefined) throw new Error('the Anthropic preset is missing');
   expect(capsLine(anthropic, 'claude-sonnet-5-5', 'en-US')).toContain('1,000,000-token window');
   expect(capsLine(anthropic, 'claude-sonnet-5-5', 'de-DE')).toContain('1.000.000-token window');
+});
+
+test('the effective preset answers the pinned host’s table, so the display names what the wire reads', () => {
+  // The pin the Settings form and the model-list caption read: a cohere-named profile at api.openai.com
+  // resolves to the openai preset — its rows, and its live /models route, not cohere's table-only catalogue.
+  const pinned = presetForProfile({ preset: 'cohere', baseUrl: 'https://api.openai.com/v1' });
+  expect(pinned?.id).toBe('openai');
+  expect(pinned?.noModelsRoute).toBeUndefined();
+  expect(capsLine(pinned!, 'gpt-6.1-sol', 'en-US')).toContain('thinking: low / medium / high / xhigh / max');
 });

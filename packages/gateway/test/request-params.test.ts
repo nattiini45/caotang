@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { ProfileError, resolveRoute } from '../src/index.js';
-import type { NewProfile, RequestParams, ThinkingLevel, ToolDef } from '../src/types.js';
+import type { ChatRequest, NewProfile, RequestParams, ThinkingLevel, ToolDef } from '../src/types.js';
 import { addEndpoint, collect, finish, harness, KEY, ScriptedFetch, sseResponse, userMessage } from './helpers.js';
 
 const TOOL: ToolDef = {
@@ -80,6 +80,33 @@ describe('the OpenAI rows on the Responses route', () => {
     const { body } = await bodyFor({ ...OPENAI, temperature: 0.3, params: { temperature: true } }, userMessage('hi'));
     expect(body.temperature).toBe(0.3);
   });
+
+  it('a flag-only profile lets a request’s own temperature through, and sends none by itself', async () => {
+    // The SDK flag-only shape (params.temperature: true, no stored number): a request that asks for a
+    // temperature sends one on this row that takes none, and a request that asks for none sends none.
+    expect((await bodyFor({ ...OPENAI, params: { temperature: true } }, { ...userMessage('hi'), temperature: 0.5 })).body.temperature).toBe(0.5);
+    expect((await bodyFor({ ...OPENAI, params: { temperature: true } }, userMessage('hi'))).body).not.toHaveProperty('temperature');
+  });
+
+  it('the profile’s own leave-out wins over its temperature flag — the flag alone still lifts the row’s denial', async () => {
+    // The owner's precedence decision (provider-gateway §2, "Request parameters"): an explicit refusal is not
+    // overridden by the same profile's allow flag, for the stored value and a request's own alike.
+    const denied = { ...OPENAI, temperature: 0.3, params: { temperature: true, deny: ['temperature'] } };
+    expect((await bodyFor(denied, { ...userMessage('hi'), temperature: 0.5 })).body).not.toHaveProperty('temperature');
+    expect((await bodyFor({ ...OPENAI, temperature: 0.3, params: { temperature: true } }, userMessage('hi'))).body.temperature).toBe(0.3);
+  });
+
+  it('pins an endpoint at api.openai.com to these rows: a stored temperature stays off the wire until the profile overrides it', async () => {
+    // A profile saved before request parameters — or written by the SDK — holds the temperature column and no
+    // params flag, whichever preset it names; the host pin routes it here. The flag is the writer's own choice,
+    // so the same stored value with it set does go out.
+    const pinned: Partial<NewProfile> = { preset: 'generic', baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-6.1-sol' };
+    const legacy = await bodyFor({ ...pinned, temperature: 0.7 }, { ...userMessage('hi'), temperature: 0 });
+    expect(legacy.url).toBe('https://api.openai.com/v1/responses');
+    expect(legacy.body).not.toHaveProperty('temperature');
+    const overridden = await bodyFor({ ...pinned, temperature: 0.7, params: { temperature: true } }, userMessage('hi'));
+    expect(overridden.body.temperature).toBe(0.7);
+  });
 });
 
 describe('the Anthropic rows on the Messages route', () => {
@@ -143,6 +170,134 @@ describe('a custom OpenAI-compatible endpoint', () => {
   });
 });
 
+describe('a denied effort field takes the whole thinking control off (provider-gateway §2)', () => {
+  const DEEPSEEK: Partial<NewProfile> = { preset: 'deepseek', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-pro' };
+  const MOONSHOT: Partial<NewProfile> = { preset: 'moonshot', baseUrl: 'https://api.moonshot.ai/v1', defaultModel: 'kimi-k2.6' };
+  const TOGETHER: Partial<NewProfile> = { preset: 'together', baseUrl: 'https://api.together.ai/v1', defaultModel: 'Qwen/Qwen3.5-9B' };
+  const QWEN: Partial<NewProfile> = {
+    preset: 'alibaba',
+    fields: { workspaceId: 'ws', region: 'ap-southeast-1' },
+    baseUrl: 'https://ws.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+    defaultModel: 'qwen3.7-plus',
+  };
+  const ANTHROPIC: Partial<NewProfile> = { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-haiku-5-5' };
+
+  // Each effort style and the request fields it writes: a deny naming any one of them takes the whole
+  // control off the wire — no level is offered, so none is sent, and no member of the structure leaks.
+  const CASES: readonly (readonly [string, Partial<NewProfile>, readonly string[]])[] = [
+    ['reasoning_effort', { ...GENERIC, params: { effort: { high: 'high' } } }, ['reasoning_effort']],
+    ['reasoning.effort', OPENAI, ['reasoning']],
+    ['thinking.type', MOONSHOT, ['thinking']],
+    ['thinking.type+effort', DEEPSEEK, ['thinking', 'reasoning_effort']],
+    ['enable_thinking+budget', QWEN, ['enable_thinking', 'thinking_budget']],
+    ['reasoning.enabled', TOGETHER, ['reasoning']],
+    ['anthropic', ANTHROPIC, ['thinking', 'output_config']],
+  ];
+
+  it.each(CASES)('%s: denying any field it writes sends none of them and offers no level', async (style, profile, fields) => {
+    for (const field of fields) {
+      const { body, h } = await bodyFor({ ...profile, params: { ...(profile.params ?? {}), deny: [field] } }, { ...userMessage('hi'), thinking: 'high' });
+      for (const written of fields) expect(body, `${style} with deny ${field}`).not.toHaveProperty(written);
+      expect(h.gateway.modelCaps().effortLevels ?? [], `${style} with deny ${field}`).toEqual([]);
+    }
+  });
+
+  it('a deny on one member of a composite style suppresses the whole generated structure', async () => {
+    // thinking.type+effort writes two fields; denying either must not leave the other behind.
+    for (const field of ['thinking', 'reasoning_effort']) {
+      const { body } = await bodyFor({ ...DEEPSEEK, params: { deny: [field] } }, { ...userMessage('hi'), thinking: 'high' });
+      expect(body, `deny ${field}`).not.toHaveProperty('thinking');
+      expect(body, `deny ${field}`).not.toHaveProperty('reasoning_effort');
+    }
+    // enable_thinking+budget likewise: no toggle without its budget, no budget without its toggle.
+    for (const field of ['enable_thinking', 'thinking_budget']) {
+      const { body } = await bodyFor({ ...QWEN, params: { deny: [field] } }, { ...userMessage('hi'), thinking: 'high' });
+      expect(body, `deny ${field}`).not.toHaveProperty('enable_thinking');
+      expect(body, `deny ${field}`).not.toHaveProperty('thinking_budget');
+    }
+  });
+});
+
+describe('modelLimits settles the request’s own cap and budget (provider-gateway §3, "Effective output")', () => {
+  const ALIBABA: Partial<NewProfile> = {
+    preset: 'alibaba',
+    fields: { workspaceId: 'ws', region: 'ap-southeast-1' },
+    baseUrl: 'https://ws.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+    defaultModel: 'qwen3.7-plus',
+  };
+  const FLASH: Partial<NewProfile> = { ...ALIBABA, defaultModel: 'qwen3.8-flash' };
+
+  interface Sent {
+    readonly body: Record<string, unknown>;
+    readonly h: ReturnType<typeof harness>;
+  }
+
+  /** Sends one request through a fresh gateway and keeps the harness, so the transmitted cap and the limits can be compared. */
+  async function sent(profile: Partial<NewProfile>, req: Omit<ChatRequest, 'messages'>): Promise<Sent> {
+    const { body, h } = await bodyFor(profile, { ...userMessage('hi'), ...req });
+    return { body, h };
+  }
+
+  /** The cap reserveCall would reserve for this request: the request's own cap or the profile's, plus the thinking excess. */
+  function reserved(h: ReturnType<typeof harness>, req: Omit<ChatRequest, 'messages'>): number {
+    const limits = h.gateway.modelLimits(undefined, undefined, req.thinking, {
+      maxOutputTokens: req.maxOutputTokens,
+      reasoningBudget: req.reasoningBudget,
+    });
+    return (req.maxOutputTokens ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0);
+  }
+
+  /** The cap the adapter put on the wire (`max_tokens` on the Chat route). */
+  function transmitted(body: Record<string, unknown>): number {
+    const cap = body['max_tokens'] ?? body['maxTokens'] ?? body['max_output_tokens'];
+    if (typeof cap !== 'number') throw new Error('no output cap on the wire');
+    return cap;
+  }
+
+  it('a budget route with a request-level cap reserves exactly the cap+budget that goes out', async () => {
+    // qwen3.7-plus takes enable_thinking+budget and its row names no output ceiling, so the delta is the
+    // budget itself and does not move with the base cap: parity held even before the request input existed.
+    for (const maxOutputTokens of [undefined, 2_000, 20_000]) {
+      const { body, h } = await sent(ALIBABA, { thinking: 'high', ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }) });
+      expect(reserved(h, { thinking: 'high', maxOutputTokens }), `cap ${maxOutputTokens}`).toBe(transmitted(body));
+    }
+  });
+
+  it('a request-level reasoningBudget raises the transmitted cap on a budget route, and the reservation must see it', async () => {
+    // 'low' stands for a 1,024 budget; the request asks for 60,000, which goes out as max_tokens 64,096.
+    const { body, h } = await sent(ALIBABA, { thinking: 'low', reasoningBudget: 60_000 });
+    expect(transmitted(body)).toBe(64_096);
+    expect(reserved(h, { thinking: 'low', reasoningBudget: 60_000 })).toBe(64_096);
+    // With no level asked the budget itself names the level, and the cap still goes out raised.
+    const inferred = await sent(ALIBABA, { reasoningBudget: 60_000 });
+    expect(transmitted(inferred.body)).toBe(64_096);
+    expect(reserved(inferred.h, { reasoningBudget: 60_000 })).toBe(64_096);
+  });
+
+  it('an effort route keeps a request-level cap as sent: no lift, so the reservation adds nothing', async () => {
+    // qwen3.8-flash is reasoning_effort: a cap the request sets is not the default, so nothing is lifted.
+    for (const maxOutputTokens of [2_000, 20_000]) {
+      const { body, h } = await sent(FLASH, { ...(maxOutputTokens === 2_000 ? {} : { thinking: 'high' }), maxOutputTokens });
+      expect(transmitted(body)).toBe(maxOutputTokens);
+      expect(reserved(h, { thinking: maxOutputTokens === 2_000 ? undefined : 'high', maxOutputTokens }), `cap ${maxOutputTokens}`).toBe(maxOutputTokens);
+    }
+  });
+
+  it('a profile cap and a request cap settle together: the request’s wins, and nothing is added', async () => {
+    const capped = { ...FLASH, maxOutputTokens: 5_000 } as Partial<NewProfile>;
+    const { body, h } = await sent(capped, { maxOutputTokens: 2_000 });
+    expect(transmitted(body)).toBe(2_000);
+    expect(reserved(h, { maxOutputTokens: 2_000 })).toBe(2_000);
+  });
+
+  it('a custom endpoint with profile-chosen levels reserves the same cap the request transmits', async () => {
+    const custom = { ...GENERIC, params: { effort: { high: 'high' } } } as Partial<NewProfile>;
+    const { body, h } = await sent(custom, { thinking: 'high', maxOutputTokens: 20_000 });
+    expect(transmitted(body)).toBe(20_000);
+    expect(reserved(h, { thinking: 'high', maxOutputTokens: 20_000 })).toBe(20_000);
+  });
+});
+
 describe('resolveRoute with a profile’s params', () => {
   it('keeps the row when the profile sets nothing', () => {
     const plain = resolveRoute({ preset: 'openai', baseUrl: 'https://api.openai.com/v1' }, 'gpt-6.1-sol');
@@ -182,6 +337,55 @@ describe('profile params in the store', () => {
     await expect(bad({ effort: { max: 'max", "x": "y' } })).rejects.toMatchObject({ field: 'params' });
     await expect(bad({ deny: ['top p'] })).rejects.toMatchObject({ field: 'params' });
     await expect(bad({ temperature: 'yes' })).rejects.toMatchObject({ field: 'params' });
+  });
+
+  it('refuses malformed params with a ProfileError, not a TypeError', async () => {
+    const h = harness();
+    const bad = (params: unknown) => h.profiles.create({ name: 'x', kind: 'endpoint', baseUrl: 'https://x.example/v1', apiKey: KEY, defaultModel: 'm', params: params as RequestParams });
+    const invalid = { code: 'invalid', field: 'params' };
+    // SDK-shaped input the types cannot see: an array or other container for params itself — which used to read as
+    // "nothing set" and silently clear the stored rules on update — plus a non-object effort map, non-string
+    // members and a non-array deny.
+    await expect(bad([])).rejects.toMatchObject(invalid);
+    await expect(bad(['temperature'])).rejects.toMatchObject(invalid);
+    await expect(bad('params')).rejects.toMatchObject(invalid);
+    await expect(bad(42)).rejects.toMatchObject(invalid);
+    await expect(bad({ effort: null })).rejects.toMatchObject(invalid);
+    await expect(bad({ effort: 42 })).rejects.toMatchObject(invalid);
+    await expect(bad({ effort: 'high' })).rejects.toMatchObject(invalid);
+    await expect(bad({ effort: ['low'] })).rejects.toMatchObject(invalid);
+    await expect(bad({ effort: { high: 5 } })).rejects.toMatchObject(invalid);
+    await expect(bad({ effort: { high: null } })).rejects.toMatchObject(invalid);
+    await expect(bad({ deny: 'top_p' })).rejects.toMatchObject(invalid);
+    await expect(bad({ deny: null })).rejects.toMatchObject(invalid);
+    await expect(bad({ deny: [5] })).rejects.toMatchObject(invalid);
+    await expect(bad({ deny: ['top_p', {}] })).rejects.toMatchObject(invalid);
+    // And the valid trims still stand: whitespace members are dropped, not refused.
+    const view = await addEndpoint(h, { ...GENERIC, params: { effort: { high: ' high ' }, deny: [' top_p ', ''] } });
+    expect(view.params).toEqual({ effort: { high: 'high' }, deny: ['top_p'] });
+  });
+
+  it('refuses a JSON-shaped effort member with a ProfileError, not a TypeError', async () => {
+    const h = harness();
+    const invalid = { code: 'invalid', field: 'params' };
+    // `{ toString: null }` passes the non-string member check but cannot be stringified
+    // for a message: the refusal must still be the params ProfileError, never a TypeError.
+    const params = { effort: { high: { toString: null } } } as unknown as RequestParams;
+    const create = h.profiles.create({ name: 'x', kind: 'endpoint', baseUrl: 'https://x.example/v1', apiKey: KEY, defaultModel: 'm', params });
+    await expect(create).rejects.toBeInstanceOf(ProfileError);
+    await expect(create).rejects.toMatchObject(invalid);
+    const view = await addEndpoint(h, GENERIC);
+    const update = h.profiles.update(view.id, { params });
+    await expect(update).rejects.toBeInstanceOf(ProfileError);
+    await expect(update).rejects.toMatchObject(invalid);
+  });
+
+  it('a refused params update leaves the stored rules untouched', async () => {
+    const h = harness();
+    const view = await addEndpoint(h, { ...GENERIC, params: { temperature: true, deny: ['top_p'] } });
+    const patch = { params: [] as unknown as RequestParams };
+    await expect(h.profiles.update(view.id, patch)).rejects.toMatchObject({ code: 'invalid', field: 'params' });
+    expect(h.profiles.get(view.id)?.params).toEqual({ temperature: true, deny: ['top_p'] });
   });
 
   it('treats params with nothing set as no override', async () => {

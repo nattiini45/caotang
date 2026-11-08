@@ -71,7 +71,11 @@ export interface RequestParams {
    * offers none and sends no thinking field. Absent follows the row.
    */
   readonly effort?: Readonly<Partial<Record<ThinkingLevel, string>>>;
-  /** More request fields never to send, on top of the row's (`top_p`, `stop`, `tools`). */
+  /**
+   * More request fields never to send, on top of the row's (`top_p`, `stop`, `tools`). A deny naming a field the thinking
+   * control writes (`reasoning_effort`, `reasoning`, `thinking`, `enable_thinking`, `thinking_budget`, `output_config`)
+   * takes the whole control off: no level is offered or sent.
+   */
   readonly deny?: readonly string[];
 }
 
@@ -311,7 +315,10 @@ export interface ModelInfo {
 export interface ModelLimits {
   /** The context window in tokens, when the provider reported one. Absent means unknown: no window check is made. */
   readonly contextWindow?: number;
-  /** The output cap a request is sent with: the profile's, else the documented default (provider-gateway §2). */
+  /**
+   * The output cap a request is sent with when it names none: the profile's, else the documented default (provider-gateway §2).
+   * A request's own `maxOutputTokens` replaces it for that call; pass it in `ModelLimitsRequest` to read such a call's limits.
+   */
   readonly maxOutputTokens: number;
   /**
    * The output cap the model itself advertises, when the provider's listing or the preset's row says one. Requests are not sent with
@@ -319,8 +326,10 @@ export interface ModelLimits {
    */
   readonly modelMaxOutputTokens?: number;
   /**
-   * The thinking tokens one call may add to the reply at the level asked for: the effective budget on a budget route, the
-   * level's nominal share on an adaptive one. Absent when no level was asked for or the row lists none. Display-only.
+   * The output tokens a call at the asked thinking setting may add on top of `maxOutputTokens`: the difference between the
+   * cap the request is actually sent with (`effectiveOutput`, provider-default thinking included, the request's own cap and
+   * `reasoningBudget` applied) and the base cap `maxOutputTokens` reports. Absent when the sent cap is the base cap. What a
+   * run limit reserves and a cost estimate adds.
    */
   readonly thinkingTokens?: number;
   /** The price in USD per 1,000 tokens: the profile's, else the provider's. Display-only (provider-gateway §6, D4). */
@@ -331,6 +340,13 @@ export interface ModelLimits {
    */
   readonly cache?: { readonly readMultiplier: number; readonly writeMultiplier?: number; readonly minTokens?: number };
 }
+
+/**
+ * The request-specific inputs `modelLimits` settles besides the profile, model and level: the output cap and thinking
+ * budget one call carries (provider-gateway §3, "Effective output"). A caller pricing or reserving a real request passes
+ * the same fields the request will send, so `thinkingTokens` is the excess that request's transmitted cap carries.
+ */
+export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget'>;
 
 export interface ChatRequest {
   messages: ChatMessage[];

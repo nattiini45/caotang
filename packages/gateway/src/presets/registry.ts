@@ -9,6 +9,7 @@
  */
 
 import { routeFor, type AdapterId, type RouteSpec } from '../adapters/types.js';
+import { EFFORT_FIELDS } from '../adapters/effort.js';
 import type { ModelCaps, RequestParams, ThinkingLevel } from '../types.js';
 import type { ModelRow, PresetDef } from './types.js';
 
@@ -820,6 +821,25 @@ export function presetFor(id: string | undefined): PresetDef | undefined {
 }
 
 /**
+ * The preset a profile's calls, listings and static limits speak, before per-model routes: a
+ * first-party host's own preset wins over whatever the profile names (provider-gateway §2), the same
+ * pin `resolveRoute` applies. Undefined when the registry knows no preset for the pair — the answer
+ * `resolveRoute` falls back from — for callers that need the preset's table rather than a route.
+ */
+export function presetForProfile(profile: { readonly preset?: string; readonly baseUrl: string }): PresetDef | undefined {
+  let host = '';
+  try {
+    host = new URL(profile.baseUrl).hostname;
+  } catch {
+    // not a URL: no pin
+  }
+  // First-party hosts take their own preset whatever the profile names (provider-gateway §2): OpenAI's newer models
+  // refuse function tools with reasoning on Chat Completions, and Anthropic's chat endpoint is a compatibility layer.
+  const id = host === 'api.openai.com' ? 'openai' : host === 'api.anthropic.com' ? 'anthropic' : profile.preset;
+  return BY_ID.get(id ?? '');
+}
+
+/**
  * The capability row a (preset, model) pair resolves to: an exact id match wins,
  * then the first matching glob, then the preset's `'*'` default row.
  */
@@ -845,15 +865,34 @@ const DEFAULT_STYLE: Readonly<Record<AdapterId, string>> = {
   'anthropic-messages': 'anthropic',
 };
 
+/** Whether `deny` names a field the effort control `caps` speaks writes — the level cannot reach the wire. */
+const effortDenied = (caps: ModelCaps, adapter: AdapterId, deny: (field: string) => boolean): boolean => {
+  const style = caps.effortStyle ?? (adapter === 'anthropic-messages' ? 'anthropic' : undefined);
+  const fields = style === undefined ? undefined : EFFORT_FIELDS[style];
+  return fields !== undefined && fields.some((field) => deny(field));
+};
+
 /**
  * A row's caps with a profile's own request parameters laid over them (provider-gateway §2, "Request parameters"). Each set field
- * wins for this profile; an absent one keeps the row's. A temperature allowed here leaves the denylist; one refused joins it.
+ * wins for this profile; an absent one keeps the row's. A temperature allowed here lifts the row's denial; one refused joins it —
+ * and the profile's own `deny` goes last, so an explicit refusal wins over the same profile's allow flag while the flag alone
+ * still overrides the row's default denial.
  */
 export function withParams(caps: ModelCaps, params: RequestParams | undefined, adapter: AdapterId): ModelCaps {
-  if (params === undefined) return caps;
-  const deny = new Set([...(caps.denylist ?? []), ...(params.deny ?? [])]);
+  if (params === undefined) {
+    // Even with no profile params, a row whose own denylist names an effort field offers no level:
+    // the control cannot reach the wire, so it is not a capability (provider-gateway §2).
+    const offered = (caps.effortLevels?.length ?? 0) > 0;
+    return offered && effortDenied(caps, adapter, (field) => caps.denylist?.includes(field) === true)
+      ? { ...caps, effortLevels: [] }
+      : caps;
+  }
+  const deny = new Set(caps.denylist ?? []);
   if (params.temperature === true) deny.delete('temperature');
   if (params.temperature === false) deny.add('temperature');
+  // The profile's own leave-out list goes last (provider-gateway §2): an explicit refusal wins over the same
+  // profile's temperature flag, while the flag alone still lifts the row's default denial.
+  for (const field of params.deny ?? []) deny.add(field);
   const out: { -readonly [K in keyof ModelCaps]: ModelCaps[K] } = { ...caps };
   if (deny.size > 0) out.denylist = [...deny];
   else delete out.denylist;
@@ -864,6 +903,9 @@ export function withParams(caps: ModelCaps, params: RequestParams | undefined, a
     out.effortWire = effort;
     out.effortStyle = caps.effortStyle ?? DEFAULT_STYLE[adapter];
   }
+  // A deny naming a field the effort control writes takes the whole control off the wire: the level
+  // cannot be sent, so the profile offers none — the same answer the body, modelCaps and modelLimits give.
+  if (effortDenied(out, adapter, (field) => deny.has(field))) out.effortLevels = [];
   return out;
 }
 
@@ -879,16 +921,7 @@ export function resolveRoute(
   profile: { readonly preset?: string; readonly baseUrl: string; readonly params?: RequestParams },
   model: string,
 ): RouteSpec {
-  let host = '';
-  try {
-    host = new URL(profile.baseUrl).hostname;
-  } catch {
-    // not a URL: no pin
-  }
-  // First-party hosts take their own preset whatever the profile names (provider-gateway §2): OpenAI's newer models
-  // refuse function tools with reasoning on Chat Completions, and Anthropic's chat endpoint is a compatibility layer.
-  const id = host === 'api.openai.com' ? 'openai' : host === 'api.anthropic.com' ? 'anthropic' : profile.preset;
-  const preset = BY_ID.get(id ?? '');
+  const preset = presetForProfile(profile);
   if (preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: withParams({}, profile.params, 'openai-chat') };
   const row = modelRowFor(preset, model);
   const adapter = routeFor(preset.quirks, model, preset.adapter);

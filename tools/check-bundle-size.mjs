@@ -114,7 +114,10 @@ export const BUDGET = {
   // 1,016.1 kB (1,016,124 bytes) measured with the editor's footnote words localised (#337): the labels port's footnote names, `setLabels` and the
   // decorations that rename the markers and notes of an open editor on a language switch, which put the first load about 0.1 kB over
   // the old 1,016.0 kB ceiling. The ceiling is that plus about 1%, rounded up to the thousand.
-  initialGzip: 1_030_000,
+  // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
+  // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
+  // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
+  initialGzip: 1_041_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

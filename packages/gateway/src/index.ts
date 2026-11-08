@@ -37,6 +37,7 @@ export type {
   Usage,
   ModelInfo,
   ModelLimits,
+  ModelLimitsRequest,
   UsageAttribution,
 } from './types.js';
 
@@ -90,6 +91,7 @@ export { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
 export {
   PRESETS,
   presetFor,
+  presetForProfile,
   modelRowFor,
   resolveRoute,
   withParams,

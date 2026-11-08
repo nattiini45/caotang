@@ -2535,6 +2535,11 @@ msgstr "A reading-system book, one file per chapter."
 msgid "A removed item"
 msgstr "A removed item"
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "A request’s temperature goes out, even on a model that takes none."
+msgstr "A request’s temperature goes out, even on a model that takes none."
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "A scene falls outside its folder’s declared days"
@@ -8338,6 +8343,11 @@ msgstr "Leave it as it is — the file is not changed."
 msgid "Leave it out"
 msgstr "Leave it out"
 
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Leave out these request fields"
+msgstr "Leave out these request fields"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Leave them out, and keep their text"
@@ -9242,11 +9252,6 @@ msgstr "Never named"
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Never send"
 msgstr "Never send"
-
-#. Interpolated values: model, provider, values
-#: apps/desktop/src/components/RequestParamsFields.tsx
-msgid "Never send these fields"
-msgstr "Never send these fields"
 
 #: apps/desktop/src/app/codex-model.ts
 msgid "Never sent. Use it for private notes and spoilers."
@@ -10504,6 +10509,11 @@ msgstr "Opening your projects…"
 #: apps/desktop/src/app/palette-model.ts
 msgid "Opens the agent with this in the Intent box. Nothing is sent until you send it."
 msgstr "Opens the agent with this in the Intent box. Nothing is sent until you send it."
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Optional fields only: what a request needs always goes out, and a left-out max_tokens is sent as max_completion_tokens."
+msgstr "Optional fields only: what a request needs always goes out, and a left-out max_tokens is sent as max_completion_tokens."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -13373,6 +13383,11 @@ msgstr "Send"
 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "Send a request’s value"
+msgstr "Send a request’s value"
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Send a value"
 msgstr "Send a value"
 
@@ -15402,6 +15417,16 @@ msgstr "The latest words are not in browser storage. Export a backup to keep the
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "The latest words are not in browser storage. Export a backup to keep them, then reload this tab to carry on with the updated Caotang."
 msgstr "The latest words are not in browser storage. Export a backup to keep them, then reload this tab to carry on with the updated Caotang."
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "The leave-out list below names temperature, so none is sent."
+msgstr "The leave-out list below names temperature, so none is sent."
+
+#. Interpolated values: model, provider, values
+#: apps/desktop/src/components/RequestParamsFields.tsx
+msgid "The leave-out list below turns the thinking control off, so no level is sent."
+msgstr "The leave-out list below turns the thinking control off, so no level is sent."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx

@@ -510,6 +510,7 @@ Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Si
 
 ## Einstellungen
 <!-- source: 951c4637 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat neun Abschnitte: Anbieter, Kontext, Agent, Makros, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
 

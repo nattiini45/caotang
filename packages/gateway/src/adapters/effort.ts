@@ -14,6 +14,23 @@
 import type { ModelCaps, ThinkingLevel } from '../types.js';
 import type { EffortStyle } from './types.js';
 
+/**
+ * The request fields each effort style writes, so a deny naming one takes the whole thinking control
+ * off the wire: the level cannot reach the provider, so no member of the generated structure is sent
+ * (provider-gateway §2, "Request parameters"). `withParams` reads the same map to stop offering the
+ * levels, and `applyEffort` reads it again at the body, so a caps object built any other way is held
+ * to the same rule. `anthropic` is the Messages pair `thinking` + `output_config.effort`.
+ */
+export const EFFORT_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  reasoning_effort: ['reasoning_effort'],
+  'reasoning.effort': ['reasoning'],
+  'thinking.type': ['thinking'],
+  'thinking.type+effort': ['thinking', 'reasoning_effort'],
+  'enable_thinking+budget': ['enable_thinking', 'thinking_budget'],
+  'reasoning.enabled': ['reasoning'],
+  anthropic: ['thinking', 'output_config'],
+};
+
 /** The thinking tokens each level stands for: the budget a budget-style route is sent, and the nominal share an estimate adds. */
 const BUDGETS: Record<Exclude<ThinkingLevel, 'off'>, number> = {
   low: 1_024,
@@ -167,6 +184,9 @@ export function applyEffort(
   if (level === undefined || style === undefined || style === 'anthropic') return;
   const levels = caps.effortLevels;
   if (levels === undefined || levels.length === 0 || !levels.includes(level)) return;
+  // A deny naming a field this style writes takes the whole control off: nothing of it is sent.
+  const fields = EFFORT_FIELDS[style];
+  if (fields !== undefined && fields.some((field) => caps.denylist?.includes(field) === true)) return;
   const on = level !== 'off';
 
   switch (style) {

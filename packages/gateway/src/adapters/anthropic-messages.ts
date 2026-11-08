@@ -188,6 +188,9 @@ function wireMessages(req: BodyInput['req'], cache?: CacheSettings, before = 0):
 function anthropicEffort(body: Record<string, unknown>, input: BodyInput): void {
   const { level, budget } = input.effective;
   if (level === undefined) return;
+  // A deny naming a field this pair writes takes the whole control off: nothing of it is sent.
+  const deny = input.ctx.caps.denylist ?? [];
+  if (deny.includes('thinking') || deny.includes('output_config')) return;
   // Another style on the row means the model doesn't take the Messages thinking fields.
   if (input.ctx.caps.effortStyle !== undefined && input.ctx.caps.effortStyle !== 'anthropic') return;
   const levels = input.ctx.caps.effortLevels;

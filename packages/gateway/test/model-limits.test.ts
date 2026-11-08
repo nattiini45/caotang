@@ -175,3 +175,71 @@ describe('modelLimits (context-assembly §5)', () => {
     expect(h.net.calls).toHaveLength(0);
   });
 });
+
+describe('the host pin reaches listings and limits (provider-gateway §2)', () => {
+  it('a Cohere profile pointed at api.openai.com lists over OpenAI’s wire, not Cohere’s table', async () => {
+    const net = new ScriptedFetch().push(() => jsonResponse(200, { data: [{ id: 'gpt-6.1-sol' }] }));
+    const h = harness({ net });
+    const profile = await addEndpoint(h, { preset: 'cohere', baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-6.1-sol' });
+
+    const models = await h.gateway.listModels(profile.id);
+
+    // The route is OpenAI's Responses one, so the listing is OpenAI's /models — Cohere's compatibility
+    // layer has no listing route, but the pin means this profile is not speaking Cohere at all.
+    expect(net.calls).toHaveLength(1);
+    expect(net.calls[0]?.url).toBe('https://api.openai.com/v1/models');
+    expect(models.map((model) => model.id)).toEqual(['gpt-6.1-sol']);
+  });
+
+  it('a generic profile at api.anthropic.com gets Anthropic’s row: window, price and advertised cap', async () => {
+    const h = harness();
+    const profile = await addEndpoint(h, { preset: 'generic', baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-5-5' });
+
+    const limits = h.gateway.modelLimits(profile.id);
+
+    // The generic '*' row states none of these; the pinned Anthropic row does.
+    expect(limits.contextWindow).toBe(1_000_000);
+    expect(limits.pricePer1k).toEqual({ prompt: 0.002, completion: 0.01 });
+    expect(limits.modelMaxOutputTokens).toBe(128_000);
+    expect(h.net.calls).toHaveLength(0);
+  });
+});
+
+describe('thinkingTokens is the transmitted cap’s excess (provider-gateway §3)', () => {
+  const deepseek = (h: ReturnType<typeof harness>, overrides: Parameters<typeof addEndpoint>[1] = {}) =>
+    addEndpoint(h, { preset: 'deepseek', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-pro', ...overrides });
+
+  it('counts the lift implicit thinking earns on an effort route, with no level asked', async () => {
+    const h = harness();
+    const profile = await deepseek(h);
+
+    // The provider default thinks wherever the row offers an on-level, so the request goes out at the
+    // 16,384 floor even when nobody asked for a level: the reservation adds what the default cap lacked.
+    expect(h.gateway.modelLimits(profile.id).thinkingTokens).toBe(12_288);
+    expect(h.gateway.modelLimits(profile.id, undefined, 'high').thinkingTokens).toBe(12_288);
+    expect(h.gateway.modelLimits(profile.id, undefined, 'off')).not.toHaveProperty('thinkingTokens');
+  });
+
+  it('a cap the profile set is the transmitted cap: thinking does not lift it, so nothing is added', async () => {
+    const h = harness();
+    const profile = await deepseek(h, { maxOutputTokens: 2_000 });
+
+    expect(h.gateway.modelLimits(profile.id).maxOutputTokens).toBe(2_000);
+    expect(h.gateway.modelLimits(profile.id).thinkingTokens).toBeUndefined();
+    expect(h.gateway.modelLimits(profile.id, undefined, 'high').thinkingTokens).toBeUndefined();
+  });
+
+  it('a budget route still counts the budget the raised cap carries', async () => {
+    const h = harness();
+    const profile = await addEndpoint(h, {
+      preset: 'alibaba',
+      fields: { workspaceId: 'ws', region: 'ap-southeast-1' },
+      baseUrl: 'https://ws.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+      defaultModel: 'qwen3.7-plus',
+    });
+
+    // max_tokens goes out at cap + budget (36,864 for max): the excess over the base cap is the budget.
+    expect(h.gateway.modelLimits(profile.id, undefined, 'max').thinkingTokens).toBe(32_768);
+    expect(h.gateway.modelLimits(profile.id, undefined, 'off')).not.toHaveProperty('thinkingTokens');
+  });
+});

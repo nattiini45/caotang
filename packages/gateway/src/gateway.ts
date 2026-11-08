@@ -41,9 +41,9 @@ import { checkRequestImages, imageBase64Of } from './parts.js';
 import { usageFor } from './tokens.js';
 import { cacheSettingsFor, policyOf } from './adapters/cache.js';
 import { adapterFor } from './adapters/index.js';
-import { effectiveOutput, nominalThinkingTokens } from './adapters/effort.js';
-import { modelRowFor, presetFor, resolveRoute } from './presets/index.js';
-import type { AdapterContext, CallSecrets, ProviderAdapter } from './adapters/types.js';
+import { effectiveOutput, type EffectiveOutput } from './adapters/effort.js';
+import { modelRowFor, presetFor, presetForProfile, resolveRoute } from './presets/index.js';
+import type { AdapterContext, CallSecrets, ProviderAdapter, RouteSpec } from './adapters/types.js';
 import { decodingParser, encodeToolNames, toolNameCodec, toolNamesOf } from './tool-names.js';
 import type {
   ChatChunk,
@@ -54,6 +54,7 @@ import type {
   ModelCaps,
   ModelInfo,
   ModelLimits,
+  ModelLimitsRequest,
   ProfileView,
   ProviderGateway,
   RoleResolver,
@@ -72,9 +73,12 @@ export interface Gateway extends ProviderGateway {
    * Synchronous, so an assembly can call it: it reads what `listModels` last reported for the profile, and
    * takes the documented default for anything that report did not state (see {@link ModelLimits}). With no
    * profile at all it is the defaults, since there is then no request to limit. A `thinking` level adds
-   * `thinkingTokens`: what one call at that level may spend on thinking, for a cost estimate.
+   * `thinkingTokens`: the excess the transmitted cap carries over the base cap at that level — the lift
+   * implicit thinking earns included — for a cost estimate and a run-limit reservation. Pass the request's
+   * own `maxOutputTokens`/`reasoningBudget` in `request` when pricing or reserving a call that sets them,
+   * so the excess is the one that call's transmitted cap carries (provider-gateway §3, "Effective output").
    */
-  modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel): ModelLimits;
+  modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits;
   /**
    * The capability row for a model on a profile's route: whether it takes native
    * tools, images, a JSON-schema response format, and which thinking levels the UI
@@ -252,10 +256,11 @@ export function createGateway(options: GatewayOptions): Gateway {
    * profile at api.openai.com or api.anthropic.com takes that host's preset; any other
    * profile with no known preset resolves to the generic OpenAI-Chat route.
    */
-  const routeOf = (profile: ProfileView, model: string): { adapter: ProviderAdapter; ctx: AdapterContext } => {
+  const routeOf = (profile: ProfileView, model: string): { adapter: ProviderAdapter; ctx: AdapterContext; spec: RouteSpec } => {
     const spec = resolveRoute(profile, model);
     return {
       adapter: adapterFor(spec.adapter),
+      spec,
       ctx: {
         baseUrl: profile.baseUrl,
         model,
@@ -266,24 +271,40 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   };
 
+  /**
+   * The one output settlement the request body and `modelLimits` both read (provider-gateway §3,
+   * "Effective output"): the request's own cap, budget and level over the profile's, against the route's
+   * caps and documented maximum. Factored so the two can never drift.
+   */
+  const settleOutput = (
+    profile: ProfileView,
+    route: { readonly caps: ModelCaps; readonly modelMaxOutput?: number; readonly adapter: string },
+    level: ThinkingLevel | undefined,
+    request: ModelLimitsRequest,
+  ): { readonly cap: number; readonly effective: EffectiveOutput } => {
+    const cap = request.maxOutputTokens ?? profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
+    const effective = effectiveOutput({
+      cap,
+      capIsDefault: request.maxOutputTokens === undefined && profile.maxOutputTokens === undefined,
+      level,
+      budget: request.reasoningBudget,
+      caps: route.caps,
+      modelMaxOutput: route.modelMaxOutput,
+      style: route.adapter === 'anthropic-messages' ? (route.caps.effortStyle ?? 'anthropic') : undefined,
+    });
+    return { cap, effective };
+  };
+
   const chatSpec = (
     profile: ProfileView,
     req: ChatRequest,
-    route: { adapter: ProviderAdapter; ctx: AdapterContext },
+    route: { adapter: ProviderAdapter; ctx: AdapterContext; spec: RouteSpec },
     jsonObject: boolean,
     revealed: { secrets: CallSecrets; redact: string[] },
     onAttempt?: (entry: RequestLogEntry) => void,
   ): CallSpec => {
     const { adapter, ctx } = route;
-    const effective = effectiveOutput({
-      cap: req.maxOutputTokens ?? profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
-      capIsDefault: req.maxOutputTokens === undefined && profile.maxOutputTokens === undefined,
-      ...(req.thinking === undefined ? {} : { level: req.thinking }),
-      ...(req.reasoningBudget === undefined ? {} : { budget: req.reasoningBudget }),
-      caps: ctx.caps,
-      ...(ctx.modelMaxOutput === undefined ? {} : { modelMaxOutput: ctx.modelMaxOutput }),
-      ...(adapter.id === 'anthropic-messages' ? { style: ctx.caps.effortStyle ?? 'anthropic' } : {}),
-    });
+    const { effective } = settleOutput(profile, route.spec, req.thinking, req);
     // Prompt caching (§3): the request's policy, else the profile's, against what the model's row says the route does.
     const cache = cacheSettingsFor(policyOf(req.cache, profile.promptCache), ctx.caps, profile.id, req);
     // Tool names go out in their wire-safe form and the assembled calls come back by their registry names (tool-names.ts).
@@ -502,8 +523,10 @@ export function createGateway(options: GatewayOptions): Gateway {
 
     const { adapter, ctx } = routeOf(profile, profile.defaultModel);
     // A preset with no listing route (Cohere's compatibility layer) answers from its
-    // table; an adapter may also return null for a route without one.
-    const preset = presetFor(profile.preset);
+    // table; an adapter may also return null for a route without one. The preset is the
+    // effective one — a first-party host's pin included — so the table is the one the
+    // requests actually speak (provider-gateway §2).
+    const preset = presetForProfile(profile);
     const modelsPath = preset?.noModelsRoute === true ? null : adapter.modelsPath(ctx);
     if (modelsPath === null) {
       // The route has no listing endpoint: the preset's table is the catalogue.
@@ -553,39 +576,32 @@ export function createGateway(options: GatewayOptions): Gateway {
     return models;
   }
 
-  function modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel): ModelLimits {
+  function modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits {
     const profile = profileId === undefined ? profiles.active() : profiles.get(profileId);
     if (profile === undefined) return { maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
     const modelId = model ?? profile.defaultModel;
     const info = reported.get(profile.id)?.find((item) => item.id === modelId);
-    // The preset's capability row fills what the live listing did not report.
-    const preset = presetFor(profile.preset);
+    // The effective preset's capability row fills what the live listing did not report — the host
+    // pin included, so a pinned profile's limits are the pinned preset's (provider-gateway §2).
+    const preset = presetForProfile(profile);
     const row = preset === undefined ? undefined : modelRowFor(preset, modelId);
+    const spec = resolveRoute(profile, modelId);
     const price = profile.pricePer1k ?? info?.pricePer1k ?? row?.pricePer1k;
     const contextWindow = info?.contextWindow ?? row?.contextWindow;
     const maxOutputTokens = profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
     const modelMaxOutputTokens = info?.maxOutputTokens ?? row?.maxOutputTokens;
-    let thinkingTokens: number | undefined;
-    if (thinking !== undefined && row !== undefined) {
-      const spec = resolveRoute(profile, modelId);
-      const settled = effectiveOutput({
-        cap: maxOutputTokens,
-        level: thinking,
-        caps: spec.caps,
-        ...(spec.modelMaxOutput === undefined ? {} : { modelMaxOutput: spec.modelMaxOutput }),
-        ...(spec.adapter === 'anthropic-messages' ? { style: spec.caps.effortStyle ?? 'anthropic' } : {}),
-      });
-      if (settled.level !== undefined && settled.level !== 'off') thinkingTokens = settled.budget ?? nominalThinkingTokens(settled.level);
-    }
+    // The same settlement the request makes (provider-gateway §3, "Effective output"), with the request's own
+    // cap and budget standing in for the ones it will send: `thinkingTokens` is the transmitted cap's excess
+    // over the base cap — the lift implicit thinking earns included — so a run limit and a cost estimate
+    // reserve what is sent.
+    const { cap, effective: settled } = settleOutput(profile, spec, thinking, request ?? {});
+    const thinkingTokens = settled.maxTokens > cap ? settled.maxTokens - cap : undefined;
     // The forecast's cache terms (§3, "Prompt caching"): only when this profile caches and the row says how a read is priced.
-    const route = row === undefined ? undefined : resolveRoute(profile, modelId);
     const policy = policyOf(undefined, profile.promptCache);
     const caching =
-      route !== undefined && policy.mode === 'auto' && (route.caps.cache === 'explicit' || route.caps.cache === 'automatic')
-        ? route.caps
-        : undefined;
+      policy.mode === 'auto' && (spec.caps.cache === 'explicit' || spec.caps.cache === 'automatic') ? spec.caps : undefined;
     // Anthropic's hour-long lifetime writes at twice the prompt price, not the row's 1.25.
-    const writeMultiplier = policy.ttl === '1h' && route?.adapter === 'anthropic-messages' ? 2 : caching?.cacheWriteMultiplier;
+    const writeMultiplier = policy.ttl === '1h' && spec.adapter === 'anthropic-messages' ? 2 : caching?.cacheWriteMultiplier;
     const cache =
       caching?.cacheReadMultiplier === undefined
         ? undefined

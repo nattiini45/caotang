@@ -144,12 +144,15 @@ describe('an effort route that thinks (no budget)', () => {
 });
 
 describe('modelLimits with a thinking level', () => {
-  it('adds the level’s nominal share on an adaptive row, and nothing without a level', async () => {
+  it('counts the transmitted cap’s excess on an adaptive row: the 16,384 floor less the 4,096 default', async () => {
     const h = harness();
     const profile = await anthropic(h);
-    expect(h.gateway.modelLimits(profile.id)).not.toHaveProperty('thinkingTokens');
-    expect(h.gateway.modelLimits(profile.id, undefined, 'high').thinkingTokens).toBe(16_384);
-    expect(h.gateway.modelLimits(profile.id, undefined, 'xhigh').thinkingTokens).toBe(24_576);
+    // Adaptive thinking shares max_tokens with the answer, and the provider default thinks wherever the
+    // row offers an on-level — so every call, a level asked for or not, goes out at the floor and the
+    // reservation adds the 12,288 the default cap lacked (provider-gateway §3, "Effective output").
+    expect(h.gateway.modelLimits(profile.id).thinkingTokens).toBe(12_288);
+    expect(h.gateway.modelLimits(profile.id, undefined, 'high').thinkingTokens).toBe(12_288);
+    expect(h.gateway.modelLimits(profile.id, undefined, 'xhigh').thinkingTokens).toBe(12_288);
   });
 
   it('adds the effective budget on a budget route, and nothing for off or a level the row does not list', async () => {

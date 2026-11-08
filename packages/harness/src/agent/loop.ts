@@ -196,6 +196,7 @@ import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type 
 import { quotedProjectText } from './egress-check.js';
 import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
 import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
+import { transmittedOutputCap } from './output-cap.js';
 import { appendLanguageLine, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
@@ -1361,11 +1362,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const reserveCall = (turn: Turn, request: ChatRequest): Reservation | undefined => {
     const { meter } = turn;
     if (meter === undefined) return undefined;
-    const limits = gateway.modelLimits(request.profileId ?? turn.pins.profileId, request.model ?? turn.pins.model, request.thinking);
+    const limits = gateway.modelLimits(request.profileId ?? turn.pins.profileId, request.model ?? turn.pins.model, request.thinking, request);
     const price = options.price?.() ?? limits.pricePer1k;
     const reserved = meter.reserve({
       promptTokens: usageFor(request.messages, '').promptTokens,
-      maxOutputTokens: (request.maxOutputTokens ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0),
+      maxOutputTokens: transmittedOutputCap(limits, request.maxOutputTokens),
       ...(price === undefined ? {} : { price }),
     });
     if (reserved.ok) {
@@ -3343,8 +3344,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * provider's reported completion tokens against that cap), and the cap. Without the provider's count it is not said to have reached it.
    */
   function cutOf(turn: Turn, reply: Completion, asked: number | undefined): { readonly atCap: boolean; readonly cap: number; readonly advertised?: number } {
-    const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking);
-    const cap = asked ?? limits.maxOutputTokens;
+    const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking, { maxOutputTokens: asked });
+    const cap = transmittedOutputCap(limits, asked);
     const atCap = reply.completionTokens !== undefined && reply.completionTokens >= cap;
     return { atCap, cap, ...(limits.modelMaxOutputTokens === undefined ? {} : { advertised: limits.modelMaxOutputTokens }) };
   }

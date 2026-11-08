@@ -242,11 +242,13 @@ const WIRE_WORD = /^[A-Za-z0-9_.-]{1,40}$/;
 const MAX_DENIED = 24;
 
 /**
- * A profile's request parameters, checked (provider-gateway §2, "Request parameters"): booleans stay booleans, effort keys are
- * thinking levels and their values short wire words, denied fields are field names. An object with nothing set is no override.
+ * A profile's request parameters, checked (provider-gateway §2, "Request parameters"): the container itself is an object —
+ * an array is refused rather than read as "nothing set" and silently clearing stored rules — booleans stay booleans, effort
+ * keys are thinking levels and their values short wire words, denied fields are field names. An object with nothing set is
+ * no override.
  */
 function checkParams(raw: RequestParams): RequestParams | undefined {
-  if (typeof raw !== 'object' || raw === null) throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
   const out: { -readonly [K in keyof RequestParams]: RequestParams[K] } = {};
   if (raw.temperature !== undefined) {
     if (typeof raw.temperature !== 'boolean') throw new ProfileError('invalid', 'Sending a temperature is either on or off.', 'params');
@@ -257,9 +259,17 @@ function checkParams(raw: RequestParams): RequestParams | undefined {
     out.toolStrict = raw.toolStrict;
   }
   if (raw.effort !== undefined) {
+    // SDK input the types cannot see: anything that is not a level-to-value object is refused, never thrown on.
+    if (typeof raw.effort !== 'object' || raw.effort === null || Array.isArray(raw.effort)) {
+      throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+    }
     const effort: Partial<Record<ThinkingLevel, string>> = {};
     for (const [level, value] of Object.entries(raw.effort)) {
-      if (value === undefined || value.trim() === '') continue;
+      if (value === undefined) continue;
+      if (typeof value !== 'string') {
+        throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+      }
+      if (value.trim() === '') continue;
       if (!THINKING_LEVELS.has(level) || !WIRE_WORD.test(value.trim())) {
         throw new ProfileError('invalid', `"${value}" is not a thinking value a request can carry.`, 'params');
       }
@@ -268,6 +278,9 @@ function checkParams(raw: RequestParams): RequestParams | undefined {
     out.effort = effort;
   }
   if (raw.deny !== undefined) {
+    if (!Array.isArray(raw.deny) || raw.deny.some((field) => typeof field !== 'string')) {
+      throw new ProfileError('invalid', 'The request parameters could not be read.', 'params');
+    }
     const deny = [...new Set(raw.deny.map((field) => field.trim()).filter((field) => field !== ''))];
     if (deny.length > MAX_DENIED) throw new ProfileError('invalid', `At most ${MAX_DENIED} fields can be left out.`, 'params');
     const bad = deny.find((field) => !WIRE_WORD.test(field));

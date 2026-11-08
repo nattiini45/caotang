@@ -17,6 +17,7 @@ import {
   PRESETS,
   isLocalBase,
   presetFor,
+  presetForProfile,
   type CachePolicy,
   type ModelInfo,
   type PresetDef,
@@ -353,8 +354,9 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const [form, setForm] = useState<FormState | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
-  // The last save's model catalogue — `preset` says whether it is the endpoint's live answer or the registry's table.
-  const [models, setModels] = useState<{ profile: string; preset?: string; list: ModelInfo[] } | null>(null);
+  // The last save's model catalogue — `preset` and `baseUrl` resolve whether it is the endpoint's live answer or the
+  // registry's table (a first-party host's own preset wins over the profile's, the pin `resolveRoute` applies).
+  const [models, setModels] = useState<{ profile: string; preset?: string; baseUrl?: string; list: ModelInfo[] } | null>(null);
   const profiles = providers.list();
   const active = providers.active();
   const preset = form === null ? undefined : presetFor(form.preset);
@@ -362,6 +364,15 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const isGeneric = form?.preset === 'generic';
   // A server on this computer: its address is typed, within loopback, like a generic endpoint's (provider-gateway §2).
   const isLocal = preset?.local !== undefined;
+  // The base URL the save resolves for the host pin: the typed address on a generic or local endpoint, the
+  // fields-built one on a templated preset, and the stored one on any other saved profile — a named preset's
+  // URL is never typed here, but a record written another way may carry one and the pin is the wire's.
+  const formBaseUrl =
+    form === null ? '' : isGeneric === true || isLocal === true ? form.baseUrl : preset?.baseUrlFor !== undefined ? preset.baseUrlFor(form.fields) : form.id !== null ? form.baseUrl : (preset?.baseUrl ?? '');
+  const shownPreset = preset === undefined ? undefined : (presetForProfile({ preset: form?.preset, baseUrl: formBaseUrl }) ?? preset);
+  // The preset the saved profile's listModels resolved by — the same pin, so the catalogue note says whether the
+  // list was the endpoint's live answer or the registry's table.
+  const modelsPreset = models === null ? undefined : (presetForProfile({ preset: models.preset, baseUrl: models.baseUrl ?? '' }) ?? presetFor(models.preset));
   // A saved endpoint whose origin the form moves to needs its key again: the gateway refuses to send the old one there.
   const original = form === null || form.id === null ? undefined : providers.get(form.id);
   const keyNeeded =
@@ -446,7 +457,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         });
         setForm(null);
-        if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
+        if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, baseUrl: outcome.view.baseUrl, list: outcome.models });
         setMessage(
           outcome.probeError === undefined
             ? {
@@ -475,7 +486,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         ...(isMock === true ? {} : { params: request.params ?? null, temperature: request.temperature ?? null }),
       });
       setForm(null);
-      if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
+      if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, baseUrl: outcome.view.baseUrl, list: outcome.models });
       setMessage(
         outcome.probeError === undefined
           ? { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”.`, tone: 'info' }
@@ -730,17 +741,18 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           </label>
           {preset !== undefined && preset.id !== 'mock' ? (
             <>
-              {/* The models to offer: the last probe's live answer first, then the preset's documented ids — a glob row is
-                  a pattern, not a name, so it is never offered as one. */}
+              {/* The models to offer: the last probe's live answer first, then the effective preset's documented ids —
+                  a glob row is a pattern, not a name, so it is never offered as one. `shownPreset` is the pinned
+                  preset `resolveRoute` routes by, so the capability line and this note name the same table the wire reads. */}
               <datalist id="provider-models">
-                {[...new Set([...(models?.list.map((model) => model.id) ?? []), ...preset.models.filter((row) => !row.pattern.includes('*')).map((row) => row.pattern)])]
+                {[...new Set([...(models?.list.map((model) => model.id) ?? []), ...(shownPreset?.models ?? []).filter((row) => !row.pattern.includes('*')).map((row) => row.pattern)])]
                   .slice(0, 40)
                   .map((id) => (
                     <option key={id} value={id} />
                   ))}
               </datalist>
-              {capsLine(preset, form.model) !== '' ? <p className="field-help">{capsLine(preset, form.model)}</p> : null}
-              {preset.noModelsRoute === true ? (
+              {capsLine(shownPreset ?? preset, form.model) !== '' ? <p className="field-help">{capsLine(shownPreset ?? preset, form.model)}</p> : null}
+              {shownPreset?.noModelsRoute === true ? (
                 <p className="field-help">
                   <Trans>This provider documents no model list — its table below is the catalogue.</Trans>
                 </p>
@@ -875,17 +887,13 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         <section
           className="models"
           aria-label={
-            presetFor(models.preset)?.noModelsRoute === true
-              ? t`Models documented for ${{ profile: models.profile }}`
-              : t`Models listed by ${{ profile: models.profile }}`
+            modelsPreset?.noModelsRoute === true ? t`Models documented for ${{ profile: models.profile }}` : t`Models listed by ${{ profile: models.profile }}`
           }
         >
           <h4>
-            {presetFor(models.preset)?.noModelsRoute === true
-              ? t`Models documented for ${{ profile: models.profile }}`
-              : t`Models listed by ${{ profile: models.profile }}`}
+            {modelsPreset?.noModelsRoute === true ? t`Models documented for ${{ profile: models.profile }}` : t`Models listed by ${{ profile: models.profile }}`}
           </h4>
-          {presetFor(models.preset)?.noModelsRoute === true ? (
+          {modelsPreset?.noModelsRoute === true ? (
             <p className="muted">
               <Trans>This provider documents no model list — these are the models its table knows.</Trans>
             </p>

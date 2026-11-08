@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { PRESETS, presetFor, modelRowFor, resolveRoute } from '../src/index.js';
+import { PRESETS, presetFor, presetForProfile, modelRowFor, resolveRoute } from '../src/index.js';
 
 const EXPECTED_IDS = [
   'anthropic',
@@ -210,6 +210,38 @@ describe('resolveRoute pins first-party hosts to their native route (provider-ga
     expect(resolveRoute({ preset: 'generic', baseUrl: 'https://api.openai.com.evil.example/v1' }, 'gpt-6-sol').adapter).toBe('openai-chat');
     expect(resolveRoute({ preset: 'deepseek', baseUrl: 'https://api.deepseek.com' }, 'deepseek-chat').adapter).toBe('openai-chat');
     expect(resolveRoute({ preset: 'gone-provider', baseUrl: 'not a url' }, 'm').adapter).toBe('openai-chat');
+  });
+});
+
+describe('a profile’s leave-out list wins over its temperature flag (provider-gateway §2)', () => {
+  // The owner's precedence decision: `deny: ['temperature']` keeps the field denied even where `temperature: true`
+  // would lift the model row's denial, while the flag alone still overrides the row. Both rules stay stored.
+  const pinned = { preset: 'openai', baseUrl: 'https://api.openai.com/v1' };
+
+  it('keeps temperature denied when the same profile allows it and leaves it out', () => {
+    const caps = resolveRoute({ ...pinned, params: { temperature: true, deny: ['temperature'] } }, 'gpt-6.1-sol').caps;
+    expect(caps.denylist).toContain('temperature');
+  });
+
+  it('still lifts the row’s denial for the flag alone, and keeps the row’s other denials beside the profile’s', () => {
+    const caps = resolveRoute({ ...pinned, params: { temperature: true, deny: ['stop'] } }, 'gpt-6.1-sol').caps;
+    expect(caps.denylist).toEqual(['top_p', 'stop']);
+  });
+});
+
+describe('presetForProfile — the preset a profile’s calls, listings and limits speak (provider-gateway §2)', () => {
+  it('answers the host-pinned preset whatever the profile names', () => {
+    expect(presetForProfile({ preset: 'cohere', baseUrl: 'https://api.openai.com/v1' })?.id).toBe('openai');
+    expect(presetForProfile({ preset: 'generic', baseUrl: 'https://API.ANTHROPIC.COM/v1/' })?.id).toBe('anthropic');
+    expect(presetForProfile({ preset: 'gone-provider', baseUrl: 'https://api.openai.com' })?.id).toBe('openai');
+  });
+
+  it('keeps the declared preset on every other host, and answers undefined for one the registry does not know', () => {
+    expect(presetForProfile({ preset: 'deepseek', baseUrl: 'https://api.deepseek.com' })?.id).toBe('deepseek');
+    expect(presetForProfile({ preset: 'generic', baseUrl: 'https://proxy.example/openai/v1' })?.id).toBe('generic');
+    expect(presetForProfile({ preset: 'gone-provider', baseUrl: 'https://x.example/v1' })).toBeUndefined();
+    expect(presetForProfile({ baseUrl: 'https://x.example/v1' })).toBeUndefined();
+    expect(presetForProfile({ preset: 'gone-provider', baseUrl: 'not a url' })).toBeUndefined();
   });
 });
 
