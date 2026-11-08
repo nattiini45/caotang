@@ -31,6 +31,7 @@ import { allowsAutoWrites, askBackFor, explainDecision, withAskBack, withoutAuto
 import { diffFolder, renderOwned, type FileChange } from './diff.js';
 import { openFolder } from './folder.js';
 import { createNodeProviders, type ProviderConfig } from './providers.js';
+import { projectRules } from './rules.js';
 import { createEventQueue, type AgentRun } from './run.js';
 import { MCP_VOICE, type FolderVoice } from './voice.js';
 
@@ -116,12 +117,16 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
 
   try {
     const { state } = folder;
+    // The project's own rules (agent.rules) bind a headless run as they bind the agent in the app (agent-harness §4): a read-deny
+    // keeps its nodes out of every request, and a rules file that cannot be read refuses changes rather than allowing them.
+    const rules = await projectRules(folder.fs, state);
     const base = createProductHarness({
       state,
       registry: folder.registry,
       clock,
       ports: 'agent',
       externalWrites: allowsAutoWrites(policy),
+      rules,
       coherence: {
         // The review runs through the caller's model, read at each call.
         model: () => gatewayCoherenceModel(providers.gateway, providers.profile, {
@@ -174,7 +179,7 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
     const agent: AgentSession = createAgentSession({
       harness,
       gateway: providers.gateway,
-      context: createContextPort({ state, config: {} }),
+      context: createContextPort({ state, config: {}, withheld: (tool) => harness.withheld(tool) }),
       decide,
       emit: (event) => current?.emit(event),
       role: providers.role,
@@ -241,7 +246,12 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
           };
           current = turn;
           try {
-            const turnOptions = signal === undefined ? {} : { signal };
+            const turnOptions = {
+              ...(signal === undefined ? {} : { signal }),
+              // A plan of reads needs no approval, and a headless host has nobody to approve a card: it runs at once, as a planner's
+              // read-only reply does, and a read a rule refuses is refused as it runs with the plan's other reads still run.
+              ...(runOptions.plan === undefined ? {} : { readsWithoutCard: true }),
+            };
             const result = await (runOptions.plan === undefined ? agent.submit(intent, turnOptions) : agent.submitPlan(intent, runOptions.plan, turnOptions));
             if (turn.policyError !== undefined) throw turn.policyError;
             await saveIfWriting();

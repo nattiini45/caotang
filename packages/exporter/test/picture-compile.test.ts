@@ -263,8 +263,8 @@ describe('EPUB figures', () => {
     expect(opf).toMatch(new RegExp(`<item [^>]*href="images/${pngFile(ID_A)}"[^>]*media-type="image/png"`));
     expect(opf).toMatch(new RegExp(`<item [^>]*href="images/${jpgFile(ID_B)}"[^>]*media-type="image/jpeg"`));
     const xhtml = chapterXhtml(files);
-    expect(xhtml).toContain(`<figure><img src="../images/${pngFile(ID_A)}" alt="A lantern on the pier"/><figcaption>The lantern</figcaption></figure>`);
-    expect(xhtml).toContain(`<figure><img src="../images/${jpgFile(ID_B)}" alt="The ferry"/><figcaption>The ferry</figcaption></figure>`);
+    expect(xhtml).toContain(`<figure><img src="images/${pngFile(ID_A)}" alt="A lantern on the pier"/><figcaption>The lantern</figcaption></figure>`);
+    expect(xhtml).toContain(`<figure><img src="images/${jpgFile(ID_B)}" alt="The ferry"/><figcaption>The ferry</figcaption></figure>`);
     expect(out.notes.find((note) => note.startsWith('pictures: 2 pictures weigh '))).toBeDefined();
   });
 
@@ -294,7 +294,9 @@ describe('EPUB figures', () => {
     const out = await compile('epub', {}, { process: null });
     const files = unzipSync(out.bytes(out.outputs[0] ?? ''));
     expect(Object.keys(files).some((name) => name === `OEBPS/images/${pngFile(ID_A)}`)).toBe(false);
-    expect(chapterXhtml(files)).not.toContain(`../images/${pngFile(ID_A)}`);
+    expect(chapterXhtml(files)).not.toContain(`images/${pngFile(ID_A)}`);
+    expect(chapterXhtml(files)).toContain(`<img src="images/${jpgFile(ID_B)}"`);
+    expect(chapterXhtml(files)).toContain('<p>The lantern</p>');
     expect(out.notes.some((note) => note.includes(`This host cannot convert pictures, and ${pngFile(ID_A)} needs converting for this format.`))).toBe(true);
   });
 

@@ -33,6 +33,11 @@ const noServer = process.env['CAOTANG_E2E_NO_SERVER'] === '1';
 // Linux Chromium image, so they are left out of `pnpm test:e2e` and run in CI's own `visual` job (modern-interface.md §15.4).
 const visual = process.env['CAOTANG_VISUAL'] === '1';
 
+// CAOTANG_SMOKE=1 adds the `smoke` project: the real-key round (e2e/provider-smoke.spec.ts), which spends money at a real provider. Without it the
+// spec is in the default chromium project's testIgnore, so a plain `pnpm test:e2e` lists none of it, even with keys in the shell or in caotang.env
+// (the spec itself reads nothing without the gate). .github/workflows/provider-smoke.yml sets it for the one step that runs the spec.
+const smoke = process.env['CAOTANG_SMOKE'] === '1';
+
 // CAOTANG_E2E_MODERN_GATE=skip leaves out the Modern gate's two browser specs (the reachability walk and the accessibility gate, M12,
 // #313): CI runs them in jobs of their own (ci.yml's `e2e (chromium, Modern gate)`, e2e-browsers.yml's `Modern gate` legs), so the
 // main suite and its shards stay inside their time limits. Unset, every spec runs, as `pnpm test:e2e` always has.
@@ -46,7 +51,8 @@ const chromiumOnlySpecs = [/[\\/]e2e[\\/]visual[\\/]/, /[\\/]e2e[\\/]unit[\\/]/,
  * E2E wiring. Browsers are installed on demand with
  * `pnpm exec playwright install chromium` (add `firefox webkit` for those projects), once per machine, not every run.
  *
- * Up to six projects. `chromium` runs the suite against the dev server, less the production smoke and the narrow-layout spec. `firefox` and `webkit` run it too, minus the specs that are
+ * Up to seven projects. `chromium` runs the suite against the dev server, less the production smoke, the real-key round and the narrow-layout spec. `smoke` runs only
+ * e2e/provider-smoke.spec.ts, and exists only with CAOTANG_SMOKE=1. `firefox` and `webkit` run the suite too, minus the specs that are
  * browser-independent or need Chromium (e2e/unit, the production smoke, the provider specs), so a writer in those browsers meets the
  * bundle-only storage path tested (File System Access is Chromium-only). They exist only with CAOTANG_E2E_BROWSERS=all, which the
  * cross-browser workflow .github/workflows/e2e-browsers.yml sets for pull requests, nightly and on-demand runs. `production-preview` runs only
@@ -76,7 +82,8 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: [/prod-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/, /[\\/]e2e[\\/]visual[\\/]/, ...withoutModernGate],
+      // The real-key round is left out here as well as in the other browser projects: it runs only in `smoke`, which exists only with CAOTANG_SMOKE=1.
+      testIgnore: [/prod-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/, /provider-smoke\.spec\.ts/, /[\\/]e2e[\\/]visual[\\/]/, ...withoutModernGate],
       use: { ...devices['Desktop Chrome'] },
     },
     { name: 'mobile', testMatch: /mobile-shell\.spec\.ts/, use: { ...devices['Pixel 7'] } },
@@ -98,6 +105,8 @@ export default defineConfig({
       testMatch: /prod-smoke\.spec\.ts/,
       use: { ...devices['Desktop Chrome'], baseURL: `http://127.0.0.1:${previewPort}` },
     },
+    // The only project that runs the real-key round, and only when asked for. It starts no page and no server of its own beyond the shared ones.
+    ...(smoke ? [{ name: 'smoke', testMatch: /provider-smoke\.spec\.ts/, use: { ...devices['Desktop Chrome'] } }] : []),
   ],
   webServer: noServer ? [] : [
     {

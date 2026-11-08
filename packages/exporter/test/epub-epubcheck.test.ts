@@ -19,10 +19,21 @@ import { renderComicEpub, type ComicEpubInput } from '../src/render-comic-epub.j
 import { renderEpub, type EpubInput } from '../src/render-epub.js';
 import { JPEG, mangaPage, sixPanelPage } from './comic-pdf-fixture.js';
 import { IDS, makeProject, withSceneStyle } from './fixture.js';
-import { COVER_PNG, EPUB_IDENTIFIER, epubInput } from './epub-fixtures.js';
+import { COVER_PNG, EPUB_IDENTIFIER, epubInput, figureBody, figureProject, withFigures } from './epub-fixtures.js';
+import { ID_A, ID_B, ID_F, jpgFile, pngFile, solidJpeg, solidPng } from './figure-fixtures.js';
+import { makePartsProject } from './parts-fixture.js';
+import { webpFixture } from './webp-fixtures.js';
 
-/** The six fixtures epub-metadata.md names for the metadata floor, and the compiled book. */
-const CORPUS: readonly { readonly name: string; readonly build: () => Promise<Uint8Array> }[] = [
+/**
+ * The six fixtures epub-metadata.md names for the metadata floor, the picture cases, and the compiled book.
+ * A `contents` entry is the contents heading the book's project language must produce (i18n.md §7.1).
+ */
+const CORPUS: readonly {
+  readonly name: string;
+  readonly build: () => Promise<Uint8Array>;
+  readonly images?: number;
+  readonly contents?: string;
+}[] = [
   {
     name: 'fixture 1: zero-config minimal book (no cover, no ISBN)',
     build: () => bytesOf(epubInput({ author: '' })),
@@ -44,8 +55,85 @@ const CORPUS: readonly { readonly name: string; readonly build: () => Promise<Ui
     build: () => bytesOf(epubInput({ modified: '2026-10-09T18:00:00Z' })),
   },
   {
-    name: 'fixture 6: a language other than English',
+    name: 'fixture 6: a German project — the contents page reads Inhalt',
     build: () => bytesOf(epubInput({ language: 'de', author: 'M. Ortega' })),
+    contents: 'Inhalt',
+  },
+  {
+    name: 'fixture 7: a PNG figure',
+    build: async () => {
+      const file = pngFile(ID_A);
+      const input = await withFigures(epubInput({}, figureProject(figureBody(file, 'A lantern on the pier', 'The lantern'))), {
+        [`assets/${file}`]: solidPng(40, 20),
+      });
+      return renderEpub(input);
+    },
+    images: 1,
+  },
+  {
+    name: 'fixture 8: a JPEG figure',
+    build: async () => {
+      const file = jpgFile(ID_B);
+      const input = await withFigures(epubInput({}, figureProject(figureBody(file, 'The ferry', 'The ferry'))), {
+        [`assets/${file}`]: solidJpeg(30, 30),
+      });
+      return renderEpub(input);
+    },
+    images: 1,
+  },
+  {
+    name: 'fixture 9: a WebP converted to JPEG by default',
+    build: async () => {
+      const file = `${ID_F}.webp`;
+      const input = await withFigures(epubInput({}, figureProject(figureBody(file, 'A WebP', 'Kept or not'))), {
+        [`assets/${file}`]: webpFixture('lossy'),
+      });
+      return renderEpub(input);
+    },
+    images: 1,
+  },
+  {
+    name: 'fixture 10: a WebP kept with the keep-WebP option',
+    build: async () => {
+      const file = `${ID_F}.webp`;
+      const input = await withFigures(
+        epubInput({}, figureProject(figureBody(file, 'A WebP', 'Kept or not'))),
+        { [`assets/${file}`]: webpFixture('lossy') },
+        { keepWebp: true },
+      );
+      return renderEpub(input);
+    },
+    images: 1,
+  },
+  {
+    name: 'fixture 11: a book organised in part folders, with a figure',
+    build: async () => {
+      const file = pngFile(ID_A);
+      const state = makePartsProject();
+      const arrival = state.manifest.tree.find((node) => node.type === 'document' && node.title === 'Arrival');
+      const document = arrival === undefined ? undefined : state.documents.get(arrival.id);
+      if (document === undefined) throw new Error('the parts fixture has no Arrival scene');
+      document.body = figureBody(file, 'A lantern on the pier', 'The lantern');
+      const input = await withFigures(epubInput({}, state), { [`assets/${file}`]: solidPng(40, 20) });
+      return renderEpub(input);
+    },
+    images: 1,
+  },
+  {
+    name: 'fixture 12: a cover and figures together',
+    build: async () => {
+      const file = pngFile(ID_A);
+      const input = await withFigures(epubInput({ cover: COVER_PNG }, figureProject(figureBody(file, 'A lantern on the pier', 'The lantern'))), {
+        [`assets/${file}`]: solidPng(40, 20),
+      });
+      return renderEpub(input);
+    },
+    images: 1,
+  },
+  {
+    name: 'fixture 13: a Japanese project — the contents page reads 目次',
+    build: () => bytesOf(epubInput({ language: 'ja', author: 'M. Ortega' })),
+    contents: '目次',
   },
 ];
 
@@ -92,6 +180,38 @@ describe('the epubcheck gate — EPUB 3.3, zero errors on the corpus', () => {
       const chapters = names.filter((name) => /OEBPS\/chapter-\d+\.xhtml$/.test(name));
       expect(chapters.length, book.name).toBeGreaterThan(0);
       expect(strFromU8(files['mimetype'] ?? new Uint8Array()), book.name).toBe('application/epub+zip');
+    }
+  });
+
+  it('writes the project language’s contents heading in every corpus book that has one (de Inhalt, ja 目次)', async () => {
+    const localised = CORPUS.filter((book) => book.contents !== undefined);
+    expect(localised.map((book) => book.contents)).toEqual(['Inhalt', '目次']);
+    for (const book of localised) {
+      const files = unzipSync(await book.build());
+      const nav = strFromU8(files['OEBPS/nav.xhtml'] ?? new Uint8Array());
+      expect(nav, book.name).toContain(`<h1>${book.contents ?? ''}</h1>`);
+      expect(nav, book.name).not.toContain('<h1>Contents</h1>');
+    }
+  });
+
+  it('resolves every img src to a manifest item and a file in the book, from the chapter that holds it', async () => {
+    for (const book of CORPUS) {
+      const files = unzipSync(await book.build());
+      const opf = strFromU8(files['OEBPS/content.opf'] ?? new Uint8Array());
+      const manifest = new Set([...opf.matchAll(/<item [^>]*href="([^"]+)"/g)].map((match) => match[1] ?? ''));
+      const chapters = Object.keys(files).filter((name) => /^OEBPS\/chapter-\d+\.xhtml$/.test(name));
+      const sources: string[] = [];
+      for (const chapter of chapters) {
+        const xhtml = strFromU8(files[chapter] ?? new Uint8Array());
+        for (const match of xhtml.matchAll(/<img src="([^"]+)"/g)) {
+          const src = match[1] ?? '';
+          const resolved = new URL(src, `https://book.invalid/${chapter}`).pathname.replace(/^\//, '');
+          expect(manifest, `${book.name}: ${chapter} has ${src}`).toContain(resolved.replace(/^OEBPS\//, ''));
+          expect(Object.keys(files), `${book.name}: ${chapter} has ${src}`).toContain(resolved);
+          sources.push(src);
+        }
+      }
+      expect(sources.length, `${book.name}'s figure count`).toBe(book.images ?? 0);
     }
   });
 

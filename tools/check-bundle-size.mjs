@@ -156,12 +156,18 @@ export const BUDGET = {
   // With #364 merged on #363: 7,755,060 bytes measured.
   // #361 (the write surfaces) merged on #363 and #364: 7,756,925 bytes measured; the ceiling stays 7,760,000.
   // #360 (the sidebar) merged on #363, #364, #361 and the rest of wave 2: 7,756,908 bytes measured; the ceiling stays 7,760,000.
+  // 7,761.9 kB measured with the EPUB landmarks navigation and the localised boilerplate (#200), against 7,757.7 kB before it: the
+  // 20-language table's landmark, begin-reading, cover and untitled words and its chapter pattern, plus `cover.xhtml`, in the
+  // lazily loaded exporter chunk. The first load did not move (1,027.0 kB gzip, as before). The ceiling rises once, by the measured
+  // amount rounded up to the thousand: 7,760,000 + 6,000.
   // Navigation (#474: the views bar, one + New menu, the sidebar's Binder/Findings/Agent tabs, the phone's Views sheet): 7,768,958
   // bytes measured (+11,218 on main's 7,757,740; +6,752 of it in `modern-shell`, +3,488 in the entry for new-menu.ts and the palette's
   // New group, +1,204 in the en and de catalogues). The ceiling is that plus about 1 kB, as earlier raises of this one took.
+  // 7,774,178 bytes measured on the merge of origin/main into mission/01-fixes-security (+5,220 on #474's 7,768,958: this
+  // branch's #200 exporter growth and the M01 rules/pack fixes, in lazy chunks). The ceiling is that plus about 1 kB.
   // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
   // 1,206,897). Caspar raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
-  // entry 1,250,000.
+  // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
   totalJs: 8_000_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`

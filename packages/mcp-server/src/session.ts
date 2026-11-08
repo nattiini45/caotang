@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 import type { CommandError } from '@caotang/bus';
 import type { ExportDispatch, ExporterService } from '@caotang/exporter';
 import { withheldState } from '@caotang/context';
-import { briefRefusal, createBriefLedger, createBriefPorts, createProductHarness, metadataFor, type Harness, type RulesProvider, type TimelineProposal, type ToolOutcome } from '@caotang/harness';
+import { briefRefusal, createBriefLedger, createBriefPorts, createProductHarness, metadataFor, type Harness, type TimelineProposal, type ToolOutcome } from '@caotang/harness';
 import {
   MCP_VOICE,
   isCodexFileName,
@@ -24,6 +24,7 @@ import {
   manifestTextAt,
   openFolder,
   pictureListOf,
+  projectRules,
   type FolderChangedError,
   type NodeArtifactFs,
   type TimelineApplied,
@@ -37,7 +38,6 @@ import {
   createProjectState,
   DOCS_DIR,
   MANIFEST_FILE,
-  parseRules,
   writeProject,
   type LoadNotice,
   type ProjectState,
@@ -254,30 +254,6 @@ async function projectFileWithoutManifest(fs: NodeArtifactFs): Promise<string | 
   return copy === undefined ? undefined : `the manifest copy ${copy}`;
 }
 
-/**
- * The folder's agent rules as the harness reads them (agent-harness §4, Rules): the manifest's `agent.rules`, as the load kept them.
- * The server cannot show the writer a warning, so a rule the load had to drop is a restriction nobody will hear was lost: the rules are
- * then unreadable, and every call that changes the project is refused until the file is put right and the server restarted. The same
- * holds when the manifest cannot be read again here. A rule that was fine is held either way.
- */
-async function rulesOf(fs: NodeArtifactFs, state: ProjectState): Promise<RulesProvider> {
-  let unreadable = false;
-  try {
-    const raw: unknown = JSON.parse(await fs.read(MANIFEST_FILE));
-    const agent = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>)['agent'] : undefined;
-    if (agent !== undefined) {
-      if (typeof agent !== 'object' || agent === null || Array.isArray(agent)) unreadable = true;
-      else unreadable = parseRules((agent as Record<string, unknown>)['rules']).lost > 0;
-    }
-  } catch {
-    unreadable = true;
-  }
-  return () => ({
-    rules: (state.manifest.agent?.rules ?? []).map((rule) => ({ ...rule, source: 'project' as const })),
-    ...(unreadable ? { unreadable: true } : {}),
-  });
-}
-
 export async function openProject(options: OpenProjectOptions): Promise<ProjectSession> {
   const now = options.now ?? (() => new Date());
   const { create } = options;
@@ -318,7 +294,9 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       externalWrites: options.allowWrites,
       ports: 'external',
       // The project's own rules (agent.rules) bind a host that connects here as they bind the agent in the app (agent-harness §4).
-      rules: await rulesOf(fs, state),
+      // The loader is the SDK's, so the server cannot disagree with `caotang agent` about a rule it cannot read: a rule the load dropped
+      // leaves them unreadable here too, since a warning about it has nowhere to go in this server.
+      rules: await projectRules(fs, state),
     });
     const window = sourceWindow(harness.log);
     const changes = createChangeFeed();

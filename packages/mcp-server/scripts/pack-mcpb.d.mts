@@ -14,13 +14,18 @@ export const WRITE_SETTING: string;
 export const WRITE_VARIABLE: string;
 
 /** Every problem with a manifest for the bundle; an empty list means it is valid. */
-export function manifestProblems(manifest: unknown, bundle: { readonly version: string; readonly files: readonly string[] }): string[];
+export function manifestProblems(
+  manifest: unknown,
+  bundle: { readonly version: string; readonly files: readonly string[]; readonly nodeRange?: string },
+): string[];
 
 export interface StageInput {
   readonly outDir: string;
   readonly serverBundle: string;
   readonly manifestPath: string;
   readonly version: string;
+  /** The Node range the repository supports, which `compatibility.runtimes.node` must equal when given. */
+  readonly nodeRange?: string;
   readonly notices: string;
   readonly license: string;
   /** Font files to stage in BUNDLE_FONTS, each under its own name: the PDF fallback fonts. */

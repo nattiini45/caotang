@@ -20,6 +20,7 @@ Thumbs.db
 
 # local tool state
 .claude/
+.qoder/
 
 # Local working projects (migrations, personal manuscripts) — never committed
 .local/

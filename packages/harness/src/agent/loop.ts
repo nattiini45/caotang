@@ -400,7 +400,9 @@ export interface TurnOptions {
   readonly forcePlan?: boolean;
   /**
    * For `submitPlan`: a plan whose steps are all reads runs at once with no card, as a planner's read-only steps do (a macro of reads,
-   * extensibility §10). Absent, `submitPlan` shows the card it always showed. A rule that asks about a read still asks.
+   * extensibility §10). Absent, `submitPlan` shows the card it always showed. A rule that asks about a read still asks, and a read a
+   * deny covers is refused as it runs, with the plan's other reads still run. The SDK's plans set it: a headless host has no one to
+   * approve a card, and a read needs no approval.
    */
   readonly readsWithoutCard?: boolean;
   /**
@@ -1853,7 +1855,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * Drafts what a turn's model-backed steps need. Each generation is a model call. A refusal (no such
    * document, an empty draft, a call the turn cannot afford) is returned to the model, and nothing is written.
    */
-  async function stage(turn: Turn, steps: readonly PlanStep[]): Promise<Staged> {
+  async function stage(turn: Turn, steps: readonly PlanStep[], options: { readonly readsRun?: boolean } = {}): Promise<Staged> {
     const proposals: unknown[] = steps.map(() => undefined);
     const refusals: { index: number; tool: string; message: string }[] = [];
     const writes = steps.some((step) => riskOf(step.tool) !== 'read');
@@ -1893,9 +1895,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         continue;
       }
       // A step a deny rule covers is refused here too, before any draft is made, so no model call is spent on it. The harness refuses it
-      // again when it runs: this is the card the writer sees, and that is the backstop.
+      // again when it runs: this is the card the writer sees, and that is the backstop. A plan the read path runs (every headless plan,
+      // and a macro's) is the exception: a read has no draft to spend, so the read path refuses it as it runs with the same words, and
+      // the plan's other reads still run, as they do on the planner's own read-only reply.
       const denied = ruleOf(step).denied;
       if (denied !== undefined) {
+        if (options.readsRun === true && riskOf(step.tool) === 'read') continue;
         const message = refusalSentence(denied.message, denied.correctiveHint);
         refusals.push({ index, tool: step.tool, message });
         refusedBeforeCard(turn, step, message);
@@ -3598,12 +3603,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** A turn whose plan the app built (`submitPlan`): its drafts are staged and its cards decided, with no planner call. */
   async function givenPlanTurn(turn: Turn, plan: Plan): Promise<Settled> {
-    const staged = await stage(turn, plan.steps);
+    const readsOnly = plan.steps.every((step) => riskOf(step.tool) === 'read');
+    const readsRun = turn.readsWithoutCard === true && readsOnly;
+    const staged = await stage(turn, plan.steps, readsRun ? { readsRun } : {});
     if (staged.refusals.length > 0) {
       const named = staged.refusals.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join(' ');
       return { status: 'failed', askBack: askBackFor(refusal('invalid-params', named, { correctiveHint: 'change the step before its draft can be made' })) };
     }
-    if (turn.readsWithoutCard && plan.steps.every((step) => riskOf(step.tool) === 'read')) {
+    if (readsRun) {
       const ended = await runReads(turn, plan.steps, staged.proposals);
       if (ended !== undefined) return ended;
       return { status: 'replied', text: turn.steps.map((step) => step.summary ?? step.tool).join('; ') };

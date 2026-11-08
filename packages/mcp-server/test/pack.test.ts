@@ -31,7 +31,9 @@ import { removeDir, tempDir } from './support.js';
 const PACKAGE_DIR = resolve(__dirname, '..');
 const REPO_ROOT = resolve(PACKAGE_DIR, '..', '..');
 const MANIFEST_PATH = join(PACKAGE_DIR, 'manifest.json');
-const BUNDLE = { version: '0.1.0', files: [BUNDLE_ENTRY, 'manifest.json'] };
+/** The Node range the repository supports, which the manifest must declare to a host. */
+const ROOT_NODE_RANGE = (JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as { engines: { node: string } }).engines.node;
+const BUNDLE = { version: '0.1.0', files: [BUNDLE_ENTRY, 'manifest.json'], nodeRange: ROOT_NODE_RANGE };
 
 type Json = Record<string, unknown>;
 
@@ -71,6 +73,11 @@ describe('the bundle manifest', () => {
   it('declares the package version, as the server advertises it', () => {
     const pkg = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8')) as { version: string };
     expect(realManifest()['version']).toBe(pkg.version);
+  });
+
+  it('declares the Node runtime a host needs, in the range the repository supports', () => {
+    const compatibility = realManifest()['compatibility'] as Json;
+    expect(compatibility['runtimes']).toEqual({ node: ROOT_NODE_RANGE });
   });
 
   it('turns writes on from the user’s setting, never on the command line', () => {
@@ -137,6 +144,20 @@ describe('the bundle manifest', () => {
       },
       'must not be required',
     ],
+    [
+      'no Node runtime',
+      (m) => {
+        delete m['compatibility'];
+      },
+      'compatibility.runtimes.node',
+    ],
+    [
+      'a Node runtime the repository does not support',
+      (m) => {
+        ((m['compatibility'] as Json)['runtimes'] as Json)['node'] = '>=99';
+      },
+      'compatibility.runtimes.node',
+    ],
   ])('refuses a manifest with %s', (_label, change, message) => {
     const problems = manifestProblems(edited(change), BUNDLE);
     expect(problems.join('\n')).toContain(message);
@@ -176,6 +197,27 @@ describe('staging and packing', () => {
           license: join(REPO_ROOT, 'LICENSE'),
         }),
       ).toThrow('author.name is required');
+      expect(existsSync(join(outDir, 'mcpb'))).toBe(false);
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('stages nothing for a manifest that does not declare its Node runtime', () => {
+    const outDir = tempDir('pack-no-runtime');
+    try {
+      const badManifest = join(outDir, 'manifest.json');
+      writeFileSync(badManifest, JSON.stringify(edited((m) => void delete m['compatibility'])));
+      expect(() =>
+        stageBundle({
+          outDir,
+          serverBundle: MANIFEST_PATH,
+          manifestPath: badManifest,
+          version: '0.1.0',
+          notices: '# notices\n',
+          license: join(REPO_ROOT, 'LICENSE'),
+        }),
+      ).toThrow('compatibility.runtimes.node');
       expect(existsSync(join(outDir, 'mcpb'))).toBe(false);
     } finally {
       removeDir(outDir);

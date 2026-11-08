@@ -55,7 +55,7 @@
  */
 
 import type * as Docx from 'docx';
-import { chapterHeadings, contentsEntries, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
+import { boilerplateOf, chapterHeadings, contentsEntries, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, plainRuns, type ProseBlock, type Run } from './prose.js';
 import type { FigurePack, ResolvedFigure } from './figures.js';
 import { DOCX_TEXT_WIDTH_TWIPS } from './picture-profile.js';
@@ -98,6 +98,7 @@ type Block = Docx.Paragraph | Docx.TableOfContents;
 export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
   const docx: DocxModule = await import('docx');
   const children: Block[] = [];
+  const words = boilerplateOf(input);
 
   if (hasTitlePage(input)) {
     children.push(new docx.Paragraph({ style: 'Title', children: [new docx.TextRun(stripXmlIllegal(input.title))] }));
@@ -146,7 +147,7 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
         );
         break;
       case 'scene': {
-        const section = sectionTitle(block);
+        const section = sectionTitle(block, words.untitled);
         if (section !== undefined) {
           children.push(
             new docx.Paragraph({ heading: headingLevel(docx, depth + 1), children: [new docx.TextRun(stripXmlIllegal(section))] }),

@@ -37,7 +37,7 @@
  */
 
 import type { ZipOptions } from 'fflate/browser';
-import { contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
+import { boilerplateOf, contentsHeading, hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, type ProseBlock, type Run } from './prose.js';
 import type { FlatBlock } from './types.js';
 import type { FigurePack, ResolvedFigure } from './figures.js';
@@ -86,6 +86,7 @@ interface Section {
 }
 
 const TITLE_PAGE_FILE = 'titlepage.xhtml';
+const COVER_PAGE_FILE = 'cover.xhtml';
 const NAV_FILE = 'nav.xhtml';
 const NCX_FILE = 'toc.ncx';
 const OPF_PATH = 'OEBPS/content.opf';
@@ -111,6 +112,7 @@ export async function renderEpub(input: EpubInput): Promise<Uint8Array> {
   // An image is already compressed, so it is stored rather than deflated: the archive is no smaller for the effort.
   if (input.cover !== undefined) {
     files[coverPath(input.cover)] = [input.cover.bytes, { level: 0, mtime }];
+    files[`OEBPS/${COVER_PAGE_FILE}`] = [strToU8(coverPageXhtml(input)), { level: 9, mtime }];
   }
   // The figures' payloads ride at OEBPS/images/ (pictures.md §4: `OEBPS/images/<file>` manifest items).
   for (const image of input.figures?.images ?? []) {
@@ -133,24 +135,26 @@ function buildSections(input: RenderInput): Section[] {
   type Draft = { heading: string; headedBy?: string; level: number; part: boolean; blocks: FlatBlock[] };
   const sections: Draft[] = [];
   const headings = headingsByBlock(input);
+  const words = boilerplateOf(input);
+  const headingOf = (title: string): string => (title.trim() === '' ? words.untitled : title);
   let current: Draft | undefined;
   for (const [index, block] of input.blocks.entries()) {
     if (block.kind === 'frontmatter') continue;
     if (block.kind === 'chapter') {
-      current = { heading: headings.get(index)?.label ?? block.title, level: block.level, part: block.part === true, blocks: [] };
+      current = { heading: headings.get(index)?.label ?? headingOf(block.title), level: block.level, part: block.part === true, blocks: [] };
       sections.push(current);
       continue;
     }
     if (current === undefined) {
       current =
         block.kind === 'scene'
-          ? { heading: block.title, headedBy: block.docId, level: 1, part: false, blocks: [] }
-          : { heading: input.title, level: 1, part: false, blocks: [] };
+          ? { heading: headingOf(block.title), headedBy: block.docId, level: 1, part: false, blocks: [] }
+          : { heading: headingOf(input.title), level: 1, part: false, blocks: [] };
       sections.push(current);
     }
     current.blocks.push(block);
   }
-  if (sections.length === 0) sections.push({ heading: input.title, level: 1, part: false, blocks: [] });
+  if (sections.length === 0) sections.push({ heading: headingOf(input.title), level: 1, part: false, blocks: [] });
 
   return sections.map((section, index) => ({
     file: `chapter-${String(index + 1).padStart(3, '0')}.xhtml`,
@@ -208,7 +212,12 @@ function containerXml(): string {
 
 /** The file a cover is written to: `cover.<ext>` at the top of the content folder, the name the manifest item points at. */
 function coverPath(cover: EpubCover): string {
-  return `OEBPS/cover.${cover.extension}`;
+  return `OEBPS/${coverHref(cover)}`;
+}
+
+/** The cover's href from the navigation document, which sits beside it at the top of the content folder. */
+function coverHref(cover: EpubCover): string {
+  return `cover.${cover.extension}`;
 }
 
 function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: boolean): string {
@@ -221,12 +230,14 @@ function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: b
     manifest.push(
       `    <item id="cover-image" href="cover.${escapeXml(input.cover.extension)}" media-type="${escapeXml(input.cover.mime)}" properties="cover-image"/>`,
     );
+    manifest.push(`    <item id="cover-page" href="${COVER_PAGE_FILE}" media-type="application/xhtml+xml"/>`);
   }
   // Every embedded figure is a manifest item (pictures.md §4). The id is positional, so a file name never has to be a valid XML id.
   (input.figures?.images ?? []).forEach((image, index) => {
     manifest.push(`    <item id="image-${index + 1}" href="images/${escapeXml(image.name)}" media-type="${escapeXml(image.mime)}"/>`);
   });
   const spine: string[] = [];
+  if (input.cover !== undefined) spine.push('    <itemref idref="cover-page"/>');
   if (titlePage) {
     manifest.push(`    <item id="titlepage" href="${TITLE_PAGE_FILE}" media-type="application/xhtml+xml"/>`);
     spine.push('    <itemref idref="titlepage"/>');
@@ -235,6 +246,9 @@ function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: b
     manifest.push(`    <item id="${section.id}" href="${section.file}" media-type="application/xhtml+xml"/>`);
     spine.push(`    <itemref idref="${section.id}"/>`);
   }
+  // The navigation document is an auxiliary spine item, so the `toc` landmark may point at it (EPUBCheck RSC-011 requires a
+  // hyperlink's target to be in the spine). `linear="no"` keeps it out of the reading order a reader pages through.
+  spine.push('    <itemref idref="nav" linear="no"/>');
 
   const creator = input.author === '' ? [] : [`    <dc:creator id="creator">${escapeXml(input.author)}</dc:creator>`];
   // The ISBN is a second identifier, refined with its ONIX scheme (epub-metadata.md). The unique identifier stays the uuid.
@@ -283,6 +297,25 @@ function navXhtml(input: EpubInput, sections: readonly Section[]): string {
     });
   // The contents heading this recipe writes, over the project language's word (i18n.md §7.1).
   const heading = contentsHeading(input);
+  const first = sections[0];
+  if (first === undefined) throw new Error('an EPUB navigation was built with no sections');
+  const begin = sections.find((section) => section.blocks.some((block) => block.kind === 'scene')) ?? first;
+  // The hidden landmarks nav (EPUB 3, #200): the contents, where the text begins (the first section that holds a scene, so an
+  // empty part divider is passed over), and the cover when the book has one. Every target is a manifest item, so a reading
+  // system can offer the book's way around without counting on the contents nav alone.
+  const words = boilerplateOf(input);
+  const landmarks: string[] = [
+    '<nav epub:type="landmarks" id="landmarks" hidden="">',
+    `  <h2>${escapeXml(words.landmarks)}</h2>`,
+    '  <ol>',
+    ...(input.cover === undefined
+      ? []
+      : [`    <li><a epub:type="cover" href="${COVER_PAGE_FILE}">${escapeXml(words.cover)}</a></li>`]),
+    `    <li><a epub:type="toc" href="${NAV_FILE}#toc">${escapeXml(heading)}</a></li>`,
+    `    <li><a epub:type="bodymatter" href="${escapeXml(begin.file)}">${escapeXml(words.beginReading)}</a></li>`,
+    '  </ol>',
+    '</nav>',
+  ];
   return xhtmlPage(input, heading, [
     '<nav epub:type="toc" id="toc">',
     `  <h1>${escapeXml(heading)}</h1>`,
@@ -290,6 +323,7 @@ function navXhtml(input: EpubInput, sections: readonly Section[]): string {
     ...items(navTree(sections), '    '),
     '  </ol>',
     '</nav>',
+    ...landmarks,
   ]);
 }
 
@@ -325,6 +359,22 @@ function ncx(input: EpubInput, sections: readonly Section[]): string {
 
 // -- content --------------------------------------------------------------------
 
+/**
+ * The cover page (exporter.md §3a): a content document of its own showing the cover image. The `cover` landmark has to point at a
+ * content document rather than the image itself (EPUBCheck RSC-010), and a reader opens the book on its cover.
+ */
+function coverPageXhtml(input: EpubInput): string {
+  const cover = input.cover;
+  if (cover === undefined) throw new Error('a cover page was asked for with no cover');
+  const words = boilerplateOf(input);
+  const title = input.title.trim() === '' ? words.cover : input.title;
+  return xhtmlPage(input, title, [
+    '<section class="cover" epub:type="cover">',
+    `  <img src="${escapeXml(coverHref(cover))}" alt="${escapeXml(title)}"/>`,
+    '</section>',
+  ]);
+}
+
 function titlePageXhtml(input: EpubInput): string {
   const lines = [`  <h1 class="title">${escapeXml(input.title)}</h1>`];
   if (input.author !== '') lines.push(`  <p class="author">${escapeXml(input.author)}</p>`);
@@ -334,10 +384,11 @@ function titlePageXhtml(input: EpubInput): string {
 
 function sectionXhtml(input: EpubInput, section: Section): string {
   const body: string[] = [`  <h1>${escapeXml(section.heading)}</h1>`];
+  const words = boilerplateOf(input);
   for (const block of section.blocks) {
     switch (block.kind) {
       case 'scene': {
-        const title = block.docId === section.headedBy ? undefined : sectionTitle(block);
+        const title = block.docId === section.headedBy ? undefined : sectionTitle(block, words.untitled);
         if (title !== undefined) body.push(`  <h2>${escapeXml(title)}</h2>`);
         for (const prose of parseProse(block.body)) body.push(...indent(proseXhtml(prose, input.template.separator.plain, input.figures)));
         break;
@@ -389,10 +440,10 @@ function proseXhtml(block: ProseBlock, separator: string, figures: FigurePack | 
 }
 
 /**
- * A figure as `<figure><img alt/><figcaption>` (pictures.md §4). The image sits at
- * `../images/<file>` from a chapter file; a decorative picture writes `alt=""`; a placement whose
- * file is missing, or whose payload the host could not prepare, degrades to its caption as a
- * paragraph — never a broken embed.
+ * A figure as `<figure><img alt/><figcaption>` (pictures.md §4). The image sits at `images/<file>` beside
+ * the chapter file, both under `OEBPS/`; a decorative picture writes `alt=""`; a placement whose file is
+ * missing, or whose payload the host could not prepare, degrades to its caption as a paragraph — never a
+ * broken embed.
  */
 function figureXhtml(block: Extract<ProseBlock, { kind: 'figure' }>, figures: FigurePack | undefined): string[] {
   const figure: ResolvedFigure | undefined = figures?.figures.get(block.image.url);
@@ -401,7 +452,7 @@ function figureXhtml(block: Extract<ProseBlock, { kind: 'figure' }>, figures: Fi
     return text === '' ? [] : [`<p>${escapeXml(text)}</p>`];
   }
   const alt = figure.decorative ? '' : figure.alt;
-  const img = `<img src="../images/${escapeXml(figure.image.name)}" alt="${escapeXml(alt)}"/>`;
+  const img = `<img src="images/${escapeXml(figure.image.name)}" alt="${escapeXml(alt)}"/>`;
   const caption = figure.caption === '' ? '' : `<figcaption>${escapeXml(figure.caption)}</figcaption>`;
   return [`<figure>${img}${caption}</figure>`];
 }

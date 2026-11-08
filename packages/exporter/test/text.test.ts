@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { boilerplateFor } from '../src/boilerplate.js';
 import { flatten } from '../src/flatten.js';
 import { renderMarkdown, renderText } from '../src/render-text.js';
 import type { RenderInput } from '../src/render-input.js';
@@ -145,6 +146,14 @@ describe('renderText', () => {
     const out = renderText(input({ toc: true }));
     expect(out).not.toMatch(/contents/i);
     expect(out).not.toContain('](');
+  });
+
+  it('writes the chapter word in the project language, and never the English one', () => {
+    const german = renderText(input({ boilerplate: boilerplateFor('de') }));
+    expect(german).toContain('KAPITEL 1. CHAPTER ONE');
+    expect(german).toContain('KAPITEL 2. CHAPTER TWO');
+    expect(german).not.toContain('CHAPTER 1.');
+    expect(renderText(input({ boilerplate: boilerplateFor('ja') }))).toContain('1章. CHAPTER ONE');
   });
 
   it('does not turn a leading # heading into a chapter line of its own', () => {

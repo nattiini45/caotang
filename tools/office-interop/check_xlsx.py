@@ -225,10 +225,14 @@ def check_csv(book: dict[str, Any], path: Path) -> None:
                 if got != "":
                     fail(name, "libreoffice-csv", f"{ref} should be empty, got {got[:80]!r}")
             elif want["t"] == "n":
+                # LibreOffice renders numbers in the host locale, so 2.5 may come back as 2,5 (de-DE).
                 try:
                     same = float(got) == want["v"]
                 except ValueError:
-                    same = False
+                    try:
+                        same = float(got.replace(",", ".")) == want["v"]
+                    except ValueError:
+                        same = False
                 if not same:
                     fail(name, "libreoffice-csv", f"{ref} should be the number {want['v']!r}, got {got[:80]!r}")
             elif not same_text(want["v"], got, loose=True):
