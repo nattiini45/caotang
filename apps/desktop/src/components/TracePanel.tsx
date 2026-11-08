@@ -315,7 +315,7 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
     <div className="trace" data-testid="trace-panel">
       <div className="trace-toolbar">
         <label className="check">
-          <input type="checkbox" className="k-switch" checked={kept} data-testid="trace-keep" onChange={(event) => void services.settings.update({ agent: { keepTraces: event.target.checked } })} />
+          <input type="checkbox" role="switch" className="k-switch" checked={kept} data-testid="trace-keep" onChange={(event) => void services.settings.update({ agent: { keepTraces: event.target.checked } })} />
           Keep agent traces for this tab
         </label>
         <div className="trace-actions">

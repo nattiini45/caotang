@@ -68,6 +68,8 @@ These are set by the kit, with light values and a dark override in both dark blo
 
 Focus is the two-tone ring (`--focus` outside, `--focus-halo` inside) on every kit control. Forced colours draws `ButtonText` edges, removes the images, and gives checks and radios their system look.
 
+The shared Activity, Trace and Script import switches use `input[type=checkbox][role=switch]` in both shells. Their visible labels supply their accessible names: **Show view changes**, **Keep agent traces for this tab**, and **Add line ids to the imported containers (one time)**. Space toggles their native checked state; the label and name stay the same when on or off. `e2e/modern-gate.spec.ts` and `e2e/agent-trace.spec.ts` hold the roles, names and keyboard operation in Classic and Modern.
+
 ## Menus
 
 `⋯` (`.modern-menu`, shell-modern.css) and the context menus (`.menu`, surfaces-modern.css) read one set of tokens, set on `:root[data-shell='modern']` in shell-modern.css. Don't restyle a menu locally; change the token.
@@ -97,6 +99,8 @@ These live in `styles.css`, because they were Classic bugs that Modern inherited
 ## Disclosures in shared panels (#360)
 
 `More` (`components/shared.tsx`) is the disclosure for help or advanced controls on a panel both interfaces render: `<details class="k-more">` with the kit's summary. Modern starts it closed. Classic renders it open with its summary hidden, and `styles.css` lays `.k-more` (and a `.k-more-body` wrapper inside it) out as `display: contents`, so Classic's panel is the one it had. The sidebar uses it for the binder's **Import…** menu and **Filters**, what the quick scan checks, and the trace's privacy note. A dialog an action inside it opens stays outside it, so a closed disclosure never hides a question.
+
+In Modern, one app-level dismissal hook closes open `details.k-more` disclosures (including the draft and review bars) and the Codex's `details.codex-filter` when a pointer is pressed outside them. A press inside keeps that disclosure open; the outside action still runs and takes focus normally. Escape closes the innermost focused disclosure, or the last open one, and returns focus to its summary before the sidebar or another containing surface can handle the key. A dialog or menu opened above a disclosure handles its own Escape first. Classic's permanently expanded `More` controls and ordinary content disclosures (arguments, logs and reading previews) are unchanged.
 
 ## For wave-2 work
 

@@ -27,6 +27,39 @@ export function useSession(session: ProjectSession): number {
   return useSyncExternalStore(session.subscribe, session.getVersion);
 }
 
+export function useDisclosureDismissal(): void {
+  useEffect(() => {
+    const opened = (): HTMLDetailsElement[] => currentInterface() === 'modern'
+      ? Array.from(document.querySelectorAll<HTMLDetailsElement>('details.k-more[open], details.codex-filter[open]'))
+        .filter((details) => details.closest('[inert]') === null && details.getClientRects().length > 0)
+      : [];
+    const onPointer = (event: PointerEvent): void => {
+      for (const details of opened()) {
+        if (!(event.target instanceof Node) || details.contains(event.target)) continue;
+        details.open = false;
+        if (details.contains(document.activeElement)) details.querySelector('summary')?.focus();
+      }
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.isComposing) return;
+      const surface = event.target instanceof Element ? event.target.closest('dialog[open], [role="dialog"], [role="menu"]') : null;
+      const disclosures = opened().filter((details) => surface === null || surface.contains(details));
+      const details = disclosures.findLast((item) => item.contains(event.target as Node)) ?? disclosures.at(-1);
+      if (details === undefined) return;
+      event.preventDefault();
+      event.stopPropagation();
+      details.open = false;
+      details.querySelector('summary')?.focus();
+    };
+    document.addEventListener('pointerdown', onPointer, true);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+  }, []);
+}
+
 /* ------------------------------------------------------------------ *
  * The status channel: one line the user can read, for the last thing
  * that went wrong or was worth saying.

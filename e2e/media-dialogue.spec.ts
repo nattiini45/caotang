@@ -79,7 +79,7 @@ test('a whole Ink story imports as one branching container per knot cluster, in 
 
 test('Import Ink leaves the Ink as written unless the one-time line-id box is ticked, and the box starts unticked', async ({ page }) => {
   await createProject(page, PROJECT);
-  const box = page.getByRole('checkbox', { name: 'Add line ids to the imported containers (one time)' });
+  const box = page.getByRole('switch', { name: 'Add line ids to the imported containers (one time)' });
   await expect(box).not.toBeChecked();
   await page.locator('input[type="file"][aria-label="Ink file"]').setInputFiles({ name: 'tavern.ink', mimeType: 'text/plain', buffer: Buffer.from(INK) });
 
@@ -91,7 +91,7 @@ test('Import Ink leaves the Ink as written unless the one-time line-id box is ti
 
 test('Import Ink with the line-id box ticked adds ids once, and names a line that cannot take one', async ({ page }) => {
   await createProject(page, PROJECT);
-  await page.getByRole('checkbox', { name: 'Add line ids to the imported containers (one time)' }).check();
+  await page.getByRole('switch', { name: 'Add line ids to the imported containers (one time)' }).check();
   const stuck = '=== start ===\nAlice: Hello.\n* [Yes] Oh yes. -> END\n';
   await page.locator('input[type="file"][aria-label="Ink file"]').setInputFiles({ name: 'gate.ink', mimeType: 'text/plain', buffer: Buffer.from(stuck) });
 

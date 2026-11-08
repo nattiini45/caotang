@@ -11,6 +11,9 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 
 ## Product and principles
 
+- Modern's secondary-action disclosures share one app-level outside-pointer and Escape dismissal hook; Escape restores the summary's focus before a containing sidebar handles it, while Classic's permanently expanded controls and content-reading disclosures stay open. Why: Import and More should not linger behind the writer's next action, without collapsing logs or hiding Classic's controls (#376). [delegated]
+- Activity, Trace and Script import use native checkboxes with `role="switch"` and their existing visible labels in both interfaces. Why: assistive technology should announce the same on/off controls sighted writers see, with unchanged keyboard behavior (#393). [delegated]
+
 - Caotang is a structure-first writing studio (binder → corkboard → editor → compile) with an AI agent that drives the app through its own commands, not a chat sidebar. Why: the agent is the product's difference; a passive assistant is not. [owner]
 - The product is a BYOK AI writing tool with a finite first release anchored on the Scrivener bar. Why: an external quality bar and no credential or server dependency. [owner]
 - Local-first: all state stays on the device; the manuscript leaves it only through the writer's own provider. Why: the writer owns the work. [owner]
