@@ -24,10 +24,10 @@ for (const kind of ['screenplay', 'dialogue'] as const) {
     if (await banner.isVisible()) await banner.getByRole('button', { name: 'Dismiss', exact: true }).click();
     await page.mouse.move(1300, 450);
     await page.evaluate(() => (globalThis as unknown as { document: { activeElement: { blur?: () => void } | null } }).document.activeElement?.blur?.());
-    await expect(page).toHaveScreenshot(`modern-document-${kind}.png`, { animations: 'disabled', caret: 'hide', mask: [page.locator('time'), page.getByTestId('save-state')], maxDiffPixels: 0 });
+    await expect(page).toHaveScreenshot(`modern-light-glass-document-${kind}.png`, { animations: 'disabled', caret: 'hide', mask: [page.locator('time'), page.getByTestId('save-state')], maxDiffPixels: 0 });
     if (kind === 'screenplay') {
       await page.setViewportSize({ width: 390, height: 844 });
-      await expect(page).toHaveScreenshot('modern-document-screenplay-narrow.png', { animations: 'disabled', caret: 'hide', mask: [page.locator('time'), page.getByTestId('save-state')], maxDiffPixels: 0 });
+      await expect(page).toHaveScreenshot('modern-light-glass-document-screenplay-narrow.png', { animations: 'disabled', caret: 'hide', mask: [page.locator('time'), page.getByTestId('save-state')], maxDiffPixels: 0 });
     }
   });
 }

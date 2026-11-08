@@ -289,7 +289,10 @@ describe('no source file is invisible to search', () => {
     const classic = ['light', 'dark'].flatMap((scheme) => VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/classic-${scheme}-${surface}.png`));
     const modern = ['light', 'dark'].flatMap((scheme) =>
       ['glass', 'solid'].flatMap((material) => MODERN_VISUAL_SURFACES.map((surface) => `e2e/visual/__snapshots__/modern-${scheme}-${material}-${surface}.png`)),
-    ).concat(['light', 'dark'].flatMap((scheme) => MODERN_GLASS_SURFACES.map((surface) => `e2e/visual/__snapshots__/modern-${scheme}-glass-${surface}.png`)));
+    ).concat(
+      ['light', 'dark'].flatMap((scheme) => MODERN_GLASS_SURFACES.map((surface) => `e2e/visual/__snapshots__/modern-${scheme}-glass-${surface}.png`)),
+      ['document-dialogue', 'document-screenplay', 'document-screenplay-narrow'].map((surface) => `e2e/visual/__snapshots__/modern-light-glass-${surface}.png`),
+    );
     const modernCommitted = baselines.some((rel) => rel.includes('/modern-'));
     const expected = [...classic, ...(modernCommitted ? modern : [])].sort();
     expect(baselines).toEqual(expected);
