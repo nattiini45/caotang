@@ -16,11 +16,11 @@ Caotang is a local-first writing studio. The manuscript lives in a project folde
 
 ## Positioning
 
-Bring your own provider key (BYOK), or use the built-in demo without one. There is no Caotang backend server, account, subscription, credit meter or telemetry. Caotang is static files; a writer using a paid model pays that provider directly. The project remains plain files, and agent changes go through the command bus so they are gated, logged and undoable within the checkpoint limits. Sources: [README.md](README.md), [AGENTS.md](AGENTS.md), [the project format](docs/architecture/project-format.md).
+Bring your own provider key (BYOK), or use the built-in demo without one. There is no Caotang backend server, account, subscription, credit meter or telemetry. Caotang is static files; a writer using a paid model pays that provider directly. Project documents and metadata remain plain text; pictures and covers remain local binary assets. Agent changes go through the command bus so they are gated, logged and undoable within the checkpoint limits. Sources: [README.md](README.md), [AGENTS.md](AGENTS.md), [the project format](docs/architecture/project-format.md).
 
 ## Operating Context
 
-Projects are local to the browser origin; there is no sync. A `.caotang` bundle moves a project between browsers or origins. Folder access needs a Chromium-based browser and a secure origin; other browsers use in-browser projects and bundles. The desktop layout starts at 960 CSS px. Narrow mode supports writing but directs desktop-only work, including the corkboard and richer compile formats, to a desktop. Emulated browser testing is not proof of real-phone support. See [README.md § Requirements and Self-hosting](README.md#requirements).
+Projects are local to the browser origin; there is no sync. A `.caotang` bundle moves a project between browsers or origins. Folder access needs a Chromium-based browser and a secure origin; other browsers use in-browser projects and bundles. The desktop layout starts at 960 CSS px. Narrow mode supports writing but directs desktop-only work, including the corkboard and richer compile formats, to a desktop. Emulated browser testing is not proof of real-phone support. See [README.md § Requirements](README.md#requirements) and [Self-hosting](README.md#self-hosting).
 
 For Impeccable, use **Operate** for the app: completing a writing task outranks expression. Use **Read** for documentation and the guide: understanding the workflow is the task. Use **Persuade** for [caotang.app](https://caotang.app/), the separate landing page that sells the app. The site stays static, with no JavaScript, motion or film, per [landing.md §D, decision D2](docs/architecture/landing.md#d-static-by-decision-d2). These surface modes do not authorize changing the app's visual language.
 
@@ -42,7 +42,7 @@ User-facing words are plain, whole sentences that name what the writer can do ne
 
 ## Product Principles
 
-1. Projects stay local and plain text; only configured provider and MCP requests leave the device.
+1. Projects stay local: documents and metadata are plain text, and pictures are binary assets. Only configured provider and MCP requests leave the device.
 2. Agent changes go through the command bus, with the writer's permissions and checkpoint limits intact.
 3. Specs and code agree; a new command, tool, project-format file or setting starts in its spec.
 4. Preserve the writer's existing interface and distinguish built features from future plans.
@@ -51,6 +51,6 @@ These are the standing rules in [AGENTS.md](AGENTS.md) and [modern-interface.md]
 
 ## Accessibility & Inclusion
 
-Modern's bar is keyboard reachability, visible two-tone focus, at least 44 × 44 CSS px controls (with the spec's inline-link exception), and at most ten default controls outside the page. Text contrast is computed over actual glass layers and wallpaper extremes: 4.5:1 for normal text, 3:1 for large text, and 3:1 for the focus ring. Axe alone cannot measure glass contrast. Reduced motion, reduced transparency, higher contrast and forced-colors have explicit alternatives. Classic keeps its own density and 24 px target token; do not mistake Modern's requirements for permission to restyle Classic. Sources of truth: [modern-interface.md §§5, 9, 15](docs/architecture/modern-interface.md), [Classic tokens](apps/desktop/src/tokens/classic.css).
+Modern's bar is keyboard reachability, visible two-tone focus, at least 44 × 44 CSS px controls (with the spec's inline-link exception), and at most ten default keyboard tab stops outside the page on Write, with nothing open and no notice (a radio group counts once). Text contrast is computed over actual glass layers and wallpaper extremes: 4.5:1 for normal text, 3:1 for large text, and 3:1 for the focus ring. Axe alone cannot measure glass contrast. Reduced motion, reduced transparency, higher contrast and forced-colors have explicit alternatives. Classic keeps its own density and 24 px target token; do not mistake Modern's requirements for permission to restyle Classic. Sources of truth: [modern-interface.md §§5, 9, 15](docs/architecture/modern-interface.md), [Classic tokens](apps/desktop/src/tokens/classic.css).
 
 Translations use complete messages, locale-aware formatting, logical layout properties and isolation for writer-supplied text. Keep interface direction separate from manuscript direction. See [i18n.md](docs/architecture/i18n.md).
