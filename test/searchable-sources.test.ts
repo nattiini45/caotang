@@ -195,11 +195,11 @@ const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly 
  * that the set is exactly the surfaces the specs take, so it cannot quietly cover anything else. Modern's are written by CI's visual
  * job the first time it runs them and committed after review, so the set holds either none of them or all of them.
  */
-const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-(glass|solid)-[a-z-]+)\.png$/;
+const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-(glass|solid)-[a-z-]+|(classic|modern)-picture-start-edge|modern-empty-comic-(en|de))\.png$/;
 const VISUAL_SURFACES = ['projects', 'workspace', 'corkboard', 'codex', 'findings', 'activity', 'settings-appearance', 'export', 'narrow'];
 const MODERN_VISUAL_SURFACES = ['page', 'companion-beside', 'companion-sheet', 'palette', 'palette-query', 'sidebar-open', 'sidebar-pinned', 'narrow'];
 /** Modern surfaces taken on glass only: #306's Board, Codex and ⋯ menu (modern.spec.ts), #311's dialogs (modern-dialogs.spec.ts), #312's narrow panels (modern-narrow.spec.ts). */
-const MODERN_GLASS_SURFACES = ['board', 'codex', 'more', 'projects', 'settings-appearance', 'export', 'confirm', 'narrow-drawer', 'narrow-scene-info', 'narrow-agent'];
+const MODERN_GLASS_SURFACES = ['board', 'codex', 'more', 'projects', 'settings-appearance', 'export', 'confirm', 'narrow-drawer', 'narrow-scene-info', 'narrow-agent', 'narrow-timeline'];
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** The same scan over the real tree, the named binary assets and the visual baselines left out. */
@@ -294,7 +294,9 @@ describe('no source file is invisible to search', () => {
       ['document-dialogue', 'document-screenplay', 'document-screenplay-narrow'].map((surface) => `e2e/visual/__snapshots__/modern-light-glass-${surface}.png`),
     );
     const modernCommitted = baselines.some((rel) => rel.includes('/modern-'));
-    const expected = [...classic, ...(modernCommitted ? modern : [])].sort();
+    const expected = [...classic, ...(modernCommitted ? modern : []), ...[
+      'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de',
+    ].map((name) => `e2e/visual/__snapshots__/${name}.png`)].sort();
     expect(baselines).toEqual(expected);
     for (const rel of baselines) expect([...readFileSync(join(repoRoot, rel)).subarray(0, 8)], rel).toEqual(PNG_SIGNATURE);
     // Nothing else in that folder: a file the pattern does not admit is scanned like any other.
