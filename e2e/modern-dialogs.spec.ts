@@ -513,6 +513,7 @@ test('a Choice dialog (the Final Draft import question) is glass, keeps the focu
   await expect(choice.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await expect(choice.getByRole('button', { name: 'Import' })).toHaveClass(/is-primary/);
   await expect(choice.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Import']);
+  await settle(page);
   const cancelBox = await choice.getByRole('button', { name: 'Cancel' }).boundingBox();
   const importBox = await choice.getByRole('button', { name: 'Import', exact: true }).boundingBox();
   expect(importBox?.x).toBeGreaterThan((cancelBox?.x ?? 0) + (cancelBox?.width ?? 0));

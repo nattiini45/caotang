@@ -86,7 +86,9 @@ test('an applied rewrite is marked word by word, the text is already saved, and 
   await expect(surface.locator('ins[style], del[style]')).toHaveCount(0);
 
   // Reject the first change from the keyboard-reachable bar: Next selects it, Reject puts its word back and saves that as an edit.
+  await surface.click();
   await surface.press('Control+Home');
+  await expect(bar).toContainText('Choose Next to go to the first change.');
   await bar.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(bar).toContainText('1 of 2');
   await bar.getByRole('button', { name: 'Reject', exact: true }).click();
