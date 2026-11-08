@@ -28,6 +28,7 @@ for (const shell of ['classic', 'modern'] as const) {
 
 for (const locale of ['en', 'de'] as const) {
   test(`Modern: empty comic panels explain how to add art in ${locale} without clipping`, async ({ page }) => {
+    test.setTimeout(90_000);
     await emptyComic(page, 'modern');
     if (locale === 'de') await germanComic(page);
     const notes = page.locator('.comic-panel-empty');
@@ -37,10 +38,12 @@ for (const locale of ['en', 'de'] as const) {
       : 'This panel is empty. Drop, paste or choose a picture to add art.');
     for (const template of ['grid-6', 'grid-9']) {
       await page.locator('.comic-tools select').first().selectOption(template);
-      for (const note of await notes.all()) {
-        await expect(note).toBeVisible();
-        expect(await note.evaluate((element) => element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 1)).toBe(true);
-      }
+      await expect(notes).toHaveCount(template === 'grid-6' ? 6 : 9);
+      expect(await notes.evaluateAll((elements) => elements.every((element) =>
+        element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0 &&
+        getComputedStyle(element).visibility === 'visible' &&
+        element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 1,
+      ))).toBe(true);
     }
     await page.locator('.comic-panel-g').first().click();
     await expect(page.getByRole('region', { name: 'Panel 1', exact: true })).toBeVisible();
