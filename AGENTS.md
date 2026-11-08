@@ -111,6 +111,8 @@ docs/decisions.md        standing decisions, one line each, with who decided
 
 ## Conventions
 
+For product context and the incumbent design language, read [PRODUCT.md](PRODUCT.md) and [DESIGN.md](DESIGN.md); the linked architecture specs remain the source of truth.
+
 These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`); they hold everywhere.
 
 - **The specs are the contract.** `docs/architecture/*.md` and the code agree. If the code does something the spec does not say, either the code is wrong or the spec is incomplete — fix one of them **in the same pull request**. Changing behaviour a spec describes means changing the spec deliberately in the same PR and adding a line to `docs/decisions.md`.

@@ -2,6 +2,8 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- Do not adopt Magic UI, React Bits, 21st.dev, Uiverse, bg.ibelick, LottieFiles or unDraw: their library/effect or stock-illustration approach conflicts with the plain-CSS Glass 2 system, token-only motion, strict presentation-asset CSP and static landing page, while copied components also add provenance and licence review costs (React Bits' Commons Clause and 21st.dev's per-component terms in particular). No Tailwind, motion/animation library, Lottie, stock illustrations or remote app presentation assets are introduced; brand logos need a review of the brand's usage terms first. Use the app's own inline-SVG icon set; individual Lucide paths may be adapted under ISC with the copyright and licence notice. PRODUCT.md and DESIGN.md map the existing product and design contracts; the linked architecture specs remain authoritative. Why: preserve the chosen system rather than import another one, spend runtime bytes only on writing tasks, and keep privacy and licensing promises intact. [owner 2026-11-08]
+
 - **[owner]** — decided by the project owner.
 - **[delegated]** — an engineering call made inside the owner's decisions; reversible when the evidence changes.
 - **(being built)** — decided, and the work is in progress; the current build does not do it yet.
