@@ -96,6 +96,8 @@ The deferred native tool rows are `comic.derive`, `comic.letter` and `comic.scri
 
 `apps/desktop/src/media/ComicPageView.tsx`: an SVG page with panel rectangles (drag and resize, snap to gutters), a picture per panel (drop or paste → `asset.import` + `comic.setPage`) and balloons (text, tail drag). Commands: `comic.createBook`, `comic.setPage {nodeId, stored, expect}` (the whole-value-with-`expect` pattern of `shot.setMeta`), `comic.setScript` (§2), and the script commands of §3.2; page create and reorder use the existing `binder.*` commands. The corkboard variant for a `kind: 'comic'` folder shows page thumbnails. Every command starts in command-bus §9 and its risk class and undo are §3.2's table.
 
+Empty panels in both interfaces say **This panel is empty. Drop, paste or choose a picture to add art.** The sentence is translated, German included, and wraps inside the panel rather than being hidden in Modern or running outside a narrow panel (#383).
+
 ### 3.4 Paper round trip
 
 The storyboard's `paperFrames` idea carries over: print blank panel layouts, draw, photograph, drop the photographs back; each lands by its file-name number (`0012.jpg` = page 12) via `asset.importBatch`, one undo step, never by reading the photograph.

@@ -34,6 +34,10 @@
   padding-inline: var(--space-5);
 }
 
+:root[data-shell='modern'] .modern-page .editor-toolbar > .button:first-child {
+  margin-inline-start: -16px;
+}
+
 :root[data-shell='modern'] .modern-page .editor-status .target-button {
   padding-inline: var(--space-4);
 }
@@ -545,8 +549,7 @@
 }
 
 /* ---- A comic page's header: the reading direction is said by its select, so not again as a badge; the tools keep their words on one
-   line; the help is the kit's quiet help at a reading width. An empty panel is its number on a tinted
-   panel: the sentence ran out of narrow panels. ---- */
+   line; the help is the kit's quiet help at a reading width. ---- */
 :root[data-shell='modern'] .comic-view .media-head > div > .badge:nth-child(2) {
   display: none;
 }
@@ -564,10 +567,6 @@
   max-inline-size: 46rem;
   color: var(--k-help-ink);
   font: 400 13px/1.45 var(--ui);
-}
-
-:root[data-shell='modern'] .comic-panel-note.is-empty {
-  display: none;
 }
 
 :root[data-shell='modern'] .comic-panel-placeholder {

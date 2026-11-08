@@ -81,7 +81,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
 // The narrow layout's three panels, on glass.
 for (const scheme of ['light', 'dark'] as const) {
-  for (const surface of ['narrow-drawer', 'narrow-scene-info', 'narrow-agent'] as const) {
+  for (const surface of ['narrow-drawer', 'narrow-scene-info', 'narrow-agent', 'narrow-timeline'] as const) {
     test(`Modern's ${surface.replace('narrow-', '').replace('-', ' ')} at 390 by 844, ${scheme}`, async ({ page }) => {
       test.setTimeout(90_000);
       await start(page, scheme, false);
@@ -98,6 +98,12 @@ for (const scheme of ['light', 'dark'] as const) {
         const pane = page.getByRole('complementary', { name: 'Agent' });
         await expect(pane).toBeVisible();
         await expect(pane.getByRole('heading', { name: 'Agent', exact: true })).toBeVisible();
+      }
+      if (surface === 'narrow-timeline') {
+        await page.getByTestId('modern-narrow-views').click();
+        await page.getByTestId('modern-views-timeline').click();
+        await expect(page.locator('#modern-page')).toHaveAttribute('data-view', 'timeline');
+        await expect(page.getByTestId('modern-lens')).toBeHidden();
       }
       await page.mouse.move(2, Math.round(PHONE.height / 2));
       await blur(page);

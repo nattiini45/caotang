@@ -241,6 +241,18 @@
     scroll-padding-block-end: var(--space-6);
   }
 
+  :root[data-shell='modern'] .modern-stage[data-visual-keyboard] {
+    --overlay-bottom: var(--n-bottom);
+  }
+
+  :root[data-shell='modern'] .modern-stage[data-visual-keyboard] > .modern-ornament.is-bottom {
+    display: none;
+  }
+
+  :root[data-shell='modern'] .modern-stage[data-visual-keyboard] > .modern-page-area {
+    inset-block-end: var(--n-bottom);
+  }
+
   /* Reduced motion (system or Settings): the drawer and the scrim appear and go at once (§5.5). */
   :root[data-shell='modern'][data-motion='reduced'] :is(.modern-drawer, .modern-drawer.is-open, .modern-narrow-scrim) {
     transition: none;

@@ -4,6 +4,12 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Fixed
+
+- **Picture and comic guidance (#383).** Insert picture lines up with the manuscript text in Classic and Modern, including in right-to-left layouts. Empty comic panels now explain how to add art in Modern too, with wrapping text and a German translation.
+
+- **Typing on an iPhone (#374).** Modern now hides its bottom tab bar when iOS Safari opens the on-screen keyboard without resizing the page layout. It returns when the keyboard closes or the field loses focus; pinch zoom and small browser-chrome changes do not hide it.
+
 ### Added
 
 - **Document modes beside the title (#476), and browser-safe navigation (#483).** Modern moves screenplay **Script · Source · Pages** into the top ornament and adds **Graph · Ink** for dialogue, with a document-type icon on the title capsule. Graph nodes open Ink at their line; both modes keep the same draft. Classic keeps its existing screenplay controls and split dialogue view. Search reaches every view and reopens the sidebar even on its current tab; **Agent › Sidebar** returns to the last Activity or Trace log. The English and German keyboard tables list the navigation paths and browser limitations instead of claiming numbered shortcuts that browsers, screenplay editing or macOS already use.
