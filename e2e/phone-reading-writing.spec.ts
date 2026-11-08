@@ -6,7 +6,12 @@ import { waitForSaved } from './support.js';
 test.use({ viewport: { width: 390, height: 844 }, storageState: NO_PIN });
 
 async function create(page: Page, shell: string, name = 'The Harbour'): Promise<void> {
-  await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
+  await page.addInitScript((value) => {
+    localStorage.setItem('caotang.interface', value);
+    const storage = Object.getPrototypeOf(navigator.storage) as Record<string, unknown>;
+    storage['persisted'] = async () => false;
+    storage['persist'] = async () => false;
+  }, shell);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await page.locator('.new-project input').fill(name);
@@ -14,7 +19,8 @@ async function create(page: Page, shell: string, name = 'The Harbour'): Promise<
   await expect(page.locator(shell === 'modern' ? '.modern-stage' : '.workspace')).toBeVisible();
   await waitForSaved(page);
   const banner = page.getByTestId('storage-banner');
-  if (await banner.isVisible()) await banner.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await expect(banner).toBeVisible();
+  await banner.getByRole('button').last().click();
 }
 
 for (const shell of ['classic', 'modern']) {
