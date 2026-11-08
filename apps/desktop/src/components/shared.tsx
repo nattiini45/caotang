@@ -409,8 +409,8 @@ export interface DialogChoice {
 }
 
 /**
- * A question with more than one way forward: the same native <dialog> as {@link ConfirmDialog}, with its answers in the order given
- * and Cancel last. Cancel takes the focus as the dialog opens, so Enter never writes over anything, and Escape cancels too.
+ * A question with more than one way forward: the same native <dialog> as {@link ConfirmDialog}, with Cancel first and its answers
+ * in the order given. Cancel takes the focus as the dialog opens, so Enter never writes over anything, and Escape cancels too.
  */
 export function ChoiceDialog({
   open,
@@ -453,6 +453,9 @@ export function ChoiceDialog({
         <h2>{title}</h2>
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
+          <button ref={cancel} type="button" className="button" autoFocus onClick={onCancel}>
+            <Trans>Cancel</Trans>
+          </button>
           {choices.map((choice, index) => (
             <button
               key={choice.label}
@@ -464,9 +467,6 @@ export function ChoiceDialog({
               {choice.label}
             </button>
           ))}
-          <button ref={cancel} type="button" className="button" autoFocus onClick={onCancel}>
-            <Trans>Cancel</Trans>
-          </button>
         </div>
       </form>
     </dialog>

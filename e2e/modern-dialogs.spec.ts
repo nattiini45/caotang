@@ -366,6 +366,7 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
   await expectModernDialog(page, confirm, 'dialog.confirm[open]');
   await expectMorphed(page);
   await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expect(confirm.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Delete']);
   await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
 
   const toast = page.getByTestId('modern-notices').getByRole('status').filter({ hasText: /Deleted/ });
@@ -474,6 +475,10 @@ test('a Choice dialog (the Final Draft import question) is glass, keeps the focu
   // Focus starts on Cancel in every engine (#347), so Enter never takes an answer; the first answer is the one filled primary (#362).
   await expect(choice.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await expect(choice.getByRole('button', { name: 'Import' })).toHaveClass(/is-primary/);
+  await expect(choice.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Import']);
+  const cancelBox = await choice.getByRole('button', { name: 'Cancel' }).boundingBox();
+  const importBox = await choice.getByRole('button', { name: 'Import', exact: true }).boundingBox();
+  expect(importBox?.x).toBeGreaterThan((cancelBox?.x ?? 0) + (cancelBox?.width ?? 0));
   await expectModernDialog(page, choice, 'dialog.confirm[open]');
   await page.keyboard.press('Escape');
   await expect(choice).toBeHidden();
@@ -523,6 +528,30 @@ test('Reduce transparency makes every dialog and menu an opaque sheet', async ({
   const look = await material(settings);
   expect(alphaOf(look.background)).toBe(1);
   expect(look.backdrop === '' || look.backdrop === 'none' || look.backdrop.includes('blur(0px)')).toBe(true);
+});
+
+test('Classic Confirm and Choice dialogs put Cancel first and keep the action on the trailing edge', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('caotang.interface', 'classic'));
+  await page.goto('/');
+  await page.getByLabel('Project name').fill('Classic Order');
+  await page.getByRole('button', { name: 'Create project' }).click();
+  const fdx = '<FinalDraft DocumentType="Script" Version="3"><Content><Paragraph Type="Scene Heading"><Text>INT. HARBOUR - NIGHT</Text></Paragraph></Content></FinalDraft>';
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({ name: 'harbour.fdx', mimeType: 'application/xml', buffer: Buffer.from(fdx) });
+  const choice = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
+  await expect(choice.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Import']);
+  await expect(choice.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expect(choice.getByRole('button', { name: 'Import', exact: true })).toHaveClass(/is-primary/);
+  const cancelBox = await choice.getByRole('button', { name: 'Cancel' }).boundingBox();
+  const importBox = await choice.getByRole('button', { name: 'Import', exact: true }).boundingBox();
+  expect(importBox?.x).toBeGreaterThan((cancelBox?.x ?? 0) + (cancelBox?.width ?? 0));
+  await page.keyboard.press('Tab');
+  await expect(choice.getByRole('button', { name: 'Import', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Projects', exact: true }).click();
+  await page.getByRole('button', { name: 'Remove Classic Order from this browser', exact: true }).click();
+  const confirm = page.locator('dialog.confirm[open]');
+  await expect(confirm.locator('.confirm-actions > button')).toHaveText(['Cancel', 'Remove']);
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
 });
 
 test('Classic dialogs keep Classic’s look: no glass, no morph', async ({ page }) => {

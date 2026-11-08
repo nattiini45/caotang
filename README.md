@@ -129,6 +129,8 @@ The scripted demo is [`e2e/demo.spec.ts`](e2e/demo.spec.ts). It builds a three-c
 
 In Modern, **Import…**, **Filters**, the Codex's **Filter** and **More** disclosures close on an outside click or Escape; Escape returns focus to their heading. Classic's always-visible controls stay visible.
 
+On phones, Home shows existing projects first and Settings' sections scroll sideways on one row, in either interface. Confirm and Choice dialogs consistently put Cancel before their actions.
+
 ## Your key and your privacy
 
 - **Bring your own key.** Add a provider in **Settings › Providers**: pick a preset (its address and authentication are filled in) or a generic endpoint of your own, choose a model, and paste the key. When you save, Caotang lists the provider's models to check it works.

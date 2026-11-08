@@ -282,6 +282,10 @@
     /* The larger side inset on both sides, as the narrow layout does, so a right-to-left Settings never swaps a notch's side. */
     padding-inline: max(env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
   }
+
+  :root[data-shell='modern'] dialog.settings .settings-nav-item.is-current {
+    border-radius: 999px;
+  }
 }
 
 /* ---- Settings forms (#362): a form's buttons hug their words at the start of the column, never a 520 px bar; a number field is
@@ -495,6 +499,14 @@
 @media (max-width: 599px) {
   :root[data-shell='modern'] .home {
     padding-inline: max(16px, env(safe-area-inset-left, 0px) + 16px, env(safe-area-inset-right, 0px) + 16px);
+  }
+
+  :root[data-shell='modern'] .home > .home-section:has(.project-list) {
+    margin-block-start: 0;
+  }
+
+  :root[data-shell='modern'] .home:has(.project-list) > .home-head {
+    margin-block-start: 20px;
   }
 
   :root[data-shell='modern'] .home > :is(.home-head, .home-section, .storage-banner, .status-line) {

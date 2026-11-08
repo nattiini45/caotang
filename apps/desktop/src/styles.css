@@ -2378,6 +2378,22 @@ dialog.confirm:has(.folder-file-preview) {
   max-width: none;
 }
 
+@media (max-width: 599px) {
+  .home {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .home > .home-section:has(.project-list) {
+    order: -1;
+    margin-block-start: 0;
+  }
+
+  .home:has(.project-list) > .home-head {
+    margin-block-start: 36px;
+  }
+}
+
 .loading {
   display: grid;
   place-items: center;
@@ -3920,9 +3936,22 @@ label.settings-check {
 
   dialog.settings .settings-nav {
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
     border-inline-end: none;
     border-bottom: 1px solid var(--line);
+  }
+
+  dialog.settings .settings-nav-item {
+    flex: 0 0 auto;
+    min-block-size: 44px;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
+
+  dialog.settings .settings-nav-item.is-current {
+    border-radius: 999px;
   }
 
   dialog.settings .settings-body {
