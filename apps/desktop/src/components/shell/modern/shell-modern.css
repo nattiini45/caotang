@@ -196,7 +196,6 @@
   :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top:has(.document-mode-outlet > *) {
     flex-wrap: wrap;
     block-size: auto;
-    inline-size: auto;
   }
 
   :root[data-shell='modern'] .modern-stage .document-mode-outlet .segmented {
@@ -556,7 +555,7 @@
 /* ---- Touch (#364): a coarse pointer gets 44 px targets at every width, as the narrow layout has below 960 px (styles.css), so a tablet
    in landscape on the wide layout is as easy to tap as a phone; and no keycaps. A sentence's own inline link keeps its line. ---- */
 @media (pointer: coarse) {
-  :root[data-shell='modern'] #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea, input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
+  :root[data-shell='modern'] #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea:where(:not(.src-input)), input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
     min-inline-size: var(--target-min);
     min-block-size: var(--target-min);
   }

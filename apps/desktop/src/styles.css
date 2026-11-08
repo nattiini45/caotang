@@ -2389,7 +2389,6 @@ dialog.confirm:has(.folder-file-preview) {
   }
 
   .home > :has(.project-list) {
-    order: -1;
     margin: 0;
   }
 
@@ -3879,7 +3878,7 @@ label.settings-check {
   }
 
   /* Touch targets: every control in the shell is at least 44 by 44 px (WCAG 2.5.5). A sentence's own inline link keeps its line. */
-  #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea, input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
+  #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea:where(:not(.src-input)), input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
     min-width: 44px;
     min-height: 44px;
   }

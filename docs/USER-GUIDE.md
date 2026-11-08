@@ -178,6 +178,8 @@ Select a scene in the binder to write in it.
 - When the agent drafts a scene, its words appear in the scene as they are written, and a draft preview bar offers **Apply**, **Retry** and **Discard**. See [The agent](#the-agent).
 - At 960 px and wider the layout is the desktop one: under 1100 px the toolbar wraps onto a second row, and the side panels narrow. Narrower windows get the phone layout, described in [Using Caotang on a phone or tablet](#using-caotang-on-a-phone-or-tablet).
 
+When no document is open, the phone editor directs you to open the binder and choose a document. On desktop it also gives the Open in editor keyboard shortcut. If the project has no chapter yet, choose **New chapter** first.
+
 ## Writing a screenplay
 
 Choose **New screenplay scene here** from a folder's menu. A screenplay scene is written in Fountain, a plain-text screenplay format. Its view has three tabs:
@@ -580,7 +582,9 @@ Modern shows the page and a few controls, and brings the rest in when you ask fo
 
 An open native filter picker keeps its first Escape; press Escape again after the picker closes to close **Filters**.
 
-On a phone, a nonempty **Projects in this browser** list appears first visually on Home, before the demo and new-project form. Screen-reader and keyboard order stay as before; that accessibility limit is tracked in #496. Settings' sections stay on one row: swipe or scroll sideways to reach the rest. These layouts work in both interfaces. Confirm and Choice questions both put **Cancel** first and the actions after it, with Cancel focused when the question opens.
+On a phone, a nonempty **Projects in this browser** list comes first on Home for reading and keyboard navigation too, before the introduction, demo and new-project form. Empty Home keeps the introduction first. Resizing keeps any unfinished project name or rename. Settings' sections stay on one row: swipe or scroll sideways to reach the rest. These layouts work in both interfaces. Confirm and Choice questions both put **Cancel** first and the actions after it, with Cancel focused when the question opens.
+
+Modern keeps **New** and **More** visible beside long project titles, and **Write** stays in the Tab order when another view is open. A screenplay's **Source** keeps a large writing area on touch screens in either interface. Home's **Got it** waits until its dismissal is saved before hiding the first-run card. If saving fails, the card shows the error and you can choose Got it again to retry.
 
 The title starts with the open document's type icon. A screenplay's **Script · Source · Pages** modes sit beside it; a dialogue has **Graph · Ink** there. Graph shows the branches, outline and findings; Ink gives the source editor the page's width. Choosing a graph node opens Ink at that line. Changing modes keeps your text. On a narrow screen screenplay modes take a second row below the title. Classic keeps screenplay modes in the page header and dialogue's graph and source side by side.
 
