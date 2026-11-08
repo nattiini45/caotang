@@ -58,6 +58,7 @@ import type {
   ProfileView,
   ProviderGateway,
   RoleResolver,
+  TaskRole,
   ThinkingLevel,
   Usage,
   UsageAttribution,
@@ -77,6 +78,8 @@ export interface Gateway extends ProviderGateway {
    * implicit thinking earns included — for a cost estimate and a run-limit reservation. Pass the request's
    * own `maxOutputTokens`/`reasoningBudget` in `request` when pricing or reserving a call that sets them,
    * so the excess is the one that call's transmitted cap carries (provider-gateway §3, "Effective output").
+   * A `request.role` with no `profileId` routes as `complete` routes it (§6): the limits are the role's
+   * profile's, and its model and thinking level fill the ones not named.
    */
   modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits;
   /**
@@ -215,6 +218,14 @@ export function createGateway(options: GatewayOptions): Gateway {
   const temperatureOf = (value: number | undefined): { temperature?: number } => (value === undefined ? {} : { temperature: value });
 
   /** The profile a request targets: the one named, else the active one. Never a silent fallback. */
+  /**
+   * §6's routing of one request: a request that names a role and no profile resolves through the injected router, and the
+   * answer's profile, model and thinking level stand in for the ones the request leaves unset. `complete` sends through it and
+   * `modelLimits` settles against it, so a role-routed call is reserved and priced on the route it is sent through.
+   */
+  const roleRoute = (role: TaskRole | undefined, profileId: string | undefined): ReturnType<RoleResolver['resolve']> =>
+    role === undefined || profileId !== undefined ? undefined : options.roles?.resolve(role);
+
   const targetOf = (profileId: string | undefined): ProfileView => {
     if (profileId !== undefined) {
       const found = profiles.get(profileId);
@@ -439,14 +450,11 @@ export function createGateway(options: GatewayOptions): Gateway {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
     // profile it sends through, and the model and thinking level become the defaults the request's own fields
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
-    let routed: { profileId: string; model?: string; thinking?: ThinkingLevel } | undefined;
-    if (req.role !== undefined && req.profileId === undefined && options.roles !== undefined) {
-      routed = options.roles.resolve(req.role);
-      // The role-referenced set is the egress allow-list for a routed request: a role may only ever send
-      // through a profile the resolver names for it. This refusal lands before any profile lookup or key reveal.
-      if (routed !== undefined && !options.roles.allowed(req.role).includes(routed.profileId)) {
-        throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
-      }
+    const routed = roleRoute(req.role, req.profileId);
+    // The role-referenced set is the egress allow-list for a routed request: a role may only ever send
+    // through a profile the resolver names for it. This refusal lands before any profile lookup or key reveal.
+    if (routed !== undefined && req.role !== undefined && options.roles?.allowed(req.role).includes(routed.profileId) !== true) {
+      throw new EgressDeniedError(`Refused a request under the "${req.role}" role: it resolved to a profile that role may not use.`);
     }
     const profile = targetOf(routed?.profileId ?? req.profileId);
     const model = req.model ?? routed?.model ?? profile.defaultModel;
@@ -576,10 +584,14 @@ export function createGateway(options: GatewayOptions): Gateway {
     return models;
   }
 
-  function modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits {
-    const profile = profileId === undefined ? profiles.active() : profiles.get(profileId);
+  function modelLimits(profileId?: string, model?: string, askedThinking?: ThinkingLevel, request?: ModelLimitsRequest): ModelLimits {
+    // The route `complete` would send the same request through: a role with no named profile resolves as it does there.
+    const routed = roleRoute(request?.role, profileId);
+    const target = routed?.profileId ?? profileId;
+    const profile = target === undefined ? profiles.active() : profiles.get(target);
     if (profile === undefined) return { maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
-    const modelId = model ?? profile.defaultModel;
+    const modelId = model ?? routed?.model ?? profile.defaultModel;
+    const thinking = askedThinking ?? routed?.thinking;
     const info = reported.get(profile.id)?.find((item) => item.id === modelId);
     // The effective preset's capability row fills what the live listing did not report — the host
     // pin included, so a pinned profile's limits are the pinned preset's (provider-gateway §2).

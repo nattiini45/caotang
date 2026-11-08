@@ -14,3 +14,21 @@ import type { ModelLimits } from '@caotang/gateway';
 export function transmittedOutputCap(limits: ModelLimits, requestCap?: number): number {
   return (requestCap ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0);
 }
+
+/**
+ * The request cap whose transmitted cap is `target`, or the largest one that stays under it: the inverse of the settlement
+ * `transmittedAt` reads (`modelLimits` for that request cap, then {@link transmittedOutputCap}). A budget route adds its thinking
+ * budget to the request cap and holds the sum to the model's maximum, and an effort route sends a set cap as it is, so the
+ * same transmitted target needs a different request cap on each; reading the settlement itself keeps the two from drifting.
+ * The transmitted cap never falls as the request cap rises, so a search over `1…target` finds it.
+ */
+export function requestCapFor(target: number, transmittedAt: (requestCap: number) => number): number {
+  let low = 1;
+  let high = target;
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (transmittedAt(mid) <= target) low = mid;
+    else high = mid - 1;
+  }
+  return low;
+}

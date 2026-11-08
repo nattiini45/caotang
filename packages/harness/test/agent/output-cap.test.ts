@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { transmittedOutputCap } from '../../src/agent/output-cap.js';
+import { requestCapFor, transmittedOutputCap } from '../../src/agent/output-cap.js';
 
 const LIMITS = { maxOutputTokens: 4_096, thinkingTokens: 12_288 } as const;
 
@@ -21,5 +21,25 @@ describe('transmittedOutputCap', () => {
     expect(transmittedOutputCap({ maxOutputTokens: 4_096 }, 32_768)).toBe(32_768);
     // A budget route keeps its delta whatever the base cap: 2,000 + 16,384 thinking.
     expect(transmittedOutputCap({ maxOutputTokens: 2_000, thinkingTokens: 16_384 }, 2_000)).toBe(18_384);
+  });
+});
+
+describe('requestCapFor', () => {
+  /** A budget route's settlement: the request cap plus a 16,384 budget, held to a 24,000 model maximum. */
+  const budgetRoute = (cap: number): number => Math.min(cap + 16_384, 24_000);
+
+  it('asks an effort route for the target itself: a set cap is sent as it is', () => {
+    expect(requestCapFor(32_768, (cap) => cap)).toBe(32_768);
+  });
+
+  it('takes the budget off the target on a budget route, so the budget is counted once on the wire', () => {
+    expect(requestCapFor(20_480, budgetRoute)).toBe(4_096);
+    expect(budgetRoute(requestCapFor(20_480, budgetRoute))).toBe(20_480);
+  });
+
+  it('finds the largest request cap that stays within the target where the model maximum clamps the sum', () => {
+    // Every cap from 7,616 up reaches the 24,000 maximum; the largest within a 24,000 target is the target itself.
+    expect(requestCapFor(24_000, budgetRoute)).toBe(24_000);
+    expect(budgetRoute(requestCapFor(23_000, budgetRoute))).toBe(23_000);
   });
 });

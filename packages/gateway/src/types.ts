@@ -343,10 +343,12 @@ export interface ModelLimits {
 
 /**
  * The request-specific inputs `modelLimits` settles besides the profile, model and level: the output cap and thinking
- * budget one call carries (provider-gateway §3, "Effective output"). A caller pricing or reserving a real request passes
- * the same fields the request will send, so `thinkingTokens` is the excess that request's transmitted cap carries.
+ * budget one call carries (provider-gateway §3, "Effective output"), and the task role it runs under, which routes a
+ * request that names no profile to the role's profile, model and level as `complete` does (§6). A caller pricing or
+ * reserving a real request passes the same fields the request will send, so `thinkingTokens` is the excess that
+ * request's transmitted cap carries on the route it is sent through.
  */
-export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget'>;
+export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role'>;
 
 export interface ChatRequest {
   messages: ChatMessage[];

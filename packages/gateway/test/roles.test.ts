@@ -189,3 +189,48 @@ describe('complete() — task roles (provider-gateway §6)', () => {
     expect(h.gateway.ledger.dayRows()).toMatchObject([{ profileId: named.id, role: 'chat' }]);
   });
 });
+
+describe('modelLimits() — task roles (provider-gateway §6, §3 "Effective output")', () => {
+  /** An active generic endpoint (no thinking row) and a DeepSeek profile that thinks at the provider default, routed for drafting. */
+  async function routed(answers = true) {
+    const ids: { drafted?: string } = {};
+    const resolve = vi.fn((role: TaskRole) => (answers && role === 'drafting' && ids.drafted !== undefined ? { profileId: ids.drafted } : undefined));
+    const h = roleHarness({ resolve, allowed: (role: TaskRole) => (role === 'drafting' && ids.drafted !== undefined ? [ids.drafted] : []) });
+    const active = await addEndpoint(h, { name: 'generic', preset: 'generic', baseUrl: 'https://a.example/v1' });
+    const drafted = await addEndpoint(h, { name: 'deepseek', preset: 'deepseek', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-pro' });
+    ids.drafted = drafted.id;
+    return { h, active, drafted, resolve };
+  }
+
+  it('settles a role-stamped request with no profile on the route complete() sends it through', async () => {
+    const { h } = await routed();
+    // The active generic profile has no thinking row: its transmitted cap is the 4,096 default.
+    expect(h.gateway.modelLimits().thinkingTokens).toBeUndefined();
+    // The drafting role routes to DeepSeek, whose provider-default thinking lifts the default cap to 16,384.
+    const limits = h.gateway.modelLimits(undefined, undefined, undefined, { role: 'drafting' });
+    expect(limits.maxOutputTokens).toBe(4_096);
+    expect(limits.thinkingTokens).toBe(12_288);
+  });
+
+  it('keeps a named profile over the role, and a role the resolver has no answer for on the active profile', async () => {
+    const { h, drafted, resolve } = await routed(false);
+    expect(h.gateway.modelLimits(undefined, undefined, undefined, { role: 'chat' }).thinkingTokens).toBeUndefined();
+    expect(resolve).toHaveBeenCalledWith('chat');
+    resolve.mockClear();
+    expect(h.gateway.modelLimits(drafted.id, undefined, undefined, { role: 'chat' }).thinkingTokens).toBe(12_288);
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  it('takes the role’s thinking level as the default the asked level beats', async () => {
+    const ids: { drafted?: string } = {};
+    const h = roleHarness({
+      resolve: (role: TaskRole) => (role === 'drafting' && ids.drafted !== undefined ? { profileId: ids.drafted, thinking: 'off' } : undefined),
+      allowed: (role: TaskRole) => (role === 'drafting' && ids.drafted !== undefined ? [ids.drafted] : []),
+    });
+    await addEndpoint(h, { name: 'generic', preset: 'generic', baseUrl: 'https://a.example/v1' });
+    ids.drafted = (await addEndpoint(h, { name: 'deepseek', preset: 'deepseek', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-pro' })).id;
+    // The role pins thinking off: no lift. An asked level on the same request wins over the role's.
+    expect(h.gateway.modelLimits(undefined, undefined, undefined, { role: 'drafting' }).thinkingTokens).toBeUndefined();
+    expect(h.gateway.modelLimits(undefined, undefined, 'high', { role: 'drafting' }).thinkingTokens).toBe(12_288);
+  });
+});

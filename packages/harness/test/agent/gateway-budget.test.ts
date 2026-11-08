@@ -22,8 +22,11 @@ import {
   type GatewayTraceEvent,
   type NewProfile,
   type ProfileView,
+  type TaskRole,
   type ThinkingLevel,
 } from '@caotang/gateway';
+import { addShotNode, addStoryboardFolder } from '@caotang/storyboard';
+import { VIDEO_TEMPLATE_IDS } from '@caotang/video-prompt-pack';
 
 import {
   createAgentPorts,
@@ -33,7 +36,7 @@ import {
   createHarness,
   type BudgetMeter,
 } from '../../src/index.js';
-import { clock, makeState } from '../fixtures.js';
+import { CHAPTER_ONE, OPENED, clock, makeState } from '../fixtures.js';
 
 const KEY = 'test-key';
 
@@ -54,6 +57,15 @@ function sseDone(): Response {
 /** One streamed chat completion whose JSON reply stops mid-object at the output limit. */
 function sseCut(completionTokens: number): () => Response {
   return () => sse('{"reply": "cut', 'length', { prompt_tokens: 10, completion_tokens: completionTokens });
+}
+
+/** One streamed chat completion whose reply is one native tool call (wire name, `.` → `__`) with `args` as its raw arguments text. */
+function sseCall(tool: string, args: string, finish: string, completionTokens = 5): () => Response {
+  return () => {
+    const call = { index: 0, id: 'call_1', type: 'function', function: { name: tool.replaceAll('.', '__'), arguments: args } };
+    const body = chunk({ role: 'assistant', tool_calls: [call] }, null) + chunk({}, finish, { prompt_tokens: 10, completion_tokens: completionTokens }) + 'data: [DONE]\n\n';
+    return new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  };
 }
 
 /** One streamed chat completion carrying a complete planner reply. */
@@ -238,5 +250,191 @@ describe('the reservation covers the cap actually transmitted (agent-harness §7
     const retry = ep.calls[1]?.body['max_tokens'] ?? ep.calls[1]?.body['maxTokens'];
     expect(retry).toBe(32_768);
     expect(retry as number).toBeGreaterThan(first as number);
+  });
+});
+
+const BOARD = 'n_SBOARD0001';
+const SHOT = 'n_SHOTONE001';
+const VENDOR = VIDEO_TEMPLATE_IDS[0] as string;
+
+/** A session pinned to `profileId` under the chat role, over a project with one storyboard shot for `prompt.draft` to draft. */
+function boardSession(gateway: Gateway, profileId: string): Parameters<typeof createAgentSession>[0] {
+  const state = makeState();
+  addStoryboardFolder(state, { parentId: CHAPTER_ONE, title: 'Lamp Shots', now: OPENED, id: BOARD });
+  addShotNode(state, { parentId: BOARD, title: 'The lamp fails', stored: { action: 'The lamp fails.' }, now: OPENED, id: SHOT });
+  return {
+    harness: createHarness({ state, ports: createAgentPorts(), clock: clock.now }),
+    gateway,
+    context: createContextPort({ state }),
+    decide: async () => ({ action: 'approve' }),
+    emit: () => undefined,
+    profileId,
+    role: 'chat',
+    sessionId: 'gb-board',
+  };
+}
+
+/**
+ * A real gateway with two endpoint profiles and a role resolver: an active generic endpoint (no thinking row, so its
+ * transmitted cap is the 4,096 default) and a DeepSeek profile (provider-default thinking, 16,384 on the wire) that `routes`
+ * names for the roles it lists. Both share the recording fetch, which answers from `queue` and then plain replies.
+ */
+async function routedEndpoints(routes: readonly TaskRole[], queue: readonly (() => Response)[] = []) {
+  const keys = createKeyStore(createMemoryVaultPort());
+  const profiles = createProfileStore({ keys });
+  const requests: ChatRequest[] = [];
+  const calls: { url: string; body: Record<string, unknown> }[] = [];
+  const responders = [...queue];
+  const ids: { deepseek?: string } = {};
+  const fetchStub: FetchLike = (url, init) => {
+    calls.push({ url, body: JSON.parse(String(init.body)) as Record<string, unknown> });
+    const next = responders.shift();
+    return Promise.resolve(next === undefined ? sseDone() : next());
+  };
+  const gateway = createGateway({
+    profiles,
+    keys,
+    clock: createManualClock(0),
+    fetch: fetchStub,
+    roles: {
+      resolve: (role) => (routes.includes(role) && ids.deepseek !== undefined ? { profileId: ids.deepseek } : undefined),
+      allowed: (role) => (routes.includes(role) && ids.deepseek !== undefined ? [ids.deepseek] : []),
+    },
+    observe: (event: GatewayTraceEvent) => {
+      if (event.type === 'request') requests.push(event.req);
+    },
+  });
+  const generic = await profiles.create({ name: 'Generic', kind: 'endpoint', preset: 'generic', baseUrl: 'https://llm.example/v1', apiKey: KEY, defaultModel: 'house-model' });
+  const deepseek = await profiles.create({ name: 'DeepSeek', kind: 'endpoint', preset: 'deepseek', baseUrl: 'https://api.deepseek.com', apiKey: KEY, defaultModel: 'deepseek-v4-pro' });
+  ids.deepseek = deepseek.id;
+  return { gateway, generic, deepseek, requests, calls };
+}
+
+describe('a role-routed call is reserved on the route it is sent through (agent-harness §7.1, provider-gateway §6)', () => {
+  it('a planner call the session role routes is reserved at the role profile’s transmitted cap, not the active profile’s', async () => {
+    const ep = await routedEndpoints(['chat']);
+    const state = makeState();
+    const open = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), clock: clock.now }),
+      gateway: ep.gateway,
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'approve' }),
+      emit: () => undefined,
+      role: 'chat',
+      sessionId: 'gb-role-open',
+    });
+    await open.submit('Say hello.');
+    // No pin: the chat role sent the call to DeepSeek, at the lifted 16,384 — not the generic profile's 4,096.
+    expect(ep.calls[0]?.url).toBe('https://api.deepseek.com/chat/completions');
+    expect(transmittedOf(ep.calls)).toBe(16_384);
+    const prompt = promptOf(ep.requests);
+    const sent = ep.calls.length;
+
+    const meter = createBudgetMeter({ maxTokens: prompt + 5_000 }, { clock: createManualClock(1_000_000) });
+    const limited = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), clock: clock.now }),
+      gateway: ep.gateway,
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'approve' }),
+      emit: () => undefined,
+      meter,
+      role: 'chat',
+      sessionId: 'gb-role-limited',
+    });
+    const report = await limited.submit('Say hello.');
+
+    // Reserved against the active generic profile, prompt + 4,096 would have fit and the call gone out at 16,384.
+    expect(report.status).toBe('failed');
+    expect(report.modelCalls).toBe(0);
+    expect(report.budgetStop).toMatchObject({ dimension: 'tokens', limit: prompt + 5_000, needed: prompt + 16_384 });
+    expect(ep.calls).toHaveLength(sent);
+  });
+
+  it('a drafting call under another role than the session’s is reserved on the drafting route, not the session’s pinned profile', async () => {
+    const plan = sseCall('prompt.draft', JSON.stringify({ shots: [SHOT], vendor: VENDOR, instruction: 'Keep it moody.' }), 'tool_calls');
+    const draft = JSON.stringify({ camera: 'Slow dolly in.', subject: 'The lamp', action: 'The lamp fails.' });
+
+    // Unbounded first: the planner goes to the pinned generic profile, the prompt-pack's drafting call to DeepSeek.
+    const open = await routedEndpoints(['drafting'], [plan, sseJson(draft)]);
+    const unbounded = createAgentSession(boardSession(open.gateway, open.generic.id));
+    await unbounded.submit('Draft the prompt for the lamp shot.', { preload: ['prompt.draft'] });
+    expect(open.calls[0]?.url).toBe('https://llm.example/v1/chat/completions');
+    expect(transmittedOf(open.calls)).toBe(4_096);
+    expect(open.requests[1]?.role).toBe('drafting');
+    expect(open.calls[1]?.url).toBe('https://api.deepseek.com/chat/completions');
+    expect(open.calls[1]?.body['max_tokens']).toBe(16_384);
+    const plannerPrompt = promptOf(open.requests);
+    const draftPrompt = usageFor((open.requests[1] as ChatRequest).messages, '').promptTokens;
+
+    // A limit one token short of the drafting call at the 16,384 its route transmits, after the planner's call settled at its
+    // reported 15 tokens. It admits the planner's reservation, and a drafting call reserved at the session profile's 4,096.
+    const limit = 15 + draftPrompt + 16_384 - 1;
+    expect(limit).toBeGreaterThanOrEqual(plannerPrompt + 4_096);
+    const ep = await routedEndpoints(['drafting'], [plan, sseJson(draft)]);
+    const meter = createBudgetMeter({ maxTokens: limit }, { clock: createManualClock(1_000_000) });
+    await createAgentSession({ ...boardSession(ep.gateway, ep.generic.id), meter }).submit('Draft the prompt for the lamp shot.', { preload: ['prompt.draft'] });
+
+    // The drafting call was refused before it was sent, at the drafting route's transmitted cap: the planner is told so.
+    expect(ep.calls.map((call) => call.url)).not.toContain('https://api.deepseek.com/chat/completions');
+    expect(ep.requests.map((request) => request.role)).not.toContain('drafting');
+    const refusal = JSON.stringify(ep.requests[1]?.messages.at(-1)?.content);
+    expect(refusal).toContain(`could use up to ${15 + draftPrompt + 16_384} tokens in all, past the run’s limit of ${limit}`);
+  });
+});
+
+/** The F7 shape: a budget route (qwen3.7-flash, enable_thinking + budget) at a set level, whose listing advertises 65,536. */
+async function budgetRouteEndpoint(queue: readonly (() => Response)[]): Promise<Endpoint> {
+  return endpoint(
+    {
+      name: 'Qwen budget',
+      kind: 'endpoint',
+      preset: 'alibaba',
+      fields: { workspaceId: 'ws', region: 'ap-southeast-1' },
+      baseUrl: 'https://ws.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+      apiKey: KEY,
+      defaultModel: 'qwen3.7-flash',
+    },
+    queue,
+    [{ id: 'qwen3.7-flash', max_output_tokens: 65_536 }],
+  );
+}
+
+describe('a cut reply’s retry on a budget route (agent-harness §2, "A planner reply the provider cut")', () => {
+  it('sends twice the transmitted cap, with the thinking budget counted once', async () => {
+    const ep = await budgetRouteEndpoint([sseCall('doc.read', '{"doc": "The Fri', 'length', 6_000)]);
+    await ep.gateway.listModels(ep.profile.id);
+    const { session } = await sessionFor(ep.gateway, ep.profile, { thinking: 'low' });
+    await session.submit('Say hello.');
+
+    // The first request: the 4,096 default plus the low level's 1,024 budget.
+    expect(ep.calls[0]?.body['max_tokens']).toBe(5_120);
+    // 6,000 reported tokens reached it, so the retry goes out at twice 5,120 — not 10,240 plus another 1,024 of budget.
+    expect(ep.calls).toHaveLength(2);
+    expect(ep.calls[1]?.body['max_tokens']).toBe(10_240);
+  });
+
+  it('holds the retry to the advertised cap on the wire, budget included', async () => {
+    const ep = await endpoint(
+      {
+        name: 'Qwen budget',
+        kind: 'endpoint',
+        preset: 'alibaba',
+        fields: { workspaceId: 'ws', region: 'ap-southeast-1' },
+        baseUrl: 'https://ws.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+        apiKey: KEY,
+        defaultModel: 'qwen3.7-flash',
+      },
+      [sseCall('doc.read', '{"doc": "The Fri', 'length', 30_000)],
+      [{ id: 'qwen3.7-flash', max_output_tokens: 24_000 }],
+    );
+    await ep.gateway.listModels(ep.profile.id);
+    const { session } = await sessionFor(ep.gateway, ep.profile, { thinking: 'high' });
+    await session.submit('Say hello.');
+
+    // 4,096 + the high level's 16,384 = 20,480 transmitted, under the advertised 24,000.
+    expect(ep.calls[0]?.body['max_tokens']).toBe(20_480);
+    // Twice that passes 24,000, so the retry's transmitted cap is the advertised one — never 24,000 plus the budget.
+    expect(ep.calls).toHaveLength(2);
+    expect(ep.calls[1]?.body['max_tokens']).toBe(24_000);
   });
 });
