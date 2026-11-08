@@ -8,6 +8,7 @@
  */
 
 import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 
 import { TRACE_REVIEWS, type TraceTurn } from '@caotang/harness';
@@ -17,6 +18,7 @@ import type { AppServices } from '../app/services.js';
 import { barSentence, turnTimeline, type TraceCallRow, type TraceMessageView, type TraceRow, type TraceTimeline, type TraceToolRow } from '../app/trace-model.js';
 import { traceFileName } from '../app/trace-store.js';
 import { EmptyState, More, formatCount, useReport } from './shared.js';
+import { Icon } from './shell/modern/icons.js';
 
 /** The sentence the export dialog carries: what the file holds, and how far its scrubbing goes. */
 export const EXPORT_WARNING =
@@ -110,8 +112,8 @@ function CallRow({ row, spanMs }: { row: TraceCallRow; spanMs: number }): ReactN
             </p>
           ) : null}
           <h4>Reply</h4>
-          {row.error === undefined ? null : <p className="trace-error">{row.error}</p>}
-          {row.reply === undefined ? <p className="trace-faint">No reply yet.</p> : <pre className="trace-text">{row.reply === '' ? '(no text)' : row.reply}</pre>}
+          {row.error === undefined ? null : <div className="trace-error" data-panel-state="error"><Icon name="error" label={t`Model call failed`} /><p>{row.error}</p><p><Trans>Open the agent to check the request before trying again.</Trans></p></div>}
+          {row.reply === undefined ? <p className="trace-faint"><Trans>No reply recorded yet.</Trans></p> : <pre className="trace-text">{row.reply === '' ? '(no text)' : row.reply}</pre>}
           {row.replyCalls.map((call, index) => (
             <pre key={index} className="trace-text">
               asked for {call}
@@ -316,32 +318,33 @@ export function TracePanel({ services, projectName }: { services: AppServices; p
       <div className="trace-toolbar">
         <label className="check">
           <input type="checkbox" role="switch" className="k-switch" checked={kept} data-testid="trace-keep" onChange={(event) => void services.settings.update({ agent: { keepTraces: event.target.checked } })} />
-          Keep agent traces for this tab
+          <Trans>Keep agent traces for this tab</Trans>
         </label>
         <div className="trace-actions">
           <button type="button" className="button is-quiet" disabled={ordered.length === 0} onClick={() => setExporting(true)}>
-            Export trace…
+            <Trans>Export trace…</Trans>
           </button>
           <button type="button" className="button is-quiet" disabled={ordered.length === 0} onClick={() => trace.clear()}>
-            Clear trace
+            <Trans>Clear trace</Trans>
           </button>
         </div>
       </div>
       <More summary={t`Kept in this tab only`} className="trace-help">
         <p className="trace-faint">
-          The trace holds the prompts and manuscript text sent to the model. It stays in this tab’s memory: a reload or closing the tab loses it, and nothing
-          is saved or sent anywhere unless you export it.
+          <Trans>The trace holds the prompts and manuscript text sent to the model. It stays in this tab’s memory: a reload or closing the tab loses it, and nothing is saved or sent anywhere unless you export it.</Trans>
         </p>
       </More>
 
       {!kept ? (
-        <EmptyState title="Traces are off">Turn on “Keep agent traces for this tab” to see what each turn sent and got back. Nothing is recorded while it is off.</EmptyState>
+        <EmptyState title={t`Traces are off`} state="off" glyph={<Icon name="trace" label={t`Recording is off`} />}>
+          <Trans>Turn on “Keep agent traces for this tab” to see what each turn sent and got back. Nothing is recorded while it is off.</Trans>
+        </EmptyState>
       ) : ordered.length === 0 ? (
-        <EmptyState title="No turns traced yet">
-          Each agent turn appears here with its prompts, replies, tool calls and timings. Next step: send the agent a request.
+        <EmptyState title={t`No turns traced yet`} glyph={<Icon name="trace" label={t`No recorded turns`} />}>
+          <Trans>Each agent turn appears here with its prompts, replies, tool calls and timings. Next step: send the agent a request.</Trans>
         </EmptyState>
       ) : (
-        <ol className="trace-turns" aria-label="Traced turns">
+        <ol className="trace-turns" aria-label={t`Traced turns`}>
           {ordered.map((turn) => (
             <TurnBlock
               key={turn.turnId}

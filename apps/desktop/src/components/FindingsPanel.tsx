@@ -37,6 +37,7 @@ import { explain } from './actions.js';
 import { KnowledgeList } from './KnowledgeList.js';
 import { EmptyState, More, formatCount, useReport, useSession } from './shared.js';
 import { uiLocale } from '../i18n/format-locale.js';
+import { Icon } from './shell/modern/icons.js';
 
 /* lingui-set comment="Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose." */
 
@@ -77,6 +78,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const [review, setReview] = useState<ReviewState | null>(null);
   const [stale, setStale] = useState<string | null>(null);
   const [pendingScope, setPendingScope] = useState<ScopeSpec | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const focusAfterRef = useRef<string | null>(null);
   const headingRef = useRef<HTMLElement | null>(null);
@@ -124,6 +126,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
 
   const scan = (approved: boolean): void => {
     setStale(null);
+    setFailure(null);
     const scope = approved && pendingScope !== null ? pendingScope : scopeFor(scopeChoice, currentDocId);
     if (scope === undefined) {
       report({ text: t`Open the document to scan it alone, or choose another scope.`, tone: 'info' });
@@ -140,6 +143,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         askForApproval(scope);
         return;
       }
+      setFailure(result.message);
       report({ text: result.message, tone: 'error' });
       return;
     }
@@ -150,6 +154,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
 
   const rerun = (scope: ScopeSpec): void => {
     setStale(null);
+    setFailure(null);
     const checks: readonly DeterministicCheckId[] = settings.enabledChecks;
     if (checks.length === 0) {
       report({ text: t`Every quick check is off in Settings, so this run would check nothing. Turn checks on in Settings › Coherence.`, tone: 'info' });
@@ -161,6 +166,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         askForApproval(scope);
         return;
       }
+      setFailure(result.message);
       report({ text: result.message, tone: 'error' });
       return;
     }
@@ -189,6 +195,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   };
 
   const startReview = async (plan: ReviewPlan): Promise<void> => {
+    setFailure(null);
     const current = session.coherenceFile();
     const resolved = providers?.resolveForRole?.('chat');
     const profile = resolved?.profile ?? activeProfile;
@@ -215,8 +222,11 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         ? t`The model review is complete: ${plural(added, { one: '# finding', other: '# findings' })} added or updated.`
         : t`The model review stopped early, so it is partial: ${plural(added, { one: '# finding', other: '# findings' })} kept. ${{ note: result.notes[0] ?? '' }}`.trim();
       report({ text: summary, tone: result.status === 'complete' ? 'info' : 'error' });
+      if (result.status !== 'complete') setFailure(summary);
     } catch (error) {
-      report({ text: t`The model review did not run: ${{ error: error instanceof Error ? error.message : String(error) }}`, tone: 'error' });
+      const message = t`The model review did not run: ${{ error: error instanceof Error ? error.message : String(error) }}`;
+      setFailure(message);
+      report({ text: message, tone: 'error' });
     } finally {
       setReview(null);
     }
@@ -310,15 +320,32 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         </section>
       ) : null}
       {running && review !== null ? (
-        <section className="findings-plan" aria-label={t`The model review in progress`} data-testid="review-running">
+        <section className="findings-plan" aria-label={t`The model review in progress`} data-testid="review-running" data-panel-state="loading">
+          <Icon name="loading" label={t`Review in progress`} />
           <p className="finding-message" role="status"><Trans>Reviewing with the model. This can take a while, and the findings appear here when it is done.</Trans></p>
           <div className="finding-actions"><button type="button" className="button" onClick={() => review.controller?.abort()}><Trans>Stop the review</Trans></button></div>
         </section>
       ) : null}
       {status.notices.map((notice) => <p key={notice} className="field-note" role="status">{notice}</p>)}
-      {status.saveFailure !== null ? <p className="form-message is-error" role="alert">{status.saveFailure}</p> : null}
-      {sections.length === 0 ? (
-        <EmptyState title={file === undefined || file.findings.length === 0 ? t`No findings yet` : select(filter, { open: 'No open findings', dismissed: 'No dismissed findings', fixed: 'No marked fixed findings', all: 'No all findings', other: 'No findings' })}>
+      {status.saveFailure !== null ? (
+        <div className="form-message is-error" role="alert" data-panel-state="error">
+          <Icon name="error" label={t`Save failed`} />
+          <p>{status.saveFailure}</p>
+          <button type="button" className="button" onClick={() => session.coherenceChanged()}><Trans>Try saving findings again</Trans></button>
+        </div>
+      ) : null}
+      {failure !== null && !running ? (
+        <div className="form-message is-error" role="alert" data-panel-state="error">
+          <Icon name="error" label={t`Check stopped`} />
+          <p>{failure}</p>
+          <p><Trans>Run a scan or start another review to try again. Any findings already recorded are kept below.</Trans></p>
+        </div>
+      ) : null}
+      {sections.length === 0 && !running && failure === null && status.saveFailure === null ? (
+        <EmptyState
+          title={file === undefined || file.findings.length === 0 ? (runs.length === 0 ? t`No findings yet` : t`No findings recorded`) : select(filter, { open: 'No open findings', dismissed: 'No dismissed findings', fixed: 'No marked fixed findings', all: 'No all findings', other: 'No findings' })}
+          glyph={<Icon name={runs.length > 0 && open === 0 ? 'check' : 'findings'} label={runs.length > 0 && open === 0 ? t`No open findings` : t`No findings to show`} />}
+        >
           {file === undefined || file.findings.length === 0
             ? t`Run a scan to check the manuscript against the codex, the scene declarations and the screenplay and storyboard. Nothing changes in the text.`
             : t`Choose another status to see the findings in it.`}

@@ -4557,6 +4557,11 @@ msgstr "Auf Kontinuitätsprobleme prüfen"
 msgid "Check run discarded"
 msgstr "Prüflauf verworfen"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Check stopped"
+msgstr "Prüfung angehalten"
+
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
 msgid "Checking the project’s pictures"
@@ -4793,6 +4798,11 @@ msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt di
 msgid "Clear"
 msgstr "Leeren"
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "Clear filter"
+msgstr "Filter zurücksetzen"
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
@@ -4813,6 +4823,10 @@ msgstr "Filter zurücksetzen"
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Clear the link"
 msgstr "Verknüpfung aufheben"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Clear trace"
+msgstr "Ablauf leeren"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -5300,6 +5314,11 @@ msgstr "Abgedeckt."
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Create"
 msgstr "Erstellen"
+
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "Create Chapter 1"
+msgstr "Kapitel 1 erstellen"
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
@@ -6177,6 +6196,10 @@ msgstr "Dauer in Tagen"
 msgid "Duration, seconds"
 msgstr "Dauer, Sekunden"
 
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Each agent turn appears here with its prompts, replies, tool calls and timings. Next step: send the agent a request."
+msgstr "Hier erscheint jeder Agentendurchlauf mit Prompts, Antworten, Tool-Aufrufen und Laufzeiten. Senden Sie dem Agenten eine Anfrage, um den ersten Ablauf aufzuzeichnen."
+
 #. Interpolated values: source, summary
 #: apps/desktop/src/components/ActivityPanel.tsx
 msgid "Each change you make appears here, with the command it ran. Undo takes back one change, or one group of them. Next step: type a sentence in the editor, or make a folder in the binder, and its row appears here."
@@ -6368,6 +6391,16 @@ msgstr "leer"
 msgid "Empty documents are left out and listed in the compile log. Undo removes the file again."
 msgstr "Leere Dokumente werden ausgelassen und im Kompilierprotokoll aufgeführt. Rückgängig entfernt die Datei wieder."
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "Empty manuscript"
+msgstr "Leeres Manuskript"
+
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "Empty research"
+msgstr "Leere Recherche"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Enable"
@@ -6431,9 +6464,12 @@ msgstr "Episodeneinstellungen geändert"
 msgid "EPUB (.epub)"
 msgstr "EPUB (.epub)"
 
+#. Interpolated values: subject
+#. Interpolated values: subject
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
+#: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/media/PromptPackPanel.tsx
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -6622,6 +6658,10 @@ msgstr "Exportstil"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.dialogueTable.content"
 msgstr "Die Dialogtabelle von „{doc}“ exportieren"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Export trace…"
+msgstr "Ablauf exportieren…"
 
 #. The picture board's storage actions. count is a number; detail and reason are a sentence a browser or a command wrote; name is a picture's caption or a file name.
 #: apps/desktop/src/media/PictureStorage.tsx
@@ -8064,6 +8104,10 @@ msgstr "Antworten als JSON-Schema"
 msgid "Keep a take from my own generation"
 msgstr "Einen Take aus der eigenen Generierung behalten"
 
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Keep agent traces for this tab"
+msgstr "Agentenabläufe für diesen Tab aufzeichnen"
+
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Keep each one to {itemLimit} characters."
@@ -8396,6 +8440,11 @@ msgstr "Länge {from, plural, one {# Tag} other {# Tage}} → {to, plural, one {
 msgid "Lens"
 msgstr "Objektiv"
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "Let the agent structure it"
+msgstr "Vom Agenten gliedern lassen"
+
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Let the vendor rewrite the prompt"
@@ -8504,6 +8553,12 @@ msgstr "Die Bilder auflisten"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.picturesList.active"
 msgstr "Die Bilder werden aufgelistet"
+
+#. Interpolated values: subject
+#. Interpolated values: subject
+#: apps/desktop/src/components/lazy-view.tsx
+msgid "Loading"
+msgstr "Wird geladen"
 
 #. Interpolated values: subject
 #: apps/desktop/src/components/lazy-view.tsx
@@ -8928,6 +8983,10 @@ msgstr "Modus: {modeKey, select, planOnly {Nur planen} ask {Fragen} acceptEdits 
 #: apps/desktop/src/components/Settings.tsx
 msgid "Model"
 msgstr "Modell"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Model call failed"
+msgstr "Modellaufruf fehlgeschlagen"
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -9378,6 +9437,11 @@ msgstr "Neues Projekt"
 msgid "New provider"
 msgstr "Neuer Provider"
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "New research note"
+msgstr "Neue Recherchenotiz"
+
 #: apps/desktop/src/media/create-menu.ts
 msgid "New screenplay scene here"
 msgstr "Neue Drehbuchszene hier"
@@ -9434,6 +9498,11 @@ msgstr "Nein"
 #: apps/desktop/src/components/Corkboard.tsx
 msgid "No cards yet"
 msgstr "Noch keine Karten"
+
+#. Interpolated values: source, summary
+#: apps/desktop/src/components/ActivityPanel.tsx
+msgid "No changes"
+msgstr "Keine Änderungen"
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
@@ -9535,6 +9604,16 @@ msgstr "Für dieses Projekt ist keine Feststellungsdatei geöffnet."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
+msgid "No findings recorded"
+msgstr "Keine Feststellungen aufgezeichnet"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "No findings to show"
+msgstr "Keine Feststellungen anzuzeigen"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
 msgid "No findings yet"
 msgstr "Noch keine Feststellungen"
 
@@ -9613,6 +9692,11 @@ msgstr "muss nicht mehr auf {name} folgen"
 msgid "No loose end, dead end or unknown speaker in this container."
 msgstr "Kein loser Faden, keine Sackgasse und kein unbekannter Sprecher in diesem Container."
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
+#: apps/desktop/src/components/Binder.tsx
+msgid "No matches"
+msgstr "Keine Treffer"
+
 #. Interpolated values: key
 #: apps/desktop/src/app/mcp.ts
 msgid "no MCP server with key {key} is configured"
@@ -9627,6 +9711,11 @@ msgstr "Noch keine Erwähnungen. Eine Erwähnung wird gefunden, wenn der Name od
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "No one learns it yet."
 msgstr "Noch erfährt es niemand."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "No open findings"
+msgstr "Keine offenen Feststellungen"
 
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/CardPictureDialog.tsx
@@ -9718,10 +9807,18 @@ msgstr "Es ist kein Provider aktiv. Fügen Sie unter Einstellungen > Provider ei
 msgid "No recipes saved"
 msgstr "Keine Exportprofile gespeichert"
 
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "No recorded turns"
+msgstr "Keine aufgezeichneten Durchläufe"
+
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "No reference is named, so the codex entries the action mentions send theirs."
 msgstr "Es ist keine Referenz angegeben, daher liefern die von der Aktion erwähnten Kodex-Einträge ihre Referenzen."
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "No reply recorded yet."
+msgstr "Noch keine Antwort aufgezeichnet."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -9885,6 +9982,10 @@ msgstr "Es ist kein Zielmodell ausgewählt, daher gibt es kein Prompt-Pack anzuz
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "No thread"
 msgstr "Kein Strang"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "No turns traced yet"
+msgstr "Noch keine Durchläufe aufgezeichnet"
 
 #. The picture board's storage actions. count, removed and remaining are numbers; name and title are a picture's caption or a file name; reason and detail are a sentence a command or a browser wrote.
 #: apps/desktop/src/media/picture-storage-model.ts
@@ -10430,6 +10531,10 @@ msgstr "Auf dem Board öffnen"
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "Open scene"
 msgstr "Szene öffnen"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Open the agent to check the request before trying again."
+msgstr "Öffnen Sie den Agenten und prüfen Sie die Anfrage, bevor Sie es erneut versuchen."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -11885,6 +11990,10 @@ msgstr "Exportprofil"
 msgid "Reckoning of Ash"
 msgstr "Abrechnung der Asche"
 
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Recording is off"
+msgstr "Aufzeichnung ausgeschaltet"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Recovering the project"
@@ -12460,6 +12569,11 @@ msgstr "Wiederverwendbare Schreibanweisungen für den Agenten"
 msgid "Review"
 msgstr "Prüfen"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Review in progress"
+msgstr "Modellprüfung läuft"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Review of {name}"
@@ -12563,6 +12677,11 @@ msgstr "Rolle"
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "RTF file"
 msgstr "RTF-Datei"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Run a scan or start another review to try again. Any findings already recorded are kept below."
+msgstr "Starten Sie einen Scan oder eine neue Modellprüfung, um es erneut zu versuchen. Bereits aufgezeichnete Feststellungen bleiben unten erhalten."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -12703,6 +12822,11 @@ msgstr "Aktuellen speichern…"
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "Save fact"
 msgstr "Wissenseintrag speichern"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Save failed"
+msgstr "Speichern fehlgeschlagen"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -16146,6 +16270,10 @@ msgstr "Die Tools sind unverändert und bleiben, wie sie sind. {catalog}"
 msgid "The total ({total} tokens) is below the layer caps together ({caps} tokens), so a layer can be cut before it reaches its own cap."
 msgstr "Die Gesamtsumme ({total} Tokens) liegt unter den gemeinsamen Layer-Obergrenzen ({caps} Tokens), daher kann ein Layer gekürzt werden, bevor er seine eigene Obergrenze erreicht."
 
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "The trace holds the prompts and manuscript text sent to the model. It stays in this tab’s memory: a reload or closing the tab loses it, and nothing is saved or sent anywhere unless you export it."
+msgstr "Der Ablauf enthält die an das Modell gesendeten Prompts und Manuskripttexte. Er bleibt im Arbeitsspeicher dieses Tabs und geht beim Neuladen oder Schließen verloren. Ohne Export wird die Ablaufaufzeichnung weder gespeichert noch versendet."
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The trim did not finish: {error}"
@@ -17040,6 +17168,14 @@ msgstr "top_p, stop"
 msgid "Trace"
 msgstr "Ablauf"
 
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Traced turns"
+msgstr "Aufgezeichnete Durchläufe"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Traces are off"
+msgstr "Ablaufaufzeichnung ausgeschaltet"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.picturesTranscribe.content"
@@ -17128,9 +17264,19 @@ msgstr "Erneut versuchen"
 msgid "Try again, or choose a smaller picture."
 msgstr "Versuchen Sie es erneut oder wählen Sie ein kleineres Bild."
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Try saving findings again"
+msgstr "Feststellungen erneut speichern"
+
 #: apps/desktop/src/components/FirstRun.tsx
 msgid "Try the agent with no key"
 msgstr "Testen Sie den Agenten ohne Schlüssel"
+
+#. Interpolated values: source, summary
+#: apps/desktop/src/components/ActivityPanel.tsx
+msgid "Try Undo again"
+msgstr "Rückgängig erneut versuchen"
 
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -17155,6 +17301,10 @@ msgstr "Ausschalten"
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Turn on"
 msgstr "Einschalten"
+
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Turn on “Keep agent traces for this tab” to see what each turn sent and got back. Nothing is recorded while it is off."
+msgstr "Schalten Sie „Agentenabläufe für diesen Tab aufzeichnen“ ein, um zu sehen, was jeder Durchlauf gesendet und empfangen hat. Solange die Option ausgeschaltet ist, wird nichts aufgezeichnet."
 
 #: apps/desktop/src/components/PictureNotices.tsx
 msgid "Turn this reminder off"
@@ -17234,6 +17384,16 @@ msgstr "Rückgängig"
 msgid "Undo brings the picture back. Its file stays in the project until it is swept."
 msgstr "Rückgängig holt das Bild zurück. Seine Datei bleibt im Projekt, bis sie bereinigt wird."
 
+#. Interpolated values: source, summary
+#: apps/desktop/src/components/ActivityPanel.tsx
+msgid "Undo failed"
+msgstr "Rückgängig fehlgeschlagen"
+
+#. Interpolated values: source, summary
+#: apps/desktop/src/components/ActivityPanel.tsx
+msgid "Undo in progress"
+msgstr "Änderung wird rückgängig gemacht"
+
 #. The picture board's storage actions. count is a number; detail and reason are a sentence a browser or a command wrote; name is a picture's caption or a file name.
 #: apps/desktop/src/media/PictureStorage.tsx
 msgid "Undo points the pictures back at the old names."
@@ -17244,6 +17404,7 @@ msgstr "Rückgängig verweist die Bilder wieder auf die alten Namen."
 msgid "Undo restores the script as it was, or removes the new one."
 msgstr "Rückgängig stellt das Skript so wieder her, wie es war, oder entfernt das neue."
 
+#. Interpolated values: source, summary
 #. Interpolated values: source, summary
 #: apps/desktop/src/components/ActivityPanel.tsx
 msgid "Undo the later changes first"
@@ -17263,6 +17424,11 @@ msgstr "Rückgängig: {label}"
 #: apps/desktop/src/components/ActivityPanel.tsx
 msgid "Undo: {summary}"
 msgstr "Rückgängig: {summary}"
+
+#. Interpolated values: source, summary
+#: apps/desktop/src/components/ActivityPanel.tsx
+msgid "Undoing the change. Wait before undoing another."
+msgstr "Die Änderung wird rückgängig gemacht. Warten Sie, bevor Sie eine weitere rückgängig machen."
 
 #. Interpolated values: error, name, reason, refused
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.

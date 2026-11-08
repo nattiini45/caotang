@@ -25,11 +25,14 @@ import { accessibleText } from '../i18n/accessible-text.js';
 import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from './activity-window.js';
 import { EmptyState, useReport, useSession } from './shared.js';
+import { Icon } from './shell/modern/icons.js';
 
 export function ActivityPanel({ session, onExport }: { session: ProjectSession; onExport: () => void }): ReactNode {
   useSession(session);
   const report = useReport();
   const [showViews, setShowViews] = useState(false);
+  const [undoing, setUndoing] = useState<string | null>(null);
+  const [undoFailure, setUndoFailure] = useState<{ id: string; summary: string; message: string } | null>(null);
   // The panel shows a window of the log's rows, and the older ones one window at a time
   // (activity-window.ts): the log keeps every row, and the panel renders none of the ones behind
   // its window.
@@ -46,16 +49,19 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
   });
   const rows = panel.rows;
 
-  const undoGroup = (id: string, summary: string): void => {
-    void session.undoGroup(id).then((done) => {
+  const undoGroup = async (id: string, summary: string): Promise<void> => {
+    setUndoing(id);
+    setUndoFailure(null);
+    try {
+      const done = await session.undoGroup(id);
       if (done) return;
       const detail = session.undoErrorMessage();
-      report(
-        detail !== null
-          ? { text: detail, tone: 'error' }
-          : { text: t`“${{ summary }}” could not be undone in full. The rest of its group is kept for another try.`, tone: 'error' },
-      );
-    });
+      const message = detail ?? t`“${{ summary }}” could not be undone in full. The rest of its group is kept for another try.`;
+      setUndoFailure({ id, summary, message });
+      report({ text: message, tone: 'error' });
+    } finally {
+      setUndoing(null);
+    }
   };
 
   return (
@@ -70,8 +76,21 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
         </button>
       </div>
 
+      {undoing !== null ? (
+        <p className="field-note" role="status" data-panel-state="loading">
+          <Icon name="loading" label={t`Undo in progress`} /> <Trans>Undoing the change. Wait before undoing another.</Trans>
+        </p>
+      ) : null}
+      {undoFailure !== null ? (
+        <div className="form-message is-error" role="alert" data-panel-state="error">
+          <Icon name="error" label={t`Undo failed`} />
+          <p>{undoFailure.message}</p>
+          <button type="button" className="button" disabled={undoing !== null || undoFailure.id !== newest} title={undoFailure.id !== newest ? t`Undo the later changes first` : undefined} onClick={() => void undoGroup(undoFailure.id, undoFailure.summary)}><Trans>Try Undo again</Trans></button>
+        </div>
+      ) : null}
+
       {rows.length === 0 ? (
-        <EmptyState title={t`Nothing has changed yet`}>
+        <EmptyState title={t`Nothing has changed yet`} glyph={<Icon name="agent" label={t`No changes`} />}>
           <Trans>
             Each change you make appears here, with the command it ran. Undo takes back one change, or one group of them.
             Next step: type a sentence in the editor, or make a folder in the binder, and its row appears here.
@@ -102,10 +121,10 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
                   <button
                     type="button"
                     className="button is-quiet activity-undo"
-                    disabled={undo.id !== newest}
+                    disabled={undo.id !== newest || undoing !== null}
                     title={undo.id === newest ? undo.label : t`Undo the later changes first`}
                     aria-label={t`Undo: ${{ summary: accessibleText(summary) }}`}
-                    onClick={() => undoGroup(undo.id, summary)}
+                    onClick={() => void undoGroup(undo.id, summary)}
                   >
                     <Trans>Undo</Trans>
                   </button>

@@ -610,13 +610,18 @@ export function EmptyState({
   title,
   children,
   actions,
+  glyph,
+  state = 'empty',
 }: {
   title: string;
   children?: ReactNode;
   actions?: ReactNode;
+  glyph?: ReactNode;
+  state?: 'empty' | 'error' | 'off';
 }): ReactNode {
   return (
-    <section className="empty-state" aria-label={accessibleText(title)}>
+    <section className="empty-state" aria-label={accessibleText(title)} data-panel-state={state}>
+      {glyph}
       <h2>{title}</h2>
       {children ? <div className="empty-text">{children}</div> : null}
       {actions ? <div className="empty-actions">{actions}</div> : null}

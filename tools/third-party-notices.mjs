@@ -42,6 +42,14 @@ const LICENSE_FILE = /^(licen[cs]e|copying|notice)([.-][\w.-]*)?$/i;
  */
 export const BUNDLED_ASSETS = Object.freeze([
   Object.freeze({
+    name: 'Lucide (19 inline SVG icons)',
+    version: '53fab88ff9d1b48f4704b5b5b560d6b4d560bf4c',
+    license: 'ISC',
+    repository: 'https://github.com/lucide-icons/lucide',
+    shippedAs: 'apps/desktop/src/components/shell/modern/icons.tsx',
+    licenseFile: 'site/stages/LICENSE-LUCIDE',
+  }),
+  Object.freeze({
     name: 'Courier Prime Regular (font)',
     version: '3.018',
     license: 'OFL-1.1',

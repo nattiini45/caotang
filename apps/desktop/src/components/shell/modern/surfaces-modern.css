@@ -577,6 +577,14 @@
   }
 }
 
+:root[data-shell='modern'] [data-scroll-edges] {
+  --scroll-ground: var(--m-solid);
+}
+
+:root[data-shell='modern'] .settings-nav[data-scroll-edges] {
+  --scroll-ground: var(--mat-sheet-bg);
+}
+
 /* ---- Import and Export (#363). Dialogs that hold text to read are opaque: Firefox drew the page through the glass of the sheet. Their
    actions stay pinned at the foot while the body scrolls, on the sheet's own surface, out to its edges. ---- */
 :root[data-shell='modern'] dialog:is(.export-dialog, .import-preview) {
