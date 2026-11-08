@@ -2539,7 +2539,7 @@ msgstr "Ein entfernter Eintrag"
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "A request’s temperature goes out, even on a model that takes none."
-msgstr ""
+msgstr "Die Temperatur einer Anfrage wird gesendet, auch bei einem Modell, das keine annimmt."
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -8347,7 +8347,7 @@ msgstr "Weglassen"
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Leave out these request fields"
-msgstr ""
+msgstr "Diese Anfragefelder weglassen"
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -10514,7 +10514,7 @@ msgstr "Öffnet den Agenten mit diesem Text im Intent-Feld. Gesendet wird erst, 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Optional fields only: what a request needs always goes out, and a left-out max_tokens is sent as max_completion_tokens."
-msgstr ""
+msgstr "Nur optionale Felder: Was eine Anfrage braucht, wird immer gesendet, und ein weggelassenes max_tokens wird als max_completion_tokens gesendet."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -13385,7 +13385,7 @@ msgstr "Senden"
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Send a request’s value"
-msgstr ""
+msgstr "Den Wert einer Anfrage senden"
 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
@@ -15422,12 +15422,12 @@ msgstr "Die neuesten Wörter befinden sich nicht im Browser-Speicher. Exportiere
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "The leave-out list below names temperature, so none is sent."
-msgstr ""
+msgstr "Die Weglassliste unten nennt die Temperatur, daher wird keine gesendet."
 
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "The leave-out list below turns the thinking control off, so no level is sent."
-msgstr ""
+msgstr "Die Weglassliste unten schaltet die Denkstufen-Einstellung aus, daher wird keine Stufe gesendet."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
