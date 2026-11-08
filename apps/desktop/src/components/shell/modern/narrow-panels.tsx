@@ -37,7 +37,8 @@ import { BINDER_BUTTON_ID, DRAWER_ID } from './narrow-ids.js';
 import { shownPanel, syncNarrow, type NarrowState } from './narrow-sync.js';
 import { SCENE_INFO_ID } from './scene-info-model.js';
 import { closeSceneInfo, openSceneInfo, sceneInfoReturnTarget, sceneInfoState, subscribeSceneInfo } from './scene-info-store.js';
-import { SIDEBAR_TABS, isSidebarTab, sidebarTabFor, type SidebarTab } from './sidebar-model.js';
+import { SIDEBAR_TABS, agentTab, isSidebarTab, sidebarTabFor, type SidebarTab } from './sidebar-model.js';
+import { sidebarChannel } from './requests.js';
 
 /** The drawer's id and its button's (narrow-ids.ts): Classic's narrow ids, so the workspace's own focus rule for the rail drawer finds them. */
 export { BINDER_BUTTON_ID, DRAWER_ID };
@@ -69,7 +70,7 @@ function returnTarget(panel: NarrowPanel): HTMLElement | null {
   return reachable(back) ? back : document.querySelector<HTMLElement>('[data-testid="modern-title-capsule"]');
 }
 
-export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageId: string }): ReactNode {
+export function NarrowPanels({ regions, pageId, lastAgent = null }: { regions: ShellRegions; pageId: string; lastAgent?: SidebarTab | null }): ReactNode {
   const { view } = regions;
   const info = useSyncExternalStore(subscribeSceneInfo, sceneInfoState, sceneInfoState);
   const drawer = useRef<HTMLElement>(null);
@@ -79,6 +80,11 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
   // Scene info kept open (Keep open) is not modal: no scrim, and the page stays live above it (#364).
   const modal = shown === 'inspector' && info.docked ? null : shown;
   const tab = drawerTabFor(view.rail);
+  useLayoutEffect(() => sidebarChannel.listen(({ tab: requested }) => {
+    const next = requested === 'agent' ? agentTab(lastAgent) : requested;
+    view.setRail(next);
+    view.setPanel('rail');
+  }));
   // The binder footer's "Goals and sprint" disclosure, as in #307's sidebar; closed each time the narrow layout starts.
   const [goalsOpen, setGoalsOpen] = useState(false);
 
@@ -221,4 +227,3 @@ export function NarrowPanels({ regions, pageId }: { regions: ShellRegions; pageI
     </>
   );
 }
-

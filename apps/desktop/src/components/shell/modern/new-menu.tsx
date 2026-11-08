@@ -4,7 +4,7 @@
  * (`Goes into Chapter 3`, or that a chapter is made first). Choosing one makes it there and opens it.
  *
  * Keys: as **⋯** (APG menu button): ArrowDown on the button opens it, the arrow keys, Home and End move, Enter or Space chooses,
- * Escape or Tab closes and focus returns to **+ New**. Ctrl+Shift+N (Cmd+Shift+N) and the palette open it too (`newMenuChannel`).
+ * Escape or Tab closes and focus returns to **+ New**. Ctrl+Shift+N (Cmd+Shift+N) opens it too; the palette creates each kind directly.
  */
 /* lingui-set comment="Modern interface, the + New menu in the top ornament." */
 
@@ -16,7 +16,6 @@ import { isImeEnter, keyFacts, resolveKey, shortcutLabel } from '../../../app/ke
 import type { ShellCreate } from '../regions.js';
 import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
-import { newMenuChannel } from './requests.js';
 
 /**
  * **+ New** and its popover, returned apart: the button goes in the top ornament's toolbar, the popover beside the toolbar as **⋯**'s
@@ -32,7 +31,6 @@ export function useNewMenu({ create, narrow }: { create: ShellCreate; narrow: bo
     setMenu('open');
   };
   const toggle = (): void => (menu === 'open' ? setMenu('closing') : open());
-  useEffect(() => newMenuChannel.listen(() => open()), []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const inTextField = event.target instanceof HTMLElement && (event.target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(event.target.tagName));

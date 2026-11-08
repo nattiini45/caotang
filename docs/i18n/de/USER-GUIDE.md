@@ -492,11 +492,13 @@ Bei **Prompt-Paket (Video)** wählen Sie die **Anbieter-Vorlage**, für die das 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ## Die moderne Oberfläche
-<!-- source: d82477c4 -->
+<!-- source: 978679b5 -->
 
 Caotang hat zwei Oberflächen, **Klassisch** und **Modern**, und beide können dasselbe. Wer neu beginnt, startet in Modern. Haben Sie Caotang in diesem Browser schon genutzt, bleibt es bei Klassisch, bis Sie wechseln; Ihre Projekte und Einstellungen sind in beiden dieselben. Gewählt wird unter **Einstellungen › Erscheinungsbild › Oberfläche**, und der Wechsel geschieht sofort; eine ungespeicherte Szene und ein laufender Durchlauf des Agenten bleiben erhalten.
 
 Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Das Manuskript ist eine Seite Papier, die über einem Hafen-Hintergrundbild schwebt (Morgendämmerung im hellen Design, Nacht im dunklen), mit gläsernen Bedienelementen an ihren Rändern.
+
+Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen bei einem Drehbuch **Skript · Quelle · Seiten**, bei einem Dialog **Graph · Ink**. Graph zeigt Verzweigungen, Gliederung und Feststellungen; Ink gibt dem Quelleditor die Breite der Seite. Wer einen Graphknoten wählt, öffnet Ink an dieser Zeile. Ein Moduswechsel behält Ihren Text. In einem schmalen Fenster stehen die Drehbuchmodi in einer zweiten Zeile unter dem Titel. Klassisch behält die Drehbuchmodi im Seitenkopf und den Dialoggraphen neben dem Quelltext.
 
 - **Die Ornamente.** Oben an der Seite stehen der Name des Projekts, der Speicherstand, **+ Neu** und **⋯**. Der Name öffnet die Szeneninfo; ein Ring darum zeigt den heutigen Fortschritt zum Tagesziel, ein Punkt, wie viele Feststellungen offen sind. **+ Neu** legt eine **Szene** oder ein **Kapitel**, eine **Drehbuchszene**, einen **Dialog (Ink)**, ein **Storyboard** oder einen **Comic** an; seine letzte Zeile sagt, wohin: in das ausgewählte Kapitel, sonst in das Kapitel der offenen Szene, sonst in ein neues Kapitel, das es zuerst anlegt. Das Neue öffnet sich sofort. **Strg+Umschalt+N** öffnet es, wo der Browser die Taste durchlässt (Chrome behält sie für ein privates Fenster; tippen Sie dort „neu“ in die Suche). **⋯** enthält jede Aktion der klassischen Werkzeugleiste (Einstellungen, Kompilieren…, Export-Bundle, Rückgängig, Fokusmodus und die übrigen) sowie **Darstellung**: Hell oder Dunkel, **Transparenz reduzieren** und **Klassische Oberfläche verwenden**. Auf der Pinnwand steht auch die Kartengröße (S, M, L) im oberen Ornament. Unten stehen die fünf Ansichten **Schreiben**, **Pinnwand**, **Zeitachse**, **Kodex** und **Bilder** (die Pfeiltasten wechseln zwischen ihnen, und die Seite nimmt die passende Form an; unter 1.180 px zeigen sie nur ihr Symbol, benannt im Tooltip), dann **Fragen** und **Suchen**.
 - **Die Seitenleiste.** Am Anfangsrand (links, in einer Sprache, die von rechts nach links läuft, rechts) liegt eine schmale Glasleiste mit **Binder**, **Feststellungen** (mit der Zahl offener Feststellungen, auch bei geschlossener Seitenleiste) und **Agent**. Ruht der Zeiger darauf, öffnet sich daneben die Seitenleiste; ein Klick, Enter oder die Leertaste öffnen sie und setzen den Fokus hinein. **Binder** öffnet den Reiter **Binder**, **Feststellungen** den Reiter **Feststellungen** und **Agent** den zuletzt benutzten von **Aktivität** und **Ablauf**. Die Seitenleiste schließt sich kurz nachdem der Zeiger sie verlässt, solange der Fokus nicht in ihr ist; Escape schließt sie und führt zur Leiste zurück. **Offen halten** (die Nadel am Ende der Reiter) heftet sie an, und die Seite rückt zur Seite; das bleibt in diesem Browser gespeichert. Wer eine Szene wählt, schließt eine nicht angeheftete Seitenleiste und landet im Editor. Auf dem Reiter Binder stehen die Importe in einem Menü **Importieren…**, und alle Filter außer dem Suchfeld liegen unter **Filter**, das zählt, wie viele gesetzt sind. Gespeicherte Filter, Ziele, Sprint-Timer, Summen und Verlauf stehen unter **Ziele und Sprint** unter dem Baum. **Strg+Alt+F** öffnet die Seitenleiste auf dem Filter.
@@ -529,22 +531,31 @@ Zahlen, Daten und Uhrzeiten folgen der Sprache der Oberfläche (siehe **Erschein
 - **Daten.** Der Speicherort — das ist dieser Browser —, was der Browser über seinen Speicher sagt, und die Sicherungspunkt-Limits: **Pro Projekt behaltene Sicherungspunkte** (standardmäßig 100) und **Tage, die ein Sicherungspunkt behalten wird** (standardmäßig 30). Wählen Sie **Limits speichern**, um Ihre Änderung zu übernehmen. Ist ein Projekt geöffnet, wendet **Jetzt auf die Limits kürzen** sie sofort an.
 
 ## Tastatur
-<!-- source: 844de109 -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
+<!-- source: 5535c2c1 -->
+
+In Modern führt **Suchen** (Strg+K, auf einem Mac Cmd+K) auch zu jeder Ansicht und jedem Bereich der Seitenleiste. Tippen Sie **Schreiben**, **Pinnwand**, **Zeitachse**, **Kodex** oder **Bilder** und wählen Sie das Ergebnis mit **Ansicht**. Tippen Sie **Binder**, **Feststellungen** oder **Agent** und wählen Sie **Seitenleiste**; Agent kehrt zum zuletzt benutzten Reiter Aktivität oder Ablauf zurück. **Den Agenten fragen** öffnet stattdessen den Schreibbegleiter. Strg/Cmd+1–5 gehören den Browsertabs, Strg/Cmd+Umschalt+1–3 überschneiden sich mit Drehbuchelementen oder macOS-Bildschirmfotos; Caotang verwendet sie deshalb nicht zur Navigation.
 
 Auf einem Mac tritt an die Stelle von Strg die Cmd-Taste. Die Element-Akkorde sind die eine Ausnahme: Sie verwenden Cmd+Alt, weil Cmd+Shift+3 und Cmd+Shift+4 Bildschirmfotos aufnehmen.
+
+Der Buchstabe eines Tastenkürzels ist der auf der Taste aufgedruckte Buchstabe; auf einer deutschen oder französischen Tastatur meint Strg+Z die Taste Z. Auf einer russischen, griechischen, hebräischen, arabischen oder anderen nichtlateinischen Belegung nimmt ein Kürzel die Position dieses Buchstabens auf einer englischen Tastatur, damit Sie zum Rückgängigmachen nicht die Belegung wechseln müssen. AltGr gilt nie als Strg+Alt und tippt deshalb immer sein Zeichen, etwa `@` oder `{` auf einer deutschen Tastatur.
 
 Ein Tastenkürzel folgt dem Buchstaben, den Ihr Tastaturlayout ausgibt, und fällt auf die Position der Taste zurück, wenn das Layout keinen lateinischen Buchstaben ausgibt, daher ist Ctrl+N auf einer russischen, griechischen, hebräischen oder arabischen Tastatur derselbe Tastendruck. Ein Zeichen, das Ihr Layout mit AltGr eingibt, etwa `@` auf einer deutschen Tastatur, wird nie als Tastenkürzel genommen. Während Sie mit einer Eingabemethode komponieren, sendet, speichert oder öffnet das Enter, das einen Kandidaten bestätigt, nichts; das nächste Enter schon.
 
 | Taste | Was sie tut |
 |---|---|
 | Ctrl+N | Neues Dokument. |
+| Strg+K (Modern) | Suche und Befehle öffnen; eine Ansicht, einen Bereich der Seitenleiste oder etwas unter Neu eingeben und auswählen. |
+| Strg+J (Modern) | Das Agentenfenster öffnen oder schließen. |
+| Strg+Umschalt+N (Modern, wo der Browser es zulässt) | Das Menü Neu öffnen. Chrome und Edge öffnen damit ein privates Fenster; verwenden Sie dort die Suche mit ihren Neu-Einträgen. |
 | Ctrl+Z | Macht das Tippen im Editor rückgängig. Andernorts macht es die letzte Änderung von Caotang rückgängig. |
 | Ctrl+Shift+F | Fokusmodus, der den Binder und den Inspektor ausblendet. |
 | Ctrl+Alt+F | Zum Filter des Binders springen. |
+| Strg+Umschalt+6 | Im Editor eine Fußnote an der Einfügemarke hinzufügen. In einer Fußnote zu ihrer Zahl zurückkehren; bei ausgewählter Zahl zu ihrer Fußnote springen. |
 | Ctrl+Enter | Das ausgewählte Element im Editor öffnen. |
 | Ctrl+E | Im Tab „Quelle“ eines Drehbuchs das Elementmenü für die Zeile des Cursors öffnen. |
 | Ctrl+Shift+1 bis 9 (Cmd+Alt+1 bis 9 auf einem Mac) | Im Tab „Quelle“ eines Drehbuchs die Zeile des Cursors zum 1. bis 9. Element des Elementmenüs machen. |
+| Strg+Umschalt+S (Cmd+Alt+S auf einem Mac) | Im Tab Quelle eines Drehbuchs den Ordner der Szene, ihren Abschnitt, auswählen und zur Zeile im Binder wechseln. |
+| Strg+Umschalt+Y (Cmd+Alt+Y auf einem Mac) | Im Tab Quelle eines Drehbuchs zur Synopsis der Szene im Inspektor wechseln. |
 | F2 | Das ausgewählte Element im Binder umbenennen. |
 | Delete | Das ausgewählte Element im Binder löschen. Es fragt zuerst. |
 | Arrow keys | Die Auswahl im Binder bewegen. |
@@ -553,6 +564,7 @@ Ein Tastenkürzel folgt dem Buchstaben, den Ihr Tastaturlayout ausgibt, und fäl
 | Esc | Ein Menü oder einen Dialog schließen. Ein Menü gibt den Fokus an das Steuerelement zurück, das es geöffnet hat. Im Agenten-Panel stoppt es bei leerem Intent-Feld den laufenden Zug. |
 | Enter, im Intent-Feld des Agenten | Die Nachricht senden oder als nächsten Zug einreihen, während der Agent arbeitet. |
 | Ctrl+Enter, im Intent-Feld des Agenten | Die Nachricht dem laufenden Zug als Notiz senden. |
+| Tab, Eingabe, Auf, Ab, Esc, in der Befehlsliste des Agenten | Den Befehl vervollständigen (Eingabe führt einen Befehl ohne weitere Angaben auch aus), durch die Liste gehen oder sie schließen und den Text behalten. |
 
 Die Tabs links (**Binder**, **Kodex**, **Aktivität** und **Feststellungen**) und die Schaltflächen **Editor**, **Pinnwand** und **Zeitachse** nehmen die Pfeiltasten sowie Pos1 und Ende entgegen. In einem Menü bewegen die Pfeiltasten zwischen den Einträgen, und Enter oder die Leertaste wählt einen aus.
 

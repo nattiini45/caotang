@@ -297,6 +297,7 @@ describe('commands, places and settings', () => {
     ]);
     expect(view('Scene info')).toEqual({ kind: 'scene-info' });
     expect(view('Ask the agent')).toEqual({ kind: 'agent' });
+    expect(view('Agent')).toEqual({ kind: 'agent-logs' });
   });
 
   it('lists every Settings section under Settings', () => {

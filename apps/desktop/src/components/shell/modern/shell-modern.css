@@ -176,6 +176,36 @@
   inset-block-start: calc(var(--page-top) - var(--radius-ornament));
 }
 
+:root[data-shell='modern'] .document-mode-outlet {
+  display: contents;
+}
+
+:root[data-shell='modern'] .document-mode-outlet .segmented {
+  flex-shrink: 0;
+}
+
+:root[data-shell='modern'] .dlg-layout[data-mode='ink'] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 959px) {
+  :root[data-shell='modern'] .modern-stage:has(.document-mode-outlet > *) > .modern-page-area {
+    inset-block-start: calc(124px + var(--n-top) - var(--page-gutter));
+  }
+
+  :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top:has(.document-mode-outlet > *) {
+    flex-wrap: wrap;
+    block-size: auto;
+    inline-size: auto;
+  }
+
+  :root[data-shell='modern'] .modern-stage .document-mode-outlet .segmented {
+    flex-basis: 100%;
+    order: 1;
+    justify-content: center;
+  }
+}
+
 :root[data-shell='modern'] .modern-ornament.is-bottom {
   inset-block-end: calc(var(--page-bottom) - var(--radius-ornament));
 }

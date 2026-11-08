@@ -59,6 +59,7 @@ export type PaletteTarget =
   | { readonly kind: 'action'; readonly actionId: ShellActionId }
   | { readonly kind: 'view'; readonly view: PaletteView }
   | { readonly kind: 'tab'; readonly tab: PaletteTab }
+  | { readonly kind: 'agent-logs' }
   | { readonly kind: 'scene-info' }
   | { readonly kind: 'agent' }
   | { readonly kind: 'settings'; readonly section: PaletteSettingsSection }
@@ -451,6 +452,7 @@ function placeItems(): Searchable[] {
   const sidebar = t`Sidebar`;
   return [
     ...viewItems(),
+    { item: { id: 'agent-logs', label: t`Agent`, detail: sidebar, icon: 'tab' as const, target: { kind: 'agent-logs' as const } }, words: [t`Agent`, sidebar] },
     ...PALETTE_TABS.map((id) => ({
       item: { id: `tab-${id}`, label: paletteTabLabel(id), detail: sidebar, icon: 'tab' as const, target: { kind: 'tab' as const, tab: id } },
       words: [paletteTabLabel(id), sidebar],

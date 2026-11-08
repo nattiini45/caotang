@@ -87,8 +87,6 @@ export interface ShellSearch {
   readonly openNode: (nodeId: string) => void;
   /** A codex entry chosen: the codex shows it, as a mention chip does. */
   readonly openCodexEntry: (entryId: string) => void;
-  /** The codex without an entry. */
-  readonly showCodex: () => void;
   readonly openSettings: (section: SettingsSection) => void;
   /** Opens the agent. With text, the Intent box holds it and nothing is sent. */
   readonly openAgent: (text: string | null) => void;
@@ -107,6 +105,7 @@ export interface ShellCreate {
 }
 
 export interface ShellRegions {
+  readonly documentKind?: 'scene' | 'screenplay' | 'dialogue' | 'storyboard' | 'comic-page' | null;
   /** The New menu's model and its one action (#477). */
   readonly create: ShellCreate;
   /** A hall's preferred order of the views (#430, #482); none keeps Write, Board, Timeline, Codex, Pictures. */
