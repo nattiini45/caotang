@@ -11,6 +11,12 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 
 ## Product and principles
 
+- Modern's narrow coarse-pointer text fields use 16 px type, with source inputs and their highlight layers kept at the same metrics. Why: Safari's focus auto-zoom on smaller type would bypass the scale-1 keyboard detector; pinch zoom stays enabled and still does not count as typing (#501 review F1). [delegated 2026-11-08]
+
+- Insert picture aligns its label to the manuscript's logical start edge in both shells, keeping its padded target; empty comic panels show wrapped guidance in both shells rather than hiding it in Modern. Why: picture insertion should follow the text's alignment, and an empty panel should explain how to add art, including in German (#383). [delegated 2026-11-08]
+
+- Modern's narrow touch layout also detects a software keyboard through visualViewport: a focused text field and a visual height loss over 150 px at scale 1 hide the tab bar; restored height or blur brings it back. Why: iOS Safari ignores interactive-widget=resizes-content, and browser chrome and pinch zoom must not count as typing. The listener lives in the narrow-only chunk and is removed when leaving it (#374). [delegated 2026-11-08]
+
 - Modern's secondary-action disclosures share one app-level outside-pointer and Escape dismissal hook; Escape restores the summary's focus before a containing sidebar handles it, while Classic's permanently expanded controls and content-reading disclosures stay open. Why: Import and More should not linger behind the writer's next action, without collapsing logs or hiding Classic's controls (#376). [delegated]
 - Disclosure dismissal yields to an open native select picker where `:open` is available, then resumes when the picker is closed. Why: choosing a filter must keep the browser's own Escape interaction before closing Filters (#494 review F2). [delegated]
 - Activity, Trace and Script import use native checkboxes with `role="switch"` and their existing visible labels in both interfaces. Why: assistive technology should announce the same on/off controls sighted writers see, with unchanged keyboard behavior (#393). [delegated]

@@ -6368,11 +6368,6 @@ msgstr "leer"
 msgid "Empty documents are left out and listed in the compile log. Undo removes the file again."
 msgstr "Leere Dokumente werden ausgelassen und im Kompilierprotokoll aufgeführt. Rückgängig entfernt die Datei wieder."
 
-#. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
-#: apps/desktop/src/media/ComicPageView.tsx
-msgid "Empty panel — a placeholder, not art"
-msgstr "Leeres Panel — ein Platzhalter, keine Kunst"
-
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Enable"
@@ -16560,6 +16555,11 @@ msgstr "Diese Zeile kann hier nicht {element, select, scene_heading {Szenenüber
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "This model takes none"
 msgstr "Dieses Modell nimmt keine"
+
+#. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/media/ComicPageView.tsx
+msgid "This panel is empty. Drop, paste or choose a picture to add art."
+msgstr "Dieses Panel ist leer. Ziehen Sie ein Bild hinein, fügen Sie eines ein oder wählen Sie eines aus."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx

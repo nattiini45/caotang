@@ -39,6 +39,7 @@ import { SCENE_INFO_ID } from './scene-info-model.js';
 import { closeSceneInfo, openSceneInfo, sceneInfoReturnTarget, sceneInfoState, subscribeSceneInfo } from './scene-info-store.js';
 import { SIDEBAR_TABS, agentTab, isSidebarTab, sidebarTabFor, type SidebarTab } from './sidebar-model.js';
 import { sidebarChannel } from './requests.js';
+import { useVisualKeyboard } from './use-visual-keyboard.js';
 
 /** The drawer's id and its button's (narrow-ids.ts): Classic's narrow ids, so the workspace's own focus rule for the rail drawer finds them. */
 export { BINDER_BUTTON_ID, DRAWER_ID };
@@ -71,6 +72,7 @@ function returnTarget(panel: NarrowPanel): HTMLElement | null {
 }
 
 export function NarrowPanels({ regions, pageId, lastAgent = null }: { regions: ShellRegions; pageId: string; lastAgent?: SidebarTab | null }): ReactNode {
+  useVisualKeyboard();
   const { view } = regions;
   const info = useSyncExternalStore(subscribeSceneInfo, sceneInfoState, sceneInfoState);
   const drawer = useRef<HTMLElement>(null);

@@ -17,7 +17,6 @@ import { InkGate } from '../components/InkGate.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 
 import { commitShotCommand, importShotImage, importShotImages } from './commit.js';
-import { ComicPageView } from './ComicPageView.js';
 import { MediaBoundary } from './MediaBoundary.js';
 import type { SourceRoute } from './element-menu.js';
 import type { MediaPorts } from './ports.js';
@@ -29,6 +28,7 @@ import './media.css';
 const DialogueView = lazyView(() => import('./DialogueView.js').then((module) => ({ default: module.DialogueView })));
 const ScreenplayView = lazyView(() => import('./ScreenplayView.js').then((module) => ({ default: module.ScreenplayView })));
 const StoryboardView = lazyView(() => import('./StoryboardView.js').then((module) => ({ default: module.StoryboardView })));
+const ComicPageView = lazyView(() => import('./ComicPageView.js').then((module) => ({ default: module.ComicPageView })));
 
 export interface MediaViewProps {
   readonly session: ProjectSession;

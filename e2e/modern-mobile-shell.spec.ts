@@ -402,16 +402,20 @@ test.describe('a tablet in landscape (1,024 by 768, the wide layout) by touch', 
 
   async function tabletProject(page: Page): Promise<void> {
     await modern(page, LANDSCAPE);
+    await page.addInitScript(() => {
+      const storage = Object.getPrototypeOf(navigator.storage) as Record<string, unknown>;
+      storage['persisted'] = async () => false;
+      storage['persist'] = async () => false;
+    });
     await page.goto('/');
     await page.getByLabel('Project name').fill('Tablet Book');
     await page.getByRole('button', { name: 'Create project' }).click();
     await expect(page.getByTestId('modern-stage')).toBeVisible();
     await waitForSaved(page);
     const banner = page.getByTestId('storage-banner');
-    if (await banner.isVisible()) {
-      await banner.getByRole('button', { name: 'Dismiss' }).click();
-      await expect(banner).toBeHidden();
-    }
+    await expect(banner).toBeVisible();
+    await banner.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(banner).toBeHidden();
   }
 
   test('every target is 44 px, the open sidebar takes its room beside the page, and the agent stays between the ornaments', async ({ page }) => {

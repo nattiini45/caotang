@@ -1351,18 +1351,6 @@
   stroke: var(--accent, var(--ink));
 }
 
-.comic-panel-note {
-  font-size: 4.5px;
-  fill: var(--muted, var(--ink));
-  pointer-events: none;
-}
-
-.comic-panel-number {
-  font-size: 6px;
-  fill: var(--ink);
-  pointer-events: none;
-}
-
 .comic-handle {
   fill: var(--raised);
   stroke: var(--accent, var(--ink));
