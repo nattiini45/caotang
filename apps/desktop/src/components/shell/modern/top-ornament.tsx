@@ -74,18 +74,18 @@ function toolbarControls(toolbar: HTMLElement): HTMLElement[] {
  * **Export a backup**): one is in the tab order (the one last used), the arrow keys, Home and End move between them.
  */
 export function useRovingToolbar(ref: RefObject<HTMLElement | null>): void {
-  const current = useRef(0);
-  const settle = (controls: readonly HTMLElement[], at: number): void => {
-    current.current = at;
-    controls.forEach((control, index) => (control.tabIndex = index === at ? 0 : -1));
-  };
   useLayoutEffect(() => {
     const toolbar = ref.current;
     if (toolbar === null) return;
+    let current = 0;
+    const settle = (controls: readonly HTMLElement[], at: number): void => {
+      current = at;
+      controls.forEach((control, index) => (control.tabIndex = index === at ? 0 : -1));
+    };
     const refresh = (): void => {
       const controls = toolbarControls(toolbar);
       const focused = controls.indexOf(document.activeElement as HTMLElement);
-      settle(controls, focused === -1 ? Math.max(0, Math.min(current.current, controls.length - 1)) : focused);
+      settle(controls, focused === -1 ? Math.max(0, Math.min(current, controls.length - 1)) : focused);
     };
     const onFocus = (): void => refresh();
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -114,7 +114,7 @@ export function useRovingToolbar(ref: RefObject<HTMLElement | null>): void {
       toolbar.removeEventListener('focusin', onFocus);
       toolbar.removeEventListener('keydown', onKeyDown);
     };
-  });
+  }, [ref]);
 }
 
 export function TopOrnament({ regions }: ModernSlotProps): ReactNode {

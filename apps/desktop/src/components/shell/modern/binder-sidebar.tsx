@@ -212,7 +212,7 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
   useEffect(() => sidebarChannel.listen(({ tab: requested }) => {
     const next = requested === 'agent' ? agentTab(lastAgent) : requested;
     if (!isSidebarTab(next)) return;
-    press(next, { binder: MANUSCRIPT_ID, findings: FINDINGS_OPENER_ID, agent: AGENT_OPENER_ID }[openerOf(next)], false);
+    press(next, ({ binder: MANUSCRIPT_ID, findings: FINDINGS_OPENER_ID, agent: AGENT_OPENER_ID } as const)[openerOf(next)], false);
   }));
 
   const close = (): void => {

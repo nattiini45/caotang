@@ -1191,10 +1191,6 @@ export function Workspace({
         if (mediaKindOf(node) === null) setFocusDocId(nodeId);
       },
       openCodexEntry,
-      showCodex: () => {
-        setRail('codex');
-        if (narrow) setPanel('rail');
-      },
       openSettings: setSettingsSection,
       openAgent: (text) => {
         setAgentOpen(true);

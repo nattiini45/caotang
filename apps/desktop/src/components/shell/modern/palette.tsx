@@ -33,7 +33,7 @@ import {
 import type { SettingsSection } from '../../Settings.js';
 import type { ShellRegions } from '../regions.js';
 import { Icon, type IconName } from './icons.js';
-import { paletteChannel, sceneInfoChannel, sidebarChannel, viewChannel } from './requests.js';
+import { paletteChannel, sidebarChannel } from './requests.js';
 import { chooseView } from './views.js';
 import type { ModernSlotProps } from './slots.js';
 
@@ -277,14 +277,12 @@ function runTarget(target: PaletteTarget, regions: ShellRegions): void {
       search.openNode(target.nodeId);
       return;
     case 'codex':
-      viewChannel.send({ view: 'codex' });
       search.openCodexEntry(target.entryId);
       return;
     case 'action':
       actions.find((action) => action.id === target.actionId)?.run();
       return;
     case 'view':
-      if (viewChannel.send({ view: target.view })) return;
       chooseView(view, target.view === 'editor' ? 'write' : target.view === 'corkboard' ? 'board' : target.view);
       return;
     case 'tab':
@@ -296,7 +294,7 @@ function runTarget(target: PaletteTarget, regions: ShellRegions): void {
       return;
     }
     case 'scene-info':
-      if (!sceneInfoChannel.send({})) search.openSceneInfo();
+      search.openSceneInfo();
       return;
     case 'agent':
       search.openAgent(null);

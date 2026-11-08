@@ -20,15 +20,14 @@ import { commitShotCommand, importShotImage, importShotImages } from './commit.j
 import { ComicPageView } from './ComicPageView.js';
 import { MediaBoundary } from './MediaBoundary.js';
 import type { SourceRoute } from './element-menu.js';
-import { ScreenplayView } from './ScreenplayView.js';
 import type { MediaPorts } from './ports.js';
 import { mediaKindOf } from './route.js';
 
 import './media.css';
 
-// The dialogue and storyboard views load when a node of that kind is first opened (they carry the Ink view and the shot board). The
-// screenplay view stays in the first download: it is small, and the screenplay package is also the store's for `kind: 'screenplay'`.
+// Each media editor loads when a node of its kind is first opened; the shared parsers still load wherever the store needs them.
 const DialogueView = lazyView(() => import('./DialogueView.js').then((module) => ({ default: module.DialogueView })));
+const ScreenplayView = lazyView(() => import('./ScreenplayView.js').then((module) => ({ default: module.ScreenplayView })));
 const StoryboardView = lazyView(() => import('./StoryboardView.js').then((module) => ({ default: module.StoryboardView })));
 
 export interface MediaViewProps {

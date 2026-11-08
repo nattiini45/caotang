@@ -87,8 +87,6 @@ export interface ShellSearch {
   readonly openNode: (nodeId: string) => void;
   /** A codex entry chosen: the codex shows it, as a mention chip does. */
   readonly openCodexEntry: (entryId: string) => void;
-  /** The codex without an entry. */
-  readonly showCodex: () => void;
   readonly openSettings: (section: SettingsSection) => void;
   /** Opens the agent. With text, the Intent box holds it and nothing is sent. */
   readonly openAgent: (text: string | null) => void;
