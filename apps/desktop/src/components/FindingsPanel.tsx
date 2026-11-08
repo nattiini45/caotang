@@ -37,7 +37,7 @@ import { explain } from './actions.js';
 import { KnowledgeList } from './KnowledgeList.js';
 import { EmptyState, More, formatCount, useReport, useSession } from './shared.js';
 import { uiLocale } from '../i18n/format-locale.js';
-import { Icon } from './shell/modern/icons.js';
+import { PanelGlyph as Icon } from './panel-glyph.js';
 
 /* lingui-set comment="Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose." */
 

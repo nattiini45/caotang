@@ -18,7 +18,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
 import { EmptyState } from './shared.js';
-import { Icon } from './shell/modern/icons.js';
+import { PanelGlyph as Icon } from './panel-glyph.js';
 
 /** The import of a view's code failed. The view's own errors are not this. */
 export class ChunkLoadError extends Error {

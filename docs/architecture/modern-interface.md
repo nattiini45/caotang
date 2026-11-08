@@ -357,7 +357,7 @@ Stageshow polish (#360): the sidebar's head holds the four tabs as one segmented
 
 Directional scroll cues (#380) are shared with Classic: long dialogs, the Settings body and its narrow section strip, and sidebar/drawer panels fade only at edges with more content in that direction. Resize, content changes and scrolling update the cues. Sticky bands use the surface's own ground without masking the scroller or clipping its menus and dialogs; no blur or motion is added. Reduced transparency, higher contrast and forced colors hide the decorative bands and retain native scrolling. The observer and its CSS load only when a dialog or a workspace first needs them, not on bare Home.
 
-Panel states (#379) come from the shared features in both shells (ui-modules §0.3): each empty state has a named inline SVG and a next step; loading, failed code loads, review/save failures and Undo feedback have distinct state words and recovery. The shell's 19 used Lucide definitions are copied into `icons.tsx` at the existing 24-unit grid and 1.8 stroke, with ISC in the generated notices, not a new icon dependency.
+Panel states (#379) come from the shared features in both shells (ui-modules §0.3): each empty state has a named inline SVG and a next step; loading, failed code loads, review/save failures and Undo feedback have distinct state words and recovery. The 19 used Lucide definitions are copied at the existing 24-unit grid and 1.8 stroke, with ISC in the generated notices, not a new icon dependency: ten live in the shell's `icons.tsx`, and nine in the shell-neutral `panel-glyph.tsx` shared with the panels. The panels never import a Modern module while Classic is active.
 
 ### 8.6 Notices
 

@@ -61,7 +61,7 @@ import { openDialog } from './dialog-requests.js';
 import { useNarrow } from './narrow.js';
 import { EmptyState, InlineText, Menu, useReport, useSession, wordsLabel, type MenuAnchor, type MenuItem } from './shared.js';
 import { ManuscriptImportActions } from './ManuscriptImport.js';
-import { Icon } from './shell/modern/icons.js';
+import { PanelGlyph as Icon } from './panel-glyph.js';
 import { ScriptImportActions } from './ScriptImport.js';
 import {
   createNode,

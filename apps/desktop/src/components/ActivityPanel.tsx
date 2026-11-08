@@ -25,7 +25,7 @@ import { accessibleText } from '../i18n/accessible-text.js';
 import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from './activity-window.js';
 import { EmptyState, useReport, useSession } from './shared.js';
-import { Icon } from './shell/modern/icons.js';
+import { PanelGlyph as Icon } from './panel-glyph.js';
 
 export function ActivityPanel({ session, onExport }: { session: ProjectSession; onExport: () => void }): ReactNode {
   useSession(session);

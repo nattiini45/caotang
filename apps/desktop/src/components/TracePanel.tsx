@@ -18,7 +18,7 @@ import type { AppServices } from '../app/services.js';
 import { barSentence, turnTimeline, type TraceCallRow, type TraceMessageView, type TraceRow, type TraceTimeline, type TraceToolRow } from '../app/trace-model.js';
 import { traceFileName } from '../app/trace-store.js';
 import { EmptyState, More, formatCount, useReport } from './shared.js';
-import { Icon } from './shell/modern/icons.js';
+import { PanelGlyph as Icon } from './panel-glyph.js';
 
 /** The sentence the export dialog carries: what the file holds, and how far its scrubbing goes. */
 export const EXPORT_WARNING =

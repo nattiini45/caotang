@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { createProject } from './support.js';
+import { createProject, waitForSaved } from './support.js';
 import { showBinder, switchToModern } from './modern-walk.js';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 
@@ -84,6 +84,7 @@ test('a review in progress does not claim to be empty, and a failed review retai
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('textbox', { name: 'Document text' }).fill('The ferry reached the harbour before dawn.');
+  await waitForSaved(page);
   let release = (): void => undefined;
   const held = new Promise<void>((resolve) => { release = resolve; });
   await page.route('https://127.0.0.1:5999/v1/chat/completions', async (route) => {

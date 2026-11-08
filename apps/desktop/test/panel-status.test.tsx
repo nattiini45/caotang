@@ -5,6 +5,7 @@ import { I18nProvider } from '@lingui/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Icon } from '../src/components/shell/modern/icons.js';
+import { PanelGlyph } from '../src/components/panel-glyph.js';
 import { EmptyState } from '../src/components/shared.js';
 import { ChunkLoadError, LazyBoundary } from '../src/components/lazy-view.js';
 import { activateCatalogue, activateEnglish } from '../src/i18n/runtime.js';
@@ -21,7 +22,7 @@ describe('panel status glyphs', () => {
     const decorative = markup(<Icon name="binder" />);
     expect(decorative).toContain('aria-hidden="true"');
     expect(decorative).not.toContain('role="img"');
-    const status = markup(<Icon name="error" label="Save failed" />);
+    const status = markup(<PanelGlyph name="error" label="Save failed" />);
     expect(status).toContain('role="img" aria-label="Save failed"');
     expect(status).not.toContain('aria-hidden');
     expect(status).toContain('viewBox="0 0 24 24"');
@@ -31,7 +32,7 @@ describe('panel status glyphs', () => {
   });
 
   it('keeps the empty state heading, explanation and action beside its glyph', () => {
-    const html = markup(<EmptyState title="Research is empty" glyph={<Icon name="codex" label="Empty research" />} actions={<button>New research note</button>}>Start with one note.</EmptyState>);
+    const html = markup(<EmptyState title="Research is empty" glyph={<PanelGlyph name="codex" label="Empty research" />} actions={<button>New research note</button>}>Start with one note.</EmptyState>);
     expect(html).toContain('data-panel-state="empty"');
     expect(html).toContain('aria-label="Empty research"');
     expect(html).toContain('<h2>Research is empty</h2>');
