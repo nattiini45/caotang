@@ -188,6 +188,9 @@ function wireMessages(req: BodyInput['req'], cache?: CacheSettings, before = 0):
 function anthropicEffort(body: Record<string, unknown>, input: BodyInput): void {
   const { level, budget } = input.effective;
   if (level === undefined) return;
+  // A deny naming a field this pair writes takes the whole control off: nothing of it is sent.
+  const deny = input.ctx.caps.denylist ?? [];
+  if (deny.includes('thinking') || deny.includes('output_config')) return;
   // Another style on the row means the model doesn't take the Messages thinking fields.
   if (input.ctx.caps.effortStyle !== undefined && input.ctx.caps.effortStyle !== 'anthropic') return;
   const levels = input.ctx.caps.effortLevels;
@@ -202,7 +205,7 @@ function anthropicEffort(body: Record<string, unknown>, input: BodyInput): void 
     if (budget === undefined) return;
     body.thinking = { type: 'enabled', budget_tokens: budget };
   }
-  body.output_config = { effort: level };
+  body.output_config = { effort: input.ctx.caps.effortWire?.[level] ?? level };
 }
 
 interface BlockAcc {
@@ -403,7 +406,12 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
     const deny = new Set(ctx.caps.denylist ?? []);
     const tools =
       req.tools !== undefined && req.tools.length > 0 && !deny.has('tools')
-        ? req.tools.map((tool): Record<string, unknown> => ({ name: tool.name, description: tool.description, input_schema: tool.parameters }))
+        ? req.tools.map((tool): Record<string, unknown> => ({
+            name: tool.name,
+            description: tool.description,
+            input_schema: tool.parameters,
+            ...(ctx.caps.toolStrict === undefined ? {} : { strict: ctx.caps.toolStrict }),
+          }))
         : undefined;
     const toolChars = tools === undefined ? 0 : JSON.stringify(tools).length;
     const { system, systemChars, messages } = wireMessages(req, cache, toolChars);

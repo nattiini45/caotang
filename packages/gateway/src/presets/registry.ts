@@ -8,16 +8,21 @@
  * 1M" lands here divided by 1,000.
  */
 
-import { routeFor, type RouteSpec } from '../adapters/types.js';
-import type { ModelCaps } from '../types.js';
+import { routeFor, type AdapterId, type RouteSpec } from '../adapters/types.js';
+import { EFFORT_FIELDS } from '../adapters/effort.js';
+import type { ModelCaps, RequestParams, ThinkingLevel } from '../types.js';
 import type { ModelRow, PresetDef } from './types.js';
 
 /** Anthropic omits `temperature`, `top_p` and `top_k` on Claude 4.7 and later (400 on non-default values). */
 const CLAUDE_DENY = ['temperature', 'top_p', 'top_k'] as const;
 /** Moonshot: do not send sampling knobs at all. */
 const MOONSHOT_DENY = ['temperature', 'top_p', 'n', 'presence_penalty', 'frequency_penalty'] as const;
-/** DeepSeek: "do not send temperature or the penalty fields". */
-const DEEPSEEK_DENY = ['temperature', 'top_p', 'presence_penalty', 'frequency_penalty'] as const;
+/**
+ * DeepSeek's thinking-mode guide (read 2026-11-07): temperature, top_p and the penalties never error. In thinking mode
+ * temperature and the penalties "will not trigger an error but will also have no effect" (top_p is clamped); with thinking off
+ * temperature and top_p are honoured. Only the penalties stay denied, as they have no documented effect while thinking.
+ */
+const DEEPSEEK_DENY = ['presence_penalty', 'frequency_penalty'] as const;
 /** Groq: `logprobs`, `logit_bias`, `top_logprobs` and `messages[].name` return 400. */
 const GROQ_DENY = ['logprobs', 'logit_bias', 'top_logprobs', 'name'] as const;
 /** xAI reasoning models reject these sampling fields. */
@@ -40,6 +45,52 @@ const CLAUDE_CACHE = { cache: 'explicit', cacheMinTokens: 512, cacheWriteMultipl
 const OPENAI_EXPLICIT_CACHE = { cache: 'explicit', cacheMinTokens: 1_024, cacheWriteMultiplier: 1.25 } as const satisfies Partial<ModelCaps>;
 
 /**
+ * Sends xhigh and max under their own names where a row lists them; the effort family's default would send both as 'high'.
+ * Only listed levels are ever sent, so one map serves every row. Docs per row: /workspace effort audit, read 2026-11-07.
+ */
+const OWN_NAMES = { xhigh: 'xhigh', max: 'max' } as const;
+
+/**
+ * DeepSeek on Chat Completions (docs and live API, 2026-11-07): `thinking.type` plus `reasoning_effort` low|high|max (medium and
+ * xhigh are silent aliases of high, so not offered); Off is `thinking: {type: 'disabled'}`. Caching is automatic with no write
+ * charge (kv_cache guide). No `toolStrict`: true is ignored off /beta and 400s on optional properties there.
+ */
+const DEEPSEEK_CAPS = {
+  tools: true,
+  jsonObject: true,
+  effortStyle: 'thinking.type+effort',
+  effortLevels: ['off', 'low', 'high', 'max'],
+  effortWire: { max: 'max' },
+  replayStyle: 'content-field',
+  denylist: DEEPSEEK_DENY,
+  cache: 'automatic',
+} as const satisfies Partial<ModelCaps>;
+/** Window and output cap from DeepSeek's pricing page and /models (1M / 384K), the same on every row. */
+const DEEPSEEK_LIMITS = { contextWindow: 1_048_576, maxOutputTokens: 393_216 } as const;
+/**
+ * deepseek-flash prices (https://api-docs.deepseek.com/quick_start/pricing, read 2026-11-07): $0.30 / $1.20 per 1M at PEAK
+ * (01:00-04:00 and 06:00-10:00 UTC, Mon-Fri); every other hour is off-peak at half. Peak is the conservative price.
+ */
+const DEEPSEEK_FLASH = { caps: { ...DEEPSEEK_CAPS, vision: true, cacheReadMultiplier: 0.02 }, ...DEEPSEEK_LIMITS, pricePer1k: { prompt: 0.0003, completion: 0.0012 } } as const;
+
+/**
+ * What every OpenAI row takes on the Responses route, checked against the live API on 2026-11-07 (provider-gateway §2, "Request
+ * parameters"). `temperature` and `top_p` are refused (400 "Unsupported parameter") at every effort except `none`, so they are
+ * never sent. Tools go out with `strict: false`: an absent flag is `true` there, which makes every optional parameter required.
+ * Each level is sent as its own name (`none` for off), so Max reaches the API as `max`, not `high`. `text.format: json_object`
+ * is accepted.
+ */
+const OPENAI_CAPS = {
+  tools: true,
+  jsonObject: true,
+  effortStyle: 'reasoning.effort',
+  effortWire: { off: 'none', low: 'low', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' },
+  replayStyle: 'items',
+  toolStrict: false,
+  denylist: ['temperature', 'top_p'],
+} as const satisfies Partial<ModelCaps>;
+
+/**
  * Anthropic 5-series rows share tools+vision+replay and the adaptive thinking shape (`thinking.type: 'adaptive'` + `output_config.effort`;
  * `enabled` with `budget_tokens` is a 400 on them); only the effort set and price differ.
  */
@@ -52,6 +103,10 @@ const CLAUDE_CAPS = {
   denylist: CLAUDE_DENY,
   ...CLAUDE_CACHE,
 } as const satisfies Partial<ModelCaps>;
+
+/** OpenCode's thinking fields per route (the levels are per row): Chat sends reasoning_effort, Messages the adaptive pair. */
+const OPENCODE_CHAT = { effortStyle: 'reasoning_effort', effortWire: OWN_NAMES } as const satisfies Partial<ModelCaps>;
+const OPENCODE_MESSAGES = { effortStyle: 'anthropic', thinkingShape: 'adaptive' } as const satisfies Partial<ModelCaps>;
 
 /**
  * A local server loads its model from disk before it answers, so the headers, the first token and the gaps between
@@ -104,13 +159,16 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://developers.openai.com/api/docs',
     models: [
-      { pattern: 'gpt-6-sol', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.1, tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'items' } },
-      { pattern: 'gpt-6-luna', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.1, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'items' } },
+      // Prices: OpenAI's price list, Standard tier, short context, read 2026-11-07 (https://developers.openai.com/api/docs/pricing):
+      // gpt-6.1-sol $2 / $10, gpt-6-astra $10 / $50, gpt-6-luna $0.10 / $0.50 per 1M tokens. gpt-6-sol and gpt-5.5 are not listed there.
+      { pattern: 'gpt-6-sol', caps: { ...OPENAI_EXPLICIT_CACHE, ...OPENAI_CAPS, cacheReadMultiplier: 0.1, vision: true, effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'gpt-6-luna', caps: { ...OPENAI_EXPLICIT_CACHE, ...OPENAI_CAPS, cacheReadMultiplier: 0.1, effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] }, pricePer1k: { prompt: 0.0001, completion: 0.0005 } },
       // gpt-6-astra rejects none (400); functions work only on Responses, which is this route.
-      { pattern: 'gpt-6-astra', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.1, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' } },
+      { pattern: 'gpt-6-astra', caps: { ...OPENAI_EXPLICIT_CACHE, ...OPENAI_CAPS, cacheReadMultiplier: 0.1, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, pricePer1k: { prompt: 0.01, completion: 0.05 } },
       // gpt-6.1-sol: no none, no minimal; functions only on Responses.
-      { pattern: 'gpt-6.1-sol', caps: { ...OPENAI_EXPLICIT_CACHE, cacheReadMultiplier: 0.05, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' } },
-      { pattern: 'gpt-5.5', caps: { cache: 'automatic', cacheReadMultiplier: 0.1, cacheWriteMultiplier: 1, tools: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high'], replayStyle: 'items' } },
+      { pattern: 'gpt-6.1-sol', caps: { ...OPENAI_EXPLICIT_CACHE, ...OPENAI_CAPS, cacheReadMultiplier: 0.05, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, pricePer1k: { prompt: 0.002, completion: 0.01 } },
+      // gpt-5.5 rejects max; it caches by itself.
+      { pattern: 'gpt-5.5', caps: { ...OPENAI_CAPS, cache: 'automatic', cacheReadMultiplier: 0.1, cacheWriteMultiplier: 1, effortLevels: ['off', 'low', 'medium', 'high', 'xhigh'] } },
     ],
   },
   {
@@ -146,12 +204,12 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://docs.x.ai/docs',
     models: [
-      // Reasoning cannot be disabled on grok-4.x; presence/frequency/stop are rejected.
-      { pattern: 'grok-4.7', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items', denylist: XAI_DENY }, contextWindow: 500_000, pricePer1k: { prompt: 0.002, completion: 0.006 } },
-      { pattern: 'grok-4.6', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items', denylist: XAI_DENY } },
-      { pattern: 'grok-4.5', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items', denylist: XAI_DENY } },
-      // grok-4.3's docs list none..xhigh but leave `none` undefined — Off stays hidden.
-      { pattern: 'grok-4.3', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items', denylist: XAI_DENY }, contextWindow: 1_000_000 },
+      // Reasoning cannot be disabled on grok-4.4 and later; presence/frequency/stop are rejected. 4.6 and 4.7 take xhigh; 4.5 tops at high.
+      { pattern: 'grok-4.7', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh'], effortWire: OWN_NAMES, replayStyle: 'items', denylist: XAI_DENY }, contextWindow: 500_000, pricePer1k: { prompt: 0.002, completion: 0.006 } },
+      { pattern: 'grok-4.6', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh'], effortWire: OWN_NAMES, replayStyle: 'items', denylist: XAI_DENY } },
+      { pattern: 'grok-4.5', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'items', denylist: XAI_DENY } },
+      // grok-4.3 takes `none` ("no reasoning at all") through high. TODO: xhigh is on its model page only; verify live before offering.
+      { pattern: 'grok-4.3', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high'], replayStyle: 'items', denylist: XAI_DENY }, contextWindow: 1_000_000 },
     ],
   },
   {
@@ -165,10 +223,10 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://dev.meta.ai/docs',
     models: [
-      { pattern: 'muse-spark-1.3', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' }, pricePer1k: { prompt: 0.00125, completion: 0.00425 } },
-      { pattern: 'muse-wonder-1.0', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'items' } },
-      // `max` is documented on muse-spark-1.3 and muse-wonder-1.0 only.
-      { pattern: 'muse-spark-1.2', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'items' } },
+      { pattern: 'muse-spark-1.3', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], effortWire: OWN_NAMES, replayStyle: 'items' }, pricePer1k: { prompt: 0.00125, completion: 0.00425 } },
+      { pattern: 'muse-wonder-1.0', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], effortWire: OWN_NAMES, replayStyle: 'items' } },
+      // `max` is documented on muse-spark-1.3 and muse-wonder-1.0 only; every Muse model takes xhigh, none returns 400.
+      { pattern: 'muse-spark-1.2', caps: { tools: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh'], effortWire: OWN_NAMES, replayStyle: 'items' } },
     ],
   },
   {
@@ -185,6 +243,10 @@ export const PRESETS: readonly PresetDef[] = [
       { pattern: 'mistral-medium-3-5', caps: { tools: true, jsonObject: true, jsonSchema: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'high'], replayStyle: 'text' } },
       { pattern: 'mistral-small-latest', caps: { tools: true, jsonObject: true, jsonSchema: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'high'], replayStyle: 'text' } },
       { pattern: 'mistral-large-2512', caps: { tools: true, vision: true, jsonObject: true, jsonSchema: true }, pricePer1k: { prompt: 0.0005, completion: 0.0015 } },
+      // The reasoning page's per-model table: Large 4 takes low|medium|high; the hosted GLM 5.3 pair takes low|high|max (no none).
+      { pattern: 'mistral-large-4-0', caps: { effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high'] } },
+      { pattern: 'zai-glm-5-3', caps: { effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES } },
+      { pattern: 'zai-glm-5-3-flash', caps: { effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES } },
       { pattern: 'ministral-14b-2512', caps: { vision: true } },
       { pattern: 'ministral-8b-2512', caps: { vision: true } },
       { pattern: 'ministral-3b-2512', caps: { vision: true } },
@@ -203,6 +265,7 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://docs.cohere.com/docs/compatibility-api',
     models: [
+      // TODO: a third party says A+ takes reasoning_effort none|high; Cohere's own docs don't. Verify live before offering.
       { pattern: 'command-a-plus-05-2026', caps: { tools: true, vision: false, denylist: COHERE_DENY }, contextWindow: 128_000 },
       // The only model the reasoning guide names; the compat route's effort accepts
       // `none` and `high` only, so the ladder is just Off and High.
@@ -225,20 +288,12 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://api-docs.deepseek.com',
     models: [
-      {
-        pattern: 'deepseek-flash',
-        caps: {
-          tools: true, vision: true, jsonObject: true,
-          effortStyle: 'thinking.type+effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'],
-          replayStyle: 'content-field', denylist: DEEPSEEK_DENY,
-        },
-        contextWindow: 1_048_576, maxOutputTokens: 393_216,
-      },
-      // v4-pro is text-only; its `low` mapping is disputed, so it is not offered.
-      { pattern: 'deepseek-v4-pro', caps: { tools: true, jsonObject: true, effortStyle: 'thinking.type+effort', effortLevels: ['off', 'high', 'max'], replayStyle: 'content-field', denylist: DEEPSEEK_DENY } },
-      // Aliases the provider routes to deepseek-flash.
-      { pattern: 'deepseek-v4-flash', caps: { tools: true, vision: true, jsonObject: true, effortStyle: 'thinking.type+effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field', denylist: DEEPSEEK_DENY } },
-      { pattern: 'deepseek-v4-flash-vision-exp', caps: { tools: true, vision: true, jsonObject: true, effortStyle: 'thinking.type+effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field', denylist: DEEPSEEK_DENY } },
+      { pattern: 'deepseek-flash', ...DEEPSEEK_FLASH },
+      // v4-pro is text-only (the API drops images silently). Peak prices $1.32 / $3.96 per 1M; off-peak is half; cache reads 1/30.
+      { pattern: 'deepseek-v4-pro', caps: { ...DEEPSEEK_CAPS, cacheReadMultiplier: 0.0333 }, ...DEEPSEEK_LIMITS, pricePer1k: { prompt: 0.00132, completion: 0.00396 } },
+      // Retired names, served by and billed as deepseek-flash.
+      { pattern: 'deepseek-v4-flash', ...DEEPSEEK_FLASH },
+      { pattern: 'deepseek-v4-flash-vision-exp', ...DEEPSEEK_FLASH },
     ],
   },
   {
@@ -269,13 +324,11 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://www.alibabacloud.com/help/en/model-studio',
     models: [
-      // enable_thinking:false is not valid on qwen3.7-plus — no Off. Thinking models
-      // must stream, which the adapter always does.
-      { pattern: 'qwen3.7-plus', caps: { tools: true, vision: true, effortStyle: 'enable_thinking+budget', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'content-field', streamRequired: true } },
-      // thinking_budget on qwen3.8-max is disputed; its own `max_effort` scale is the chat-route control.
-      { pattern: 'qwen3.8-max', caps: { vision: true, effortStyle: 'max_effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'content-field', streamRequired: true } },
-      // Off on qwen3.8-flash is marked "verify per model" — hidden until checked.
-      { pattern: 'qwen3.8-flash', caps: { effortStyle: 'enable_thinking+budget', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'content-field', streamRequired: true } },
+      // All four are hybrid: enable_thinking:false turns thinking off. Thinking models must stream, which the adapter always does.
+      { pattern: 'qwen3.7-plus', caps: { tools: true, vision: true, effortStyle: 'enable_thinking+budget', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field', streamRequired: true } },
+      // qwen3.8-max and -flash take reasoning_effort low|medium|xhigh (high and max map to xhigh); none turns thinking off.
+      { pattern: 'qwen3.8-max', caps: { vision: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'low', 'medium', 'xhigh'], effortWire: OWN_NAMES, replayStyle: 'content-field', streamRequired: true } },
+      { pattern: 'qwen3.8-flash', caps: { effortStyle: 'reasoning_effort', effortLevels: ['off', 'low', 'medium', 'xhigh'], effortWire: OWN_NAMES, replayStyle: 'content-field', streamRequired: true } },
       { pattern: 'qwen3.7-flash', caps: { tools: true, vision: true, effortStyle: 'enable_thinking+budget', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field', streamRequired: true } },
     ],
   },
@@ -309,10 +362,10 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://intl.cloud.tencent.com/document/product/1300',
     models: [
-      // Off and Max are not documented on the Chat route — hidden. Both models are
+      // thinking disabled is documented for both; reasoning_effort is low|high on hy3 and high only on hy4-preview. Both are
       // text-only on every route.
-      { pattern: 'hy3', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'content-field' }, contextWindow: 256_000, maxOutputTokens: 128_000 },
-      { pattern: 'hy4-preview', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 64_000 },
+      { pattern: 'hy3', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['off', 'low', 'high'], replayStyle: 'content-field' }, contextWindow: 256_000, maxOutputTokens: 128_000 },
+      { pattern: 'hy4-preview', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['off', 'high'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 64_000 },
     ],
   },
   {
@@ -343,10 +396,10 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://platform.kimi.ai/docs',
     models: [
-      // kimi-k3 cannot turn thinking off; medium is unsupported (high).
-      { pattern: 'kimi-k3', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'content-field', denylist: MOONSHOT_DENY }, contextWindow: 1_048_576, pricePer1k: { prompt: 0.003, completion: 0.015 } },
-      // kimi-k2.6's thinking is enabled/disabled only; every On level sends enabled.
-      { pattern: 'kimi-k2.6', caps: { vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field', denylist: MOONSHOT_DENY }, contextWindow: 262_144, pricePer1k: { prompt: 0.00095, completion: 0.004 } },
+      // kimi-k3 cannot turn thinking off; medium is unsupported (high); max is its default.
+      { pattern: 'kimi-k3', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field', denylist: MOONSHOT_DENY }, contextWindow: 1_048_576, pricePer1k: { prompt: 0.003, completion: 0.015 } },
+      // kimi-k2.6's thinking is enabled/disabled only (no reasoning_effort): On and Off.
+      { pattern: 'kimi-k2.6', caps: { vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field', denylist: MOONSHOT_DENY }, contextWindow: 262_144, pricePer1k: { prompt: 0.00095, completion: 0.004 } },
       // kimi-k2.7-code thinks unconditionally (Off errors): no control is offered.
       { pattern: 'kimi-k2.7-code', caps: { tools: true, vision: true, replayStyle: 'content-field', denylist: MOONSHOT_DENY }, contextWindow: 262_144, pricePer1k: { prompt: 0.00095, completion: 0.004 } },
       { pattern: 'kimi-k2.7-code-highspeed', caps: { tools: true, vision: true, replayStyle: 'content-field', denylist: MOONSHOT_DENY }, contextWindow: 262_144, pricePer1k: { prompt: 0.0019, completion: 0.008 } },
@@ -365,18 +418,17 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://docs.z.ai',
     models: [
-      // glm-5.3 family cannot disable thinking; medium is unsupported (send high).
-      { pattern: 'glm-5.3', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.0014, completion: 0.0044 } },
-      { pattern: 'glm-5.3-flash', caps: { tools: true, vision: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.00015, completion: 0.0005 } },
-      { pattern: 'glm-5.3-flashx', caps: { tools: true, vision: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.00037, completion: 0.00125 } },
-      // glm-5.2 accepts reasoning_effort none and thinking disabled for Off.
-      { pattern: 'glm-5.2', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 200_000 },
-      // glm-5.1, glm-5 and glm-4.6: Off is thinking disabled; every On level sends enabled.
-      { pattern: 'glm-5.1', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 200_000 },
-      { pattern: 'glm-5', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 200_000, pricePer1k: { prompt: 0.001, completion: 0.0032 } },
-      { pattern: 'glm-4.6', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 200_000 },
-      // glm-4.7's Off is unverified — hidden until tested.
-      { pattern: 'glm-4.7', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 200_000, pricePer1k: { prompt: 0.0006, completion: 0.0022 } },
+      // glm-5.3 family cannot disable thinking; it takes low|high|max (max is the default), anything else errors.
+      { pattern: 'glm-5.3', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.0014, completion: 0.0044 } },
+      { pattern: 'glm-5.3-flash', caps: { tools: true, vision: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.00015, completion: 0.0005 } },
+      { pattern: 'glm-5.3-flashx', caps: { tools: true, vision: true, effortStyle: 'thinking.type+effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.00037, completion: 0.00125 } },
+      // glm-5.2: Off is thinking disabled; low and medium act as high, xhigh as max, so Off, High and Max.
+      { pattern: 'glm-5.2', caps: { tools: true, effortStyle: 'thinking.type+effort', effortLevels: ['off', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field' }, contextWindow: 200_000 },
+      // glm-5.1, glm-5, glm-4.6 and glm-4.7: thinking enabled|disabled only (reasoning_effort is 5.2+): On and Off.
+      { pattern: 'glm-5.1', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field' }, contextWindow: 200_000 },
+      { pattern: 'glm-5', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field' }, contextWindow: 200_000, pricePer1k: { prompt: 0.001, completion: 0.0032 } },
+      { pattern: 'glm-4.6', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field' }, contextWindow: 200_000 },
+      { pattern: 'glm-4.7', caps: { tools: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field' }, contextWindow: 200_000, pricePer1k: { prompt: 0.0006, completion: 0.0022 } },
     ],
   },
   {
@@ -389,11 +441,12 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://platform.minimax.io/docs',
     models: [
-      // M3 takes thinking adaptive|disabled on the Chat route. `reasoning_split` is
+      // M3 takes thinking adaptive|disabled on the Chat route (reasoning_effort is ignored). `reasoning_split` is
       // not sent (no quirk for it), so thinking arrives as <think> tags in content.
-      { pattern: 'MiniMax-M3', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'think-tags' }, contextWindow: 1_000_000, pricePer1k: { prompt: 0.0003, completion: 0.0012 } },
-      // M3.1-Flash-Preview is subscription-gated (M Plan); Off returns 400.
-      { pattern: 'MiniMax-M3.1-Flash-Preview', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'think-tags' }, contextWindow: 1_000_000 },
+      { pattern: 'MiniMax-M3', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], effortWire: { high: 'adaptive' }, replayStyle: 'think-tags' }, contextWindow: 1_000_000, pricePer1k: { prompt: 0.0003, completion: 0.0012 } },
+      // M3.1-Flash-Preview is subscription-gated (M Plan); Off returns 400; low..max with max the default.
+      // TODO: the docs now name `MiniMax-M3.1-Flash`; verify the preview id still answers.
+      { pattern: 'MiniMax-M3.1-Flash-Preview', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], effortWire: OWN_NAMES, replayStyle: 'think-tags' }, contextWindow: 1_000_000 },
     ],
   },
   {
@@ -408,10 +461,10 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://mimo.mi.com/docs/en-US',
     models: [
-      // Chat thinking is enabled|disabled with no levels; every On level sends enabled.
-      { pattern: 'mimo-v2.6-pro', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 131_072 },
-      { pattern: 'mimo-v2.6-flash', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 131_072 },
-      { pattern: 'mimo-v2.6-pro-ultraspeed', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'content-field' } },
+      // Chat thinking is enabled|disabled with no levels: On and Off.
+      { pattern: 'mimo-v2.6-pro', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 131_072 },
+      { pattern: 'mimo-v2.6-flash', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field' }, contextWindow: 1_000_000, maxOutputTokens: 131_072 },
+      { pattern: 'mimo-v2.6-pro-ultraspeed', caps: { tools: true, vision: true, effortStyle: 'thinking.type', effortLevels: ['off', 'high'], replayStyle: 'content-field' } },
     ],
   },
   {
@@ -425,17 +478,16 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://docs.nano-gpt.com',
     models: [
-      // `max` travels as a `:reasoning-effort/max` suffix on the model id, which this
-      // route cannot express — the top flat level offered here is `high`.
+      // `reasoning_effort` in the body takes none..max, checked per model against the live catalog's `reasoning_efforts`.
       // Reasoning returns in a `reasoning` field, which no replay style writes — text.
-      { pattern: 'x-ai/grok-4.7', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'text' } },
+      { pattern: 'x-ai/grok-4.7', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high', 'xhigh'], effortWire: OWN_NAMES, replayStyle: 'text' } },
       { pattern: 'google/gemini-3.8-flash', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'text' } },
-      // deepseek-v4-flash lists `none`; its low/medium are not offered.
-      { pattern: 'deepseek/deepseek-v4-flash', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'high'], replayStyle: 'text' } },
-      // kimi-k3 lists no medium; its max is suffix-only.
-      { pattern: 'moonshotai/kimi-k3', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high'], replayStyle: 'text' } },
-      // claude-opus-5.5 rejects `none` (always-reasoning).
-      { pattern: 'anthropic/claude-opus-5.5', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['high'], replayStyle: 'text' } },
+      // deepseek-v4-flash lists none, high and max.
+      { pattern: 'deepseek/deepseek-v4-flash', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'text' } },
+      // kimi-k3 lists low, high and max (no medium).
+      { pattern: 'moonshotai/kimi-k3', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'text' } },
+      // claude-opus-5.5 rejects `none` (always-reasoning) and lists low..max.
+      { pattern: 'anthropic/claude-opus-5.5', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], effortWire: OWN_NAMES, replayStyle: 'text' } },
     ],
   },
   {
@@ -451,12 +503,12 @@ export const PRESETS: readonly PresetDef[] = [
     models: [
       // Effort is nested reasoning.effort even on the Chat route. `reasoning` fields
       // have no replay style — text. All rows have image input per the live catalog.
-      // grok-4.7 is reasoning-mandatory (none rejected); its top listed tier is xhigh,
-      // which this wire value cannot express — max offered, sent as the style maps it.
-      { pattern: 'x-ai/grok-4.7', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'text' } },
-      { pattern: 'openai/gpt-6-sol', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'], replayStyle: 'text' } },
-      { pattern: 'deepseek/deepseek-v4.1-flash', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'text' } },
-      { pattern: 'anthropic/claude-opus-5.5', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'text' } },
+      // Levels are each row's `reasoning.supported_efforts` in the live catalog; grok-4.7 and claude-opus-5.5 are
+      // reasoning-mandatory (none rejected), and grok-4.7 tops out at xhigh.
+      { pattern: 'x-ai/grok-4.7', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh'], effortWire: OWN_NAMES, replayStyle: 'text' } },
+      { pattern: 'openai/gpt-6-sol', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], effortWire: OWN_NAMES, replayStyle: 'text' } },
+      { pattern: 'deepseek/deepseek-v4.1-flash', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'text' } },
+      { pattern: 'anthropic/claude-opus-5.5', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'], effortWire: OWN_NAMES, replayStyle: 'text' } },
       // gemini-3.8-flash tops out at high.
       { pattern: 'google/gemini-3.8-flash', caps: { tools: true, vision: true, effortStyle: 'reasoning.effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'text' } },
     ],
@@ -486,27 +538,32 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'blocked',
     corsNote: 'The inference host refuses the browser preflight on its chat routes (only the model list is allowed), so a web page cannot chat with it. `user-agent` is a forbidden header in the browser — it is sent only where fetch allows it (desktop/hosted).',
     docsUrl: 'https://opencode.ai/docs',
-    // Vision, tools and thinking parameters are documented on no route: every row is
-    // text-only (vision: false) and nothing else is claimed.
+    // Vision and tools are documented on no route: every row is text-only (vision: false). Thinking levels are each model's
+    // `capabilities.reasoning` in OpenCode's live catalog (GET /inference/v1/models, read 2026-11-07; `toggle` = Off). Messages-route
+    // rows take the Anthropic adaptive shape; Chat rows take reasoning_effort.
     models: [
-      { pattern: 'claude-sonnet-5-5', caps: { vision: false } },
-      { pattern: 'claude-haiku-5-5', caps: { vision: false } },
-      { pattern: 'claude-opus-5-5', caps: { vision: false } },
-      { pattern: 'claude-fable-5-1', caps: { vision: false } },
-      { pattern: 'qwen3.8-flash', caps: { vision: false } },
+      { pattern: 'claude-sonnet-5-5', caps: { vision: false, ...OPENCODE_MESSAGES, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'claude-haiku-5-5', caps: { vision: false, ...OPENCODE_MESSAGES, effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'claude-opus-5-5', caps: { vision: false, ...OPENCODE_MESSAGES, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'claude-fable-5-1', caps: { vision: false, ...OPENCODE_MESSAGES, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'qwen3.8-flash', caps: { vision: false, ...OPENCODE_MESSAGES, effortLevels: ['off', 'low', 'medium', 'xhigh'] } },
+      // TODO: qwen3.7-plus is missing from the live catalog (likely retired); verify or remove.
       { pattern: 'qwen3.7-plus', caps: { vision: false } },
-      { pattern: 'qwen3.8-max', caps: { vision: false } },
-      { pattern: 'kimi-k3', caps: { vision: false } },
-      { pattern: 'glm-5.3', caps: { vision: false } },
-      { pattern: 'deepseek-v4-pro', caps: { vision: false } },
+      { pattern: 'qwen3.8-max', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['off', 'low', 'medium', 'xhigh'] } },
+      { pattern: 'kimi-k3', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['off', 'low', 'high', 'max'] } },
+      { pattern: 'glm-5.3', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['low', 'high', 'max'] } },
+      { pattern: 'deepseek-v4-pro', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['off', 'high', 'max'] } },
+      // minimax-m2.7 reasons but the catalog lists no controls.
       { pattern: 'minimax-m2.7', caps: { vision: false } },
-      { pattern: 'mistral-large-4', caps: { vision: false } },
-      { pattern: 'gpt-6-sol', caps: { vision: false } },
-      { pattern: 'gpt-6-astra', caps: { vision: false } },
-      { pattern: 'gpt-6.1-sol', caps: { vision: false } },
-      { pattern: 'gpt-5.5', caps: { vision: false } },
-      { pattern: 'grok-4.7', caps: { vision: false } },
-      { pattern: 'muse-spark-1.3', caps: { vision: false } },
+      { pattern: 'mistral-large-4', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['off', 'high'] } },
+      // TODO: the catalog lists none for gpt-6-sol and gpt-5.5, but Zen has rejected none on a GPT path (OpenCode #41323);
+      // verify live before offering Off on the GPT rows.
+      { pattern: 'gpt-6-sol', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'gpt-6-astra', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'gpt-6.1-sol', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] } },
+      { pattern: 'gpt-5.5', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['low', 'medium', 'high', 'xhigh'] } },
+      { pattern: 'grok-4.7', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['low', 'medium', 'high', 'xhigh'] } },
+      { pattern: 'muse-spark-1.3', caps: { vision: false, ...OPENCODE_CHAT, effortLevels: ['low', 'medium', 'high', 'xhigh'] } },
     ],
   },
   {
@@ -521,7 +578,8 @@ export const PRESETS: readonly PresetDef[] = [
     models: [
       // The Router accepts response_format json_schema (always strict) or json_object.
       // `max` is reported for kimi-k3 only; per-model acceptance of `none` is
-      // undocumented, so Off stays hidden.
+      // undocumented, so Off stays hidden. TODO: per-model levels are undocumented (upstream Kimi K3 and GLM-5.3 take
+      // low|high|max); verify live before changing these rows.
       { pattern: 'perplexity/kimi-k3', caps: { tools: true, jsonSchema: true, jsonObject: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high', 'max'], replayStyle: 'text' } },
       { pattern: 'perplexity/glm-5.3-flash', caps: { tools: true, jsonSchema: true, jsonObject: true, replayStyle: 'text' } },
       { pattern: 'perplexity/glm-5.3', caps: { tools: true, jsonSchema: true, jsonObject: true, replayStyle: 'text' } },
@@ -540,14 +598,16 @@ export const PRESETS: readonly PresetDef[] = [
     models: [
       // Hybrid models toggle with reasoning:{enabled}; the per-level reasoning_effort
       // field exists too, but one effortStyle is picked per row — the documented Off
-      // path wins, so the toggle is offered (On/Off).
+      // path wins, so the toggle is offered (On/Off). TODO: a third party says the disable toggle is ignored on Kimi-K3,
+      // GLM-5.2 and MiniMax-M3; verify live.
       { pattern: 'moonshotai/Kimi-K3', caps: { tools: true, vision: true, effortStyle: 'reasoning.enabled', effortLevels: ['off', 'high'], replayStyle: 'content-field' } },
       { pattern: 'deepseek-ai/DeepSeek-V4-Pro-0813', caps: { tools: true, effortStyle: 'reasoning.enabled', effortLevels: ['off', 'high'], replayStyle: 'text' } },
       { pattern: 'zai-org/GLM-5.2', caps: { tools: true, effortStyle: 'reasoning.enabled', effortLevels: ['off', 'high'], replayStyle: 'content-field' } },
       // gpt-oss-120b takes reasoning_effort low/medium/high and cannot turn off.
       { pattern: 'openai/gpt-oss-120b', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high'], replayStyle: 'text' } },
-      { pattern: 'MiniMaxAI/MiniMax-M3', caps: { vision: true, replayStyle: 'content-field' } },
-      { pattern: 'Qwen/Qwen3.5-9B', caps: { vision: true } },
+      // Both are hybrid and toggle with reasoning:{enabled}.
+      { pattern: 'MiniMaxAI/MiniMax-M3', caps: { vision: true, effortStyle: 'reasoning.enabled', effortLevels: ['off', 'high'], replayStyle: 'content-field' } },
+      { pattern: 'Qwen/Qwen3.5-9B', caps: { vision: true, effortStyle: 'reasoning.enabled', effortLevels: ['off', 'high'] } },
     ],
   },
   {
@@ -560,15 +620,18 @@ export const PRESETS: readonly PresetDef[] = [
     cors: 'unknown',
     docsUrl: 'https://docs.fireworks.ai',
     models: [
-      // kimi-k3 reasons at max by default; its per-tier acceptance is unconfirmed, so
-      // no effort levels are offered. Reasoning returns as reasoning_content (some
-      // models use <think> tags — content-field is the documented one).
-      { pattern: 'accounts/fireworks/models/kimi-k3', caps: { tools: true, vision: true, replayStyle: 'content-field' }, contextWindow: 1_048_576 },
+      // Levels from the chat reference's per-model reasoning_effort map: kimi-k3 takes none, low, high and max (its default;
+      // medium and xhigh are aliases). Reasoning returns as reasoning_content (some models use <think> tags — content-field
+      // is the documented one).
+      { pattern: 'accounts/fireworks/models/kimi-k3', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field' }, contextWindow: 1_048_576 },
+      // TODO: GLM 5.3 is not in Fireworks' map (third parties: thinking-only, none 400s); verify live, likely low|high|max.
       { pattern: 'accounts/fireworks/models/glm-5p3-flash', caps: { tools: true, vision: true, replayStyle: 'content-field' } },
       { pattern: 'accounts/fireworks/models/glm-5p3', caps: { tools: true, vision: false, replayStyle: 'content-field' } },
-      { pattern: 'accounts/fireworks/models/minimax-m3', caps: { tools: true, replayStyle: 'content-field' } },
+      // minimax-m3 takes `adaptive` (on) and `none`; glm-4p7 is on/off only (levels have no effect).
+      { pattern: 'accounts/fireworks/models/minimax-m3', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'high'], effortWire: { high: 'adaptive' }, replayStyle: 'content-field' } },
+      // TODO: kimi-k2-thinking is not in the map; verify live.
       { pattern: 'accounts/fireworks/models/kimi-k2-thinking', caps: { tools: true, replayStyle: 'content-field' } },
-      { pattern: 'accounts/fireworks/models/glm-4p7', caps: { tools: true, replayStyle: 'content-field' } },
+      { pattern: 'accounts/fireworks/models/glm-4p7', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'high'], replayStyle: 'content-field' } },
     ],
   },
   {
@@ -588,10 +651,12 @@ export const PRESETS: readonly PresetDef[] = [
       { pattern: 'Qwen/Qwen3-VL-235B-A22B-Instruct', caps: { tools: true, vision: true, replayStyle: 'content-field' } },
       { pattern: 'anthropic/claude-haiku-4-5', caps: { tools: true, replayStyle: 'content-field' } },
       // GLM-5.3 cannot turn off (per DeepInfra's blog); medium remaps, so low/high/max.
-      { pattern: 'zai-org/GLM-5.3', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'content-field' } },
-      // Kimi-K3 always thinks — no Off.
-      { pattern: 'moonshotai/Kimi-K3', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'content-field' } },
-      { pattern: 'deepseek-ai/DeepSeek-V4-Flash-0731', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], replayStyle: 'content-field' } },
+      { pattern: 'zai-org/GLM-5.3', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field' } },
+      // Kimi-K3 always thinks — no Off; max is its default.
+      { pattern: 'moonshotai/Kimi-K3', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'], effortWire: OWN_NAMES, replayStyle: 'content-field' } },
+      // The reasoning guide documents `none` with this exact model. TODO: its tiers (and so max under its own name) follow
+      // upstream DeepSeek only; verify live before sending max as 'max'.
+      { pattern: 'deepseek-ai/DeepSeek-V4-Flash-0731', caps: { tools: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'low', 'high', 'max'], replayStyle: 'content-field' } },
     ],
   },
   {
@@ -627,8 +692,10 @@ export const PRESETS: readonly PresetDef[] = [
     docsUrl: 'https://huggingface.co/docs/inference-providers',
     models: [
       { pattern: 'openai/gpt-oss-120b', caps: { tools: true, vision: false, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium', 'high'] } },
-      // Qwen3.8-27B hides High on the router (its top tier is xhigh) — low/medium only.
+      // Qwen3.8-27B hides High on the router (its top tier is xhigh) — low/medium only. TODO: Groq/Cerebras backends take
+      // none..high (high = xhigh); verify per backend before offering Off and High.
       { pattern: 'Qwen/Qwen3.8-27B', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'medium'] } },
+      // TODO: the router's backend decides what is accepted; GLM-5.3-Flash takes low|high|max upstream, so verify max live.
       { pattern: 'zai-org/GLM-5.3-Flash', caps: { vision: true, effortStyle: 'reasoning_effort', effortLevels: ['low', 'high', 'max'] } },
       // DeepSeek-V4.1-Flash takes an integer 1–100 effort scale nothing maps to.
       { pattern: 'deepseek-ai/DeepSeek-V4.1-Flash', caps: { vision: true } },
@@ -754,6 +821,25 @@ export function presetFor(id: string | undefined): PresetDef | undefined {
 }
 
 /**
+ * The preset a profile's calls, listings and static limits speak, before per-model routes: a
+ * first-party host's own preset wins over whatever the profile names (provider-gateway §2), the same
+ * pin `resolveRoute` applies. Undefined when the registry knows no preset for the pair — the answer
+ * `resolveRoute` falls back from — for callers that need the preset's table rather than a route.
+ */
+export function presetForProfile(profile: { readonly preset?: string; readonly baseUrl: string }): PresetDef | undefined {
+  let host = '';
+  try {
+    host = new URL(profile.baseUrl).hostname;
+  } catch {
+    // not a URL: no pin
+  }
+  // First-party hosts take their own preset whatever the profile names (provider-gateway §2): OpenAI's newer models
+  // refuse function tools with reasoning on Chat Completions, and Anthropic's chat endpoint is a compatibility layer.
+  const id = host === 'api.openai.com' ? 'openai' : host === 'api.anthropic.com' ? 'anthropic' : profile.preset;
+  return BY_ID.get(id ?? '');
+}
+
+/**
  * The capability row a (preset, model) pair resolves to: an exact id match wins,
  * then the first matching glob, then the preset's `'*'` default row.
  */
@@ -769,21 +855,80 @@ export function modelRowFor(preset: PresetDef, model: string): ModelRow | undefi
   return globRow ?? defaultRow;
 }
 
+/** The thinking levels in display order. */
+const LEVELS: readonly ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+/** The effort style a route speaks when a profile turns thinking on for a row that names none. */
+const DEFAULT_STYLE: Readonly<Record<AdapterId, string>> = {
+  'openai-chat': 'reasoning_effort',
+  'openai-responses': 'reasoning.effort',
+  'anthropic-messages': 'anthropic',
+};
+
+/** Whether `deny` names a field the effort control `caps` speaks writes — the level cannot reach the wire. */
+const effortDenied = (caps: ModelCaps, adapter: AdapterId, deny: (field: string) => boolean): boolean => {
+  const style = caps.effortStyle ?? (adapter === 'anthropic-messages' ? 'anthropic' : undefined);
+  const fields = style === undefined ? undefined : EFFORT_FIELDS[style];
+  return fields !== undefined && fields.some((field) => deny(field));
+};
+
+/**
+ * A row's caps with a profile's own request parameters laid over them (provider-gateway §2, "Request parameters"). Each set field
+ * wins for this profile; an absent one keeps the row's. A temperature allowed here lifts the row's denial; one refused joins it —
+ * and the profile's own `deny` goes last, so an explicit refusal wins over the same profile's allow flag while the flag alone
+ * still overrides the row's default denial.
+ */
+export function withParams(caps: ModelCaps, params: RequestParams | undefined, adapter: AdapterId): ModelCaps {
+  if (params === undefined) {
+    // Even with no profile params, a row whose own denylist names an effort field offers no level:
+    // the control cannot reach the wire, so it is not a capability (provider-gateway §2).
+    const offered = (caps.effortLevels?.length ?? 0) > 0;
+    return offered && effortDenied(caps, adapter, (field) => caps.denylist?.includes(field) === true)
+      ? { ...caps, effortLevels: [] }
+      : caps;
+  }
+  const deny = new Set(caps.denylist ?? []);
+  if (params.temperature === true) deny.delete('temperature');
+  if (params.temperature === false) deny.add('temperature');
+  // The profile's own leave-out list goes last (provider-gateway §2): an explicit refusal wins over the same
+  // profile's temperature flag, while the flag alone still lifts the row's default denial.
+  for (const field of params.deny ?? []) deny.add(field);
+  const out: { -readonly [K in keyof ModelCaps]: ModelCaps[K] } = { ...caps };
+  if (deny.size > 0) out.denylist = [...deny];
+  else delete out.denylist;
+  if (params.toolStrict !== undefined) out.toolStrict = params.toolStrict;
+  if (params.effort !== undefined) {
+    const effort = params.effort;
+    out.effortLevels = LEVELS.filter((level) => (effort[level] ?? '') !== '');
+    out.effortWire = effort;
+    out.effortStyle = caps.effortStyle ?? DEFAULT_STYLE[adapter];
+  }
+  // A deny naming a field the effort control writes takes the whole control off the wire: the level
+  // cannot be sent, so the profile offers none — the same answer the body, modelCaps and modelLimits give.
+  if (effortDenied(out, adapter, (field) => deny.has(field))) out.effortLevels = [];
+  return out;
+}
+
 /**
  * What a (profile-ish, model) pair speaks: the preset's adapter (overridden by its
- * `modelRoutes`), its quirks, and the matched model row's caps. No known preset — an
- * endpoint profile older than the registry, or one whose `preset` names nothing —
- * falls back to the generic OpenAI-Chat route with empty caps.
+ * `modelRoutes`), its quirks, and the matched model row's caps with the profile's own
+ * request parameters over them. A base URL at api.openai.com or api.anthropic.com
+ * answers with that host's preset. Otherwise no known preset — an endpoint
+ * profile older than the registry, or one whose `preset` names nothing — falls back to
+ * the generic OpenAI-Chat route with empty caps.
  */
-export function resolveRoute(profile: { readonly preset?: string; readonly baseUrl: string }, model: string): RouteSpec {
-  if (profile.preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: {} };
-  const preset = presetFor(profile.preset);
-  if (preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: {} };
+export function resolveRoute(
+  profile: { readonly preset?: string; readonly baseUrl: string; readonly params?: RequestParams },
+  model: string,
+): RouteSpec {
+  const preset = presetForProfile(profile);
+  if (preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: withParams({}, profile.params, 'openai-chat') };
   const row = modelRowFor(preset, model);
+  const adapter = routeFor(preset.quirks, model, preset.adapter);
   return {
-    adapter: routeFor(preset.quirks, model, preset.adapter),
+    adapter,
     quirks: preset.quirks,
-    caps: row?.caps ?? {},
+    caps: withParams(row?.caps ?? {}, profile.params, adapter),
     ...(row?.maxOutputTokens === undefined ? {} : { modelMaxOutput: row.maxOutputTokens }),
   };
 }

@@ -34,12 +34,11 @@ export type AdapterId = 'openai-chat' | 'openai-responses' | 'anthropic-messages
  * How a thinking level becomes wire fields. The styles the shipped presets need:
  *  - `reasoning_effort` — `{reasoning_effort: level}` (OpenAI Chat and most compatibles);
  *  - `reasoning.effort` — `{reasoning: {effort: level}}` (Alibaba compatible mode, Responses);
- *  - `thinking.type` — `{thinking: {type: 'enabled'|'disabled'|'adaptive'}}` (DeepSeek, BytePlus Messages);
+ *  - `thinking.type` — `{thinking: {type: 'enabled'|'disabled'}}`, or the row's own on-value (`effortWire`, MiniMax 'adaptive');
  *  - `thinking.type+effort` — `{thinking: {type}, reasoning_effort}` (Z.ai Messages route);
  *  - `enable_thinking+budget` — `{enable_thinking: bool, thinking_budget}` (Alibaba native, MiniMax);
  *  - `reasoning.enabled` — `{reasoning: {enabled: bool}}` (Perplexity);
- *  - `anthropic` — Messages `thinking` + `output_config.effort` (Anthropic adapter);
- *  - `max_effort` — `{max_effort: level}` (Qwen3.8-max on the Chat route).
+ *  - `anthropic` — Messages `thinking` + `output_config.effort` (Anthropic adapter).
  */
 export type EffortStyle =
   | 'reasoning_effort'
@@ -48,8 +47,7 @@ export type EffortStyle =
   | 'thinking.type+effort'
   | 'enable_thinking+budget'
   | 'reasoning.enabled'
-  | 'anthropic'
-  | 'max_effort';
+  | 'anthropic';
 
 /**
  * How an assistant message's reasoning is replayed on the next request:

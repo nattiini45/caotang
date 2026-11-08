@@ -72,7 +72,7 @@
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { ContextError, type AgentTask, type PromptPreview, type RecentTurn } from '@caotang/context';
-import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -196,6 +196,7 @@ import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type 
 import { quotedProjectText } from './egress-check.js';
 import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
 import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
+import { requestCapFor, transmittedOutputCap } from './output-cap.js';
 import { appendLanguageLine, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
@@ -1363,11 +1364,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const reserveCall = (turn: Turn, request: ChatRequest): Reservation | undefined => {
     const { meter } = turn;
     if (meter === undefined) return undefined;
-    const limits = gateway.modelLimits(request.profileId ?? turn.pins.profileId, request.model ?? turn.pins.model, request.thinking);
+    // The request as sent: its own profile, model and level, and its role, which the gateway routes a request with no profile by.
+    // A call under another role carries none of the session's pins, so it is reserved on the role's route, never the session's.
+    const limits = gateway.modelLimits(request.profileId, request.model, request.thinking, request);
     const price = options.price?.() ?? limits.pricePer1k;
     const reserved = meter.reserve({
       promptTokens: usageFor(request.messages, '').promptTokens,
-      maxOutputTokens: (request.maxOutputTokens ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0),
+      maxOutputTokens: transmittedOutputCap(limits, request.maxOutputTokens),
       ...(price === undefined ? {} : { price }),
     });
     if (reserved.ok) {
@@ -3348,10 +3351,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * provider's reported completion tokens against that cap), and the cap. Without the provider's count it is not said to have reached it.
    */
   function cutOf(turn: Turn, reply: Completion, asked: number | undefined): { readonly atCap: boolean; readonly cap: number; readonly advertised?: number } {
-    const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking);
-    const cap = asked ?? limits.maxOutputTokens;
+    const limits = plannerLimits(turn, asked);
+    const cap = transmittedOutputCap(limits, asked);
     const atCap = reply.completionTokens !== undefined && reply.completionTokens >= cap;
     return { atCap, cap, ...(limits.modelMaxOutputTokens === undefined ? {} : { advertised: limits.modelMaxOutputTokens }) };
+  }
+
+  /** The limits of a planner request that asks for `asked`: the turn's pins and the session's role, the route `plannerCall` sends through. */
+  function plannerLimits(turn: Turn, asked: number | undefined): ModelLimits {
+    return gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking, {
+      ...(asked === undefined ? {} : { maxOutputTokens: asked }),
+      ...(options.role === undefined ? {} : { role: options.role }),
+    });
   }
 
   /**
@@ -3364,7 +3375,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (cut.atCap) turn.cutCap = cut.cap;
     // A retry that was cut short of its raised cap still follows a reply that reached the output limit: the ask-back names that limit.
     if (turn.unreadCuts > 1 || callsLeft(turn) < 1) return { status: 'failed', askBack: cutAskBack(turn.cutCap !== undefined, turn.cutCap) };
-    if (cut.atCap && cut.advertised !== undefined && cut.advertised > cut.cap) turn.plannerCap = Math.min(cut.advertised, cut.cap * 2);
+    // The raise is in transmitted terms: twice the cap the cut reply went out with, held to the advertised cap. The request asks for
+    // the cap the settlement turns into that, so a budget route's thinking is not added a second time on top of it.
+    if (cut.atCap && cut.advertised !== undefined && cut.advertised > cut.cap) {
+      const target = Math.min(cut.advertised, cut.cap * 2);
+      turn.plannerCap = requestCapFor(target, (asked) => transmittedOutputCap(plannerLimits(turn, asked), asked));
+    }
     return undefined;
   }
 

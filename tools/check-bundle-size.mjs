@@ -79,7 +79,7 @@ export const BUDGET = {
     // #321 FDX import, #327 script settings, #331 tokens, #333 the shared import preview dialog, #330 the shell actions and Classic
     // shell, #329 the plain-text reader, #320 footnotes in the editor) is in the entry, beside #322's own review fixes. The cap is that
     // plus about 1%, rounded up to the thousand.
-    index: 1_203_000,
+    index: 1_250_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -114,7 +114,10 @@ export const BUDGET = {
   // 1,016.1 kB (1,016,124 bytes) measured with the editor's footnote words localised (#337): the labels port's footnote names, `setLabels` and the
   // decorations that rename the markers and notes of an open editor on a language switch, which put the first load about 0.1 kB over
   // the old 1,016.0 kB ceiling. The ceiling is that plus about 1%, rounded up to the thousand.
-  initialGzip: 1_030_000,
+  // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
+  // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
+  // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
+  initialGzip: 1_041_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -162,7 +165,10 @@ export const BUDGET = {
   // New group, +1,204 in the en and de catalogues). The ceiling is that plus about 1 kB, as earlier raises of this one took.
   // 7,774,178 bytes measured on the merge of origin/main into mission/01-fixes-security (+5,220 on #474's 7,768,958: this
   // branch's #200 exporter growth and the M01 rules/pack fixes, in lazy chunks). The ceiling is that plus about 1 kB.
-  totalJs: 7_775_000,
+  // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
+  // 1,206,897). Caspar raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
+  // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
+  totalJs: 8_000_000,
   /**
    * Named lazy chunks with a raw cap each, that must exist and must not be in the first load (modern-interface.md §12). `modern-shell`
    * is Modern's JS (ModernShell, the stage, the page, later the ornaments, sidebar, popovers, palette and companion): target 60 kB, cap

@@ -93,7 +93,7 @@ describe('the review’s cost with a thinking level (provider-gateway §3)', () 
     expect(cost).not.toHaveProperty('includesThinking');
   });
 
-  it('reads the level from the gateway’s limits for the profile and model, so a set level costs more than none', async () => {
+  it('prices the cap actually transmitted: an adaptive level shares the fixed cap and adds nothing', async () => {
     const gateway = await gatewayWith([]);
     const profile = await gateway.profiles.create({
       name: 'Claude',
@@ -108,13 +108,58 @@ describe('the review’s cost with a thinking level (provider-gateway §3)', () 
     const plan = planOf(1, 0, 1000);
     const plain = reviewCostAt(plan, gateway, profile.id);
     const high = reviewCostAt(plan, gateway, profile.id, undefined, 'high');
+    // The profile's 2,000 cap is not the default, so nothing is lifted; adaptive thinking shares that one
+    // transmitted cap rather than adding a nominal share on top of it (provider-gateway §3, "Effective output").
+    expect(gateway.modelLimits(profile.id, undefined, 'high').thinkingTokens).toBeUndefined();
     expect(plain?.completionUsd).toBeCloseTo(2);
-    expect(plain).not.toHaveProperty('includesThinking');
-    // Adaptive row: the level's nominal 16,384 thinking tokens ride on the 2,000 output cap.
-    expect(high?.completionUsd).toBeCloseTo(18.384);
-    expect(high?.includesThinking).toBe(true);
-    // A level the row does not list adds nothing.
+    expect(high?.completionUsd).toBeCloseTo(2);
+    expect(high).not.toHaveProperty('includesThinking');
+    // A level the row does not list adds nothing either.
     expect(reviewCostAt(plan, gateway, profile.id, undefined, 'off')).not.toHaveProperty('includesThinking');
+  });
+
+  it('prices the lift implicit thinking earns when the profile sets no cap', async () => {
+    const gateway = await gatewayWith([]);
+    const profile = await gateway.profiles.create({
+      name: 'Claude',
+      kind: 'endpoint',
+      baseUrl: 'https://api.anthropic.com/v1',
+      apiKey: 'sk-ant-test-0123456789abcdef',
+      preset: 'anthropic',
+      defaultModel: 'claude-sonnet-5-5',
+      pricePer1k: { prompt: 1, completion: 1 },
+    });
+    const plan = planOf(1, 0, 1000);
+    // No level asked: the row's on-levels mean the provider default thinks, and the default cap is lifted to the
+    // 16,384 floor — the cap actually transmitted, so each call's reply bound reads 4,096 + 12,288.
+    const plain = reviewCostAt(plan, gateway, profile.id);
+    expect(plain?.completionUsd).toBeCloseTo(16.384);
+    expect(plain?.includesThinking).toBe(true);
+    const high = reviewCostAt(plan, gateway, profile.id, undefined, 'high');
+    expect(high?.completionUsd).toBeCloseTo(16.384);
+    expect(high?.includesThinking).toBe(true);
+  });
+
+  it('a budget-style row really does raise the transmitted cap, and the estimate says so', async () => {
+    const gateway = await gatewayWith([]);
+    const profile = await gateway.profiles.create({
+      name: 'Qwen',
+      kind: 'endpoint',
+      preset: 'alibaba',
+      fields: { workspaceId: 'ws', region: 'ap-southeast-1' },
+      baseUrl: 'https://ws.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
+      apiKey: 'sk-qwen-test-0123456789abcdef',
+      defaultModel: 'qwen3.7-plus',
+      pricePer1k: { prompt: 1, completion: 1 },
+    });
+    const plan = planOf(1, 0, 1000);
+    // enable_thinking+budget: 'high' sends a 16,384 thinking budget on top of the 4,096 cap — 20,480 transmitted.
+    const high = reviewCostAt(plan, gateway, profile.id, undefined, 'high');
+    expect(high?.completionUsd).toBeCloseTo(20.48);
+    expect(high?.includesThinking).toBe(true);
+    // No level and 'off' keep the 4,096 cap: a budget route adds nothing it was not sent.
+    expect(reviewCostAt(plan, gateway, profile.id)?.completionUsd).toBeCloseTo(4.096);
+    expect(reviewCostAt(plan, gateway, profile.id, undefined, 'off')?.completionUsd).toBeCloseTo(4.096);
   });
 });
 

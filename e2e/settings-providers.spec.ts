@@ -19,6 +19,105 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
   return page.getByTestId('settings');
 }
 
+/** The profile records as the app's IndexedDB persists them (the `kv` store's 'profiles' value). */
+async function storedProfiles(page: Page): Promise<Record<string, unknown>[]> {
+  return page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('caotang-app', 4);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const value = await new Promise<unknown>((resolve, reject) => {
+      const tx = db.transaction('kv', 'readonly');
+      const req = tx.objectStore('kv').get('profiles') as IDBRequest<{ key: string; value: unknown } | undefined>;
+      req.onsuccess = () => resolve(req.result?.value);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return (value ?? []) as Record<string, unknown>[];
+  });
+}
+
+/**
+ * Writes extra profile records into the app's IndexedDB, exactly as a restore reads them back — a profile saved
+ * before request parameters (or written by the SDK) holds the temperature column and no params flag. Run before
+ * the page reloads, so the app's own restore path reads them.
+ */
+async function seedProfiles(page: Page, records: readonly Record<string, unknown>[]): Promise<void> {
+  // The app writes its first-run demo profile asynchronously after the page loads; wait for that write to land
+  // before seeding behind its back, or the app's own persist lands last and overwrites the seeded records.
+  await expect.poll(async () => (await storedProfiles(page)).some((profile) => profile['name'] === 'Demo (no key)')).toBe(true);
+  await page.evaluate(async (extra) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('caotang-app', 4);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const stored = await new Promise<unknown>((resolve, reject) => {
+      const tx = db.transaction('kv', 'readonly');
+      const req = tx.objectStore('kv').get('profiles') as IDBRequest<{ key: string; value: unknown } | undefined>;
+      req.onsuccess = () => resolve(req.result?.value);
+      req.onerror = () => reject(req.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ key: 'profiles', value: [...((stored as unknown[] | undefined) ?? []), ...extra] });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, records);
+}
+
+/**
+ * Seals a key into the app's own key-vault database, the way provider-gateway §7 stores one: AES-GCM under the
+ * wrapping key in 'wrap', the v2 envelope in 'entries' with the profile id bound as additional data. A profile
+ * seeded with `hasKey` on a preset that requires one restores only when this entry exists — the same pair a
+ * real save writes, never a plaintext key.
+ */
+async function seedKey(page: Page, profileId: string, apiKey: string): Promise<void> {
+  await page.evaluate(async ({ profileId, apiKey }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const req = indexedDB.open('caotang-provider-keys', 1);
+      req.onupgradeneeded = () => {
+        const d = req.result;
+        if (!d.objectStoreNames.contains('wrap')) d.createObjectStore('wrap', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('entries')) d.createObjectStore('entries', { keyPath: 'profileId' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const fresh = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    const wrap = await new Promise<CryptoKey>((resolve, reject) => {
+      const tx = db.transaction('wrap', 'readwrite');
+      const store = tx.objectStore('wrap');
+      const get = store.get('wrapping-key');
+      let stored = fresh;
+      get.onsuccess = () => {
+        const existing = (get.result as { key?: CryptoKey } | undefined)?.key;
+        if (existing !== undefined) stored = existing;
+        else store.put({ id: 'wrapping-key', key: fresh });
+      };
+      tx.oncomplete = () => resolve(stored);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const sealed = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, additionalData: new TextEncoder().encode(`caotang:provider-key:${profileId}`) },
+      wrap,
+      new TextEncoder().encode(JSON.stringify({ v: 2, apiKey })),
+    );
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('entries', 'readwrite');
+      tx.objectStore('entries').put({ profileId, iv, ciphertext: new Uint8Array(sealed) });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, { profileId, apiKey });
+}
+
 test('the preset picker lists the registry, enables every preset the sweep found reachable, and fits the form to the pick', async ({
   page,
 }) => {
@@ -173,6 +272,346 @@ test('task roles pin a profile, a model, and — only where the model documents 
   await expect(again.getByLabel('Chat model')).toHaveValue('claude-sonnet-5-5');
   await expect(again.getByLabel('Chat thinking level')).toHaveValue('high');
   await expect(again.getByLabel('Drafting profile')).not.toHaveValue('');
+});
+
+test('advanced request parameters save and reload, and a denied thinking field removes the level control', async ({ page }) => {
+  await endpointRoute(page, 'https://api.anthropic.com', planThenAnswer({ reply: 'unused' }));
+  const settings = await openSettings(page);
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  const form = settings.getByRole('form', { name: 'New provider' });
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption('anthropic');
+  await form.getByLabel('Name').fill('Claude');
+  await form.getByLabel('API key (required)').fill('test-key');
+
+  // The preset's default model is claude-sonnet-5-5; its row offers low…max, and the form says what each goes out as.
+  await form.getByTestId('profile-params').locator('summary').click();
+  await expect(form.getByText(/Sent as: /)).toBeVisible();
+  await form.getByLabel('Temperature').selectOption('never');
+  await form.getByLabel('Strict tool schemas').selectOption('off');
+  await form.getByLabel('Thinking levels').selectOption('custom');
+  await form.getByLabel('High', { exact: true }).fill('deep');
+  // Denying the field the Messages effort pair writes takes the whole control off the wire, and the form says
+  // so — it does not go on claiming levels are sent.
+  await form.getByLabel('Leave out these request fields').fill('output_config');
+  await expect(form.getByText('The leave-out list below turns the thinking control off, so no level is sent.')).toBeVisible();
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('Claude'))).toBeVisible();
+
+  // Task roles resolves the profile's effective caps: with the effort field denied, no thinking control is offered.
+  await settings.getByLabel('Chat profile').selectOption({ label: 'Claude' });
+  await settings.getByLabel('Chat model').fill('claude-sonnet-5-5');
+  await expect(settings.getByLabel('Chat thinking level')).toHaveCount(0);
+
+  // Every configurable field round-trips: the reopened form holds what was saved.
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const again = page.getByTestId('settings');
+  await again.locator('[data-profile="Claude"]').getByRole('button', { name: 'Edit' }).click();
+  const editing = again.getByRole('form', { name: 'Edit provider' });
+  await editing.getByTestId('profile-params').locator('summary').click();
+  await expect(editing.getByLabel('Temperature')).toHaveValue('never');
+  await expect(editing.getByLabel('Strict tool schemas')).toHaveValue('off');
+  await expect(editing.getByLabel('Thinking levels')).toHaveValue('custom');
+  await expect(editing.getByLabel('High', { exact: true })).toHaveValue('deep');
+  await expect(editing.getByLabel('Leave out these request fields')).toHaveValue('output_config');
+});
+
+test('a flag-only temperature profile — the SDK shape — keeps its mode through an unrelated edit and a reload', async ({ page }) => {
+  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+  await page.goto('/');
+  // A profile an SDK write can produce: params.temperature: true with no stored number (provider-gateway §2).
+  // Read as 'send a value' with an empty field it could never be saved — the field is required there.
+  await seedProfiles(page, [
+    {
+      id: 'prv_0000000002',
+      name: 'SDK flag',
+      kind: 'endpoint',
+      preset: 'generic',
+      baseUrl: 'https://127.0.0.1:5999/v1',
+      defaultModel: 'test-model',
+      params: { temperature: true },
+      hasKey: false,
+      isActive: true,
+    },
+  ]);
+  await page.reload();
+
+  const settings = await openSettings(page);
+  await settings.locator('[data-profile="SDK flag"]').getByRole('button', { name: 'Edit' }).click();
+  const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByTestId('profile-params').locator('summary').click();
+  // The flag alone is its own mode — a request's value — not 'send a value' with an empty field.
+  await expect(editing.getByLabel('Temperature')).toHaveValue('request');
+  await expect(editing.getByLabel('Value, from 0 to 2')).toHaveCount(0);
+  await editing.getByLabel('Name').fill('SDK flag renamed');
+  await editing.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('SDK flag renamed'))).toBeVisible();
+
+  // The save wrote the same shape back: the flag, never a number.
+  const renamed = (await storedProfiles(page)).find((profile) => profile['name'] === 'SDK flag renamed');
+  expect(renamed?.['params']).toEqual({ temperature: true });
+  expect(renamed?.['temperature']).toBeUndefined();
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const again = page.getByTestId('settings');
+  await again.locator('[data-profile="SDK flag renamed"]').getByRole('button', { name: 'Edit' }).click();
+  const reopened = again.getByRole('form', { name: 'Edit provider' });
+  await reopened.getByTestId('profile-params').locator('summary').click();
+  await expect(reopened.getByLabel('Temperature')).toHaveValue('request');
+});
+
+test('a first-party host pin drives the capability line and the model-list caption, whatever preset the profile names', async ({ page }) => {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+  };
+  await page.route('https://api.openai.com/**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: cors });
+      return;
+    }
+    if (request.method() === 'GET' && new URL(request.url()).pathname.endsWith('/models')) {
+      await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ data: [{ id: 'gpt-6.1-sol' }] }) });
+      return;
+    }
+    await route.fulfill({ status: 404, headers: cors, body: 'not found' });
+  });
+  await page.goto('/');
+  // A generic endpoint at api.openai.com — and a profile that names cohere — both resolve to the openai
+  // preset: the pin `resolveRoute` applies to the route, the model list and the limits alike (§2).
+  await seedProfiles(page, [
+    {
+      id: 'prv_0000000003',
+      name: 'Pinned generic',
+      kind: 'endpoint',
+      preset: 'generic',
+      baseUrl: 'https://api.openai.com/v1',
+      defaultModel: 'gpt-6.1-sol',
+      hasKey: false,
+      isActive: true,
+    },
+    {
+      id: 'prv_0000000004',
+      name: 'Pinned cohere',
+      kind: 'endpoint',
+      preset: 'cohere',
+      baseUrl: 'https://api.openai.com/v1',
+      defaultModel: 'gpt-6.1-sol',
+      hasKey: true,
+      isActive: false,
+    },
+  ]);
+  await seedKey(page, 'prv_0000000004', 'test-key');
+  await page.reload();
+
+  const settings = await openSettings(page);
+  // The generic profile's edit form reads the pinned preset's row, not the generic table's fallback.
+  await settings.locator('[data-profile="Pinned generic"]').getByRole('button', { name: 'Edit' }).click();
+  const genericForm = settings.getByRole('form', { name: 'Edit provider' });
+  await expect(genericForm.getByText('native tools · JSON-object replies · thinking: low / medium / high / xhigh / max')).toBeVisible();
+  await expect(genericForm.getByText(/Not a documented model/)).toHaveCount(0);
+  await genericForm.getByRole('button', { name: 'Cancel' }).click();
+
+  // The cohere-named profile at the same host: its save lists models through OpenAI's route, so the caption
+  // says "listed by" — never cohere's "documents no model list" — and its form reads OpenAI's row too.
+  await settings.locator('[data-profile="Pinned cohere"]').getByRole('button', { name: 'Edit' }).click();
+  const cohereForm = settings.getByRole('form', { name: 'Edit provider' });
+  await expect(cohereForm.getByText('native tools · JSON-object replies · thinking: low / medium / high / xhigh / max')).toBeVisible();
+  await expect(cohereForm.getByText(/This provider documents no model list/)).toHaveCount(0);
+  await cohereForm.getByLabel('Model', { exact: true }).fill('gpt-6-sol');
+  await cohereForm.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('Pinned cohere'))).toBeVisible();
+  await expect(settings.getByRole('region', { name: 'Models listed by Pinned cohere' })).toContainText('gpt-6.1-sol');
+  await expect(settings.getByRole('region', { name: 'Models documented for Pinned cohere' })).toHaveCount(0);
+});
+
+test('a profile saved before request parameters keeps its stored temperature through an unrelated edit', async ({ page }) => {
+  const plan = {
+    steps: [
+      { tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'The friend arrives by boat.', mode: 'draft' }, expect: 'The Friend holds a drafted opening scene' },
+    ],
+  };
+  const sent: { temperature?: number }[] = [];
+  await fakeEndpoint(page, planThenAnswer(plan, 'Drafted.', FRIEND_PROSE));
+  // A capture route on top of the fake, so the chat bodies are asserted AND answered.
+  await page.route('https://127.0.0.1:5999/**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'POST' && request.url().endsWith('/chat/completions')) {
+      sent.push(JSON.parse(request.postData() ?? '{}') as { temperature?: number });
+    }
+    await route.fallback();
+  });
+  await page.goto('/');
+  // A profile from before request parameters — or written by the SDK — holds the temperature column and no params flag.
+  // Seeded into the app database exactly as a restore reads it back.
+  await seedProfiles(page, [
+    {
+      id: 'prv_0000000000',
+      name: 'Legacy',
+      kind: 'endpoint',
+      preset: 'generic',
+      baseUrl: 'https://127.0.0.1:5999/v1',
+      defaultModel: 'test-model',
+      temperature: 0.7,
+      hasKey: false,
+      isActive: true,
+    },
+  ]);
+  await page.reload();
+
+  const settings = await openSettings(page);
+  await expect(settings.locator('[data-profile="Legacy"]')).toBeVisible();
+  // The stored value reads as sent, not "follow the model" — and an unrelated edit keeps it.
+  await settings.locator('[data-profile="Legacy"]').getByRole('button', { name: 'Edit' }).click();
+  const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByTestId('profile-params').locator('summary').click();
+  await expect(editing.getByLabel('Temperature')).toHaveValue('send');
+  await expect(editing.getByLabel('Value, from 0 to 2')).toHaveValue('0.7');
+  await editing.getByLabel('Name').fill('Legacy renamed');
+  await editing.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('Legacy renamed'))).toBeVisible();
+
+  // The save wrote the stored shape back, not an override flag: the value stays send-where-allowed.
+  const legacy = (await storedProfiles(page)).find((profile) => profile['name'] === 'Legacy renamed');
+  expect(legacy?.['temperature']).toBe(0.7);
+  expect(legacy?.['params']).toBeUndefined();
+
+  // After a reload the reopened form still holds it — the save did not clear the stored value.
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const again = page.getByTestId('settings');
+  await again.locator('[data-profile="Legacy renamed"]').getByRole('button', { name: 'Edit' }).click();
+  const reopened = again.getByRole('form', { name: 'Edit provider' });
+  await reopened.getByTestId('profile-params').locator('summary').click();
+  await expect(reopened.getByLabel('Temperature')).toHaveValue('send');
+  await expect(reopened.getByLabel('Value, from 0 to 2')).toHaveValue('0.7');
+  await reopened.getByRole('button', { name: 'Cancel' }).click();
+  await again.getByRole('button', { name: 'Close' }).click();
+
+  // And it is still what the wire carries: the active profile's calls go out with the stored temperature.
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  const field = page.getByRole('combobox', { name: 'Intent' });
+  await field.fill('Draft the opening of The Friend.');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  const card = page.getByTestId('plan-card');
+  await card.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.locator('.agent-turn').last().locator('.agent-report')).toContainText('Applied:');
+  expect(sent.length).toBeGreaterThan(0);
+  expect(sent.every((body) => body.temperature === 0.7 || body.temperature === undefined)).toBe(true);
+  expect(sent.some((body) => body.temperature === 0.7)).toBe(true);
+});
+
+test('a stored temperature on a model that takes none stays off the wire after an unrelated edit — until the writer changes it', async ({
+  page,
+}) => {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+  };
+  const sent: Record<string, unknown>[] = [];
+  // Every api.openai.com call is stubbed and captured: the model list, and the streamed Responses answer. Nothing
+  // reaches the network — the assertion is on what the app PUTS on the wire.
+  await page.route('https://api.openai.com/**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: cors });
+      return;
+    }
+    const url = new URL(request.url());
+    if (request.method() === 'GET' && url.pathname.endsWith('/models')) {
+      await route.fulfill({
+        status: 200,
+        headers: { ...cors, 'content-type': 'application/json' },
+        body: JSON.stringify({ data: [{ id: 'gpt-6.1-sol' }] }),
+      });
+      return;
+    }
+    if (request.method() === 'POST' && url.pathname.endsWith('/responses')) {
+      sent.push(JSON.parse(request.postData() ?? '{}') as Record<string, unknown>);
+      const answer = [
+        'data: {"type":"response.output_text.delta","delta":"Done."}\n\n',
+        'data: {"type":"response.completed","response":{"usage":{"input_tokens":40,"output_tokens":4}}}\n\n',
+        'data: [DONE]\n\n',
+      ].join('');
+      await route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'text/event-stream' }, body: answer });
+      return;
+    }
+    await route.fulfill({ status: 404, headers: cors, body: 'not found' });
+  });
+  await page.goto('/');
+  // The same legacy shape as the generic test above — but the address pins the profile to OpenAI's own rows
+  // (provider-gateway §2): the model row refuses a temperature, so the stored value was never sent.
+  await seedProfiles(page, [
+    {
+      id: 'prv_0000000001',
+      name: 'Legacy OpenAI',
+      kind: 'endpoint',
+      preset: 'generic',
+      baseUrl: 'https://api.openai.com/v1',
+      defaultModel: 'gpt-6.1-sol',
+      temperature: 0.7,
+      hasKey: false,
+      isActive: true,
+    },
+  ]);
+  await page.reload();
+
+  const settings = await openSettings(page);
+  await expect(settings.locator('[data-profile="Legacy OpenAI"]')).toBeVisible();
+  // The stored value reads as sent — and an unrelated edit must not turn that into an override.
+  await settings.locator('[data-profile="Legacy OpenAI"]').getByRole('button', { name: 'Edit' }).click();
+  const editing = settings.getByRole('form', { name: 'Edit provider' });
+  await editing.getByTestId('profile-params').locator('summary').click();
+  await expect(editing.getByLabel('Temperature')).toHaveValue('send');
+  await expect(editing.getByLabel('Value, from 0 to 2')).toHaveValue('0.7');
+  await editing.getByLabel('Name').fill('Legacy OpenAI renamed');
+  await editing.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText(savedMessage('Legacy OpenAI renamed'))).toBeVisible();
+
+  // The save wrote the stored shape back — the value, no override flag.
+  const renamed = (await storedProfiles(page)).find((profile) => profile['name'] === 'Legacy OpenAI renamed');
+  expect(renamed?.['temperature']).toBe(0.7);
+  expect(renamed?.['params']).toBeUndefined();
+  await settings.getByRole('button', { name: 'Close' }).click();
+
+  // And the wire agrees: the row still refuses the field, so no call carries it.
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Intent' }).fill('Say something.');
+  await page.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(() => sent.length).toBeGreaterThan(0);
+  await expect(page.locator('.agent-turn').last()).toContainText('Done.');
+  expect(sent.every((body) => body['temperature'] === undefined)).toBe(true);
+
+  // The reopened form still shows 'send', but the row takes none — the inherited send says so, the same words
+  // 'follow' would use. Changing the shown value is the writer's own override — no mode re-pick needed — and the
+  // note goes: the flag is stored, and the form reads it back as sent.
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const again = page.getByTestId('settings');
+  await again.locator('[data-profile="Legacy OpenAI renamed"]').getByRole('button', { name: 'Edit' }).click();
+  const reopened = again.getByRole('form', { name: 'Edit provider' });
+  await reopened.getByTestId('profile-params').locator('summary').click();
+  await expect(reopened.getByText('gpt-6.1-sol takes no temperature, so none is sent.')).toBeVisible();
+  await reopened.getByLabel('Value, from 0 to 2').fill('0.9');
+  await expect(reopened.getByText('gpt-6.1-sol takes no temperature, so none is sent.')).toHaveCount(0);
+  await reopened.getByRole('button', { name: 'Save profile' }).click();
+  await expect(again.getByText(savedMessage('Legacy OpenAI renamed'))).toBeVisible();
+  const forced = (await storedProfiles(page)).find((profile) => profile['name'] === 'Legacy OpenAI renamed');
+  expect(forced?.['temperature']).toBe(0.9);
+  expect(forced?.['params']).toMatchObject({ temperature: true });
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const last = page.getByTestId('settings');
+  await last.locator('[data-profile="Legacy OpenAI renamed"]').getByRole('button', { name: 'Edit' }).click();
+  const deliberate = last.getByRole('form', { name: 'Edit provider' });
+  await deliberate.getByTestId('profile-params').locator('summary').click();
+  await expect(deliberate.getByLabel('Temperature')).toHaveValue('send');
+  await expect(deliberate.getByLabel('Value, from 0 to 2')).toHaveValue('0.9');
 });
 
 test('the agent panel shows the model’s streamed thinking collapsed, apart from the answer and the draft it writes', async ({

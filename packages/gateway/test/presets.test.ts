@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { PRESETS, presetFor, modelRowFor, resolveRoute } from '../src/index.js';
+import { PRESETS, presetFor, presetForProfile, modelRowFor, resolveRoute } from '../src/index.js';
 
 const EXPECTED_IDS = [
   'anthropic',
@@ -172,6 +172,76 @@ describe('resolveRoute', () => {
   it('treats an unknown preset id as the generic route, not an error', () => {
     const route = resolveRoute({ preset: 'gone-provider', baseUrl: 'https://x.example/v1' }, 'm');
     expect(route.adapter).toBe('openai-chat');
+  });
+});
+
+describe('resolveRoute pins first-party hosts to their native route (provider-gateway §2)', () => {
+  // GPT-6 models answer Chat Completions with 400 "Function tools with reasoning_effort are not supported"; Responses
+  // works on every model. Anthropic's OpenAI-compatible chat endpoint is a compatibility layer, so Messages is pinned too.
+  const presets = [undefined, 'gone-provider', 'generic', 'deepseek'] as const;
+  const openaiBases = ['https://api.openai.com/v1', 'https://api.openai.com', 'https://api.openai.com/v1/', 'https://API.OpenAI.com/v1'];
+  const anthropicBases = ['https://api.anthropic.com/v1', 'https://api.anthropic.com', 'https://api.anthropic.com/v1/', 'https://API.Anthropic.COM/v1'];
+  const at = (preset: string | undefined, baseUrl: string) => (preset === undefined ? { baseUrl } : { preset, baseUrl });
+
+  it.each(presets.flatMap((preset) => openaiBases.map((baseUrl) => [preset ?? '(none)', baseUrl, preset] as const)))(
+    'preset %s at %s speaks openai-responses with the openai preset’s quirks and rows',
+    (_label, baseUrl, preset) => {
+      const route = resolveRoute(at(preset, baseUrl), 'gpt-6-sol');
+      expect(route.adapter).toBe('openai-responses');
+      expect(route.quirks).toEqual({ store: true, stateless: true });
+      expect(route.caps.effortStyle).toBe('reasoning.effort');
+      expect(route.caps.replayStyle).toBe('items');
+    },
+  );
+
+  it.each(presets.flatMap((preset) => anthropicBases.map((baseUrl) => [preset ?? '(none)', baseUrl, preset] as const)))(
+    'preset %s at %s speaks anthropic-messages with the anthropic preset’s quirks and rows',
+    (_label, baseUrl, preset) => {
+      const route = resolveRoute(at(preset, baseUrl), 'claude-sonnet-5-5');
+      expect(route.adapter).toBe('anthropic-messages');
+      expect(route.quirks.browserAccess).toBe(true);
+      expect(route.caps.thinkingShape).toBe('adaptive');
+    },
+  );
+
+  it('keeps every other host on its own route', () => {
+    expect(resolveRoute({ baseUrl: 'https://x.example/v1' }, 'gpt-6-sol').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'generic', baseUrl: 'https://proxy.example/openai/v1' }, 'gpt-6-sol').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'generic', baseUrl: 'https://api.openai.com.evil.example/v1' }, 'gpt-6-sol').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'deepseek', baseUrl: 'https://api.deepseek.com' }, 'deepseek-chat').adapter).toBe('openai-chat');
+    expect(resolveRoute({ preset: 'gone-provider', baseUrl: 'not a url' }, 'm').adapter).toBe('openai-chat');
+  });
+});
+
+describe('a profile’s leave-out list wins over its temperature flag (provider-gateway §2)', () => {
+  // The owner's precedence decision: `deny: ['temperature']` keeps the field denied even where `temperature: true`
+  // would lift the model row's denial, while the flag alone still overrides the row. Both rules stay stored.
+  const pinned = { preset: 'openai', baseUrl: 'https://api.openai.com/v1' };
+
+  it('keeps temperature denied when the same profile allows it and leaves it out', () => {
+    const caps = resolveRoute({ ...pinned, params: { temperature: true, deny: ['temperature'] } }, 'gpt-6.1-sol').caps;
+    expect(caps.denylist).toContain('temperature');
+  });
+
+  it('still lifts the row’s denial for the flag alone, and keeps the row’s other denials beside the profile’s', () => {
+    const caps = resolveRoute({ ...pinned, params: { temperature: true, deny: ['stop'] } }, 'gpt-6.1-sol').caps;
+    expect(caps.denylist).toEqual(['top_p', 'stop']);
+  });
+});
+
+describe('presetForProfile — the preset a profile’s calls, listings and limits speak (provider-gateway §2)', () => {
+  it('answers the host-pinned preset whatever the profile names', () => {
+    expect(presetForProfile({ preset: 'cohere', baseUrl: 'https://api.openai.com/v1' })?.id).toBe('openai');
+    expect(presetForProfile({ preset: 'generic', baseUrl: 'https://API.ANTHROPIC.COM/v1/' })?.id).toBe('anthropic');
+    expect(presetForProfile({ preset: 'gone-provider', baseUrl: 'https://api.openai.com' })?.id).toBe('openai');
+  });
+
+  it('keeps the declared preset on every other host, and answers undefined for one the registry does not know', () => {
+    expect(presetForProfile({ preset: 'deepseek', baseUrl: 'https://api.deepseek.com' })?.id).toBe('deepseek');
+    expect(presetForProfile({ preset: 'generic', baseUrl: 'https://proxy.example/openai/v1' })?.id).toBe('generic');
+    expect(presetForProfile({ preset: 'gone-provider', baseUrl: 'https://x.example/v1' })).toBeUndefined();
+    expect(presetForProfile({ baseUrl: 'https://x.example/v1' })).toBeUndefined();
+    expect(presetForProfile({ preset: 'gone-provider', baseUrl: 'not a url' })).toBeUndefined();
   });
 });
 

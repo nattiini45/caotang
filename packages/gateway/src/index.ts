@@ -33,9 +33,11 @@ export type {
   ToolCall,
   ReasoningBlock,
   ModelCaps,
+  RequestParams,
   Usage,
   ModelInfo,
   ModelLimits,
+  ModelLimitsRequest,
   UsageAttribution,
 } from './types.js';
 
@@ -89,8 +91,10 @@ export { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
 export {
   PRESETS,
   presetFor,
+  presetForProfile,
   modelRowFor,
   resolveRoute,
+  withParams,
   type PresetDef,
   type PresetField,
   type ModelRow,
@@ -111,7 +115,7 @@ export { createGateway, type Gateway, type GatewayOptions, type GatewayTraceEven
 export type { FetchLike } from './transport.js';
 export { adapterFor } from './adapters/index.js';
 export { fnv1a64 } from './adapters/cache.js';
-export { effectiveOutput, levelForBudget, nominalThinkingTokens, type EffectiveOutput } from './adapters/effort.js';
+export { effectiveOutput, effortWireValue, levelForBudget, nominalThinkingTokens, type EffectiveOutput } from './adapters/effort.js';
 export type {
   AdapterId,
   AdapterContext,

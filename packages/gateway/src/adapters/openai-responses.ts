@@ -327,12 +327,15 @@ export const openaiResponsesAdapter: ProviderAdapter = {
     if (instructions !== undefined) body.instructions = instructions;
     if (maxTokens > 0) body.max_output_tokens = maxTokens;
     if (temperature !== undefined && !deny.has('temperature')) body.temperature = temperature;
+    // Responses takes JSON mode as a text format; the schema hint in the input names JSON, which the API requires.
+    if (input.jsonObject && ctx.caps.jsonObject === true && !deny.has('text')) body.text = { format: { type: 'json_object' } };
     if (req.tools !== undefined && req.tools.length > 0 && !deny.has('tools')) {
       body.tools = req.tools.map((tool) => ({
         type: 'function',
         name: tool.name,
         description: tool.description,
         parameters: tool.parameters,
+        ...(ctx.caps.toolStrict === undefined ? {} : { strict: ctx.caps.toolStrict }),
       }));
       body.tool_choice = req.toolChoice === 'none' ? 'none' : 'auto';
     }

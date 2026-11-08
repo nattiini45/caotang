@@ -43,14 +43,40 @@ export interface ProviderProfile {
   /** stored via §7 (AES-GCM, non-extractable). Never persisted in plaintext. */
   apiKey: string;
   defaultModel: string;
+  /** sent only when the model row (or `params.temperature`) allows one; there is no built-in default */
   temperature?: number;
   maxOutputTokens?: number;
+  /** the profile's own request parameters over the model row's; absent follows the row */
+  params?: RequestParams;
   /** optional, USD; powers context-assembly cost estimates (display-only) */
   pricePer1k?: { prompt: number; completion: number };
   /** prompt caching for this profile's requests; absent means on, with the provider's default lifetime */
   promptCache?: CachePolicy;
   /** exactly one profile is active whenever any profile exists */
   isActive: boolean;
+}
+
+/**
+ * A profile's own request parameters (provider-gateway §2, "Request parameters"). The model row says what a model takes; a
+ * field set here wins over the row for this profile's requests, and an absent field follows it. A custom endpoint has only
+ * a conservative row, so these are how its writer says what the server takes.
+ */
+export interface RequestParams {
+  /** `true` sends a temperature when the request or profile sets one, even where the row denies it; `false` never sends one. */
+  readonly temperature?: boolean;
+  /** The `strict` flag on every function tool. Absent follows the row; a row that says nothing sends no flag. */
+  readonly toolStrict?: boolean;
+  /**
+   * The thinking levels this profile offers, each with the wire value it is sent as (`{ max: 'xhigh' }`). An empty map
+   * offers none and sends no thinking field. Absent follows the row.
+   */
+  readonly effort?: Readonly<Partial<Record<ThinkingLevel, string>>>;
+  /**
+   * More request fields never to send, on top of the row's (`top_p`, `stop`, `tools`). A deny naming a field the thinking
+   * control writes (`reasoning_effort`, `reasoning`, `thinking`, `enable_thinking`, `thinking_budget`, `output_config`)
+   * takes the whole control off: no level is offered or sent.
+   */
+  readonly deny?: readonly string[];
 }
 
 /** §5 — the one-shot `response_format` probe, cached on the profile. */
@@ -87,6 +113,8 @@ export interface NewProfile {
   customHeaders?: Readonly<Record<string, string>>;
   temperature?: number;
   maxOutputTokens?: number;
+  /** the profile's own request parameters over the model row's; absent follows the row */
+  params?: RequestParams;
   pricePer1k?: { prompt: number; completion: number };
   /** prompt caching for the profile's requests; absent means on, with the provider's default lifetime */
   promptCache?: CachePolicy;
@@ -105,8 +133,11 @@ export interface ProfilePatch {
   /** replaces the sealed custom headers (`generic` only); `null` clears them, absent keeps them */
   customHeaders?: Readonly<Record<string, string>> | null;
   defaultModel?: string;
-  temperature?: number;
+  /** A new temperature replaces the saved one; `null` clears it; absent keeps it. */
+  temperature?: number | null;
   maxOutputTokens?: number;
+  /** New request parameters replace the saved ones; `null` clears them, so the profile follows its model row again. */
+  params?: RequestParams | null;
   /** A new price replaces the saved one. `null` clears it, so the profile is unpriced again; an absent field keeps the saved price. */
   pricePer1k?: { prompt: number; completion: number } | null;
   /** A new caching policy replaces the saved one; an absent field keeps it. */
@@ -284,7 +315,10 @@ export interface ModelInfo {
 export interface ModelLimits {
   /** The context window in tokens, when the provider reported one. Absent means unknown: no window check is made. */
   readonly contextWindow?: number;
-  /** The output cap a request is sent with: the profile's, else the documented default (provider-gateway §2). */
+  /**
+   * The output cap a request is sent with when it names none: the profile's, else the documented default (provider-gateway §2).
+   * A request's own `maxOutputTokens` replaces it for that call; pass it in `ModelLimitsRequest` to read such a call's limits.
+   */
   readonly maxOutputTokens: number;
   /**
    * The output cap the model itself advertises, when the provider's listing or the preset's row says one. Requests are not sent with
@@ -292,8 +326,10 @@ export interface ModelLimits {
    */
   readonly modelMaxOutputTokens?: number;
   /**
-   * The thinking tokens one call may add to the reply at the level asked for: the effective budget on a budget route, the
-   * level's nominal share on an adaptive one. Absent when no level was asked for or the row lists none. Display-only.
+   * The output tokens a call at the asked thinking setting may add on top of `maxOutputTokens`: the difference between the
+   * cap the request is actually sent with (`effectiveOutput`, provider-default thinking included, the request's own cap and
+   * `reasoningBudget` applied) and the base cap `maxOutputTokens` reports. Absent when the sent cap is the base cap. What a
+   * run limit reserves and a cost estimate adds.
    */
   readonly thinkingTokens?: number;
   /** The price in USD per 1,000 tokens: the profile's, else the provider's. Display-only (provider-gateway §6, D4). */
@@ -304,6 +340,15 @@ export interface ModelLimits {
    */
   readonly cache?: { readonly readMultiplier: number; readonly writeMultiplier?: number; readonly minTokens?: number };
 }
+
+/**
+ * The request-specific inputs `modelLimits` settles besides the profile, model and level: the output cap and thinking
+ * budget one call carries (provider-gateway §3, "Effective output"), and the task role it runs under, which routes a
+ * request that names no profile to the role's profile, model and level as `complete` does (§6). A caller pricing or
+ * reserving a real request passes the same fields the request will send, so `thinkingTokens` is the excess that
+ * request's transmitted cap carries on the route it is sent through.
+ */
+export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role'>;
 
 export interface ChatRequest {
   messages: ChatMessage[];
@@ -379,6 +424,13 @@ export interface ModelCaps {
   readonly streamRequired?: boolean;
   /** Request fields this route rejects and the adapter must omit (e.g. 'temperature'). */
   readonly denylist?: readonly string[];
+  /**
+   * The `strict` flag sent on every function tool. OpenAI's Responses API treats an absent flag as `true` and then makes every
+   * property required, so its rows say `false`. Absent sends no flag.
+   */
+  readonly toolStrict?: boolean;
+  /** The wire value each level is sent as, where it differs from the style's default mapping (`max` → `'max'`, not `'high'`). */
+  readonly effortWire?: Readonly<Partial<Record<ThinkingLevel, string>>>;
   /**
    * How the route caches a prompt prefix for this model (provider-gateway §3, "Prompt caching"): `explicit` takes breakpoints
    * the adapter places (Anthropic `cache_control`, OpenAI Responses `prompt_cache_breakpoint`); `automatic` caches on its own
