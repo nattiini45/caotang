@@ -53,6 +53,7 @@ import {
   type SidebarTab,
 } from './sidebar-model.js';
 import type { ModernSlotProps } from './slots.js';
+import { sidebarChannel } from './requests.js';
 
 /** The sidebar's id, which the tab bar's buttons control. */
 export const SIDEBAR_ID = 'modern-sidebar';
@@ -194,10 +195,10 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
   };
 
   /** Binder, Findings and Agent: open on their tab and move focus in, or close a sidebar they opened when pressed again. */
-  const press = (next: SidebarTab, from: Opener): void => {
+  const press = (next: SidebarTab, from: Opener, toggle = true): void => {
     clearHover();
     clearClose();
-    if (shown && !hovered && !pinned && tab === next) {
+    if (toggle && shown && !hovered && !pinned && tab === next) {
       setOpen(false);
       return;
     }
@@ -207,6 +208,12 @@ export function BinderSidebar({ regions, pageId }: ModernSlotProps): ReactNode {
     setHovered(false);
     requestFocus(next === 'binder' ? 'row' : 'tab', railTabId(next));
   };
+
+  useEffect(() => sidebarChannel.listen(({ tab: requested }) => {
+    const next = requested === 'agent' ? agentTab(lastAgent) : requested;
+    if (!isSidebarTab(next)) return;
+    press(next, { binder: MANUSCRIPT_ID, findings: FINDINGS_OPENER_ID, agent: AGENT_OPENER_ID }[openerOf(next)], false);
+  }));
 
   const close = (): void => {
     clearHover();

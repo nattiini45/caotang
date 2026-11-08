@@ -24,6 +24,7 @@ import './editor-modern.css';
 import { NARROW_QUERY } from '../../../app/narrow-model.js';
 import { ChunkLoadError, LazyBoundary, lazyView } from '../../lazy-view.js';
 import { OpenOnDesktop } from '../../narrow.js';
+import { DocumentModeProvider } from '../../DocumentModes.js';
 import type { ShellRegions } from '../regions.js';
 import { modernLayout, type ModernView } from './layout.js';
 import { installMorph, morphPage } from './morph.js';
@@ -122,35 +123,37 @@ export function ModernShell({
   };
 
   return (
-    <Stage sidebar={sidebar} geometry={placed}>
-      <a className="modern-skip" href={`#${PAGE_ID}`} onClick={skip}>
-        <Trans>Skip to the page</Trans>
-      </a>
-      {slot(slots.notices)}
-      {view.focusMode ? (
-        <LazyBoundary label={t`Focus mode`} variant="toast">
-          <Suspense fallback={null}>
-            <FocusMode regions={regions} pageId={PAGE_ID} />
-          </Suspense>
-        </LazyBoundary>
-      ) : null}
-      {slot(slots.topOrnament)}
-      {bar ? slot(slots.sidebar) : null}
-      {/* Below 960 px (§13, #312): the binder's button and drawer, the one scrim, and the one-panel-at-a-time rule. */}
-      {view.narrow ? (
-        <LazyBoundary label={t`the binder`} variant="toast">
-          <NarrowPanels regions={regions} pageId={PAGE_ID} />
-        </LazyBoundary>
-      ) : null}
-      <Page id={PAGE_ID} label={regions.projectName} view={current}>
-        <PageContent regions={regions} view={current} agentOnPage={slots.companion === null} />
-      </Page>
-      <PageMorph view={current} />
-      {slot(slots.bottomOrnament)}
-      {slot(slots.sceneInfo)}
-      {slot(slots.companion)}
-      {slot(slots.palette)}
-    </Stage>
+    <DocumentModeProvider>
+      <Stage sidebar={sidebar} geometry={placed}>
+        <a className="modern-skip" href={`#${PAGE_ID}`} onClick={skip}>
+          <Trans>Skip to the page</Trans>
+        </a>
+        {slot(slots.notices)}
+        {view.focusMode ? (
+          <LazyBoundary label={t`Focus mode`} variant="toast">
+            <Suspense fallback={null}>
+              <FocusMode regions={regions} pageId={PAGE_ID} />
+            </Suspense>
+          </LazyBoundary>
+        ) : null}
+        {slot(slots.topOrnament)}
+        {bar ? slot(slots.sidebar) : null}
+        {/* Below 960 px (§13, #312): the binder's button and drawer, the one scrim, and the one-panel-at-a-time rule. */}
+        {view.narrow ? (
+          <LazyBoundary label={t`the binder`} variant="toast">
+            <NarrowPanels regions={regions} pageId={PAGE_ID} />
+          </LazyBoundary>
+        ) : null}
+        <Page id={PAGE_ID} label={regions.projectName} view={current}>
+          <PageContent regions={regions} view={current} agentOnPage={slots.companion === null} />
+        </Page>
+        <PageMorph view={current} />
+        {slot(slots.bottomOrnament)}
+        {slot(slots.sceneInfo)}
+        {slot(slots.companion)}
+        {slot(slots.palette)}
+      </Stage>
+    </DocumentModeProvider>
   );
 }
 

@@ -53,7 +53,7 @@ export function openPalette(opener?: HTMLElement | null): boolean {
 export const sceneInfoChannel: Channel<Record<string, never>> = createChannel<Record<string, never>>();
 
 /** Open the sidebar on a tab (#307 listens). */
-export const sidebarChannel: Channel<{ readonly tab: RailTab }> = createChannel<{ readonly tab: RailTab }>();
+export const sidebarChannel: Channel<{ readonly tab: RailTab | 'agent' }> = createChannel<{ readonly tab: RailTab | 'agent' }>();
 
 /** Show a view on the page (#306 listens; the codex is a view in Modern). */
 export const viewChannel: Channel<{ readonly view: PaletteView }> = createChannel<{ readonly view: PaletteView }>();

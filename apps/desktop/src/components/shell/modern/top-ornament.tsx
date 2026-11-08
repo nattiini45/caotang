@@ -23,7 +23,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
@@ -36,6 +35,7 @@ import { CLASSIC_MENU_SECTIONS, type ShellAction, type ShellActionGroup } from '
 import { activeTheme } from '../../../app/theme.js';
 import { inlineKey } from '../../../i18n/direction.js';
 import { ZoomControl } from '../../ZoomControl.js';
+import { DocumentModeOutlet } from '../../DocumentModes.js';
 import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
 import type { ModernSlotProps } from './slots.js';
@@ -51,6 +51,8 @@ const VIEW_NAMES: Readonly<Record<ModernView, () => string>> = {
   timeline: () => t`Timeline`,
   pictures: () => t`Pictures`,
 };
+
+const DOCUMENT_ICONS = { scene: 'scene', screenplay: 'screenplay', dialogue: 'ask', storyboard: 'board', 'comic-page': 'comic' } as const;
 
 /** A view's visible name, for the title capsule's breadcrumb and **⋯**. */
 export function viewName(view: ModernView): string {
@@ -71,10 +73,7 @@ function toolbarControls(toolbar: HTMLElement): HTMLElement[] {
  * The APG toolbar's roving tab stop over every control in `ref`, including ones another component draws there (the save state's
  * **Export a backup**): one is in the tab order (the one last used), the arrow keys, Home and End move between them.
  */
-export function useRovingToolbar(ref: RefObject<HTMLElement | null>): {
-  onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
-  onFocus: (event: ReactFocusEvent<HTMLElement>) => void;
-} {
+export function useRovingToolbar(ref: RefObject<HTMLElement | null>): void {
   const current = useRef(0);
   const settle = (controls: readonly HTMLElement[], at: number): void => {
     current.current = at;
@@ -83,35 +82,39 @@ export function useRovingToolbar(ref: RefObject<HTMLElement | null>): {
   useLayoutEffect(() => {
     const toolbar = ref.current;
     if (toolbar === null) return;
-    const controls = toolbarControls(toolbar);
-    settle(controls, Math.max(0, Math.min(current.current, controls.length - 1)));
+    const refresh = (): void => {
+      const controls = toolbarControls(toolbar);
+      const focused = controls.indexOf(document.activeElement as HTMLElement);
+      settle(controls, focused === -1 ? Math.max(0, Math.min(current.current, controls.length - 1)) : focused);
+    };
+    const onFocus = (): void => refresh();
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || !(event.target instanceof HTMLElement) || event.target.closest('[role="radiogroup"]') !== null) return;
+      const controls = toolbarControls(toolbar);
+      const at = controls.indexOf(event.target as HTMLElement);
+      if (at === -1) return;
+      const key = inlineKey(event.key);
+      let next: number | null = null;
+      if (key === 'ArrowRight') next = (at + 1) % controls.length;
+      else if (key === 'ArrowLeft') next = (at - 1 + controls.length) % controls.length;
+      else if (key === 'Home') next = 0;
+      else if (key === 'End') next = controls.length - 1;
+      if (next === null) return;
+      event.preventDefault();
+      settle(controls, next);
+      controls[next]?.focus();
+    };
+    refresh();
+    const observer = new MutationObserver(refresh);
+    observer.observe(toolbar, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-checked', 'disabled', 'hidden'] });
+    toolbar.addEventListener('focusin', onFocus);
+    toolbar.addEventListener('keydown', onKeyDown);
+    return () => {
+      observer.disconnect();
+      toolbar.removeEventListener('focusin', onFocus);
+      toolbar.removeEventListener('keydown', onKeyDown);
+    };
   });
-  const onFocus = (event: ReactFocusEvent<HTMLElement>): void => {
-    const toolbar = ref.current;
-    if (toolbar === null) return;
-    const controls = toolbarControls(toolbar);
-    const at = controls.indexOf(event.target as HTMLElement);
-    if (at !== -1) settle(controls, at);
-  };
-  const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
-    const toolbar = ref.current;
-    // A control that took the key itself (the card size's radios) keeps it.
-    if (toolbar === null || event.target === toolbar || event.defaultPrevented) return;
-    const controls = toolbarControls(toolbar);
-    const at = controls.indexOf(event.target as HTMLElement);
-    if (at === -1) return;
-    const key = inlineKey(event.key);
-    let next: number | null = null;
-    if (key === 'ArrowRight') next = (at + 1) % controls.length;
-    else if (key === 'ArrowLeft') next = (at - 1 + controls.length) % controls.length;
-    else if (key === 'Home') next = 0;
-    else if (key === 'End') next = controls.length - 1;
-    if (next === null) return;
-    event.preventDefault();
-    settle(controls, next);
-    controls[next]?.focus();
-  };
-  return { onKeyDown, onFocus };
 }
 
 export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
@@ -119,7 +122,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   const toolbar = useRef<HTMLDivElement>(null);
   const more = useRef<HTMLButtonElement>(null);
   const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
-  const roving = useRovingToolbar(toolbar);
+  useRovingToolbar(toolbar);
   const sceneInfo = useSceneInfoOpener();
   const current = modernViewOf(view.rail, view.center);
   const findings = regions.findingsBadge;
@@ -146,8 +149,6 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
         role="toolbar"
         aria-label={t`Scene`}
         data-testid="modern-top-ornament"
-        onKeyDown={roving.onKeyDown}
-        onFocus={roving.onFocus}
       >
         <button
           {...sceneInfo.buttonProps}
@@ -156,6 +157,11 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           data-testid="modern-title-capsule"
           title={t`Scene info`}
         >
+          {regions.documentKind === undefined || regions.documentKind === null ? null : (
+            <span data-document-kind={regions.documentKind}>
+              <Icon name={DOCUMENT_ICONS[regions.documentKind]} />
+            </span>
+          )}
           <span className="modern-title-name">{regions.projectName}</span>
           {current === 'write' ? null : (
             <span className="modern-title-crumb">
@@ -168,6 +174,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
             </span>
           ) : null}
         </button>
+        <DocumentModeOutlet />
         <span className="modern-ornament-state">{regions.saveState}</span>
         {boardZoom ? <ZoomControl zoom={view.zoom} onZoom={view.setZoom} className="modern-zoom" itemClassName="modern-capsule" /> : null}
         {newMenu.button}

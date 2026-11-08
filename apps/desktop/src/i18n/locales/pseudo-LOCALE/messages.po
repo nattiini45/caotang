@@ -3099,6 +3099,8 @@ msgstr ""
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
+#. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
+#. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/activity-model.ts
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -7243,6 +7245,11 @@ msgstr ""
 msgid "Got it"
 msgstr ""
 
+#. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
+#: apps/desktop/src/media/DialogueView.tsx
+msgid "Graph"
+msgstr ""
+
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Gregorian, with its leap years"
@@ -7787,6 +7794,11 @@ msgstr ""
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "inherited from its folder"
+msgstr ""
+
+#. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
+#: apps/desktop/src/media/DialogueView.tsx
+msgid "Ink"
 msgstr ""
 
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
@@ -17595,6 +17607,11 @@ msgstr ""
 #: apps/desktop/src/media/PictureBoard.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "View larger"
+msgstr ""
+
+#. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
+#: apps/desktop/src/media/DialogueView.tsx
+msgid "View of the dialogue"
 msgstr ""
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.

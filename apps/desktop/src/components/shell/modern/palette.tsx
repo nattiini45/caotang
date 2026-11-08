@@ -34,6 +34,7 @@ import type { SettingsSection } from '../../Settings.js';
 import type { ShellRegions } from '../regions.js';
 import { Icon, type IconName } from './icons.js';
 import { paletteChannel, sceneInfoChannel, sidebarChannel, viewChannel } from './requests.js';
+import { chooseView } from './views.js';
 import type { ModernSlotProps } from './slots.js';
 
 // Every Settings section is in the palette: a section added to the dialog and not to the model fails to compile here.
@@ -284,14 +285,16 @@ function runTarget(target: PaletteTarget, regions: ShellRegions): void {
       return;
     case 'view':
       if (viewChannel.send({ view: target.view })) return;
-      if (target.view === 'codex') search.showCodex();
-      else view.setCenter(target.view);
+      chooseView(view, target.view === 'editor' ? 'write' : target.view === 'corkboard' ? 'board' : target.view);
       return;
     case 'tab':
-      if (sidebarChannel.send({ tab: target.tab })) return;
-      view.setRail(target.tab);
+    case 'agent-logs': {
+      const tab = target.kind === 'tab' ? target.tab : 'agent';
+      if (sidebarChannel.send({ tab })) return;
+      view.setRail(tab === 'agent' ? view.rail === 'trace' ? 'trace' : 'activity' : tab);
       if (view.narrow) view.setPanel('rail');
       return;
+    }
     case 'scene-info':
       if (!sceneInfoChannel.send({})) search.openSceneInfo();
       return;

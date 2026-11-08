@@ -84,3 +84,17 @@ test('every other chord resolves the same in both shells', () => {
 test('the palette chord has its label', () => {
   expect(shortcutLabel('palette')).toBe('Ctrl+K');
 });
+
+test('browser tab chords and screenplay element chords never become shell navigation', () => {
+  for (const shell of ['classic', 'modern'] as const) {
+    for (const inTextField of [false, true]) {
+      for (const modifier of [{ ctrl: true }, { meta: true }]) {
+        for (const digit of ['1', '2', '3', '4', '5']) {
+          const context: KeyContext = { inTextField, inBinder: false, shell };
+          expect(resolveKey(keys(digit, { code: `Digit${digit}`, ...modifier }), context)).toBeNull();
+          expect(resolveKey(keys(digit, { code: `Digit${digit}`, shift: true, ...modifier }), context)).toBeNull();
+        }
+      }
+    }
+  }
+});
