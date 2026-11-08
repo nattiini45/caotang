@@ -19,7 +19,8 @@ for (const shell of ['classic', 'modern'] as const) {
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       const settings = page.getByTestId('settings');
       const body = settings.locator('.settings-body');
-      await body.evaluate((element) => { element.scrollTop = 135; });
+      await expect.poll(() => body.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(2);
+      await body.evaluate((element) => { element.scrollTop = (element.scrollHeight - element.clientHeight) / 2; });
       await expect(body).toHaveAttribute('data-scroll-edges', 'top bottom');
       await page.mouse.move(2, 2);
       await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
