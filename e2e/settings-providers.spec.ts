@@ -87,19 +87,20 @@ async function seedKey(page: Page, profileId: string, apiKey: string): Promise<v
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
+    const fresh = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
     const wrap = await new Promise<CryptoKey>((resolve, reject) => {
       const tx = db.transaction('wrap', 'readwrite');
       const store = tx.objectStore('wrap');
       const get = store.get('wrapping-key');
-      get.onsuccess = async () => {
+      let stored = fresh;
+      get.onsuccess = () => {
         const existing = (get.result as { key?: CryptoKey } | undefined)?.key;
-        if (existing !== undefined) return resolve(existing);
-        const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-        store.put({ id: 'wrapping-key', key });
-        tx.oncomplete = () => resolve(key);
+        if (existing !== undefined) stored = existing;
+        else store.put({ id: 'wrapping-key', key: fresh });
       };
-      get.onerror = () => reject(get.error);
+      tx.oncomplete = () => resolve(stored);
       tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const sealed = await crypto.subtle.encrypt(
