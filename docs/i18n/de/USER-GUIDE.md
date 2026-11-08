@@ -23,11 +23,13 @@ Ein Projekt kann jeweils nur in einem Tab geöffnet sein. Ein zweiter Tab wartet
 Das Undo Ihrer Eingabe in einer Szene übersteht ein erneutes Laden (das Redo vielleicht nicht). Das Undo in der Symbolleiste und das Undo in Activity bleiben bestehen, solange der Tab geöffnet ist, und ein Sicherungspunkt kann auch nach einem erneuten Laden noch einen Schritt zurückgehen. Das Undo auf der Registerkarte Source eines Drehbuchs und in Ink-Text ist das des Browsers selbst, und ein erneutes Laden löscht es. Caotang speichert einen Moment, nachdem Sie aufgehört haben zu tippen (standardmäßig 800 ms). Wird der Tab geschlossen oder neu geladen, bevor eine Speicherung abgeschlossen ist, bewahrt Caotang die Worte in diesem Browser auf und speichert sie, sobald Sie das Projekt wieder öffnen, und sagt das. Hat das Projekt bis dahin neueren Text, werden die Worte stattdessen in der Fußzeile des Binders angeboten, um sie als neue Dokumente zurückzulegen oder zu verwerfen.
 
 ## Projekte
-<!-- source: 057ba663 -->
+<!-- source: a8ece647 -->
 
 Lange Dialoge und Seitenleisten lassen den Inhalt an den Kanten weich auslaufen, an denen noch weitergescrollt werden kann. Auf einem Smartphone lassen sich die Bereichsnamen in den Einstellungen seitlich scrollen; beide Enden zeigen denselben Hinweis. Reduzierte Transparenz, höherer Kontrast und erzwungene Farben schalten diese dekorativen Verläufe aus; Scrollen funktioniert weiterhin. Die Registerkarten der modernen Seitenleiste behalten ihre vollständigen Namen und wechseln bei längeren Übersetzungen oder größerer Schrift in eine weitere Zeile.
 
 Binder, Feststellungen, Aktivität und Ablauf ergänzen ihre Zustandsmeldungen durch ein Symbol und erklären den nächsten Schritt. Ein leeres Panel unterscheidet sich von Code, der noch geladen wird oder nicht geladen werden konnte. Feststellungen zeigt, wenn eine Prüfung keine Feststellungen aufgezeichnet hat, eine Modellprüfung noch läuft oder abgebrochen wurde; eine fehlgeschlagene Speicherung bietet **Feststellungen erneut speichern**. Aktivität zeigt einen laufenden Rückgängig-Vorgang und behält einen fehlgeschlagenen Versuch neben **Rückgängig erneut versuchen**. Ablauf sagt, ob die Aufzeichnung ausgeschaltet ist oder noch kein Durchlauf aufgezeichnet wurde. Diese Meldungen und Aktionen folgen der Oberflächensprache, auch Deutsch.
+
+Die festen Abschnittsnamen des Binders folgen der Oberflächensprache: **Manuskript** und **Recherche** auf Deutsch. Ihre Ordner- und Dokumenttitel bleiben wie geschrieben; ein Sprachwechsel ändert keinen gespeicherten Projekttitel.
 
 - **Anlegen.** Geben Sie auf dem Projektbildschirm unter **Neues Projekt** einen Namen ein und wählen Sie dann **Projekt erstellen**.
 - **Öffnen.** Wählen Sie **Offen** neben einem Projekt unter **Projekte in diesem Browser**.
@@ -45,8 +47,8 @@ Binder, Feststellungen, Aktivität und Ablauf ergänzen ihre Zustandsmeldungen d
 
 Der Binder ist die Liste auf der linken Seite, unter der Registerkarte **Binder**. Er hat zwei Abschnitte:
 
-- **Manuscript** enthält Ihr Buch. Kapitel sind Ordner, und Szenen sind Dokumente darin.
-- **Research** enthält Notizen. Recherche wird nie in einen Export aufgenommen.
+- **Manuskript** enthält Ihr Buch. Kapitel sind Ordner, und Szenen sind Dokumente darin.
+- **Recherche** enthält Notizen. Recherche wird nie in einen Export aufgenommen.
 
 Die Schaltflächen oben im Binder:
 

@@ -2,6 +2,8 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- The Binder displays its two fixed section labels in the interface language, by reserved id, without rewriting their stored titles; writer-named folders and documents stay project content. Why: Manuscript and Research cannot be renamed, so they are interface labels rather than author text (#378). [owner 2026-11-09]
+
 - Sidebar labels keep their full names and counts; Modern's segmented tabs may wrap when localization or enlarged type needs another row (#378). Dialogs and sidebar scrollers in both shells show directional sticky edge fades only while more content remains, including the narrow Settings strip; reduced transparency, higher contrast and forced colors omit the bands (#380). Why: full names and a visible scroll cue outrank a forced one-row track, and sticky overlays preserve child menus and dialog top layers without adding blur. [owner 2026-11-08]
 
 - Sidebar panels pair empty, loading and real error states with named inline SVG glyphs and localized next steps, retaining review/save and Undo failures beside their recovery actions (#379). Nineteen used Lucide definitions are copied into the existing icon set under ISC, keeping the 24-unit grid and 1.8 stroke; the notice generator carries their copyright and license. Why: distinct states cannot rely on color or look like an empty result, and copied paths avoid a runtime icon dependency. [owner 2026-11-08]

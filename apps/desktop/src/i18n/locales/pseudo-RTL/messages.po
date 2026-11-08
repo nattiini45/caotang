@@ -8761,8 +8761,10 @@ msgstr ""
 msgid "Manual"
 msgstr ""
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/components/Binder.tsx
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Manuscript"
 msgstr ""
@@ -12400,7 +12402,9 @@ msgstr ""
 msgid "Requests, retries included. Nothing here holds a key or a message."
 msgstr ""
 
+#. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
+#: apps/desktop/src/components/Binder.tsx
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Research"
 msgstr ""

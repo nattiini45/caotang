@@ -758,13 +758,14 @@ function BinderRowView(props: RowViewProps): ReactNode {
   const content = { lang: contentLang, dir: 'auto' as const };
 
   if (row.kind === 'section') {
+    const title = node.id === 'manuscript' ? t`Manuscript` : t`Research`;
     return (
       <div
         role="treeitem"
         aria-level={1}
         aria-expanded={true}
         aria-selected={selected}
-        aria-label={node.title}
+        aria-label={title}
         tabIndex={props.focusable ? 0 : -1}
         className={`row is-section${selected ? ' is-selected' : ''}${dropClass}`}
         data-node-id={node.id}
@@ -773,8 +774,8 @@ function BinderRowView(props: RowViewProps): ReactNode {
         onDragOver={props.onDragOver}
         onDrop={props.onDrop}
       >
-        <span className="row-title" {...content}>
-          {node.title}
+        <span className="row-title">
+          {title}
         </span>
         <span className="row-meta">
           {props.agentAccess === null ? null : (
@@ -784,7 +785,7 @@ function BinderRowView(props: RowViewProps): ReactNode {
           )}
           {itemsLabel(childrenOf(state, node.id).length)}
         </span>
-        <RowActions title={node.title} onActions={props.onActions} />
+        <RowActions title={title} onActions={props.onActions} />
       </div>
     );
   }

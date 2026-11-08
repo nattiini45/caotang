@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { createProject, waitForSaved } from './support.js';
+import { createProject, idOf, waitForSaved } from './support.js';
 import { showBinder, switchToModern } from './modern-walk.js';
 import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 
@@ -38,9 +38,20 @@ test('empty sidebar actions and trace guidance follow a German interface', async
   await settings.locator('input[name="interface-language"][value="de"]').click();
   await expect(settings.locator('input[name="interface-language"][value="de"]')).toBeChecked();
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
+  await expect(page.getByRole('treeitem', { name: 'Manuskript', exact: true })).toBeVisible();
+  await expect(page.getByRole('treeitem', { name: 'Recherche', exact: true })).toBeVisible();
+  expect(await idOf(page, 'Manuscript')).toBe('manuscript');
+  expect(await idOf(page, 'Research')).toBe('research');
   await expect(page.getByRole('img', { name: 'Leeres Manuskript', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Kapitel 1 erstellen' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Neue Recherchenotiz' })).toBeVisible();
+  await page.getByRole('button', { name: 'Kapitel 1 erstellen' }).click();
+  const chapterId = await idOf(page, 'Chapter 1');
+  const chapter = page.locator(`[data-node-id="${chapterId}"]`);
+  await chapter.press('F2');
+  await chapter.getByRole('textbox').fill('Manuscript');
+  await page.keyboard.press('Enter');
+  await expect(chapter.locator('.row-title')).toHaveText('Manuscript');
   await page.getByRole('tab', { name: 'Ablauf', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Noch keine Durchläufe aufgezeichnet' })).toBeVisible();
   await page.getByRole('switch', { name: 'Agentenabläufe für diesen Tab aufzeichnen' }).uncheck();
