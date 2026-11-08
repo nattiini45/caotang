@@ -70,7 +70,10 @@ test('Write, Board and Codex are one radio group with a lens; the keys choose, a
   await page.keyboard.press('End');
   await page.keyboard.press('ArrowLeft');
   for (let step = 0; step < 4; step += 1) await page.keyboard.press('Shift+ArrowLeft');
-  await expect.poll(() => selectionOf(page)).not.toBeNull();
+  await expect.poll(async () => {
+    const selection = await selectionOf(page);
+    return [selection?.from, selection?.to];
+  }, { timeout: 5000 }).toEqual([6, 10]);
   const before = await selectionOf(page);
 
   const group = views(page).getByRole('radiogroup', { name: 'View' });

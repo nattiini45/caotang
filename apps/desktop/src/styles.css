@@ -820,6 +820,10 @@ button.chip {
   line-height: 1.4;
 }
 
+.editor-toolbar > .button {
+  margin-inline-start: calc(-1 * (var(--control-pad-x) + 1px));
+}
+
 .caotang-picture {
   position: relative;
   display: inline-block;

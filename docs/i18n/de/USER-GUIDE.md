@@ -168,10 +168,11 @@ Das Panel rechts zeigt das ausgewählte Element:
 - **Container-Einstellungen**: für einen Dialog-Container, beschrieben in [Dialoge schreiben](#dialoge-schreiben).
 
 ## Der Editor
-<!-- source: 8e8fd317 -->
-> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
+<!-- source: be05ace1 -->
 
 Wählen Sie eine Szene im Binder, um in ihr zu schreiben.
+
+**Bild einfügen** über dem Text richtet sich in beiden Oberflächen am Anfangsrand des Manuskripts aus. Wählen Sie es, um an der Schreibmarke ein Bild einzufügen.
 
 - Szenen werden als Markdown-Dateien gespeichert, sodass sie außerhalb von Caotang lesbar bleiben. Eine Drehbuchszene und ein Dialog-Container haben eigene Ansichten, die unten beschrieben sind.
 - Caotang speichert, während Sie tippen. Die Symbolleiste meldet **Alle Änderungen in diesem Browser gespeichert**, sobald es so weit ist. Die Pause vor einem Speichern beträgt standardmäßig 800 ms. **Einstellungen › Schreiben** ändert das für die Projekte, die Sie nach dem Speichern öffnen.
@@ -290,7 +291,9 @@ Emoji drucken auch, in Schwarz-Weiß, in der Schrift Noto Emoji: Jedes Emoji bis
 **Der Prompt-Pack.** Die Registerkarte **Prompt-Pack** listet den Prompt jeder Einstellung für ein **Zielmodell**, die Referenzen, die er mitsendet, und die Kodex-Einträge, von denen diese Referenzen stammen. Jede Prüfung verweist zurück auf ihr Feld, und **Auf der Tafel beheben** öffnet das Feld. Exportieren Sie den Pack über die Registerkarte als **JSON-Pack**, als **Markdown-Pack** (mit einem Konsistenzblock für jede Einstellung, die einen Kodex-Eintrag nennt, der die Einträge auflistet, die Referenzen gesendet haben, und diejenigen, die keine gesendet haben) oder als **CSV-Einstellungsliste**. Der Export wird zurückgehalten, solange eine Zeile ein Fehler ist, damit keine Datei aus einem Prompt geschrieben wird, den das Modell ablehnen würde. Caotang sendet niemals etwas an einen Videodienst. Sie fügen die Prompts in Ihr eigenes Werkzeug ein. Der Dialog „Kompilieren“ bietet den Pack ebenfalls an, als **Prompt-Pack (Video)** (siehe [Export](#export)): Er schreibt alle drei Dateien auf einmal.
 
 ## Einen Comic schreiben
-<!-- source: 176caa82 -->
+<!-- source: 94bebe0d -->
+
+Leere Panels erklären in beiden Oberflächen, wie Sie Bilder hinzufügen können: ablegen, einfügen oder auswählen. Der Hinweis wird innerhalb des Panels umgebrochen und folgt der Sprache der Oberfläche, auch auf Deutsch.
 
 Öffnen Sie im Binder das Menü eines Kapitels und wählen Sie **Neuer Comic hier**. Der Comic ist ein Ordner, und **Neue Seite hier** in seinem Menü fügt eine Seite mit sechs Panels hinzu. Ein Comic behält seine eigene Seitengröße und seine eigene Leserichtung bei, von links nach rechts oder von rechts nach links, und eine neue Seite folgt beidem. Seiten sind Binder-Einträge: Ziehen Sie sie, um sie neu anzuordnen, und **Rückgängig** macht einen neuen Comic mit all seinen Seiten auf einmal rückgängig.
 
@@ -492,7 +495,7 @@ Bei **Prompt-Paket (Video)** wählen Sie die **Anbieter-Vorlage**, für die das 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ## Die moderne Oberfläche
-<!-- source: 2321a51d -->
+<!-- source: 981dd95b -->
 
 Caotang hat zwei Oberflächen, **Klassisch** und **Modern**, und beide können dasselbe. Wer neu beginnt, startet in Modern. Haben Sie Caotang in diesem Browser schon genutzt, bleibt es bei Klassisch, bis Sie wechseln; Ihre Projekte und Einstellungen sind in beiden dieselben. Gewählt wird unter **Einstellungen › Erscheinungsbild › Oberfläche**, und der Wechsel geschieht sofort; eine ungespeicherte Szene und ein laufender Durchlauf des Agenten bleiben erhalten.
 
@@ -513,7 +516,7 @@ Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen be
 - **Suche und Befehle.** Drücken Sie Strg+K (Cmd+K auf dem Mac) oder wählen Sie **Suchen**. Tippen Sie einen Teil eines Szenentitels oder einer Synopsis, einen Kodex-Namen oder Alias (Akzente spielen keine Rolle) oder einen Befehl. Auf und Ab bewegen, Eingabe öffnet, Esc schließt. Findet sich nichts, öffnet Eingabe den Agenten mit Ihren Worten im Intent-Feld; gesendet wird erst, wenn Sie es senden.
 - **Fokusmodus.** Der Fokusmodus blendet alles außer der Seite aus. Bewegen Sie den Mauszeiger an einen Fensterrand oder drücken Sie die Tabulatortaste, um die Bedienelemente zurückzuholen; **Fokusmodus verlassen** oben oder Strg+Umschalt+F beendet ihn.
 - **Dialoge und Meldungen.** Dialoge und Menüs sind aus Glas: Was dahinter liegt, scheint verschwommen durch. Ein Dialog wächst aus der Schaltfläche, die Sie gedrückt haben, und schrumpft beim Schließen in sie zurück. Meldungen erscheinen als Kapsel oben im Fenster und bleiben, bis Sie sie schließen. Bedienelemente sind mindestens 44 px groß. Schalten Sie unter Einstellungen › Erscheinungsbild **Transparenz reduzieren** oder **Bewegung reduzieren** ein, wenn Sie feste, ruhige Flächen bevorzugen; Modern folgt dafür auch den Einstellungen Ihres Systems, ebenso mehr Kontrast und erzwungenen Farben.
-- **Auf einem Telefon oder in einem schmalen Fenster.** Unter 960 px Breite passt sich Modern dem Bildschirm an. Titel, **+** (Neu) und **⋯** stehen oben; **Schreiben**, **Binder**, **Ansichten**, **Fragen** und **Suchen** bilden unten eine Tab-Leiste. **Ansichten** nennt die Ansicht, in der Sie sind, wenn es nicht Schreiben ist, und öffnet eine Liste mit **Pinnwand** (am Desktop), **Zeitachse**, **Kodex** und **Bilder**. **Binder** öffnet den Binder als Schublade vom Rand, mit den Reitern Binder, Feststellungen, Aktivität und Ablauf; wer eine Szene wählt, schließt sie. Der Titel öffnet die Szeneninfo als Blatt von unten, **Fragen** öffnet den Agenten über den ganzen Bildschirm. Es ist immer nur eines davon offen: Schließen, ein Tippen daneben oder Esc schließt es. **Offen lassen** in der Szeneninfo hält das Blatt unter der Seite, ohne etwas abzudunkeln, sodass Sie mit den Angaben zur Szene im Blick schreiben können; ein zweites Tippen gibt es wieder frei. Solange Sie mit der Bildschirmtastatur tippen, tritt die Tab-Leiste zurück und kommt wieder, wenn Sie den Text verlassen. Was ein Telefon einem Desktop überlässt, sagt **Open on desktop**, wie in der klassischen Oberfläche. Auf einem Touchscreen ist jedes Bedienelement in jeder Breite mindestens 44 px groß, und auf einem Tablet im Querformat macht ein offener Binder neben der Seite Platz.
+- **Auf einem Telefon oder in einem schmalen Fenster.** Unter 960 px Breite passt sich Modern dem Bildschirm an. Titel, **+** (Neu) und **⋯** stehen oben; **Schreiben**, **Binder**, **Ansichten**, **Fragen** und **Suchen** bilden unten eine Tab-Leiste. **Ansichten** nennt die Ansicht, in der Sie sind, wenn es nicht Schreiben ist, und öffnet eine Liste mit **Pinnwand** (am Desktop), **Zeitachse**, **Kodex** und **Bilder**. **Binder** öffnet den Binder als Schublade vom Rand, mit den Reitern Binder, Feststellungen, Aktivität und Ablauf; wer eine Szene wählt, schließt sie. Der Titel öffnet die Szeneninfo als Blatt von unten, **Fragen** öffnet den Agenten über den ganzen Bildschirm. Es ist immer nur eines davon offen: Schließen, ein Tippen daneben oder Esc schließt es. **Offen lassen** in der Szeneninfo hält das Blatt unter der Seite, ohne etwas abzudunkeln, sodass Sie mit den Angaben zur Szene im Blick schreiben können; ein zweites Tippen gibt es wieder frei. Solange Sie mit der Bildschirmtastatur tippen, auch in iOS Safari, tritt die Tab-Leiste zurück. Sie kommt wieder, wenn sich die Tastatur schließt oder Sie das Feld verlassen. Was ein Telefon einem Desktop überlässt, sagt **Open on desktop**, wie in der klassischen Oberfläche. Auf einem Touchscreen ist jedes Bedienelement in jeder Breite mindestens 44 px groß, und auf einem Tablet im Querformat macht ein offener Binder neben der Seite Platz.
 - **Zurück zu Klassisch.** **Klassische Oberfläche verwenden** unter **⋯ › Darstellung**, **Zur klassischen Oberfläche wechseln** in der Suche oder **Klassisch** unter Einstellungen › Erscheinungsbild › Oberfläche wechselt sofort zurück, und Caotang merkt sich die Wahl in diesem Browser. Der Code von Modern wird nur geladen, solange Modern an ist; Klassisch lädt nichts zusätzlich.
 
 ## Einstellungen

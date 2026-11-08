@@ -1,0 +1,22 @@
+.comic-panel-note {
+  font-size: 4.5px;
+  fill: var(--muted, var(--ink));
+  pointer-events: none;
+}
+
+.comic-panel-empty {
+  display: grid;
+  place-content: center;
+  block-size: 100%;
+  padding: 4px;
+  color: var(--muted, var(--ink));
+  font: 4.5px/1.4 var(--ui);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.comic-panel-number {
+  font-size: 6px;
+  fill: var(--ink);
+  pointer-events: none;
+}
