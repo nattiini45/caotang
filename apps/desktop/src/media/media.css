@@ -683,6 +683,10 @@
   min-width: 0;
 }
 
+.dlg-outline:not([hidden]) {
+  display: contents;
+}
+
 .dlg-findings {
   display: flex;
   flex-direction: column;

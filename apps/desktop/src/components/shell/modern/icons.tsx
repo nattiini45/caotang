@@ -5,9 +5,11 @@
 
 import type { ReactNode } from 'react';
 
-export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'manuscript' | 'pin' | 'scene' | 'plus' | 'findings' | 'agent';
+export type IconName = 'write' | 'board' | 'codex' | 'timeline' | 'pictures' | 'ask' | 'search' | 'more' | 'check' | 'binder' | 'close' | 'manuscript' | 'pin' | 'scene' | 'plus' | 'findings' | 'agent' | 'screenplay' | 'comic';
 
 const PATHS: Readonly<Record<IconName, ReactNode>> = {
+  screenplay: <path d="M7 3.5h7l4 4v13H7zM14 3.5v4h4M10 11h5M11 14h3M9 17h7" />,
+  comic: <path d="M4 4h16v16H4zM4 11h16M12 4v7M10 11v9" />,
   write: (
     <>
       <path d="M4 20h4L19 9l-4-4L4 16v4z" />

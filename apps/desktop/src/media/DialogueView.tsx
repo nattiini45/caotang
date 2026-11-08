@@ -17,6 +17,8 @@ import { getBody, getRevision, type TreeNode } from '@caotang/store';
 import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
 import { useReport, useSession } from '../components/shared.js';
+import { DocumentModes, useSeparateDocumentModes } from '../components/DocumentModes.js';
+import { radioStep } from '../components/radio-keys.js';
 import { LAYOUT_COLUMN_WIDTH, LAYOUT_ROW_HEIGHT, readDialogueMeta, type DialogueFinding } from './engines.js';
 import { caretOfNode, dialogueModelOf, type DialogueModel, type OutlineNode } from './dialogue-model.js';
 import { useCodexEntries } from './hooks.js';
@@ -57,6 +59,9 @@ const NOOP = (): void => undefined;
 export function DialogueView({ session, node, reveal = null, onRevealHandled = NOOP }: DialogueViewProps): ReactNode {
   useLingui();
   useSession(session);
+  const separateModes = useSeparateDocumentModes();
+  const [mode, setMode] = useState<'graph' | 'ink'>('graph');
+  const jump = useRef<number | null>(null);
   const report = useReport();
   // The cleanup below runs after the view is gone, so it calls the report it last saw, and the effect does not restart for it.
   const reportRef = useRef(report);
@@ -184,25 +189,41 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
   const chooseNode = (id: string): void => {
     setPicked(id);
     const at = caretOfNode(docId, draft, codex, id);
+    if (at === null) return;
+    if (!separateModes || mode === 'ink') {
+      inkField.current?.focus();
+      inkField.current?.setSelectionRange(at, at);
+      return;
+    }
+    jump.current = at;
+    setMode('ink');
+  };
+
+  useLayoutEffect(() => {
+    const at = jump.current;
     const field = inkField.current;
     if (at === null || field === null) return;
+    jump.current = null;
     field.focus();
     field.setSelectionRange(at, at);
-  };
+  });
 
   /**
    * A passage a finding quotes (coherence.md §8): the passage is selected in the Ink text, where the writer edits it, and the request is
    * answered. The offsets are the stored body's; the view's text is the same text until the writer types, and a finding whose quote has
    * moved is not offered a reveal (findings-model's quoteIsCurrent).
    */
+  const revealHere = reveal !== null && reveal.docId === docId;
+  if (revealHere && separateModes && mode !== 'ink') setMode('ink');
   useEffect(() => {
     if (reveal === null || reveal.docId !== docId) return;
+    if (separateModes && mode !== 'ink') return;
     const field = inkField.current;
     if (field === null) return;
     field.focus();
     field.setSelectionRange(reveal.from, reveal.to);
     onRevealHandled();
-  }, [reveal, docId, onRevealHandled]);
+  }, [reveal, docId, onRevealHandled, separateModes, mode]);
 
   /** The confirmed action. The writer asked for it and saw the count, so the text it writes is the text they approved. */
   const addIds = (): void => {
@@ -236,6 +257,24 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
         </ul>
       </header>
 
+      {separateModes ? (
+        <DocumentModes>
+          <div role="radiogroup" aria-label={t`View of the dialogue`} className="segmented" onKeyDown={(event) => {
+            const next = radioStep(['graph', 'ink'] as const, mode, event.key);
+            if (next === null) return;
+            event.preventDefault();
+            setMode(next);
+            event.currentTarget.querySelector<HTMLElement>(`[data-mode="${next}"]`)?.focus();
+          }}>
+            {(['graph', 'ink'] as const).map((item) => (
+              <button key={item} type="button" role="radio" data-mode={item} aria-checked={mode === item} tabIndex={mode === item ? 0 : -1} className="segmented-item" onClick={() => setMode(item)}>
+                {item === 'graph' ? t`Graph` : t`Ink`}
+              </button>
+            ))}
+          </div>
+        </DocumentModes>
+      ) : null}
+
       {model.errors.length === 0 ? null : (
         <section className="dlg-errors" role="alert" aria-label={t`Compile errors`}>
           <p><Trans>The Ink does not compile. Fix these errors in the Ink text below.</Trans></p>
@@ -247,57 +286,59 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
         </section>
       )}
 
-      <div className="dlg-layout">
-        <div className="dlg-canvas-wrap" aria-label={t`Branch graph`}>
+      <div className="dlg-layout" data-mode={separateModes ? mode : 'split'}>
+        <div className="dlg-canvas-wrap" aria-label={t`Branch graph`} hidden={separateModes && mode !== 'graph'}>
           <Graph model={model} selectedId={selectedId} onSelect={chooseNode} />
         </div>
 
         <aside className="dlg-side" aria-label={t`Outline and findings`}>
-          {model.findings.length === 0 ? (
-            <p className="muted"><Trans>No loose end, dead end or unknown speaker in this container.</Trans></p>
-          ) : (
-            <section className="inspector-section" aria-label={t`Findings`}>
-              <h3 className="field-label"><Trans>Findings</Trans></h3>
-              <ul className="dlg-findings">
-                {flagged.flatMap((item) =>
-                  item.findings.map((finding, index) => (
-                    <li key={`${item.id}:${index}`}>
-                      <button type="button" className="dlg-finding" onClick={() => setPicked(item.id)}>
-                        <FindingBadge finding={finding} />
-                        <span>{finding.message}</span>
-                      </button>
-                    </li>
-                  )),
-                )}
-              </ul>
-            </section>
-          )}
-
-          {selected === null ? null : <NodeDetail item={selected} />}
-
-          {model.notes.length === 0 && model.parseWarnings.length === 0 && model.variables.length === 0 ? null : (
-            <section className="inspector-section" aria-label={t`Declarations and notes`}>
-              {model.variables.length === 0 ? null : (
-                <>
-                  <h3 className="field-label"><Trans>Variables</Trans></h3>
-                  <ul className="keyword-list">
-                    {model.variables.map((variable) => (
-                      <li key={variable} className="chip">
-                        {variable}
+          <div className="dlg-outline" hidden={separateModes && mode !== 'graph'}>
+            {model.findings.length === 0 ? (
+              <p className="muted"><Trans>No loose end, dead end or unknown speaker in this container.</Trans></p>
+            ) : (
+              <section className="inspector-section" aria-label={t`Findings`}>
+                <h3 className="field-label"><Trans>Findings</Trans></h3>
+                <ul className="dlg-findings">
+                  {flagged.flatMap((item) =>
+                    item.findings.map((finding, index) => (
+                      <li key={`${item.id}:${index}`}>
+                        <button type="button" className="dlg-finding" onClick={() => setPicked(item.id)}>
+                          <FindingBadge finding={finding} />
+                          <span>{finding.message}</span>
+                        </button>
                       </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {[...model.parseWarnings, ...model.notes].map((note) => (
-                <p key={note} className="muted">
-                  {note}
-                </p>
-              ))}
-            </section>
-          )}
+                    )),
+                  )}
+                </ul>
+              </section>
+            )}
 
-          <section className="inspector-section dlg-source-edit" aria-label={t`The Ink text`}>
+            {selected === null ? null : <NodeDetail item={selected} />}
+
+            {model.notes.length === 0 && model.parseWarnings.length === 0 && model.variables.length === 0 ? null : (
+              <section className="inspector-section" aria-label={t`Declarations and notes`}>
+                {model.variables.length === 0 ? null : (
+                  <>
+                    <h3 className="field-label"><Trans>Variables</Trans></h3>
+                    <ul className="keyword-list">
+                      {model.variables.map((variable) => (
+                        <li key={variable} className="chip">
+                          {variable}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {[...model.parseWarnings, ...model.notes].map((note) => (
+                  <p key={note} className="muted">
+                    {note}
+                  </p>
+                ))}
+              </section>
+            )}
+
+          </div>
+          <section className="inspector-section dlg-source-edit" aria-label={t`The Ink text`} hidden={separateModes && mode !== 'ink'}>
             <div className="dlg-source-head">
               <h3 className="field-label"><Trans>The Ink text</Trans></h3>
               {missing === 0 || confirming ? null : (

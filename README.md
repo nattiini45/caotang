@@ -10,6 +10,8 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 ## What works today
 
+- **Navigation.** Modern puts workspace views below the page and document modes beside its title: Script/Source/Pages for a screenplay, Graph/Ink for dialogue. Search (Ctrl+K, or Cmd+K) reaches every view, Binder, Findings, the Agent logs and New without taking the browser's numbered tab shortcuts.
+
 - **Projects.** Create, open, rename and remove projects in your browser. Set the title, author, language, ISBN and cover. Export a project as a `.caotang` bundle and import one back. In Chrome or Edge, open a project folder or save to one. A folder of a project this browser already keeps opens as that project when it holds the same book, and a folder of a project another tab has open is refused. Caotang asks before it saves over a change it did not make, or before it writes back a `caotang.json` that another program removed. A folder's writing sessions come into this browser when you open it.
 - **Binder.** A manuscript of chapters and scenes, and a research section that is never compiled. Drag to reorder, rename, set a status or a label, delete and undo. A filter bar (text, status, label, word counts, keywords and recent dates) with saved filters, and a footer with word goals, a sprint timer, a writing history and the words a stopped tab kept.
 - **Corkboard.** The scenes of a chapter, or the chapters of the manuscript, as cards in three sizes. Drag to reorder.

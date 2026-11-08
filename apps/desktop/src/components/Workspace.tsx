@@ -948,6 +948,7 @@ export function Workspace({
   };
 
   const regions: ShellRegions = {
+    documentKind: mediaView !== null && mediaNode !== undefined ? mediaKindOf(mediaNode) : activeDoc === null ? null : 'scene',
     create: { target: newTargetNode?.title ?? null, make: makeNew },
     projectName: state.manifest.project.name,
     actions,
@@ -1190,10 +1191,6 @@ export function Workspace({
         if (mediaKindOf(node) === null) setFocusDocId(nodeId);
       },
       openCodexEntry,
-      showCodex: () => {
-        setRail('codex');
-        if (narrow) setPanel('rail');
-      },
       openSettings: setSettingsSection,
       openAgent: (text) => {
         setAgentOpen(true);

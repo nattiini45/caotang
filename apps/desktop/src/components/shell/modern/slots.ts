@@ -31,12 +31,14 @@ import { ModernNotices } from './notices.js';
 import { Palette } from './palette.js';
 import { SceneInfo } from './scene-info.js';
 import { TopOrnament } from './top-ornament.js';
+import type { SidebarTab } from './sidebar-model.js';
 
 /** What every slot receives. */
 export interface ModernSlotProps {
   readonly regions: ShellRegions;
   /** The id of the page (`main`), for a control that moves focus to it or names it (`aria-controls`). */
   readonly pageId: string;
+  readonly lastAgent?: SidebarTab | null;
 }
 
 export type ModernSlot = ComponentType<ModernSlotProps>;
@@ -68,4 +70,3 @@ export const MODERN_SLOTS: ModernSlots = {
   companion: CompanionWindow,
   palette: Palette,
 };
-

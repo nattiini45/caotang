@@ -19,6 +19,7 @@ import { isImeEnter, keyboardLayoutStore, printedKeyLabel, shortcutNames } from 
 import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
 import { radioStep } from '../components/radio-keys.js';
+import { DocumentModes } from '../components/DocumentModes.js';
 import { Menu, useReport, useSession, type MenuAnchor } from '../components/shared.js';
 import { LINE_ELEMENT_TYPES, type LineConversion, type LineElementType, type LocatedElement } from './engines.js';
 import { useCodexEntries } from './hooks.js';
@@ -344,23 +345,25 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
           <p className="chip sp-readout-chip" title={t`One page is about one minute of screen time. An estimate, not a timing.`}>
             {t`${{ pages: pagesLabel(readout.pages) }} · about ${{ minutes: readout.minutes }} min`}
           </p>
-          <div role="radiogroup" aria-label={t`View of the scene`} className="segmented" onKeyDown={onModeKey}>
-            {MODES.map((item) => (
-              <button
-                key={item}
-                type="button"
-                role="radio"
-                data-mode={item}
-                aria-checked={mode === item}
-                tabIndex={mode === item ? 0 : -1}
-                title={MODE_LABEL[item]}
-                className="segmented-item"
-                onClick={() => setMode(item)}
-              >
-                {MODE_NAME[item]}
-              </button>
-            ))}
-          </div>
+          <DocumentModes>
+            <div role="radiogroup" aria-label={t`View of the scene`} className="segmented" onKeyDown={onModeKey}>
+              {MODES.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="radio"
+                  data-mode={item}
+                  aria-checked={mode === item}
+                  tabIndex={mode === item ? 0 : -1}
+                  title={MODE_LABEL[item]}
+                  className="segmented-item"
+                  onClick={() => setMode(item)}
+                >
+                  {MODE_NAME[item]}
+                </button>
+              ))}
+            </div>
+          </DocumentModes>
         </div>
       </header>
 

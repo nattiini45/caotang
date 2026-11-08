@@ -259,7 +259,7 @@ Every row must stay reachable. "Same" means the same component and handlers in a
 | **Trace** tab and its export | Sidebar › Trace |
 | **Findings** tab (scan, model review, groups, history, knowledge, dismissal picker), with its count | Sidebar › Findings, with the count on the tab and the title capsule's dot; Scene info lists the open findings of the scene with **Show in Findings** |
 
-The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**, a tablist with Classic's keys. The tab bar's **Binder** button opens it on Binder, **Findings** on Findings (its count shown on the closed bar), and **Agent** on whichever of Activity and Trace was used last (#479).
+The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**, a tablist with Classic's keys. The tab bar's **Binder** button opens it on Binder, **Findings** on Findings (its count shown on the closed bar), and **Agent** on whichever of Activity and Trace was used last (#479). Modern's shell keeps that last log while its wide sidebar and narrow drawer remount on resize.
 
 ### 7.3 The centre
 
@@ -271,9 +271,9 @@ The sidebar's own tabs are **Binder**, **Findings**, **Activity** and **Trace**,
 | Review bar (**Previous**, **Next**, **Accept**, **Reject**, **Accept all**, **Reject all**) | Same bar on the page: **Previous** and **Next** as chevrons, **Accept** the one primary, **Reject** beside it, **Accept all** and **Reject all** in its **More** disclosure (`.k-more`, #361); optionally also near the focused change (§8.7) |
 | Editor footer: word count, daily target quick-set and session ring | Scene info › Progress (same `TargetQuickSet`); the ring also on the title capsule |
 | Corkboard (cards, S/M/L zoom, synopsis edit, card menu, keyboard reorder) | Board view (same `Corkboard`), the zoom in the top ornament |
-| Screenplay scene (Script / Source / Pages, element menu, preview, chords) | Write view (same `ScreenplayView`), its mode switch in the page header |
+| Screenplay scene (Script / Source / Pages, element menu, preview, chords) | Write view (same `ScreenplayView`), its mode switch beside the title capsule in the top ornament |
 | Storyboard (shot board, coverage, lightbox, prompt packs, zoom) | Board view when a storyboard is selected (same `StoryboardView`) |
-| Dialogue container (graph, Ink text, Ink gate) | Write view (same `DialogueView`) |
+| Dialogue container (graph, Ink text, Ink gate) | Write view (same `DialogueView`), Graph / Ink beside the title capsule in the top ornament |
 | "Open on desktop" notices | §13 |
 
 ### 7.4 The agent drawer
@@ -307,7 +307,7 @@ Built (M10, #311): every dialog, Settings, the context menus and Home are sheet 
 
 ### 7.7 Keys
 
-Every chord in ui-modules §2.5 and §5.6 and the screenplay chords keeps its meaning in Modern (§8.9).
+Every chord in ui-modules §2.5 and §5.6 and the screenplay chords keeps its meaning in Modern (§8.9). The browser app does not take Ctrl/Cmd+1–5 from browser tabs, or Ctrl/Cmd+Shift+1–3 from screenplay elements and macOS screenshots (#483). **Search** or Ctrl+K (Cmd+K), then the view's name, **Binder**, **Findings** or **Agent**, reaches each place without a numbered chord. **Agent** with the **Sidebar** detail opens the last Activity or Trace tab; **Ask the agent** opens the companion window. A sidebar request opens it even when that tab is already selected. The guide's Keyboard table is the shortcut sheet, in English and German. There is no Electron host in this build; dedicated native chords need a host-specific decision, not browser interception.
 
 ### 7.8 Creation: one **+ New** (#477)
 
@@ -317,7 +317,13 @@ One pure model, `app/new-menu.ts`, lists what a writer can make: **Write** (Scen
 - The new item is selected and opened (a document or dialogue in Write, a folder on the Board); a refusal from the bus reaches the status line.
 - **Ctrl+Shift+N** (Cmd+Shift+N) opens the menu in Modern where the browser yields the chord (Chrome keeps it for a private window); the palette's New group is the path there.
 - Halls (#430) reorder the kinds (`orderNewKinds`) and the views (`orderViews`) through `ShellRegions.create.order` and `viewOrder`; nothing is removed.
-- Not yet: imports inside the menu, a **Change** parent picker, Shot/Page first inside a storyboard or comic, and per-document modes in the top ornament (#476).
+- Not yet: imports inside the menu, a **Change** parent picker, and Shot/Page first inside a storyboard or comic.
+
+### 7.9 Document modes (#476)
+
+The title capsule leads with the open document's type icon. Only a document with modes supplies a segmented radio group beside it: **Script · Source · Pages** for a screenplay, **Graph · Ink** for a dialogue. Prose, storyboards and comic pages add no modes. The existing feature owns the mode and its handlers; `DocumentModes` portals the same control into the ornament's `DocumentModeOutlet`, through a container provider that knows no shell name. It stays inline in Classic, where screenplay modes keep their page-header home and dialogue keeps its graph and Ink text side by side. The ornament uses DOM focus and key listeners so portalled controls participate in its one roving tab stop; each radio group keeps its own arrow keys.
+
+Graph shows the branch graph, outline and findings; Ink shows the full-width source editor. Clicking a graph node or revealing a quoted finding opens Ink at the passage. Switching modes never replaces the draft or the autosave lane. On a narrow screen the screenplay group takes a second row under the title, with the page moved down to clear it; the existing desktop-only dialogue notice has no modes.
 
 ## 8. Interaction model
 
@@ -441,6 +447,8 @@ The policy does not change. Modern stays inside it:
 - Modern's e2e specs fail on any `securitypolicyviolation` event, as the existing CSP listener does.
 
 ## 12. Bundle budget
+
+Navigation completion (#476, #483) measures 35,050 B gzip over Classic for Modern's initial chunk and stylesheet; the owner-approved ceiling is 35,400 B, pinned in `test/check-bundle-size.test.ts` (2026-11-08). Deduplicating sidebar opening, removing unused view/Scene info/New request channels and the unused codex handler, and keeping toolbar listeners stable avoids extra code and repeated setup. Loading the screenplay editor on demand reduces Classic's initial payload from 1,030.4 to 1,022.5 kB gzip and Modern's from 1,065.4 to 1,057.5 kB; its existing loading/error boundary covers the first open. An on-demand mode-outlet/style split instead measured 36,258 B because its import wiring outweighed the moved surface, so those controls use the simpler shared container. No dependency was added.
 
 Numbers against `main`'s budget (`index` 1,565,000 B raw, first load 886,000 B gzip, all JS 6,265,000 B raw). Each pull request measures and records its real numbers, as the gate requires.
 
