@@ -78,6 +78,15 @@ describe('the committed baseline', () => {
 });
 
 describe('the inventory', () => {
+  it('treats CSS feature queries and matching selectors as technical without hiding nearby copy', () => {
+    const scan = scanSource('picker.tsx', `
+      const supported = CSS.supports('selector(:open)');
+      const open = element.matches(':open');
+      const label = 'Status: open';
+    `);
+    expect(scan.sites).toEqual([expect.objectContaining({ kind: 'literal', text: 'Status: open' })]);
+  });
+
   it('counts a hardcoded ARIA label, a title, a placeholder and an imperative textContent string', () => {
     const scan = scanSource('hardcoded.tsx', read('hardcoded.tsx'));
     expect(countsOf(scan.sites)).toEqual({ jsxText: 1, attribute: 3, literal: 1, template: 1 });

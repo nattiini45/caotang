@@ -42,6 +42,7 @@ export function useDisclosureDismissal(): void {
     };
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape' || event.isComposing) return;
+      if (event.target instanceof HTMLSelectElement && CSS.supports('selector(:open)') && event.target.matches(':open')) return;
       const surface = event.target instanceof Element ? event.target.closest('dialog[open], [role="dialog"], [role="menu"]') : null;
       const disclosures = opened().filter((details) => surface === null || surface.contains(details));
       const details = disclosures.findLast((item) => item.contains(event.target as Node)) ?? disclosures.at(-1);

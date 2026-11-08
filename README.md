@@ -129,7 +129,9 @@ The scripted demo is [`e2e/demo.spec.ts`](e2e/demo.spec.ts). It builds a three-c
 
 In Modern, **Import…**, **Filters**, the Codex's **Filter** and **More** disclosures close on an outside click or Escape; Escape returns focus to their heading. Classic's always-visible controls stay visible.
 
-On phones, Home shows existing projects first and Settings' sections scroll sideways on one row, in either interface. Confirm and Choice dialogs consistently put Cancel before their actions.
+An open native filter picker keeps its first Escape before **Filters** closes.
+
+On phones, Home shows existing projects first visually and Settings' sections scroll sideways on one row, in either interface. Home's screen-reader and keyboard order are unchanged (#496). Confirm and Choice dialogs consistently put Cancel before their actions.
 
 ## Your key and your privacy
 

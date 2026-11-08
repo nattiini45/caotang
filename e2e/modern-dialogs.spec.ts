@@ -236,6 +236,43 @@ test('Import and More disclosures dismiss without swallowing the next action or 
   await expect(importSummary).toBeFocused();
 });
 
+test('Escape from a closed filter select closes its disclosure', async ({ page }) => {
+  await start(page);
+  await projectWithScene(page, 'Closed Picker Book');
+  await openBinder(page);
+  const filters = page.locator('details.filter-more');
+  const summary = filters.locator(':scope > summary');
+  await summary.click();
+  await filters.getByRole('combobox', { name: 'Status filter' }).focus();
+  await page.keyboard.press('Escape');
+  await expect(filters).not.toHaveAttribute('open');
+  await expect(summary).toBeFocused();
+});
+
+test('a native filter picker gets Escape before the containing disclosure', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'Only Chromium exposes its native picker open state in the headless backend.');
+  await start(page);
+  await projectWithScene(page, 'Native Picker Book');
+  await openBinder(page);
+  await page.getByRole('button', { name: 'Keep open', exact: true }).click();
+  const filters = page.locator('details.filter-more');
+  const summary = filters.locator(':scope > summary');
+  await summary.click();
+  const status = filters.getByRole('combobox', { name: 'Status filter' });
+  await status.click();
+  await expect.poll(() => status.evaluate((element) => element.matches(':open'))).toBe(true);
+  await status.dispatchEvent('keydown', { key: 'Escape', bubbles: true });
+  await expect(filters).toHaveAttribute('open', '');
+  await expect.poll(() => status.evaluate((element) => element.matches(':open'))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect.poll(() => status.evaluate((element) => element.matches(':open'))).toBe(false);
+  await expect(filters).toHaveAttribute('open', '');
+  await expect(status).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(filters).not.toHaveAttribute('open');
+  await expect(summary).toBeFocused();
+});
+
 test('the Codex Filter dismisses on Escape and an outside click', async ({ page }) => {
   await start(page);
   await projectWithScene(page, 'Codex Disclosure Book');
