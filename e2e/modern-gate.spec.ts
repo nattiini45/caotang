@@ -77,8 +77,8 @@ export const SURFACES: readonly Surface[] = [
     scope: '[data-testid="modern-binder-bar"], [data-testid="modern-sidebar"]',
   },
   { id: 'a toast', setup: 'scene', open: [{ provoke: 'deleted-scene' }, { see: { testId: 'modern-toast', pattern: 'Deleted' } }], scope: '[data-testid="modern-notices"]' },
-  { id: 'Settings', setup: 'scene', open: [{ palette: 'Settings' }], scope: '[data-testid="settings"]' },
-  { id: 'the Export dialog', setup: 'scene', open: [{ palette: 'Compile…' }], scope: 'dialog.export-dialog' },
+  { id: 'Settings', setup: 'scene', open: [{ palette: 'Settings' }, { see: { testId: 'settings' } }], scope: '[data-testid="settings"]' },
+  { id: 'the Export dialog', setup: 'scene', open: [{ palette: 'Compile…' }, { see: { css: 'dialog.export-dialog' } }], scope: 'dialog.export-dialog' },
   { id: 'the projects screen', setup: 'home', open: [], scope: '.home' },
   // The demo agent's draft into The Friend (the 'draft' setup): its ghost bar on the page, then, approved, the review bar's marks.
   // The agent window is closed first (its Close keeps the turn running), since an open window sets the page back to 98.5% (#309).

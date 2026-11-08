@@ -316,7 +316,7 @@ test('documents another program changed are asked about with Save as a new folde
   await expect(question).toContainText(
     'Saving writes this tab’s version over them. The folder’s version is kept first, in .caotang-backup in the folder, so if you need anything from it, copy it from there.',
   );
-  expect(await buttonLabels(question)).toEqual(['Save as a new folder…', 'Save over them', 'Cancel']);
+  expect(await buttonLabels(question)).toEqual(['Cancel', 'Save as a new folder…', 'Save over them']);
 
   // A folder that holds anything is refused with a sentence, and the writer can choose again.
   await writeFolderFile(page, 'not-empty-folder', 'notes.txt', 'Someone else’s notes.');
@@ -455,7 +455,7 @@ test('a folder holding another project asks with the owner’s words and three c
   await expect(question).toContainText(
     'Saving here replaces that project’s caotang.json and any of its documents that share an id with this one. Caotang keeps a backup of that caotang.json, and copies each document it replaces to .caotang-backup in the folder.',
   );
-  expect(await buttonLabels(question)).toEqual(['Save as a new folder…', 'Save over it', 'Cancel']);
+  expect(await buttonLabels(question)).toEqual(['Cancel', 'Save as a new folder…', 'Save over it']);
   expect(await readFolderFile(page, 'shared-folder', 'caotang.json')).toContain('First Book');
 
   // "Save over it" goes through the folder save: the folder holds the second project, and the first one's caotang.json is the backup.
@@ -503,7 +503,7 @@ test('this project’s earlier save in a folder Caotang has no record of asks in
   await expect(question).toContainText(
     'Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in .caotang-backup in the folder, and an older caotang.json is kept as a backup of its own, so if you need anything from it, copy it from there.',
   );
-  expect(await buttonLabels(question)).toEqual(['Save as a new folder…', 'Save over it', 'Cancel']);
+  expect(await buttonLabels(question)).toEqual(['Cancel', 'Save as a new folder…', 'Save over it']);
   await question.getByRole('button', { name: 'Save over it' }).click();
   await expect(page.getByRole('status').filter({ hasText: new RegExp(`Saved the project to the folder “${writerText('older-folder')}`) })).toBeVisible();
 });
@@ -561,10 +561,10 @@ ordinaryProfile('a project remembers its folder: Reopen folder opens it in one c
   const question = page.getByRole('dialog').filter({ hasText: new RegExp(`The folder holds a different version of “${writerText('Remembered')}”`) });
   await expect(question).toBeVisible();
   expect(await buttonLabels(question)).toEqual([
+    'Cancel',
     'Use the folder’s version',
     'Keep this browser’s version and save it to the folder',
     'Open as a separate copy',
-    'Cancel',
   ]);
 
   // Keeping this browser's version opens it and saves it to the folder, through the changed-documents question.
