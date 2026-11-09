@@ -326,6 +326,7 @@ export function ExportDialog({
   // What the dialog says about its own work: a refusal, a failed save, or a recipe saved. It is shown inside the dialog, beside Compile,
   // because the status line sits under the dialog and the writer is reading the dialog. A finished compile is said on the status line.
   const [notice, setNotice] = useState<StatusMessage | null>(null);
+  const [hookBlocked, setHookBlocked] = useState(false);
   const shown = shownOptionsOf(recipe);
   // A comic compile takes one book, so the format is offered while a comic or one of its pages is the selected item.
   const comicSelected = selection !== null && comicBookOf(session.state.manifest.tree, selection.id) !== undefined;
@@ -469,9 +470,10 @@ export function ExportDialog({
     }
   };
 
-  const compile = async (): Promise<void> => {
+  const compile = async (compileAnyway = false): Promise<void> => {
     setBusy(true);
     setNotice(null);
+    setHookBlocked(false);
     try {
       await session.exportsReady();
       // Failures are cumulative for the life of the exporter, and a path a later compile re-used may carry an older
@@ -481,11 +483,12 @@ export function ExportDialog({
       // A comic compile counts its panels for the status line; the selection is the book or page it compiles.
       const comicPanels = partId !== null ? comicPanelCountOf(session, partId) : undefined;
       const outcome = partId !== null
-        ? compileSelection(session, [partId], format, recipeFor, templateId)
-        : compileManuscript(session, format, recipeFor, templateId);
+        ? compileSelection(session, [partId], format, recipeFor, templateId, compileAnyway)
+        : compileManuscript(session, format, recipeFor, templateId, compileAnyway);
       if (!outcome.ok) {
         // A refusal keeps the dialog open, so the reason is said here, next to Compile, and not on the status line under the dialog.
         setNotice({ text: explain(outcome.error), tone: 'error' });
+        setHookBlocked(outcome.error.details?.['hookBlocked'] === true);
         return;
       }
       const digest = outcome.value.result as ExportCommandDigest;
@@ -873,6 +876,11 @@ export function ExportDialog({
             </p>
           )}
           <div className="confirm-actions">
+            {hookBlocked && notice?.tone === 'error' ? (
+              <button type="button" className="button" onClick={() => void compile(true)} disabled={busy}>
+                <Trans>Compile anyway</Trans>
+              </button>
+            ) : null}
             <button type="button" className="button" onClick={onClose} disabled={busy}>
               <Trans>Cancel</Trans>
             </button>

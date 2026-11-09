@@ -158,7 +158,7 @@
         "turnId": { "type": "string" },
         "hookId": { "type": "string" },
         "name": { "$ref": "#/$defs/text" },
-        "event": { "enum": ["tool.before", "tool.after"] },
+        "event": { "enum": ["tool.before", "tool.after", "export.before", "export.after", "project.save", "turn.submit", "turn.end"] },
         "tool": { "type": "string" },
         "callId": { "type": "string" },
         "action": { "enum": ["warn", "block", "context"] },

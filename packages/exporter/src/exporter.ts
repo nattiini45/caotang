@@ -759,13 +759,14 @@ export function createExporter(options: ExporterOptions): ExporterService {
 
   function compileForBus(state: ProjectState, request: ExportCommandRequest): ExportCommandOutcome {
     const { format, base, compiled } = planForBus(state, request);
+    const entry = { ...compiled.entry, notes: [...compiled.entry.notes, ...(request.notes?.() ?? [])] };
 
     // The names are reserved together, and only after the plan has accepted the compile: a refused plan reserves nothing.
     const placed = emitter.reserveGroup(filesOf(compiled, `${base}.${EXTENSION[format]}`));
     const paths = placed.map((file) => file.path);
     emitter.publishFiles({
       files: placed.map((file) => ({ path: file.path, format, render: file.render })),
-      entry: compiled.entry,
+      entry,
     });
 
     const digest: ExportCommandDigest = {
@@ -777,7 +778,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       wordCount: compiled.entry.wordCount,
       skippedDocs: [...compiled.entry.skippedDocs],
       tocIncluded: compiled.entry.tocIncluded,
-      notes: [...compiled.entry.notes],
+      notes: [...entry.notes],
       ...(paths.length > 1 ? { outputs: paths } : {}),
     };
     return {

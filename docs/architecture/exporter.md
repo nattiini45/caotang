@@ -30,6 +30,8 @@ select → flatten → render → emit
 
 **Compile log as a first-class surface:** Scrivener's community advice is "trial-compile a small collection first"; our equivalents are `preview` (the Draft: the pre-compile block list and skip list, §4, shown in the Export dialog) and the compile log (post-compile record incl. every skipped doc). Vellum's Draft-vs-Proof duality is the gold-standard UX: the Draft has landed, and so has the Proof of every text format (the file itself, shown as text); the styled Proof of the binary formats (the DOCX's and EPUB's pages, the PDFs) is still **v0.2 backlog** (it is Vellum/Atticus's moat; not v0.1).
 
+The host-side command port accepts an optional local `notes` callback, evaluated only after the compile plan is accepted and before publication. The app uses it for the writer's export lifecycle hook notes; they appear in both the returned digest and the compile-log row. This callback is never a command parameter, project field or MCP input. A hook cannot change the export request, and **Compile anyway** skips only the hook's block, not the exporter's own validation.
+
 ### Per-scene styling
 
 A chapter has a heading and a scene has none: below the chapter the body is one undifferentiated run. A writer can say what a scene *is*, and each format decides how that looks.

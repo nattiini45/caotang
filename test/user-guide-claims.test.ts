@@ -646,7 +646,8 @@ describe('the user guide’s reviewed claims match the code', () => {
     // A program or a model handler is not a project-file hook, as the guide says.
     expect(readHook({ ...base, handler: { kind: 'command', command: 'x' } }, true).ok).toBe(false);
     // The events the guide names are the ones this build runs, and the limits are the bus's own.
-    expect([...HOOK_EVENTS_RUN]).toEqual(['tool.before', 'tool.after']);
+    expect([...HOOK_EVENTS_RUN]).toEqual(['tool.before', 'tool.after', 'export.before', 'export.after', 'project.save', 'turn.submit', 'turn.end']);
+    for (const event of HOOK_EVENTS_RUN) expect(section).toContain(`\`${event}\``);
     expect(section).toContain(`A project holds at most ${HOOKS_MAX} hooks, a check at most ${HOOK_PATTERNS_MAX} patterns, and a pattern or a message at most ${HOOK_TEXT_MAX} characters.`);
     // Only the writer changes a hook: the agent has no command for it.
     expect(COMMAND_REGISTRY['hook.save'].descriptor.agentRisk).toBe('never');
@@ -655,7 +656,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The refusal the card shows, and the three places the guide and the README point a writer to.
     expect(read('packages/harness/src/hooks.ts')).toContain('stopped ${tool}: ${run.decision.reason}');
     expect(guide).toContain('- **Hooks.** A hook is a check you write for the agent');
-    expect(guide.slice(guide.indexOf('## What is not in this build yet'))).toContain('- **Hooks.** There is no Settings › Hooks');
+    expect(section).toContain('Settings › Hooks lists the open project');
+    expect(section).toContain('never stops a save');
+    expect(section).toContain('Compile anyway');
     expect(read('README.md')).toContain('- **Hooks.** Write a check the agent is held to');
     expect(read('docs/decisions.md')).toMatch(/hooks/i);
   });

@@ -1,7 +1,6 @@
 /**
- * Hooks — [hooks.md](../../../docs/architecture/hooks.md). A hook is a writer-authored check the harness runs at a point of the agent's
- * call: `tool.before` (at the plan's preflight and again as the call runs) and `tool.after`. This build runs the pure `check` kind only,
- * and every check is a synchronous function over the project, scoped to the nodes the call touches.
+ * Hooks — [hooks.md](../../../docs/architecture/hooks.md). Writer-authored pure checks at tool, turn, export and explicit save events.
+ * Every check is a synchronous function over the project, scoped to the nodes the event touches.
  *
  * What a hook can do is narrower than what the gate can: it can allow, warn, block (before a call), or add a labelled note for the model
  * (after one). It never approves a call, rewrites its params or writes the project. A hook runs after the gate has answered (the rules,
@@ -15,6 +14,7 @@ import { DETERMINISTIC_CHECK_IDS, SCAN_DOC_GUARD, scanTool, type DeterministicCh
 import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { TOOL_NAMES, metadataFor } from './metadata.js';
+import { ANY_NODE, descendantsOf, resolveNode } from './resolve.js';
 import { globMatches } from './rules.js';
 import { countIn, excludedBy, heldFile } from './tools/coherence.js';
 import type { CallParams } from './types.js';
@@ -52,7 +52,9 @@ export interface HookRun {
 
 /** What a hook sees: the call's name and params, the text it would write, and the nodes it touches. Never a key or a token. */
 export interface HookInput {
-  readonly event: 'tool.before' | 'tool.after';
+  readonly event: HookEvent;
+  readonly issuedBy?: 'agent' | 'user';
+  readonly text?: string;
   readonly turnId?: string;
   readonly tool: string;
   readonly callId?: string;
@@ -75,7 +77,7 @@ export interface HookDeps {
 
 export interface HookRunner {
   /** The `tool.before` hooks for a call that has not run, with no effect and no wait: the plan card's check (hooks.md §3). */
-  preflight(input: HookInput & { readonly event: 'tool.before' }): readonly HookRun[];
+  preflight(input: HookInput & { readonly event: 'tool.before' | 'export.before' }): readonly HookRun[];
   /** The hooks for `input.event`, at the moment the call runs or has run. Synchronous in this build: every handler is. */
   run(input: HookInput): readonly HookRun[];
 }
@@ -340,8 +342,22 @@ function readable(state: ProjectState, input: HookInput, deps: HookDeps): TreeNo
   return out;
 }
 
-function patternCheck(check: Extract<HookCheck, { kind: 'pattern' }>, input: HookInput): Failure | undefined {
-  const text = proseOf(input.tool, input.params, input.proposal);
+function checkedText(input: HookInput, deps: HookDeps): string {
+  if (input.text !== undefined) return input.text;
+  if (input.event.startsWith('tool.')) return proseOf(input.tool, input.params, input.proposal);
+  const bodies: string[] = [];
+  let size = 0;
+  for (const node of readable(deps.state, input, deps)) {
+    const body = getBody(deps.state, node.id);
+    size += body.length + 1;
+    if (size > HOOK_TEXT_CAP) throw new Error(`the text is over ${HOOK_TEXT_CAP} characters`);
+    bodies.push(body);
+  }
+  return bodies.join('\n');
+}
+
+function patternCheck(check: Extract<HookCheck, { kind: 'pattern' }>, input: HookInput, deps: HookDeps): Failure | undefined {
+  const text = checkedText(input, deps);
   if (text === '') return undefined;
   if (text.length > HOOK_TEXT_CAP) throw new Error(`the text is over ${HOOK_TEXT_CAP} characters`);
   const hits: string[] = [];
@@ -376,9 +392,9 @@ function wordsCheck(check: Extract<HookCheck, { kind: 'words' }>, input: HookInp
     if (check.min !== undefined && words < check.min) return `is ${words} words, under the ${check.min} this hook asks for`;
     return undefined;
   };
-  if (input.event === 'tool.before') {
-    const text = proseOf(input.tool, input.params, input.proposal);
-    if (text === '') return undefined;
+  if (input.event !== 'tool.after') {
+    const text = checkedText(input, deps);
+    if (text === '' && input.event === 'tool.before') return undefined;
     if (text.length > HOOK_TEXT_CAP) throw new Error(`the text is over ${HOOK_TEXT_CAP} characters`);
     const problem = bounds(countBody(text).words);
     return problem === undefined ? undefined : { reason: `The text ${problem}.` };
@@ -426,7 +442,7 @@ function coherenceCheck(check: Extract<HookCheck, { kind: 'coherence' }>, input:
 function runCheck(check: HookCheck, input: HookInput, deps: HookDeps): Failure | undefined {
   switch (check.kind) {
     case 'pattern':
-      return patternCheck(check, input);
+      return patternCheck(check, input, deps);
     case 'status':
       return statusCheck(check, input, deps);
     case 'words':
@@ -478,8 +494,8 @@ function isWriteCall(input: HookInput): boolean {
 
 function matches(spec: HookSpec, input: HookInput): boolean {
   if (!spec.enabled || spec.event !== input.event) return false;
-  // Every call the harness runs is the agent's. `user` is for the events a later build fires on the writer's own gestures.
-  if (spec.matcher?.issuedBy === 'user') return false;
+  const issuer = spec.matcher?.issuedBy ?? (input.event.startsWith('tool.') || input.event.startsWith('turn.') ? 'agent' : 'any');
+  if (issuer !== 'any' && issuer !== (input.issuedBy ?? 'agent')) return false;
   const tools = spec.matcher?.tools;
   if (tools === undefined) return true;
   // A hook whose names match no tool never fires on its own account. Before a call it speaks on every write instead, so it is not
@@ -496,6 +512,7 @@ function decisionOf(spec: HookSpec, input: HookInput, failure: Failure): HookDec
     const note = failure.detail === undefined ? failure.reason : `${failure.reason}\n${failure.detail}`;
     return { action: 'context', text: spec.onBlock === 'block' ? `${note}${AFTER_NOTE}` : note };
   }
+  if (input.event === 'project.save' || input.event === 'turn.end' || input.event === 'export.after') return { action: 'warn', reason: failure.reason };
   return spec.onBlock === 'block' ? { action: 'block', reason: failure.reason } : { action: 'warn', reason: failure.reason };
 }
 
@@ -528,7 +545,7 @@ export function createHookRunner(source: HookSource, deps: HookDeps): HookRunner
       } catch (thrown) {
         failed = thrown instanceof Error ? thrown.message : String(thrown);
         const reason = `The hook could not run (${failed}), so the step was not checked.`;
-        decision = spec.failClosed === true && input.event === 'tool.before' ? { action: 'block', reason } : { action: 'warn', reason };
+        decision = spec.failClosed === true && ['tool.before', 'turn.submit', 'export.before'].includes(input.event) ? { action: 'block', reason } : { action: 'warn', reason };
       }
       const ms = Math.max(0, clock() - started);
       if (ms > HOOK_SLOW_MS && decision.action === 'allow') {
@@ -550,6 +567,31 @@ export function createHookRunner(source: HookSource, deps: HookDeps): HookRunner
   };
 
   return { preflight: evaluate, run: evaluate };
+}
+
+export function exportHookNodes(state: ProjectState, params: CallParams): readonly string[] {
+  const selection = isRecord(params['selection']) ? params['selection'] : undefined;
+  let roots: readonly string[];
+  if (selection !== undefined && typeof selection['root'] === 'string') {
+    const resolved = resolveNode(state, selection['root'], ANY_NODE, 'node', 'selection.root');
+    if (!resolved.ok) throw new Error(resolved.error.message);
+    roots = [resolved.value.id];
+  } else if (Array.isArray(params['includeRootIds'])) {
+    roots = params['includeRootIds'].filter((id): id is string => typeof id === 'string');
+  } else {
+    roots = state.manifest.recipes?.find((recipe) => recipe.name === params['recipeName'])?.includeRootIds ?? ['manuscript'];
+  }
+  const included = new Set(roots);
+  if (selection?.['includeSubtrees'] !== false) {
+    for (const root of roots) for (const node of descendantsOf(state, root)) included.add(node.id);
+  }
+  return state.manifest.tree.filter((node) => node.type === 'document' && included.has(node.id)).map((node) => node.id);
+}
+
+export function hookMessages(runs: readonly HookRun[]): readonly string[] {
+  return runs.flatMap((run) => run.decision.action === 'allow' ? [] : [
+    `Hook “${hookLabel(run.name)}”: ${run.decision.action === 'context' ? run.decision.text : run.decision.reason}`,
+  ]);
 }
 
 /* ------------------------------------------------------------------ *

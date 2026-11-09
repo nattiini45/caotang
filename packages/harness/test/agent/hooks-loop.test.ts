@@ -95,6 +95,28 @@ async function turn(
 const textOf = (request: ChatRequest | undefined): string => request?.messages.map((message) => message.content).join('\n') ?? '';
 const hookEvents = (run: Run) => run.events.flatMap((event) => (event.type === 'hook' ? [event.run] : []));
 
+describe('turn lifecycle checks', () => {
+  it('blocks a submitted intent before any model request, and records the reason in the report, events and trace', async () => {
+    const run = await turn('Suddenly continue.', [], [pattern(['suddenly'], { event: 'turn.submit', matcher: undefined, onBlock: 'block' })]);
+    expect(run.planner).toEqual([]);
+    expect(run.asked).toEqual([]);
+    expect(run.report.status).toBe('failed');
+    expect(run.report.askBack?.code).toBe('hook_blocked');
+    expect(run.report.hooks?.[0]?.event).toBe('turn.submit');
+    expect(hookEvents(run)[0]?.decision.action).toBe('block');
+    expect(run.records.some((record) => record.kind === 'hook')).toBe(true);
+  });
+
+  it('reports an end check without continuing the model or reversing a completed turn', async () => {
+    const intent = 'Say hello.';
+    const run = await turn(intent, [transcript(intent, [answer('Hello.')])], [hook({ event: 'turn.end', onBlock: 'block', failClosed: true }, { kind: 'status', allowed: ['Not a status'] })]);
+    expect(run.report.status).toBe('replied');
+    expect(run.planner).toHaveLength(1);
+    expect(run.report.hooks?.at(-1)?.decision.action).toBe('warn');
+    expect(run.report.hooks?.at(-1)?.event).toBe('turn.end');
+  });
+});
+
 describe('a hook that blocks a draft', () => {
   const intent = 'Continue The Landing.';
   const draft = steps({ tool: 'scene.draft', params: { doc: 'The Landing', instruction: 'Go on.', mode: 'continue' }, expect: 'continued' });

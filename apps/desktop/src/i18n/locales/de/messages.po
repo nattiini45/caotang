@@ -4350,6 +4350,11 @@ msgstr "Das Vokabular {kind} ändern"
 msgid "Change the element of the line the caret is on ({menuShortcut}). {chords} chooses one directly."
 msgstr "Ändern Sie das Element der Zeile mit der Einfügemarke ({menuShortcut}). {chords} wählt es direkt aus."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "change the hook in Settings › Hooks, or choose Compile anyway for this export"
+msgstr "ändere den Hook unter Einstellungen › Hooks oder wähle für diesen Export Trotzdem kompilieren"
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.picturesAttach.content"
@@ -5125,6 +5130,11 @@ msgstr "in einem Moment erneut kompilieren, wenn die Auflistung abgeschlossen is
 msgid "harness.progress.exportCompile.none.content"
 msgstr "Einen Export kompilieren"
 
+#. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/ExportDialog.tsx
+msgid "Compile anyway"
+msgstr "Trotzdem kompilieren"
+
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Compile errors"
@@ -5570,6 +5580,7 @@ msgstr "Standardsprecher"
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/BinderFooter.tsx
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Delete"
@@ -5634,6 +5645,10 @@ msgstr "Gelöscht"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Deleted “{title}”. Ctrl+Z restores it right after."
 msgstr "„{title}“ gelöscht. Strg+Z macht das sofort rückgängig."
+
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Deleted the hook. Undo brings it back."
+msgstr "Der Hook wurde gelöscht. Mit Rückgängig stellst du ihn wieder her."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -6407,9 +6422,14 @@ msgid "Enable"
 msgstr "Aktivieren"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Enable {name}"
 msgstr "{name} aktivieren"
+
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Enabled"
+msgstr "Aktiviert"
 
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
@@ -7462,6 +7482,18 @@ msgstr "Hook gelöscht"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Hook saved"
 msgstr "Hook gespeichert"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
+#: apps/desktop/src/app/palette-model.ts
+#: apps/desktop/src/components/HookSettings.tsx
+#: apps/desktop/src/components/Settings.tsx
+msgid "Hooks"
+msgstr "Hooks"
+
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
+msgstr "Hooks prüfen dieses Projekt bei ausgewählten Ereignissen. Sie können warnen oder eine Aktion stoppen, aber niemals eine Aktion genehmigen, deinen Text ändern oder einen Anbieter aufrufen."
 
 #: apps/desktop/src/app/agent-model.ts
 msgid "Idle"
@@ -10475,6 +10507,10 @@ msgstr "{title} auf dem Board öffnen"
 msgid "Open a folder…"
 msgstr "Ordner öffnen…"
 
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Open a project to manage its hooks."
+msgstr "Öffne ein Projekt, um seine Hooks zu verwalten."
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Open a project to see its checkpoints."
@@ -11361,6 +11397,10 @@ msgstr "Projektdetails: Titel, Autor, Sprache, ISBN und Titelbild"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Project goals"
 msgstr "Projektziele"
+
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Project hooks"
+msgstr "Projekt-Hooks"
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -13069,6 +13109,10 @@ msgstr "Gespeichert. Die nächste Anfrage des Agents verwendet diese Budgets."
 #: apps/desktop/src/components/CoherenceSettings.tsx
 msgid "Saved. The Findings tab uses these from now on."
 msgstr "Gespeichert. Der Tab „Feststellungen“ verwendet diese Werte von jetzt an."
+
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Saved. The hook applies to the next matching event."
+msgstr "Gespeichert. Der Hook gilt beim nächsten passenden Ereignis."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -16744,6 +16788,16 @@ msgstr "Dieser Plan braucht {calls} {calls, plural, one {Modell-Aufruf} other {M
 #: apps/desktop/src/app/agent.ts
 msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}. Choose how it runs."
 msgstr "Dieser Plan braucht {calls} {calls, plural, one {Modell-Aufruf} other {Modell-Aufrufe}}. Wählen Sie, wie er ausgeführt wird."
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "This project defines {count} hooks. Review them in Settings › Hooks."
+msgstr "Dieses Projekt enthält {count} Hooks. Prüfe sie unter Einstellungen › Hooks."
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "This project defines one hook. Review it in Settings › Hooks."
+msgstr "Dieses Projekt enthält einen Hook. Prüfe ihn unter Einstellungen › Hooks."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx

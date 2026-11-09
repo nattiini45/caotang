@@ -785,10 +785,12 @@ export function Workspace({
         // From here on the session's exports are written into this folder too (exports.ts).
         await session.attachFolder(folder);
         report({
-          text:
+          text: [
             outcome.backup === undefined
               ? t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. Exports go there from now on.`
               : t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. What it replaced is kept in ${{ backup: outcome.backup }}. Exports go there from now on.`,
+            ...(outcome.warnings ?? []),
+          ].join(' '),
           tone: 'info',
         });
       } catch (error) {

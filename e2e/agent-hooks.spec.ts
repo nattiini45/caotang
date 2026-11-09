@@ -123,3 +123,45 @@ test('a hook that is turned off, and a hook for another tool, say nothing', asyn
   await expect(card.locator('.plan-step-error')).toHaveCount(0);
   await card.getByRole('button', { name: /^Cancel/ }).click();
 });
+
+test('an export hook blocks beside Compile and a writer can override it for one export only', async ({ page }, testInfo) => {
+  await openSample(page);
+  const bundle = await exportedBundle(page);
+  await importAndOpen(page, await bundleWithHooks(testInfo, bundle, 'export-blocked', [{
+    ...LANTERN,
+    name: 'Only final scenes', event: 'export.before', matcher: { issuedBy: 'any' }, onBlock: 'block',
+    handler: { kind: 'check', check: { kind: 'status', allowed: ['Not a status'] } },
+  }]));
+  await expect(page.getByText('This project defines one hook. Review it in Settings › Hooks.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Compile…', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export', exact: true });
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Only final scenes');
+  await expect(dialog.getByRole('button', { name: 'Compile anyway', exact: true })).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: 'Compile anyway', exact: true }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBeTruthy();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole('button', { name: 'Compile…', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Only final scenes');
+});
+
+test('Settings lists a project hook, switches it off without deleting it, and deletes it through the user-only command', async ({ page }, testInfo) => {
+  await openSample(page);
+  const bundle = await exportedBundle(page);
+  await importAndOpen(page, await bundleWithHooks(testInfo, bundle, 'manage-hooks', [LANTERN]));
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Hooks', exact: true }).click();
+  const row = settings.getByTestId('hook-row');
+  await expect(row).toContainText('No lanterns');
+  await row.getByRole('checkbox').uncheck();
+  await expect(row.getByRole('checkbox')).not.toBeChecked();
+  await expect(settings.getByRole('status')).toContainText('Saved.');
+  await row.getByRole('button', { name: /Delete/ }).click();
+  await expect(row).toHaveCount(0);
+  await expect(settings.getByRole('status')).toContainText('Undo brings it back.');
+});

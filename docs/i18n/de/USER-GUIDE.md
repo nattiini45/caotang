@@ -445,6 +445,7 @@ Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen
 
 ## Hooks
 <!-- source: aec2ad42 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
