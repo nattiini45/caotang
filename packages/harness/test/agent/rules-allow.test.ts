@@ -96,12 +96,30 @@ describe('Settings-authored allow rules', () => {
     expect(views).toBe(1);
     expect(harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes).toBe(REPLACE.params['notes']);
     expect(report.undoGroupId).toBeDefined();
+    const events = (JSON.parse(r.log.dump()) as RunEvent[][])[0]!;
+    const approvals = events.filter((event) => event.t === 'rule.approved').map((event) => event.callId);
+    expect(events.flatMap((event) => event.t === 'step.intent' && event.tool === 'notes.replace' ? [event.callId] : [])).toEqual(approvals);
     if (changed === 'unchanged') {
       expect(report.status).toBe('applied');
       expect(harness.state.manifest.tree.find((node) => node.id === LANDING)?.notes).toBe(last.params.notes);
+      expect(events.flatMap((event) => event.t === 'step.applied' && event.tool === 'notes.replace' ? [event.callId] : [])).toEqual(approvals);
     } else {
       expect(report.status).toBe('failed');
       expect(harness.state.manifest.tree.find((node) => node.id === LANDING)?.notes).not.toBe(last.params.notes);
+    }
+  });
+
+  it('links every durable approval to its actual call across multi-step native runs', async () => {
+    const harness = makeHarness({ ports: createAgentPorts(), rules: () => ({ rules: [ALLOW] }), asyncPorts: { 'pictures.view': async () => ({ ok: true, value: { data: {}, summary: 'Viewed.', affected: [] } }) } });
+    const r = await rig([], { harness });
+    const write = (notes: string): PlanStep => ({ ...REPLACE, params: { doc: FRIEND, notes } });
+    const report = await r.run([write('One.'), write('Two.'), { tool: 'pictures.view', params: { assetIds: ['a_0000000001'] }, expect: 'The picture is read.' }, write('Three.'), write('Four.')]);
+    expect(report.status).toBe('applied');
+    const events = (JSON.parse(r.log.dump()) as RunEvent[][])[0]!;
+    const approvals = events.filter((event) => event.t === 'rule.approved').map((event) => event.callId);
+    expect(approvals).toHaveLength(4);
+    for (const kind of ['step.intent', 'step.applied'] as const) {
+      expect(events.flatMap((event) => event.t === kind && event.tool === 'notes.replace' ? [event.callId] : [])).toEqual(approvals);
     }
   });
 

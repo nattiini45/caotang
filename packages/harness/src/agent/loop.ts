@@ -1241,6 +1241,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   const awaited = (tool: string): boolean => loadedExternal(tool) !== undefined || harness.tools().some((listing) => listing.name === tool && listing.async);
 
+  const planRunPrefix = (editable: EditableSteps, from: number, prefix: string, index: number): string => {
+    if (!editable.steps.some((step) => awaited(step.tool))) return prefix;
+    let start = index;
+    while (start > from && !awaited((editable.steps[start - 1] as PlanStep).tool)) start -= 1;
+    return `${prefix}.s${start}`;
+  };
+
   /**
    * A tool's risk, as the gate and the card read it: a native tool's registry row, or for a loaded external tool its
    * effective risk, where a read the writer trusts runs without asking and anything else asks first (extensibility §4).
@@ -2726,8 +2733,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             throw error;
           }
           for (const { step, rule } of rules) {
-            const callId = callIdFor(kind, prefix, editable.steps.indexOf(step));
-            await turn.run?.append({ t: 'rule.approved', turnId: turn.id, callId, tool: step.tool, rule });
+            const index = editable.steps.indexOf(step);
+            const callId = callIdFor(kind, prefix, index);
+            const auditCallId = kind === 'plan' && !awaited(step.tool) ? planStepCallId(planRunPrefix(editable, start.from, prefix, index), index) : callId;
+            await turn.run?.append({ t: 'rule.approved', turnId: turn.id, callId: auditCallId, tool: step.tool, rule });
             if (turn.run === undefined || turn.run.broken) {
               held = 'The automatic approval could not be recorded. Review this card yourself, or fix project storage and try again.';
               notice = held;
@@ -3052,7 +3061,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // it may name what an earlier native step created; `from` makes the harness run the run alone.
       let end = index;
       while (end < editable.steps.length && !awaited((editable.steps[end] as PlanStep).tool)) end += 1;
-      const runCall = `${prefix}.s${index}`;
+      const runCall = planRunPrefix(editable, from, prefix, index);
       const result = await planRun(
         turn,
         { steps: editable.steps.slice(0, end) },
