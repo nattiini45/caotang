@@ -289,14 +289,14 @@ class OpenRequest extends OpenRequestBase {
     private readonly requested: number | undefined,
   ) {
     super();
-    queueMicrotask(() => this.run());
+    this.factory.queueOpen(this.name, () => this.run());
   }
 
   private upgrade(): FakeTransaction {
     return this.result.transaction([], 'versionchange') as FakeTransaction;
   }
 
-  private run(): void {
+  private run(connectionsClosed = false): void {
     const existing = this.factory.dataFor(this.name);
     const current = existing?.version ?? 0;
     const target = this.requested ?? (current === 0 ? 1 : current);
@@ -307,16 +307,20 @@ class OpenRequest extends OpenRequestBase {
         'VersionError',
         `requested version ${this.requested} is below the current version ${current}`,
       ) as DOMException;
-      this.onerror?.call(this, this.fire('error'));
+      try {
+        this.onerror?.call(this, this.fire('error'));
+      } finally {
+        this.factory.finishOpen(this.name);
+      }
       return;
     }
 
-    if (target > current) {
+    if (target > current && !connectionsClosed) {
       this.factory.waitForConnections(this.name, target, () => {
         const event = versionChangeEvent('blocked', current, target);
         this.dispatchEvent(event);
         this.onblocked?.call(this, event);
-      }, () => this.finishOpen(current, target));
+      }, () => this.run(true));
       return;
     }
     this.finishOpen(current, target);
@@ -342,7 +346,11 @@ class OpenRequest extends OpenRequestBase {
 
     queueMicrotask(() => {
       this.setDone();
-      this.onsuccess?.call(this, this.fire('success'));
+      try {
+        this.onsuccess?.call(this, this.fire('success'));
+      } finally {
+        this.factory.finishOpen(this.name);
+      }
     });
   }
 }
@@ -923,6 +931,7 @@ function keyFromId(key: string): IDBValidKey {
  */
 export class MemoryIndexedDb implements IDBFactory {
   private readonly data = new Map<string, FactoryData>();
+  private readonly opening = new Map<string, (() => void)[]>();
   private readonly connections = new Set<FakeDatabase>();
   private readonly waiting = new Set<() => void>();
   private readonly running: FakeTransaction[] = [];
@@ -932,6 +941,24 @@ export class MemoryIndexedDb implements IDBFactory {
   static cmp = compareKeys;
 
   cmp = compareKeys;
+
+  queueOpen(name: string, run: () => void): void {
+    const queued = this.opening.get(name);
+    if (queued !== undefined) {
+      queued.push(run);
+      return;
+    }
+    this.opening.set(name, [run]);
+    queueMicrotask(run);
+  }
+
+  finishOpen(name: string): void {
+    const queued = this.opening.get(name);
+    queued?.shift();
+    const next = queued?.[0];
+    if (next === undefined) this.opening.delete(name);
+    else queueMicrotask(next);
+  }
 
   registerConnection(db: FakeDatabase): void {
     this.connections.add(db);

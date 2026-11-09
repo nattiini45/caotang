@@ -133,6 +133,25 @@ describe('executeAsync — the apply is awaited, and every other step is the syn
     expect(log.entries()).toHaveLength(1);
   });
 
+  it('settles an unexpected post-apply rejection as a cached failure without applying again', async () => {
+    const { bus } = busFor();
+    let calls = 0;
+    const throwingRegistry = { ...registry, 'mcp.invoke': {
+      descriptor: { ...descriptor, postconditions: [{ describe: 'the observer can read', assert: () => { throw new Error('The observer failed'); } }] },
+      apply: async (...args: Parameters<typeof apply>) => { calls += 1; return apply(...args); },
+    } } as unknown as CommandRegistry;
+    const command = call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'post-apply-throw');
+    const [first, second] = await Promise.all([
+      executeAsync(command, bus, throwingRegistry),
+      executeAsync(command, bus, throwingRegistry),
+    ]);
+    expect(first).toMatchObject({ ok: false, error: { code: 'internal', details: { commandId: command.id } } });
+    expect(second).toBe(first);
+    expect(await executeAsync(command, bus, throwingRegistry)).toBe(first);
+    expect(execute(command, bus, throwingRegistry)).toBe(first);
+    expect(calls).toBe(1);
+  });
+
   it('does not deduplicate calls without both a turnId and a callId', async () => {
     const { bus, log } = busFor();
     const command = call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'unscoped');

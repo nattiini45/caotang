@@ -194,16 +194,27 @@ export function createIdempotencyCache(): IdempotencyCache {
       const activeTurn = turn;
       const fingerprint = fingerprintOf(command);
       let resolve!: (answer: Result<ExecutionOutcome, CommandError>) => void;
-      let reject!: (reason: unknown) => void;
-      const result = new Promise<Result<ExecutionOutcome, CommandError>>((accept, refuse) => { resolve = accept; reject = refuse; });
+      const result = new Promise<Result<ExecutionOutcome, CommandError>>((accept) => { resolve = accept; });
       const entry: CallEntry = { kind: 'in-flight', fingerprint, result };
       activeTurn.set(key.callId, entry);
-      void apply().then((answer) => {
+      const settle = (answer: Result<ExecutionOutcome, CommandError>): void => {
         if (byTurn.get(key.turnId) === activeTurn && activeTurn.get(key.callId) === entry && canMove(callIdTable, entry.kind, 'settle')) {
           activeTurn.set(key.callId, { kind: 'recorded', fingerprint, result: answer });
         }
         resolve(answer);
-      }, reject);
+      };
+      const fail = (): void => settle(err({
+        code: 'internal',
+        message: `The asynchronous dispatch for "${command.name}" failed after admission. Its effect may already be applied, so this callId will not run again.`,
+        target: command.name,
+        correctiveHint: 'inspect the project and activity history before making a new call; do not retry this effect blindly',
+        details: { commandId: command.id },
+      }));
+      try {
+        void apply().then(settle, fail);
+      } catch {
+        fail();
+      }
       return result;
     },
 

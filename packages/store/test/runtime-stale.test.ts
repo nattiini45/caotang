@@ -150,6 +150,54 @@ describe('a runtime store another tab has upgraded', () => {
 });
 
 describe('a runtime store blocked by another tab', () => {
+  it('serializes queued upgrades and never downgrades a completed newer version', async () => {
+    const factory = new MemoryIndexedDb();
+    const older = await openDatabase(factory, 'queued', 1);
+    const high = factory.open('queued', 3);
+    const highBlocked = new Promise<void>((resolve) => { high.onblocked = () => resolve(); });
+    const highDone = new Promise<void>((resolve, reject) => {
+      high.onsuccess = () => { high.result.close(); resolve(); };
+      high.onerror = () => reject(high.error);
+    });
+    const low = factory.open('queued', 2);
+    const lowDone = new Promise<string>((resolve) => {
+      low.onsuccess = () => { low.result.close(); resolve('opened'); };
+      low.onerror = () => resolve(low.error!.name);
+    });
+    await highBlocked;
+    older.close();
+    await highDone;
+    expect(await lowDone).toBe('VersionError');
+    expect(await factory.databases()).toEqual([{ name: 'queued', version: 3 }]);
+  });
+
+  it('lets an earlier upgrade install its cooperative close before a queued upgrade starts', async () => {
+    const factory = new MemoryIndexedDb();
+    const older = await openDatabase(factory, 'ordered', 1);
+    const first = factory.open('ordered', 2);
+    const blocked = new Promise<void>((resolve) => { first.onblocked = () => resolve(); });
+    let openedFirst = false;
+    let notifiedAfterSuccess = false;
+    const firstDone = new Promise<void>((resolve, reject) => {
+      first.onsuccess = () => {
+        openedFirst = true;
+        first.result.onversionchange = () => { notifiedAfterSuccess = openedFirst; first.result.close(); };
+        resolve();
+      };
+      first.onerror = () => reject(first.error);
+    });
+    const second = factory.open('ordered', 3);
+    const secondDone = new Promise<void>((resolve, reject) => {
+      second.onsuccess = () => { second.result.close(); resolve(); };
+      second.onerror = () => reject(second.error);
+      second.onblocked = () => reject(new Error('The first connection was not notified after its success'));
+    });
+    await blocked;
+    older.close();
+    await Promise.all([firstDone, secondDone]);
+    expect(notifiedAfterSuccess).toBe(true);
+  });
+
   it('refuses the open instead of waiting indefinitely for a tab that keeps its old connection', async () => {
     vi.useFakeTimers();
     const factory = new MemoryIndexedDb();
