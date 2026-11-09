@@ -15,6 +15,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await page.goto('/');
       await page.getByLabel('Project name', { exact: true }).fill('Hook checks');
       await page.getByRole('button', { name: 'Create project', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'New chapter', exact: true })).toBeVisible();
       if (shell === 'modern') {
         await page.getByRole('button', { name: 'More', exact: true }).click();
         await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
