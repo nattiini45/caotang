@@ -14,6 +14,7 @@
     "@caotang/codex": "workspace:*",
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/machine": "workspace:*",
     "@caotang/store": "workspace:*"
   },
   "scripts": {

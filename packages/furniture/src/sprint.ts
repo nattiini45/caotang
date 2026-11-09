@@ -13,6 +13,9 @@
  * caller as a view, and the session log already records the writing.
  */
 
+import { defineMachine } from '@caotang/machine';
+import type { MachineTable } from '@caotang/machine';
+
 /** The defaults and bounds of the duration, which the spec does not fix (an assumption). */
 export const SPRINT_DEFAULT_MINUTES = 25;
 export const SPRINT_MIN_MINUTES = 1;
@@ -47,6 +50,29 @@ export type SprintEvent =
   | { readonly type: 'stop'; readonly at: number; readonly words: number }
   | { readonly type: 'setDuration'; readonly minutes: number }
   | { readonly type: 'reset' };
+
+export type SprintMachineState = Omit<SprintState, 'status'> & { readonly kind: SprintStatus };
+
+export const sprintTable: MachineTable<SprintMachineState, SprintEvent> = {
+  id: 'sprint.timer',
+  initial: 'idle',
+  final: [],
+  on: {
+    idle: { start: ['running'], setDuration: ['idle'], reset: ['idle'] },
+    running: { pause: ['paused', 'finished'], tick: ['running', 'finished'], stop: ['finished'], reset: ['idle'] },
+    paused: { resume: ['running'], stop: ['finished'], reset: ['idle'] },
+    finished: { reset: ['idle'] },
+  },
+};
+
+export const sprintMachine = defineMachine<SprintMachineState, SprintEvent>(sprintTable, (state, event) => {
+  const { kind, ...fields } = state;
+  const sprint: SprintState = { ...fields, status: kind };
+  const next = transitionSprint(sprint, event);
+  if (next === sprint) return state;
+  const { status, ...nextFields } = next;
+  return { ...nextFields, kind: status };
+});
 
 /** What a view of the sprint shows at one instant. */
 export interface SprintView {

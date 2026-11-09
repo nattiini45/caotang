@@ -12,6 +12,7 @@
 
 import { MODEL_BACKED_TOOLS, estimatedStepCalls, type PlanStep, type StepRevisions } from '@caotang/harness';
 import { newId } from '@caotang/ids';
+import type { MachineTable } from '@caotang/machine';
 
 import { activeAppDb, type AppDb } from './app-db.js';
 
@@ -21,6 +22,26 @@ import { activeAppDb, type AppDb } from './app-db.js';
  * approved.
  */
 export type TaskStatus = 'queued' | 'running' | 'ready' | 'failed' | 'cancelled' | 'interrupted' | 'applied';
+
+export type TaskQueueStatus = TaskStatus | 'starting' | 'cancelling';
+export type TaskStatusEvent = 'pump' | 'agent-ready' | 'cancel' | 'close' | 'reload' | 'resume' | 'ready' | 'fail' | 'settle' | 'apply';
+
+export const taskStatusTable: MachineTable<{ kind: TaskQueueStatus }, { type: TaskStatusEvent }> = {
+  id: 'task.status',
+  initial: 'queued',
+  final: ['failed', 'cancelled', 'applied'],
+  on: {
+    queued: { pump: ['starting'], cancel: ['cancelled'], close: ['interrupted'], reload: ['interrupted'] },
+    starting: { 'agent-ready': ['running'], cancel: ['cancelling'], close: ['interrupted'], ready: ['ready'], fail: ['failed'] },
+    running: { cancel: ['cancelling'], close: ['interrupted'], reload: ['interrupted'], ready: ['ready'], fail: ['failed'] },
+    cancelling: { settle: ['cancelled'] },
+    interrupted: { cancel: ['cancelling'], settle: ['interrupted'], resume: ['queued'] },
+    ready: { apply: ['applied'] },
+    failed: {},
+    cancelled: {},
+    applied: {},
+  },
+};
 
 /** The statuses of a task that is over. A finished task is kept for a while, then pruned. */
 export const FINISHED_STATUSES: ReadonlySet<TaskStatus> = new Set<TaskStatus>(['failed', 'cancelled', 'applied']);

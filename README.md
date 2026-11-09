@@ -10,6 +10,8 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 ## What works today
 
+- **Background cancellation.** Cancel works even while a task is starting. Its row shows **Cancelling…** until it stops, and closing the project does not make a cancelled task resumable.
+
 - **Writer-authored approvals.** Settings › Agent can allow automatic approval of eligible native tool cards in Ask. Deny and ask rules take precedence; Plan only, read-only access and safety refusals still hold. Each allowed call is recorded with its rule. Project files cannot grant approval.
 
 - **Navigation.** Modern puts workspace views below the page and document modes beside its title: Script/Source/Pages for a screenplay, Graph/Ink for dialogue. Search (Ctrl+K, or Cmd+K) reaches every view, Binder, Findings, the Agent logs and New without taking the browser's numbered tab shortcuts.

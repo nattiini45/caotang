@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
+
 - **Reading skills before drafting.** A plan cannot draft a later step before its `skill.load` or requested `skill.read` has finished. The agent receives the effective tool limits when it loads a skill and reads the instructions and references in a read-only phase first; edits and reorders cannot reuse a proposal across a pending skill read. Skill-guided work stays in the foreground, and older queued plans containing skill tools fail without provider work instead of dropping their skill context.
 
 - **Resuming a skill-guided run.** Loaded instructions, review pins and tool restrictions now survive a reload. A load commits its intent before running and its snapshot before showing success; a failed save stops it, and the unfinished intent refuses resume even if the recovery marker cannot be saved either. Skill reads keep their intent pending until their instruction/reference exchange is saved, so a snapshot cannot resume without its matching context (#519). An interruption inside that exchange needs a new request. Canceling a later confirmation or failing a read's intent or decision also ends unfinished read cards rather than leaving them running. Resume validates and restores the snapshot before any card or conversation continues; a stale or missing snapshot refuses the resume. Older-format interrupted logs need a new request.

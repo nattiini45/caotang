@@ -34,6 +34,7 @@
     "@caotang/import-core": "workspace:*",
     "@caotang/import-read": "workspace:*",
     "@caotang/import-rtf": "workspace:*",
+    "@caotang/machine": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",
