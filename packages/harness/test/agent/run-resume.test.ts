@@ -19,6 +19,7 @@ import {
   createHarness,
   createMemoryRunLog,
   newRunRecord,
+  RUN_LOG_VERSION,
   parseRunEvents,
   planResume,
   type AgentSession,
@@ -27,6 +28,7 @@ import {
   type PendingCard,
   type PermissionMode,
   type RunEvent,
+  type RunEventDraft,
   type RuleSet,
   type RunLogPort,
 } from '../../src/index.js';
@@ -411,6 +413,30 @@ describe('a run resumed between cards is held to the read rules in force when it
     const { report } = await resumeUnder(state, log, runId, { rules: [] });
     expect(report.status).toBe('replied');
   });
+});
+
+it('refuses a stored draft behind a pending skill load before displaying or approving its card', async () => {
+  const state = makeState();
+  const log = createMemoryRunLog();
+  const runId = 'run_PENDING_SKILL';
+  await log.create({ ...newRunRecord(runId, { projectId: PROJECT, intent: INTENT, now: 1_000 }), status: 'interrupted' });
+  const drafts: RunEventDraft[] = [
+    { t: 'turn.start', v: RUN_LOG_VERSION, turnId: 'old', intent: INTENT, wire: 'planner', native: false },
+    { t: 'skills.loaded', turnId: 'old', skills: [] },
+    { t: 'messages', turnId: 'old', appended: [{ role: 'user', content: INTENT }] },
+    { t: 'card.pending', turnId: 'old', kind: 'plan', steps: [
+      { tool: 'skill.load', params: { name: 'style' }, expect: 'Load the style.' },
+      { tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'Open.', mode: 'draft' }, expect: 'Draft the scene.' },
+    ], proposals: [null, { text: 'Already drafted.', words: 2, revision: state.documents.get(FRIEND)?.revision }], revisions: [null, null], done: [] },
+  ];
+  await log.append(runId, drafts.map((event, seq) => ({ ...event, seq, at: 1_000 + seq }) as RunEvent));
+  const resumed = await build(state, log, 'barrier', { action: 'approve' }, false);
+  const report = await resumed.session.resume(runId);
+  expect(report.status).toBe('failed');
+  expect(report.askBack?.reason).toContain('skill.load must finish');
+  expect(resumed.cards).toEqual([]);
+  expect(resumed.requests()).toBe(0);
+  expect(getBody(state, FRIEND)).toBe('');
 });
 
 describe('loaded skill restrictions survive a reload', () => {

@@ -174,6 +174,43 @@ test('a loaded skill reads its reference files and refuses a tool outside its al
   }
 });
 
+test('a large plan with a pending skill load stays out of the background and drafts nothing', async ({ page }) => {
+  const folder = skillFolder();
+  try {
+    const docs = ['First', 'Second', 'Third', 'Fourth', 'Fifth'];
+    const endpoint = recordingEndpoint({ steps: [...LOAD_STYLE.steps,
+      { tool: 'synopsis.fill', params: { docs, source: 'text', max_words: 20 }, expect: 'The scenes have synopses.' },
+    ] });
+    await fakeEndpoint(page, endpoint.reply);
+    await useFakeEndpoint(page);
+    await createProject(page, 'Foreground Skills');
+    await page.getByRole('button', { name: 'New folder' }).click();
+    await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Act one');
+    await page.keyboard.press('Enter');
+    for (const title of docs) {
+      await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+      await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(title);
+      await page.keyboard.press('Enter');
+      await page.getByRole('textbox', { name: 'Document text' }).fill(`${title} has some text.`);
+      await waitForSaved(page);
+    }
+    const panel = await openSkills(page);
+    await panel.locator('input[aria-label="Skill folder"]').setInputFiles(folder);
+    await panel.getByRole('button', { name: /Read and approve/ }).click();
+    await panel.getByRole('button', { name: 'Approve this skill' }).click();
+    await panel.getByRole('button', { name: 'Done' }).click();
+    await sendIntent(page, 'Load my house style and fill all five synopses.');
+    await expect.poll(() => endpoint.seen.length).toBeGreaterThanOrEqual(2);
+    await expect(page.getByRole('combobox', { name: 'Intent' })).toBeEnabled();
+    await expect(page.getByTestId('plan-offer')).toHaveCount(0);
+    await expect(page.getByTestId('plan-card')).toHaveCount(0);
+    expect(endpoint.seen).toHaveLength(2);
+    expect(endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n')).toContain('skill.load must finish');
+  } finally {
+    rmSync(join(folder, '..'), { recursive: true, force: true });
+  }
+});
+
 test('a skill can be turned off and on, written from nothing, and deleted, and Undo brings a deleted one back', async ({ page }) => {
   await createProject(page, 'Writing Skills');
   let panel = await openSkills(page);

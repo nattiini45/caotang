@@ -872,10 +872,14 @@ const DELEGATE_ALONE =
   'agent.delegate runs before anything is written, and its result comes back to you first. Nothing was run. Call it in a reply without write steps (reads may go with it), then plan the writes, including any step the agent proposed.';
 
 const SKILL_BEFORE_DRAFT =
-  'skill.load must finish before a later step is drafted. Nothing was drafted for this step. Load the skill in a read-only reply first, then plan from its instructions and tool limits.';
+  'skill.load must finish before a later step is drafted. Load the skill in a read-only reply first, then plan from its instructions and tool limits.';
 
 function pendingSkillBefore(steps: readonly PlanStep[], index: number, done?: (index: number) => boolean): boolean {
   return steps.slice(0, index).some((step, at) => step.tool === 'skill.load' && done?.(at) !== true);
+}
+
+function skillDraftBlocked(editable: EditableSteps): boolean {
+  return editable.steps.some((step, index) => !ranAt(editable, index) && MODEL_BACKED.has(step.tool) && pendingSkillBefore(editable.steps, index, (at) => ranAt(editable, at)));
 }
 
 /** The ask-back for a turn that used its model-call bound. The user decides what to do with the rest. */
@@ -2425,6 +2429,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     kind: 'plan' | 'confirm',
     notice: string | undefined,
   ): { readonly card: PlanCardView; readonly preflight: PlanPreflight } | { readonly refused: CommandError } {
+    if (skillDraftBlocked(editable)) return { refused: refusal('invalid-params', SKILL_BEFORE_DRAFT, { correctiveHint: 'load the skill in a read-only reply first' }) };
     // The native steps are checked as one plan, so a step may name what an earlier native step creates. An external step is
     // not a native tool, so the harness cannot check it; its call checks it against the server's pinned schema (mcp.invoke),
     // and its row here is ready. Both are read from the same `from`, so a resumed card checks only what has not run.
@@ -2520,6 +2525,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * `which` picks the steps to draft again, and only a model-backed step is ever drafted.
    */
   async function redraft(turn: Turn, editable: EditableSteps, which: (index: number) => boolean): Promise<{ readonly editable: EditableSteps; readonly refusal?: string }> {
+    if (skillDraftBlocked(editable)) return { editable, refusal: SKILL_BEFORE_DRAFT };
     const proposals = [...editable.proposals];
     const stale = [...editable.stale];
     for (const [index, step] of editable.steps.entries()) {
@@ -2529,7 +2535,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         stale[index] = false;
         continue;
       }
-      if (pendingSkillBefore(editable.steps, index, (at) => ranAt(editable, at))) return { editable, refusal: SKILL_BEFORE_DRAFT };
       const drafted = await draftFor(turn, step);
       if (!drafted.ok) return { editable, refusal: drafted.message };
       proposals[index] = drafted.proposal;
@@ -3356,7 +3361,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function offerBackground(turn: Turn, plan: Plan): Promise<Settled | undefined> {
     const ask = options.beforeStage;
     const calls = estimatedModelCalls(plan.steps);
-    if (ask === undefined || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
+    if (ask === undefined || calls < BACKGROUND_OFFER_MIN_CALLS || harness.loadedSkills(turn.id).length > 0 || !backgroundEligibility(plan.steps).eligible) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;

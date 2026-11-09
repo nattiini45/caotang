@@ -259,7 +259,7 @@ describe('a loaded skill restricts model-backed work', () => {
 });
 
 describe('editing a pending skill-load barrier', () => {
-  it('does not redraft a later step when an edit inserts a skill load before it', async () => {
+  it.each([true, false])('refuses inserting a skill load before a draft, including an unchanged proposal (draft edited: %s)', async (editDraft) => {
     const run = await runScenario(draftWithStyle(STYLE, {
       gateway: () => mockGateway([
         transcript(INTENT, [steps(
@@ -272,7 +272,7 @@ describe('editing a pending skill-load barrier', () => {
         { action: 'edit', edits: [
           { op: 'set', index: 0, path: ['tool'], value: 'skill.load' },
           { op: 'set', index: 0, path: ['params'], value: { name: 'close-third' } },
-          { op: 'set', index: 1, path: ['params', 'instruction'], value: 'Draft it again.' },
+          ...(editDraft ? [{ op: 'set' as const, index: 1, path: ['params', 'instruction'], value: 'Draft it again.' }] : []),
         ] },
         { action: 'cancel' },
       ],
@@ -282,6 +282,44 @@ describe('editing a pending skill-load barrier', () => {
     expect(run.requests.filter((request) => textOf(request.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX))).toHaveLength(1);
     expect(run.pending[1]?.card.notice).toContain('skill.load must finish');
     expect(friend(run.state)).toBe('');
+  });
+
+  it('refuses moving a pending load ahead of an already staged draft, retaining the original card', async () => {
+    const load = { tool: 'skill.load', params: { name: 'close-third' }, expect: 'The style is loaded.' };
+    const run = await runScenario(draftWithStyle(STYLE, {
+      gateway: () => mockGateway([transcript(INTENT, [steps(DRAFT_STEP, load)]), prose('Document "The Friend":', DRAFTED)]),
+      decisions: [{ action: 'edit', edits: [{ op: 'reorder', from: 1, to: 0 }] }, { action: 'cancel' }],
+      expect: { status: 'cancelled' },
+    }));
+    expect(run.report.status).toBe('cancelled');
+    expect(run.pending).toHaveLength(2);
+    expect(run.pending[1]?.card.notice).toContain('skill.load must finish');
+    expect(run.pending[1]?.card.steps.map((step) => step.tool)).toEqual(['scene.draft', 'skill.load']);
+    expect(run.requests.filter((request) => textOf(request.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX))).toHaveLength(1);
+    expect(friend(run.state)).toBe('');
+  });
+
+  it.each(['pending', 'loaded'])('does not queue a large plan with %s turn-local skill context', async (phase) => {
+    const world = projectWith({ limited: skillFiles('limited', STYLE, 'Read only.', 'doc.read') }, ['limited']);
+    const state = world.project();
+    const load = { tool: 'skill.load', params: { name: 'limited' }, expect: 'The style is loaded.' };
+    const drafts = Array.from({ length: 5 }, () => DRAFT_STEP);
+    const replies = phase === 'pending' ? [steps(load, ...drafts)] : [steps(load), steps(...drafts)];
+    const base = await mockGateway([transcript(INTENT, [...replies, answer('Load before drafting.')]), prose('Document "The Friend":', DRAFTED)]);
+    const requests: ChatRequest[] = [];
+    let offers = 0;
+    const session = createAgentSession({
+      harness: checkedHarness({ state, ports: createAgentPorts(), skills: world.skills }),
+      gateway: { ...base, complete: (request, signal) => { requests.push(request); return base.complete(request, signal); } },
+      context: createContextPort({ state }),
+      beforeStage: async () => { offers += 1; return 'background'; },
+      decide: async () => ({ action: 'cancel' }),
+    });
+    const report = await session.submit(INTENT);
+    expect(report.text).toBe('Load before drafting.');
+    expect(offers).toBe(0);
+    expect(requests.filter((request) => textOf(request.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX))).toHaveLength(0);
+    expect(friend(state)).toBe('');
   });
 });
 

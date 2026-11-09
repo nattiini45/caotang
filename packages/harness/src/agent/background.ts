@@ -58,6 +58,9 @@ export function backgroundEligibility(steps: readonly PlanStep[]): BackgroundEli
   if (steps.some((step) => step.tool === 'coherence.review')) {
     return { eligible: false, reason: 'A coherence review cannot be queued yet, so this plan runs now.' };
   }
+  if (steps.some((step) => step.tool === 'skill.load' || step.tool === 'skill.read')) {
+    return { eligible: false, reason: 'Skills belong to this turn and cannot move to a background task. Send this request again to run it in the foreground.' };
+  }
   if (steps.some((step) => step.tool === 'timeline.edit')) {
     return { eligible: false, reason: 'A timeline edit is checked against the days and parts as they are when the card is shown, so this plan runs now.' };
   }
