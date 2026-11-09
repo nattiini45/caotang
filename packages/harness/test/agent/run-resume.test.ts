@@ -699,6 +699,53 @@ describe('loaded skill restrictions survive a reload', () => {
     expect(planResume(await log.events('cancelled-exchange'), (id) => state.documents.get(id)?.revision)).toMatchObject({ ok: false, reason: 'schema' });
   });
 
+  async function failedReference(native: boolean, markerFails: boolean, decisionFails = false) {
+    const state = makeState();
+    const skill = [{ path: 'SKILL.md', bytes: new TextEncoder().encode('---\nname: style\ndescription: Style.\nallowed-tools: skill.read doc.read\n---\nRead only.\n') },
+      { path: 'references/voice.md', bytes: new TextEncoder().encode('Reference text.') }];
+    state.skills.set('style', skill);
+    const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
+    const reads = [load, { tool: 'skill.read', params: { name: 'style', path: 'references/voice.md' }, expect: 'The reference is read.' }];
+    const base = await mockGateway([{ match: () => true, respond: () => native
+      ? { content: '', toolCalls: reads.map((step, index) => ({ id: `read-${index}`, name: step.tool, argumentsJson: JSON.stringify(step.params) })), finishReason: 'tool_calls' }
+      : { content: steps(...reads) } }]);
+    const log = createMemoryRunLog();
+    const cards = new Map<string, string>();
+    let intents = 0;
+    let referenceReads = 0;
+    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin }, rules: () => ({ rules: [{ effect: 'ask', tool: 'skill.read', source: 'project' }] }) });
+    const call = harness.call;
+    harness.call = (tool, context) => { if (tool.name === 'skill.read') referenceReads += 1; return call(tool, context); };
+    const session = createAgentSession({
+      harness,
+      gateway: { ...base, modelCaps: () => ({ tools: native }) },
+      context: createContextPort({ state }),
+      decide: async () => { if (decisionFails) throw new Error('The confirmation failed.'); return { action: 'approve' }; },
+      emit: (event) => { if (event.type === 'card') cards.set(event.card.tool, event.card.status); },
+      runLog: { projectId: PROJECT, newRunId: () => 'failed-read-intent', port: {
+        ...log,
+        append: (runId, events, patch) => events.some((event) => event.t === 'skills.loading') && ++intents === 2 ? Promise.reject(new Error('The reference intent could not be saved.')) : log.append(runId, events, patch),
+        update: (runId, patch) => markerFails && patch.cannotResume === true ? Promise.reject(new Error('The recovery marker could not be saved.')) : log.update(runId, patch),
+      } },
+    });
+    const report = await session.submit(request);
+    expect(report.status).toBe('failed');
+    expect(referenceReads).toBe(0);
+    expect(cards.get('skill.load')).toBe('failed');
+    expect(cards.get('skill.read')).toBe(decisionFails ? 'cancelled' : 'failed');
+    expect(report.steps.find((step) => step.tool === 'skill.read')).toMatchObject({ status: decisionFails ? 'cancelled' : 'failed' });
+    expect(report.trace.find((entry) => entry.tool === 'skill.read')).toMatchObject({ outcome: decisionFails ? 'not-run' : 'refused' });
+    expect(planResume(await log.events('failed-read-intent'), (id) => state.documents.get(id)?.revision)).toMatchObject({ ok: false, reason: 'schema' });
+  }
+
+  it.each([[false, false], [false, true], [true, false], [true, true]] as const)('ends an approved reference card if its intent write fails (native: %s, marker fails: %s)', async (native, markerFails) => {
+    await failedReference(native, markerFails);
+  });
+
+  it.each([false, true])('ends a waiting reference card if its decision fails (native: %s)', async (native) => {
+    await failedReference(native, false, true);
+  });
+
   it.each(['ask', 'auto'] as const)('keeps a pending card restricted in %s mode despite edits and approval', async (mode) => {
     const fixture = await interrupted('card');
     const before = outcomeOf(fixture.state);

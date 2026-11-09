@@ -2353,11 +2353,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const results: { tool: string; ok: boolean; body: unknown }[] = [];
     const settlements: ((committed: boolean) => void)[] = [];
     const surfaced = new Set<string>();
+    const unsaved = err(refusal('internal', 'The read result was not saved before the turn ended. Send the request again.'));
+    let activeRead: { index: number; step: PlanStep; callId: string } | undefined;
     let committed = false;
     try {
       for (const [index, step] of steps.entries()) {
         checkStop(turn);
         const id = nextCallPrefix(turn, 'r');
+        activeRead = { index, step, callId: id };
         const proposal = proposals[index];
         // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
         const ruled = ruleOf(step, turn.id);
@@ -2377,6 +2380,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         if (!first.ok && (asked || needsWriterApproval(first.error))) {
           // The refusal came before the scan ran, so nothing has run. The writer decides on a card of its own.
           callId = `${id}.confirm`;
+          activeRead = { index, step, callId };
           const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0, humanOnly: true });
           if (decided.settled === 'cancelled') {
             pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
@@ -2390,6 +2394,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           } else {
             // The card may have edited the step, so the run takes the step as the writer left it.
             const approved = decided.editable.steps[0] ?? step;
+            activeRead = { index, step: approved, callId };
             pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
             phase(turn, 'running');
             moveCard(turn, callId, 'running');
@@ -2409,7 +2414,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         const result = turn.skillReadPending === true
           ? { tool: step.tool, ok: outcome.ok, body: outcome.ok ? bodyOf(outcome.value) : errorSummary(withLoadHint(step.tool, outcome.error)) }
           : settleRead(turn, index, step, callId, outcome);
-        if (turn.skillReadPending === true) settlements.push((committed) => { settleRead(turn, index, step, callId, committed || !outcome.ok ? outcome : err(refusal('internal', 'The read result was not saved before the turn ended. Send the request again.'))); });
+        if (turn.skillReadPending === true) settlements.push((committed) => { settleRead(turn, index, step, callId, committed || !outcome.ok ? outcome : unsaved); });
         taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
         wireResult(turn, step, { ok: result.ok, body: result.body });
         results.push(result);
@@ -2417,6 +2422,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           for (const name of outcome.value.data.surfaced) surfaced.add(name);
         }
         if (outcome.ok && step.tool === 'skill.load' && harness.loadedNativeTools().some((tool) => tool.name === 'skill.read')) surfaced.add('skill.read');
+        activeRead = undefined;
       }
       const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
       taint(turn, loadedNow.map((tool) => ({ serverName: tool.serverName, label: sourceName(tool.serverName, tool.toolName) })));
@@ -2445,6 +2451,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return undefined;
     } finally {
       for (const settle of settlements) settle(committed);
+      const current = activeRead;
+      if (current !== undefined) {
+        const card = turn.statusCards.find((entry) => entry.id === current.callId);
+        if (card?.status === 'running') settleRead(turn, current.index, current.step, current.callId, unsaved);
+        else if (card?.status === 'pending-approval') {
+          moveCard(turn, current.callId, 'cancelled');
+          turn.steps.push({ index: current.index, tool: current.step.tool, expect: current.step.expect, status: 'cancelled' });
+          pushRow(turn, { tool: current.step.tool, callId: current.callId, outcome: 'not-run', params: current.step.params });
+        }
+      }
     }
   }
 
