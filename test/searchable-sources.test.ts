@@ -195,7 +195,7 @@ const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly 
  * that the set is exactly the surfaces the specs take, so it cannot quietly cover anything else. Modern's are written by CI's visual
  * job the first time it runs them and committed after review, so the set holds either none of them or all of them.
  */
-const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-((glass|solid)-[a-z-]+|settings-scroll-cues|hooks|hook-editor|german-sidebar-(empty|count))|(classic|modern)-picture-start-edge|modern-empty-comic-(en|de))\.png$/;
+const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-((glass|solid)-[a-z-]+|settings-scroll-cues|hooks|hook-editor|german-sidebar-(empty|count))|(classic|modern)-picture-start-edge|modern-empty-comic-(en|de)|background-task-cancelling(-de)?)\.png$/;
 const VISUAL_SURFACES = ['projects', 'workspace', 'corkboard', 'codex', 'findings', 'activity', 'settings-appearance', 'settings-scroll-cues', 'hooks', 'hook-editor', 'export', 'narrow'];
 const MODERN_VISUAL_SURFACES = ['page', 'companion-beside', 'companion-sheet', 'palette', 'palette-query', 'sidebar-open', 'sidebar-pinned', 'narrow'];
 /** Modern surfaces taken on glass only: #306's Board, Codex and ⋯ menu (modern.spec.ts), #311's dialogs (modern-dialogs.spec.ts), #312's narrow panels (modern-narrow.spec.ts). */
@@ -296,7 +296,7 @@ describe('no source file is invisible to search', () => {
     );
     const modernCommitted = baselines.some((rel) => rel.includes('/modern-'));
     const expected = [...classic, ...(modernCommitted ? modern : []), ...[
-      'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de',
+      'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de', 'background-task-cancelling', 'background-task-cancelling-de',
     ].map((name) => `e2e/visual/__snapshots__/${name}.png`)].sort();
     expect(baselines).toEqual(expected);
     for (const rel of baselines) expect([...readFileSync(join(repoRoot, rel)).subarray(0, 8)], rel).toEqual(PNG_SIGNATURE);

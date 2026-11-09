@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+
+import { measureWork } from '../../../test/support/measure-work.js';
 
 import { readRtf, RTF_LIMITS } from '../src/index.js';
 import { decodeWindows1252 } from '../src/codepage.js';
@@ -426,12 +429,35 @@ describe('malformed input and limits', () => {
     expect(read(doc('a\\par'), { limits: { maxInputBytes: Number.NaN, maxDepth: -1 } }).document.blocks).toHaveLength(1);
   });
 
-  it('reads a large file in linear time', () => {
+  it('reads a large file in linear time', { timeout: 120_000 }, () => {
     const paragraph = '\\pard\\plain {\\b Bold} and {\\i italic} text with \\u8220 quotes\\u8221 ?\\par\n';
-    const input = `{\\rtf1\\ansi\\uc1 ${paragraph.repeat(40_000)}}`;
-    const started = Date.now();
-    const imported = read(input);
-    expect(imported.document.blocks).toHaveLength(40_000);
-    expect(Date.now() - started).toBeLessThan(5_000);
+    const work = [10_000, 40_000].map((count) => {
+      const input = `{\\rtf1\\ansi\\uc1 ${paragraph.repeat(count)}}`;
+      let checks = 0;
+      const imported = read(input, { now: () => { checks++; return 0; } });
+      expect(imported.document.blocks).toHaveLength(count);
+      return checks;
+    });
+    expect(work[0]!).toBeGreaterThan(2);
+    expect(work[1]! / work[0]!).toBeLessThan(5);
+    const source = readFileSync(new URL('../src/rtf.ts', import.meta.url), 'utf8') + `
+      export function measuredRead(input: string) {
+        const imported = readRtf(input, { now: () => 0 });
+        if (!imported.ok) throw new Error(imported.error.code);
+        return imported.value.document.blocks.length;
+      }
+    `;
+    const modules = Object.fromEntries(['codepage', 'markdown'].map((name) => [
+      `./${name}.js`, readFileSync(new URL(`../src/${name}.ts`, import.meta.url), 'utf8'),
+    ]));
+    const [small, large] = measureWork<number>(source, [10_000, 40_000].map((count) => ({
+      name: 'measuredRead', args: [`{\\rtf1\\ansi\\uc1 ${paragraph.repeat(count)}}`],
+    })), modules);
+    expect(small!.result).toBe(10_000);
+    expect(large!.result).toBe(40_000);
+    for (const metric of ['steps', 'scanned', 'backtracks'] as const) {
+      expect(small![metric]).toBeGreaterThan(0);
+      expect(large![metric] / small![metric]).toBeLessThan(5);
+    }
   });
 });

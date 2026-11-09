@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
+
 - **Saving reusable commands.** MCP prompt and macro turns no longer offer Save as command for a synthetic run label that would create an unrelated skill. Their existing commands remain available for another run.
 
 - **Unavailable prompt commands.** An MCP command whose source went away is refused locally instead of sending its command text and arguments to the model provider. Reissuing a command after its prompt or connection changes starts with empty argument fields.

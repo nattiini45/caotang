@@ -1212,7 +1212,7 @@ export function TimelineView({ session, onOpenDocument, onOpenFindings, focusReq
 
   if (model.stats.scenes === 0 && scopeId === null) {
     return (
-      <section className="tl" aria-label={t`Timeline`} data-testid="timeline-view">
+      <section className="tl" aria-label={t`Timeline`} data-testid="timeline-view" data-panel-state="empty">
         <EmptyState title={t`No scenes to place yet`}>
           <Trans>Write a scene in the manuscript, and the timeline shows it. Scenes with a day sit on the story axis, and the rest wait on a shelf.</Trans>
         </EmptyState>
@@ -1228,6 +1228,7 @@ export function TimelineView({ session, onOpenDocument, onOpenFindings, focusReq
       className="tl"
       aria-label={t`Timeline`}
       data-testid="timeline-view"
+      data-panel-state="ready"
       data-direction={direction}
       data-axis={model.axis.kind}
       data-level={level}

@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { measureFile } from '../../../test/support/measure-work.js';
 import { breakMarkerOf, countWords, firstWords, headingStyleLevel, isBackMatterTitle, isShortLine, isTitleStyle, matchFamily, numberValue, specialOf, stripChapterNumber, tocKey } from '../src/text.js';
 
 describe('chapter-pattern families', () => {
@@ -122,9 +123,8 @@ describe('styles and headings', () => {
 });
 
 describe('hostile input', () => {
-  it('long lines of separators and leaders are read in linear time (no polynomial backtracking)', () => {
-    const long = 50_000;
-    const lines = [
+  it('long lines of separators and leaders are read in linear time (no polynomial backtracking)', { timeout: 120_000 }, () => {
+    const linesOf = (long: number) => [
       `序章${'\t'.repeat(long)}x`,
       `Chapter${' '.repeat(long)}!`,
       `Chapter 1${' :'.repeat(long)}x`,
@@ -133,16 +133,26 @@ describe('hostile input', () => {
       `${'I'.repeat(long)}.`,
       `x${'. '.repeat(long)}1`,
     ];
-    const t = performance.now();
-    for (const line of lines) {
-      matchFamily(line);
-      specialOf(line);
-      isShortLine(line);
-      tocKey(line);
-      firstWords(line);
-      countWords(line);
+    const functions = { matchFamily, specialOf, isShortLine, tocKey, firstWords, countWords };
+    const lines = [128, 512, 50_000].flatMap(linesOf);
+    const calls = lines.flatMap((line) => Object.keys(functions).map((name) => ({ name, args: [line] })));
+    const measured = measureFile(new URL('../src/text.ts', import.meta.url), calls);
+    for (let i = 0; i < calls.length; i++) {
+      const call = calls[i]!;
+      const line = call.args[0]!;
+      expect(measured[i]!.result).toEqual(functions[call.name as keyof typeof functions](line));
+      expect(measured[i]!.steps).toBeLessThan(8 * line.length + 100);
+      expect(measured[i]!.scanned).toBeLessThan(8 * line.length + 100);
+      expect(measured[i]!.backtracks).toBeLessThan(128 * line.length + 100);
     }
-    expect(performance.now() - t).toBeLessThan(500);
+    for (let i = 0; i < 42; i++) {
+      for (const metric of ['steps', 'scanned', 'backtracks'] as const) {
+        const small = measured[i]![metric];
+        const large = measured[i + 42]![metric];
+        if (small === 0) expect(large).toBe(0);
+        else expect(large / small).toBeLessThan(10);
+      }
+    }
   });
 });
 

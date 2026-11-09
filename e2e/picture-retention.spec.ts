@@ -394,9 +394,19 @@ test.describe('Re-pin', () => {
     const lost = page.locator('.inspector').getByTestId('lost-paragraphs');
     await expect(lost.locator('li')).toHaveCount(2);
 
-    await page.getByRole('textbox', { name: 'Document text' }).click();
-    await page.keyboard.press('Control+Home');
-    await page.keyboard.press('Shift+End');
+    const editor = page.getByRole('textbox', { name: 'Document text' });
+    await expect(editor).toHaveText('The ferry was late.The keeper waited on the jetty.');
+    await editor.click();
+    await editor.press('Control+Home');
+    await expect.poll(() => editor.evaluate((surface) => {
+      const selection = window.getSelection();
+      if (document.activeElement !== surface || selection === null || !selection.isCollapsed || selection.anchorNode === null || !surface.contains(selection.anchorNode)) return null;
+      const before = document.createRange();
+      before.selectNodeContents(surface);
+      before.setEnd(selection.anchorNode, selection.anchorOffset);
+      return before.toString().length;
+    })).toBe(0);
+    await editor.press('Shift+End');
     await expect.poll(() => selectionOf(page)).toMatchObject({ docId: CHAPTER, from: 0, to: 'The ferry was late.'.length });
     await expect(repinOf(page, 'The jetty')).toBeEnabled();
     await expect(lost).toContainText('Re-pin attaches the picture to the paragraph the selected text starts in.');

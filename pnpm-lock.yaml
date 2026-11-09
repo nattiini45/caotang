@@ -294,6 +294,9 @@ importers:
       '@caotang/import-rtf':
         specifier: workspace:*
         version: link:../../packages/import-rtf
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../../packages/machine
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../../packages/mcp-client
@@ -757,6 +760,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
@@ -854,6 +860,8 @@ importers:
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../import-read
+
+  packages/machine: {}
 
   packages/mcp-client:
     dependencies:
