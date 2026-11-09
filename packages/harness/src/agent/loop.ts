@@ -2351,96 +2351,101 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   async function runReads(turn: Turn, steps: readonly PlanStep[], proposals: readonly unknown[]): Promise<Settled | undefined> {
     const results: { tool: string; ok: boolean; body: unknown }[] = [];
-    const settlements: (() => void)[] = [];
+    const settlements: ((committed: boolean) => void)[] = [];
     const surfaced = new Set<string>();
-    for (const [index, step] of steps.entries()) {
-      checkStop(turn);
-      const id = nextCallPrefix(turn, 'r');
-      const proposal = proposals[index];
-      // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
-      const ruled = ruleOf(step, turn.id);
-      const asked = ruled.ask !== undefined;
-      const first: ToolOutcome = ruled.denied !== undefined ? err(ruled.denied) : asked
-        ? err(refusal('permission-denied', `a rule asks for the writer’s confirmation of ${step.tool}`, { target: step.tool }))
-        : step.tool === 'agent.delegate'
-          ? await runDelegate(turn, step, id)
-          : await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
-      // A read the stop cut short is not a refusal the model should hear about. Its card, if progress made one, is ended with it.
-      if (!first.ok && turn.signal?.aborted === true) {
-        moveCard(turn, id, 'failed', { error: STOPPED_STEP });
-        throw new TurnStopped();
-      }
-      let callId = id;
-      let outcome: ToolOutcome = first;
-      if (!first.ok && (asked || needsWriterApproval(first.error))) {
-        // The refusal came before the scan ran, so nothing has run. The writer decides on a card of its own.
-        callId = `${id}.confirm`;
-        const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0, humanOnly: true });
-        if (decided.settled === 'cancelled') {
-          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
-          moveCard(turn, callId, 'cancelled');
-          turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
-          return { status: 'cancelled' };
+    let committed = false;
+    try {
+      for (const [index, step] of steps.entries()) {
+        checkStop(turn);
+        const id = nextCallPrefix(turn, 'r');
+        const proposal = proposals[index];
+        // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
+        const ruled = ruleOf(step, turn.id);
+        const asked = ruled.ask !== undefined;
+        const first: ToolOutcome = ruled.denied !== undefined ? err(ruled.denied) : asked
+          ? err(refusal('permission-denied', `a rule asks for the writer’s confirmation of ${step.tool}`, { target: step.tool }))
+          : step.tool === 'agent.delegate'
+            ? await runDelegate(turn, step, id)
+            : await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
+        // A read the stop cut short is not a refusal the model should hear about. Its card, if progress made one, is ended with it.
+        if (!first.ok && turn.signal?.aborted === true) {
+          moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+          throw new TurnStopped();
         }
-        if (decided.settled === 'refused') {
-          moveCard(turn, callId, 'cancelled');
-          outcome = { ok: false, error: decided.error ?? refusal('internal', 'the card could not be checked', { correctiveHint: 'send the request again' }) };
-        } else {
-          // The card may have edited the step, so the run takes the step as the writer left it.
-          const approved = decided.editable.steps[0] ?? step;
-          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
-          phase(turn, 'running');
-          moveCard(turn, callId, 'running');
-          // agent.delegate is answered by the loop, not by the harness, so an approved one starts its agent the way an unasked one does.
-          outcome =
-            approved.tool === 'agent.delegate'
-              ? await runDelegate(turn, approved, callId)
-              : await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
-          if (!outcome.ok && turn.signal?.aborted === true) {
-            moveCard(turn, callId, 'failed', { error: STOPPED_STEP });
-            throw new TurnStopped();
+        let callId = id;
+        let outcome: ToolOutcome = first;
+        if (!first.ok && (asked || needsWriterApproval(first.error))) {
+          // The refusal came before the scan ran, so nothing has run. The writer decides on a card of its own.
+          callId = `${id}.confirm`;
+          const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0, humanOnly: true });
+          if (decided.settled === 'cancelled') {
+            pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
+            moveCard(turn, callId, 'cancelled');
+            turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
+            return { status: 'cancelled' };
           }
+          if (decided.settled === 'refused') {
+            moveCard(turn, callId, 'cancelled');
+            outcome = { ok: false, error: decided.error ?? refusal('internal', 'the card could not be checked', { correctiveHint: 'send the request again' }) };
+          } else {
+            // The card may have edited the step, so the run takes the step as the writer left it.
+            const approved = decided.editable.steps[0] ?? step;
+            pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
+            phase(turn, 'running');
+            moveCard(turn, callId, 'running');
+            // agent.delegate is answered by the loop, not by the harness, so an approved one starts its agent the way an unasked one does.
+            outcome =
+              approved.tool === 'agent.delegate'
+                ? await runDelegate(turn, approved, callId)
+                : await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
+            if (!outcome.ok && turn.signal?.aborted === true) {
+              moveCard(turn, callId, 'failed', { error: STOPPED_STEP });
+              throw new TurnStopped();
+            }
+          }
+        } else {
+          cardFor(turn, id, step.tool, step.params, 'running');
         }
+        const result = turn.skillReadPending === true
+          ? { tool: step.tool, ok: outcome.ok, body: outcome.ok ? bodyOf(outcome.value) : errorSummary(withLoadHint(step.tool, outcome.error)) }
+          : settleRead(turn, index, step, callId, outcome);
+        if (turn.skillReadPending === true) settlements.push((committed) => { settleRead(turn, index, step, callId, committed || !outcome.ok ? outcome : err(refusal('internal', 'The read result was not saved before the turn ended. Send the request again.'))); });
+        taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
+        wireResult(turn, step, { ok: result.ok, body: result.body });
+        results.push(result);
+        if (outcome.ok && isResultOf('tool.search', step.tool, outcome.value)) {
+          for (const name of outcome.value.data.surfaced) surfaced.add(name);
+        }
+        if (outcome.ok && step.tool === 'skill.load' && harness.loadedNativeTools().some((tool) => tool.name === 'skill.read')) surfaced.add('skill.read');
+      }
+      const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
+      taint(turn, loadedNow.map((tool) => ({ serverName: tool.serverName, label: sourceName(tool.serverName, tool.toolName) })));
+      // With every tool declared, a native row a search loads is already in front of the model, so only external descriptors follow.
+      const nativeNow = loadEvery() ? [] : harness.loadedNativeTools().filter((tool) => surfaced.has(tool.name));
+      const loadedAny = loadedNow.length > 0 || nativeNow.length > 0;
+      if (turn.native) {
+        // On the native wire each call is answered by its own tool message, keyed by its id; a search that
+        // surfaced tools still puts their descriptors in a user note after the results, as the JSON wire does.
+        flushWire(turn);
+        if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow, turn.nonce) });
       } else {
-        cardFor(turn, id, step.tool, step.params, 'running');
+        const sections = [resultsMessage(results, turn.nonce, outsideOf), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow, turn.nonce)] : [])];
+        turn.messages.push({ role: 'user', content: sections.join('\n\n') });
+        flushPictures(turn);
       }
-      const result = turn.skillReadPending === true
-        ? { tool: step.tool, ok: outcome.ok, body: outcome.ok ? bodyOf(outcome.value) : errorSummary(withLoadHint(step.tool, outcome.error)) }
-        : settleRead(turn, index, step, callId, outcome);
-      if (turn.skillReadPending === true) settlements.push(() => { settleRead(turn, index, step, callId, outcome); });
-      taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
-      wireResult(turn, step, { ok: result.ok, body: result.body });
-      results.push(result);
-      if (outcome.ok && isResultOf('tool.search', step.tool, outcome.value)) {
-        for (const name of outcome.value.data.surfaced) surfaced.add(name);
+      // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
+      // sent again in the next request: the same names would reach the model twice (context-assembly §2).
+      if (loadedAny) turn.addendumSent = harness.loadedAddendum();
+      await syncRun(turn, 0);
+      if (turn.skillReadPending === true) {
+        delete turn.skillReadPending;
+        if (!(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the load was not reported as successful. Check the project storage and send the request again.');
       }
-      if (outcome.ok && step.tool === 'skill.load' && harness.loadedNativeTools().some((tool) => tool.name === 'skill.read')) surfaced.add('skill.read');
+      committed = true;
+      return undefined;
+    } finally {
+      for (const settle of settlements) settle(committed);
     }
-    const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
-    taint(turn, loadedNow.map((tool) => ({ serverName: tool.serverName, label: sourceName(tool.serverName, tool.toolName) })));
-    // With every tool declared, a native row a search loads is already in front of the model, so only external descriptors follow.
-    const nativeNow = loadEvery() ? [] : harness.loadedNativeTools().filter((tool) => surfaced.has(tool.name));
-    const loadedAny = loadedNow.length > 0 || nativeNow.length > 0;
-    if (turn.native) {
-      // On the native wire each call is answered by its own tool message, keyed by its id; a search that
-      // surfaced tools still puts their descriptors in a user note after the results, as the JSON wire does.
-      flushWire(turn);
-      if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow, turn.nonce) });
-    } else {
-      const sections = [resultsMessage(results, turn.nonce, outsideOf), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow, turn.nonce)] : [])];
-      turn.messages.push({ role: 'user', content: sections.join('\n\n') });
-      flushPictures(turn);
-    }
-    // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
-    // sent again in the next request: the same names would reach the model twice (context-assembly §2).
-    if (loadedAny) turn.addendumSent = harness.loadedAddendum();
-    await syncRun(turn, 0);
-    if (turn.skillReadPending === true) {
-      delete turn.skillReadPending;
-      if (!(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the load was not reported as successful. Check the project storage and send the request again.');
-    }
-    for (const settle of settlements) settle();
-    return undefined;
   }
 
   /**

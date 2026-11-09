@@ -579,6 +579,7 @@ describe('loaded skill restrictions survive a reload', () => {
     let planning = 0;
     let gone = false;
     let published = false;
+    const statusCards = new Map<string, string>();
     const session = createAgentSession({
       harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin }, rules: () => ({ rules: edit ? [{ effect: 'ask', tool: 'doc.read', source: 'project' }] : stopAt === 'confirmation' ? [{ effect: 'ask', tool: 'skill.read', source: 'project' }] : [] }) }),
       gateway: { ...base, modelCaps: () => ({ tools: native }) },
@@ -592,6 +593,7 @@ describe('loaded skill restrictions survive a reload', () => {
         throw new Error('A read-only exchange must not need approval.');
       },
       emit: (event) => {
+        if (event.type === 'card') statusCards.set(event.card.id, event.card.status);
         if (event.type === 'card' && event.card.status === 'done' && (edit || event.card.tool === (boundary === 'load' ? 'skill.load' : 'skill.read'))) published = true;
         if ((stopAt === 'planning' && event.type === 'turn' && event.phase === 'planning' && ++planning === (boundary === 'load' ? 2 : 3)) ||
           (stopAt === 'publication' && event.type === 'card' && event.card.status === 'done' && (edit || event.card.tool === (boundary === 'load' ? 'skill.load' : 'skill.read')))) { gone = true; drop(); }
@@ -608,6 +610,7 @@ describe('loaded skill restrictions survive a reload', () => {
     if (stopAt === 'exchange-failure' || stopAt === 'exchange-and-marker') {
       expect((await running).status).toBe('failed');
       expect(published).toBe(false);
+      expect([...statusCards.values()].some((status) => status === 'running' || status === 'pending-approval')).toBe(false);
     } else await dropped;
     const [run] = await log.open(PROJECT);
     const runId = run?.runId ?? '';
@@ -665,6 +668,35 @@ describe('loaded skill restrictions survive a reload', () => {
   it.each([false, true])('fences a confirmation edited into a skill load (native: %s)', async (native) => {
     await completedExchange('load', native, 'publication', { edit: true });
     await completedExchange('load', native, 'exchange', { edit: true });
+  });
+
+  it.each([false, true])('ends deferred read cards when a later confirmation is cancelled (native: %s)', async (native) => {
+    const state = makeState();
+    const skill = files();
+    state.skills.set('style', skill);
+    const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
+    const reads = [load, { tool: 'doc.read', params: { doc: LANDING }, expect: 'The scene is read.' }];
+    const base = await mockGateway([{ match: () => true, respond: () => native
+      ? { content: '', toolCalls: reads.map((step, index) => ({ id: `read-${index}`, name: step.tool, argumentsJson: JSON.stringify(step.params) })), finishReason: 'tool_calls' }
+      : { content: steps(...reads) } }]);
+    const log = createMemoryRunLog();
+    const cards = new Map<string, string>();
+    const session = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin }, rules: () => ({ rules: [{ effect: 'ask', tool: 'doc.read', source: 'project' }] }) }),
+      gateway: { ...base, modelCaps: () => ({ tools: native }) },
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'cancel' }),
+      emit: (event) => { if (event.type === 'card') cards.set(event.card.tool, event.card.status); },
+      runLog: { port: log, projectId: PROJECT, newRunId: () => 'cancelled-exchange' },
+    });
+    const report = await session.submit(request);
+    expect(report.status).toBe('cancelled');
+    expect(cards.get('skill.load')).toBe('failed');
+    expect(cards.get('doc.read')).toBe('cancelled');
+    expect([...cards.values()].some((status) => status === 'running' || status === 'pending-approval')).toBe(false);
+    expect(report.steps.find((step) => step.tool === 'skill.load')).toMatchObject({ status: 'failed', error: expect.stringContaining('not saved') });
+    expect(report.trace.find((entry) => entry.tool === 'skill.load')).toMatchObject({ outcome: 'refused' });
+    expect(planResume(await log.events('cancelled-exchange'), (id) => state.documents.get(id)?.revision)).toMatchObject({ ok: false, reason: 'schema' });
   });
 
   it.each(['ask', 'auto'] as const)('keeps a pending card restricted in %s mode despite edits and approval', async (mode) => {
