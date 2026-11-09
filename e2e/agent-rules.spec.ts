@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { expect, test, type Page } from '@playwright/test';
 
 import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';
@@ -106,4 +108,57 @@ test('a rule of your own that asks before a tool keeps Auto mode from approving 
   await expect(page.getByTestId('plan-card')).toBeVisible();
   await expect(page.getByTestId('plan-auto')).toHaveCount(0);
   expect(await bodyOf(page, 'The Friend')).toBe('');
+});
+
+test('a writer creates an allow rule in Settings, its Ask-mode draft runs without waiting for approval, and Trace names the rule', async ({ page }) => {
+  await openSample(page);
+  await page.getByRole('group', { name: 'Mode' }).getByRole('radio', { name: 'Ask', exact: true }).check();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Agent', exact: true }).click();
+  await settings.getByRole('combobox', { name: 'Tool' }).fill('scene.draft');
+  await settings.getByRole('combobox', { name: 'Rule' }).selectOption('allow');
+  await settings.getByRole('button', { name: 'Add rule' }).click();
+  await expect(settings.getByRole('list', { name: 'Rules in every project' })).toContainText('May skip approval in Ask mode for scene.draft');
+  await expect(settings.getByRole('status')).toContainText('Saved.');
+  await settings.getByRole('button', { name: 'Close' }).click();
+
+  await sendIntent(page, DEMO_INTENTS.draftScene);
+  await expect.poll(() => bodyOf(page, 'The Friend')).not.toBe('');
+  await expect(page.locator('.plan-card.is-live')).toHaveCount(0);
+  await expect(page.getByTestId('plan-auto')).toBeVisible();
+  await page.getByRole('tab', { name: 'Trace' }).click();
+  const approval = page.getByTestId('trace-rule-approved');
+  await expect(approval).toContainText('Automatically approved scene.draft using your Settings rule for scene.draft.');
+  await approval.locator('summary').click();
+  await expect(approval.locator('pre')).toContainText('"source": "app"');
+  await expect(approval.locator('pre')).toContainText('"effect": "allow"');
+
+  await page.getByRole('button', { name: 'Export trace…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export trace' });
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Export', exact: true }).click()]);
+  const records = readFileSync(await download.path(), 'utf8').trim().split('\n').map((line: string) => JSON.parse(line) as { kind: string });
+  expect(records).toContainEqual(expect.objectContaining({
+    kind: 'rule.approved',
+    tool: 'scene.draft',
+    callId: expect.any(String),
+    rule: { effect: 'allow', tool: 'scene.draft', source: 'app' },
+  }));
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await settings.getByRole('button', { name: 'Agent', exact: true }).click();
+  await expect(settings.getByRole('list', { name: 'Rules in every project' })).toContainText('May skip approval in Ask mode for scene.draft');
+});
+
+test('Settings warns that a writer’s external-write allow has no effect, even without a project', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Agent', exact: true }).click();
+  await settings.getByRole('combobox', { name: 'Tool' }).fill('mcp__server__write');
+  await settings.getByRole('combobox', { name: 'Rule' }).selectOption('allow');
+  await settings.getByRole('button', { name: 'Add rule' }).click();
+  await expect(settings.getByRole('list', { name: 'Rules in every project' })).toContainText('This allow rule for mcp__server__write cannot approve external writes. (no effect)');
+  await expect(settings.getByRole('list', { name: 'Settings rules that need a look' })).toContainText(/mcp__server__write cannot approve calls/);
 });

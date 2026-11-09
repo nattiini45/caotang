@@ -10,7 +10,7 @@
     "seq": { "type": "integer", "minimum": 0, "description": "Increases down the file." },
     "at": { "type": "number", "description": "Milliseconds on the clock the session was given." },
     "sessionId": { "type": "string" },
-    "kind": { "enum": ["header", "turn.start", "message", "model.request", "model.response", "context", "tool.call", "tool.result", "tool.progress", "card", "ladder", "hook", "turn.end"] },
+    "kind": { "enum": ["header", "turn.start", "message", "model.request", "model.response", "context", "tool.call", "tool.result", "tool.progress", "card", "rule.approved", "ladder", "hook", "turn.end"] },
     "truncated": { "type": "object", "required": ["chars"], "properties": { "chars": { "type": "integer", "minimum": 1 } }, "description": "Present when the record was cut to the 64 KB record cap: the characters left out." }
   },
   "oneOf": [
@@ -24,6 +24,7 @@
     { "$ref": "#/$defs/tool.result" },
     { "$ref": "#/$defs/tool.progress" },
     { "$ref": "#/$defs/card" },
+    { "$ref": "#/$defs/rule.approved" },
     { "$ref": "#/$defs/ladder" },
     { "$ref": "#/$defs/hook" },
     { "$ref": "#/$defs/turn.end" }
@@ -146,6 +147,10 @@
     "card": {
       "properties": { "kind": { "const": "card" }, "turnId": { "type": "string" }, "card": { "type": "object", "required": ["kind", "tools", "decision", "edits", "retries"] } },
       "required": ["turnId", "card"]
+    },
+    "rule.approved": {
+      "properties": { "kind": { "const": "rule.approved" }, "turnId": { "type": "string" }, "callId": { "type": "string" }, "tool": { "type": "string" }, "rule": { "type": "object", "required": ["effect", "tool", "source"], "properties": { "effect": { "const": "allow" }, "tool": { "type": "string" }, "source": { "const": "app" }, "note": { "$ref": "#/$defs/text" } } } },
+      "required": ["turnId", "callId", "tool", "rule"]
     },
     "ladder": {
       "properties": { "kind": { "const": "ladder" }, "turnId": { "type": "string" }, "callId": { "type": "string" }, "attempt": { "type": "integer" }, "reason": { "$ref": "#/$defs/text" } },

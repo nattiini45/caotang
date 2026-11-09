@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Settings-authored allow rules.** You can allow eligible native tool cards to run automatically in Ask. Deny beats ask, and ask beats allow. Project-file and imported rules cannot grant approval; Plan only, read-only access, outside-tool confirmations and safety refusals remain unchanged. Each call approved by a rule is recorded in the run log and Trace with that rule; a failed audit save asks you instead.
+
 - **Hook editor and tests.** Settings › Hooks creates and edits all four check kinds and all seven events. Test an unsaved hook against an explicit document, tool, issuer and sample text without making a change or calling a provider; a disabled or unmatched hook says it did not run. The controls and guidance are translated into German.
 
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.

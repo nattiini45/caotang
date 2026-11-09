@@ -83,6 +83,7 @@ import { limitExceeded, refusal } from '../errors.js';
 import { askBackFor, parsePlan, planStepCallId, type AskBack, type AskBackCode, type Plan, type PlanOptions, type PlanOutcome, type PlanPreflight, type PlanStep, type StepResult } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
+import type { SourcedRule } from '../rules.js';
 import { isResultOf } from '../results.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome, ToolValue } from '../types.js';
@@ -589,6 +590,7 @@ interface Pins {
 }
 
 interface Turn {
+  readonly automaticRules: Map<PlanStep, SourcedRule>;
   readonly id: string;
   readonly messages: ChatMessage[];
   readonly trace: TraceEntry[];
@@ -741,7 +743,7 @@ interface Decided {
   readonly editable: EditableSteps;
   readonly edits: number;
   readonly retries: number;
-  /** The mode's policy approved the card as shown, and the writer was not asked. */
+  /** The mode or Settings rules approved the card as shown, and the writer was not asked. */
   readonly auto?: boolean;
   /**
    * The writer approved a cut card with `acceptTruncated` (agent-harness §8): the apply strips
@@ -1350,6 +1352,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** A rule makes this step the writer's call: it is never approved by a mode, and a single write-auto step shows a card. */
   const asksWriter = (step: PlanStep, turnId: string): boolean => ruleOf(step, turnId).ask !== undefined;
 
+  const automaticRuleValid = (turn: Turn, step: PlanStep, rule: SourcedRule): boolean =>
+    canonicalJson(ruleOf(step, turn.id).allow ?? null) === canonicalJson(rule) && policyOf(turn).approves({ tools: [step.tool], external: false, allowedTools: [step.tool] });
+
   /** The writes a turn has applied so far, in order, as the report names them. Reads are not writes. */
   const writesOf = (turn: Turn): string[] =>
     turn.steps.filter((step) => step.status === 'done' && riskOf(step.tool) !== 'read').map((step) => step.summary ?? step.tool);
@@ -1721,8 +1726,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /** Written before a step runs. Awaited, so the record exists before the step can change anything. */
-  async function logIntent(turn: Turn, callId: string, index: number, tool: string): Promise<void> {
+  async function logIntent(turn: Turn, callId: string, index: number, step: PlanStep): Promise<CommandError | undefined> {
+    const tool = step.tool;
     await turn.run?.append({ t: 'step.intent', turnId: turn.id, callId, index, tool, expect: revisionsNow(), structure: structureDigest(harness.state.manifest) });
+    const approved = turn.automaticRules.get(step);
+    if (approved !== undefined && (turn.run === undefined || turn.run.broken || !automaticRuleValid(turn, step, approved))) {
+      return refusal('permission-denied', 'The automatic approval is no longer valid, so nothing further was run.', { correctiveHint: 'review the current rules and mode, then send the request again' });
+    }
+    return undefined;
   }
 
   /**
@@ -1766,7 +1777,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const step = plan.steps[index] as PlanStep;
       const callId = planStepCallId(context.callId, index);
       if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
-      await logIntent(turn, callId, index, step.tool);
+      const intentError = await logIntent(turn, callId, index, step);
+      if (intentError !== undefined) {
+        await logFailed(turn, callId, index, step.tool, intentError.message);
+        return ok({ status: 'failed', completed, failedAt: index, error: intentError, askBack: askBackFor(intentError), ...group() });
+      }
       const before = revisionsNow();
       await beginSkillAccess(turn, step.tool);
       const result = harness.executePlan(plan, context, { ...planOptions, from: index, until: index + 1 });
@@ -2671,13 +2686,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const policy = policyOf(turn);
       const remaining = editable.steps.filter((_, index) => index >= start.from && !ranAt(editable, index));
       const writes = remaining.filter((step) => riskOf(step.tool) !== 'read');
+      const facts = { tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) };
+      const rules = writes.flatMap((step) => {
+        const rule = ruleOf(step, turn.id).allow;
+        return rule === undefined || policy.approves({ tools: [step.tool], external: false }) ? [] : [{ step, rule }];
+      });
       // A rule that asks makes the card the writer's in every mode.
       const auto =
         start.humanOnly !== true &&
         held === undefined &&
         shown.card.approvable &&
         !remaining.some((step) => asksWriter(step, turn.id)) &&
-        policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
+        policy.approves({ ...facts, allowedTools: rules.map(({ step }) => step.tool) });
       if (auto) holdToBudget(turn, editable, writes);
       if (start.nested !== true) await logCard(turn, kind, editable, auto ? 'running' : 'awaiting-approval');
       checkStop(turn);
@@ -2696,6 +2716,26 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           notice = hold;
           continue;
         }
+        if (rules.length > 0) {
+          if (rules.some(({ step, rule }) => !automaticRuleValid(turn, step, rule))) {
+            return { settled: 'refused', editable, edits, retries, error: refusal('permission-denied', 'The automatic approval changed while the card was being prepared, so it was not recorded or applied.', { correctiveHint: 'check the current rules and mode, then send the request again' }) };
+          }
+          for (const { step, rule } of rules) {
+            const callId = callIdFor(kind, prefix, editable.steps.indexOf(step));
+            await turn.run?.append({ t: 'rule.approved', turnId: turn.id, callId, tool: step.tool, rule });
+            if (turn.run === undefined || turn.run.broken) {
+              held = 'The automatic approval could not be recorded. Review this card yourself, or fix project storage and try again.';
+              notice = held;
+              break;
+            }
+            trace({ kind: 'rule.approved', at: now(), turnId: turn.id, callId, tool: step.tool, rule });
+            turn.automaticRules.set(step, rule);
+          }
+          if (held !== undefined) {
+            for (const { step } of rules) turn.automaticRules.delete(step);
+            continue;
+          }
+        }
         return { settled: 'approved', editable, edits, retries, auto: true };
       }
       phase(turn, 'awaiting-approval');
@@ -2705,6 +2745,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (decision.action === 'cancel') return { settled: 'cancelled', editable, edits, retries };
       if (decision.action === 'approve') {
         if (shown.card.approvable || (decision.acceptTruncated === true && shown.card.canAcceptCut)) {
+          for (const step of editable.steps) turn.automaticRules.delete(step);
           return {
             settled: 'approved',
             editable,
@@ -2800,8 +2841,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
     moveCard(turn, id, 'running');
     let runProposal = proposal;
-    let generationFailure: ToolOutcome | undefined;
-    if (step.tool === 'pictures.transcribe' && loadedExternal(step.tool) === undefined) {
+    const intentError = write ? await logIntent(turn, id, index, step) : undefined;
+    let generationFailure: ToolOutcome | undefined = intentError === undefined ? undefined : err(intentError);
+    if (generationFailure === undefined && step.tool === 'pictures.transcribe' && loadedExternal(step.tool) === undefined) {
       const plan = proposal as PictureTranscriptionPlan | undefined;
       if (plan?.kind !== 'pictures.transcribe' || options.transcribe === undefined) {
         generationFailure = err(
@@ -2848,8 +2890,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     const call: ToolCall = { name: step.tool, callId: id, params: step.params, ...(runProposal === undefined ? {} : { proposal: runProposal }) };
-    // An external server may act on its own the moment it is called, so its intent is on record first (resume never calls it again unasked).
-    if (write) await logIntent(turn, id, index, step.tool);
     // A native async tool runs under the approval its card gave: the plan's, or the one-step confirmation. Transcription generates above
     // through the same budgeted model-call site as every other draft, then its port reviews and publishes. An external tool is called
     // through its own entry, under the confirmation its card gave (extensibility §4 rule 2).
@@ -3066,7 +3106,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return {
         ok: false,
         failedAt: failedIndex,
-        effect: outcome.error.details?.['completedCommands'] !== undefined,
+        effect: completed.length > 0 || outcome.error.details?.['completedCommands'] !== undefined,
         askBack: outcome.askBack,
         completed,
         ...(undoGroupId === undefined ? {} : { undoGroupId }),
@@ -3102,14 +3142,19 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const proposal = acceptedCut ? stripCut([editable.proposals[from]])[0] : editable.proposals[from];
       cardFor(turn, id, step.tool, step.params, grant === 'auto' ? 'running' : 'pending-approval');
       moveCard(turn, id, 'running');
-      await logIntent(turn, id, from, step.tool);
+      const intentError = await logIntent(turn, id, from, step);
       const before = revisionsNow();
-      await beginSkillAccess(turn, step.tool);
-      const outcome: ToolOutcome = harness.call(
-        { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
-        grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },
-      );
-      await finishSkillLoad(turn, step.tool);
+      let outcome: ToolOutcome;
+      if (intentError === undefined) {
+        await beginSkillAccess(turn, step.tool);
+        outcome = harness.call(
+          { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
+          grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },
+        );
+        await finishSkillLoad(turn, step.tool);
+      } else {
+        outcome = err(intentError);
+      }
       if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
       else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
@@ -3819,6 +3864,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
     const id = `${sessionName}.turn-${turnCounter}`;
     return {
+      automaticRules: new Map(),
       id,
       messages: [],
       trace: [],

@@ -168,6 +168,15 @@ function Rows({ rows, spanMs }: { rows: readonly TraceRow[]; spanMs: number }): 
           <CallRow key={row.key} row={row} spanMs={spanMs} />
         ) : row.kind === 'tool' ? (
           <ToolRowView key={row.key} row={row} spanMs={spanMs} />
+        ) : row.kind === 'rule.approved' ? (
+          <li key={row.key} className="trace-row" data-testid="trace-rule-approved">
+            <Disclosure summary={<span className="trace-note-row">{row.text}</span>}>
+              <div className="trace-detail">
+                <p><Trans comment="callId is the tool call identifier from the audit log.">Tool call: {{ callId: row.callId }}</Trans></p>
+                <pre className="trace-text">{row.rule}</pre>
+              </div>
+            </Disclosure>
+          </li>
         ) : (
           <li key={row.key} className={`trace-row is-${row.kind}`}>
             <span className="trace-note-row">{row.text}</span>

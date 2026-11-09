@@ -1,9 +1,9 @@
 /**
  * Agent rules — [agent-harness.md §4](../../../docs/architecture/agent-harness.md), "Rules".
  *
- * A rule narrows the agent: `deny` refuses a call, `ask` forces a card for it. The harness evaluates them before the bus, in the
- * order deny, then ask, and the first rule that matches in that order decides, across every source and never by how specific it is.
- * There is no `allow`: a rule can only restrict, so a project file can never grant the agent power. The bus gate (`checkPermission`)
+ * Deny refuses a call, ask forces a card, and a Settings allow may approve an eligible native write card. The harness evaluates them before the bus, in the
+ * order deny, then ask, then allow, and the first rule that matches in that order decides, across every source and never by how specific it is.
+ * Only unscoped app Settings allows may approve native write cards; project and session rules never grant power. The bus gate (`checkPermission`)
  * is not touched and stays pure; a rule needs the tree, which the gate does not have.
  *
  * Everything here is pure. The shape and the tolerant read are the store's (`agent-rules.ts`), since a manifest carries rules.
@@ -57,6 +57,7 @@ export interface CallFacts {
 export type RuleVerdict =
   | { readonly effect: 'deny'; readonly rule: SourcedRule; readonly target: string; readonly access: 'read' | 'write' }
   | { readonly effect: 'ask'; readonly rule: SourcedRule }
+  | { readonly effect: 'allow'; readonly rule: SourcedRule }
   | { readonly effect: 'none' };
 
 export const NO_VERDICT: RuleVerdict = Object.freeze({ effect: 'none' });
@@ -211,18 +212,19 @@ function hitOf(rule: SourcedRule, call: CallFacts, targets: CallTargets | undefi
 
 /**
  * The verdict for one call. Pure: the same rules, call, targets and tree give the same verdict. Order: every `deny`, then every
- * `ask`, each in the order the rules are listed, and the first match wins whatever its source. `targets` is undefined when the call's
+ * `ask`, then eligible Settings `allow`, each in the order the rules are listed, and the first match wins whatever its source. `targets` is undefined when the call's
  * nodes could not be worked out.
  */
 export function evaluateRules(set: RuleSet, call: CallFacts, targets: CallTargets | undefined, state: Pick<ProjectState, 'manifest'>): RuleVerdict {
   if (set.unreadable === true && call.writes) return { effect: 'deny', rule: UNREADABLE_RULE, target: '', access: 'write' };
   const tree = state.manifest.tree;
-  for (const effect of ['deny', 'ask'] as const) {
+  for (const effect of ['deny', 'ask', 'allow'] as const) {
     for (const rule of set.rules) {
       if (rule.effect !== effect || !globMatches(rule.tool, call.tool)) continue;
+      if (effect === 'allow' && (rule.source !== 'app' || rule.scope !== undefined || rule.access === 'read' || call.external || !call.writes)) continue;
       const hit = hitOf(rule, call, targets, tree);
       if (hit === undefined) continue;
-      return effect === 'deny' ? { effect: 'deny', rule, target: hit.target, access: hit.access } : { effect: 'ask', rule };
+      return effect === 'deny' ? { effect: 'deny', rule, target: hit.target, access: hit.access } : { effect, rule };
     }
   }
   return NO_VERDICT;
@@ -298,16 +300,19 @@ export function askRefusal(verdict: Extract<RuleVerdict, { effect: 'ask' }>, too
 }
 
 /** One sentence for the Settings list and the load notice: the rule that has no effect, and why. */
-export function ruleWarnings(set: RuleSet, state: Pick<ProjectState, 'manifest'>, toolNames: readonly string[]): readonly string[] {
+export function ruleWarnings(set: RuleSet, state: Pick<ProjectState, 'manifest'> | undefined, toolNames: readonly string[]): readonly string[] {
   const out: string[] = [];
   for (const rule of set.rules) {
     const label = `${SOURCE_WORDS[rule.source]}: ${rule.effect} ${rule.tool}`;
+    if (rule.effect === 'allow' && (rule.source !== 'app' || rule.scope !== undefined || rule.tool.startsWith('mcp__'))) {
+      out.push(`${label} cannot approve calls: only unscoped Settings rules for native tools may allow automatic approval`);
+    }
     if (rule.tool !== '*' && !rule.tool.startsWith('mcp__') && !toolNames.some((name) => globMatches(rule.tool, name))) {
       out.push(`${label} matches no tool, so it has no effect. Check the spelling`);
     }
     if (rule.scope === undefined) continue;
     if ('path' in rule.scope) out.push(`${label} uses the title path ${rule.scope.path}, which stops matching when a folder is renamed`);
-    if (scopeNodes(rule.scope, state.manifest.tree) === undefined) {
+    if (state !== undefined && scopeNodes(rule.scope, state.manifest.tree) === undefined) {
       out.push(`${label} names ${'subtree' in rule.scope ? 'a binder node that no longer exists' : 'a path that matches nothing'}, so it has no effect`);
     }
   }

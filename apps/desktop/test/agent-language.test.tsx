@@ -66,7 +66,7 @@ describe('agent interface language', () => {
     expect(turn).toEqual(original);
     activateEnglish();
     expect(phaseLabel('running')).toBe('Applying');
-    expect(MODE_HINTS.ask).toBe('Every plan and confirm card waits for your decision.');
+    expect(MODE_HINTS.ask).toBe('Plan and confirm cards wait for your decision unless an eligible Settings allow rule approves them.');
   });
 
   it('translates delegation frames and trace references but preserves briefs, results and scope', async () => {

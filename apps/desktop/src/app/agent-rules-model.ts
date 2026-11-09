@@ -8,6 +8,9 @@
  */
 
 import type { PermissionRule, ProjectState, TreeNode } from '@caotang/store';
+import { t } from '@lingui/core/macro';
+
+/* lingui-set comment="Interpolated values: tool" */
 
 export type AgentAccess = 'full' | 'read-only' | 'none';
 
@@ -66,11 +69,17 @@ export function effectiveAccess(rules: readonly PermissionRule[], state: Pick<Pr
   return result;
 }
 
-const EFFECT_WORDS: Readonly<Record<PermissionRule['effect'], string>> = { deny: 'Never', ask: 'Always asks' };
+const EFFECT_WORDS: Readonly<Record<Exclude<PermissionRule['effect'], 'allow'>, string>> = { deny: 'Never', ask: 'Always asks' };
 
-/** One rule in the writer's words, for the Settings list. `inert` is a rule that names a folder or document this project no longer has. */
+/** One rule in the writer’s words, for the Settings list. `inert` means the rule cannot take effect. */
 export function describeRule(rule: PermissionRule, state: Pick<ProjectState, 'manifest'> | null): { readonly text: string; readonly inert: boolean } {
   const access = rule.access ?? 'any';
+  if (rule.effect === 'allow') {
+    if (rule.scope !== undefined) return { text: t`This allow rule has no effect because it names a folder or path.`, inert: true };
+    if (rule.tool.startsWith('mcp__')) return { text: t`This allow rule for ${{ tool: rule.tool }} cannot approve external writes.`, inert: true };
+    if (rule.access === 'read') return { text: t`This allow rule for ${{ tool: rule.tool }} has no effect because it only names read access.`, inert: true };
+    return { text: rule.tool === '*' ? t`May skip approval in Ask mode for any native tool` : t`May skip approval in Ask mode for ${{ tool: rule.tool }}`, inert: false };
+  }
   if (rule.scope === undefined) {
     const tool = rule.tool === '*' ? 'any tool' : rule.tool;
     return { text: rule.effect === 'deny' ? `Never lets the agent use ${tool}` : `Asks you before the agent uses ${tool}`, inert: false };

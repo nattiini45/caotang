@@ -87,10 +87,6 @@
           "hash": "5865ab47",
           "anchor": "sprecher-in-einem-drehbuch-und-seinem-dialog"
         },
-        "the-agent": {
-          "hash": "7b626856",
-          "anchor": "der-agent"
-        },
         "agent-instructions-and-memory": {
           "hash": "ba9699e8",
           "anchor": "anweisungen-und-gedächtnis-des-agenten"
@@ -116,7 +112,7 @@
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "34501b4c",
+          "hash": "cc0c43ef",
           "anchor": "einstellungen"
         },
         "keyboard": {

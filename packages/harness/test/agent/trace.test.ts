@@ -91,6 +91,7 @@ describe('the record format', () => {
     s.write({ kind: 'tool.progress', at: 3.5, turnId: 't.turn-1', callId: 'c1', progress: 1, total: 4, message: 'Reading the shelf' });
     s.write({ kind: 'tool.result', at: 4, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', startedAt: 3, finishedAt: 4, body: { text: 'The ferry' } });
     s.write({ kind: 'card', at: 5, turnId: 't.turn-1', card: { kind: 'plan', tools: ['scene.draft'], decision: 'approved', edits: 0, retries: 0 } });
+    s.write({ kind: 'rule.approved', at: 5, turnId: 't.turn-1', callId: 'c2', tool: 'scene.draft', rule: { effect: 'allow', tool: 'scene.draft', source: 'app' } });
     s.write({ kind: 'ladder', at: 6, turnId: 't.turn-1', callId: 'c2', attempt: 1, reason: 'the title matched two documents' });
     s.write({ kind: 'hook', at: 6, turnId: 't.turn-1', hookId: 'h_7K2QX9M4A1', name: 'No suddenly', event: 'tool.before', tool: 'scene.draft', callId: 'c2', action: 'block', text: '“suddenly” appears: show the change.', ms: 0 });
     s.write({ kind: 'turn.end', at: 7, turnId: 't.turn-1', report: bareReport() });

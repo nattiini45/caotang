@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { addDocument, addFolder, createEmptyManifest, createProjectState, type PermissionRule } from '../../packages/store/src/index.js';
+import { addDocument, addFolder, createEmptyManifest, createProjectState, parseRules, type PermissionRule } from '../../packages/store/src/index.js';
 import { accessOf, describeRule, effectiveAccess, withAccess } from '../../apps/desktop/src/app/agent-rules-model.js';
 import { DEFAULT_SETTINGS, applyPatch, normalizeSettings } from '../../apps/desktop/src/app/settings.js';
 
@@ -51,26 +51,40 @@ test.describe('agent rules in the binder menu and Settings (agent-harness §4)',
     expect(describeRule({ effect: 'deny', tool: '*', scope: { subtree: act }, access: 'write' }, state)).toEqual({ text: '“Act 1” is read only for the agent', inert: false });
     expect(describeRule({ effect: 'deny', tool: '*', scope: { subtree: act }, access: 'read' }, state).text).toBe('“Act 1” is hidden from the agent');
     expect(describeRule({ effect: 'ask', tool: 'scene.draft' }, state).text).toBe('Asks you before the agent uses scene.draft');
+    expect(describeRule({ effect: 'allow', tool: 'scene.draft' }, state)).toEqual({ text: 'May skip approval in Ask mode for scene.draft', inert: false });
+    expect(describeRule({ effect: 'allow', tool: '*' }, null).text).toBe('May skip approval in Ask mode for any native tool');
+    expect(describeRule({ effect: 'allow', tool: '*', scope: { subtree: act } }, state).inert).toBe(true);
+    expect(describeRule({ effect: 'allow', tool: 'mcp__server__*' }, null)).toEqual({ text: 'This allow rule for mcp__server__* cannot approve external writes.', inert: true });
+    expect(describeRule({ effect: 'allow', tool: 'scene.draft', access: 'read' }, null)).toEqual({ text: 'This allow rule for scene.draft has no effect because it only names read access.', inert: true });
     expect(describeRule({ effect: 'deny', tool: 'codex.*' }, null).text).toBe('Never lets the agent use codex.*');
     expect(describeRule({ effect: 'deny', tool: '*', scope: { subtree: 'n_GONE000001' } }, state).inert).toBe(true);
   });
 
-  test('the settings slice keeps tool-level deny and ask rules, drops the rest field by field, and a patch replaces the list', () => {
+  test('the settings slice keeps writer-authored tool rules and a patch replaces the list', () => {
     expect(DEFAULT_SETTINGS.agent.rules).toEqual([]);
     const loaded = normalizeSettings({
       agent: {
         rules: [
           { effect: 'ask', tool: 'meta.set', note: 'check' },
           { effect: 'allow', tool: 'scene.draft' },
-          { effect: 'deny', tool: '*', scope: { subtree: 'n_A' } },
-          { effect: 'deny' },
         ],
       },
     });
-    expect(loaded.agent.rules).toEqual([{ effect: 'ask', tool: 'meta.set', note: 'check' }]);
+    expect(loaded.agent.rules).toEqual([{ effect: 'ask', tool: 'meta.set', note: 'check' }, { effect: 'allow', tool: 'scene.draft' }]);
     expect(normalizeSettings({ agent: { rules: 'all' } }).agent.rules).toEqual([]);
     const patched = applyPatch(loaded, { agent: { rules: [{ effect: 'deny', tool: 'codex.write' }] } });
     expect(patched.agent.rules).toEqual([{ effect: 'deny', tool: 'codex.write' }]);
     expect(patched.agent.defaultMode).toBe('ask');
+  });
+
+  test('an untrusted project parse cannot promote an allow by passing its rules into Settings', () => {
+    const projectRules = parseRules([{ effect: 'allow', tool: '*' }, { effect: 'deny', tool: 'scene.draft' }]).rules;
+    expect(normalizeSettings({ agent: { rules: projectRules } }).agent.rules).toEqual([{ effect: 'deny', tool: 'scene.draft' }]);
+  });
+
+  test('scoped allows and corrupt restrictions cannot leave an active Settings allow', () => {
+    expect(normalizeSettings({ agent: { rules: [{ effect: 'allow', tool: '*', scope: { path: 'Manuscript' } }] } }).agent.rules).toEqual([]);
+    expect(normalizeSettings({ agent: { rules: [{ effect: 'deny', tool: '*', scope: { subtree: 'n_A' } }] } }).agent.rules).toEqual([]);
+    expect(normalizeSettings({ agent: { rules: [{ effect: 'allow', tool: '*' }, { effect: 'deny' }] } }).agent.rules).toEqual([]);
   });
 });

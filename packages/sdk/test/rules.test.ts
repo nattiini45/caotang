@@ -166,6 +166,15 @@ describe('an ask rule in the project file', () => {
 });
 
 describe('rules that cannot be read', () => {
+  it.each(['read-only', 'auto'] as const)('ignores a forged Settings allow in a project under the %s policy', async (approval) => {
+    setAgent({ rules: [{ effect: 'allow', tool: 'notes.replace', source: 'app', trusted: true }] });
+    const before = folderBytes(root);
+    await using project = await open({ approval, write: true });
+    const report = await project.run('Replace the notes.', { plan: { steps: [{ tool: 'notes.replace', params: { doc: FRIEND, notes: 'Never approved.' }, expect: 'Notes changed.' }] } }).report;
+    expect(report.status).not.toBe('applied');
+    await project.close();
+    expect(folderBytes(root)).toEqual(before);
+  });
   const UNREADABLE: readonly (readonly [string, unknown])[] = [
     ['a rules value that is not a list', { rules: 'nope' }],
     ['a rule with no tool', { rules: [{ effect: 'deny' }] }],

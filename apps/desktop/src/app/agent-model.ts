@@ -260,7 +260,7 @@ export function savesAsMacro(turn: TurnView): boolean {
 /** What each permission mode does, in the words the mode control carries as its hint (agent-harness §4). */
 export const MODE_HINTS: Readonly<Record<PermissionMode, string>> = Object.freeze({
   get 'plan-only'() { return t`Reads run. Every write is refused and kept as a plan you can run later.`; },
-  get ask() { return t`Every plan and confirm card waits for your decision.`; },
+  get ask() { return t`Plan and confirm cards wait for your decision unless an eligible Settings allow rule approves them.`; },
   get 'accept-edits'() { return t`Cards that change the project’s own text or fields (including dialogue drafts, prompt drafts and storyboard shots) are approved as shown. Everything else asks.`; },
   get auto() { return t`Every card of the agent’s own tools is approved as shown, inside the turn’s budgets.`; },
 });

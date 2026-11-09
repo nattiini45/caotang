@@ -2146,6 +2146,10 @@ msgstr ""
 msgid "a “Chapter” line"
 msgstr ""
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "A “never” rule wins over an “ask first” rule, and an “ask first” rule wins over an “allow” rule. Asking first keeps approval cards even in Auto. Allow can skip a native tool’s approval card in Ask mode only when you create the rule here in Settings. Each automatic approval is logged with its rule."
+msgstr ""
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "a “Part” line"
@@ -3179,6 +3183,10 @@ msgstr ""
 msgid "All scenes"
 msgstr ""
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
+msgstr ""
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Allowed statuses (comma-separated)"
@@ -3753,6 +3761,11 @@ msgstr ""
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Automatic: style “{name}”"
+msgstr ""
+
+#. Interpolated values: tool, ruleTool
+#: apps/desktop/src/app/trace-model.ts
+msgid "Automatically approved {tool} using your Settings rule for {ruleTool}."
 msgstr ""
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -6605,12 +6618,6 @@ msgstr ""
 msgid "Every card of the agent’s own tools is approved as shown, inside the turn’s budgets."
 msgstr ""
 
-#. Interpolated values: defaultSteps, defaultTokens, field, max, min
-#: apps/desktop/src/app/agent-model.ts
-#: apps/desktop/src/components/AgentModeSettings.tsx
-msgid "Every plan and confirm card waits for your decision."
-msgstr ""
-
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Every quick check is off in Settings, so this run would check nothing. Turn checks on in Settings › Coherence."
@@ -8883,6 +8890,10 @@ msgstr ""
 msgid "Make epilogue"
 msgstr ""
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "Make folder rules from the binder menu; they stay in the project’s file and travel with it. Your Settings rules below apply to every project."
+msgstr ""
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Make prologue"
@@ -8984,6 +8995,16 @@ msgstr ""
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Maximum words (optional)"
+msgstr ""
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "May skip approval in Ask mode for {tool}"
+msgstr ""
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "May skip approval in Ask mode for any native tool"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -11380,6 +11401,12 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.plan.content"
+msgstr ""
+
+#. Interpolated values: defaultSteps, defaultTokens, field, max, min
+#: apps/desktop/src/app/agent-model.ts
+#: apps/desktop/src/components/AgentModeSettings.tsx
+msgid "Plan and confirm cards wait for your decision unless an eligible Settings allow rule approves them."
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
@@ -13929,6 +13956,10 @@ msgstr ""
 msgid "Settings for this recipe"
 msgstr ""
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "Settings rules that need a look"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Settings sections"
@@ -15256,6 +15287,10 @@ msgstr ""
 msgid "The agent is working on another turn. Resume the run when it has finished."
 msgstr ""
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "The agent may skip approval in Ask mode"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "the agent panel"
@@ -15877,7 +15912,7 @@ msgstr ""
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
-msgid "The mode decides who answers the agent’s cards. Ask is the default: every card waits for you. The agent panel can pick another mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project."
+msgid "The mode decides who answers the agent’s cards. Ask is the default: cards wait for you unless an eligible Settings allow rule approves them. The agent panel can pick another mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project."
 msgstr ""
 
 #. Shot prompt record refusals. Interpolated values: shotId is a shot's id; number is a line number; first and last bound a whole number.
@@ -16801,6 +16836,21 @@ msgstr ""
 msgid "Third Age"
 msgstr ""
 
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "This allow rule for {tool} cannot approve external writes."
+msgstr ""
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "This allow rule for {tool} has no effect because it only names read access."
+msgstr ""
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "This allow rule has no effect because it names a folder or path."
+msgstr ""
+
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "This browser cannot open HEIC photos."
 msgstr ""
@@ -17453,6 +17503,11 @@ msgstr ""
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Tool"
+msgstr ""
+
+#. callId is the tool call identifier from the audit log.
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Tool call: {callId}"
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.

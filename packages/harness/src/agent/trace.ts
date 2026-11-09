@@ -29,6 +29,7 @@ import type { CommandError, Result } from '@caotang/bus';
 
 import { canonicalJson, isRecord } from '../util.js';
 import type { CardRecord, TraceEntry, TurnReport } from './events.js';
+import type { SourcedRule } from '../rules.js';
 
 export const TRACE_FORMAT = 'caotang.trace/1' as const;
 /** The record version every line carries. A reader refuses a trace whose major version it does not know. */
@@ -180,6 +181,13 @@ export interface CardTraceRecord extends Base {
   readonly turnId: string;
   readonly card: CardRecord;
 }
+export interface RuleApprovalRecord extends Base {
+  readonly kind: 'rule.approved';
+  readonly turnId: string;
+  readonly callId: string;
+  readonly tool: string;
+  readonly rule: Omit<SourcedRule, 'note'> & { readonly note?: Text };
+}
 export interface LadderRecord extends Base {
   readonly kind: 'ladder';
   readonly turnId: string;
@@ -222,6 +230,7 @@ export type TraceRecord =
   | ToolResultRecord
   | ToolProgressRecord
   | CardTraceRecord
+  | RuleApprovalRecord
   | LadderRecord
   | HookTraceRecord
   | TurnEndRecord;
@@ -455,6 +464,8 @@ export function omitRecord(record: TraceRecord): TraceRecord {
       return { ...record, reason: omitText(record.reason) };
     case 'hook':
       return { ...record, name: omitText(record.name), text: omitText(record.text), ...(record.failed === undefined ? {} : { failed: omitText(record.failed) }) };
+    case 'rule.approved':
+      return { ...record, rule: { ...record.rule, ...(record.rule.note === undefined ? {} : { note: omitText(record.rule.note) }) } };
     case 'turn.end':
       return { ...record, report: omitReport(record.report as TurnReport) };
     default:
@@ -779,7 +790,6 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
  * Reading a trace back
  * ------------------------------------------------------------------ */
 
-const KINDS: readonly TraceKind[] = ['header', 'turn.start', 'message', 'model.request', 'model.response', 'context', 'tool.call', 'tool.result', 'tool.progress', 'card', 'ladder', 'hook', 'turn.end'];
 
 type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'text' | 'any';
 
@@ -805,6 +815,7 @@ export const REQUIRED_FIELDS: Readonly<Record<TraceKind, Readonly<Record<string,
   'tool.result': { turnId: 'string', callId: 'string', outcome: 'string', finishedAt: 'number' },
   'tool.progress': { turnId: 'string', callId: 'string', progress: 'number' },
   card: { turnId: 'string', card: 'object' },
+  'rule.approved': { turnId: 'string', callId: 'string', tool: 'string', rule: 'object' },
   ladder: { turnId: 'string', callId: 'string', attempt: 'number', reason: 'text' },
   hook: { turnId: 'string', hookId: 'string', name: 'text', event: 'string', tool: 'string', action: 'string', text: 'text', ms: 'number' },
   'turn.end': { turnId: 'string', report: 'object' },
@@ -859,7 +870,7 @@ export function parseTrace(jsonl: string): Result<readonly TraceRecord[], string
       return { ok: false, error: `line ${line} is a second trace header` };
     }
     const kind = value['kind'] as TraceKind;
-    if (!KINDS.includes(kind)) continue;
+    if (!Object.hasOwn(REQUIRED_FIELDS, kind)) continue;
     if (value['v'] !== TRACE_VERSION) return { ok: false, error: `line ${line} (${kind}) is record version ${String(value['v'])}, and this build reads ${TRACE_VERSION}` };
     if (typeof value['seq'] !== 'number' || typeof value['at'] !== 'number' || typeof value['sessionId'] !== 'string') {
       return { ok: false, error: `line ${line} (${kind}) lacks seq, at or sessionId` };
