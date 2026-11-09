@@ -77,7 +77,7 @@ if (process.argv[2] === '--measure') {
     const probes = new Map();
     RegExp.prototype.exec = function (value) {
       const text = String(value);
-      const start = this.global || this.sticky ? this.lastIndex : 0;
+      const start = this.global || this.sticky ? Math.min(Math.max(Math.trunc(+this.lastIndex) || 0, 0), Number.MAX_SAFE_INTEGER) : 0;
       if (start <= text.length) {
         const source = '(?:' + this.source + ')|' + (this.sticky ? '(?:)' : '(?![\\s\\S])');
         const succeeds = (budget) => {

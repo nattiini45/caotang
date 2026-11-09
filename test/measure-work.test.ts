@@ -66,4 +66,25 @@ describe('the deterministic reader work counter', { timeout: 120_000 }, () => {
     }`;
     expect(measureWork(source, [{ name: 'run', args: [] }])[0]!.result).toEqual([['a', ''], 'ac', null, null, ['a'], 2]);
   });
+
+  it('normalizes lastIndex before accounting for global and sticky regex work', () => {
+    const source = `export function run(index: number, sticky: boolean) {
+      const re = new RegExp('^a+a+b', sticky ? 'yu' : 'gu');
+      re.lastIndex = [NaN, -7, 0.5, 0, Infinity][index];
+      const matched = re.test('a'.repeat(128));
+      return { matched, lastIndex: re.lastIndex };
+    }`;
+    for (const sticky of [false, true]) {
+      const results = measureWork(source, [0, 1, 2, 3, 4].map((index) => ({ name: 'run', args: [index, sticky] })));
+      for (const { result } of results) expect(result).toEqual({ matched: false, lastIndex: 0 });
+      expect(results[3]!.backtracks).toBeGreaterThan(0);
+      for (const measured of results.slice(0, 3)) expect(measured.backtracks).toBe(results[3]!.backtracks);
+      expect(results[4]!.backtracks).toBe(0);
+    }
+    expect(() => measureWork(`export function run() {
+      const re = /^a+a+b/gu;
+      re.lastIndex = NaN;
+      return re.test('a'.repeat(1024));
+    }`, [{ name: 'run', args: [] }])).toThrow('The regex work ceiling was exceeded');
+  });
 });
