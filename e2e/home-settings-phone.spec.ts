@@ -47,7 +47,7 @@ for (const shell of ['classic', 'modern'] as const) {
       const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
       const nav = settings.getByRole('navigation', { name: 'Settings sections', exact: true });
       const sections = nav.getByRole('button');
-      await expect(sections).toHaveCount(9);
+      await expect(sections).toHaveCount(10);
       await expect(nav).toHaveCSS('flex-wrap', 'nowrap');
       await expect(nav).toHaveCSS('overflow-x', 'auto');
       await expect(nav).toHaveCSS('scroll-snap-type', /^x(?: proximity)?$/);

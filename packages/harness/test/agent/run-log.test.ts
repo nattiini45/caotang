@@ -129,7 +129,7 @@ describe('planResume', () => {
   it('refuses a log with an event kind, a version or a shape it does not know', () => {
     const base = log(start, user, card);
     expect(planResume([...base, { t: 'future.event', seq: 9, at: 1 }], project({}))).toMatchObject({ ok: false, reason: 'schema' });
-    expect(planResume(log({ ...start, v: 2 as never }), project({}))).toMatchObject({ ok: false, reason: 'schema' });
+    for (const v of [1, RUN_LOG_VERSION + 1]) expect(planResume(log({ ...start, v: v as never }), project({}))).toMatchObject({ ok: false, reason: 'schema' });
     expect(planResume(log(start, { ...card, proposals: [null] } as RunEventDraft), project({}))).toMatchObject({ ok: false, reason: 'schema' });
     expect(planResume([], project({}))).toMatchObject({ ok: false, reason: 'schema' });
     expect(planResume([{ t: 'turn.end', seq: 0 }, 7], project({}))).toMatchObject({ ok: false, reason: 'schema' });
@@ -145,6 +145,13 @@ describe('planResume', () => {
     }
     const empty = planResume(log(start, saved, { ...saved, skills: [] }, user, card), project({}));
     expect(empty.ok && empty.replay.skills).toEqual([]);
+  });
+
+  it('does not restore an earlier empty snapshot across an unfinished skill-load intent', () => {
+    const saved: RunEventDraft = { t: 'skills.loaded', turnId: 't1', skills: [] };
+    const loading: RunEventDraft = { t: 'skills.loading', turnId: 't1' };
+    expect(planResume(log(start, saved, loading, user), project({}))).toMatchObject({ ok: false, reason: 'schema', detail: expect.stringContaining('no committed snapshot') });
+    expect(planResume(log(start, saved, loading, saved, user, card), project({})).ok).toBe(true);
   });
 
   it.each(['cancelled', 'refused'] as const)('keeps a %s decision on the card, so a resume knows the writer closed it', (decision) => {
@@ -374,7 +381,7 @@ describe('the run writer', () => {
     const port = createMemoryRunLog();
     await port.create(newRunRecord('run_W', { projectId: 'p', intent: 'x', now: 1 }));
     const writer = createRunWriter({ port, runId: 'run_W', nextSeq: 0, clock: () => 77 });
-    await Promise.all([writer.append(start), writer.append(user), writer.append(card, { status: 'awaiting-approval' })]);
+    expect(await Promise.all([writer.append(start), writer.append(user), writer.append(card, { status: 'awaiting-approval' })])).toEqual([true, true, true]);
     const stored = (await port.events('run_W')) as RunEvent[];
     expect(stored.map((event) => [event.seq, event.t, event.at])).toEqual([
       [0, 'turn.start', 77],
@@ -391,8 +398,8 @@ describe('the run writer', () => {
     const writer = createRunWriter({ port, runId: 'run_F', nextSeq: 0, onNotice: (message) => notices.push(message) });
     await writer.append(start);
     port.failNextAppend();
-    await writer.append(user);
-    await writer.append(card);
+    expect(await writer.append(user)).toBe(false);
+    expect(await writer.append(card)).toBe(false);
     expect(writer.broken).toBe(true);
     expect(notices).toHaveLength(1);
     expect(notices[0]).toContain(NOT_LOGGED_NOTICE);

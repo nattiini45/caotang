@@ -4,11 +4,17 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Added
+
+- **Hook editor and tests.** Settings › Hooks creates and edits all four check kinds and all seven events. Test an unsaved hook against an explicit document, tool, issuer and sample text without making a change or calling a provider; a disabled or unmatched hook says it did not run. The controls and guidance are translated into German.
+
+- **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
+
 ### Fixed
 
 - **Reading skills before drafting.** A plan cannot draft a later step before its `skill.load` or requested `skill.read` has finished. The agent receives the effective tool limits when it loads a skill and reads the instructions and references in a read-only phase first; edits and reorders cannot reuse a proposal across a pending skill read. Skill-guided work stays in the foreground, and older queued plans containing skill tools fail without provider work instead of dropping their skill context.
 
-- **Resuming a skill-guided run.** Loaded instructions, review pins and tool restrictions now survive a reload. Resume validates and restores them before any card or conversation continues; a stale or missing snapshot refuses the resume. Older interrupted logs without a snapshot need a new request.
+- **Resuming a skill-guided run.** Loaded instructions, review pins and tool restrictions now survive a reload. A load commits its intent before running and its snapshot before showing success; a failed save stops it, and the unfinished intent refuses resume even if the recovery marker cannot be saved either. Completed read replies save their instructions and reference text before planning continues. Resume validates and restores the snapshot before any card or conversation continues; a stale or missing snapshot refuses the resume. Older-format interrupted logs need a new request.
 
 - **Reloading a pending plan (#509).** A plan's pending card is saved before it is shown, so reloading as soon as the plan appears still offers its steps for review and resume.
 
@@ -242,7 +248,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - Tool results are checked against their declared shape in Caotang's own tests and not while you write, and twenty-five of the agent's tools still allow a key their declaration does not list. A connected tool that declares an output schema this build cannot check (one that uses `unevaluatedProperties`, for example) has its answers refused.
 - The narrow layout is tested in Chromium with touch input at phone and tablet sizes (a Pixel 7 and a 390 by 844 viewport), not in WebKit and not on a phone. Typing with the on-screen keyboard, selection handles, input methods, and an iPhone or Android browser clearing stored data are unchecked, so the build is not called iOS or Android supported. Nothing syncs and there is no installable app or offline mode beyond the browser's own copy, so a phone's browser is not a safe home for a book: export a bundle.
 - Changes marked for review are kept only while the tab is open. A reload or a closed tab keeps the agent's text and says so once on the next open; Restore project to before this turn is still there. The marks cover prose scenes only, not Ink or Fountain, and a change to the setting applies to the next document you open.
-- Hooks are written by hand in `caotang.json` until Settings › Hooks ships, and run only before and after the agent's calls: not around a compile, a save or a turn. A note a hook adds after a write reaches you in the report and the Trace view and not the agent, since a write ends the turn. Hooks run no program and call no model, and a pattern is a literal word or phrase, not a regular expression.
+- Non-check handlers and automatic continuation after a turn remain unbuilt. A note after a write reaches you, not another model call. Hooks run no program and call no model, and a pattern is a literal word or phrase, not a regular expression.
 - Macros are run by the writer only. The agent cannot call one, a macro cannot join a value into text, and a script macro, a macro shared across projects and a macro of an external tool are not built. A `/` command that runs a macro is not built either.
 - The guards make injected instructions visible and ask before acting on them; no model can be made immune to prompt injection. An imported document is not marked: after the import note, the agent reads it as it reads your own writing, and a setting to treat imported text as outside text is not built.
 - Writing through an AI tool's model covers scenes and dialogue only. The host's confirmation names the document and the word change, not the text, and it is not a review. How a real host shows it has not been seen, and a run of changes is as many questions: staging them as one change is specified and not built.

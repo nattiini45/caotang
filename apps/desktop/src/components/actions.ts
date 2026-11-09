@@ -123,12 +123,12 @@ export function attachEntry(
  * supplies the options the compile reads (the title page, the contents, the author), so the dialog's controls are saved to
  * the recipe first and the compile names it. A prompt pack names its vendor template as `templateId` (exporter.md §5).
  */
-export function compileManuscript(session: ProjectSession, format: string, recipeName?: string, templateId?: string): Outcome {
+export function compileManuscript(session: ProjectSession, format: string, recipeName?: string, templateId?: string, compileAnyway = false): Outcome {
   return session.dispatch('export.compile', {
     format,
     ...(recipeName === undefined ? {} : { recipeName }),
     ...(templateId === undefined ? {} : { templateId }),
-  });
+  }, { compileAnyway });
 }
 
 /** `project.rename`: the project's title, which the title page and the EPUB's `dc:title` carry. */
@@ -180,13 +180,14 @@ export function compileSelection(
   format: string,
   recipeName?: string,
   templateId?: string,
+  compileAnyway = false,
 ): Outcome {
   return session.dispatch('export.compileSelection', {
     includeRootIds: [...includeRootIds],
     format,
     ...(recipeName === undefined ? {} : { recipeName }),
     ...(templateId === undefined ? {} : { templateId }),
-  });
+  }, { compileAnyway });
 }
 
 /** The first of the selection that still names a node, or `null`: a deleted node may linger in view state (bus view.ts). */

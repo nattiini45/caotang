@@ -494,6 +494,13 @@ export function imageDropNotice(session: ProjectSession): string[] {
   ];
 }
 
+export function hookNotice(session: ProjectSession): string[] {
+  const count = session.state.manifest.agent?.hooks?.length ?? 0;
+  return count === 0 ? [] : [count === 1
+    ? t`This project defines one hook. Review it in Settings › Hooks.`
+    : t`This project defines ${{ count }} hooks. Review them in Settings › Hooks.`];
+}
+
 /**
  * Removes a project from this browser. The removal takes the project's lease, as an open does, so a project another tab has open is
  * not deleted under that tab: the removal is refused with the reason. The lease is given back once the project is gone.
@@ -567,7 +574,7 @@ export interface ExportedBundle {
 export async function exportBundle(store: RuntimeStore, session: ProjectSession): Promise<ExportedBundle> {
   await session.settle();
   const sessions = await readSessions(store, session.projectId);
-  const bundle = await bundleOf(session.state, sessions, session.assets, coherenceTextOf(session), session.tasksHome()?.text());
+  const bundle = await bundleOf(session.state, sessions, session.assets, coherenceTextOf(session), session.tasksHome()?.text(), 'user', () => session.saveHookWarnings());
   session.markExported();
   return bundle;
 }
@@ -613,6 +620,7 @@ async function bundleOf(
   coherence: string | undefined,
   tasks: string | undefined,
   copyFor: 'user' | 'internal' = 'user',
+  saveWarnings?: () => readonly string[],
 ): Promise<ExportedBundle> {
   const notices: string[] = [];
   const omissions: string[] = [];
@@ -623,9 +631,11 @@ async function bundleOf(
     );
   }
   // The findings file and the recurring tasks ride beside caotang.json (coherence.md §3, agent-harness.md §12), and the images in assets/.
+  const assetFiles = await assets.snapshot();
+  notices.push(...(saveWarnings?.() ?? []));
   const exported = await exportProjectZip(state, {
     sessions,
-    assets: await assets.snapshot(),
+    assets: assetFiles,
     ...(coherence === undefined ? {} : { coherence }),
     ...(tasks === undefined ? {} : { tasks }),
     copyFor,
@@ -706,7 +716,7 @@ async function adopt(
       }
     }
     await session.settle();
-    noticesOut.push(...imageDropNotice(session));
+    noticesOut.push(...imageDropNotice(session), ...hookNotice(session));
     if (copiedFrom !== null) await rememberCopiedFrom(session.projectId, copiedFrom);
     return { session, notices: noticesOut, droppedFields: [...droppedFields], copiedFrom };
   } catch (error) {
@@ -932,7 +942,7 @@ async function openStored(
       noticesOut.push(exportsKeptHere(error));
     }
     await session.settle();
-    noticesOut.push(...imageDropNotice(session));
+    noticesOut.push(...imageDropNotice(session), ...hookNotice(session));
     return { session, notices: noticesOut, droppedFields: [...load.droppedFields], copiedFrom: null };
   } catch (error) {
     await session.close().catch(() => undefined);
@@ -1653,6 +1663,7 @@ export async function previewFolderChanges(
 export type FolderSaveOutcome =
   | {
       readonly kind: 'saved';
+      readonly warnings?: readonly string[];
       /** The folder in the project folder that holds the files this save replaced, when it replaced any another program had written (folder-guard.ts). */
       readonly backup?: string;
     }
@@ -1769,6 +1780,7 @@ export async function saveFolder(
   // as it is copied (folder-guard.ts).
   const watch = watchSave(fs, { now, expected: before, held: held === null ? null : held.digests, report });
   const toWrite = copyState(session.state);
+  const warnings = session.saveHookWarnings();
   // As with documents, only the copy's own folder can hold skill files this session removed. Any other folder keeps every file it has.
   if (held === null) {
     toWrite.removedSkillFiles.clear();
@@ -1849,7 +1861,7 @@ export async function saveFolder(
     ...afterWritePreview,
   }, overwriteSnapshot);
   if (lockAppeared) return withFolderOverwriteSnapshot({ kind: 'refused', reason: 'locked', files: [], after: true }, overwriteSnapshot);
-  return backup === undefined ? { kind: 'saved' } : { kind: 'saved', backup };
+  return { kind: 'saved', ...(backup === undefined ? {} : { backup }), ...(warnings.length === 0 ? {} : { warnings }) };
 }
 
 /**

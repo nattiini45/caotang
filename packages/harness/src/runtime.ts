@@ -115,7 +115,7 @@ import {
   type SourcedRule,
 } from './rules.js';
 import { portPreflights } from './agent/ports.js';
-import { blockOf, blockWords, createHookRunner, hookLabel, type HookRun, type HookSource } from './hooks.js';
+import { blockOf, blockWords, createHookRunner, exportHookNodes, hookLabel, type HookInput, type HookRun, type HookSource } from './hooks.js';
 import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
@@ -350,6 +350,7 @@ export interface Harness {
    * that only allowed is not kept. The agent loop reads them into the turn's report and trace (hooks.md §7).
    */
   takeHookRuns(turnId: string): readonly HookRun[];
+  lifecycleHooks(input: HookInput & { readonly turnId: string }): readonly HookRun[];
 }
 
 /**
@@ -795,7 +796,7 @@ export function createHarness(options: HarnessOptions): Harness {
   const entries = buildEntries();
 
   // The writer's hooks (hooks.md). Read at each call, like the rules; a hook only ever refuses, warns or notes, and it runs after the gate.
-  const hooks = options.hooks === undefined ? undefined : createHookRunner(options.hooks, { state, withheld: withheldFor });
+  const hooks = options.hooks === undefined ? undefined : createHookRunner(options.hooks, { state, withheld: (tool) => tool === '' ? withheldAnywhere(currentRules(), state) : withheldFor(tool) });
   const hookRuns = new Map<string, HookRun[]>();
   const hookSeen = new Map<string, Set<string>>();
   /** Keeps what the hooks said on a turn for the loop to read. The same hook saying the same thing about the same call is kept once. */
@@ -834,7 +835,11 @@ export function createHarness(options: HarnessOptions): Harness {
       ...(call.write === undefined ? {} : { write: call.write }),
       affected: targets === undefined ? [] : [...targets.writes, ...targets.reads],
     };
-    const runs = phase === 'preflight' ? hooks.preflight(input) : hooks.run(input);
+    const runs = [...(phase === 'preflight' ? hooks.preflight(input) : hooks.run(input))];
+    if (call.name === 'export.compile' && blockOf(runs) === undefined) {
+      const exported = { ...input, event: 'export.before' as const, affected: exportHookNodes(state, call.params) };
+      runs.push(...(phase === 'preflight' ? hooks.preflight(exported) : hooks.run(exported)));
+    }
     recordHooks(turnId, runs, call.params);
     const blocked = blockOf(runs);
     if (blocked === undefined) return { runs };
@@ -870,7 +875,7 @@ export function createHarness(options: HarnessOptions): Harness {
     const entry = entries.get(call.name as ToolName);
     const targets = entry === undefined ? undefined : targetsOf(entry.meta, call.params);
     const read = targets === undefined ? [] : [...targets.reads];
-    const runs = hooks.run({
+    const runs = [...hooks.run({
       event: 'tool.after',
       turnId,
       tool: call.name,
@@ -878,7 +883,10 @@ export function createHarness(options: HarnessOptions): Harness {
       params: call.params,
       ...(call.proposal === undefined ? {} : { proposal: call.proposal }),
       affected: changed.length > 0 ? changed : read,
-    });
+    })];
+    if (call.name === 'export.compile') runs.push(...hooks.run({
+      event: 'export.after', turnId, tool: call.name, callId: call.callId, params: call.params, affected: exportHookNodes(state, call.params),
+    }));
     recordHooks(turnId, runs, call.params);
     return withNotes(outcome, runs.flatMap(noteOf));
   };
@@ -1588,6 +1596,11 @@ export function createHarness(options: HarnessOptions): Harness {
     },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
+    lifecycleHooks: (input) => {
+      const runs = hooks?.run(input) ?? [];
+      recordHooks(input.turnId, runs, input.params);
+      return runs;
+    },
     takeHookRuns: (turnId) => {
       const runs = hookRuns.get(turnId) ?? [];
       hookRuns.delete(turnId);

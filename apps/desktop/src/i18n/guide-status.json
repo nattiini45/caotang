@@ -100,16 +100,12 @@
           "anchor": "wiederkehrende-aufgaben"
         },
         "skills": {
-          "hash": "f5e7781f",
+          "hash": "9c28ca48",
           "anchor": "skills"
         },
         "macros": {
           "hash": "ab9a11a2",
           "anchor": "makros"
-        },
-        "hooks": {
-          "hash": "aec2ad42",
-          "anchor": "hooks"
         },
         "export": {
           "hash": "8803ecec",
@@ -120,7 +116,7 @@
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "517e8dc0",
+          "hash": "34501b4c",
           "anchor": "einstellungen"
         },
         "keyboard": {

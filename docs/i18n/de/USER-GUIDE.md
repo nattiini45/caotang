@@ -424,7 +424,7 @@ Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
 ## Skills
-<!-- source: f5e7781f -->
+<!-- source: 9c28ca48 -->
 
 Ein Skill ist eine Reihe von Anweisungen, die Sie einmal schreiben und die der Agent befolgt, wenn Ihre Anfrage dazu passt: "entwerfe in enger dritter Person, Präteritum, keine Adverbien in Dialog-Tags", oder "fülle Synopsen in drei Schlägen aus", oder "verwende diese Slug-Line-Konventionen". Der Kodex enthält Fakten über Ihre Geschichte; ein Skill enthält, wie Sie wollen, dass der Agent arbeitet. Wählen Sie **Skills** in der Werkzeugleiste, um das Panel zu öffnen.
 
@@ -438,7 +438,7 @@ Ist ein Skill genehmigt und eingeschaltet, erfährt der Agent seinen Namen und s
 
 Der Agent lädt einen Skill und liest angeforderte Referenzen, bevor er spätere Entwürfe plant. Ein Plan, der einen Skill oder eine Referenz lesen und danach zugleich entwerfen will, wird verweigert, damit der Agent zuerst lesen und anhand der Anweisungen und Werkzeuggrenzen planen kann. Beim Laden erfährt der Agent auch die wirksamen Werkzeuggrenzen dieses Durchlaufs. Eine Änderung, die einen vorhandenen Entwurf hinter das noch ausstehende Lesen eines Skills verschieben würde, wird verweigert; die ursprüngliche Karte bleibt unverändert. Arbeit mit geladenen Skills bleibt im Vordergrund: Eine Hintergrundaufgabe kann den Skill-Kontext dieses Durchlaufs nicht übernehmen.
 
-Ein unterbrochener Durchlauf speichert seine geladenen Skills und Werkzeugbeschränkungen. Fortsetzen stellt sie nur wieder her, solange dieselben Skill-Dateien noch eingeschaltet und genehmigt sind. Ein veralteter oder fehlender Schnappschuss stoppt das Fortsetzen vor jedem Modellaufruf und jeder Änderung; verwerfen Sie das Protokoll und senden Sie Ihre Anfrage erneut. Ältere unterbrochene Protokolle ohne Schnappschuss benötigen ebenfalls eine neue Anfrage.
+Ein unterbrochener Durchlauf speichert seine geladenen Skills und Werkzeugbeschränkungen, bevor er das Laden als erfolgreich meldet. Fortsetzen stellt sie nur wieder her, solange dieselben Skill-Dateien noch eingeschaltet und genehmigt sind. Ein fehlgeschlagenes Speichern, ein nicht abgeschlossenes Laden oder ein veralteter oder fehlender Schnappschuss stoppt das Fortsetzen vor jedem Modellaufruf und jeder Änderung; verwerfen Sie das Protokoll und senden Sie Ihre Anfrage erneut. Unterbrochene Protokolle im älteren Format benötigen ebenfalls eine neue Anfrage.
 
 Skills werden im Projekt im Ordner `.agents/skills/` aufbewahrt, daher tragen ein Projektordner, ein `.caotang`-Bundle und die Kopie dieses Browsers sie alle, und andere Programme, die diesen Ordner lesen, verwenden sie ebenfalls. Der Agent kann in seiner Antwort einen Skill vorschlagen, und er kann keinen Skill erstellen, ändern, importieren oder einschalten; das können nur Sie.
 
@@ -449,6 +449,7 @@ Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen
 
 ## Hooks
 <!-- source: aec2ad42 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
@@ -529,9 +530,9 @@ Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen be
 - **Zurück zu Klassisch.** **Klassische Oberfläche verwenden** unter **⋯ › Darstellung**, **Zur klassischen Oberfläche wechseln** in der Suche oder **Klassisch** unter Einstellungen › Erscheinungsbild › Oberfläche wechselt sofort zurück, und Caotang merkt sich die Wahl in diesem Browser. Der Code von Modern wird nur geladen, solange Modern an ist; Klassisch lädt nichts zusätzlich.
 
 ## Einstellungen
-<!-- source: 517e8dc0 -->
+<!-- source: 34501b4c -->
 
-Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat neun Abschnitte: Anbieter, Kontext, Agent, Makros, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
+Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat zehn Abschnitte: Anbieter, Kontext, Agent, Makros, Hooks, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
 
 Zahlen, Daten und Uhrzeiten folgen der Sprache der Oberfläche (siehe **Erscheinungsbild**), mit der Region Ihres Systems, wo sie passt: In einer englischen Oberfläche lautet das Datum eines Ziels auf einem britischen System „31 Oct 2026“, auf einem amerikanischen „Oct 31, 2026“, und eine englische Oberfläche auf einem System in einer anderen Sprache verwendet US-Englisch. Kodex-Namen, Figuren und Stichwörter werden in der Reihenfolge der Projektsprache (Projektdetails) aufgeführt, ohne Rücksicht auf Groß- und Kleinschreibung oder Akzente und mit Zahlen nach ihrem Wert, sodass „Kapitel 9“ vor „Kapitel 10“ kommt und ein schwedisches Projekt Å nach Z einordnet.
 

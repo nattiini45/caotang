@@ -86,7 +86,7 @@ import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
 import { isResultOf } from '../results.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome, ToolValue } from '../types.js';
-import type { HookRun } from '../hooks.js';
+import { blockOf, type HookRun } from '../hooks.js';
 import { canonicalJson, isRecord } from '../util.js';
 import type { TraceInput, TraceSink } from './trace.js';
 import { isCommandName } from '../commands/slash.js';
@@ -1656,15 +1656,27 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     };
   };
 
-  async function syncSkills(turn: Turn): Promise<void> {
+  async function syncSkills(turn: Turn): Promise<boolean> {
     const run = turn.run;
-    if (run === undefined) return;
+    if (run === undefined) return true;
     const skills = harness.loadedSkills(turn.id);
     const snapshot = canonicalJson(skills);
     if (snapshot !== turn.loggedSkills) {
-      await run.append({ t: 'skills.loaded', turnId: turn.id, skills });
-      turn.loggedSkills = snapshot;
+      const saved = await run.append({ t: 'skills.loaded', turnId: turn.id, skills });
+      if (saved) turn.loggedSkills = snapshot;
+      return saved;
     }
+    return true;
+  }
+
+  async function beginSkillLoad(turn: Turn, tool: string): Promise<void> {
+    if (tool !== 'skill.load' || turn.run === undefined) return;
+    if (!(await turn.run.append({ t: 'skills.loading', turnId: turn.id }))) throw new Error('The skill load could not be recorded, so it was not run. Check the project storage and send the request again.');
+    delete turn.loggedSkills;
+  }
+
+  async function finishSkillLoad(turn: Turn, tool: string): Promise<void> {
+    if (tool === 'skill.load' && !(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the load was not reported as successful. Check the project storage and send the request again.');
   }
 
   /**
@@ -1754,7 +1766,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
       await logIntent(turn, callId, index, step.tool);
       const before = revisionsNow();
+      await beginSkillLoad(turn, step.tool);
       const result = harness.executePlan(plan, context, { ...planOptions, from: index, until: index + 1 });
+      await finishSkillLoad(turn, step.tool);
       if (!result.ok) {
         await logFailed(turn, callId, index, step.tool, result.error.message);
         return result;
@@ -1763,6 +1777,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.status === 'applied') {
         completed.push(...outcome.steps);
         undoGroupId ??= outcome.undoGroupId;
+        if (undoGroupId !== undefined) turn.undoGroupId ??= undoGroupId;
         await logApplied(turn, callId, index, step.tool, outcome.steps[0]?.value.summary, before);
         continue;
       }
@@ -2214,7 +2229,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     const granted = permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
-    return harness.call(call, granted);
+    await beginSkillLoad(turn, call.name);
+    const outcome = harness.call(call, granted);
+    await finishSkillLoad(turn, call.name);
+    return outcome;
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
@@ -2412,6 +2430,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
     // sent again in the next request: the same names would reach the model twice (context-assembly §2).
     if (loadedAny) turn.addendumSent = harness.loadedAddendum();
+    await syncRun(turn, 0);
     return undefined;
   }
 
@@ -3055,10 +3074,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       moveCard(turn, id, 'running');
       await logIntent(turn, id, from, step.tool);
       const before = revisionsNow();
+      await beginSkillLoad(turn, step.tool);
       const outcome: ToolOutcome = harness.call(
         { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
         grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },
       );
+      await finishSkillLoad(turn, step.tool);
       if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
       else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
@@ -3900,7 +3921,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     let settled: Settled;
     try {
-      settled = restored?.ok === false ? { status: 'failed', askBack: askBackFor(restored.error) } : await first(turn);
+      if (restored?.ok === false) {
+        settled = { status: 'failed', askBack: askBackFor(restored.error) };
+      } else {
+        const submitted = harness.lifecycleHooks({ event: 'turn.submit', turnId: turn.id, tool: '', params: {}, text: intent, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
+        flushHooks(turn);
+        const blocked = blockOf(submitted);
+        settled = blocked === undefined ? await first(turn) : { status: 'failed', askBack: askBackOf({ code: 'hook_blocked', reason: `Hook “${blocked.name}”: ${blocked.decision.reason}`, options: ['change the request so the hook passes', 'change the hook in Settings › Hooks'] }) };
+      }
     } catch (error) {
       settled = stoppedBy(error);
     }
@@ -3919,6 +3947,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // A call a limit cut short that its tool absorbs (a review reports what it had, with a note) leaves the turn's status as the tool reported it.
     if (limitStop !== undefined && settled.budgetStop === undefined && turnOptions.signal?.aborted !== true) settled = { ...settled, budgetStop: limitStop };
     syncSteps(turn);
+
+    harness.lifecycleHooks({ event: 'turn.end', turnId: turn.id, tool: '', params: {}, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
+    flushHooks(turn);
 
     // An unflushed view (a cancelled or failed turn) must not retain its bytes after the turn is over.
     options.pictureOutbox?.take(turn.id);
@@ -4023,6 +4054,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (log === undefined) return refuse(RESUME_INTENT, { code: 'needs_input', reason: 'this session keeps no run log, so there is nothing to resume', options: ['send the request again'] });
     let rows: readonly unknown[];
     try {
+      const record = (await log.port.open(log.projectId)).find((run) => run.runId === runId);
+      if (record?.cannotResume === true) return refuse(record.intent, { code: 'needs_input', reason: 'this run was not logged completely, so it cannot be resumed', options: ['discard the log and send the request again'] });
+      if (record === undefined) return refuse(RESUME_INTENT, { code: 'needs_input', reason: 'there is no open run with this id in this project', options: ['send the request again'] });
       rows = await log.port.events(runId);
     } catch (error) {
       return refuse(RESUME_INTENT, { code: 'needs_input', reason: `the run log could not be read: ${messageOf(error)}`, options: ['try again', 'discard the log and send the request again'] });

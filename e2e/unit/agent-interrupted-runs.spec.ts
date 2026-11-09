@@ -278,6 +278,20 @@ function countingModel(calls: { count: number }): MockScript {
   };
 }
 
+test('an unfinished skill-load intent is discard-only even after an earlier empty snapshot', async () => {
+  const calls = { count: 0 };
+  const { port, projectId, controller, session, landing } = await open([countingModel(calls)]);
+  const spend = { modelCalls: 1, promptTokens: 10, completionTokens: 5, estimatedTokens: 0, steps: 0, activeMs: 50 };
+  const events = [...waitingOnCard('Load the style.', landing, spend), { t: 'skills.loading', turnId: 't1' }];
+  await seed(port, { runId: 'run_SKILL', projectId, intent: 'Load the style.', events });
+  await controller.loadInterrupted();
+  expect(controller.snapshot().interrupted).toMatchObject([{ runId: 'run_SKILL', resumable: false }]);
+  expect(await controller.resumeRun('run_SKILL')).toBeNull();
+  expect(controller.snapshot().pending).toBeNull();
+  expect(calls.count).toBe(0);
+  await session.close();
+});
+
 test('Resume does not start when the run log cannot be read a second time: it says so, makes no model call and keeps the log', async () => {
   const calls = { count: 0 };
   const { port, projectId, controller, session, landing } = await open([countingModel(calls)]);

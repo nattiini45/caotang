@@ -31,6 +31,7 @@ import {
   type RunEventDraft,
   type RuleSet,
   type RunLogPort,
+  type HookSpec,
 } from '../../src/index.js';
 import { FRIEND, LANDING, STORM, clock, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
@@ -451,7 +452,7 @@ describe('loaded skill restrictions survive a reload', () => {
     bytes: new TextEncoder().encode(`---\nname: style\ndescription: Read-only style.\nallowed-tools: doc.read\n---\n${body}\n`),
   }];
 
-  async function interrupted(at: 'card' | 'conversation') {
+  async function interrupted(at: 'card' | 'confirm' | 'conversation' | 'read', failure?: 'snapshot' | 'snapshot-and-marker' | 'intent') {
     const state = makeState();
     const skill = files();
     state.skills.set('style', skill);
@@ -461,7 +462,11 @@ describe('loaded skill restrictions survive a reload', () => {
     const hung = new Promise<void>((resolve) => { hang = resolve; });
     const base = await mockGateway([transcript(request, [steps(load)])]);
     let calls = 0;
+    let published = false;
     const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } });
+    let loads = 0;
+    const call = harness.call;
+    harness.call = (tool, context) => { if (tool.name === 'skill.load') loads += 1; return call(tool, context); };
     const session = createAgentSession({
       harness,
       gateway: {
@@ -476,45 +481,63 @@ describe('loaded skill restrictions survive a reload', () => {
       },
       context: createContextPort({ state }),
       decide: async () => ({ action: 'approve' }),
+      emit: (event) => {
+        if (event.type === 'card' && event.card.tool === 'skill.load' && event.card.status === 'done') {
+          published = true;
+          if (at === 'read') hang();
+        }
+      },
       runLog: {
         projectId: PROJECT,
         port: {
           ...log,
           append: async (runId, events, patch) => {
+            if (at === 'read' && published && failure === undefined) return new Promise<void>(() => {});
+            if (failure === 'intent' && events.some((event) => event.t === 'skills.loading')) throw new Error('the skill intent could not be saved');
+            if (failure !== undefined && events.some((event) => event.t === 'skills.loaded' && event.skills.length > 0)) throw new Error('the skill snapshot could not be saved');
             await log.append(runId, events, patch);
             if (at === 'card' && events.some((event) => event.t === 'step.applied' && event.tool === 'skill.load')) {
               hang();
               return new Promise<void>(() => {});
             }
           },
+          update: (runId, patch) => failure === 'snapshot-and-marker' && patch.cannotResume === true ? Promise.reject(new Error('the marker could not be saved')) : log.update(runId, patch),
         },
       },
     });
-    if (at === 'card') void session.submitPlan(request, { steps: [load, ...writes] });
-    else void session.submit(request);
-    await hung;
+    const running = at === 'card' ? session.submitPlan(request, { steps: [load, ...writes] }) : at === 'confirm' ? session.submitPlan(request, { steps: [load] }) : session.submit(request);
+    if (failure === undefined) await hung;
+    else {
+      expect((await running).status).toBe('failed');
+      expect(published).toBe(false);
+    }
     const [run] = await log.open(PROJECT);
     const runId = run?.runId ?? '';
     const rows = await log.events(runId) as RunEvent[];
     const replay = planResume(rows, (id) => state.documents.get(id)?.revision);
     const snapshot = [{ name: 'style', body: 'Read only.', pin, allowedTools: ['doc.read'] }];
-    expect(replay.ok && replay.replay.skills).toEqual(snapshot);
-    if (at === 'card') {
+    if (failure === 'snapshot-and-marker') {
+      expect(run?.cannotResume).not.toBe(true);
+      expect(replay).toMatchObject({ ok: false, reason: 'schema', detail: expect.stringContaining('no committed snapshot') });
+    } else if (failure !== undefined) expect(run?.cannotResume).toBe(true);
+    else expect(replay.ok && replay.replay.skills).toEqual(snapshot);
+    if (failure !== undefined) expect(rows.some((event) => event.t === 'step.applied' && event.tool === 'skill.load')).toBe(false);
+    if (at === 'card' && failure === undefined) {
       const appliedAt = rows.findIndex((event) => event.t === 'step.applied' && event.tool === 'skill.load');
       expect(appliedAt).toBeGreaterThan(0);
       expect(rows.slice(0, appliedAt)).toContainEqual(expect.objectContaining({ t: 'skills.loaded', skills: snapshot }));
       expect(replay.ok && replay.replay.card?.completed).toEqual([0]);
     }
     await log.update(runId, { status: 'interrupted' });
-    return { state, log, runId, pin };
+    return { state, log, runId, pin, loads };
   }
 
-  async function resume(fixture: Awaited<ReturnType<typeof interrupted>>, mode: PermissionMode = 'auto', reviewedPin: () => string | undefined = () => fixture.pin, port: RunLogPort = fixture.log) {
+  async function resume(fixture: Awaited<ReturnType<typeof interrupted>>, mode: PermissionMode = 'auto', reviewedPin: () => string | undefined = () => fixture.pin, port: RunLogPort = fixture.log, hooks: readonly HookSpec[] = []) {
     const { state, runId } = fixture;
     const requests: ChatRequest[] = [];
     const cards: PendingCard[] = [];
     const base = await mockGateway([transcript(request, [steps(load), steps(...writes), answer('Done.')])]);
-    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin } });
+    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin }, hooks });
     const session = createAgentSession({
       harness,
       gateway: { ...base, complete: (req, signal) => { requests.push(req); return base.complete(req, signal); } },
@@ -529,6 +552,61 @@ describe('loaded skill restrictions survive a reload', () => {
     });
     return { report: await session.resume(runId), cards, requests, harness };
   }
+
+  it.each([['load', false], ['load', true], ['reference', false], ['reference', true]] as const)('saves the completed %s exchange before planning again (native: %s)', async (boundary, native) => {
+    const state = makeState();
+    const skill = [
+      { path: 'SKILL.md', bytes: new TextEncoder().encode('---\nname: style\ndescription: Style.\nallowed-tools: skill.read doc.read\n---\nKeep the singular kestrel voice.\n') },
+      { path: 'references/voice.md', bytes: new TextEncoder().encode('The reference requires silver herons.') },
+    ];
+    state.skills.set('style', skill);
+    const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
+    const log = createMemoryRunLog();
+    const calls = [load, { tool: 'skill.read', params: { name: 'style', path: 'references/voice.md' }, expect: 'The reference is read.' }];
+    const base = await mockGateway([{ match: () => true, respond: (req) => {
+      const index = req.messages.filter((message) => message.role === 'assistant').length;
+      const step = calls[index] ?? load;
+      return native
+        ? { content: '', toolCalls: [{ id: `read-${index}`, name: step.tool, argumentsJson: JSON.stringify(step.params) }], finishReason: 'tool_calls' }
+        : { content: steps(step) };
+    } }]);
+    let drop = (): void => {};
+    const dropped = new Promise<void>((resolve) => { drop = resolve; });
+    let planning = 0;
+    let gone = false;
+    const session = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } }),
+      gateway: { ...base, modelCaps: () => ({ tools: native }) },
+      context: createContextPort({ state }),
+      decide: async () => { throw new Error('A read-only exchange must not need approval.'); },
+      emit: (event) => {
+        if (event.type === 'turn' && event.phase === 'planning' && ++planning === (boundary === 'load' ? 2 : 3)) { gone = true; drop(); }
+      },
+      runLog: { projectId: PROJECT, port: { ...log, append: (runId, events, patch) => gone ? new Promise<void>(() => {}) : log.append(runId, events, patch) } },
+    });
+    void session.submit(request);
+    await dropped;
+    const [run] = await log.open(PROJECT);
+    const runId = run?.runId ?? '';
+    const replay = planResume(await log.events(runId), (id) => state.documents.get(id)?.revision);
+    expect(replay.ok).toBe(true);
+    expect(JSON.stringify(replay.replay?.messages)).toContain('Keep the singular kestrel voice.');
+    if (boundary === 'reference') expect(JSON.stringify(replay.replay?.messages)).toContain('The reference requires silver herons.');
+    await log.update(runId, { status: 'interrupted' });
+    const resumedRequests: ChatRequest[] = [];
+    const resumedGateway = await mockGateway([{ match: () => true, respond: () => ({ content: native ? 'Context retained.' : answer('Context retained.') }) }]);
+    const resumed = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } }),
+      gateway: { ...resumedGateway, modelCaps: () => ({ tools: native }), complete: (req, signal) => { resumedRequests.push(req); return resumedGateway.complete(req, signal); } },
+      context: createContextPort({ state }),
+      decide: async () => { throw new Error('A resumed read-only exchange must not need approval.'); },
+      runLog: { port: log, projectId: PROJECT },
+    });
+    expect((await resumed.resume(runId)).status).toBe('replied');
+    expect(resumedRequests).toHaveLength(1);
+    expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('Keep the singular kestrel voice.');
+    if (boundary === 'reference') expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('The reference requires silver herons.');
+  });
 
   it.each(['ask', 'auto'] as const)('keeps a pending card restricted in %s mode despite edits and approval', async (mode) => {
     const fixture = await interrupted('card');
@@ -545,17 +623,45 @@ describe('loaded skill restrictions survive a reload', () => {
     expect(finished.replay?.skills).toEqual([{ name: 'style', body: 'Read only.', pin: fixture.pin, allowedTools: ['doc.read'] }]);
   });
 
-  it('restores the restrictions before continuing a logged conversation', async () => {
-    const fixture = await interrupted('conversation');
+  it.each(['conversation', 'read'] as const)('restores restrictions when interrupted at the %s boundary before the next request', async (at) => {
+    const fixture = await interrupted(at);
     const before = outcomeOf(fixture.state);
     const { report, cards, requests, harness } = await resume(fixture);
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(at === 'read' ? 3 : 2);
+    if (at === 'read') expect(report.trace[0]).toMatchObject({ tool: 'skill.load', outcome: 'refused', code: 'permission-denied' });
     expect(JSON.stringify(requests.at(-1)?.messages)).toContain('limits this turn to: doc.read');
     expect(cards).toHaveLength(0);
     expect(report.status).toBe('replied');
     expect(harness.log.entries()).toHaveLength(0);
     expect(outcomeOf(fixture.state)).toEqual(before);
     expect(tree(fixture.state, STORM)?.label).toBeNull();
+  });
+
+  it.each([
+    ['read', 'snapshot'], ['read', 'snapshot-and-marker'], ['read', 'intent'],
+    ['card', 'snapshot'], ['card', 'snapshot-and-marker'], ['card', 'intent'],
+    ['confirm', 'snapshot'], ['confirm', 'snapshot-and-marker'], ['confirm', 'intent'],
+  ] as const)('refuses successful publication and resume on the %s path after a failed %s write', async (at, failure) => {
+    const fixture = await interrupted(at, failure);
+    if (at !== 'card') expect(fixture.loads).toBe(failure === 'intent' ? 0 : 1);
+    const before = outcomeOf(fixture.state);
+    const { report, cards, requests } = await resume(fixture);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain(failure === 'snapshot-and-marker' ? 'no committed snapshot' : 'not logged completely');
+    expect(cards).toEqual([]);
+    expect(requests).toEqual([]);
+    expect(outcomeOf(fixture.state)).toEqual(before);
+  });
+
+  it('validates restored skills before running a turn.submit hook', async () => {
+    const fixture = await interrupted('conversation');
+    const hooks: HookSpec[] = [{ id: 'h_0000000001', name: 'Block submission', event: 'turn.submit', onBlock: 'block', enabled: true,
+      handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'Load the style skill', message: 'Do not start.' }] } } }];
+    const { report, requests } = await resume(fixture, 'auto', () => undefined, fixture.log, hooks);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain('skill');
+    expect(report.hooks ?? []).toEqual([]);
+    expect(requests).toEqual([]);
   });
 
   it.each(['review', 'pin', 'missing snapshot'] as const)('refuses a changed %s without a model call or a write', async (changed) => {

@@ -28,7 +28,7 @@ import type { TurnStatus } from './events.js';
 import type { LoadedSkill } from '../tools/skills.js';
 
 /** The version of the event shapes below. A `turn.start` of another version is refused, not guessed at. */
-export const RUN_LOG_VERSION = 1;
+export const RUN_LOG_VERSION = 2;
 
 /** One run's record, as the store keeps it. */
 export type RunRecord = RunRow;
@@ -56,6 +56,7 @@ export type RunEvent =
       readonly command?: string;
     })
   | (Stamp & { readonly t: 'messages'; readonly turnId: string; readonly appended: readonly ChatMessage[] })
+  | (Stamp & { readonly t: 'skills.loading'; readonly turnId: string })
   | (Stamp & { readonly t: 'skills.loaded'; readonly turnId: string; readonly skills: readonly LoadedSkill[] })
   | (Stamp & {
       readonly t: 'card.pending';
@@ -146,8 +147,8 @@ export interface RunWriter {
   readonly runId: string;
   /** Whether a write failed, so the log no longer describes the run. */
   readonly broken: boolean;
-  /** Numbers, stamps and stores one event, with the status change that goes with it. Never rejects. */
-  append(event: RunEventDraft, patch?: RunPatch): Promise<void>;
+  /** Numbers, stamps and stores one event. True means committed; false means failed or skipped. Never rejects. */
+  append(event: RunEventDraft, patch?: RunPatch): Promise<boolean>;
   /** Marks the log as no longer describing the run, for a failure that is not an append (the flush, the first write). The notice carries the cause when there is one. */
   fail(cause?: unknown): void;
 }
@@ -183,16 +184,18 @@ export function createRunWriter(options: RunWriterOptions): RunWriter {
     },
     append(event, patch) {
       const run = queue.then(async () => {
-        if (broken) return;
+        if (broken) return false;
         const stamped = { ...event, seq, at: clock() } as RunEvent;
         seq += 1;
         try {
           await options.port.append(options.runId, [stamped], { ...patch, updatedAt: stamped.at });
+          return true;
         } catch (error) {
           fail(error);
+          return false;
         }
       });
-      queue = run;
+      queue = run.then(() => undefined);
       return run;
     },
     fail,
@@ -317,6 +320,7 @@ function spendOk(value: unknown): value is BudgetSpend {
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
   'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])),
   messages: (e) => isString(e['turnId']) && messagesOk(e['appended']),
+  'skills.loading': (e) => isString(e['turnId']),
   'skills.loaded': (e) => isString(e['turnId']) && skillsOk(e['skills']),
   'card.pending': (e) =>
     isString(e['turnId']) &&
@@ -405,6 +409,7 @@ export interface PendingStep {
 
 interface Replayed {
   readonly replay: RunReplay;
+  readonly skillsPending: boolean;
   readonly events: readonly RunEvent[];
   /** The step the log ends inside, if it does. */
   readonly pending?: PendingStep & { readonly expect: Revisions; readonly structure: string };
@@ -423,6 +428,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
   let command: string | undefined;
   const messages: ChatMessage[] = [];
   let skills: readonly LoadedSkill[] | undefined;
+  let skillsPending = false;
   let card: { -readonly [K in keyof ReplayCard]: ReplayCard[K] } | undefined;
   let cardSeq = -1;
   let lastMessages = -1;
@@ -453,8 +459,13 @@ function replayOf(events: readonly RunEvent[]): Replayed {
         lastMessages = event.seq;
         ownedOpen.clear();
         break;
+      case 'skills.loading':
+        skills = undefined;
+        skillsPending = true;
+        break;
       case 'skills.loaded':
         skills = event.skills;
+        skillsPending = false;
         break;
       case 'card.pending':
         cardSeq = event.seq;
@@ -512,7 +523,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
     reservedCalls,
     nextSeq: (events.at(-1)?.seq ?? -1) + 1,
   };
-  return { replay, events, ...(pending === undefined ? {} : { pending }), owned, ownedOpen };
+  return { replay, skillsPending, events, ...(pending === undefined ? {} : { pending }), owned, ownedOpen };
 }
 
 // ---------------------------------------------------------------------------
@@ -590,7 +601,8 @@ export function planResume(rows: readonly unknown[], revisions: (docId: string) 
   const first = parsed.events[0] as RunEvent;
   if (first.t !== 'turn.start') return { ok: false, reason: 'schema', detail: 'the run log does not begin with the start of a turn', docs: [] };
 
-  const { replay, pending, owned, ownedOpen } = replayOf(parsed.events);
+  const { replay, skillsPending, pending, owned, ownedOpen } = replayOf(parsed.events);
+  if (skillsPending) return { ok: false, reason: 'schema', detail: 'a skill load has no committed snapshot, so its instructions and tool limits cannot be restored', docs: [], replay };
   if (replay.ended !== undefined) return { ok: true, kind: 'clean', replay };
 
   const lost = [...owned].filter(([id, revision]) => (revisions(id) ?? -1) < revision).map(([id]) => id);
