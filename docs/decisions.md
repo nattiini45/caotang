@@ -1,5 +1,17 @@
 # Decisions
 
+- [delegated 2026-11-09] Save as command is offered for reusable request text, not the synthetic labels of MCP prompt or macro turns; those already have their own invocation and must not create an unrelated saved skill (#61, PR #524 F9).
+
+- [delegated 2026-11-09] An unavailable `mcp-` command is refused locally rather than treated as an ordinary model request; only the existing explicit `//` escape sends that literal slash text to the provider. A reissued form starts empty when its prompt selection changes (#61, PR #524 F7/F8).
+
+- [delegated 2026-11-09] Pending inline MCP arguments remain bound to their originally selected prompt hash, connection generation and server configuration across all fields; a changed or reconnected source requires a fresh invocation rather than inheriting earlier input (#61, PR #524 F6).
+
+- [delegated 2026-11-09] Running a reviewed MCP prompt revalidates its listing before and after the read with a forced SDK cache refresh, rather than trusting server TTL or an older in-flight catalogue; picker and resource caching remain unchanged (#61, PR #524 F4).
+
+- [delegated 2026-11-09] A held Plan-only plan that used loaded skill instructions or outside text requires a fresh invocation in Ask rather than a bare-step retry, because that retry cannot retain its originating restrictions or taint; unconstrained held-plan retries are unchanged (#61, PR #524 F1).
+
+- [delegated 2026-11-09] Saved prompts are user-only SKILL.md skills, not another store; user-invocable project skills, namespaced macros and reviewed MCP prompts share the composer. Writer invocation keeps reviewed pins, caps, tool restrictions and every normal gate. Outside prompt text is enveloped and taints its turn; restricted and tainted command turns remain foreground until the queue can preserve those constraints. Expanded skill and prompt turns stay out of later conversation memory, including after resume (#61).
+
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
 - During a compile, Escape and Cancel both keep the Export dialog open until the compile settles; failed readiness can be retried in place. Folder saves show “Saving to the folder…” and accept only one picker or write at a time. Import commits expose a retryable failure and cannot be dismissed while committing; replacing a preview settles its original request once, while an in-flight write still reports its outcome without disturbing the replacement. A stale AI encoding answer never overwrites a newer manual choice. Why: writers, tests and agents read one named in-memory flow without changing stored projects or files. Caspar: “All new visible states approved as a set.” [owner 2026-11-09]

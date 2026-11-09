@@ -180,6 +180,8 @@ describe('the client lists the catalog beside the tools, and a failed list holds
         name: 'recap',
         description: 'Recap the last chapter.',
         arguments: [{ name: 'chapter', description: 'Which chapter.', required: true }],
+        candidateHash: await subjectHash({ kind: 'prompt', name: RECAP.name, description: RECAP.description, arguments: RECAP.arguments }),
+        connectionGeneration: 0,
         pinState: 'new',
       },
     ]);
@@ -430,6 +432,35 @@ describe('the scripted server: what is asked, and when', () => {
     await client.connect(KEY);
     expect(mock.seen).toContain('prompts');
     expect(mock.seen).not.toContain('resources');
+  });
+
+  it('keeps prompt identity through a catalogue refresh, changes its hash with its definition, and advances its generation on reconnect', async () => {
+    const mock = script({ prompts: [RECAP] });
+    const client = mockClient(mock);
+    await client.connect(KEY);
+    expect(client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '').ok).toBe(true);
+    const original = client.listPrompts(KEY)[0]!;
+    expect(original.candidateHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(original.connectionGeneration).toBe(0);
+
+    await client.refreshCatalog(KEY);
+    expect(client.listPrompts(KEY)[0]).toEqual(original);
+
+    mock.prompts = [{ ...RECAP, description: 'A changed recap.' }];
+    await client.refreshCatalog(KEY);
+    const changed = client.listPrompts(KEY)[0]!;
+    expect(changed.candidateHash).not.toBe(original.candidateHash);
+    expect(changed.connectionGeneration).toBe(original.connectionGeneration);
+    expect(changed.pinState).toBe('changed');
+
+    mock.prompts = [RECAP];
+    await client.refreshCatalog(KEY);
+    expect(client.listPrompts(KEY)[0]).toEqual(original);
+    await client.disconnect(KEY);
+    await client.connect(KEY);
+    const reconnected = client.listPrompts(KEY)[0]!;
+    expect(reconnected.connectionGeneration).toBeGreaterThan(original.connectionGeneration);
+    expect(reconnected).toEqual({ ...original, connectionGeneration: reconnected.connectionGeneration });
   });
 
   it('lists again when the picker opens, and shows what changed', async () => {

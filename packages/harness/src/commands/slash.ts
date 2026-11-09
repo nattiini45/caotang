@@ -40,6 +40,7 @@ export interface ParsedSlash {
   readonly positional: readonly string[];
   /** The `key=value` words, by key. They stay in `positional` too. */
   readonly named: Readonly<Record<string, string>>;
+  readonly namedPositions: readonly number[];
   /** The words before a bare `--`; all of them when there is none. */
   readonly head: readonly string[];
   /** The text after a bare `--`, trimmed. Absent when there is no `--` or nothing follows it. */
@@ -67,7 +68,7 @@ export type SlashResolution =
   /** Answered in the panel, with no model call. `candidates` lists the titles an ambiguous argument could mean. */
   | { readonly kind: 'ask'; readonly command: BuiltinCommandName; readonly missing: SlashArgument; readonly message: string; readonly candidates?: readonly string[] };
 
-const COMMAND_NAME_MAX = 32;
+const COMMAND_NAME_MAX = 64;
 
 const isSpace = (ch: string): boolean => ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r' || ch === ' ' || ch === '　';
 const isAsciiLetter = (ch: string): boolean => (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
@@ -75,11 +76,11 @@ const isDigit = (ch: string): boolean => ch >= '0' && ch <= '9';
 const isIdentStart = (ch: string): boolean => isAsciiLetter(ch) || ch === '_';
 const isIdentPart = (ch: string): boolean => isIdentStart(ch) || isDigit(ch);
 
-/** Whether `name` is a command name the log may carry: lower-case letters, digits and hyphens, starting with a letter. */
+/** Whether `name` is a command name the log may carry: lower-case letters, digits and hyphens, starting with a letter or digit. */
 export function isCommandName(name: unknown): name is string {
   if (typeof name !== 'string' || name.length === 0 || name.length > COMMAND_NAME_MAX) return false;
   const lower = (ch: string): boolean => ch >= 'a' && ch <= 'z';
-  if (!lower(name[0] as string)) return false;
+  if (!lower(name[0] as string) && !isDigit(name[0] as string)) return false;
   for (const ch of name) if (!(lower(ch) || isDigit(ch) || ch === '-')) return false;
   return true;
 }
@@ -118,6 +119,17 @@ function tokenize(raw: string): Token[] {
       at += 1;
     }
     while (at < raw.length && !isSpace(raw[at] as string)) {
+      const valueCloser = value.endsWith('=') ? CLOSERS[raw[at] as string] : undefined;
+      if (valueCloser !== undefined) {
+        at += 1;
+        while (at < raw.length && raw[at] !== valueCloser) {
+          if (raw[at] === '\\' && valueCloser === '"' && (raw[at + 1] === '"' || raw[at + 1] === '\\')) at += 1;
+          value += raw[at];
+          at += 1;
+        }
+        at += 1;
+        continue;
+      }
       value += raw[at];
       at += 1;
     }
@@ -130,7 +142,7 @@ function tokenize(raw: string): Token[] {
 function keyOf(word: string): string | undefined {
   if (word.length === 0 || !isIdentStart(word[0] as string)) return undefined;
   let at = 1;
-  while (at < word.length && isIdentPart(word[at] as string)) at += 1;
+  while (at < word.length && (isIdentPart(word[at] as string) || word[at] === '-')) at += 1;
   return word[at] === '=' ? word.slice(0, at) : undefined;
 }
 
@@ -145,10 +157,14 @@ export function parseSlash(text: string): ParsedSlash | undefined {
   if (end < text.length && !isSpace(text[end] as string)) return undefined;
   const raw = text.slice(end).trim();
   const tokens = tokenize(raw);
-  const named: Record<string, string> = {};
-  for (const token of tokens) {
+  const named: Record<string, string> = Object.create(null) as Record<string, string>;
+  const namedPositions: number[] = [];
+  for (const [index, token] of tokens.entries()) {
     const key = token.quoted ? undefined : keyOf(token.value);
-    if (key !== undefined) named[key] = token.value.slice(key.length + 1);
+    if (key !== undefined) {
+      named[key] = token.value.slice(key.length + 1);
+      namedPositions.push(index);
+    }
   }
   const dash = tokens.findIndex((token) => !token.quoted && token.value === '--');
   const brief = dash === -1 ? '' : raw.slice((tokens[dash] as Token).end).trim();
@@ -157,6 +173,7 @@ export function parseSlash(text: string): ParsedSlash | undefined {
     raw,
     positional: tokens.map((token) => token.value),
     named,
+    namedPositions,
     head: (dash === -1 ? tokens : tokens.slice(0, dash)).map((token) => token.value),
     ...(brief === '' ? {} : { brief }),
   };
@@ -179,7 +196,7 @@ export function expandTemplate(
   placeholders: TemplatePlaceholders = {},
   names: readonly string[] = [],
 ): Result<string, { readonly missing: string }> {
-  const missing = names.find((name) => parsed.named[name] === undefined);
+  const missing = names.find((name) => !Object.hasOwn(parsed.named, name) || !parsed.named[name]?.trim());
   if (missing !== undefined) return err({ missing: `$${missing}` });
   let out = '';
   let at = 0;
@@ -196,14 +213,14 @@ export function expandTemplate(
       at += 2;
     } else if (next >= '1' && next <= '9') {
       const value = parsed.positional[Number(next) - 1];
-      if (value === undefined) return err({ missing: `$${next}` });
+      if (value === undefined || value.trim() === '') return err({ missing: `$${next}` });
       out += value;
       at += 2;
     } else if (isIdentStart(next)) {
       let end = at + 2;
       while (end < body.length && isIdentPart(body[end] as string)) end += 1;
       const word = body.slice(at + 1, end);
-      const value = word === 'ARGUMENTS' ? parsed.raw : word === 'SELECTION' || word === 'DOC' ? placeholders[word] : parsed.named[word];
+      const value = word === 'ARGUMENTS' ? parsed.raw : word === 'SELECTION' || word === 'DOC' ? placeholders[word] : Object.hasOwn(parsed.named, word) ? parsed.named[word] : undefined;
       if (value !== undefined) out += value;
       else if (word === 'SELECTION' || word === 'DOC') return err({ missing: `$${word}` });
       else out += `$${word}`;

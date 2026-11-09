@@ -26,6 +26,7 @@ async function openSample(page: Page, seen: FakeRequest[]): Promise<void> {
   await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
   await expect(page.locator('.agent-turn')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
   // The sample's demo run is the built-in provider's, not the fake's.
   seen.length = 0;
 }

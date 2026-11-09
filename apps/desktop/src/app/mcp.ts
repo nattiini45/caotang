@@ -228,6 +228,7 @@ export function fixtureWireFactory(): WireFactory | undefined {
       get prompts() {
         return fixture.prompts === undefined ? undefined : [...fixture.prompts];
       },
+      getPrompt: (name, args) => ({ messages: [{ role: 'user', content: { type: 'text', text: JSON.stringify({ name, args, content: fixture.content ?? [] }) } }] }),
       ...(fixture.resourcesError === undefined
         ? {}
         : {

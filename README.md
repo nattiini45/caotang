@@ -1,5 +1,7 @@
 # Caotang
 
+The agent's `/` menu includes project skills, saved prompts, `/macro-<slug>` plan templates and reviewed connected-server prompts. **Save as command…** on a finished request creates a user-only SKILL.md, not another prompt store. Read and approve it in Skills before running it; missing arguments are asked for inline, and every permission and approval still applies.
+
 Caotang is a writing studio for novels and other long fiction. Your manuscript stays on your machine. An AI agent can work in it too. Plans and drafts wait for your approval, small changes apply at once, and each recent turn can be taken back within the checkpoint limits in Settings.
 
 Caotang has the structure Scrivener writers know: a binder of chapters and scenes, a corkboard, an inspector, a codex of characters and places, and a compile step that writes Word, EPUB, Markdown or plain text. It also has editors for screenplay scenes (Fountain), branching dialogue (Ink) and storyboards with video prompt packs, and the compile step writes their formats too. The difference is the agent. Bring your own provider key and it works through the app's own commands. It proposes a plan, you approve or change it, and each turn that changes the project leaves a checkpoint you can restore, within the limits in Settings.
