@@ -159,6 +159,29 @@ describe('a loaded skill restricts model-backed work', () => {
     expect(friend(run.state)).toBe('');
   });
 
+  it('returns a requested reference before the planner can stage a later draft', async () => {
+    const reference = 'Use the tide clock as the opening image.';
+    const files = [...skillFiles('limited', STYLE, 'Read the reference.', 'skill.read scene.draft'), { path: 'references/opening.md', bytes: enc(reference) }];
+    const world = projectWith({ limited: files }, ['limited']);
+    const read = { tool: 'skill.read', params: { name: 'limited', path: 'references/opening.md' }, expect: 'Read the opening reference.' };
+    const run = await runScenario({
+      name: 'reference disclosure precedes drafting', category: 'multi-step', intent: INTENT,
+      project: world.project, skills: world.skills,
+      gateway: () => mockGateway([
+        transcript(INTENT, [steps(loadLimited), steps(read, DRAFT_STEP), steps(read), steps({ ...DRAFT_STEP, params: { ...DRAFT_STEP.params, instruction: reference } })]),
+        prose('Document "The Friend":', DRAFTED),
+      ]),
+      expect: { status: 'applied' },
+    });
+    expect(run.report.status).toBe('applied');
+    const draftAt = run.requests.findIndex((request) => textOf(request.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX));
+    expect(draftAt).toBe(4);
+    expect(userTextOf(run.requests[2] as ChatRequest)).toContain('skill.load and skill.read must finish');
+    expect(JSON.stringify(run.requests[3]?.messages)).toContain(reference);
+    expect(userTextOf(run.requests[draftAt] as ChatRequest)).toContain(reference);
+    expect(friend(run.state)).toBe(DRAFTED);
+  });
+
   it.each(['submitPlan', 'stageOnly'] as const)('keeps a pending skill load ahead of drafts in %s without calling the provider', async (entry) => {
     const world = projectWith({ limited: skillFiles('limited', STYLE, 'Load before drafting.', 'scene.draft') }, ['limited']);
     const state = world.project();
@@ -280,7 +303,7 @@ describe('editing a pending skill-load barrier', () => {
     }));
     expect(run.report.status).toBe('cancelled');
     expect(run.requests.filter((request) => textOf(request.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX))).toHaveLength(1);
-    expect(run.pending[1]?.card.notice).toContain('skill.load must finish');
+    expect(run.pending[1]?.card.notice).toContain('skill.load and skill.read must finish');
     expect(friend(run.state)).toBe('');
   });
 
@@ -293,7 +316,7 @@ describe('editing a pending skill-load barrier', () => {
     }));
     expect(run.report.status).toBe('cancelled');
     expect(run.pending).toHaveLength(2);
-    expect(run.pending[1]?.card.notice).toContain('skill.load must finish');
+    expect(run.pending[1]?.card.notice).toContain('skill.load and skill.read must finish');
     expect(run.pending[1]?.card.steps.map((step) => step.tool)).toEqual(['scene.draft', 'skill.load']);
     expect(run.requests.filter((request) => textOf(request.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX))).toHaveLength(1);
     expect(friend(run.state)).toBe('');

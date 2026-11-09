@@ -433,7 +433,7 @@ it('refuses a stored draft behind a pending skill load before displaying or appr
   const resumed = await build(state, log, 'barrier', { action: 'approve' }, false);
   const report = await resumed.session.resume(runId);
   expect(report.status).toBe('failed');
-  expect(report.askBack?.reason).toContain('skill.load must finish');
+  expect(report.askBack?.reason).toContain('skill.load and skill.read must finish');
   expect(resumed.cards).toEqual([]);
   expect(resumed.requests()).toBe(0);
   expect(getBody(state, FRIEND)).toBe('');

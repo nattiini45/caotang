@@ -166,6 +166,7 @@ test('a loaded skill reads its reference files and refuses a tool outside its al
     await expect.poll(() => endpoint.seen.length).toBeGreaterThanOrEqual(2);
     await expect.poll(() => endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n')).toContain('Never leave the room.');
     const results = endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n');
+    expect(results).toContain('"allowedTools"');
     expect(results).toContain('limits this turn to: skill.read, doc.read');
     expect(endpoint.seen[0]?.tools).not.toContain('skill__read');
     expect(endpoint.seen.slice(1).some((request) => request.tools?.includes('skill__read'))).toBe(true);
@@ -205,7 +206,7 @@ test('a large plan with a pending skill load stays out of the background and dra
     await expect(page.getByTestId('plan-offer')).toHaveCount(0);
     await expect(page.getByTestId('plan-card')).toHaveCount(0);
     expect(endpoint.seen).toHaveLength(2);
-    expect(endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n')).toContain('skill.load must finish');
+    expect(endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n')).toContain('skill.load and skill.read must finish');
   } finally {
     rmSync(join(folder, '..'), { recursive: true, force: true });
   }
