@@ -137,6 +137,9 @@ test('connected MCP prompt commands refuse an unreviewed prompt and envelope a r
   expect(seen[0]?.user).toContain('source="mcp');
   expect(seen[0]?.user).toContain('Consider the tide.');
   expect(seen[0]?.user).not.toContain(command);
+  await expect(page.locator('.agent-report-text')).toHaveCount(2);
+  await expect(page.locator('.agent-turn').last().getByRole('button', { name: 'Save as command…', exact: true })).toHaveCount(0);
+  await expect(page.locator('.agent-turn').first().getByRole('button', { name: 'Save as command…', exact: true })).toBeVisible();
 });
 
 test('a skill’s held plan explains that its restrictions require a fresh invocation in Ask', async ({ page }) => {

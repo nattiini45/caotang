@@ -427,6 +427,8 @@ Reading the agent's work:
 
 Choose **Save as command…** under a finished request, give it an unused lower-case name, then read and approve it in **Skills**. It is a project skill in `.agents/skills/<name>/SKILL.md`, with `disable-model-invocation: true`: only you can invoke it. Existing reviewed skills are commands too, unless their file sets `user-invocable: false`. A changed skill needs approval again.
 
+MCP prompt and macro turns do not offer **Save as command…**: their displayed label is not a reusable request. Run their existing `/mcp-…` or `/macro-…` command again instead.
+
 Edit its Instructions in Skills to add `$ARGUMENTS` (everything after the command), `$1` to `$9` (quoted words), `$DOC` (the focused title), `$SELECTION` (a saved editor selection with its text anchor), or `$$` (a literal dollar sign). A front-matter line `arguments: [subject, tone]` makes `$subject` and `$tone` required. Type `/your-name "the tide" quiet`, or `/your-name subject="the tide" tone=quiet`. A missing value opens an inline field before any model request is sent. A selection that has not saved yet must save first.
 
 Macros appear as `/macro-<short-name>`, use their declared values and defaults, and run their usual plan cards. Connected servers' prompts have `/mcp-…` names with a source suffix; the list identifies the server. Review a prompt in **Settings › MCP & tools** before running it. Its answer is outside text, so any change it asks for still waits for you, including in Auto. Skill and server-prompt commands stay in the foreground because the background queue cannot yet preserve their restrictions or outside-text warnings. There are no skills shared across projects.

@@ -821,7 +821,7 @@ function TurnBlock({
             : phaseLabel(turn.phase)}
         </span>
       </header>
-      {settled ? <SaveCommand session={session} intent={turn.intent} /> : null}
+      {settled && !turn.command?.startsWith('mcp-') && !turn.command?.startsWith('macro-') ? <SaveCommand session={session} intent={turn.intent} /> : null}
       <TaskChecklist list={turn.tasks} settled={settled} />
       {turn.provider !== null ? <p className="agent-on muted"><Trans>Ran on <UserText value={turn.provider} /></Trans></p> : null}
 

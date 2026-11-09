@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Saving reusable commands.** MCP prompt and macro turns no longer offer Save as command for a synthetic run label that would create an unrelated skill. Their existing commands remain available for another run.
+
 - **Unavailable prompt commands.** An MCP command whose source went away is refused locally instead of sending its command text and arguments to the model provider. Reissuing a command after its prompt or connection changes starts with empty argument fields.
 
 - **Pending command arguments.** Optional numeric macro values left blank keep their defaults instead of becoming zero. Inline MCP input stays bound to the reviewed definition and connection it started with, so a changed or reconnected source cannot inherit earlier input.
