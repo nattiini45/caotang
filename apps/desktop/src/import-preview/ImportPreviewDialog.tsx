@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
 
 import type { ProjectSession } from '../app/session.js';
 import { chordKey, keyFacts } from '../app/keymap.js';
@@ -56,10 +57,9 @@ import {
   type PreviewSettings,
   type ValueAnswer,
 } from './model.js';
-import { closeImportPreview, type ImportPreviewRequest } from './requests.js';
+import { closeImportPreview, currentImportPreview, type ImportPreviewRequest, type OpenImportPreview } from './requests.js';
+import { stepImportPreview, type ImportPreviewEvent, type ImportPreviewPhase } from './phase.js';
 import './import-preview.css';
-
-type Phase = { readonly kind: 'loading'; readonly progress: string } | { readonly kind: 'failed'; readonly message: string } | { readonly kind: 'ready' };
 
 const FIELD_WORDS: Readonly<Record<FieldTarget, string>> = {
   synopsis: 'Synopsis',
@@ -76,14 +76,22 @@ function plural(count: number, one: string, many = `${one}s`): string {
   return `${formatCount(count)} ${count === 1 ? one : many}`;
 }
 
-export default function ImportPreviewDialog({ session, request, helpers }: { session: ProjectSession; request: ImportPreviewRequest; helpers: PreviewHelpers }): ReactNode {
+export default function ImportPreviewDialog({ session, request, helpers }: { session: ProjectSession; request: OpenImportPreview; helpers: PreviewHelpers }): ReactNode {
   useSession(session);
   const report = useReport();
   const { source } = request;
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
-  const [phase, setPhase] = useState<Phase>(() => (source.load === undefined ? { kind: 'ready' } : { kind: 'loading', progress: `Reading ${source.fileName}…` }));
+  const [phase, setPhase] = useState<ImportPreviewPhase>(() => (source.load === undefined ? { kind: 'ready' } : { kind: 'loading', progress: `Reading ${source.fileName}…` }));
+  const phaseRef = useRef(phase);
+  const send = (event: ImportPreviewEvent): boolean => {
+    const next = stepImportPreview(phaseRef.current, event);
+    if (next === phaseRef.current) return false;
+    phaseRef.current = next;
+    setPhase(next);
+    return true;
+  };
   const [settings, setSettings] = useState<PreviewSettings>(() => (source.load === undefined ? initialSettings(source.chips(), source.options()) : { chips: {}, options: {} }));
   const [edits, setEdits] = useState<PreviewEdits>(NO_EDITS);
   const [pendingRule, setPendingRule] = useState<{ readonly id: string; readonly value: string } | null>(null);
@@ -96,8 +104,6 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const [labelAnswers, setLabelAnswers] = useState<Record<string, ValueAnswer>>({});
   const [codexAnswers, setCodexAnswers] = useState<Record<string, CodexAnswer>>({});
   const [codexTypes, setCodexTypes] = useState<Record<string, string>>({});
-  const [committing, setCommitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [scrollTo, setScrollTo] = useState<{ readonly block: number; readonly seq: number } | null>(null);
   const abort = useRef<AbortController | null>(null);
 
@@ -113,22 +119,23 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
     abort.current = controller;
     source
       .load((progress) => {
-        if (!controller.signal.aborted) setPhase({ kind: 'loading', progress });
+        if (!controller.signal.aborted) send({ type: 'progress', progress });
       }, controller.signal)
       .then(() => {
         if (controller.signal.aborted) return;
         setSettings(initialSettings(source.chips(), source.options()));
         setMapping(Object.fromEntries((source.fields?.() ?? []).map((field) => [field.key, field.suggested ?? 'ignore'])));
-        setPhase({ kind: 'ready' });
+        send({ type: 'loaded' });
       })
       .catch((failure: unknown) => {
         if (controller.signal.aborted) return;
-        setPhase({ kind: 'failed', message: failure instanceof Error ? failure.message : String(failure) });
+        send({ type: 'load-failed', message: failure instanceof Error ? failure.message : String(failure) });
       });
     return () => controller.abort();
   }, [source]);
 
-  const ready = phase.kind === 'ready';
+  const ready = phase.kind === 'ready' || phase.kind === 'committing' || phase.kind === 'commit-failed';
+  const committing = phase.kind === 'committing';
   const plan: PreviewPlan | null = useMemo(() => (ready ? source.plan(settings, edits.overrides) : null), [ready, source, settings, edits.overrides]);
   const shown = useMemo(() => (plan === null ? [] : applyEdits(plan.tree, edits)), [plan, edits]);
   const rows = useMemo(() => visibleRows(shown, collapsed), [shown, collapsed]);
@@ -146,9 +153,10 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const folders = session.state.manifest.tree.filter((node) => node.type === 'folder' && node.parentId === 'manuscript' && node.kind === undefined);
 
   const close = (committed: boolean): void => {
+    if (!send({ type: committed ? 'committed' : 'cancel' })) return;
     abort.current?.abort();
     ref.current?.close();
-    closeImportPreview(committed);
+    closeImportPreview(committed, request.id);
   };
 
   const changeRule = (id: string, value: string, keep: boolean): void => {
@@ -169,54 +177,55 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   };
 
   const commit = async (): Promise<void> => {
-    if (plan === null) return;
-    setCommitting(true);
-    setError(null);
-    if (source.commit !== undefined) {
-      const done = await source.commit(plan);
-      if (!done.ok) {
-        setError(done.message);
-        setCommitting(false);
+    if (plan === null || !send({ type: 'commit' })) return;
+    try {
+      if (source.commit !== undefined) {
+        const done = await source.commit(plan);
+        if (currentImportPreview()?.id !== request.id) return;
+        if (!done.ok) {
+          send({ type: 'commit-failed', message: done.message });
+          return;
+        }
+        if (done.message !== undefined) report({ text: done.message, tone: 'info' });
+        close(true);
         return;
       }
-      if (done.message !== undefined) report({ text: done.message, tone: 'info' });
+      const pictures = source.picturesOption === undefined || settings.options[source.picturesOption] === true ? (source.pictures?.() ?? []) : [];
+      const built = buildCommit({
+        plan,
+        edits,
+        destination,
+        mapping,
+        statuses: vocabulary.statuses,
+        labels: vocabulary.labels,
+        statusAnswers,
+        labelAnswers,
+        codexRows: codexRows.map((row) => ({ ...row, type: codexTypes[row.id] ?? row.type })),
+        codexAnswers: Object.fromEntries(codexRows.map((row) => [row.id, codexAnswers[row.id] ?? defaultCodexAnswer(row.id, colliding)])),
+        codexHeld: held,
+        pictures,
+      }, helpers);
+      if (built.params.nodes.length === 0) {
+        send({ type: 'commit-failed', message: 'Everything is left out, so there is nothing to import. Tick at least one chapter or scene.' });
+        return;
+      }
+      if (built.unkept.length > 0) {
+        send({ type: 'commit-failed', message: `${built.unkept.map((title) => `“${title}”`).join(', ')} would not come back unchanged from a save, so nothing was imported. Leave ${built.unkept.length === 1 ? 'it' : 'them'} out and import again.` });
+        return;
+      }
+      const result = await session.importTree(built.params, built.pictures);
+      if (currentImportPreview()?.id !== request.id) return;
+      if (!result.ok) {
+        send({ type: 'commit-failed', message: explain(result.error) });
+        return;
+      }
+      const scanned = scan.sentence(source.fileName);
+      report({ text: [importedSentence(source.fileName, built), ...(scanned === undefined ? [] : [scanned])].join(' '), tone: 'info' });
       close(true);
-      return;
+    } catch (failure: unknown) {
+      if (currentImportPreview()?.id !== request.id) return;
+      send({ type: 'commit-failed', message: failure instanceof Error ? failure.message : String(failure) });
     }
-    const pictures = source.picturesOption === undefined || settings.options[source.picturesOption] === true ? (source.pictures?.() ?? []) : [];
-    const built = buildCommit({
-      plan,
-      edits,
-      destination,
-      mapping,
-      statuses: vocabulary.statuses,
-      labels: vocabulary.labels,
-      statusAnswers,
-      labelAnswers,
-      codexRows: codexRows.map((row) => ({ ...row, type: codexTypes[row.id] ?? row.type })),
-      codexAnswers: Object.fromEntries(codexRows.map((row) => [row.id, codexAnswers[row.id] ?? defaultCodexAnswer(row.id, colliding)])),
-      codexHeld: held,
-      pictures,
-    }, helpers);
-    if (built.params.nodes.length === 0) {
-      setError('Everything is left out, so there is nothing to import. Tick at least one chapter or scene.');
-      setCommitting(false);
-      return;
-    }
-    if (built.unkept.length > 0) {
-      setError(`${built.unkept.map((title) => `“${title}”`).join(', ')} would not come back unchanged from a save, so nothing was imported. Leave ${built.unkept.length === 1 ? 'it' : 'them'} out and import again.`);
-      setCommitting(false);
-      return;
-    }
-    const result = await session.importTree(built.params, built.pictures);
-    if (!result.ok) {
-      setError(explain(result.error));
-      setCommitting(false);
-      return;
-    }
-    const scanned = scan.sentence(source.fileName);
-    report({ text: [importedSentence(source.fileName, built), ...(scanned === undefined ? [] : [scanned])].join(' '), tone: 'info' });
-    close(true);
   };
 
   const importLabel = plan === null ? 'Import' : (source.importLabel?.(plan) ?? `Import ${plural(plan.counts.chapters, 'chapter')}`);
@@ -226,6 +235,8 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
     <dialog
       ref={ref}
       className="confirm import-preview"
+      data-state={phase.kind}
+      aria-busy={committing}
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault();
@@ -506,12 +517,13 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
             </section>
           </>
         ) : null}
-        {error === null ? null : (
-          <p className="import-preview-error" role="alert">
-            {error}
-          </p>
-        )}
         <div className="confirm-actions">
+          {committing ? <p className="import-preview-progress" role="status" aria-live="polite" style={{ flexBasis: '100%', margin: 0 }}>{t`Importing… Please wait for the import to finish.`}</p> : null}
+          {phase.kind !== 'commit-failed' ? null : (
+            <p className="import-preview-error" role="alert" style={{ flexBasis: '100%', margin: 0 }}>
+              {phase.message}
+            </p>
+          )}
           {plan === null ? null : (
             <button type="button" className="button is-primary" disabled={committing || pendingRule !== null} onClick={() => void commit()}>
               {importLabel}

@@ -7869,6 +7869,10 @@ msgstr "Das bereitgestellte Bild wird importiert"
 msgid "Importing…"
 msgstr "Importieren…"
 
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Importing… Please wait for the import to finish."
+msgstr "Wird importiert… Bitte warten Sie, bis der Import abgeschlossen ist."
+
 #. The shelf of scenes without a day. Interpolated values: chain, step, steps, after, name, count, part are positions and part words; title is a scene title.
 #: apps/desktop/src/components/timeline/TimelineShelf.tsx
 msgid "in a circle of scenes that each follow the next"
@@ -13276,10 +13280,12 @@ msgstr "Gespeicherte Filter"
 msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr "„{name}“ als {kind, select, status {status} label {label} other {status}} gespeichert."
 
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. Exports go there from now on."
 msgstr "Projekt im Ordner „{folder}“ gespeichert. Exporte landen von jetzt an dort."
 
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. What it replaced is kept in {backup}. Exports go there from now on."
 msgstr "Projekt im Ordner „{folder}“ gespeichert. Was ersetzt wurde, liegt in {backup}. Exporte landen von jetzt an dort."
@@ -15748,6 +15754,7 @@ msgstr "Die fokussierte Szene"
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr "Der Ordner „{folderName}“ enthält bereits Dateien, daher wurde nichts darin gespeichert. Ein neuer Ordner für dieses Projekt muss leer sein. Wählen Sie einen anderen Ordner oder erstellen Sie im Ordner-Dialog einen leeren."
 
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "The folder could not be saved: {error}"
 msgstr "Der Ordner konnte nicht gespeichert werden: {error}"

@@ -15,7 +15,7 @@ test('a repeated folder save gesture starts one picker and publishes its progres
   expect(await page.evaluate(() => (globalThis as unknown as { folderPickerCalls: number }).folderPickerCalls)).toBe(1);
   await releaseFolderPicker(page);
   await expect(page.getByTestId('folder-save')).toHaveAttribute('data-state', 'saving');
-  await expect(page.getByTestId('folder-save')).toHaveText('Saving to the folder…');
+  await expect(page.getByRole('status').filter({ hasText: 'Saving to the folder…' })).toBeVisible();
   await page.getByRole('button', { name: 'Save to folder', exact: true }).click();
   expect(await page.evaluate(() => (globalThis as unknown as { folderPickerCalls: number }).folderPickerCalls)).toBe(1);
   await releaseFolderWrite(page);

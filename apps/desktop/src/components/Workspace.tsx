@@ -1055,7 +1055,11 @@ export function Workspace({
         {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message ? (
+    status: folderSave.state.kind === 'saving' ? (
+      <div className="status-line" role="status" data-state="saving">
+        <Trans>Saving to the folder…</Trans>
+      </div>
+    ) : message ? (
       <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
         <span>
           {message.text}
@@ -1075,9 +1079,7 @@ export function Workspace({
     ) : null,
     saveState: <>
       <SaveIndicator state={saveState} onExport={exportNow} />
-      <span className="save-state" role="status" data-testid="folder-save" data-state={folderSave.state.kind}>
-        {folderSave.state.kind === 'saving' ? <Trans>Saving to the folder…</Trans> : null}
-      </span>
+      <span data-testid="folder-save" data-state={folderSave.state.kind} hidden />
     </>,
     progress: { target, setTarget: saveTarget, saveState, exportBackup: exportNow },
     search: {

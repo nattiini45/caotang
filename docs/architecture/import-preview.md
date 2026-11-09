@@ -70,6 +70,8 @@ the old rule. Import waits while it asks.
 
 ## 5. The commit: `binder.importTree`
 
+The preview's in-memory `import.preview` phase is `loading`, `failed` (reading failed), `ready`, `committing`, `commit-failed`, or `closed`. A source with no loading step starts ready. Import enters `committing` synchronously, so repeated activation cannot start another write. A refused, thrown or rejected commit enters `commit-failed`, keeps the preview choices, and shows its error beside Import and Cancel; Import can be retried. Cancel and Escape close the preview during reading, ready, failed and commit-failed, but neither dismisses it while an irreversible commit is running. The dialog exposes `data-state` and announces the running import. Opening another preview replaces the current request and notifies the displaced request with `onClose(false)` once. A displaced request's completion cannot report into or close the newer preview. Phases and request ids are not persisted; the command and undo format are unchanged.
+
 **Import** builds one command (`buildCommit`) and the session dispatches it through `executeAsync`, its pictures staged as the shot
 imports stage theirs. Its params: `parentId` (the manuscript, or a folder of the manuscript: folders are appended, never merged),
 `nodes` (the tree in reading order, each naming its parent folder by index; a top-level node goes under `parentId`, or under

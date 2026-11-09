@@ -27,6 +27,25 @@ Initial: `idle`. Final: none.
 | `saving` | `fail` | `idle` |
 | `saving` | `saved` | `saved` |
 
+## import.preview
+
+Initial: `loading`. Final: `closed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `closed` | — | — |
+| `commit-failed` | `cancel` | `closed` |
+| `commit-failed` | `commit` | `committing` |
+| `committing` | `commit-failed` | `commit-failed` |
+| `committing` | `committed` | `closed` |
+| `failed` | `cancel` | `closed` |
+| `loading` | `cancel` | `closed` |
+| `loading` | `load-failed` | `failed` |
+| `loading` | `loaded` | `ready` |
+| `loading` | `progress` | `loading` |
+| `ready` | `cancel` | `closed` |
+| `ready` | `commit` | `committing` |
+
 ## sprint.timer
 
 Initial: `idle`. Final: none.

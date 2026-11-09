@@ -37,6 +37,7 @@ for (const locale of ['en', 'de'] as const) {
       }
       await releaseFolderPicker(page);
       await expect(page.getByTestId('folder-save')).toHaveAttribute('data-state', 'saving');
+      await expect(page.getByRole('status').filter({ hasText: locale === 'de' ? 'Das Projekt wird im Ordner gespeichert…' : 'Saving to the folder…' })).toBeInViewport();
       await expect(page).toHaveScreenshot(`${shell}-folder-saving-${locale}.png`, {
         animations: 'disabled', caret: 'hide', mask: [page.locator('time'), page.getByTestId('save-state')], maxDiffPixels: 0,
       });

@@ -7868,6 +7868,10 @@ msgstr ""
 msgid "Importing…"
 msgstr ""
 
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Importing… Please wait for the import to finish."
+msgstr ""
+
 #. The shelf of scenes without a day. Interpolated values: chain, step, steps, after, name, count, part are positions and part words; title is a scene title.
 #: apps/desktop/src/components/timeline/TimelineShelf.tsx
 msgid "in a circle of scenes that each follow the next"
@@ -13275,10 +13279,12 @@ msgstr ""
 msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr ""
 
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. Exports go there from now on."
 msgstr ""
 
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. What it replaced is kept in {backup}. Exports go there from now on."
 msgstr ""
@@ -15747,6 +15753,7 @@ msgstr ""
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr ""
 
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "The folder could not be saved: {error}"
 msgstr ""

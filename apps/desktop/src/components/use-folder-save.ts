@@ -1,3 +1,4 @@
+/* lingui-set comment="Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message" */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
