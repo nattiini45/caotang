@@ -38,7 +38,7 @@ export function BackgroundTasks({
       </p>
       <ul className="agent-task-list">
         {inboxFirst(tasks).map((task) => (
-          <li key={task.id} className="agent-task" data-task={task.id} data-status={task.status}>
+          <li key={task.id} className="agent-task" data-task={task.id} data-status={task.status} data-state={task.status}>
             <q className="agent-task-intent">{task.intent}</q>
             <p className="agent-task-status" data-testid="task-status">
               {task.statusText}

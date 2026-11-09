@@ -21,6 +21,7 @@
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
 import { backgroundEligibility, estimatedModelCalls, type AgentSession, type PlanStep, type StageOnlyResult } from '@caotang/harness';
+import { canMove } from '@caotang/machine';
 
 import {
   callsOfItem,
@@ -28,10 +29,12 @@ import {
   newTaskId,
   reviewOf,
   stepOfItem,
+  taskStatusTable,
   type TaskItem,
   type TaskRecord,
   type TaskReview,
-  type TaskStatus,
+  type TaskQueueStatus,
+  type TaskStatusEvent,
   type TaskStore,
 } from './task-store.js';
 
@@ -62,6 +65,10 @@ export interface TaskQueueOptions {
 
 export type EnqueueResult = { readonly ok: true; readonly task: TaskRecord } | { readonly ok: false; readonly reason: string };
 
+export interface TaskSnapshot extends TaskRecord {
+  readonly phase?: TaskQueueStatus;
+}
+
 /* lingui-set comment="Interpolated values: calls, cap, error" */
 
 const NO_LOCKS: MessageDescriptor = msg`Background tasks need a browser feature this one does not have, so this plan can only run now.`;
@@ -76,7 +83,7 @@ export class TaskQueue {
   private readonly listeners = new Set<() => void>();
   /** Closed until `open` has read the project's tasks, and again after `close`. */
   private closed = true;
-  private active: { readonly id: string; readonly abort: AbortController; reason: 'cancelled' | 'interrupted' } | null = null;
+  private active: { readonly id: string; readonly abort: AbortController; kind: TaskQueueStatus } | null = null;
   private pumping: Promise<void> | null = null;
 
   constructor(private readonly options: TaskQueueOptions) {}
@@ -92,7 +99,7 @@ export class TaskQueue {
   };
 
   /** The project's tasks, oldest first. */
-  snapshot = (): readonly TaskRecord[] => this.tasks;
+  snapshot = (): readonly TaskSnapshot[] => this.tasks.map((task) => ({ ...task, phase: this.phase(task) }));
 
   /** Why the queue cannot take a plan, in a sentence, or `null` when it can. */
   unavailable(): string | null {
@@ -103,7 +110,7 @@ export class TaskQueue {
 
   /** Whether a task is being staged or waits to be: what the leave prompt warns about. */
   working(): boolean {
-    return this.tasks.some((task) => task.status === 'running' || task.status === 'queued');
+    return this.active !== null || this.tasks.some((task) => task.status === 'running' || task.status === 'queued');
   }
 
   /**
@@ -120,7 +127,7 @@ export class TaskQueue {
       this.tasks = [];
     }
     for (const task of this.tasks) {
-      if (task.status === 'running' || task.status === 'queued') await this.update(task.id, { status: 'interrupted' });
+      if (canMove(taskStatusTable, task.status, 'reload')) await this.move(task.id, 'reload');
     }
     this.closed = false;
     this.notify();
@@ -130,12 +137,13 @@ export class TaskQueue {
   async close(): Promise<void> {
     this.closed = true;
     if (this.active !== null) {
-      this.active.reason = 'interrupted';
+      const moving = this.move(this.active.id, 'close');
       this.active.abort.abort();
+      await moving;
     }
     await this.pumping;
     for (const task of this.tasks) {
-      if (task.status === 'running' || task.status === 'queued') await this.update(task.id, { status: 'interrupted' });
+      await this.move(task.id, 'close');
     }
   }
 
@@ -176,24 +184,27 @@ export class TaskQueue {
     const task = this.find(id);
     if (task === undefined) return;
     if (this.active?.id === id) {
-      this.active.reason = 'cancelled';
+      if (!canMove(taskStatusTable, this.active.kind, 'cancel')) return;
+      const moving = this.move(id, 'cancel');
       this.active.abort.abort();
-    } else if (task.status === 'queued') {
-      await this.update(id, { status: 'cancelled' });
+      await moving;
+    } else if (canMove(taskStatusTable, task.status, 'cancel') && task.status === 'queued') {
+      await this.move(id, 'cancel');
     }
   }
 
   /** Puts an interrupted task back in the queue. Only its pending items are staged again, within the calls it has left. */
   async resume(id: string): Promise<void> {
-    if (this.find(id)?.status !== 'interrupted' || this.closed || this.unavailable() !== null) return;
-    await this.update(id, { status: 'queued' });
+    const task = this.find(id);
+    if (task === undefined || !canMove(taskStatusTable, this.phase(task), 'resume') || this.active?.id === id || this.closed || this.unavailable() !== null) return;
+    await this.move(id, 'resume');
     this.start();
   }
 
   /** Removes a task that is not being staged. */
   async dismiss(id: string): Promise<void> {
     const task = this.find(id);
-    if (task === undefined || task.status === 'running' || task.status === 'queued') return;
+    if (task === undefined || this.active?.id === id || canMove(taskStatusTable, task.status, 'pump')) return;
     this.tasks = this.tasks.filter((entry) => entry.id !== id);
     this.notify();
     try {
@@ -205,7 +216,7 @@ export class TaskQueue {
 
   /** The writer approved the task's review. */
   async markApplied(id: string): Promise<void> {
-    if (this.find(id)?.status === 'ready') await this.update(id, { status: 'applied' });
+    await this.move(id, 'apply');
   }
 
   /** What a review of a ready task is given, or `undefined` when the task is not ready. */
@@ -225,6 +236,25 @@ export class TaskQueue {
 
   private find(id: string): TaskRecord | undefined {
     return this.tasks.find((task) => task.id === id);
+  }
+
+  private phase(task: TaskRecord): TaskQueueStatus {
+    return this.active?.id === task.id ? this.active.kind : task.status;
+  }
+
+  private async move(id: string, event: TaskStatusEvent): Promise<void> {
+    const task = this.find(id);
+    if (task === undefined) return;
+    const from = this.phase(task);
+    if (!canMove(taskStatusTable, from, event)) return;
+    const to = taskStatusTable.on[from][event]?.[0];
+    if (to === undefined) return;
+    if (this.active?.id === id) this.active.kind = to;
+    if (to === 'starting' || to === 'cancelling' || task.status === to) {
+      this.notify();
+      return;
+    }
+    await this.update(id, { status: to });
   }
 
   private notify(): void {
@@ -257,7 +287,7 @@ export class TaskQueue {
 
   private start(): void {
     if (this.pumping !== null || this.closed) return;
-    this.pumping = this.pump().finally(() => {
+    this.pumping = Promise.resolve().then(() => this.pump()).finally(() => {
       this.pumping = null;
     });
   }
@@ -276,15 +306,14 @@ export class TaskQueue {
   }
 
   private async run(id: string): Promise<void> {
-    const started = await this.update(id, { status: 'running', runs: (this.find(id)?.runs ?? 0) + 1 });
-    if (started === undefined) return;
-    // A run's session id is a stored token, not a message: keep it out of the catalogue.
-    const sessionId = started.runs === 1 ? started.id : started.id + '.run' + started.runs;
     const abort = new AbortController();
-    const active: NonNullable<TaskQueue['active']> = { id, abort, reason: 'interrupted' };
-    // The run is active before its agent exists, because the agent can be a download: a cancel or a close that comes meanwhile stops this run.
+    const active: NonNullable<TaskQueue['active']> = { id, abort, kind: 'queued' };
     this.active = active;
     try {
+      await this.move(id, 'pump');
+      const started = await this.update(id, { status: 'running', runs: (this.find(id)?.runs ?? 0) + 1 });
+      if (started === undefined || abort.signal.aborted) return;
+      const sessionId = started.runs === 1 ? started.id : started.id + '.run' + started.runs;
       let agent: TaskAgent | string;
       try {
         const eligible = backgroundEligibility(started.steps);
@@ -294,9 +323,11 @@ export class TaskQueue {
         const errorText = error instanceof Error ? error.message : String(error);
         agent = t`The agent could not be started: ${{ error: errorText }}`;
       }
+      if (abort.signal.aborted) return;
       if (typeof agent === 'string') {
         for (const item of started.items) if (item.state === 'pending') await this.updateItem(id, item.key, { state: 'failed', error: agent });
       } else {
+        await this.move(id, 'agent-ready');
         for (const pending of started.items.filter((item) => item.state === 'pending')) {
           if (abort.signal.aborted) break;
           await this.waitForForeground(abort.signal);
@@ -305,8 +336,8 @@ export class TaskQueue {
         }
       }
     } finally {
+      await this.finish(id);
       this.active = null;
-      await this.finish(id, abort.signal.aborted ? active.reason : undefined);
     }
   }
 
@@ -352,10 +383,10 @@ export class TaskQueue {
   }
 
   /** Settles a task after its run: over, if the writer or the tab ended it, otherwise ready to review or failed. */
-  private async finish(id: string, ended: 'cancelled' | 'interrupted' | undefined): Promise<void> {
+  private async finish(id: string): Promise<void> {
     const task = this.find(id);
     if (task === undefined) return;
-    const status: TaskStatus = ended ?? (task.items.some((item) => item.state === 'staged') ? 'ready' : 'failed');
-    await this.update(id, { status });
+    const phase = this.phase(task);
+    await this.move(id, phase === 'cancelling' || phase === 'interrupted' ? 'settle' : task.items.some((item) => item.state === 'staged') ? 'ready' : 'fail');
   }
 }

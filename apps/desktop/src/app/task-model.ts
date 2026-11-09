@@ -8,14 +8,14 @@ import { staleSteps } from '@caotang/harness';
 import { isolate } from '@caotang/i18n';
 import type { ProjectState } from '@caotang/store';
 
-import { reviewOf, type TaskRecord, type TaskStatus } from './task-store.js';
+import { reviewOf, type TaskRecord, type TaskQueueStatus } from './task-store.js';
 
 /* lingui-set comment="Interpolated values: done, intent, outdated, staged, total" */
 
 export interface TaskView {
   readonly id: string;
   readonly intent: string;
-  readonly status: TaskStatus;
+  readonly status: TaskQueueStatus;
   /** The status in a sentence, so it never rests on colour. */
   readonly statusText: string;
   /** Items finished (drafted or failed), of all. */
@@ -37,10 +37,13 @@ export interface TaskView {
   readonly canDismiss: boolean;
 }
 
-function statusText(task: TaskRecord, done: number, total: number, outdated: number): string {
-  switch (task.status) {
+function statusText(task: TaskRecord, phase: TaskQueueStatus, done: number, total: number, outdated: number): string {
+  switch (phase) {
     case 'queued':
+    case 'starting':
       return t`Waiting to start`;
+    case 'cancelling':
+      return t`Cancelling…`;
     case 'running':
       return t`Drafting: ${{ done }} of ${{ total }} done`;
     case 'ready': {
@@ -61,7 +64,8 @@ function statusText(task: TaskRecord, done: number, total: number, outdated: num
 }
 
 /** The view of one task. The out-of-date count reads the project now, so it is current whenever the panel is redrawn. */
-export function viewOf(task: TaskRecord, state: ProjectState): TaskView {
+export function viewOf(task: TaskRecord & { readonly phase?: TaskQueueStatus }, state: ProjectState): TaskView {
+  const phase = task.phase ?? task.status;
   const total = task.items.length;
   const done = task.items.filter((item) => item.state !== 'pending').length;
   let outdated = 0;
@@ -75,8 +79,8 @@ export function viewOf(task: TaskRecord, state: ProjectState): TaskView {
   return {
     id: task.id,
     intent: task.intent,
-    status: task.status,
-    statusText: statusText(task, done, total, outdated),
+    status: phase,
+    statusText: statusText(task, phase, done, total, outdated),
     done,
     total,
     used: task.used,
@@ -87,9 +91,9 @@ export function viewOf(task: TaskRecord, state: ProjectState): TaskView {
     outdated,
     omitted,
     canReview: task.status === 'ready',
-    canCancel: task.status === 'queued' || task.status === 'running',
-    canResume: task.status === 'interrupted',
-    canDismiss: task.status !== 'queued' && task.status !== 'running',
+    canCancel: phase === 'queued' || phase === 'starting' || phase === 'running',
+    canResume: phase === 'interrupted',
+    canDismiss: phase !== 'queued' && phase !== 'starting' && phase !== 'running' && phase !== 'cancelling',
   };
 }
 

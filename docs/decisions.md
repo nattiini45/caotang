@@ -2,6 +2,14 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- Lifecycle state is a `kind`-keyed union with a pure step and a transition table exported as data from `@caotang/machine`; each converted machine is listed with its generated table in docs/architecture/state-machines.md and a repo-level test fails when step and table disagree. No state-machine library. Why: the writer-visible states, the tests and the agents all read one definition, and the kit adds well under 1 kB gzip where XState's smallest use measured 13.0 kB gzip. Caspar: “All three (recommended)”. [owner 2026-11-09]
+
+- Agent-facing machines log transitions as `machine` rows in `caotang.trace/1` (additive kind, schema and agent-harness.md §5.2 updated together; still memory only, never in a project, bundle or MCP). Why: an agent or a bug report can read which state a turn was in without reconstructing it from events. Caspar: “All three (recommended)”. [owner 2026-11-09]
+
+- E2E specs wait on a published state (`data-state` or `data-panel-state`), not on a fixed sleep or a proxy element; a new machine in the UI publishes one. Why: #504, #508 and #510 are all waits on a proxy. Caspar: “All three (recommended)”. [owner 2026-11-09]
+
+- A background task cancel always wins over project close, including during startup or while the closing run settles. The live row shows Cancelling… until the abort settles; `starting` and `cancelling` are memory-only phases, not new stored task statuses. Why: a cancel must not silently disappear or become a resumable interruption (#526). [delegated 2026-11-09]
+
 - Findings offers a save retry only for a failed browser write while its session is active. A folder conflict keeps its existing reopen-from-Projects guidance without offering the same stale-digest save again. Why: recovery must be able to change the failed condition (#379, PR #507 review). [delegated 2026-11-09]
 
 - The Binder displays its two fixed section labels in the interface language, by reserved id, without rewriting their stored titles; writer-named folders and documents stay project content. Why: Manuscript and Research cannot be renamed, so they are interface labels rather than author text (#378). [owner 2026-11-09]

@@ -4203,6 +4203,11 @@ msgstr "cancelled"
 msgid "Cancelled"
 msgstr "Cancelled"
 
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Cancelling…"
+msgstr "Cancelling…"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Caotang"
