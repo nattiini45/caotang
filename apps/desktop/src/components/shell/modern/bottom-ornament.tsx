@@ -16,7 +16,7 @@
 /* lingui-set comment="Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search." */
 
 import { t } from '@lingui/core/macro';
-import { useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { shortcutLabel } from '../../../app/keymap.js';
 import { keyStep } from '../ClassicShell.js';
@@ -29,6 +29,7 @@ import type { ModernSlotProps } from './slots.js';
 import { viewName } from './top-ornament.js';
 import type { ModernView } from './layout.js';
 import { chooseView, modernViewOf, orderViews, viewControlId } from './views.js';
+import { useMenuPhase } from './use-menu-phase.js';
 
 export function BottomOrnament({ regions, pageId }: ModernSlotProps): ReactNode {
   const { view } = regions;
@@ -176,7 +177,7 @@ function useViewsMenu({
 }): { button: ReactNode; popover: ReactNode } {
   const button = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
-  const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
+  const { phase: menu, close, toggle, onClosed } = useMenuPhase();
   const on = views.includes(chosen);
   useLayoutEffect(() => {
     if (menu === 'open') list.current?.querySelector<HTMLElement>('[role="menuitemradio"]')?.focus();
@@ -187,7 +188,7 @@ function useViewsMenu({
     const next = event.key === 'ArrowDown' ? (at + 1) % items.length : event.key === 'ArrowUp' ? (at - 1 + items.length) % items.length : null;
     if (event.key === 'Tab') {
       event.preventDefault();
-      setMenu('closing');
+      close();
       return;
     }
     if (next === null) return;
@@ -204,7 +205,7 @@ function useViewsMenu({
         aria-expanded={menu === 'open'}
         aria-pressed={on}
         data-testid="modern-narrow-views"
-        onClick={() => setMenu(menu === 'open' ? 'closing' : 'open')}
+        onClick={toggle}
       >
         <Icon name={on ? chosen : 'board'} />
         <span className="modern-label">{on ? viewName(chosen) : t`Views`}</span>
@@ -218,11 +219,11 @@ function useViewsMenu({
           align="end"
           className="modern-menu-popover"
           closing={menu === 'closing'}
-          onDismiss={() => setMenu((state) => (state === 'open' ? 'closing' : state))}
-          onClosed={() => setMenu('closed')}
+          onDismiss={close}
+          onClosed={onClosed}
           testId="modern-views-popover"
         >
-          <div ref={list} role="menu" aria-label={t`Views`} className="modern-menu" onKeyDown={onKeyDown}>
+          <div ref={list} role="menu" aria-label={t`Views`} className="modern-menu" data-state={menu} onKeyDown={onKeyDown}>
             {views.map((name, index) => (
               <button
                 key={name}
@@ -233,7 +234,7 @@ function useViewsMenu({
                 className="modern-menu-item"
                 data-testid={`modern-views-${name}`}
                 onClick={() => {
-                  setMenu('closing');
+                  close();
                   onChoose(name);
                 }}
               >

@@ -9,13 +9,15 @@
 /* lingui-set comment="Modern interface, the + New menu in the top ornament." */
 
 import { t } from '@lingui/core/macro';
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 
 import { DESKTOP_VIEW_KINDS, newGroups, type NewKind } from '../../../app/new-menu.js';
 import { isImeEnter, keyFacts, resolveKey, shortcutLabel } from '../../../app/keymap.js';
 import type { ShellCreate } from '../regions.js';
 import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
+import type { MenuState } from './menu-model.js';
+import { useMenuPhase } from './use-menu-phase.js';
 
 /**
  * **+ New** and its popover, returned apart: the button goes in the top ornament's toolbar, the popover beside the toolbar as **⋯**'s
@@ -24,13 +26,7 @@ import { Icon } from './icons.js';
  */
 export function useNewMenu({ create, narrow }: { create: ShellCreate; narrow: boolean }): { button: ReactNode; popover: ReactNode } {
   const button = useRef<HTMLButtonElement>(null);
-  const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
-  const [opening, setOpening] = useState(0);
-  const open = (): void => {
-    setOpening((count) => count + 1);
-    setMenu('open');
-  };
-  const toggle = (): void => (menu === 'open' ? setMenu('closing') : open());
+  const { phase: menu, opening, open, close, toggle, onClosed } = useMenuPhase();
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const inTextField = event.target instanceof HTMLElement && (event.target.isContentEditable || /^(INPUT|TEXTAREA)$/.test(event.target.tagName));
@@ -42,7 +38,7 @@ export function useNewMenu({ create, narrow }: { create: ShellCreate; narrow: bo
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [open]);
   const chord = shortcutLabel('new-menu');
   return {
     button: (
@@ -77,18 +73,19 @@ export function useNewMenu({ create, narrow }: { create: ShellCreate; narrow: bo
           align="end"
           className="modern-menu-popover"
           closing={menu === 'closing'}
-          onDismiss={() => setMenu((state) => (state === 'open' ? 'closing' : state))}
-          onClosed={() => setMenu('closed')}
+          onDismiss={close}
+          onClosed={onClosed}
           testId="modern-new-popover"
         >
           <NewMenu
             create={create}
             narrow={narrow}
+            phase={menu}
             onChoose={(kind) => {
-              setMenu('closing');
+              close();
               create.make(kind);
             }}
-            onClose={() => setMenu('closing')}
+            onClose={close}
           />
         </GlassPopover>
       ),
@@ -98,11 +95,13 @@ export function useNewMenu({ create, narrow }: { create: ShellCreate; narrow: bo
 function NewMenu({
   create,
   narrow,
+  phase,
   onChoose,
   onClose,
 }: {
   create: ShellCreate;
   narrow: boolean;
+  phase: MenuState['kind'];
   onChoose: (kind: NewKind) => void;
   onClose: () => void;
 }): ReactNode {
@@ -130,7 +129,7 @@ function NewMenu({
   };
   const first = groups[0]?.entries[0]?.kind;
   return (
-    <div ref={ref} id="modern-new-menu" role="menu" aria-label={t`New`} className="modern-menu modern-new-menu" onKeyDown={onKeyDown}>
+    <div ref={ref} id="modern-new-menu" role="menu" aria-label={t`New`} className="modern-menu modern-new-menu" data-state={phase} onKeyDown={onKeyDown}>
       {groups.map((group, index) => (
         <div key={group.id} role="group" aria-labelledby={`modern-new-head-${group.id}`} className="modern-menu-section">
           {index === 0 ? null : <div role="separator" className="modern-menu-rule" />}
