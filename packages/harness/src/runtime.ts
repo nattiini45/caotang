@@ -242,6 +242,7 @@ export interface RuleCheck {
   readonly denied?: CommandError;
   /** The ask rule that forces the writer's confirmation of the step. */
   readonly ask?: SourcedRule;
+  readonly allow?: SourcedRule;
 }
 
 /** A metadata row, plus what the caller needs to decide whether to call the tool. */
@@ -1623,7 +1624,7 @@ export function createHarness(options: HarnessOptions): Harness {
       if (!prep.ok) return {};
       const { verdict, targets } = verdictFor(prep.value.entry.meta, prep.value.params);
       if (verdict.effect === 'deny') return { denied: ruleRefusal(verdict, tool, state, targets?.opOf?.[verdict.target]) };
-      return verdict.effect === 'ask' ? { ask: verdict.rule } : {};
+      return verdict.effect === 'ask' ? { ask: verdict.rule } : verdict.effect === 'allow' ? { allow: verdict.rule } : {};
     },
   };
 }

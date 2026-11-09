@@ -18,6 +18,7 @@
 
 import type { ChatMessage } from '@caotang/gateway';
 import type { RunPatch, RunRow, RunStatus } from '@caotang/store';
+import { parseRules } from '@caotang/store';
 
 import { isCommandName } from '../commands/slash.js';
 import type { PlanStep } from '../plan.js';
@@ -26,6 +27,7 @@ import type { BudgetSpend } from './budget.js';
 import type { StepRevisions } from './background.js';
 import type { TurnStatus } from './events.js';
 import type { LoadedSkill } from '../tools/skills.js';
+import type { SourcedRule } from '../rules.js';
 
 /** The version of the event shapes below. A `turn.start` of another version is refused, not guessed at. */
 export const RUN_LOG_VERSION = 3;
@@ -71,6 +73,7 @@ export type RunEvent =
       readonly done: readonly number[];
     })
   | (Stamp & { readonly t: 'card.decided'; readonly turnId: string; readonly decision: 'approved' | 'auto' | 'cancelled' | 'refused' })
+  | (Stamp & { readonly t: 'rule.approved'; readonly turnId: string; readonly callId: string; readonly tool: string; readonly rule: SourcedRule })
   | (Stamp & {
       readonly t: 'step.intent';
       readonly turnId: string;
@@ -147,8 +150,8 @@ export interface RunWriter {
   readonly runId: string;
   /** Whether a write failed, so the log no longer describes the run. */
   readonly broken: boolean;
-  /** Numbers, stamps and stores one event. True means committed; false means failed or skipped. Never rejects. */
-  append(event: RunEventDraft, patch?: RunPatch): Promise<boolean>;
+  /** Numbers, stamps and stores one event or an atomic batch. True means committed; false means failed or skipped. Never rejects. */
+  append(event: RunEventDraft | readonly RunEventDraft[], patch?: RunPatch): Promise<boolean>;
   /** Marks the log as no longer describing the run, for a failure that is not an append (the flush, the first write). The notice carries the cause when there is one. */
   fail(cause?: unknown): void;
 }
@@ -185,10 +188,10 @@ export function createRunWriter(options: RunWriterOptions): RunWriter {
     append(event, patch) {
       const run = queue.then(async () => {
         if (broken) return false;
-        const stamped = { ...event, seq, at: clock() } as RunEvent;
-        seq += 1;
+        const at = clock();
+        const stamped = ('t' in event ? [event] : event).map((entry) => ({ ...entry, seq: seq++, at }) as RunEvent);
         try {
-          await options.port.append(options.runId, [stamped], { ...patch, updatedAt: stamped.at });
+          await options.port.append(options.runId, stamped, { ...patch, updatedAt: at });
           return true;
         } catch (error) {
           fail(error);
@@ -334,6 +337,7 @@ const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) =>
     Array.isArray(e['done']) &&
     e['done'].every((index) => isCount(index) && index < (e['steps'] as readonly unknown[]).length),
   'card.decided': (e) => isString(e['turnId']) && ['approved', 'auto', 'cancelled', 'refused'].includes(e['decision'] as string),
+  'rule.approved': (e) => isString(e['turnId']) && isString(e['callId']) && isString(e['tool']) && isRecord(e['rule']) && e['rule']['effect'] === 'allow' && e['rule']['source'] === 'app' && parseRules([e['rule']], { toolOnly: true, trustedSettings: true }).rules.length === 1,
   'step.intent': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && revisionsOk(e['expect']) && isString(e['structure']),
   'step.applied': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && revisionsOk(e['after']) && (e['summary'] === undefined || isString(e['summary'])),
   'step.failed': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && isString(e['error']),

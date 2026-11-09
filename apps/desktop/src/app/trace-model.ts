@@ -6,7 +6,10 @@
  */
 
 import { TRACE_REVIEWS, type TraceMessage, type TraceRecord, type TraceStore, type TraceText } from '@caotang/harness';
+import { t } from '@lingui/core/macro';
 import { formatCount } from '../i18n/locale.js';
+
+/* lingui-set comment="Interpolated values: tool, ruleTool" */
 
 export interface TraceMessageView {
   readonly id: string;
@@ -77,7 +80,16 @@ export interface TraceNoteRow {
   readonly text: string;
 }
 
-export type TraceRow = TraceCallRow | TraceToolRow | TraceNoteRow;
+export interface TraceRuleApprovalRow {
+  readonly kind: 'rule.approved';
+  readonly key: string;
+  readonly startMs: number;
+  readonly callId: string;
+  readonly text: string;
+  readonly rule: string;
+}
+
+export type TraceRow = TraceCallRow | TraceToolRow | TraceNoteRow | TraceRuleApprovalRow;
 
 export interface TraceTimeline {
   readonly turnId: string;
@@ -221,6 +233,16 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
           durationMs: record.finishedAt - (record.startedAt ?? record.finishedAt),
           ...(record.truncated === undefined ? {} : { cut: record.truncated.chars }),
         }));
+        break;
+      case 'rule.approved':
+        rows.push({
+          kind: 'rule.approved',
+          key: `rule-approved-${record.seq}`,
+          startMs: record.at - t0,
+          callId: record.callId,
+          text: t`Automatically approved ${{ tool: record.tool }} using your Settings rule for ${{ ruleTool: record.rule.tool }}.`,
+          rule: jsonOf(record.rule),
+        });
         break;
       case 'card':
         rows.push({

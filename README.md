@@ -10,6 +10,8 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 ## What works today
 
+- **Writer-authored approvals.** Settings › Agent can allow automatic approval of eligible native tool cards in Ask. Deny and ask rules take precedence; Plan only, read-only access and safety refusals still hold. Each allowed call is recorded with its rule. Project files cannot grant approval.
+
 - **Navigation.** Modern puts workspace views below the page and document modes beside its title: Script/Source/Pages for a screenplay, Graph/Ink for dialogue. Search (Ctrl+K, or Cmd+K) reaches every view, Binder, Findings, the Agent logs and New without taking the browser's numbered tab shortcuts.
 - **Phone typing.** Modern hides the bottom tab bar while the on-screen keyboard is open, including in iOS Safari, and brings it back when the keyboard closes or you leave the field.
 - **Picture guidance.** Insert picture aligns with the manuscript text in both interfaces. Empty comic panels explain how to add art, with wrapping guidance in English and German.

@@ -15,6 +15,7 @@ import type { Finding } from '@caotang/coherence';
 import { ACCEPT_EDITS_TOOLS, DEFAULT_TURN_BUDGET, ModeError, PERMISSION_MODES, budgetHit, createAgentPorts, createAgentSession, createContextPort, modePolicy, type AgentEvent, type AgentSessionOptions, type Decision, type PendingCard, type PermissionMode, type PlanStep, type TurnReport } from '../../src/index.js';
 import { CHAPTER_TWO, checkedHarness, FRIEND, LANDING, LANDING_BODY, makeHarness, makeState, OPENED, STORM } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
+import { createMemoryRunLog } from '../../src/index.js';
 import { answer, prose, steps, transcript } from './scripts.js';
 
 type SessionExtras = Pick<AgentSessionOptions, 'mode' | 'lockAuto' | 'taint' | 'noHuman' | 'budget' | 'sessionBudget' | 'price' | 'beforeAutoApply' | 'maxModelCalls'>;
@@ -409,6 +410,20 @@ describe('what no mode takes from the writer or the bus', () => {
 
   // Name the external tool: a broad "write" query exercises the native-first search cap, not the permission gate under test.
   const FIND = steps({ tool: 'tool.search', params: { query: 'write_note' }, expect: 'the write tool is loaded' });
+
+  it('does not let a Settings allow approve an external write', async () => {
+    const calls: string[] = [];
+    const harness = makeHarness({ mcp: { client: await connected(calls) }, rules: () => ({ rules: [{ effect: 'allow', tool: WRITE, source: 'app' }] }) });
+    const intent = 'Note the lore.';
+    const gateway = await mockGateway([transcript(intent, [FIND, steps({ tool: WRITE, params: { text: 'A note.' }, expect: 'written' })])]);
+    const asked: PendingCard[] = [];
+    const log = createMemoryRunLog();
+    const session = createAgentSession({ harness, gateway, mode: 'ask', runLog: { port: log, projectId: 'project' }, decide: async (card) => { asked.push(card); return { action: 'cancel' }; } });
+    expect((await session.submit(intent)).status).toBe('cancelled');
+    expect(asked.map((card) => card.kind)).toEqual(['confirm']);
+    expect(calls).toEqual([]);
+    expect(log.dump()).not.toContain('rule.approved');
+  });
 
   it('an external write asks the writer in accept-edits and auto, and is refused outright in plan-only', async () => {
     const intent = 'Note the lore.';

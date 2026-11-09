@@ -102,7 +102,7 @@ export interface AgentSettings {
   /** The limits a turn is held to. A limit left out keeps the harness's default, or is not enforced (agent-harness §4, §7.1). */
   readonly budget: AgentBudgetSettings;
   /**
-   * The writer's own rules for the agent, in every project (agent-harness §4, Rules): deny or ask a tool, never a folder, since a binder id
+   * The writer's own rules for the agent, in every project (agent-harness §4, Rules): deny, ask or allow a tool, never a folder, since a binder id
    * belongs to one project. A rule for a folder is made in the binder and kept in that project's file.
    */
   readonly rules: readonly PermissionRule[];
@@ -158,7 +158,7 @@ export function normalizeAgent(raw: unknown): AgentSettings {
     lockAuto,
     budget: limits,
     // A rule that cannot be read is dropped, field by field like the rest; the Settings list shows what is kept.
-    rules: parseRules(source['rules'], { toolOnly: true }).rules,
+    rules: parseRules(source['rules'], { toolOnly: true, trustedSettings: true }).rules,
   };
 }
 

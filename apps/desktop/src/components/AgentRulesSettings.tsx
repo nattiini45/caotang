@@ -1,10 +1,12 @@
 /**
  * The rules part of Settings › Agent (agent-harness §4, Rules): every rule the agent is held to, with where it comes from and a way to
  * remove it. A project's rules live in its file and are made from the binder menu; the writer's own rules live in the app's settings, hold
- * in every project, and name a tool. A rule only narrows the agent, so there is nothing here that lets it do more.
+ * in every project, and name a tool.
  */
 
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 
 import { TOOL_NAMES, ruleWarnings, type PermissionRule, type RuleEffect } from '@caotang/harness';
 
@@ -78,6 +80,7 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
   const [tool, setTool] = useState('');
   const [effect, setEffect] = useState<RuleEffect>('deny');
   const [message, setMessage] = useState<{ readonly text: string; readonly tone: 'info' | 'error' } | null>(null);
+  const warnings = ruleWarnings({ rules: rules.map((rule) => ({ ...rule, source: 'app' as const })) }, session?.state, TOOL_NAMES);
 
   const save = (next: readonly PermissionRule[], done: string): void => {
     void services.settings.update({ agent: { rules: next } }).then((error) => {
@@ -101,9 +104,13 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
     <div className="settings-agent-rules" data-testid="agent-rules-settings">
       <h4 id="settings-agent-rules">Rules</h4>
       <p className="settings-note">
-        A rule narrows what the agent may do. Never stops a tool or a folder from being used, and Ask first makes the agent wait for your card
-        even in Auto. A rule for a folder is made from its menu in the binder and is kept in the project’s file, so it goes with the project.
-        The ones below apply to every project.
+        <Trans>A “never” rule wins over an “ask first” rule, and an “ask first” rule wins over an “allow” rule. Asking first keeps approval cards even in Auto. Allow can skip a native tool’s approval card in Ask mode only when you create the rule here in Settings. Each automatic approval is logged with its rule.</Trans>
+      </p>
+      <p className="settings-note">
+        <Trans>Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval.</Trans>
+      </p>
+      <p className="settings-note">
+        <Trans>Make folder rules from the binder menu; they stay in the project’s file and travel with it. Your Settings rules below apply to every project.</Trans>
       </p>
       {session === null ? null : <ProjectRules session={session} />}
       <h5>In every project</h5>
@@ -114,6 +121,11 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
         empty="You have no rules of your own."
         onRemove={(index) => save(rules.filter((_, at) => at !== index), 'Removed. It applies from the agent’s next call.')}
       />
+      {warnings.length > 0 ? (
+        <ul className="settings-note" aria-label={t`Settings rules that need a look`}>
+          {warnings.map((warning) => <li key={warning}>{warning}.</li>)}
+        </ul>
+      ) : null}
       <form className="settings-form" noValidate onSubmit={add}>
         <label>
           <span>Tool</span>
@@ -130,6 +142,7 @@ export function AgentRulesSettings({ services, session }: { readonly services: A
           <select value={effect} onChange={(event) => setEffect(event.target.value as RuleEffect)}>
             <option value="deny">The agent may never use it</option>
             <option value="ask">The agent must ask me first</option>
+            <option value="allow"><Trans>The agent may skip approval in Ask mode</Trans></option>
           </select>
         </label>
         <button type="submit" className="button">

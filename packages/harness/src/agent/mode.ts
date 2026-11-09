@@ -2,7 +2,7 @@
  * Permission modes (agent-harness §4): how much of a card's decision the writer hands to a policy.
  *
  * - `plan-only` runs reads and refuses every write before it is drafted. The planner's steps are kept so the writer can run them later.
- * - `ask` is the default: every card is the writer's.
+ * - `ask` is the default: cards ask the writer unless an eligible Settings allow covers their tools.
  * - `accept-edits` approves, as shown, the cards whose every write step is a native tool on the approved list (`ACCEPT_EDITS_TOOLS`).
  * - `auto` approves any card of native tools as shown, inside the turn's budgets.
  *
@@ -206,6 +206,7 @@ export function callDigest(tool: string, params: Readonly<Record<string, unknown
 /** What a policy is told about a card to decide it. `tools` are the steps still to run that are not reads. */
 export interface CardFacts {
   readonly tools: readonly string[];
+  readonly allowedTools?: readonly string[];
   /** A step of the card is a loaded external tool. */
   readonly external: boolean;
 }
@@ -251,9 +252,9 @@ export function modePolicy(mode: PermissionMode, options: ModePolicyOptions = {}
     },
     noHuman,
     approves(card) {
-      if (!decides || tainted() || card.external) return false;
+      if (mode === 'plan-only' || (!decides && !card.allowedTools?.length) || tainted() || card.external) return false;
       if (card.tools.some((tool) => NEVER_AUTO_APPROVED_TOOLS.has(tool))) return false;
-      return mode === 'auto' || card.tools.every((tool) => ACCEPT_EDITS_TOOLS.has(tool));
+      return mode === 'auto' || card.tools.every((tool) => (mode === 'accept-edits' && ACCEPT_EDITS_TOOLS.has(tool)) || (mode === 'ask' && card.allowedTools?.includes(tool) === true));
     },
   };
 }

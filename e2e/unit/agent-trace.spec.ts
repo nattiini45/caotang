@@ -308,3 +308,19 @@ test('a hook that stopped a step is a row of the timeline, in the hook’s words
     ['hook', 'Hook “No lanterns” added a note to doc.read (tool.after): 1 finding.'],
   ]);
 });
+
+test('an automatic rule approval names its Settings rule and keeps the full rule for inspection', () => {
+  const store = createTraceStore({ sessionId: 'test' });
+  const rule = { effect: 'allow', tool: 'scene.*', source: 'app', note: 'My drafts' } as const;
+  store.write({ kind: 'turn.start', at: 0, turnId: 't.turn-1', intent: 'Draft it.' });
+  store.write({ kind: 'rule.approved', at: 3, turnId: 't.turn-1', callId: 'c1', tool: 'scene.draft', rule });
+
+  expect(turnTimeline(store, 't.turn-1').rows).toEqual([{
+    kind: 'rule.approved',
+    key: expect.any(String),
+    startMs: 3,
+    callId: 'c1',
+    text: 'Automatically approved scene.draft using your Settings rule for scene.*.',
+    rule: JSON.stringify(rule, null, 2),
+  }]);
+});

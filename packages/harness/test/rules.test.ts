@@ -56,6 +56,19 @@ describe('globMatches', () => {
 });
 
 describe('evaluateRules', () => {
+  it('allows only Settings-authored native writes, with deny and ask taking precedence', () => {
+    const allowed: SourcedRule = { effect: 'allow', tool: '*', source: 'app' };
+    expect(evaluateRules(set(allowed), write, writing(FRIEND), state)).toEqual({ effect: 'allow', rule: allowed });
+    for (const effect of ['deny', 'ask'] as const) {
+      expect(evaluateRules(set(allowed, { effect, tool: '*', source: 'project' }), write, writing(FRIEND), state).effect).toBe(effect);
+    }
+    for (const source of ['project', 'session'] as const) expect(evaluateRules(set({ ...allowed, source }), write, writing(FRIEND), state).effect).toBe('none');
+    expect(evaluateRules(set({ ...allowed, scope: { subtree: FRIEND } }), write, writing(FRIEND), state).effect).toBe('none');
+    expect(evaluateRules(set({ ...allowed, access: 'read' }), write, writing(FRIEND), state).effect).toBe('none');
+    expect(evaluateRules(set(allowed), { ...write, external: true }, undefined, state).effect).toBe('none');
+    expect(evaluateRules(set(allowed), read, reading(FRIEND), state).effect).toBe('none');
+    expect(ruleWarnings(set({ ...allowed, tool: 'mcp__notion__*' }), undefined, []).join(' ')).toContain('native tools');
+  });
   it('has no verdict without rules', () => {
     expect(evaluateRules(NO_RULES, write, writing(LANDING), state).effect).toBe('none');
   });
@@ -215,6 +228,12 @@ describe('refusals and warnings', () => {
 });
 
 describe('parseRules', () => {
+  it('accepts allow only from trusted Settings storage, never a project-file source flag', () => {
+    const rules = [{ effect: 'allow', tool: 'notes.replace', source: 'app', trusted: true }];
+    expect(parseRules(rules).rules).toEqual([]);
+    expect(parseRules(rules, { trustedSettings: true, toolOnly: true }).rules).toEqual([{ effect: 'allow', tool: 'notes.replace' }]);
+    expect(parseRules([...rules, { effect: 'deny' }], { trustedSettings: true, toolOnly: true }).rules).toEqual([]);
+  });
   it('keeps a well-formed deny and ask, and drops the rest with a warning that names it', () => {
     const parsed = parseRules(
       [

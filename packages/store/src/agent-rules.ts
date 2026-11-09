@@ -2,12 +2,12 @@
  * Agent rules as data — [agent-harness.md §4](../../../docs/architecture/agent-harness.md), stored under `agent.rules` in
  * `caotang.json` ([project-format.md §2](../../../docs/architecture/project-format.md)) and in the app's settings.
  *
- * A rule narrows what the agent may do: `deny` refuses a call, `ask` forces a card for it. There is no `allow` in this build, so
- * a project file can only restrict the agent and never grant it power. The evaluation is the harness's (`rules.ts`); this module
+ * Deny refuses a call and ask forces a card. Allow is read only from trusted Settings storage; a project file
+ * can only restrict the agent and never grant it power. The evaluation is the harness's (`rules.ts`); this module
  * owns the shape and the tolerant read, so the manifest loader and the app's settings read one definition.
  */
 
-export const RULE_EFFECTS = ['deny', 'ask'] as const;
+export const RULE_EFFECTS = ['deny', 'ask', 'allow'] as const;
 export type RuleEffect = (typeof RULE_EFFECTS)[number];
 
 export const RULE_ACCESSES = ['read', 'write', 'any'] as const;
@@ -49,6 +49,7 @@ export interface ParseRulesOptions {
   readonly at?: string;
   /** Tool-level rules only (the app's settings): a rule with a scope is dropped, since a node id means nothing across projects. */
   readonly toolOnly?: boolean;
+  readonly trustedSettings?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -65,7 +66,7 @@ function scopeOf(raw: unknown): RuleScope | undefined {
 
 /**
  * Reads a list of rules, tolerantly: a rule that cannot be read is dropped with a warning and never blocks a load. A dropped
- * rule is a restriction lost, so each warning says which rule it was. An `allow` rule is dropped too, since this build has none.
+ * rule is a restriction lost, so each warning says which rule it was. An `allow` rule is dropped unless the caller reads trusted Settings storage.
  */
 export function parseRules(raw: unknown, options: ParseRulesOptions = {}): ParsedRules {
   const at = options.at ?? 'rules';
@@ -87,12 +88,12 @@ export function parseRules(raw: unknown, options: ParseRulesOptions = {}): Parse
       continue;
     }
     const effect = item['effect'];
-    if (effect === 'allow') {
-      warnings.push(`${where}: allow rules are not supported in this build, so this one has no effect; dropped`);
+    if (effect === 'allow' && options.trustedSettings !== true) {
+      warnings.push(`${where}: only rules authored in Settings may allow automatic approval; this rule has no effect and was dropped`);
       continue;
     }
     if (typeof effect !== 'string' || !(RULE_EFFECTS as readonly string[]).includes(effect)) {
-      warnings.push(`${where}: expected an effect of deny or ask; dropped`);
+      warnings.push(`${where}: expected an effect of deny, ask or allow; dropped`);
       lost += 1;
       continue;
     }
@@ -132,6 +133,10 @@ export function parseRules(raw: unknown, options: ParseRulesOptions = {}): Parse
       ...(access === undefined ? {} : { access: access as RuleAccess }),
       ...(kept === undefined ? {} : { note: kept }),
     });
+  }
+  if (lost > 0 && rules.some((rule) => rule.effect === 'allow')) {
+    warnings.push(`${at}: automatic approval rules were dropped because restrictive rules could not be read; review the rules in Settings`);
+    return { rules: rules.filter((rule) => rule.effect !== 'allow'), warnings, lost };
   }
   return { rules, warnings, lost };
 }

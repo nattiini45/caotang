@@ -82,7 +82,7 @@ function modeHint(mode: PermissionMode): string {
     case 'plan-only':
       return t`Reads run. Every write is refused and kept as a plan you can run later.`;
     case 'ask':
-      return t`Every plan and confirm card waits for your decision.`;
+      return t`Plan and confirm cards wait for your decision unless an eligible Settings allow rule approves them.`;
     case 'accept-edits':
       return t`Cards that change the project’s own text or fields (including dialogue drafts, prompt drafts and storyboard shots) are approved as shown. Everything else asks.`;
     case 'auto':
@@ -175,7 +175,7 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
       <h4 id="settings-agent-mode"><Trans>Permission mode</Trans></h4>
       <p className="settings-note">
         <Trans>
-          The mode decides who answers the agent’s cards. Ask is the default: every card waits for you. The agent panel can pick another
+          The mode decides who answers the agent’s cards. Ask is the default: cards wait for you unless an eligible Settings allow rule approves them. The agent panel can pick another
           mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project.
         </Trans>
       </p>

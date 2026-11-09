@@ -2147,6 +2147,10 @@ msgstr "1 Element"
 msgid "a “Chapter” line"
 msgstr "eine „Kapitel“-Zeile"
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "A “never” rule wins over an “ask first” rule, and an “ask first” rule wins over an “allow” rule. Asking first keeps approval cards even in Auto. Allow can skip a native tool’s approval card in Ask mode only when you create the rule here in Settings. Each automatic approval is logged with its rule."
+msgstr "Eine „Nie“-Regel hat Vorrang vor einer „Zuerst fragen“-Regel, und eine „Zuerst fragen“-Regel hat Vorrang vor einer „Erlauben“-Regel. Zuerst fragen behält Freigabekarten auch im Auto-Modus bei. Erlauben kann die Freigabekarte eines nativen Tools im Fragen-Modus nur überspringen, wenn Sie die Regel hier in den Einstellungen erstellen. Jede automatische Freigabe wird mit ihrer Regel protokolliert."
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "a “Part” line"
@@ -3180,6 +3184,10 @@ msgstr "Alle Änderungen in diesem Browser gespeichert"
 msgid "All scenes"
 msgstr "Alle Szenen"
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
+msgstr "Erlauben setzt weder den Plan-Modus, schreibgeschützten Zugriff, die Einschränkungen eines Modus noch einen als nicht vertrauenswürdig markierten Durchlauf außer Kraft. Externe Schreibzugriffe und Tools, die das Gedächtnis oder die Anweisungen des Agenten ändern, brauchen weiterhin Ihre Freigabe. Regeln aus Projekten, Importen, MCP-Servern oder vom Agenten können keine Freigabe erteilen."
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Allowed statuses (comma-separated)"
@@ -3755,6 +3763,11 @@ msgstr "Automatisch: Seitenumbrüche"
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Automatic: style “{name}”"
 msgstr "Automatisch: Formatvorlage „{name}“"
+
+#. Interpolated values: tool, ruleTool
+#: apps/desktop/src/app/trace-model.ts
+msgid "Automatically approved {tool} using your Settings rule for {ruleTool}."
+msgstr "{tool} wurde durch Ihre Einstellungsregel für {ruleTool} automatisch freigegeben."
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -6606,12 +6619,6 @@ msgstr "Ereignis"
 msgid "Every card of the agent’s own tools is approved as shown, inside the turn’s budgets."
 msgstr "Jede Karte der eigenen Werkzeuge des Agenten wird wie gezeigt genehmigt, innerhalb der Budgets der Runde."
 
-#. Interpolated values: defaultSteps, defaultTokens, field, max, min
-#: apps/desktop/src/app/agent-model.ts
-#: apps/desktop/src/components/AgentModeSettings.tsx
-msgid "Every plan and confirm card waits for your decision."
-msgstr "Jede Plan- und Bestätigungskarte wartet auf Ihre Entscheidung."
-
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Every quick check is off in Settings, so this run would check nothing. Turn checks on in Settings › Coherence."
@@ -8884,6 +8891,10 @@ msgstr "Auf Dokumentebene verschieben"
 msgid "Make epilogue"
 msgstr "Zum Epilog machen"
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "Make folder rules from the binder menu; they stay in the project’s file and travel with it. Your Settings rules below apply to every project."
+msgstr "Erstellen Sie Ordnerregeln im Menü der Projektmappe. Sie bleiben in der Projektdatei und werden mit dem Projekt weitergegeben. Ihre folgenden Einstellungsregeln gelten für jedes Projekt."
+
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
 msgid "Make prologue"
@@ -8986,6 +8997,16 @@ msgstr "Maximale Wörter"
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Maximum words (optional)"
 msgstr "Höchste Wortanzahl (optional)"
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "May skip approval in Ask mode for {tool}"
+msgstr "Darf {tool} im Fragen-Modus ohne Freigabe ausführen"
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "May skip approval in Ask mode for any native tool"
+msgstr "Darf jedes native Tool im Fragen-Modus ohne Freigabe ausführen"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
@@ -11382,6 +11403,12 @@ msgstr "Plan"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.plan.content"
 msgstr "Plan"
+
+#. Interpolated values: defaultSteps, defaultTokens, field, max, min
+#: apps/desktop/src/app/agent-model.ts
+#: apps/desktop/src/components/AgentModeSettings.tsx
+msgid "Plan and confirm cards wait for your decision unless an eligible Settings allow rule approves them."
+msgstr "Plan- und Bestätigungskarten warten auf Ihre Entscheidung, sofern sie nicht durch eine anwendbare Erlaubnisregel aus den Einstellungen freigegeben werden."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
@@ -13930,6 +13957,10 @@ msgstr "Einstellungen › Schreiben"
 msgid "Settings for this recipe"
 msgstr "Einstellungen für dieses Exportprofil"
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "Settings rules that need a look"
+msgstr "Einstellungsregeln, die Sie prüfen sollten"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Settings sections"
@@ -15257,6 +15288,10 @@ msgstr "Der Agent arbeitet an einem anderen Durchlauf. Öffnen Sie diese Aufgabe
 msgid "The agent is working on another turn. Resume the run when it has finished."
 msgstr "Der Agent arbeitet an einem anderen Durchlauf. Setzen Sie den Lauf fort, wenn er fertig ist."
 
+#: apps/desktop/src/components/AgentRulesSettings.tsx
+msgid "The agent may skip approval in Ask mode"
+msgstr "Im Fragen-Modus ohne Freigabe ausführen"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "the agent panel"
@@ -15878,8 +15913,8 @@ msgstr "Das Manuskript ist leer"
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
-msgid "The mode decides who answers the agent’s cards. Ask is the default: every card waits for you. The agent panel can pick another mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project."
-msgstr "Der Modus entscheidet, wer die Karten des Agenten beantwortet. „Ask“ ist die Standardeinstellung: Jede Karte wartet auf Sie. Das Agenten-Panel kann für das geöffnete Projekt einen anderen Modus wählen; dies ist der Modus, mit dem ein Panel startet. Nichts davon wird in einem Projekt gespeichert."
+msgid "The mode decides who answers the agent’s cards. Ask is the default: cards wait for you unless an eligible Settings allow rule approves them. The agent panel can pick another mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project."
+msgstr "Der Modus entscheidet, wer die Karten des Agenten beantwortet. Fragen ist die Standardeinstellung: Karten warten auf Sie, sofern sie nicht durch eine anwendbare Erlaubnisregel aus den Einstellungen freigegeben werden. Das Agenten-Panel kann für das geöffnete Projekt einen anderen Modus wählen; dies ist der Modus, mit dem ein Panel startet. Nichts davon wird in einem Projekt gespeichert."
 
 #. Shot prompt record refusals. Interpolated values: shotId is a shot's id; number is a line number; first and last bound a whole number.
 #: apps/desktop/src/media/prompt-edit-model.ts
@@ -16802,6 +16837,21 @@ msgstr "Denken: {levels}"
 msgid "Third Age"
 msgstr "Drittes Zeitalter"
 
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "This allow rule for {tool} cannot approve external writes."
+msgstr "Diese Erlaubnisregel für {tool} kann keine externen Schreibzugriffe freigeben."
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "This allow rule for {tool} has no effect because it only names read access."
+msgstr "Diese Erlaubnisregel für {tool} hat keine Wirkung, weil sie nur Lesezugriff betrifft."
+
+#. Interpolated values: tool
+#: apps/desktop/src/app/agent-rules-model.ts
+msgid "This allow rule has no effect because it names a folder or path."
+msgstr "Diese Erlaubnisregel hat keine Wirkung, weil sie einen Ordner oder Pfad nennt."
+
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "This browser cannot open HEIC photos."
 msgstr "Dieser Browser kann keine HEIC-Fotos öffnen."
@@ -17455,6 +17505,11 @@ msgstr "Tokens pro Zug"
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Tool"
 msgstr "Tool"
+
+#. callId is the tool call identifier from the audit log.
+#: apps/desktop/src/components/TracePanel.tsx
+msgid "Tool call: {callId}"
+msgstr "Tool-Aufruf: {callId}"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
