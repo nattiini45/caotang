@@ -217,6 +217,8 @@ Loader steps when `caotang.json` is unparseable:
 
 ## 8. Runtime store vs artifact (explicit split)
 
+The browser-store connection follows `store.connection` in [state-machines.md](state-machines.md): opening, open, then closed or stale; a blocked open and newer-version or other failure end that attempt. A blocked upgrade refuses immediately with guidance to close the other Caotang tabs and reload, not an indefinitely pending open. The browser may still finish the request after the blocking tab closes; that late connection is closed and never returned. An ordinary close retains the browser's normal closed-connection error, while a connection closed by another tab's upgrade retains the specific stale refusal. The lifecycle is memory-only and changes neither the runtime schema (version 4) nor any artifact bytes.
+
 v0.1 is a browser app. Browsers cannot hold a user-visible folder as the working copy without File System Access API (Chromium-only, per-session permission). Therefore:
 
 - **Runtime truth:** IndexedDB (OPFS sync access handles stay a reserved fallback if word-count or scan performance ever demands them). All commands read/write the runtime store.

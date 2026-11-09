@@ -74,6 +74,74 @@ function call(params: Record<string, unknown>, callId: string): Command {
 }
 
 describe('executeAsync — the apply is awaited, and every other step is the synchronous one', () => {
+  it('shares one in-flight apply and result for concurrent copies of a turn-scoped callId', async () => {
+    const { bus, log } = busFor();
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    let calls = 0;
+    const slowRegistry = { ...registry, 'mcp.invoke': { descriptor, apply: async (...args: Parameters<typeof apply>) => {
+      calls += 1;
+      await pending;
+      return apply(...args);
+    } } } as unknown as CommandRegistry;
+    const command = call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'same');
+    const first = executeAsync(command, bus, slowRegistry);
+    const second = executeAsync({ ...command, params: { effectiveRisk: 'read-auto', toolName: 'search_lore' } }, bus, slowRegistry);
+    finish();
+    const [a, b] = await Promise.all([first, second]);
+    expect(calls).toBe(1);
+    expect(b).toBe(a);
+    expect(log.entries()).toHaveLength(1);
+  });
+
+  it('refuses a different command and a synchronous replay while the first call is applying', async () => {
+    const { bus, log } = busFor();
+    const command = call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'pending');
+    const first = executeAsync(command, bus, registry);
+    const mismatch = await executeAsync({ ...command, params: { toolName: 'other', effectiveRisk: 'read-auto' } }, bus, registry);
+    expect(mismatch.ok).toBe(false);
+    if (!mismatch.ok) expect(mismatch.error.message).toContain('different command');
+    const sync = execute(command, bus, registry);
+    expect(sync.ok).toBe(false);
+    if (!sync.ok) expect(sync.error.message).toContain('still applying');
+    expect((await first).ok).toBe(true);
+    expect(log.entries()).toHaveLength(1);
+  });
+
+  it('does not resurrect a turn cache after a pending apply settles', async () => {
+    const { bus } = busFor();
+    const command = call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'ending');
+    const first = executeAsync(command, bus, registry);
+    bus.idempotency.endTurn('turn-1');
+    expect((await first).ok).toBe(true);
+    expect(bus.idempotency.size()).toBe(0);
+  });
+
+  it('reserves the promise before the apply can dispatch a reentrant copy', async () => {
+    const { bus, log } = busFor();
+    const command = call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'reentrant');
+    let reentrant!: Promise<Awaited<ReturnType<typeof executeAsync>>>;
+    let calls = 0;
+    const reentrantRegistry = { ...registry, 'mcp.invoke': { descriptor, apply: async (...args: Parameters<typeof apply>) => {
+      calls += 1;
+      if (calls === 1) reentrant = executeAsync(command, bus, reentrantRegistry);
+      return apply(...args);
+    } } } as unknown as CommandRegistry;
+    const result = await executeAsync(command, bus, reentrantRegistry);
+    expect(await reentrant).toBe(result);
+    expect(calls).toBe(1);
+    expect(log.entries()).toHaveLength(1);
+  });
+
+  it('does not deduplicate calls without both a turnId and a callId', async () => {
+    const { bus, log } = busFor();
+    const command = call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'unscoped');
+    delete command.turnId;
+    await Promise.all([executeAsync(command, bus, registry), executeAsync(command, bus, registry)]);
+    expect(log.entries()).toHaveLength(2);
+    expect(bus.idempotency.size()).toBe(0);
+  });
+
   it('runs an asynchronous apply to its result, and writes its row under the command’s own source', async () => {
     const { bus, log } = busFor();
     const result = await executeAsync(call({ toolName: 'search_lore', effectiveRisk: 'read-auto' }, 'c-read'), bus, registry, 'native');

@@ -14,6 +14,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Opening browser storage.** If another tab blocks an upgrade, opening now asks you to close the other Caotang tabs and reload instead of waiting indefinitely.
+
+- **Undoing a finding verdict.** Undo restores the finding's prior note and curation timestamps as well as its status. Discard run can then remove a finding whose first change you undid. Concurrent copies of one agent tool call also share one apply instead of applying twice.
+
 - **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
 
 - **Reading skills before drafting.** A plan cannot draft a later step before its `skill.load` or requested `skill.read` has finished. The agent receives the effective tool limits when it loads a skill and reads the instructions and references in a read-only phase first; edits and reorders cannot reuse a proposal across a pending skill read. Skill-guided work stays in the foreground, and older queued plans containing skill tools fail without provider work instead of dropping their skill context.

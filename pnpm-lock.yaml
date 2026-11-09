@@ -361,6 +361,9 @@ importers:
       '@caotang/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/pictures':
         specifier: workspace:*
         version: link:../pictures
@@ -1108,6 +1111,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/pictures':
         specifier: workspace:*
         version: link:../pictures

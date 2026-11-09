@@ -58,6 +58,7 @@
  */
 
 import type { Command } from './command.js';
+import { canMove, type MachineTable } from '@caotang/machine';
 import type { ExecutionOutcome } from './pipeline.js';
 import { err, type CommandError, type Result } from './result.js';
 
@@ -67,6 +68,22 @@ interface CacheEntry {
   readonly fingerprint: string;
   readonly result: Result<ExecutionOutcome, CommandError>;
 }
+
+type CallState = { readonly kind: 'unseen' } | { readonly kind: 'in-flight' } | { readonly kind: 'recorded' };
+type CallEvent = { readonly type: 'apply' | 'settle' | 'end-turn' };
+
+export const callIdTable: MachineTable<CallState, CallEvent> = {
+  id: 'bus.call-id', initial: 'unseen', final: [],
+  on: {
+    unseen: { apply: ['in-flight', 'recorded'] },
+    'in-flight': { settle: ['recorded'], 'end-turn': ['unseen'] },
+    recorded: { 'end-turn': ['unseen'] },
+  },
+};
+
+type CallEntry =
+  | ({ readonly kind: 'recorded' } & CacheEntry)
+  | { readonly kind: 'in-flight'; readonly fingerprint: string; readonly result: Promise<Result<ExecutionOutcome, CommandError>> };
 
 export interface IdempotencyCache {
   /**
@@ -78,6 +95,8 @@ export interface IdempotencyCache {
    * reports the same refusal instead of applying the effect twice.
    */
   lookup(command: Command): Result<ExecutionOutcome, CommandError> | undefined;
+  lookupAsync(command: Command): Result<ExecutionOutcome, CommandError> | Promise<Result<ExecutionOutcome, CommandError>> | undefined;
+  runAsync(command: Command, apply: () => Promise<Result<ExecutionOutcome, CommandError>>): Promise<Result<ExecutionOutcome, CommandError>>;
   /**
    * Record a dispatch that reached `apply`. A command without both a `turnId` and
    * a `callId` records nothing — the one place that decision is made.
@@ -137,16 +156,55 @@ let unserialisableCount = 0;
  * A cap would be a guess against a spec that does not ask for one.
  */
 export function createIdempotencyCache(): IdempotencyCache {
-  const byTurn = new Map<string, Map<string, CacheEntry>>();
+  const byTurn = new Map<string, Map<string, CallEntry>>();
+
+  function lookupAsync(command: Command) {
+    const key = keyOf(command);
+    if (key === undefined) return undefined;
+    const entry = byTurn.get(key.turnId)?.get(key.callId);
+    if (entry === undefined) return undefined;
+    if (entry.fingerprint !== fingerprintOf(command)) return err(mismatch(command, entry.fingerprint));
+    return entry.result;
+  }
 
   return {
     lookup(command) {
+      const replay = lookupAsync(command);
+      if (replay instanceof Promise) return err({
+        code: 'internal',
+        message: 'This callId is still applying. Await executeAsync() to receive its result; nothing was applied again.',
+        target: command.name,
+        correctiveHint: 'await executeAsync() for this callId instead of retrying it synchronously',
+      });
+      return replay;
+    },
+
+    lookupAsync,
+
+    runAsync(command, apply) {
+      const replay = lookupAsync(command);
+      if (replay !== undefined) return Promise.resolve(replay);
       const key = keyOf(command);
-      if (key === undefined) return undefined;
-      const entry = byTurn.get(key.turnId)?.get(key.callId);
-      if (entry === undefined) return undefined;
-      if (entry.fingerprint !== fingerprintOf(command)) return err(mismatch(command, entry.fingerprint));
-      return entry.result;
+      if (key === undefined) return apply();
+      let turn = byTurn.get(key.turnId);
+      if (turn === undefined) {
+        turn = new Map();
+        byTurn.set(key.turnId, turn);
+      }
+      const activeTurn = turn;
+      const fingerprint = fingerprintOf(command);
+      let resolve!: (answer: Result<ExecutionOutcome, CommandError>) => void;
+      let reject!: (reason: unknown) => void;
+      const result = new Promise<Result<ExecutionOutcome, CommandError>>((accept, refuse) => { resolve = accept; reject = refuse; });
+      const entry: CallEntry = { kind: 'in-flight', fingerprint, result };
+      activeTurn.set(key.callId, entry);
+      void apply().then((answer) => {
+        if (byTurn.get(key.turnId) === activeTurn && activeTurn.get(key.callId) === entry && canMove(callIdTable, entry.kind, 'settle')) {
+          activeTurn.set(key.callId, { kind: 'recorded', fingerprint, result: answer });
+        }
+        resolve(answer);
+      }, reject);
+      return result;
     },
 
     record(command, result) {
@@ -157,7 +215,7 @@ export function createIdempotencyCache(): IdempotencyCache {
         turn = new Map();
         byTurn.set(key.turnId, turn);
       }
-      turn.set(key.callId, { fingerprint: fingerprintOf(command), result });
+      turn.set(key.callId, { kind: 'recorded', fingerprint: fingerprintOf(command), result });
     },
 
     endTurn(turnId) {

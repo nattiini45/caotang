@@ -63,6 +63,34 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `coherence.finding`
+
+Owner: `packages/bus/src/coherence.ts`; contract: [coherence.md §6.3](coherence.md#63-dismissal-ui-only-and-fixes-agent-proposed). The `open`, `dismissed` and `fixed` events name the requested status. `findingTransition` guards lifecycle functions, bus validation and the store apply through one table; `findingStatusMachine` provides its pure status step. Same-status requests are refused. Dismissal reasons, notes and the agent's postcondition remain domain validation, not table authorization. Upsert retains its existing redetection behavior, including keeping dismissed and fixed findings judged.
+
+The runtime adapter does not add `kind` to a finding or change `coherence.json`. Status undo restores the previous verdict, note and curation stamps through the existing session-only inverse restore table, including absence of `touchedAt`, so Discard run still recognizes an undone first touch. `supersededBy` is reserved and round-tripped, not written by this lifecycle. Exhaustive samples cover every state/event pair; store and browser scenarios cover undo followed by run discard.
+
+### `bus.call-id`
+
+Owner: `packages/bus/src/idempotency.ts`; contract: [command-bus.md §6](command-bus.md#6-idempotency--concurrency). The cache interprets this table around its async effects: `apply` takes an unseen key to in-flight or directly recorded for synchronous execution; `settle` records an in-flight result; `end-turn` forgets either live state. In-flight entries carry a promise, recorded entries carry a result, and absent map entries are unseen. Concurrent async copies share one apply, including reentrant dispatch during the first apply. A synchronous replay of an in-flight call is refused rather than applying twice.
+
+The turn/call key and sorted-parameter fingerprint are unchanged. Mismatched reuse is refused before effects, admission refusals are not cached, and calls without both ids remain unscoped. Completing an old promise cannot repopulate a forgotten or replaced turn map. Nothing is persisted or added to traces. The async owner retains its code rather than using a reducer; an exhaustive guard matrix and pipeline scenarios cover the table, replay, mismatch and turn-end boundaries.
+
+### `store.connection`
+
+Owner: `packages/store/src/runtime/store.ts`; contract: [project-format.md §4 and §8](project-format.md#8-runtime-store-vs-artifact-explicit-split). `opening` accepts `opened`, `blocked` or `error`; the error branches into a newer-version refusal or the original browser failure. An open connection accepts `versionchange` into stale, or an ordinary `close` into closed. Stale, closed, blocked, newer and failed are final for that attempt. An ordinary close still yields the browser's normal closed-connection error; a stale close retains the specific newer-tab refusal.
+
+A blocked request rejects with guidance to close the other tabs and reload, rather than leaving startup pending indefinitely. IndexedDB cannot cancel that request: a late success is closed immediately and never published as a usable store. The in-memory test factory now models the versionchange/blocked handshake, including cooperative close and delayed success. Exhaustive samples and connection scenarios cover the lifecycle. State is session-only; the public RuntimeStore API, DB version 4, saved projects and bundles are unchanged.
+
+### `asset.staging`
+
+Owner: `packages/store/src/asset-staging.ts`; contract: [pictures.md §6.4.2](pictures.md#642-import-reservation-and-retention-ports-p1-and-p8). Events are `reserve`, `commit`, `release`, `take`, `discard` and `cancel`. Staged and reserved states each have a cancelled variant; only reserved variants carry a reservation id. Commit, discard and take remove a token. The removed variants retain the cancellation result for reservation handles that still reference the entry. All members of a reservation are checked before any token moves, and a foreign reservation cannot commit or release a token.
+
+This is a behavior-preserving conversion: cancellation is observable on an existing reservation even after removal; releasing a live reservation resets cancellation for retry; the legacy single-use `take` still returns cancelled staged bytes. The ten-minute expiry remains the host stager's policy, not a new timer here. Tokens and their state are memory-only, so no picture record, bundle or project format changes. Exhaustive samples include wrong reservation ids, and scenarios cover batch atomicity and stale handles.
+
+### `asset.removal-hold`
+
+Owner: `packages/store/src/asset-removals.ts`; contract: [pictures.md §6.4.2](pictures.md#642-import-reservation-and-retention-ports-p1-and-p8). A project/asset pair is clear or held with its active holder tokens. `acquire` adds one holder; `release` removes only that holder, returning to clear after the last one. Unknown and repeated releases change nothing. A later hold cannot be released by an older callback. The pure step replaces an implicit refcount and released flag; the existing revision-conflict refusal for a new reference during removal is unchanged. Hold state is memory-only, and exhaustive samples plus overlap/isolation scenarios cover it.
+
 ### `sprint.timer`
 
 Owner: `packages/furniture/src/sprint.ts`; product context: [goals-progress.md §9, item 4](goals-progress.md#9-history-metrics-and-goal-kinds). Events are `start`, `pause`, `resume`, `tick`, `stop`, `setDuration` and `reset`. Timed events carry epoch milliseconds and a session word-total sample. The owner provides the clock; paused time and words typed during a pause do not count.

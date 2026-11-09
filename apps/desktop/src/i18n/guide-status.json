@@ -7,10 +7,6 @@
           "hash": "633bef70",
           "anchor": "caotang-benutzerhandbuch"
         },
-        "your-work-and-where-it-lives": {
-          "hash": "9aad7b2f",
-          "anchor": "ihre-arbeit-und-wo-sie-lebt"
-        },
         "projects": {
           "hash": "f1aa6a0d",
           "anchor": "projekte"
@@ -82,10 +78,6 @@
         "knowledge": {
           "hash": "6e10c440",
           "anchor": "wissen"
-        },
-        "speakers-in-a-screenplay-and-its-dialogue": {
-          "hash": "5865ab47",
-          "anchor": "sprecher-in-einem-drehbuch-und-seinem-dialog"
         },
         "agent-instructions-and-memory": {
           "hash": "ba9699e8",

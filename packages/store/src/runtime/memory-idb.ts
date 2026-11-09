@@ -174,6 +174,15 @@ interface FactoryData {
   stores: Map<string, BackingStore>;
 }
 
+function versionChangeEvent(type: string, oldVersion: number, newVersion: number): IDBVersionChangeEvent {
+  const event = new Event(type) as IDBVersionChangeEvent;
+  Object.defineProperties(event, {
+    oldVersion: { value: oldVersion },
+    newVersion: { value: newVersion },
+  });
+  return event;
+}
+
 // ---------------------------------------------------------------------------
 // Requests
 // ---------------------------------------------------------------------------
@@ -302,7 +311,19 @@ class OpenRequest extends OpenRequestBase {
       return;
     }
 
-    const data = existing ?? this.factory.createData(this.name, target);
+    if (target > current) {
+      this.factory.waitForConnections(this.name, target, () => {
+        const event = versionChangeEvent('blocked', current, target);
+        this.dispatchEvent(event);
+        this.onblocked?.call(this, event);
+      }, () => this.finishOpen(current, target));
+      return;
+    }
+    this.finishOpen(current, target);
+  }
+
+  private finishOpen(current: number, target: number): void {
+    const data = this.factory.dataFor(this.name) ?? this.factory.createData(this.name, target);
     data.version = target;
     this.result = new FakeDatabase(this.factory, this.name, data);
 
@@ -311,10 +332,7 @@ class OpenRequest extends OpenRequestBase {
       // delivered, so an `onupgradeneeded` handler can create object stores.
       const tx = this.upgrade();
       this.transaction = tx;
-      const event = new Event('upgradeneeded') as unknown as IDBVersionChangeEvent;
-      Object.defineProperty(event, 'oldVersion', { value: current });
-      Object.defineProperty(event, 'newVersion', { value: null });
-      Object.defineProperty(event, 'target', { value: this });
+      const event = versionChangeEvent('upgradeneeded', current, target);
       tx.runActive(() => {
         this.dispatchEvent(event);
         this.onupgradeneeded?.call(this, event);
@@ -808,6 +826,7 @@ class FakeDatabase extends EventTarget implements IDBDatabase {
     private readonly data: FactoryData,
   ) {
     super();
+    this.factory.registerConnection(this);
   }
 
   get version(): number {
@@ -871,7 +890,15 @@ class FakeDatabase extends EventTarget implements IDBDatabase {
   }
 
   close(): void {
+    if (this.closed) return;
     this.closed = true;
+    this.factory.closeConnection(this);
+  }
+
+  notifyVersionChange(newVersion: number): void {
+    const event = versionChangeEvent('versionchange', this.version, newVersion);
+    this.dispatchEvent(event);
+    this.onversionchange?.call(this, event);
   }
 }
 
@@ -896,6 +923,8 @@ function keyFromId(key: string): IDBValidKey {
  */
 export class MemoryIndexedDb implements IDBFactory {
   private readonly data = new Map<string, FactoryData>();
+  private readonly connections = new Set<FakeDatabase>();
+  private readonly waiting = new Set<() => void>();
   private readonly running: FakeTransaction[] = [];
   private fault: WriteFault | null = null;
   private readonly handlers: unknown[] = [];
@@ -903,6 +932,32 @@ export class MemoryIndexedDb implements IDBFactory {
   static cmp = compareKeys;
 
   cmp = compareKeys;
+
+  registerConnection(db: FakeDatabase): void {
+    this.connections.add(db);
+  }
+
+  closeConnection(db: FakeDatabase): void {
+    this.connections.delete(db);
+    for (const resume of this.waiting) resume();
+  }
+
+  waitForConnections(name: string, newVersion: number, blocked: () => void, ready: () => void): void {
+    const connections = [...this.connections].filter((db) => db.name === name);
+    for (const db of connections) db.notifyVersionChange(newVersion);
+    const hasConnections = (): boolean => [...this.connections].some((db) => db.name === name);
+    if (!hasConnections()) {
+      ready();
+      return;
+    }
+    const resume = (): void => {
+      if (hasConnections()) return;
+      this.waiting.delete(resume);
+      queueMicrotask(ready);
+    };
+    this.waiting.add(resume);
+    blocked();
+  }
 
   dataFor(name: string): FactoryData | undefined {
     return this.data.get(name);
