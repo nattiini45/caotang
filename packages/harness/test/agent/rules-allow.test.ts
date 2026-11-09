@@ -233,13 +233,48 @@ describe('Settings-authored allow rules', () => {
     expect(pin).toBeDefined();
     const harness = makeHarness({ ports: createAgentPorts(), rules: () => ({ rules: [ALLOW] }), skills: { reviewedPin: () => pin } });
     harness.state.skills.set('read-only', files);
-    const before = harness.state.documents.get(FRIEND)?.notes;
+    const before = harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes;
     const r = await rig([], { harness, maxRetries: 0 });
     const report = await r.run([{ tool: 'skill.load', params: { name: 'read-only' }, expect: 'The reviewed skill is loaded.' }, REPLACE]);
     expect(report.status).toBe('failed');
     expect(report.askBack?.reason).toContain('The automatic approval is no longer valid');
-    expect(harness.state.documents.get(FRIEND)?.notes).toBe(before);
+    expect(harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes).toBe(before);
     expect(report.modelCalls).toBe(0);
+  });
+
+  it.each([2, 3])('holds %i identical rule-approved writes to the repeat limit', async (count) => {
+    const statuses = new Map<string, string>();
+    const r = await rig([ALLOW], { emit: (event) => { if (event.type === 'card') statuses.set(event.card.id, event.card.status); } });
+    const before = r.harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes;
+    const report = await r.run(Array.from({ length: count }, () => REPLACE));
+    expect(report.status).toBe(count === 2 ? 'applied' : 'failed');
+    expect(r.harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes).toBe(count === 2 ? REPLACE.params['notes'] : before);
+    if (count === 3) expect(report.askBack?.reason).toContain('notes.replace with the same parameters 3 times');
+    expect(r.asked).toHaveLength(0);
+    expect([...statuses.values()]).toEqual(Array.from({ length: count }, () => count === 2 ? 'done' : 'cancelled'));
+  });
+
+  it('does not automatically append three copies of the same note', async () => {
+    const r = await rig([{ ...ALLOW, tool: 'notes.append' }]);
+    const before = r.harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes;
+    const step: PlanStep = { tool: 'notes.append', params: { doc: FRIEND, text: 'A repeated note.' }, expect: 'The note is appended.' };
+    const report = await r.run([step, step, step]);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain('notes.append with the same parameters 3 times');
+    expect(r.harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes).toBe(before);
+  });
+
+  it.each(['manual', 'held'] as const)('does not count an Ask card the writer must decide: %s', async (kind) => {
+    const r = await rig(kind === 'manual' ? [] : [ALLOW], kind === 'held' ? { beforeAutoApply: async () => 'Review this card yourself.' } : {});
+    expect((await r.run([REPLACE, REPLACE, REPLACE])).status).toBe('cancelled');
+    expect(r.asked).toHaveLength(1);
+  });
+
+  it('keeps the required run-log audit when optional Trace recording is off', async () => {
+    const r = await rig([ALLOW], { trace: undefined });
+    expect((await r.run()).status).toBe('applied');
+    expect(r.log.dump()).toContain('rule.approved');
+    expect(r.trace.records().some((event) => event.kind === 'rule.approved')).toBe(false);
   });
 });
 

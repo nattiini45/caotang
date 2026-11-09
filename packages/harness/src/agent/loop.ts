@@ -1191,7 +1191,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** Counts a reply's calls against the repeat guard: the same tool with the same parameters, proposed too often in one turn, stops the turn. */
   const guardRepeats = (turn: Turn, steps: readonly PlanStep[]): void => {
-    if (!policyOf(turn).decides) return;
     for (const step of steps) {
       const key = callDigest(step.tool, step.params);
       const count = (turn.proposed.get(key) ?? 0) + 1;
@@ -2720,6 +2719,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           if (rules.some(({ step, rule }) => !automaticRuleValid(turn, step, rule))) {
             return { settled: 'refused', editable, edits, retries, error: refusal('permission-denied', 'The automatic approval changed while the card was being prepared, so it was not recorded or applied.', { correctiveHint: 'check the current rules and mode, then send the request again' }) };
           }
+          try {
+            guardRepeats(turn, writes);
+          } catch (error) {
+            for (const card of [...turn.statusCards]) moveCard(turn, card.id, 'cancelled');
+            throw error;
+          }
           for (const { step, rule } of rules) {
             const callId = callIdFor(kind, prefix, editable.steps.indexOf(step));
             await turn.run?.append({ t: 'rule.approved', turnId: turn.id, callId, tool: step.tool, rule });
@@ -3617,7 +3622,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         plan = parsed.value.plan;
       }
 
-      guardRepeats(turn, plan.steps);
+      if (policyOf(turn).decides) guardRepeats(turn, plan.steps);
       const offered = policyOf(turn).readOnly ? undefined : await offerBackground(turn, plan);
       if (offered !== undefined) return offered;
       const staged = await stage(turn, plan.steps);
