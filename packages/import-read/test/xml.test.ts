@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+import { measureFile } from '../../../test/support/measure-work.js';
+
 import { FDX_SAMPLE } from '../../screenplay/test/fixtures/corpus.js';
 import { parseFdxParagraphs } from '../../screenplay/src/index.js';
 import {
@@ -235,42 +237,36 @@ describe('readXml — malformed input is a named error, never a throw', () => {
     expect(Object.isFrozen(XML_LIMITS)).toBe(true);
   });
 
-  it('checks a tag with many attributes for a duplicate in linear time', () => {
-    const timed = (count: number): number => {
+  it('checks a tag with many attributes for a duplicate in linear time', { timeout: 120_000 }, () => {
+    const calls = [5_000, 20_000].map((count) => {
       const source = `<a ${Array.from({ length: count }, (_, i) => `x${i}="1"`).join(' ')} x0="2"/>`;
-      let best = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < 3; i += 1) {
-        const start = performance.now();
-        expect(fails(source).code).toBe('duplicate-attribute');
-        best = Math.min(best, performance.now() - start);
-      }
-      return best;
-    };
-    const small = timed(5_000);
-    const large = timed(20_000);
-    // Four times the attributes: a set lookup takes about four times as long, a scan of the earlier ones sixteen.
-    expect(large / Math.max(small, 0.5)).toBeLessThan(10);
+      expect(fails(source).code).toBe('duplicate-attribute');
+      return { name: 'readXml', args: [source] };
+    });
+    const [small, large] = measureFile<{ ok: false; error: { code: string } }>(new URL('../src/xml.ts', import.meta.url), calls);
+    for (const measured of [small!, large!]) expect(measured.result).toMatchObject({ ok: false, error: { code: 'duplicate-attribute' } });
+    for (const metric of ['steps', 'scanned', 'backtracks'] as const) {
+      expect(small![metric]).toBeGreaterThan(0);
+      expect(large![metric] / small![metric]).toBeLessThan(10);
+    }
   });
 
-  it('reads a deep document without recursing, and a truncated one in linear time', () => {
+  it('reads a deep document without recursing, and a truncated one in linear time', { timeout: 120_000 }, () => {
     const depth = 100_000;
     const deep = ok('<a>'.repeat(depth) + 'x' + '</a>'.repeat(depth), { maxDepth: depth });
     expect(textOf(deep.root)).toBe('x');
     expect([...descendants(deep.root, 'a')]).toHaveLength(depth - 1);
-    const timed = (count: number): number => {
+    const calls = [20_000, 80_000].map((count) => {
       const source = '<r>' + '<p a="1">text'.repeat(count);
-      let best = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < 3; i += 1) {
-        const start = performance.now();
-        expect(readXml(source, { maxDepth: 10_000_000 }).ok).toBe(false);
-        best = Math.min(best, performance.now() - start);
-      }
-      return best;
-    };
-    const small = timed(20_000);
-    const large = timed(80_000);
-    // Four times the input: a linear scan takes about four times as long, a quadratic one sixteen.
-    expect(large / Math.max(small, 0.5)).toBeLessThan(10);
+      expect(readXml(source, { maxDepth: 10_000_000 }).ok).toBe(false);
+      return { name: 'readXml', args: [source, { maxDepth: 10_000_000 }] };
+    });
+    const [small, large] = measureFile<{ ok: false; error: { code: string } }>(new URL('../src/xml.ts', import.meta.url), calls);
+    for (const measured of [small!, large!]) expect(measured.result).toMatchObject({ ok: false, error: { code: 'unclosed-tag' } });
+    for (const metric of ['steps', 'scanned', 'backtracks'] as const) {
+      expect(small![metric]).toBeGreaterThan(0);
+      expect(large![metric] / small![metric]).toBeLessThan(10);
+    }
   });
 });
 
