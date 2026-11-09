@@ -24,7 +24,7 @@ export interface SkillFrontMatter {
   /** At most 500 characters. */
   readonly compatibility?: string;
   readonly metadata?: Readonly<Record<string, string>>;
-  /** Space-separated tool names. Shown on the review card and not enforced in this build; it can only ever narrow. */
+  /** Space-separated exact tool names. Narrows the loaded turn and never grants approval. */
   readonly 'allowed-tools'?: string;
   /** Claude Code's extensions, which Caotang honours. */
   readonly 'disable-model-invocation'?: boolean;

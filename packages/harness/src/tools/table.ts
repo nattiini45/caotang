@@ -54,7 +54,7 @@ import {
 } from './ports.js';
 import { delegateParams } from './delegate.js';
 import { memoryReadParams, prepareMemoryRead } from './memory.js';
-import { skillLoadParams } from './skills.js';
+import { skillLoadParams, skillReadParams } from './skills.js';
 import { prepareTimelineRead, timelineReadParams } from './timeline-read.js';
 import { PICTURE_DEFINITIONS } from './pictures.js';
 import { COMIC_DEFINITIONS } from './comics.js';
@@ -100,6 +100,7 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   'dialogue.table': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.table'),
   // The project's skills (extensibility.md §10).
   'skill.load': { kind: 'port', port: 'skill.load', params: skillLoadParams },
+  'skill.read': { kind: 'port', port: 'skill.read', params: skillReadParams },
   // The writer's instructions and the agent's memory notes (context-assembly.md §2, layer LI).
   'memory.read': { kind: 'native', params: memoryReadParams, prepare: prepareMemoryRead },
   // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.

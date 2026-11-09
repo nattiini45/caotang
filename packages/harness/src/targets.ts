@@ -247,6 +247,7 @@ export const TOOL_TARGETS: Readonly<Record<ToolName, ToolTargets>> = {
   'dialogue.draft': oneContainer('both'),
   'dialogue.table': oneContainer('reads'),
   'skill.load': 'project',
+  'skill.read': 'project',
   'memory.read': 'project',
   'memory.write': 'project',
   'instructions.propose': 'project',

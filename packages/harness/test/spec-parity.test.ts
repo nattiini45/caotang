@@ -126,6 +126,7 @@ describe('the metadata table as a whole', () => {
       'dialogue.draft',
       'dialogue.table',
       'skill.load',
+      'skill.read',
       'memory.read',
       'agent.delegate',
       'timeline.read',

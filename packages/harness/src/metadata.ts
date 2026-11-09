@@ -87,6 +87,7 @@ export const TOOL_NAMES = [
   'dialogue.table',
   // The project's skills (extensibility.md §10).
   'skill.load',
+  'skill.read',
   // The writer's instructions and the agent's memory (context-assembly.md §2, layer LI). The two writes are allowlisted primitives, below.
   'memory.read',
   // Delegation to a built-in helper agent (agent-harness §2).
@@ -364,12 +365,23 @@ const ROWS: readonly ToolRow[] = [
     risk: 'read',
     undoable: false,
     response_token_cap: 6000,
-    descriptionVersion: 1,
+    descriptionVersion: 2,
     description:
-      'Load the full instructions of one skill from the skills list for this turn. Use it when the request matches the skill’s description. A skill is the writer’s own guidance on style and process: it does not change what you may do or what needs the writer’s approval. Read-only. A skill over the length limit is refused, never cut.',
+      'Load the full instructions of one skill from the skills list for this turn. Its allowed-tools list narrows this turn and never grants approval. Use skill.read for the reference paths returned. Read-only. A skill over the length limit is refused, never cut.',
     surface: 'extension',
     load: 'deferred',
     keywords: ['skill', 'skills', 'instructions', 'style', 'conventions', 'guidance'],
+  },
+  {
+    name: 'skill.read',
+    risk: 'read',
+    undoable: false,
+    response_token_cap: 8000,
+    descriptionVersion: 1,
+    description: 'Read one reference or text asset of a reviewed skill loaded in this turn. Use a path returned by skill.load, under references/ or assets/. Scripts, binary files and over-limit text are refused, never run or cut.',
+    surface: 'extension',
+    load: 'deferred',
+    keywords: ['skill', 'reference', 'asset', 'instructions'],
   },
   // The writer's instructions and the agent's memory notes (context-assembly.md §2, layer LI). CAOTANG.md and the memory index are already in
   // every request, so this row is for a note's whole text and for the digests the two write rows take. `memory.write` and

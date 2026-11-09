@@ -11,7 +11,7 @@ import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { parseSkillFolder, type SkillFile } from '@caotang/skills';
 import type { ProjectState } from '@caotang/store';
 
-import { PLANNER_SYSTEM_PREFIX, skillLabel } from '../../src/index.js';
+import { PLANNER_SYSTEM_PREFIX, SUBAGENT_SYSTEM_PREFIX, skillLabel } from '../../src/index.js';
 import { createContextPort } from '../../src/agent/context.js';
 import { evaluate, runScenario, type Scenario } from '../../src/agent/eval.js';
 import { createAgentSession } from '../../src/agent/loop.js';
@@ -25,8 +25,8 @@ const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
 const STYLE = 'Keep every sentence in close third person, past tense, and never name the narrator.';
 const DRAFTED = 'Hanne stepped off the ferry and did not look back.';
 
-function skillFiles(name: string, body: string, description = `House style: ${name}.`): SkillFile[] {
-  return [{ path: 'SKILL.md', bytes: enc(['---', `name: ${name}`, `description: ${description}`, '---', '', body, ''].join('\n')) }];
+function skillFiles(name: string, body: string, description = `House style: ${name}.`, allowedTools?: string): SkillFile[] {
+  return [{ path: 'SKILL.md', bytes: enc(['---', `name: ${name}`, `description: ${description}`, ...(allowedTools === undefined ? [] : [`allowed-tools: ${allowedTools}`]), '---', '', body, ''].join('\n')) }];
 }
 
 /** A project whose skills are the given ones, and the review lookup that has reviewed those named in `reviewed`. */
@@ -128,6 +128,75 @@ describe('a style skill in a turn', () => {
       }),
     );
     expect(cancelled.failures).toEqual([]);
+  });
+});
+
+describe('a loaded skill restricts model-backed work', () => {
+  it('refuses delegation after a skill load in the same reply without calling the child model', async () => {
+    const intent = 'Load my style, then ask the reader for notes.';
+    const world = projectWith({ limited: skillFiles('limited', STYLE, 'Read only the scene.', 'doc.read') }, ['limited']);
+    const run = await runScenario({
+      name: 'a loaded skill forbids same-reply delegation',
+      category: 'permission',
+      intent,
+      project: world.project,
+      skills: world.skills,
+      modelCallBound: 10,
+      gateway: () => mockGateway([
+        transcript(intent, [steps(
+          { tool: 'skill.load', params: { name: 'limited' }, expect: 'The skill is loaded.' },
+          { tool: 'agent.delegate', params: { agent: 'reader', brief: 'Read The Friend.', scope: [FRIEND] }, expect: 'The reader returns notes.' },
+        ), answer('The skill does not permit delegation.')]),
+        {
+          match: (request) => textOf(request.messages[0]?.content ?? '').startsWith(SUBAGENT_SYSTEM_PREFIX),
+          respond: () => ({ content: answer('The reader returned notes.') }),
+        },
+      ]),
+      expect: { status: 'replied' },
+    });
+    expect(run.report.status).toBe('replied');
+    expect(run.report.trace).toMatchObject([
+      { tool: 'skill.load', outcome: 'ok' },
+      { tool: 'agent.delegate', outcome: 'refused', code: 'permission-denied' },
+    ]);
+    expect(run.requests.filter((request) => textOf(request.messages[0]?.content ?? '').startsWith(SUBAGENT_SYSTEM_PREFIX))).toHaveLength(0);
+    expect(run.requests).toHaveLength(2);
+    expect(userTextOf(run.requests[1] as ChatRequest)).toContain('limits this turn to: doc.read');
+  });
+
+  it('refuses an edit to a forbidden drafting tool before sending a drafting request', async () => {
+    const intent = 'Load my style, then rename The Friend.';
+    const world = projectWith({ limited: skillFiles('limited', STYLE, 'Rename only.', 'binder.restructure') }, ['limited']);
+    const run = await runScenario({
+      name: 'a loaded skill forbids a card edit from drafting',
+      category: 'permission',
+      intent,
+      project: world.project,
+      skills: world.skills,
+      gateway: () => mockGateway([
+        transcript(intent, [
+          steps({ tool: 'skill.load', params: { name: 'limited' }, expect: 'The skill is loaded.' }),
+          steps({ tool: 'binder.restructure', params: { ops: [{ action: 'rename', node: FRIEND, title: 'The Arrival' }] }, expect: 'The scene is renamed.' }),
+        ]),
+        prose('Document "The Friend":', DRAFTED),
+      ]),
+      decisions: [
+        { action: 'edit', edits: [
+          { op: 'set', index: 0, path: ['tool'], value: 'scene.draft' },
+          { op: 'set', index: 0, path: ['params'], value: DRAFT_STEP.params },
+        ] },
+        { action: 'cancel' },
+      ],
+      expect: { status: 'cancelled' },
+    });
+    expect(run.report.status).toBe('cancelled');
+    expect(run.report.trace[0]).toMatchObject({ tool: 'skill.load', outcome: 'ok' });
+    expect(run.pending).toHaveLength(2);
+    expect(run.pending[1]?.card.notice).toContain('limits this turn to: binder.restructure');
+    expect(run.requests.filter((request) => textOf(request.messages[0]?.content ?? '').startsWith(DRAFT_PREFIX))).toHaveLength(0);
+    expect(run.requests).toHaveLength(2);
+    expect(friend(run.state)).toBe('');
+    expect(run.state.manifest.tree.find((node) => node.id === FRIEND)?.title).toBe('The Friend');
   });
 });
 
@@ -250,4 +319,3 @@ describe('the turn after', () => {
     expect(harness.loadedSkills(first.turnId)).toEqual([]);
   });
 });
-

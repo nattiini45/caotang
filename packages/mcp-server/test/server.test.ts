@@ -968,7 +968,7 @@ describe('the registry seam', () => {
     }
   }, 30_000);
 
-  it('does not list skill.load, even over a project that holds skills: the outward tool list is the one it was', async () => {
+  it('does not list skill.load or skill.read, even over a project that holds skills: the outward tool list is the one it was', async () => {
     // A skill is the writer's instruction to the agent in the app, and an outside host is not that agent (extensibility §10, the owner's
     // decision (b)). The server builds its harness with no `skills`, so the row is registered and not wired, and tools.ts skips an unwired row.
     const fixture = await startFixture({ label: 'listed-skills', allowWrites: true, seed: true });
@@ -986,12 +986,14 @@ describe('the registry seam', () => {
       ]);
       const listing = fixture.session.harness.tools().find((tool) => tool.name === 'skill.load');
       expect(listing).toMatchObject({ wired: false, risk: 'read' });
+      expect(fixture.session.harness.tools().find((tool) => tool.name === 'skill.read')).toMatchObject({ wired: false, risk: 'read' });
       expect(fixture.session.harness.skillCatalog()).toBeUndefined();
       const client = await connectClient(fixture.url, fixture.token);
       try {
         const after = await listedNames(client);
         expect(after).toEqual(before);
         expect(after).not.toContain('skill.load');
+        expect(after).not.toContain('skill.read');
       } finally {
         await client.close();
       }

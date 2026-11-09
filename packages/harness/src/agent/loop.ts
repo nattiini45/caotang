@@ -1329,13 +1329,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** What the writer's agent rules say about a step (agent-harness §4, "Rules"): a refusal, or a rule that asks for the writer's card. */
-  const ruleOf = (step: PlanStep): RuleCheck => {
+  const ruleOf = (step: PlanStep, turnId: string): RuleCheck => {
     const external = loadedExternal(step.tool);
-    return harness.ruleCheck(step.tool, step.params, external === undefined ? undefined : { writes: external.effectiveRisk !== 'read-auto' });
+    return harness.ruleCheck(step.tool, step.params, external === undefined ? undefined : { writes: external.effectiveRisk !== 'read-auto' }, turnId);
   };
 
   /** A rule makes this step the writer's call: it is never approved by a mode, and a single write-auto step shows a card. */
-  const asksWriter = (step: PlanStep): boolean => ruleOf(step).ask !== undefined;
+  const asksWriter = (step: PlanStep, turnId: string): boolean => ruleOf(step, turnId).ask !== undefined;
 
   /** The writes a turn has applied so far, in order, as the report names them. Reads are not writes. */
   const writesOf = (turn: Turn): string[] =>
@@ -1475,10 +1475,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   const nativeToolsFor = (pins: Pins): ToolDef[] | undefined => {
     if (gateway.modelCaps?.(pins.profileId, pins.model)?.tools !== true) return undefined;
-    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
+    const tools = plannerToolDefs(plannerListings(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
     return tools.length === 0 ? undefined : tools;
   };
   const nativeTools = (turn: Turn): ToolDef[] | undefined => nativeToolsFor(turn.pins);
+
+  function plannerListings(): readonly ToolListing[] {
+    const references = harness.loadedNativeTools().some((tool) => tool.name === 'skill.read');
+    return harness.tools().filter((tool) => tool.name !== 'skill.read' || references);
+  }
 
   function transcriptionRoute(turn: Turn, route?: TranscriptionSecondRead): TranscriptionRouteInfo {
     const profileId = route?.profileId ?? turn.pins.profileId;
@@ -1518,7 +1523,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (!turn.native) return call;
     // The declarations keep the turn's first order, and a tool loaded mid-turn joins at the end: the prompt cache keys on the
     // tools first, so re-sorting them would cost every later call its cached prefix (provider-gateway §3).
-    const fresh = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
+    const fresh = plannerToolDefs(plannerListings(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
     const tools = stableToolOrder(turn.declaredTools, fresh);
     turn.declaredTools = tools;
     return tools.length === 0 ? call : { ...call, tools };
@@ -1898,7 +1903,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // again when it runs: this is the card the writer sees, and that is the backstop. A plan the read path runs (every headless plan,
       // and a macro's) is the exception: a read has no draft to spend, so the read path refuses it as it runs with the same words, and
       // the plan's other reads still run, as they do on the planner's own read-only reply.
-      const denied = ruleOf(step).denied;
+      const denied = ruleOf(step, turn.id).denied;
       if (denied !== undefined) {
         if (options.readsRun === true && riskOf(step.tool) === 'read') continue;
         const message = refusalSentence(denied.message, denied.correctiveHint);
@@ -1924,6 +1929,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * refusal here: the assembly's own checks are the backstop behind the ones this file makes first.
    */
   async function draftFor(turn: Turn, step: PlanStep): Promise<Drafted> {
+    const denied = ruleOf(step, turn.id).denied;
+    if (denied !== undefined) return refusedDraft(refusalSentence(denied.message, denied.correctiveHint));
     // The documents the draft reads, as they are before the model is asked: a restored card checks its draft against them.
     turn.reads.set(step, revisionsOf(harness.state, step));
     try {
@@ -2216,7 +2223,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * run or added to a plan.
    */
   async function runDelegate(turn: Turn, step: PlanStep, id: string): Promise<ToolOutcome> {
-    const checked = harness.previewPlan({ steps: [step] });
+    const checked = harness.previewPlan({ steps: [step] }, { turnId: turn.id });
     const refused = checked.ok ? checked.value.steps.find((entry) => entry.status === 'refused')?.error : checked.error;
     if (refused !== undefined) return err(refused);
     const params = step.params as unknown as DelegateParams;
@@ -2302,8 +2309,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const id = nextCallPrefix(turn, 'r');
       const proposal = proposals[index];
       // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
-      const asked = asksWriter(step);
-      const first: ToolOutcome = asked
+      const ruled = ruleOf(step, turn.id);
+      const asked = ruled.ask !== undefined;
+      const first: ToolOutcome = ruled.denied !== undefined ? err(ruled.denied) : asked
         ? err(refusal('permission-denied', `a rule asks for the writer’s confirmation of ${step.tool}`, { target: step.tool }))
         : step.tool === 'agent.delegate'
           ? await runDelegate(turn, step, id)
@@ -2354,6 +2362,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.ok && isResultOf('tool.search', step.tool, outcome.value)) {
         for (const name of outcome.value.data.surfaced) surfaced.add(name);
       }
+      if (outcome.ok && step.tool === 'skill.load' && harness.loadedNativeTools().some((tool) => tool.name === 'skill.read')) surfaced.add('skill.read');
     }
     const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
     taint(turn, loadedNow.map((tool) => ({ serverName: tool.serverName, label: sourceName(tool.serverName, tool.toolName) })));
@@ -2586,7 +2595,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         start.humanOnly !== true &&
         held === undefined &&
         shown.card.approvable &&
-        !remaining.some(asksWriter) &&
+        !remaining.some((step) => asksWriter(step, turn.id)) &&
         policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
       if (auto) holdToBudget(turn, editable, writes);
       // Each step that has not run is pending from the moment its card is shown (agent-harness §8).
@@ -3145,7 +3154,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const single = plan.steps.length === 1 ? (plan.steps[0] as PlanStep) : undefined;
     // A rule that asks gives a single write-auto call the one-step card a write-confirm call has (agent-harness §4, "Rules").
     // A tainted turn does the same: the outside text it read may be what asked for the write (issue #54).
-    const asked = single !== undefined && (asksWriter(single) || (turn.tainted && riskOf(single.tool) === 'write-auto'));
+    const asked = single !== undefined && (asksWriter(single, turn.id) || (turn.tainted && riskOf(single.tool) === 'write-auto'));
     const kind: 'plan' | 'confirm' = restore?.kind ?? (single !== undefined && (riskOf(single.tool) === 'write-confirm' || asked) ? 'confirm' : 'plan');
     // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2), unless the writer asked for a plan card (`/plan`).
     // A card restored from a log is shown, not run.
@@ -3561,7 +3570,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(languages === undefined ? {} : { languages }),
       task: { tool: 'meta', instruction: `Request: ${intent}` },
       // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
-      role: native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
+      role: native ? plannerSystemNative(plannerListings(), loadEvery()) : plannerSystem(plannerListings(), loadEvery()),
       turns: priorTurns,
       activity: harness.log.entries(),
     });

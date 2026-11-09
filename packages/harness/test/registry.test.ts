@@ -26,10 +26,10 @@ describe('the registry joins every tool to its metadata', () => {
   // the dialogue module's two (dialogue-narrative.md §7), which register because the module imports the bus and
   // not the harness. The spec's media-track count is twenty-three (14 + coherence 3 + storyboard 2 + prompt-pack 2 +
   // dialogue 2, agent-harness.md §10). The registry also carries doc.import, codex.import and tool.search, which that
-  // count leaves out, the eight allowlisted bus primitives (issue #56, issue #71's `memory.write` and `instructions.propose`, and `timeline.edit`, timeline.md §5.1), the skills row (`skill.load`, extensibility §10), the memory read (`memory.read`, context-assembly §2 LI), the delegation row (`agent.delegate`, agent-harness §2), the timeline read (`timeline.read`), the seven picture rows (pictures.md §8.1), the three comic rows (comics.md §3.2), and the four external-only rows of the host-model pairs (`scene.brief`, `scene.apply`, `dialogue.brief`, `dialogue.apply`, agent-harness §3), so it holds fifty-two.
-  it('lists all fifty-two rows, in the metadata table’s order', () => {
+  // count leaves out, the eight allowlisted bus primitives (issue #56, issue #71's `memory.write` and `instructions.propose`, and `timeline.edit`, timeline.md §5.1), the skills row (`skill.load`, extensibility §10), the memory read (`memory.read`, context-assembly §2 LI), the delegation row (`agent.delegate`, agent-harness §2), the timeline read (`timeline.read`), the seven picture rows (pictures.md §8.1), the three comic rows (comics.md §3.2), and the four external-only rows of the host-model pairs (`scene.brief`, `scene.apply`, `dialogue.brief`, `dialogue.apply`, agent-harness §3), so it holds fifty-three.
+  it('lists all fifty-three rows, in the metadata table’s order', () => {
     expect(listing.map((item) => item.name)).toEqual([...TOOL_NAMES]);
-    expect(listing).toHaveLength(52);
+    expect(listing).toHaveLength(53);
   });
 
   // Two of the coherence tools are wired to the engine by default (coherence.scan and
@@ -62,6 +62,7 @@ describe('the registry joins every tool to its metadata', () => {
         'scene.draft',
         'shots.derive',
         'skill.load',
+        'skill.read',
         'synopsis.fill',
       ].sort(),
     );
@@ -101,6 +102,7 @@ describe('the registry joins every tool to its metadata', () => {
       'dialogue.draft',
       'dialogue.table',
       'skill.load',
+      'skill.read',
       'memory.read',
       'agent.delegate',
       'timeline.read',

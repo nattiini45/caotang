@@ -3072,6 +3072,11 @@ msgstr ""
 msgid "after {title}"
 msgstr ""
 
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "After loading this skill, the agent can read text files under references/ and assets/. Scripts are never run."
+msgstr ""
+
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "After this step"
@@ -10088,11 +10093,6 @@ msgstr ""
 msgid "Not covered by a shot"
 msgstr ""
 
-#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
-#: apps/desktop/src/app/skills-model.ts
-msgid "Not enforced in this build: it does not limit what the agent can do here."
-msgstr ""
-
 #. The story timeline view. Interpolated values: title, label, name, part, count, number, scheduled, total, shown are writer text, part words or counts.
 #: apps/desktop/src/components/timeline/TimelineView.tsx
 msgid "not grouped"
@@ -11715,6 +11715,11 @@ msgstr ""
 msgid "harness.progress.skillLoad.bare.content"
 msgstr ""
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.skillRead.content"
+msgstr ""
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -11829,6 +11834,11 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.skillLoad.bare.active"
+msgstr ""
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.skillRead.active"
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
@@ -16468,11 +16478,6 @@ msgstr ""
 msgid "These apply to the whole container. The default speaker fills the speaker column of the dialogue table. Add line ids on save writes the missing line ids into the Ink text as it saves."
 msgstr ""
 
-#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
-#: apps/desktop/src/app/skills-model.ts
-msgid "These files are kept with the skill. The agent cannot read them in this build."
-msgstr ""
-
 #: apps/desktop/src/media/picture-hooks.tsx
 msgid "These files were left out:"
 msgstr ""
@@ -18016,6 +18021,11 @@ msgstr ""
 #. Interpolated values: name
 #: apps/desktop/src/components/VocabularyEditor.tsx
 msgid "Which list to edit"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "While loaded, this skill limits the turn to these tools. It never grants approval. Unknown tool names are ignored; a list with no known names permits no tools."
 msgstr ""
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.

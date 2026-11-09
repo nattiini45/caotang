@@ -225,7 +225,12 @@
   },
   {
     "id": "tool.skill.load",
-    "sha256": "6e82e108cb6e5de0b3c58bd6cd9158a5d0e94f730379e94478835ed43638a5fc",
+    "sha256": "f8da9f12d411838242f64e5c5d39a69a08b6666669a3f207fc9328319a0c2d38",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.skill.read",
+    "sha256": "6bb4a0196c82713c4c03bb5c2eb4518891be2feb64f117eebbc3b2e4d4c492a2",
     "descriptionVersion": 1
   },
   {

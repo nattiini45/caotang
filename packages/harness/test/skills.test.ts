@@ -9,7 +9,7 @@ import { SKILL_CATALOG_TOKENS, parseSkillFolder, type SkillFile } from '@caotang
 import { setBody, type ProjectState } from '@caotang/store';
 
 import { skillStatesOf } from '../src/index.js';
-import { makeHarness, makeState, refusalOf, run, valueOf } from './fixtures.js';
+import { LANDING, makeHarness, makeState, refusalOf, run, runAsync, valueOf } from './fixtures.js';
 
 const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
 const file = (path: string, text: string): SkillFile => ({ path, bytes: enc(text) });
@@ -38,7 +38,8 @@ describe('a harness built without skills', () => {
     state.skills.set('close-third', skillFiles('close-third'));
     const harness = makeHarness({}, state);
     const row = harness.tools().find((tool) => tool.name === 'skill.load');
-    expect(row).toMatchObject({ risk: 'read', surface: 'extension', load: 'deferred', response_token_cap: 6000, descriptionVersion: 1, wired: false });
+    expect(row).toMatchObject({ risk: 'read', surface: 'extension', load: 'deferred', response_token_cap: 6000, descriptionVersion: 2, wired: false });
+    expect(harness.tools().find((tool) => tool.name === 'skill.read')?.wired).toBe(false);
     expect(harness.skillCatalog()).toBeUndefined();
     expect(refusalOf(load(harness, 'close-third')).message).toMatch(/no implementation in this build/u);
     expect(harness.loadedSkills('turn-skill')).toEqual([]);
@@ -104,12 +105,14 @@ describe('skill.load', () => {
     });
     expect(JSON.stringify(value.data)).not.toContain('description:');
     expect(value.summary).toBe('loaded the skill “close-third”');
-    expect(harness.loadedSkills('turn-skill')).toEqual([{ name: 'close-third', body: STYLE }]);
+    expect(harness.loadedSkills('turn-skill')).toEqual([{ name: 'close-third', body: STYLE, pin: pinOf('close-third', skillFiles('close-third')) }]);
   });
 
-  it('says a skill has files beside it that this build cannot read', () => {
+  it('lists resource paths, advertises skill.read, and says scripts are never run', () => {
     const { harness } = withSkills({ 'close-third': [...skillFiles('close-third'), file('references/voice.md', 'v'), file('scripts/x.sh', 'echo')] });
-    expect(valueOf(load(harness, 'close-third')).data).toMatchObject({ note: expect.stringMatching(/\(2\).*cannot be read in this build/u) });
+    expect(harness.loadedNativeTools().map((tool) => tool.name)).not.toContain('skill.read');
+    expect(valueOf(load(harness, 'close-third')).data).toMatchObject({ files: ['references/voice.md'], note: expect.stringContaining('does not run them') });
+    expect(harness.loadedNativeTools().map((tool) => tool.name)).toContain('skill.read');
   });
 
   it('lasts for the turn that loaded it: another turn has nothing loaded, and the end of the turn forgets it', () => {
@@ -119,6 +122,17 @@ describe('skill.load', () => {
     expect(harness.loadedSkills('turn-b')).toEqual([]);
     harness.endTurn('turn-a');
     expect(harness.loadedSkills('turn-a')).toEqual([]);
+  });
+
+  it('does not advertise reference reads for scripts or binary assets alone', () => {
+    const { harness } = withSkills({ style: [...skillFiles('style'), file('scripts/check.sh', 'echo'), file('assets/binary.dat', 'a\0b')] });
+    expect(valueOf(load(harness, 'style')).data).not.toHaveProperty('files');
+    expect(harness.loadedNativeTools().map((tool) => tool.name)).not.toContain('skill.read');
+    const searched = valueOf(run(harness, 'tool.search', { query: 'skill reference' }, { turnId: 'turn-skill' }));
+    expect(searched.data).toMatchObject({
+      surfaced: expect.not.arrayContaining(['skill.read']),
+      matches: expect.not.arrayContaining([expect.objectContaining({ name: 'skill.read' })]),
+    });
   });
 
   it('answers a skill the writer has not put on and reviewed exactly as it answers a name that does not exist, and echoes none of its text', () => {
@@ -168,6 +182,102 @@ describe('skill.load', () => {
     valueOf(load(harness, 'a'));
     expect([...state.documents.entries()].map(([id, record]) => [id, record.body])).toEqual(before);
     expect(harness.tools().find((tool) => tool.name === 'skill.load')?.risk).toBe('read');
+  });
+});
+
+describe('skill.read', () => {
+  const read = (harness: ReturnType<typeof makeHarness>, path: string, turnId = 'turn-skill') => run(harness, 'skill.read', { name: 'style', path }, { turnId });
+
+  it('reads one whole reference or text asset only in the turn that loaded its reviewed pin', () => {
+    const { harness, state, pins } = withSkills({ style: [...skillFiles('style'), file('references/voice.md', 'Voice.'), file('assets/example.txt', 'Example.')] });
+    expect(refusalOf(read(harness, 'references/voice.md')).code).toBe('not-found');
+    valueOf(load(harness, 'style'));
+    expect(valueOf(read(harness, 'references/voice.md')).data).toEqual({ skill: 'style', path: 'references/voice.md', text: 'Voice.' });
+    expect(valueOf(read(harness, 'assets/example.txt')).data).toMatchObject({ text: 'Example.' });
+    expect(refusalOf(read(harness, 'references/voice.md', 'next-turn')).code).toBe('not-found');
+    state.skills.set('style', [...skillFiles('style'), file('references/voice.md', 'Changed.')]);
+    expect(JSON.stringify(refusalOf(read(harness, 'references/voice.md')))).not.toContain('Changed.');
+    pins.set('style', pinOf('style', state.skills.get('style') ?? []));
+    expect(refusalOf(read(harness, 'references/voice.md')).code).toBe('not-found');
+    valueOf(load(harness, 'style'));
+    expect(valueOf(read(harness, 'references/voice.md')).data).toMatchObject({ text: 'Changed.' });
+    state.manifest.disabledSkills = ['style'];
+    expect(refusalOf(read(harness, 'references/voice.md')).code).toBe('not-found');
+    state.manifest.disabledSkills = [];
+    harness.endTurn('turn-skill');
+    expect(refusalOf(read(harness, 'references/voice.md')).code).toBe('not-found');
+  });
+
+  it('refuses escaping paths, scripts, non-resource files, missing files and binary bytes', () => {
+    const { harness } = withSkills({ style: [...skillFiles('style'), file('references/nul.txt', 'a\0b'), { path: 'assets/binary.bin', bytes: new Uint8Array([255, 254]) }, file('scripts/check.sh', 'echo never')] });
+    valueOf(load(harness, 'style'));
+    for (const path of ['../SKILL.md', '/references/a', 'references/../SKILL.md', 'references//a', 'references/./a', 'C:/a', 'references\\a', 'references/a\n', 'scripts/check.sh', 'SKILL.md', 'references/nul.txt', 'assets/binary.bin']) {
+      expect(refusalOf(read(harness, path)).code, path).toBe('invalid-params');
+    }
+    expect(refusalOf(read(harness, 'references/missing.md')).code).toBe('not-found');
+  });
+
+  it('never cuts an over-cap answer and reads a smaller file whole', () => {
+    const { harness } = withSkills({ style: [...skillFiles('style'), file('references/long.md', 'w'.repeat(32_000)), file('references/fits.md', 'w'.repeat(31_000))] });
+    valueOf(load(harness, 'style'));
+    expect(refusalOf(read(harness, 'references/long.md'))).toMatchObject({ code: 'limit-exceeded', message: expect.stringContaining('8000-token') });
+    expect(valueOf(read(harness, 'references/fits.md')).data).toMatchObject({ text: 'w'.repeat(31_000) });
+  });
+});
+
+describe('loaded allowed-tools', () => {
+  const limited = (names: string) => skillFiles('style', { extra: [`allowed-tools: "${names}"`] });
+
+  it('narrows sync, async, external, plan and before-drafting paths, then expires at endTurn', async () => {
+    const { harness } = withSkills({ style: limited('doc.read') });
+    valueOf(load(harness, 'style'));
+    const turn = { turnId: 'turn-skill' };
+    expect(refusalOf(run(harness, 'project.overview', {}, turn))).toMatchObject({ code: 'permission-denied', message: expect.stringContaining('“style” limits this turn to: doc.read') });
+    expect(refusalOf(await runAsync(harness, 'coherence.review', {}, turn)).code).toBe('permission-denied');
+    expect(refusalOf(await harness.callExternal({ name: 'mcp__test__read', callId: 'external', params: {} }, turn)).code).toBe('permission-denied');
+    expect(harness.ruleCheck('scene.draft', {}, undefined, turn.turnId).denied?.code).toBe('permission-denied');
+    const preview = harness.previewPlan({ steps: [{ tool: 'meta.set', params: { targets: [LANDING], status: 'final' }, expect: 'Done.' }] }, turn);
+    expect(preview.ok && preview.value.steps[0]?.error?.code).toBe('permission-denied');
+    valueOf(run(harness, 'doc.read', { doc: LANDING }, turn));
+    harness.endTurn(turn.turnId);
+    valueOf(run(harness, 'project.overview', {}, turn));
+  });
+
+  it('ignores unknown names with a notice and never treats an empty allowed list as a grant', () => {
+    for (const names of ['', 'not.a.tool', 'doc.read not.a.tool']) {
+      const { harness } = withSkills({ style: limited(names) });
+      const result = valueOf(load(harness, 'style'));
+      if (names.includes('not.a.tool')) expect(result.data).toMatchObject({ note: expect.stringContaining('not.a.tool') });
+      expect(refusalOf(run(harness, 'project.overview', {}, { turnId: 'turn-skill' })).code).toBe('permission-denied');
+    }
+  });
+
+  it('intersects loaded lists and cannot widen a restriction by reloading an edited skill', () => {
+    const other = skillFiles('other', { extra: ['allowed-tools: doc.read'] });
+    const { harness, state, pins } = withSkills({ style: limited('skill.load doc.read project.overview'), other });
+    valueOf(load(harness, 'style'));
+    valueOf(load(harness, 'other'));
+    expect(refusalOf(run(harness, 'project.overview', {}, { turnId: 'turn-skill' })).code).toBe('permission-denied');
+    valueOf(run(harness, 'doc.read', { doc: LANDING }, { turnId: 'turn-skill' }));
+    const solo = withSkills({ style: limited('skill.load doc.read') });
+    valueOf(load(solo.harness, 'style'));
+    solo.state.skills.set('style', skillFiles('style'));
+    solo.pins.set('style', pinOf('style', solo.state.skills.get('style') ?? []));
+    valueOf(load(solo.harness, 'style'));
+    expect(refusalOf(run(solo.harness, 'project.overview', {}, { turnId: 'turn-skill' })).code).toBe('permission-denied');
+    state.skills.set('style', skillFiles('style'));
+    pins.clear();
+    expect(refusalOf(run(harness, 'project.overview', {}, { turnId: 'turn-skill' })).code).toBe('permission-denied');
+  });
+
+  it('keeps unreviewed loads inert and still asks for confirmation on an allowed write-confirm tool', () => {
+    const unreviewed = withSkills({ style: limited('') }, []);
+    expect(refusalOf(load(unreviewed.harness, 'style')).code).toBe('not-found');
+    valueOf(run(unreviewed.harness, 'project.overview', {}, { turnId: 'turn-skill' }));
+    const { harness } = withSkills({ style: limited('binder.restructure') });
+    valueOf(load(harness, 'style'));
+    expect(refusalOf(run(harness, 'binder.restructure', { ops: [{ action: 'rename', node: LANDING, title: 'Changed' }] }, { turnId: 'turn-skill' })).code).toBe('permission-denied');
+    valueOf(run(harness, 'binder.restructure', { ops: [{ action: 'rename', node: LANDING, title: 'Changed' }] }, { turnId: 'turn-skill', permission: { confirmed: true } }));
   });
 });
 
