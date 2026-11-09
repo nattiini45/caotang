@@ -15,6 +15,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await page.goto('/');
       await page.getByLabel('Project name', { exact: true }).fill('Hook checks');
       await page.getByRole('button', { name: 'Create project', exact: true }).click();
+      await expect(page.getByRole('button', { name: 'New chapter', exact: true })).toBeVisible();
       if (shell === 'modern') {
         await page.getByRole('button', { name: 'More', exact: true }).click();
         await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
@@ -25,6 +26,9 @@ for (const shell of ['classic', 'modern'] as const) {
       await page.mouse.move(2, 2);
       await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
       await expect(settings).toHaveScreenshot(`${shell}-${theme}-hooks.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+      await settings.getByRole('button', { name: 'Add hook', exact: true }).click();
+      await expect(settings.getByRole('form', { name: 'New hook', exact: true })).toBeVisible();
+      await expect(settings).toHaveScreenshot(`${shell}-${theme}-hook-editor.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
     });
   }
 }

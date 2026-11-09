@@ -425,6 +425,11 @@ msgstr "(unchanged)"
 msgid "{action, select, creating {Creating the project} openingProject {Opening the project} makingBundle {Making the bundle} renamingProject {Renaming the project} openingFolder {Opening the folder} importingBundle {Importing the bundle} recovering {Recovering the project} removing {Removing the project} other {That action}} did not finish: {error}"
 msgstr "{action, select, creating {Creating the project} openingProject {Opening the project} makingBundle {Making the bundle} renamingProject {Renaming the project} openingFolder {Opening the folder} importingBundle {Importing the bundle} recovering {Recovering the project} removing {Removing the project} other {That action}} did not finish: {error}"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "{action}: {detail}"
+msgstr "{action}: {detail}"
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{added, plural, one {New: # finding} other {New: # findings}}"
@@ -2807,6 +2812,11 @@ msgstr "Add {kind, select, status {status} label {label} other {status}}"
 msgid "Add a character to the codex first."
 msgstr "Add a character to the codex first."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Add a document to this project before testing a hook."
+msgstr "Add a document to this project before testing a hook."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "Add a fact in the Knowledge list of the Findings tab first."
@@ -2916,6 +2926,11 @@ msgstr "Add footnote"
 msgid "Add goal"
 msgstr "Add goal"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Add hook"
+msgstr "Add hook"
+
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
 msgid "Add keyword"
@@ -2940,6 +2955,11 @@ msgstr "Add or change the {kind} “{name}”"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Add panel"
 msgstr "Add panel"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Add pattern"
+msgstr "Add pattern"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -3093,6 +3113,8 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: the agent's companion window.
 #. Modern interface: the binder tab bar and the sidebar beside it.
@@ -3104,6 +3126,7 @@ msgstr "Agenda: every scene, grouped by part, with its day, length and open find
 #: apps/desktop/src/app/activity-model.ts
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 #: apps/desktop/src/components/shell/modern/companion.tsx
@@ -3150,6 +3173,11 @@ msgstr "All changes saved in this browser"
 #: apps/desktop/src/components/timeline/timeline-labels.ts
 msgid "All scenes"
 msgstr "All scenes"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Allowed statuses (comma-separated)"
+msgstr "Allowed statuses (comma-separated)"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -3911,6 +3939,21 @@ msgstr "Binder footer"
 msgid "Bleed: extend the art past the trim, for a printer"
 msgstr "Bleed: extend the art past the trim, for a printer"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Block if the check cannot run (before events only)"
+msgstr "Block if the check cannot run (before events only)"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Block the action"
+msgstr "Block the action"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Blocked"
+msgstr "Blocked"
+
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The storyboard board. Interpolated values: title is the writer's own title; number is a shot number; value is a stored field value; animatic is a length line; used, limit and the counts are numbers.
@@ -4088,6 +4131,7 @@ msgstr "Camera movement"
 #. Interpolated values: calls, cap
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: confirm, file, files, generation, name, path
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -4107,6 +4151,7 @@ msgstr "Camera movement"
 #: apps/desktop/src/components/ExportDialog.tsx
 #: apps/desktop/src/components/FindingsPanel.tsx
 #: apps/desktop/src/components/Home.tsx
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -4541,6 +4586,12 @@ msgstr "Characters, places and lore that recur in the prose are kept here. Their
 #: apps/desktop/src/components/Settings.tsx
 msgid "Chat"
 msgstr "Chat"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Check"
+msgstr "Check"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -5237,6 +5288,12 @@ msgstr "Context"
 msgid "Context budgets"
 msgstr "Context budgets"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Continuity checks"
+msgstr "Continuity checks"
+
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Conversation rewound. The agent no longer sees that turn or the ones after it."
@@ -5577,6 +5634,7 @@ msgstr "Default speaker"
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/BinderFooter.tsx
 #: apps/desktop/src/components/HookSettings.tsx
@@ -5645,6 +5703,7 @@ msgstr "Deleted"
 msgid "Deleted “{title}”. Ctrl+Z restores it right after."
 msgstr "Deleted “{title}”. Ctrl+Z restores it right after."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Deleted the hook. Undo brings it back."
 msgstr "Deleted the hook. Undo brings it back."
@@ -5960,8 +6019,10 @@ msgstr "do not retry it as a direct call — either call the compound tool that 
 msgid "Document"
 msgstr "Document"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/components/HookSettings.tsx
 msgid "Document status"
 msgstr "Document status"
 
@@ -6292,12 +6353,14 @@ msgstr "Earlier in the panel"
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/AgentQueue.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/InspectorSections.tsx
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -6310,6 +6373,12 @@ msgstr "Edit"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Edit {name}"
 msgstr "Edit {name}"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Edit hook"
+msgstr "Edit hook"
 
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #: apps/desktop/src/components/Inspector.tsx
@@ -6420,12 +6489,15 @@ msgstr "Empty research"
 msgid "Enable"
 msgstr "Enable"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Enable {name}"
 msgstr "Enable {name}"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Enabled"
 msgstr "Enabled"
@@ -6483,11 +6555,13 @@ msgstr "Episode settings changed"
 msgid "EPUB (.epub)"
 msgstr "EPUB (.epub)"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: subject
 #. Interpolated values: subject
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/media/PromptPackPanel.tsx
@@ -6512,6 +6586,13 @@ msgstr "Esc"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Estimated input {input} tokens and output {output} tokens across the planned reads. Actual provider use may differ."
 msgstr "Estimated input {input} tokens and output {output} tokens across the planned reads. Actual provider use may differ."
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Event"
+msgstr "Event"
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/app/agent-model.ts
@@ -7482,7 +7563,13 @@ msgstr "Hook deleted"
 msgid "Hook saved"
 msgstr "Hook saved"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Hook test"
+msgstr "Hook test"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/HookSettings.tsx
@@ -7490,6 +7577,7 @@ msgstr "Hook saved"
 msgid "Hooks"
 msgstr "Hooks"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
 msgstr "Hooks check this project at selected events. They can warn or stop an action, but never approve it, change your text or call a provider."
@@ -7838,6 +7926,11 @@ msgstr "Includes scripts"
 msgid "Includes scripts."
 msgstr "Includes scripts."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Info"
+msgstr "Info"
+
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #: apps/desktop/src/components/timeline/Agenda.tsx
 msgid "Inherit the folder’s part ({part})"
@@ -7998,6 +8091,12 @@ msgstr "Interrupted agent runs could not be checked: {reason}"
 #: apps/desktop/src/components/ProjectPanel.tsx
 msgid "ISBN"
 msgstr "ISBN"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Issued by"
+msgstr "Issued by"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -8436,6 +8535,11 @@ msgstr "Leave out these request fields"
 msgid "Leave them out, and keep their text"
 msgstr "Leave them out, and keep their text"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Leave tools blank to match every tool. Use * for a wildcard. Export events use export.compile; save and turn events have no tool."
+msgstr "Leave tools blank to match every tool. Use * for a wildcard. Export events use export.compile; save and turn events have no tool."
+
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Leave with proposed timeline changes?"
@@ -8872,6 +8976,11 @@ msgstr "Max words"
 msgid "Maximum words"
 msgstr "Maximum words"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Maximum words (optional)"
+msgstr "Maximum words (optional)"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -8947,6 +9056,11 @@ msgstr "Mentioned codex entries"
 msgid "Mentioned in this document"
 msgstr "Mentioned in this document"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Message when found"
+msgstr "Message when found"
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "met"
@@ -8962,10 +9076,21 @@ msgstr "Midwinter"
 msgid "Min words"
 msgstr "Min words"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Minimum finding severity"
+msgstr "Minimum finding severity"
+
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
 msgid "Minimum words"
 msgstr "Minimum words"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Minimum words (optional)"
+msgstr "Minimum words (optional)"
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -9267,6 +9392,7 @@ msgid "Mythic"
 msgstr "Mythic"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: parent, title
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -9274,6 +9400,7 @@ msgstr "Mythic"
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -9440,6 +9567,12 @@ msgstr "New folder"
 #: apps/desktop/src/components/Binder.tsx
 msgid "New folder here"
 msgstr "New folder here"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "New hook"
+msgstr "New hook"
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
@@ -10061,8 +10194,10 @@ msgstr "Node {name}"
 msgid "none"
 msgstr "none"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/McpSection.tsx
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "None"
@@ -10144,6 +10279,11 @@ msgstr "Not placed on the project or a binder item."
 msgid "Not ready"
 msgstr "Not ready"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Not run. The hook is disabled or its matcher does not match this input."
+msgstr "Not run. The hook is disabled or its matcher does not match this input."
+
 #. Interpolated values: fieldCount, fields, name, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
@@ -10165,9 +10305,11 @@ msgid "Not set"
 msgstr "Not set"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/media/element-menu.ts
@@ -10506,6 +10648,7 @@ msgstr "Open {title} on the board"
 msgid "Open a folder…"
 msgstr "Open a folder…"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Open a project to manage its hooks."
 msgstr "Open a project to manage its hooks."
@@ -10934,6 +11077,11 @@ msgstr "partial"
 msgid "Parts"
 msgstr "Parts"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Passed"
+msgstr "Passed"
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "past the deadline"
@@ -10943,6 +11091,21 @@ msgstr "past the deadline"
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "Pasted"
 msgstr "Pasted"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Pattern {number}"
+msgstr "Pattern {number}"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Patterns are literal whole words or phrases, not regular expressions."
+msgstr "Patterns are literal whole words or phrases, not regular expressions."
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Patterns use this sample. Word counts use it before an action, but read the document after a tool action. Status and continuity checks read the selected document in its current project state."
+msgstr "Patterns use this sample. Word counts use it before an action, but read the document after a tool action. Status and continuity checks read the selected document in its current project state."
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
@@ -11397,6 +11560,7 @@ msgstr "Project details: title, author, language, ISBN and cover"
 msgid "Project goals"
 msgstr "Project goals"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Project hooks"
 msgstr "Project hooks"
@@ -12226,6 +12390,11 @@ msgstr "Remove keyword {keyword}"
 msgid "Remove panel"
 msgstr "Remove panel"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Remove pattern"
+msgstr "Remove pattern"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Remove picture"
@@ -12799,6 +12968,11 @@ msgstr "Run now drafts in this turn, which may make at most {cap} model calls, s
 msgid "Run now drafts in this turn, which may make at most {cap} model calls."
 msgstr "Run now drafts in this turn, which may make at most {cap} model calls."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Run test"
+msgstr "Run test"
+
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
 msgid "Run the queue"
@@ -12895,6 +13069,11 @@ msgstr "Save filter"
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "Save goal"
 msgstr "Save goal"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Save hook"
+msgstr "Save hook"
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
@@ -13109,6 +13288,7 @@ msgstr "Saved. The agent’s next request uses these budgets."
 msgid "Saved. The Findings tab uses these from now on."
 msgstr "Saved. The Findings tab uses these from now on."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "Saved. The hook applies to the next matching event."
 msgstr "Saved. The hook applies to the next matching event."
@@ -14741,6 +14921,38 @@ msgstr "Temperature"
 msgid "Temperature must be a number from 0 to 2."
 msgstr "Temperature must be a number from 0 to 2."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Test document"
+msgstr "Test document"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Test hook"
+msgstr "Test hook"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Test issued by"
+msgstr "Test issued by"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Test tool"
+msgstr "Test tool"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Test without changing the project"
+msgstr "Test without changing the project"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Tested {event} · {tool} · {issuer} · document: {document}"
+msgstr "Tested {event} · {tool} · {issuer} · document: {document}"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Text"
@@ -14789,6 +15001,12 @@ msgstr "Text the import does not keep (hidden text, deleted revisions, field cod
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Text this step writes"
 msgstr "Text this step writes"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Text to test"
+msgstr "Text to test"
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -15171,6 +15389,11 @@ msgstr "The change did not check out"
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "The chapter number {found} comes more than once (“{title}”)."
 msgstr "The chapter number {found} comes more than once (“{title}”)."
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "The check found no problem."
+msgstr "The check found no problem."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -16687,6 +16910,11 @@ msgstr "This endpoint accepts structured output."
 msgid "This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead."
 msgstr "This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "This event happens after the action. A hook can report a problem, but cannot undo or block it."
+msgstr "This event happens after the action. A hook can report a problem, but cannot undo or block it."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "This file is not text. It is kept with the skill and is part of what you approve."
@@ -16798,10 +17026,20 @@ msgstr "This project defines {count} hooks. Review them in Settings › Hooks."
 msgid "This project defines one hook. Review it in Settings › Hooks."
 msgstr "This project defines one hook. Review it in Settings › Hooks."
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "This project has no hooks yet. Add one to check a word, a word count, a status or continuity."
+msgstr "This project has no hooks yet. Add one to check a word, a word count, a status or continuity."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "This project has no skills yet."
 msgstr "This project has no skills yet."
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "This project has reached its hook limit. Delete a hook before adding another."
+msgstr "This project has reached its hook limit. Delete a hook before adding another."
 
 #: apps/desktop/src/components/StaleTabNotice.tsx
 msgid "This project is open in another tab"
@@ -16977,6 +17215,11 @@ msgstr "This step needs {calls} model {calls, plural, one {call} other {calls}},
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
 msgstr "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "This tests the form above, including unsaved changes. It reads only local project state and the text below. No action runs, no file is written and no provider is called."
+msgstr "This tests the form above, including unsaved changes. It reads only local project state and the text below. No action runs, no file is written and no provider is called."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -17211,6 +17454,11 @@ msgstr "Tool"
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Tool calls"
 msgstr "Tool calls"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Tools (optional, comma-separated)"
+msgstr "Tools (optional, comma-separated)"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
@@ -17922,9 +18170,17 @@ msgstr "Waiting to start"
 msgid "Waits for an earlier step"
 msgstr "Waits for an earlier step"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Warn and continue"
+msgstr "Warn and continue"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
+#: apps/desktop/src/components/HookSettings.tsx
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/media/PromptPackPanel.tsx
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -18048,6 +18304,12 @@ msgstr "when {condition}"
 msgid "When its name or an alias appears in the text"
 msgstr "When its name or an alias appears in the text"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "When the check fails"
+msgstr "When the check fails"
+
 #: apps/desktop/src/components/FirstRun.tsx
 msgid "When you want the agent to answer anything else, <0>add your provider key</0>. It is kept in this browser, encrypted, and is checked when you save it."
 msgstr "When you want the agent to answer anything else, <0>add your provider key</0>. It is kept in this browser, encrypted, and is checked when you save it."
@@ -18124,6 +18386,16 @@ msgstr "with panel art"
 msgid "Word (.docx)"
 msgstr "Word (.docx)"
 
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Word count"
+msgstr "Word count"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Word or phrase"
+msgstr "Word or phrase"
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "words"
@@ -18154,6 +18426,11 @@ msgstr "Words kept from a stopped tab"
 #: apps/desktop/src/components/WritingHistory.tsx
 msgid "Words on each of the last {days} days"
 msgstr "Words on each of the last {days} days"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Words or phrases"
+msgstr "Words or phrases"
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
@@ -18249,6 +18526,17 @@ msgstr "Write the script"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Write the script from the pages…"
 msgstr "Write the script from the pages…"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Writer"
+msgstr "Writer"
+
+#. Interpolated values: name, number, event, tool, issuer, document, action, detail
+#: apps/desktop/src/components/HookSettings.tsx
+msgid "Writer or agent"
+msgstr "Writer or agent"
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
