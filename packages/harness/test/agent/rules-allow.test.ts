@@ -262,6 +262,40 @@ describe('Settings-authored allow rules', () => {
     expect(harness.state.documents.get(FRIEND)?.body).toBe('The writer changed this.\n\nThe approved replacement.');
   });
 
+  it.each([false, true])('distinguishes reads from prior writes before a stale mixed-plan draft: prior write %s', async (priorWrite) => {
+    const rules: readonly SourcedRule[] = [ALLOW, { ...ALLOW, tool: 'scene.draft' }];
+    let views = 0;
+    const harness = makeHarness({ ports: createAgentPorts(), rules: () => ({ rules }), asyncPorts: { 'pictures.view': async () => {
+      views += 1;
+      await Promise.resolve();
+      setBody(harness.state, FRIEND, 'The writer changed this.');
+      return { ok: true, value: { data: {}, summary: 'Viewed.', affected: [] } };
+    } } });
+    const r = await rig([], { harness, gateway: await mockGateway([prose('Brief: Open.', 'The staged replacement.')]) });
+    const preceding: PlanStep = priorWrite ? REPLACE : { tool: 'doc.read', params: { doc: FRIEND }, expect: 'The current text is read.' };
+    const report = await r.run([
+      { tool: 'pictures.view', params: { assetIds: ['a_0000000001'] }, expect: 'The picture is read.' },
+      preceding,
+      { tool: 'scene.draft', params: { doc: FRIEND, instruction: 'Open.', mode: 'continue' }, expect: 'The scene is drafted.' },
+    ]);
+    expect(views).toBe(1);
+    expect(report.modelCalls).toBe(1);
+    expect(harness.state.documents.get(FRIEND)?.body).toBe('The writer changed this.');
+    expect(report.steps.filter((step) => step.status === 'done').map((step) => step.tool)).toEqual(['pictures.view', preceding.tool]);
+    if (priorWrite) {
+      expect(report.status).toBe('failed');
+      expect(r.asked).toHaveLength(0);
+      expect(report.undoGroupId).toBeDefined();
+      expect(harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes).toBe(REPLACE.params['notes']);
+    } else {
+      expect(report.status).toBe('cancelled');
+      expect(r.asked).toHaveLength(1);
+      expect(r.asked[0]?.card.approvable).toBe(false);
+      expect(r.asked[0]?.card.steps.find((step) => step.tool === 'scene.draft')).toMatchObject({ stale: true, preview: { text: 'The staged replacement.' } });
+      expect(r.asked[0]?.card.notice).toContain('The draft was kept');
+    }
+  });
+
   it('rechecks a grant against the turn’s skill restriction loaded earlier in the same plan', async () => {
     const files = [{ path: 'SKILL.md', bytes: new TextEncoder().encode('---\nname: read-only\ndescription: Read the binder.\nallowed-tools: binder.read_tree\n---\nRead without changing anything.\n') }];
     const pin = parseSkillFolder('read-only', files).skill?.pin;

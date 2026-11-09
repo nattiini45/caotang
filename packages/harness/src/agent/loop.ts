@@ -3120,7 +3120,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return {
         ok: false,
         failedAt: failedIndex,
-        effect: completed.length > 0 || outcome.error.details?.['completedCommands'] !== undefined,
+        effect: completed.some((index) => riskOf((editable.steps[index] as PlanStep).tool) !== 'read') || outcome.error.details?.['completedCommands'] !== undefined,
         askBack: outcome.askBack,
         completed,
         ...(undoGroupId === undefined ? {} : { undoGroupId }),
