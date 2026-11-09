@@ -153,4 +153,29 @@ describe('the background task status machine', () => {
     expect(h.queue.snapshot()[0]?.status).toBe('failed');
     expect(h.queue.snapshot()[0]?.items[0]?.error).toContain('would go past');
   });
+
+  it('keeps previously staged drafts reviewable when a resumed task cannot start its agent', async () => {
+    const h = setup(() => 'No provider.');
+    await h.queue.open();
+    await h.queue.enqueue('Draft twice.', [step, step]);
+    await h.entered.promise;
+    const closing = h.queue.close();
+    h.release.resolve();
+    await closing;
+    const task = h.saved.at(-1) as TaskRecord;
+    await h.store.save({
+      ...task,
+      used: 1,
+      items: task.items.map((item, index) => index === 0
+        ? { ...item, state: 'staged', proposal: { text: 'A draft.', words: 2, revision: 1 }, revisions: {} }
+        : item),
+    });
+    await h.queue.open();
+    await h.queue.resume(task.id);
+    await h.queue.idle();
+    expect(h.queue.snapshot()[0]).toMatchObject({ status: 'ready', phase: 'ready', items: [{ state: 'staged' }, { state: 'failed', error: 'No provider.' }] });
+    expect(h.queue.working()).toBe(false);
+    expect(h.queue.review(task.id)).toBeDefined();
+    expect((await h.store.list(PROJECT))[0]?.status).toBe('ready');
+  });
 });

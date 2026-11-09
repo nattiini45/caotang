@@ -32,7 +32,7 @@ export const taskStatusTable: MachineTable<{ kind: TaskQueueStatus }, { type: Ta
   final: ['failed', 'cancelled', 'applied'],
   on: {
     queued: { pump: ['starting'], cancel: ['cancelled'], close: ['interrupted'], reload: ['interrupted'] },
-    starting: { 'agent-ready': ['running'], cancel: ['cancelling'], close: ['interrupted'], fail: ['failed'] },
+    starting: { 'agent-ready': ['running'], cancel: ['cancelling'], close: ['interrupted'], ready: ['ready'], fail: ['failed'] },
     running: { cancel: ['cancelling'], close: ['interrupted'], reload: ['interrupted'], ready: ['ready'], fail: ['failed'] },
     cancelling: { settle: ['cancelled'] },
     interrupted: { cancel: ['cancelling'], settle: ['interrupted'], resume: ['queued'] },

@@ -51,3 +51,4 @@ Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
 | `starting` | `cancel` | `cancelling` |
 | `starting` | `close` | `interrupted` |
 | `starting` | `fail` | `failed` |
+| `starting` | `ready` | `ready` |
