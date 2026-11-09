@@ -754,6 +754,7 @@ export function Workspace({
   const saveToFolder = (): void => folderSave.pick();
   const saveAsNewFolder = (): void => folderSave.pick(true);
   const answerFolderQuestion = folderSave.answer;
+  const folderSaving = folderSave.state.kind === 'saving';
 
   const toggleTheme = (): void => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
@@ -1055,15 +1056,11 @@ export function Workspace({
         {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: folderSave.state.kind === 'saving' ? (
-      <div className="status-line" role="status" data-state="saving">
-        <Trans>Saving to the folder…</Trans>
-      </div>
-    ) : message ? (
-      <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
+    status: message !== null || folderSaving ? (
+      <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
         <span>
-          {message.text}
-          {message.link ? (
+          {message?.text}
+          {message?.link ? (
             <>
               <button type="button" className="status-link" onClick={message.link.onClick}>
                 {message.link.label}
@@ -1071,10 +1068,11 @@ export function Workspace({
               {message.link.after}
             </>
           ) : null}
+          {folderSaving ? <>{message === null ? null : ' '}<Trans>Saving to the folder…</Trans></> : null}
         </span>
-        <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
+        {message === null ? null : <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
           <Trans>Dismiss</Trans>
-        </button>
+        </button>}
       </div>
     ) : null,
     saveState: <>
