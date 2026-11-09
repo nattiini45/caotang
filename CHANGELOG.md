@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.
+
 - **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
 
 - **Saving reusable commands.** MCP prompt and macro turns no longer offer Save as command for a synthetic run label that would create an unrelated skill. Their existing commands remain available for another run.

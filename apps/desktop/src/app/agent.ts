@@ -327,6 +327,7 @@ export class AgentController {
   private turns: TurnView[] = [];
   private pending: PendingCard | null = null;
   private resolveDecision: ((decision: Decision) => void) | null = null;
+  private approving: ((decision: Decision) => void) | null = null;
   /** A turn is running, from its start until the loop has settled it: an approved card runs under it, so it is not clear at the approval. */
   private busy = false;
   /** The turn that set the per-turn fields below, so only that turn clears them. */
@@ -813,14 +814,19 @@ export class AgentController {
       return null;
     }
     this.heldRun.add(turnId);
-    this.modeOverride = 'ask';
     this.bump();
     // A macro's held plan stays the writer's: the retry is logged under the macro's command, so it is kept from the planner live and, if it is
     // interrupted, when it is resumed from the run log.
     const macro = isMacroCommand(turn.command ?? undefined) ? turn.command : null;
-    return this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) =>
-      agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true }),
-    );
+    const report = await this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) => {
+      this.modeOverride = 'ask';
+      return agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true });
+    });
+    if (report === null) {
+      this.heldRun.delete(turnId);
+      this.bump();
+    }
+    return report;
   }
 
   /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */
@@ -969,6 +975,13 @@ export class AgentController {
       return null;
     } finally {
       // The turn has settled, so the next one may start. Only the turn that set the per-turn fields clears them.
+      const resolve = this.resolveDecision;
+      this.resolveDecision = null;
+      this.pending = null;
+      this.approving = null;
+      this.dropOffer();
+      this.clearGhosts();
+      resolve?.({ action: 'cancel' });
       this.busy = false;
       this.stopping = false;
       this.turnAbort = null;
@@ -1307,7 +1320,9 @@ export class AgentController {
   answer(decision: Decision): void {
     const resolve = this.resolveDecision;
     if (resolve === null) {
-      this.message = t`That card is no longer waiting for a decision, so nothing was sent.`;
+      this.message = this.approving
+        ? t`This approval is already saving your typing. Wait for it to finish.`
+        : t`That card is no longer waiting for a decision, so nothing was sent.`;
       this.bump();
       return;
     }
@@ -1322,6 +1337,8 @@ export class AgentController {
     // The card the decision answers, read before it leaves the screen: an approved compile needs its images listed again first.
     const parked = this.pending;
     const card = parked?.card ?? null;
+    const abort = this.turnAbort;
+    this.approving = decision.action === 'approve' ? resolve : null;
     this.resolveDecision = null;
     this.pending = null;
     // An approval keeps the drafts on screen until the typing is saved, so a card that has to wait again still has them.
@@ -1333,7 +1350,12 @@ export class AgentController {
       // until the turn settles (turnWith), so the panel shows Working and no second turn starts meanwhile.
       const compiles = card?.steps.some((step) => step.tool.startsWith('export.compile')) ?? false;
       void (async () => {
-        if (!(await this.typingSaved())) {
+        const saved = await this.typingSaved();
+        if (this.turnAbort !== abort || abort?.signal.aborted) {
+          resolve({ action: 'cancel' });
+          return;
+        }
+        if (!saved) {
           // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
           this.message = t`Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.`;
           if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
@@ -1354,6 +1376,10 @@ export class AgentController {
           try {
             await this.session.exportsReady();
           } catch (error) {
+            if (this.turnAbort !== abort || abort?.signal.aborted) {
+              resolve({ action: 'cancel' });
+              return;
+            }
             const reason = error instanceof Error ? error.message : String(error);
             this.message = t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
             if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
@@ -1366,9 +1392,15 @@ export class AgentController {
             return;
           }
         }
+        if (this.turnAbort !== abort || abort?.signal.aborted) {
+          resolve({ action: 'cancel' });
+          return;
+        }
         resolve(decision);
         this.bump();
-      })();
+      })().finally(() => {
+        if (this.approving === resolve) this.approving = null;
+      });
       return;
     }
     resolve(decision);

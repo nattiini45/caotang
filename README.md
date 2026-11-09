@@ -1,5 +1,7 @@
 # Caotang
 
+An agent turn that ends retires its approval and Stop controls. If a held plan cannot start, **Switch to Ask and run this plan** stays available without changing your mode.
+
 The agent's `/` menu includes project skills, saved prompts, `/macro-<slug>` plan templates and reviewed connected-server prompts. **Save as command…** on a finished request creates a user-only SKILL.md, not another prompt store. Read and approve it in Skills before running it; missing arguments are asked for inline, and every permission and approval still applies.
 
 Caotang is a writing studio for novels and other long fiction. Your manuscript stays on your machine. An AI agent can work in it too. Plans and drafts wait for your approval, small changes apply at once, and each recent turn can be taken back within the checkpoint limits in Settings.

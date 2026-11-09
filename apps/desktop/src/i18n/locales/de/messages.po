@@ -16941,6 +16941,11 @@ msgstr "Diese Erlaubnisregel für {tool} hat keine Wirkung, weil sie nur Lesezug
 msgid "This allow rule has no effect because it names a folder or path."
 msgstr "Diese Erlaubnisregel hat keine Wirkung, weil sie einen Ordner oder Pfad nennt."
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This approval is already saving your typing. Wait for it to finish."
+msgstr "Diese Freigabe speichert gerade deinen Text. Warte, bis sie abgeschlossen ist."
+
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "This browser cannot open HEIC photos."
 msgstr "Dieser Browser kann keine HEIC-Fotos öffnen."
