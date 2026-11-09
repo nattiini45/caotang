@@ -325,8 +325,7 @@ export function ExportDialog({
   const [busy, setBusy] = useState(false);
   // What the dialog says about its own work: a refusal, a failed save, or a recipe saved. It is shown inside the dialog, beside Compile,
   // because the status line sits under the dialog and the writer is reading the dialog. A finished compile is said on the status line.
-  const [notice, setNotice] = useState<StatusMessage | null>(null);
-  const [hookBlocked, setHookBlocked] = useState(false);
+  const [notice, setNotice] = useState<(StatusMessage & { readonly hookRequest?: string }) | null>(null);
   const shown = shownOptionsOf(recipe);
   // A comic compile takes one book, so the format is offered while a comic or one of its pages is the selected item.
   const comicSelected = selection !== null && comicBookOf(session.state.manifest.tree, selection.id) !== undefined;
@@ -337,6 +336,8 @@ export function ExportDialog({
   const pack = format === 'promptpack';
   const templateId = pack && vendor !== '' ? vendor : undefined;
   const recipeFor = pack && vendor === '' ? undefined : recipe?.name;
+  const requestKey = JSON.stringify({ format, scope, selection: selection?.id, recipe, vendor });
+  const currentNotice = notice?.hookRequest === undefined || notice.hookRequest === requestKey ? notice : null;
 
   // The Preview waits for the same readiness a compile does (the Ink compiler, the image listing), so a media format's gates are the compile's.
   const [ready, setReady] = useState(false);
@@ -471,9 +472,9 @@ export function ExportDialog({
   };
 
   const compile = async (compileAnyway = false): Promise<void> => {
+    const override = compileAnyway && notice?.hookRequest === requestKey;
     setBusy(true);
     setNotice(null);
-    setHookBlocked(false);
     try {
       await session.exportsReady();
       // Failures are cumulative for the life of the exporter, and a path a later compile re-used may carry an older
@@ -483,12 +484,11 @@ export function ExportDialog({
       // A comic compile counts its panels for the status line; the selection is the book or page it compiles.
       const comicPanels = partId !== null ? comicPanelCountOf(session, partId) : undefined;
       const outcome = partId !== null
-        ? compileSelection(session, [partId], format, recipeFor, templateId, compileAnyway)
-        : compileManuscript(session, format, recipeFor, templateId, compileAnyway);
+        ? compileSelection(session, [partId], format, recipeFor, templateId, override)
+        : compileManuscript(session, format, recipeFor, templateId, override);
       if (!outcome.ok) {
         // A refusal keeps the dialog open, so the reason is said here, next to Compile, and not on the status line under the dialog.
-        setNotice({ text: explain(outcome.error), tone: 'error' });
-        setHookBlocked(outcome.error.details?.['hookBlocked'] === true);
+        setNotice({ text: explain(outcome.error), tone: 'error', ...(outcome.error.details?.['hookBlocked'] === true ? { hookRequest: requestKey } : {}) });
         return;
       }
       const digest = outcome.value.result as ExportCommandDigest;
@@ -632,7 +632,7 @@ export function ExportDialog({
               name="export-scope"
               value="manuscript"
               checked={scope === 'manuscript'}
-              onChange={() => setScope('manuscript')}
+              onChange={() => { setScope('manuscript'); setNotice(null); }}
             />
             <span className="export-option-label"><Trans>The whole manuscript</Trans></span>
           </label>
@@ -644,7 +644,7 @@ export function ExportDialog({
               aria-label={accessibleText(selectionLabel)}
               disabled={selection === null}
               checked={scope === 'selection' && selection !== null}
-              onChange={() => setScope('selection')}
+              onChange={() => { setScope('selection'); setNotice(null); }}
             />
             <span className="export-option-label">
               {selectionLabel}
@@ -870,13 +870,13 @@ export function ExportDialog({
         <ExportPreviewPanel state={preview} session={session} request={proofRequest} version={version} formatLabel={formatLabelOf(format)} />
 
         <div className="export-footer">
-          {notice === null ? null : (
-            <p className={`form-message is-${notice.tone}`} role={notice.tone === 'error' ? 'alert' : 'status'}>
-              {notice.text}
+          {currentNotice === null ? null : (
+            <p className={`form-message is-${currentNotice.tone}`} role={currentNotice.tone === 'error' ? 'alert' : 'status'}>
+              {currentNotice.text}
             </p>
           )}
           <div className="confirm-actions">
-            {hookBlocked && notice?.tone === 'error' ? (
+            {currentNotice?.tone === 'error' && currentNotice.hookRequest === requestKey ? (
               <button type="button" className="button" onClick={() => void compile(true)} disabled={busy}>
                 <Trans>Compile anyway</Trans>
               </button>
