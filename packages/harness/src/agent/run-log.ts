@@ -28,7 +28,7 @@ import type { TurnStatus } from './events.js';
 import type { LoadedSkill } from '../tools/skills.js';
 
 /** The version of the event shapes below. A `turn.start` of another version is refused, not guessed at. */
-export const RUN_LOG_VERSION = 2;
+export const RUN_LOG_VERSION = 3;
 
 /** One run's record, as the store keeps it. */
 export type RunRecord = RunRow;

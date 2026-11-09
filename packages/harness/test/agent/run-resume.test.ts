@@ -452,7 +452,7 @@ describe('loaded skill restrictions survive a reload', () => {
     bytes: new TextEncoder().encode(`---\nname: style\ndescription: Read-only style.\nallowed-tools: doc.read\n---\n${body}\n`),
   }];
 
-  async function interrupted(at: 'card' | 'confirm' | 'conversation' | 'read', failure?: 'snapshot' | 'snapshot-and-marker' | 'intent') {
+  async function interrupted(at: 'card' | 'confirm' | 'conversation' | 'read', failure?: 'snapshot' | 'snapshot-and-marker' | 'intent' | 'exchange' | 'exchange-and-marker') {
     const state = makeState();
     const skill = files();
     state.skills.set('style', skill);
@@ -494,14 +494,15 @@ describe('loaded skill restrictions survive a reload', () => {
           append: async (runId, events, patch) => {
             if (at === 'read' && published && failure === undefined) return new Promise<void>(() => {});
             if (failure === 'intent' && events.some((event) => event.t === 'skills.loading')) throw new Error('the skill intent could not be saved');
-            if (failure !== undefined && events.some((event) => event.t === 'skills.loaded' && event.skills.length > 0)) throw new Error('the skill snapshot could not be saved');
+            if ((failure === 'exchange' || failure === 'exchange-and-marker') && events.some((event) => event.t === 'messages' && JSON.stringify(event.appended).includes('Read only.'))) throw new Error('the skill exchange could not be saved');
+            if ((failure === 'snapshot' || failure === 'snapshot-and-marker') && events.some((event) => event.t === 'skills.loaded' && event.skills.length > 0)) throw new Error('the skill snapshot could not be saved');
             await log.append(runId, events, patch);
             if (at === 'card' && events.some((event) => event.t === 'step.applied' && event.tool === 'skill.load')) {
               hang();
               return new Promise<void>(() => {});
             }
           },
-          update: (runId, patch) => failure === 'snapshot-and-marker' && patch.cannotResume === true ? Promise.reject(new Error('the marker could not be saved')) : log.update(runId, patch),
+          update: (runId, patch) => (failure === 'snapshot-and-marker' || failure === 'exchange-and-marker') && patch.cannotResume === true ? Promise.reject(new Error('the marker could not be saved')) : log.update(runId, patch),
         },
       },
     });
@@ -516,7 +517,7 @@ describe('loaded skill restrictions survive a reload', () => {
     const rows = await log.events(runId) as RunEvent[];
     const replay = planResume(rows, (id) => state.documents.get(id)?.revision);
     const snapshot = [{ name: 'style', body: 'Read only.', pin, allowedTools: ['doc.read'] }];
-    if (failure === 'snapshot-and-marker') {
+    if (failure === 'snapshot-and-marker' || failure === 'exchange-and-marker') {
       expect(run?.cannotResume).not.toBe(true);
       expect(replay).toMatchObject({ ok: false, reason: 'schema', detail: expect.stringContaining('no committed snapshot') });
     } else if (failure !== undefined) expect(run?.cannotResume).toBe(true);
@@ -553,7 +554,9 @@ describe('loaded skill restrictions survive a reload', () => {
     return { report: await session.resume(runId), cards, requests, harness };
   }
 
-  it.each([['load', false], ['load', true], ['reference', false], ['reference', true]] as const)('saves the completed %s exchange before planning again (native: %s)', async (boundary, native) => {
+  async function completedExchange(boundary: 'load' | 'reference', native: boolean, stopAt: 'planning' | 'publication' | 'exchange' | 'exchange-failure' | 'exchange-and-marker' | 'confirmation', options: { batch?: boolean; edit?: boolean } = {}) {
+    const { batch = false, edit = false } = options;
+    const complete = stopAt === 'planning' || stopAt === 'publication';
     const state = makeState();
     const skill = [
       { path: 'SKILL.md', bytes: new TextEncoder().encode('---\nname: style\ndescription: Style.\nallowed-tools: skill.read doc.read\n---\nKeep the singular kestrel voice.\n') },
@@ -562,36 +565,61 @@ describe('loaded skill restrictions survive a reload', () => {
     state.skills.set('style', skill);
     const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
     const log = createMemoryRunLog();
-    const calls = [load, { tool: 'skill.read', params: { name: 'style', path: 'references/voice.md' }, expect: 'The reference is read.' }];
+    const calls = [edit ? { tool: 'doc.read', params: { doc: LANDING }, expect: 'Read the scene.' } : load, { tool: 'skill.read', params: { name: 'style', path: 'references/voice.md' }, expect: 'The reference is read.' }];
     const base = await mockGateway([{ match: () => true, respond: (req) => {
       const index = req.messages.filter((message) => message.role === 'assistant').length;
       const step = calls[index] ?? load;
+      const selected = batch ? calls : [step];
       return native
-        ? { content: '', toolCalls: [{ id: `read-${index}`, name: step.tool, argumentsJson: JSON.stringify(step.params) }], finishReason: 'tool_calls' }
-        : { content: steps(step) };
+        ? { content: '', toolCalls: selected.map((call, at) => ({ id: `read-${index}-${at}`, name: call.tool, argumentsJson: JSON.stringify(call.params) })), finishReason: 'tool_calls' }
+        : { content: steps(...selected) };
     } }]);
     let drop = (): void => {};
     const dropped = new Promise<void>((resolve) => { drop = resolve; });
     let planning = 0;
     let gone = false;
+    let published = false;
+    const statusCards = new Map<string, string>();
     const session = createAgentSession({
-      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } }),
+      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin }, rules: () => ({ rules: edit ? [{ effect: 'ask', tool: 'doc.read', source: 'project' }] : stopAt === 'confirmation' ? [{ effect: 'ask', tool: 'skill.read', source: 'project' }] : [] }) }),
       gateway: { ...base, modelCaps: () => ({ tools: native }) },
       context: createContextPort({ state }),
-      decide: async () => { throw new Error('A read-only exchange must not need approval.'); },
-      emit: (event) => {
-        if (event.type === 'turn' && event.phase === 'planning' && ++planning === (boundary === 'load' ? 2 : 3)) { gone = true; drop(); }
+      decide: async (card) => {
+        if (stopAt === 'confirmation') { gone = true; drop(); return new Promise<Decision>(() => {}); }
+        if (edit) return card.card.steps[0]?.tool === 'doc.read' ? { action: 'edit', edits: [
+          { op: 'set', index: 0, path: ['tool'], value: 'skill.load' },
+          { op: 'set', index: 0, path: ['params'], value: { name: 'style' } },
+        ] } : { action: 'approve' };
+        throw new Error('A read-only exchange must not need approval.');
       },
-      runLog: { projectId: PROJECT, port: { ...log, append: (runId, events, patch) => gone ? new Promise<void>(() => {}) : log.append(runId, events, patch) } },
+      emit: (event) => {
+        if (event.type === 'card') statusCards.set(event.card.id, event.card.status);
+        if (event.type === 'card' && event.card.status === 'done' && (edit || event.card.tool === (boundary === 'load' ? 'skill.load' : 'skill.read'))) published = true;
+        if ((stopAt === 'planning' && event.type === 'turn' && event.phase === 'planning' && ++planning === (boundary === 'load' ? 2 : 3)) ||
+          (stopAt === 'publication' && event.type === 'card' && event.card.status === 'done' && (edit || event.card.tool === (boundary === 'load' ? 'skill.load' : 'skill.read')))) { gone = true; drop(); }
+      },
+      runLog: { projectId: PROJECT, port: { ...log, append: (runId, events, patch) => {
+        if (stopAt.startsWith('exchange') && events.some((event) => event.t === 'messages' && JSON.stringify(event.appended).includes(boundary === 'load' ? 'Keep the singular kestrel voice.' : 'The reference requires silver herons.'))) {
+          if (stopAt !== 'exchange') return Promise.reject(new Error('The exchange could not be saved.'));
+          gone = true; drop();
+        }
+        return gone ? new Promise<void>(() => {}) : log.append(runId, events, patch);
+      }, update: (runId, patch) => stopAt === 'exchange-and-marker' && patch.cannotResume === true ? Promise.reject(new Error('The recovery marker could not be saved.')) : log.update(runId, patch) } },
     });
-    void session.submit(request);
-    await dropped;
+    const running = session.submit(request);
+    if (stopAt === 'exchange-failure' || stopAt === 'exchange-and-marker') {
+      expect((await running).status).toBe('failed');
+      expect(published).toBe(false);
+      expect([...statusCards.values()].some((status) => status === 'running' || status === 'pending-approval')).toBe(false);
+    } else await dropped;
     const [run] = await log.open(PROJECT);
     const runId = run?.runId ?? '';
     const replay = planResume(await log.events(runId), (id) => state.documents.get(id)?.revision);
-    expect(replay.ok).toBe(true);
-    expect(JSON.stringify(replay.replay?.messages)).toContain('Keep the singular kestrel voice.');
-    if (boundary === 'reference') expect(JSON.stringify(replay.replay?.messages)).toContain('The reference requires silver herons.');
+    expect(replay.ok).toBe(complete);
+    if (complete) {
+      expect(JSON.stringify(replay.replay?.messages)).toContain('Keep the singular kestrel voice.');
+      if (boundary === 'reference' || batch) expect(JSON.stringify(replay.replay?.messages)).toContain('The reference requires silver herons.');
+    }
     await log.update(runId, { status: 'interrupted' });
     const resumedRequests: ChatRequest[] = [];
     const resumedGateway = await mockGateway([{ match: () => true, respond: () => ({ content: native ? 'Context retained.' : answer('Context retained.') }) }]);
@@ -602,10 +630,120 @@ describe('loaded skill restrictions survive a reload', () => {
       decide: async () => { throw new Error('A resumed read-only exchange must not need approval.'); },
       runLog: { port: log, projectId: PROJECT },
     });
-    expect((await resumed.resume(runId)).status).toBe('replied');
-    expect(resumedRequests).toHaveLength(1);
-    expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('Keep the singular kestrel voice.');
-    if (boundary === 'reference') expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('The reference requires silver herons.');
+    const report = await resumed.resume(runId);
+    expect(report.status).toBe(complete ? 'replied' : 'failed');
+    expect(resumedRequests).toHaveLength(complete ? 1 : 0);
+    if (complete) {
+      expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('Keep the singular kestrel voice.');
+      if (boundary === 'reference' || batch) expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('The reference requires silver herons.');
+    } else expect(report.askBack?.reason).toContain(stopAt === 'exchange-failure' ? 'not logged completely' : 'no committed snapshot');
+  }
+
+  it.each([['load', false], ['load', true], ['reference', false], ['reference', true]] as const)('saves the completed %s exchange before planning again (native: %s)', async (boundary, native) => {
+    await completedExchange(boundary, native, 'planning');
+  });
+
+  it.each([['load', false], ['load', true], ['reference', false], ['reference', true]] as const)('saves the %s exchange before publishing success (native: %s)', async (boundary, native) => {
+    await completedExchange(boundary, native, 'publication');
+  });
+
+  it.each([['load', false], ['load', true], ['reference', false], ['reference', true]] as const)('refuses a partial %s exchange before its message commit (native: %s)', async (boundary, native) => {
+    await completedExchange(boundary, native, 'exchange');
+  });
+
+  it.each([['load', false], ['load', true], ['reference', false], ['reference', true]] as const)('refuses a failed %s exchange even when its recovery marker fails (native: %s)', async (boundary, native) => {
+    await completedExchange(boundary, native, 'exchange-failure');
+    await completedExchange(boundary, native, 'exchange-and-marker');
+  });
+
+  it.each([false, true])('keeps a load and reference in one reply atomic (native: %s)', async (native) => {
+    await completedExchange('load', native, 'publication', { batch: true });
+    await completedExchange('reference', native, 'exchange', { batch: true });
+  });
+
+  it.each([false, true])('keeps the read fence through an intermediate confirmation card (native: %s)', async (native) => {
+    await completedExchange('load', native, 'confirmation', { batch: true });
+  });
+
+  it.each([false, true])('fences a confirmation edited into a skill load (native: %s)', async (native) => {
+    await completedExchange('load', native, 'publication', { edit: true });
+    await completedExchange('load', native, 'exchange', { edit: true });
+  });
+
+  it.each([false, true])('ends deferred read cards when a later confirmation is cancelled (native: %s)', async (native) => {
+    const state = makeState();
+    const skill = files();
+    state.skills.set('style', skill);
+    const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
+    const reads = [load, { tool: 'doc.read', params: { doc: LANDING }, expect: 'The scene is read.' }];
+    const base = await mockGateway([{ match: () => true, respond: () => native
+      ? { content: '', toolCalls: reads.map((step, index) => ({ id: `read-${index}`, name: step.tool, argumentsJson: JSON.stringify(step.params) })), finishReason: 'tool_calls' }
+      : { content: steps(...reads) } }]);
+    const log = createMemoryRunLog();
+    const cards = new Map<string, string>();
+    const session = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin }, rules: () => ({ rules: [{ effect: 'ask', tool: 'doc.read', source: 'project' }] }) }),
+      gateway: { ...base, modelCaps: () => ({ tools: native }) },
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'cancel' }),
+      emit: (event) => { if (event.type === 'card') cards.set(event.card.tool, event.card.status); },
+      runLog: { port: log, projectId: PROJECT, newRunId: () => 'cancelled-exchange' },
+    });
+    const report = await session.submit(request);
+    expect(report.status).toBe('cancelled');
+    expect(cards.get('skill.load')).toBe('failed');
+    expect(cards.get('doc.read')).toBe('cancelled');
+    expect([...cards.values()].some((status) => status === 'running' || status === 'pending-approval')).toBe(false);
+    expect(report.steps.find((step) => step.tool === 'skill.load')).toMatchObject({ status: 'failed', error: expect.stringContaining('not saved') });
+    expect(report.trace.find((entry) => entry.tool === 'skill.load')).toMatchObject({ outcome: 'refused' });
+    expect(planResume(await log.events('cancelled-exchange'), (id) => state.documents.get(id)?.revision)).toMatchObject({ ok: false, reason: 'schema' });
+  });
+
+  async function failedReference(native: boolean, markerFails: boolean, decisionFails = false) {
+    const state = makeState();
+    const skill = [{ path: 'SKILL.md', bytes: new TextEncoder().encode('---\nname: style\ndescription: Style.\nallowed-tools: skill.read doc.read\n---\nRead only.\n') },
+      { path: 'references/voice.md', bytes: new TextEncoder().encode('Reference text.') }];
+    state.skills.set('style', skill);
+    const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
+    const reads = [load, { tool: 'skill.read', params: { name: 'style', path: 'references/voice.md' }, expect: 'The reference is read.' }];
+    const base = await mockGateway([{ match: () => true, respond: () => native
+      ? { content: '', toolCalls: reads.map((step, index) => ({ id: `read-${index}`, name: step.tool, argumentsJson: JSON.stringify(step.params) })), finishReason: 'tool_calls' }
+      : { content: steps(...reads) } }]);
+    const log = createMemoryRunLog();
+    const cards = new Map<string, string>();
+    let intents = 0;
+    let referenceReads = 0;
+    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin }, rules: () => ({ rules: [{ effect: 'ask', tool: 'skill.read', source: 'project' }] }) });
+    const call = harness.call;
+    harness.call = (tool, context) => { if (tool.name === 'skill.read') referenceReads += 1; return call(tool, context); };
+    const session = createAgentSession({
+      harness,
+      gateway: { ...base, modelCaps: () => ({ tools: native }) },
+      context: createContextPort({ state }),
+      decide: async () => { if (decisionFails) throw new Error('The confirmation failed.'); return { action: 'approve' }; },
+      emit: (event) => { if (event.type === 'card') cards.set(event.card.tool, event.card.status); },
+      runLog: { projectId: PROJECT, newRunId: () => 'failed-read-intent', port: {
+        ...log,
+        append: (runId, events, patch) => events.some((event) => event.t === 'skills.loading') && ++intents === 2 ? Promise.reject(new Error('The reference intent could not be saved.')) : log.append(runId, events, patch),
+        update: (runId, patch) => markerFails && patch.cannotResume === true ? Promise.reject(new Error('The recovery marker could not be saved.')) : log.update(runId, patch),
+      } },
+    });
+    const report = await session.submit(request);
+    expect(report.status).toBe('failed');
+    expect(referenceReads).toBe(0);
+    expect(cards.get('skill.load')).toBe('failed');
+    expect(cards.get('skill.read')).toBe(decisionFails ? 'cancelled' : 'failed');
+    expect(report.steps.find((step) => step.tool === 'skill.read')).toMatchObject({ status: decisionFails ? 'cancelled' : 'failed' });
+    expect(report.trace.find((entry) => entry.tool === 'skill.read')).toMatchObject({ outcome: decisionFails ? 'not-run' : 'refused' });
+    expect(planResume(await log.events('failed-read-intent'), (id) => state.documents.get(id)?.revision)).toMatchObject({ ok: false, reason: 'schema' });
+  }
+
+  it.each([[false, false], [false, true], [true, false], [true, true]] as const)('ends an approved reference card if its intent write fails (native: %s, marker fails: %s)', async (native, markerFails) => {
+    await failedReference(native, markerFails);
+  });
+
+  it.each([false, true])('ends a waiting reference card if its decision fails (native: %s)', async (native) => {
+    await failedReference(native, false, true);
   });
 
   it.each(['ask', 'auto'] as const)('keeps a pending card restricted in %s mode despite edits and approval', async (mode) => {
@@ -627,8 +765,9 @@ describe('loaded skill restrictions survive a reload', () => {
     const fixture = await interrupted(at);
     const before = outcomeOf(fixture.state);
     const { report, cards, requests, harness } = await resume(fixture);
-    expect(requests).toHaveLength(at === 'read' ? 3 : 2);
-    if (at === 'read') expect(report.trace[0]).toMatchObject({ tool: 'skill.load', outcome: 'refused', code: 'permission-denied' });
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests[0]?.messages)).toContain('Read only.');
+    expect(report.trace.some((entry) => entry.tool === 'skill.load')).toBe(false);
     expect(JSON.stringify(requests.at(-1)?.messages)).toContain('limits this turn to: doc.read');
     expect(cards).toHaveLength(0);
     expect(report.status).toBe('replied');
@@ -651,6 +790,16 @@ describe('loaded skill restrictions survive a reload', () => {
     expect(cards).toEqual([]);
     expect(requests).toEqual([]);
     expect(outcomeOf(fixture.state)).toEqual(before);
+  });
+
+  it.each(['exchange', 'exchange-and-marker'] as const)('keeps the read intent pending after a failed %s write', async (failure) => {
+    const fixture = await interrupted('read', failure);
+    const { report, cards, requests } = await resume(fixture);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain(failure === 'exchange-and-marker' ? 'no committed snapshot' : 'not logged completely');
+    expect(cards).toEqual([]);
+    expect(requests).toEqual([]);
+    expect(fixture.loads).toBe(1);
   });
 
   it('validates restored skills before running a turn.submit hook', async () => {
