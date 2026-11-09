@@ -46,6 +46,57 @@ Initial: `loading`. Final: `closed`.
 | `ready` | `cancel` | `closed` |
 | `ready` | `commit` | `committing` |
 
+## modern.menu
+
+Initial: `closed`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `closed` | `open` | `open` |
+| `closed` | `toggle` | `open` |
+| `closing` | `closed` | `closed`, `closing` |
+| `closing` | `open` | `open` |
+| `closing` | `toggle` | `open` |
+| `open` | `close` | `closing` |
+| `open` | `open` | `open` |
+| `open` | `toggle` | `closing` |
+
+## modern.sidebar
+
+Initial: `closed`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `closed` | `hover` | `closed` |
+| `closed` | `hover-elapsed` | `closed`, `opened-hover` |
+| `closed` | `leave` | `closed` |
+| `closed` | `open` | `opened-press` |
+| `closed` | `pin` | `opened-press`, `pinned` |
+| `closed` | `press` | `opened-press` |
+| `closing` | `close-elapsed` | `closed`, `opened-hover`, `opened-press` |
+| `closing` | `enter` | `opened-hover`, `opened-press` |
+| `closing` | `escape` | `closed` |
+| `closing` | `leave` | `closing` |
+| `closing` | `open` | `opened-press` |
+| `closing` | `pin` | `opened-press`, `pinned` |
+| `closing` | `press` | `closed`, `opened-press` |
+| `closing` | `scene-chosen` | `closed` |
+| `opened-hover` | `escape` | `closed` |
+| `opened-hover` | `leave` | `closing` |
+| `opened-hover` | `open` | `opened-press` |
+| `opened-hover` | `pin` | `opened-press`, `pinned` |
+| `opened-hover` | `press` | `opened-press` |
+| `opened-hover` | `scene-chosen` | `closed` |
+| `opened-press` | `escape` | `closed` |
+| `opened-press` | `leave` | `closing` |
+| `opened-press` | `open` | `opened-press` |
+| `opened-press` | `pin` | `opened-press`, `pinned` |
+| `opened-press` | `press` | `closed`, `opened-press` |
+| `opened-press` | `scene-chosen` | `closed` |
+| `pinned` | `open` | `pinned` |
+| `pinned` | `pin` | `opened-press`, `pinned` |
+| `pinned` | `press` | `pinned` |
+
 ## sprint.timer
 
 Initial: `idle`. Final: none.

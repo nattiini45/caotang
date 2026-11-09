@@ -22,6 +22,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import {
   useEffect,
+  useReducer,
   useRef,
   useState,
   useSyncExternalStore,
@@ -44,7 +45,7 @@ import {
   SIDEBAR_TABS,
   currentBinderPinned,
   isSidebarTab,
-  mayClose,
+  sidebarReducer,
   agentTab,
   openerOf,
   setBinderPinned,
@@ -78,25 +79,20 @@ let lastFilterRequest = 0;
 /** The stops whose kept words were announced, so a remount does not say it twice. */
 const announcedStops = new Set<string>();
 
-type Timer = ReturnType<typeof setTimeout>;
-
 export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotProps): ReactNode {
   const { view } = regions;
   const report = useReport();
   const pinned = useSyncExternalStore(subscribeBinderPinned, currentBinderPinned);
-  const [open, setOpen] = useState(false);
-  // Opened by a hover: focus stayed where it was, and a click on the tab bar takes the sidebar over rather than closing it.
-  const [hovered, setHovered] = useState(false);
+  const [state, dispatch] = useReducer(sidebarReducer, pinned ? { kind: 'pinned' } : { kind: 'closed', intent: 'none' });
   const [opener, setOpener] = useState<Opener>(MANUSCRIPT_ID);
   const [goalsOpen, setGoalsOpen] = useState(false);
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const navRef = useRef<HTMLElement>(null);
   const pointerInside = useRef(false);
-  const hoverTimer = useRef<Timer | null>(null);
-  const closeTimer = useRef<Timer | null>(null);
 
   const tab = sidebarTabFor(view.rail);
-  const shown = pinned || open;
+  const shown = state.kind !== 'closed';
+  if (pinned !== (state.kind === 'pinned')) dispatch({ type: 'pin', pinned });
 
   const requestFocus = (target: FocusTarget, id = ''): void =>
     setFocusRequest((previous) => ({ target, id, serial: (previous?.serial ?? 0) + 1 }));
@@ -107,8 +103,7 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
   if (view.filterRequest !== seenFilter) {
     setSeenFilter(view.filterRequest);
     if (view.filterRequest > 0) {
-      setOpen(true);
-      setHovered(false);
+      dispatch({ type: 'open' });
     }
   }
   // A sidebar tab chosen from outside (a timeline fact's "Open in Findings", the screenplay's section route) opens the sidebar on it.
@@ -119,17 +114,15 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
     setSeenRail(view.rail);
     setSeenRequest(view.railRequest);
     if (isSidebarTab(view.rail)) {
-      setOpen(true);
-      setHovered(false);
+      dispatch({ type: 'open' });
     }
   }
   // A scene chosen in an unpinned sidebar closes it on the editor (§8.5), as the narrow drawer closes.
   const [seenChoice, setSeenChoice] = useState(view.binderChoice);
   if (view.binderChoice !== seenChoice) {
     setSeenChoice(view.binderChoice);
-    if (!pinned && open) {
-      setOpen(false);
-      setHovered(false);
+    if (!pinned && shown) {
+      dispatch({ type: 'scene-chosen' });
       requestFocus('page');
     }
   }
@@ -145,10 +138,7 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
     if (nav === null || typeof MutationObserver === 'undefined') return;
     const check = (): void => {
       if (nav.querySelector('dialog[open]') === null) return;
-      if (closeTimer.current !== null) clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-      setOpen(true);
-      setHovered(false);
+      dispatch({ type: 'open' });
     };
     const observer = new MutationObserver(check);
     observer.observe(nav, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
@@ -156,34 +146,21 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
     return () => observer.disconnect();
   }, []);
 
-  const clearHover = (): void => {
-    if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
-    hoverTimer.current = null;
-  };
-  const clearClose = (): void => {
-    if (closeTimer.current !== null) clearTimeout(closeTimer.current);
-    closeTimer.current = null;
-  };
-  useEffect(
-    () => () => {
-      if (hoverTimer.current !== null) clearTimeout(hoverTimer.current);
-      if (closeTimer.current !== null) clearTimeout(closeTimer.current);
-    },
-    [],
-  );
-
-  const focusInside = (): boolean => navRef.current?.contains(document.activeElement) === true;
-
-  /** Closes the sidebar after the delay, if by then it may close (not pinned, no focus inside, no pointer over it). */
-  const scheduleClose = (): void => {
-    clearClose();
-    closeTimer.current = setTimeout(() => {
-      closeTimer.current = null;
-      if (!mayClose({ pinned: currentBinderPinned(), focusInside: focusInside(), pointerInside: pointerInside.current })) return;
-      setOpen(false);
-      setHovered(false);
-    }, CLOSE_DELAY_MS);
-  };
+  useEffect(() => {
+    if (state.kind === 'closed' && state.intent === 'hover') {
+      const timer = setTimeout(() => dispatch({ type: 'hover-elapsed' }), HOVER_OPEN_MS);
+      return () => clearTimeout(timer);
+    }
+    if (state.kind === 'closing') {
+      const timer = setTimeout(() => dispatch({
+        type: 'close-elapsed',
+        focusInside: navRef.current?.contains(document.activeElement) === true,
+        pointerInside: pointerInside.current,
+      }), CLOSE_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [state]);
 
   /** Shows a sidebar tab, as the rail's tabs do (the workspace keeps which one). */
   const choose = (next: RailTab): void => {
@@ -194,16 +171,11 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
 
   /** Binder, Findings and Agent: open on their tab and move focus in, or close a sidebar they opened when pressed again. */
   const press = (next: SidebarTab, from: Opener, toggle = true): void => {
-    clearHover();
-    clearClose();
-    if (toggle && shown && !hovered && !pinned && tab === next) {
-      setOpen(false);
-      return;
-    }
+    const event = { type: 'press', toggle: toggle && tab === next } as const;
+    dispatch(event);
+    if (sidebarReducer(state, event).kind === 'closed') return;
     setOpener(from);
     choose(next);
-    setOpen(true);
-    setHovered(false);
     requestFocus(next === 'binder' ? 'row' : 'tab', railTabId(next));
   };
 
@@ -214,42 +186,31 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
   }));
 
   const close = (): void => {
-    clearHover();
-    clearClose();
-    setOpen(false);
-    setHovered(false);
+    dispatch({ type: 'escape' });
     requestFocus('opener', opener);
   };
 
   const togglePin = (): void => {
     setBinderPinned(!pinned);
     // Unpinned with focus on the button, the sidebar stays until focus or the pointer leaves it.
-    setOpen(true);
-    setHovered(false);
   };
 
   // A hover held over the tab bar opens the sidebar, focus stays where it was. Touch has no hover: a tap is a click.
   const onBarPointerEnter = (event: ReactPointerEvent<HTMLDivElement>): void => {
     if (event.pointerType === 'touch' || shown) return;
-    clearHover();
-    hoverTimer.current = setTimeout(() => {
-      hoverTimer.current = null;
-      setOpen(true);
-      setHovered(true);
-    }, HOVER_OPEN_MS);
+    dispatch({ type: 'hover' });
   };
   const onPointerEnter = (): void => {
     pointerInside.current = true;
-    clearClose();
+    dispatch({ type: 'enter' });
   };
   const onPointerLeave = (): void => {
     pointerInside.current = false;
-    clearHover();
-    if (shown && !pinned) scheduleClose();
+    dispatch({ type: 'leave' });
   };
   const onBlur = (event: ReactFocusEvent<HTMLElement>): void => {
     if (navRef.current?.contains(event.relatedTarget as Node | null) === true) return;
-    if (shown && !pinned) scheduleClose();
+    if (shown && !pinned) dispatch({ type: 'leave' });
   };
   // Escape closes an unpinned sidebar and returns focus to its button, after anything inside it (a menu, a rename) has had the key.
   const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
@@ -319,8 +280,7 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
         onClick: () => {
           setSeenRail('binder');
           setRail('binder');
-          setOpen(true);
-          setHovered(false);
+          dispatch({ type: 'open' });
           setGoalsOpen(true);
           setFocusRequest((previous) => ({ target: 'kept', id: '', serial: (previous?.serial ?? 0) + 1 }));
         },
@@ -397,7 +357,7 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
         </div>
       </div>
 
-      <div id={SIDEBAR_ID} className="modern-sidebar mat-thick" data-testid="modern-sidebar" inert={!shown}>
+      <div id={SIDEBAR_ID} className="modern-sidebar mat-thick" data-testid="modern-sidebar" data-panel-state={state.kind} inert={!shown}>
         {/* One row (#360): the four tabs as one segmented control, and Keep open as an icon toggle at its end. */}
         <div className="modern-sidebar-head">
           <SidebarTabList tab={tab} findingsBadge={regions.findingsBadge} onSelect={choose} />
