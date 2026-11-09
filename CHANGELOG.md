@@ -18,7 +18,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
-- **Clear sidebar states (#379).** Binder, Findings, Activity and Trace pair empty, loading and error guidance with named SVG glyphs in English and German. Findings distinguishes a completed check from first use, retains review/save failures and offers a save retry; Activity shows Undo progress and retryable failure. Shell icons use 19 copied Lucide definitions, with their ISC notice, instead of adding an icon package.
+- **Clear sidebar states (#379).** Binder, Findings, Activity and Trace pair empty, loading and error guidance with named SVG glyphs in English and German. Findings distinguishes a completed check from first use, retains review/save failures and offers a retry for browser saves, while external folder conflicts direct the writer to reopen the folder; Activity shows Undo progress and retryable failure. Shell icons use 19 copied Lucide definitions, with their ISC notice, instead of adding an icon package.
 
 - **Document modes beside the title (#476), and browser-safe navigation (#483).** Modern moves screenplay **Script · Source · Pages** into the top ornament and adds **Graph · Ink** for dialogue, with a document-type icon on the title capsule. Graph nodes open Ink at their line; both modes keep the same draft. Classic keeps its existing screenplay controls and split dialogue view. Search reaches every view and reopens the sidebar even on its current tab; **Agent › Sidebar** returns to the last Activity or Trace log. The English and German keyboard tables list the navigation paths and browser limitations instead of claiming numbered shortcuts that browsers, screenplay editing or macOS already use.
 

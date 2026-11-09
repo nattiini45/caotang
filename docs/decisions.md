@@ -2,6 +2,8 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- Findings offers a save retry only for a failed browser write while its session is active. A folder conflict keeps its existing reopen-from-Projects guidance without offering the same stale-digest save again. Why: recovery must be able to change the failed condition (#379, PR #507 review). [delegated 2026-11-09]
+
 - The Binder displays its two fixed section labels in the interface language, by reserved id, without rewriting their stored titles; writer-named folders and documents stay project content. Why: Manuscript and Research cannot be renamed, so they are interface labels rather than author text (#378). [owner 2026-11-09]
 
 - Sidebar labels keep their full names and counts; Modern's segmented tabs may wrap when localization or enlarged type needs another row (#378). Dialogs and sidebar scrollers in both shells show directional sticky edge fades only while more content remains, including the narrow Settings strip; reduced transparency, higher contrast and forced colors omit the bands (#380). Why: full names and a visible scroll cue outrank a forced one-row track, and sticky overlays preserve child menus and dialog top layers without adding blur. [owner 2026-11-08]

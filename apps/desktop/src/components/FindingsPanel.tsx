@@ -332,7 +332,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         <div className="form-message is-error" role="alert" data-panel-state="error">
           <Icon name="error" label={t`Save failed`} />
           <p>{status.saveFailure}</p>
-          <button type="button" className="button" onClick={() => session.coherenceChanged()}><Trans>Try saving findings again</Trans></button>
+          {status.canRetrySave ? <button type="button" className="button" onClick={() => session.coherenceChanged()}><Trans>Try saving findings again</Trans></button> : null}
         </div>
       ) : null}
       {failure !== null && !running ? (

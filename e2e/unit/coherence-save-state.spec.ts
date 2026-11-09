@@ -4,7 +4,7 @@ import { MemoryIndexedDb, openRuntimeStore, writeProjectState } from '../../pack
 import { emptyCoherenceFile, type CoherenceFile } from '../../packages/coherence/src/index.js';
 
 import { shadowOf } from '../../apps/desktop/src/app/persistence-plan.js';
-import { ProjectSession } from '../../apps/desktop/src/app/session.js';
+import { CoherenceFolderError, ProjectSession } from '../../apps/desktop/src/app/session.js';
 import { IDS, project } from './fixtures.js';
 
 // The save indicator reads the store, and a findings write is not in the store until it lands. So the indicator must read saving
@@ -34,6 +34,22 @@ async function sessionOf(): Promise<ProjectSession> {
 }
 
 const CHANGED: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneA]: { dayOffset: 4 } } };
+
+test('only browser findings failures offer a save retry, not folder conflicts', async () => {
+  for (const [error, retryable] of [[new Error('the disk is full'), true], [new CoherenceFolderError('changed by another program'), false]] as const) {
+    const session = await sessionOf();
+    session.attachCoherence(
+      { file: emptyCoherenceFile(), writable: true, notices: [] },
+      { save: async () => { throw error; }, attachFolder: async () => {} },
+    );
+    expect(session.coherenceStatus().canRetrySave).toBe(false);
+    session.applyCoherenceFile(CHANGED);
+    await session.settle();
+    expect(session.coherenceStatus().saveFailure).toContain(error.message);
+    expect(session.coherenceStatus().canRetrySave).toBe(retryable);
+    await session.close();
+  }
+});
 
 test.describe('the save indicator and a findings save (coherence.md §3)', () => {
   test('reads saving while a findings save is in flight, and saved only once the save has landed', async () => {

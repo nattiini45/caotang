@@ -111,6 +111,29 @@ async function removeFromBrowser(page: Page, name: string): Promise<void> {
   await expect(page.getByRole('listitem').filter({ hasText: name })).toHaveCount(0);
 }
 
+test('a findings folder conflict explains reopening instead of offering a save retry', async ({ page }) => {
+  const folder = 'findings-conflict-folder';
+  await standInFolderPicker(page, folder);
+  await createProject(page, 'Findings conflict');
+  await saveToFolder(page);
+  const original = await readFolderFile(page, folder, 'coherence.json');
+  expect(original).not.toBeNull();
+  const external = `${original}\n`;
+  await writeFolderFile(page, folder, 'coherence.json', external);
+  await page.getByRole('tab', { name: 'Findings' }).click();
+  await page.getByRole('button', { name: 'Scan the manuscript' }).click();
+  const failure = page.getByRole('alert').filter({ hasText: 'changed by another program' });
+  await expect(failure).toContainText('open the folder again from Projects');
+  await expect(failure.getByRole('button', { name: 'Try saving findings again' })).toHaveCount(0);
+  expect(await readFolderFile(page, folder, 'coherence.json')).toBe(external);
+  await page.getByRole('button', { name: 'Projects', exact: true }).click();
+  await page.getByRole('button', { name: 'Open a folder…', exact: true }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Findings' }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'changed by another program' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'No findings yet', exact: true })).toBeVisible();
+});
+
 test('a folder made before the identifier and the language existed says what the open made, and counts no field', async ({ page }) => {
   await standInFolderPicker(page, 'pre-identity-folder');
   await page.goto('/');
