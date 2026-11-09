@@ -28,6 +28,7 @@ import {
   createProject,
   exportStoredBundle,
   imageDropNotice,
+  hookNotice,
   importBundle,
   listProjects,
   openFolder,
@@ -229,7 +230,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   const open = (projectId: string): void => {
     void run('openingProject', async () => {
       const session = await openProject(store, projectId);
-      onOpened({ session, notices: imageDropNotice(session), droppedFields: [], copiedFrom: null });
+      onOpened({ session, notices: [...imageDropNotice(session), ...hookNotice(session)], droppedFields: [], copiedFrom: null });
     });
   };
 

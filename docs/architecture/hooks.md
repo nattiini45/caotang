@@ -1,6 +1,6 @@
-# Hooks — the writer's checks on the agent's calls (v1, first slice)
+# Hooks — the writer's checks on agent calls, turns, saves and exports
 
-> Status: **built in part.** Built: the `tool.before` and `tool.after` events, the four `check` kinds, `agent.hooks` in the manifest, `hook.save` and `hook.delete`, and the reports (card, ask-back, turn report, trace, run log). **Specified, not built:** every other event, the Settings › Hooks panel, and every handler that is not a pure check. Each such part is marked below.
+> Status: **built for pure checks.** All seven events, Settings › Hooks (list, enable and delete), `agent.hooks`, the user-only commands and the reports are built. Creating, editing and testing hooks in Settings follows in the next slice. Non-check handlers and a `turn.end` continuation remain specified, not built.
 > Cross-refs: where a hook sits among the rules and the gate = [agent-harness.md](agent-harness.md) §4 · the two commands = [command-bus.md](command-bus.md) §9 · `agent.hooks` = [project-format.md](project-format.md) §2 · the note the model reads = [context-assembly.md](context-assembly.md) §2 · the extension posture = [extensibility.md](extensibility.md) §4 rule 7.
 
 ## 1. Purpose
@@ -17,13 +17,17 @@ A hook **never approves**. It runs after the gate has answered, so an `allow` is
 |---|---|---|---|
 | `tool.before` | for each agent call: at the plan's preflight, and again as the call runs, before the bus is asked | **yes** | `warn` (default) or `block` |
 | `tool.after` | after an agent call returned | **yes** | a note for the model (`context`) |
-| `export.before`, `export.after` | around `export.compile`, the writer's gesture or the agent's | specified, not built | block with "Compile anyway" for the writer, a hard refusal for the agent |
-| `project.save` | before `saveFolder` and `exportBundle` | specified, not built | `warn` only: **a save is never blocked by a hook**; an autosave flush never fires one |
-| `turn.submit`, `turn.end` | around the planner call, and after the last step | deferred | `turn.end` `continue` is not built (it spends model calls inside the loop; a `tool.after` note covers the cases) |
+| `export.before`, `export.after` | around `export.compile` and `export.compileSelection`, the writer's gesture or the agent's | **yes** | block with "Compile anyway" for the writer, a refusal the agent cannot override |
+| `project.save` | before an open project's `saveFolder` and `exportBundle` | **yes** | `warn` only: **a save is never blocked by a hook**; an autosave flush never fires one |
+| `turn.submit`, `turn.end` | before any planner request (including structured slash plans), and after the last step | **yes** | submit can block before a provider call; end only warns, never continues or reverses a completed write |
 
-All seven names are declared (`HOOK_EVENTS`), so a project file written for a later build loads. A hook for an event this build does not run is **kept and flagged** at load ("runs at export.before, which this build does not run yet; it is kept and has no effect"), and nothing fires it. `HOOK_EVENTS_RUN` is the list that does.
+`HOOK_EVENTS_RUN` contains all seven names. Turn and save checks have no tool; a tools matcher therefore does not match them. Their affected documents are the current project's documents; export checks see only documents in the compile selection (including the descendants and a saved recipe's roots). Pattern checks inspect the expanded intent at submit, and document bodies at end, save and export; word bounds inspect the same text. Read-denied documents remain withheld from agent-issued checks. These reads keep the text and coherence caps of §5.
 
-Every call the harness runs is an agent's, including a delegated agent's read and an external caller's (the MCP server and the SDK build their harness with the project's hooks). `matcher.issuedBy` defaults to `agent`; `user` is for the events a later build fires on the writer's own gestures, so a `user` hook matches nothing today. A matcher's `tools` names the tool a call is, and also the in-app tool a write row stands for (`mirrors`): a hook for `scene.draft` holds `scene.apply`, and one for `dialogue.draft` holds `dialogue.apply`, as a rule does. A name takes `*` as a rule's tool does (`notes.*`, `mcp__slack__*`; `globMatches`). A name that matches no tool of this build, and is not an external tool's (`mcp__…`), can never fire: `hookWarnings` says so in one sentence per name ("matches no tool, so it never fires"), and a hook whose every name is like that speaks on each agent write at `tool.before`, as a warning. An external tool counts as a write unless its server marks it read-only (the harness passes `write: false` for an `effectiveRisk` of `read-auto`), so a typo in the matcher does not let an external write through. If the writer set `onBlock: block` and `failClosed`, it is a hook that could not run and blocks each write, since the step the writer meant to stop would otherwise pass.
+Save checks run after asynchronous save preparation, at the point the project snapshot is taken for serialization, so their warnings describe the text actually written rather than an earlier in-flight state.
+
+`matcher.issuedBy` defaults to `agent` for tool and turn events and `any` for save and export events. `turn.submit` is agent-issued even though the writer sent its intent. Save warnings accompany the saved-folder status or exported bundle notices; export warnings accompany the writer's compile log (agent export warnings are in its turn report), and after-export checks run only when the command succeeds. A user-only, one-compile **Compile anyway** gesture skips a hook's block, never validation, the permission gate or exporter's own checks. It cannot be supplied by an agent call. The override is bound to the refused format, recipe and its options, scope, selected node and vendor; changing the request hides its refusal and override until the new compile is checked.
+
+Every tool call the harness runs is agent-issued, including a helper's read and an external caller's (SDK and MCP). `matcher.tools` also matches a row's `mirrors`: `scene.draft` covers `scene.apply`, and `dialogue.draft` covers `dialogue.apply`. Names take `*` like rules (`notes.*`, `mcp__slack__*`). `hookWarnings` flags a name that matches no installed native tool (external names may become available later). A wholly misspelt matcher warns on each agent write at `tool.before`, or blocks with `onBlock: block` and `failClosed`, rather than silently passing a write the writer meant to check. An external tool counts as a write unless its server marks it read-only (`effectiveRisk: read-auto`).
 
 ## 3. Where a hook runs
 
@@ -107,7 +111,7 @@ A hook that cannot be read (a handler that is not a `check`, an unknown key, a n
 
 `hook.save` creates a hook or replaces the one with the same `id` (the store mints the id of a new one); `hook.delete` removes one. Both are `issuedBy: 'user'` in effect (`agentRisk: 'never'`), undoable by an inverse command, and named in `NEVER_EXPOSED`, so no tool can be written over them. A planner-emitted call is refused in the writer's words ("hooks are set in Settings › Hooks, and the agent cannot add, change or remove one"). A test holds that no agent-reachable command writes a hook. `ProjectSession.setAgentRules` keeps the hooks when the writer changes the rules.
 
-Until **Settings › Hooks** ships, the writer writes a hook in `caotang.json`; the commands are the seam the panel will use.
+**Settings › Hooks** lists the open project's hooks, with enable switches and undoable deletion through these commands. Creation, editing and testing follow in the next UI slice; a writer can still write a hook in `caotang.json`.
 
 ## 7. What the writer and the tools see
 
@@ -124,4 +128,4 @@ Until **Settings › Hooks** ships, the writer writes a hook in `caotang.json`; 
 
 ## 9. Decisions
 
-The decision line is in [decisions.md](../decisions.md), "Agent and tools". The slices that follow: (2) `export.before`, `export.after` and the "Compile anyway" override, a warn-only `project.save`, Settings › Hooks with a test button, the status-card row and an open-time "This project defines N hooks" notice; (3) separate issues for `mcp` and `model` handlers and an app-settings slice, `turn.end` `continue` and `turn.submit` only on demonstrated need, and `command` with the desktop build.
+The decision line is in [decisions.md](../decisions.md), "Agent and tools". Creating, editing and testing hooks follows in the next Settings slice. Non-check handlers remain separate work: `mcp` and `model` need app-side configuration, `command` needs the desktop build, and `turn.end` continuation needs a demonstrated need and a model-call budget.

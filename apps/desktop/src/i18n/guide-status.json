@@ -107,10 +107,6 @@
           "hash": "ab9a11a2",
           "anchor": "makros"
         },
-        "hooks": {
-          "hash": "aec2ad42",
-          "anchor": "hooks"
-        },
         "export": {
           "hash": "8803ecec",
           "anchor": "export"
@@ -120,7 +116,7 @@
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "517e8dc0",
+          "hash": "34501b4c",
           "anchor": "einstellungen"
         },
         "keyboard": {
@@ -146,10 +142,6 @@
         "when-something-seems-wrong": {
           "hash": "0028e42a",
           "anchor": "wenn-etwas-nicht-stimmt"
-        },
-        "what-is-not-in-this-build-yet": {
-          "hash": "4aa7f2af",
-          "anchor": "was-in-diesem-build-noch-fehlt"
         }
       }
     }

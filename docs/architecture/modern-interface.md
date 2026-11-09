@@ -302,7 +302,7 @@ Built (M7, #308): Scene info (`components/shell/modern/scene-info.tsx`) is a non
 | Classic surface | Modern home |
 |---|---|
 | Export (recipes, preview, proof), Project, Skills, Instructions and memory, Vocabulary, Save as macro, Encoding review, Recovery, Twee import, Ink gate, every Confirm and Choice dialog, context menus | Same components; container and menu styles from the material layer |
-| Settings, all nine sections | Same; Appearance gains **Interface**, **Reduce transparency** and **Reduce motion** |
+| Settings, all ten sections | Same; Appearance gains **Interface**, **Reduce transparency** and **Reduce motion** |
 | Home: new project, the leave suggestion, projects list (open, rename, remove), bring a project in, first-run card, Settings | Same `Home` on the wallpaper (M10) |
 
 Built (M10, #311): every dialog, Settings, the context menus and Home are sheet glass (dialogs .78/.86 over a .40/.50 veil, menus and toasts .84/.91, values computed in `e2e/unit/modern-surfaces.spec.ts`) that grows out of its opener and shrinks back into it (`morph.ts`), or fades under reduced motion; their controls are 44 px. The stale-tab notice stays a modal dialog (reached by the walk from a second tab, #313).

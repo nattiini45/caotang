@@ -185,6 +185,8 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 
 ## Agent and tools
 
+- Pure hooks run at all seven lifecycle events; turn submission can block before a model call, completed turns and saves only warn, and exports have a user-only, one-compile override that never skips validation or the permission gate. Save/export match either issuer by default; tool/turn events default to the agent. Turn-end continuation and non-check handlers stay unbuilt. Why: the same local checks should hold at meaningful writer gestures without risking saved words or hidden model calls. [delegated 2026-11-09]
+
 - The agent works in a plan → act → verify → report loop; multi-step work shows a plan card approved once. Why: batched confirmation. [delegated]
 - Plan cards are editable before approval; the edited card is the executed plan, and dropping or retargeting a step flags its dependents. Why: plans are data. [delegated]
 - Generated text appears as a preview with Apply / Retry / Discard; in the app, in Ask, prose is never applied without preview. Over MCP, the host's confirmation of a call whose arguments are the prose stands in for the preview (`scene.apply`, with the mode preconditions and the body snapshot). In Accept edits and Auto the draft still streams into the scene's ghost region, and the mode applies it at once. Why: the loudest agent-UX failure is auto-apply, and a mode is the writer's own choice to take it. [delegated]

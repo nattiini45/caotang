@@ -4,6 +4,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Added
+
+- **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
+
 ### Fixed
 
 - **Sidebar labels and scrolling (#378, #380).** Modern's sidebar tabs keep translated names and counts whole, wrapping when needed. The fixed Manuscript and Research headings follow the interface language without changing stored project titles. Dialogs, sidebar panels and the narrow Settings section strip show soft edges only where more content remains to scroll, in both interfaces, with opaque and forced-color fallbacks.
@@ -234,7 +238,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - Tool results are checked against their declared shape in Caotang's own tests and not while you write, and twenty-five of the agent's tools still allow a key their declaration does not list. A connected tool that declares an output schema this build cannot check (one that uses `unevaluatedProperties`, for example) has its answers refused.
 - The narrow layout is tested in Chromium with touch input at phone and tablet sizes (a Pixel 7 and a 390 by 844 viewport), not in WebKit and not on a phone. Typing with the on-screen keyboard, selection handles, input methods, and an iPhone or Android browser clearing stored data are unchecked, so the build is not called iOS or Android supported. Nothing syncs and there is no installable app or offline mode beyond the browser's own copy, so a phone's browser is not a safe home for a book: export a bundle.
 - Changes marked for review are kept only while the tab is open. A reload or a closed tab keeps the agent's text and says so once on the next open; Restore project to before this turn is still there. The marks cover prose scenes only, not Ink or Fountain, and a change to the setting applies to the next document you open.
-- Hooks are written by hand in `caotang.json` until Settings › Hooks ships, and run only before and after the agent's calls: not around a compile, a save or a turn. A note a hook adds after a write reaches you in the report and the Trace view and not the agent, since a write ends the turn. Hooks run no program and call no model, and a pattern is a literal word or phrase, not a regular expression.
+- Creating and editing hooks still uses `caotang.json`; Settings lists, toggles and deletes existing hooks. Non-check handlers and automatic continuation after a turn remain unbuilt. A note after a write reaches you, not another model call. Hooks run no program and call no model, and a pattern is a literal word or phrase, not a regular expression.
 - Macros are run by the writer only. The agent cannot call one, a macro cannot join a value into text, and a script macro, a macro shared across projects and a macro of an external tool are not built. A `/` command that runs a macro is not built either.
 - The guards make injected instructions visible and ask before acting on them; no model can be made immune to prompt injection. An imported document is not marked: after the import note, the agent reads it as it reads your own writing, and a setting to treat imported text as outside text is not built.
 - Writing through an AI tool's model covers scenes and dialogue only. The host's confirmation names the document and the word change, not the text, and it is not a review. How a real host shows it has not been seen, and a run of changes is as many questions: staging them as one change is specified and not built.

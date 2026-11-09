@@ -46,9 +46,9 @@ describe('readHook', () => {
     expect(readHook({ ...DRAFT, onBlock: 'stop' }, false)).toMatchObject({ ok: false });
   });
 
-  it('declares every event of the spec, and runs two of them', () => {
+  it('declares and runs every lifecycle event of the spec', () => {
     expect(HOOK_EVENTS).toEqual(['tool.before', 'tool.after', 'export.before', 'export.after', 'project.save', 'turn.submit', 'turn.end']);
-    expect(HOOK_EVENTS_RUN).toEqual(['tool.before', 'tool.after']);
+    expect(HOOK_EVENTS_RUN).toEqual(HOOK_EVENTS);
   });
 
   it('refuses a handler that is not a check, and says a project file holds only checks', () => {

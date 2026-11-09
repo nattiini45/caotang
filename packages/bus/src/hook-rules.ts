@@ -25,12 +25,12 @@ export const HOOK_TOOL_NAME_MAX = 200;
 export const HOOK_STATUS_MAX = 60;
 export const HOOK_WORDS_MAX = 1_000_000;
 
-/** Every event a hook may name. The harness runs the first two; the rest are specified (hooks.md §2) and load, but nothing fires them yet. */
+/** Every lifecycle event a hook may name (hooks.md §2). */
 export const HOOK_EVENTS = ['tool.before', 'tool.after', 'export.before', 'export.after', 'project.save', 'turn.submit', 'turn.end'] as const;
 export type HookEvent = (typeof HOOK_EVENTS)[number];
 
 /** The events this build runs. */
-export const HOOK_EVENTS_RUN: readonly HookEvent[] = ['tool.before', 'tool.after'];
+export const HOOK_EVENTS_RUN: readonly HookEvent[] = HOOK_EVENTS;
 
 export const HOOK_ISSUERS = ['agent', 'user', 'any'] as const;
 export const HOOK_SEVERITIES = ['error', 'warning', 'info'] as const;

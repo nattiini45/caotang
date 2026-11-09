@@ -265,11 +265,10 @@ describe('agent.hooks on load', () => {
     for (const [i, warning] of report.warnings.entries()) expect(warning.message, warning.path).toContain(`hook "Hostile ${i}" dropped`);
   });
 
-  it('keeps a hook for an event this build does not run, and says it has no effect yet', () => {
+  it('keeps an export hook without an unsupported-event warning', () => {
     const report = load([stored({ event: 'export.before' })]);
     expect(report.manifest?.agent?.hooks).toHaveLength(1);
-    expect(report.warnings).toHaveLength(1);
-    expect(report.warnings[0]?.message).toContain('export.before');
+    expect(report.warnings).toEqual([]);
   });
 
   it('drops a hook carrying __proto__ or constructor keys, and pollutes nothing', () => {
