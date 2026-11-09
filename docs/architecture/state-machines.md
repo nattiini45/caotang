@@ -63,6 +63,18 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `ui.export.compile` and `ui.export.readiness`
+
+Owner: `apps/desktop/src/app/export-dialog-model.ts`; `components/ExportDialog.tsx` interprets readiness, compile and download effects. Product contracts: [ui-modules.md §1](ui-modules.md#1-component-topology-v01-layout) and [exporter.md](exporter.md). Compile events are `start`, `reset`, `succeeded` and `failed`; phases are `idle`, `running` and `failed`. A failure carries its text and optional hook-request key. Recipe notices are separate from compile failures, and changing a choice can reset an old failure. A synchronous current-state guard blocks duplicate compiles and both Escape and Cancel while running, including before React renders the disabled button.
+
+Readiness events are `check`, `ready` and `failed`; phases are `waiting`, `ready` and `failed`. Every check has an increasing request number, and only its matching answer can settle the waiting state. Opening the dialog or retrying a compile starts a new check and clears the old preview result. Late answers from older checks and completions after unmount cannot replace the visible result. The dialog exposes compile via `data-state` and readiness via `data-preview-state`. Neither table has terminal states or persisted fields; exports, recipes, hook overrides and compile-log bytes retain their formats. Exhaustive reducer tests are paired with held-promise browser regressions for dismissal, readiness retry and retryable compile failure.
+
+### `ui.encoding.panel`
+
+Owner: `apps/desktop/src/app/encoding-dialog-model.ts`; `components/EncodingDialog.tsx` owns one panel per file. Product contract: [project-format.md §3](project-format.md#3-document-files). Events are `loaded`, `unreadable`, `choose`, `action`, `ask`, `answered` and `close`. The panel moves from `loading` to `ready` or `unreadable`; `asking` holds a numbered advice request and the current encoding/action. A manual encoding or Leave/Convert choice returns to `ready`, invalidates that request and clears its note. Only a matching answer in `asking` can suggest an encoding; it does not change Leave/Convert. `closed` is terminal, and finish, cancel and unmount reject late answers.
+
+Each file section exposes `data-state`; the existing previews, choices and advice messages are retained, with manual encoding selection available during advice. Tests cover current and stale answers, failures, subsequent requests and every exit. Panel bytes, request numbers and phases remain in memory; conversion decisions, original-byte backups and saved files do not change.
+
 ### `import.preview`
 
 Owner: `apps/desktop/src/import-preview/phase.ts`; `ImportPreviewDialog.tsx` interprets reading and commit effects. Product contract: [import-preview.md §5](import-preview.md#5-the-commit-binderimporttree). Events are `progress`, `loaded`, `load-failed`, `commit`, `commit-failed`, `committed` and `cancel`. A source that needs reading starts `loading`; one with no load step starts `ready`. A failed read remains dismissible; a commit failure is a separate retryable phase with the choices retained. Only `committing` accepts a commit result, and it ignores repeat commit and cancel events. `closed` is terminal and carries whether this preview committed.

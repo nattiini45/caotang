@@ -92,3 +92,48 @@ Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
 | `starting` | `close` | `interrupted` |
 | `starting` | `fail` | `failed` |
 | `starting` | `ready` | `ready` |
+
+## ui.encoding.panel
+
+Initial: `loading`. Final: `closed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `asking` | `action` | `ready` |
+| `asking` | `answered` | `asking`, `ready` |
+| `asking` | `choose` | `ready` |
+| `asking` | `close` | `closed` |
+| `closed` | — | — |
+| `loading` | `close` | `closed` |
+| `loading` | `loaded` | `ready` |
+| `loading` | `unreadable` | `unreadable` |
+| `ready` | `action` | `ready` |
+| `ready` | `ask` | `asking` |
+| `ready` | `choose` | `ready` |
+| `ready` | `close` | `closed` |
+| `unreadable` | `close` | `closed` |
+
+## ui.export.compile
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `reset` | `idle` |
+| `failed` | `start` | `running` |
+| `idle` | `reset` | `idle` |
+| `idle` | `start` | `running` |
+| `running` | `failed` | `failed` |
+| `running` | `succeeded` | `idle` |
+
+## ui.export.readiness
+
+Initial: `waiting`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `check` | `failed`, `waiting` |
+| `ready` | `check` | `ready`, `waiting` |
+| `waiting` | `check` | `waiting` |
+| `waiting` | `failed` | `failed`, `waiting` |
+| `waiting` | `ready` | `ready`, `waiting` |

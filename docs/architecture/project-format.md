@@ -144,6 +144,8 @@ Pretty-printed JSON, 2-space indent, keys in the fixed order shown below (stable
 
 ## 3. Document files
 
+The encoding review keeps each file panel in `loading`, `ready`, `asking`, `unreadable` or `closed`, exposed as `data-state`. A manual encoding or Leave/Convert choice ends the current advice request's authority and clears its old note; a late answer cannot replace that choice. The writer can choose an encoding while advice is pending. Finishing, cancelling or unmounting ignores late advice as well. This changes only the in-memory review: original-byte backups, conversion decisions and folder files keep their existing formats.
+
 One body file per document-like node, named by the node's kind (the list below). Body = the manuscript text, the screenplay or the dialogue. **YAML front matter** (delimited `---`) carries node-local metadata as *redundancy insurance* — the manifest is structural truth, front matter keeps each file individually meaningful and enables recovery (§5).
 
 **Body files by kind (`packages/store/src/paths.ts`):**
