@@ -321,7 +321,7 @@ test('Home is on the wallpaper with its sections on paper, and every control on 
   expect(await axeProblems(page, '.home')).toEqual([]);
 });
 
-test('Settings from Home: glass, grown out of its button, every one of the nine sections 44 px, focus back on Settings', async ({ page }) => {
+test('Settings from Home: glass, grown out of its button, every one of the ten sections 44 px, focus back on Settings', async ({ page }) => {
   test.setTimeout(90_000);
   await start(page);
   const opener = page.getByTestId('open-settings');
@@ -333,7 +333,7 @@ test('Settings from Home: glass, grown out of its button, every one of the nine 
   await expectMorphed(page);
 
   const sections = settings.getByRole('navigation', { name: 'Settings sections' }).getByRole('button');
-  await expect(sections).toHaveCount(9);
+  await expect(sections).toHaveCount(10);
   for (const section of await sections.all()) {
     await section.click();
     await settle(page);
