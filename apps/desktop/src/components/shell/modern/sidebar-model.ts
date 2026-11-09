@@ -77,7 +77,7 @@ export const sidebarTable: MachineTable<SidebarState, SidebarEvent> = {
   final: [],
   on: {
     closed: {
-      hover: ['closed'], 'hover-elapsed': ['closed', 'opened-hover'], enter: ['closed'], leave: ['closed'],
+      hover: ['closed'], 'hover-elapsed': ['closed', 'opened-hover'], leave: ['closed'],
       press: ['opened-press'], open: ['opened-press'], pin: ['pinned', 'opened-press'],
     },
     'opened-hover': {
@@ -105,7 +105,7 @@ export function sidebarReducer(state: SidebarState, event: SidebarEvent): Sideba
       return state.kind === 'closed' && state.intent === 'hover' ? { kind: 'opened-hover' } : state;
     case 'enter':
       if (state.kind === 'closing') return { kind: state.by === 'hover' ? 'opened-hover' : 'opened-press' };
-      return state.kind === 'closed' ? { kind: 'closed', intent: 'none' } : state;
+      return state;
     case 'leave':
       if (state.kind === 'closed') return { kind: 'closed', intent: 'none' };
       if (state.kind === 'pinned') return state;

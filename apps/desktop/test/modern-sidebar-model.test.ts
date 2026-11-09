@@ -114,6 +114,13 @@ describe('the sidebar lifecycle', () => {
     expect(sidebarReducer(pressed, { type: 'hover-elapsed' })).toBe(pressed);
   });
 
+  it('keeps pending hover intent when the bar entry arrives before the containing nav entry', () => {
+    const pending = sidebarReducer(closed, { type: 'hover' });
+    const entered = sidebarReducer(pending, { type: 'enter' });
+    expect(entered).toBe(pending);
+    expect(sidebarReducer(entered, { type: 'hover-elapsed' })).toEqual({ kind: 'opened-hover' });
+  });
+
   it('a press takes over a hover-open, including during its delayed close, and the next press closes', () => {
     for (const state of [{ kind: 'opened-hover' }, { kind: 'closing', by: 'hover' }] as const) {
       const pressed = sidebarReducer(state, { type: 'press', toggle: true });

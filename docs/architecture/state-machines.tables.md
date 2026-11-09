@@ -27,7 +27,6 @@ Initial: `closed`. Final: none.
 
 | State | Event | Targets |
 | --- | --- | --- |
-| `closed` | `enter` | `closed` |
 | `closed` | `hover` | `closed` |
 | `closed` | `hover-elapsed` | `closed`, `opened-hover` |
 | `closed` | `leave` | `closed` |
