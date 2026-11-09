@@ -1351,7 +1351,7 @@ export class AgentController {
       const compiles = card?.steps.some((step) => step.tool.startsWith('export.compile')) ?? false;
       void (async () => {
         const saved = await this.typingSaved();
-        if (this.turnAbort !== abort || abort?.signal.aborted) {
+        if (this.turnAbort !== abort) {
           resolve({ action: 'cancel' });
           return;
         }
@@ -1367,6 +1367,10 @@ export class AgentController {
           this.bump();
           return;
         }
+        if (abort?.signal.aborted) {
+          resolve({ action: 'cancel' });
+          return;
+        }
         this.armDrafts();
         this.clearGhosts();
         // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
@@ -1376,7 +1380,7 @@ export class AgentController {
           try {
             await this.session.exportsReady();
           } catch (error) {
-            if (this.turnAbort !== abort || abort?.signal.aborted) {
+            if (this.turnAbort !== abort) {
               resolve({ action: 'cancel' });
               return;
             }
