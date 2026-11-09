@@ -4,6 +4,7 @@
  * close, and the pin kept in local storage.
  */
 import type { ProjectState, TreeNode } from '@caotang/store';
+import { checkMachine } from '@caotang/machine/testing';
 import { describe, expect, it } from 'vitest';
 
 import { keyStep } from '../src/components/shell/ClassicShell.js';
@@ -21,9 +22,13 @@ import {
   readBinderPinned,
   setBinderPinned,
   sidebarTabFor,
+  sidebarMachine,
+  sidebarReducer,
   subscribeBinderPinned,
   writeBinderPinned,
   type PinStore,
+  type SidebarState,
+  type SidebarEvent,
 } from '../src/components/shell/modern/sidebar-model.js';
 
 function memory(initial: Record<string, string> = {}): PinStore & { data: Map<string, string> } {
@@ -80,6 +85,70 @@ describe('opening and closing', () => {
     expect(mayClose({ pinned: true, focusInside: false, pointerInside: false })).toBe(false);
     expect(mayClose({ pinned: false, focusInside: true, pointerInside: false })).toBe(false);
     expect(mayClose({ pinned: false, focusInside: false, pointerInside: true })).toBe(false);
+  });
+});
+
+describe('the sidebar lifecycle', () => {
+  const closed: SidebarState = { kind: 'closed', intent: 'none' };
+  const elapsed: SidebarEvent = { type: 'close-elapsed', focusInside: false, pointerInside: false };
+
+  it('agrees with its table for every phase, event and guarded outcome', () => {
+    expect(checkMachine(sidebarMachine, {
+      states: [closed, { kind: 'closed', intent: 'hover' }, { kind: 'opened-hover' }, { kind: 'opened-press' },
+        { kind: 'pinned' }, { kind: 'closing', by: 'hover' }, { kind: 'closing', by: 'press' }],
+      events: [{ type: 'hover' }, { type: 'hover-elapsed' }, { type: 'enter' }, { type: 'leave' }, elapsed,
+        { ...elapsed, focusInside: true }, { ...elapsed, pointerInside: true },
+        { type: 'press', toggle: true }, { type: 'press', toggle: false }, { type: 'open' },
+        { type: 'pin', pinned: true }, { type: 'pin', pinned: false }, { type: 'escape' }, { type: 'scene-chosen' }],
+    })).toEqual([]);
+  });
+
+  it('cancels hover intent when the pointer leaves or a press takes over', () => {
+    const pending = sidebarReducer(closed, { type: 'hover' });
+    expect(pending).toEqual({ kind: 'closed', intent: 'hover' });
+    expect(sidebarReducer(pending, { type: 'hover-elapsed' })).toEqual({ kind: 'opened-hover' });
+    const left = sidebarReducer(pending, { type: 'leave' });
+    expect(sidebarReducer(left, { type: 'hover-elapsed' })).toBe(left);
+    const pressed = sidebarReducer(pending, { type: 'press', toggle: true });
+    expect(pressed).toEqual({ kind: 'opened-press' });
+    expect(sidebarReducer(pressed, { type: 'hover-elapsed' })).toBe(pressed);
+  });
+
+  it('a press takes over a hover-open, including during its delayed close, and the next press closes', () => {
+    for (const state of [{ kind: 'opened-hover' }, { kind: 'closing', by: 'hover' }] as const) {
+      const pressed = sidebarReducer(state, { type: 'press', toggle: true });
+      expect(pressed.kind).toBe('opened-press');
+      expect(sidebarReducer(pressed, { type: 'press', toggle: true })).toEqual(closed);
+      expect(sidebarReducer(pressed, { type: 'press', toggle: false }).kind).toBe('opened-press');
+    }
+  });
+
+  it('delays closing, rechecks pointer and focus, and cancels the pending close on reentry or an external open', () => {
+    for (const kind of ['opened-hover', 'opened-press'] as const) {
+      const state: SidebarState = { kind };
+      const closing = sidebarReducer(state, { type: 'leave' });
+      expect(closing.kind).toBe('closing');
+      expect(sidebarReducer(closing, elapsed)).toEqual(closed);
+      expect(sidebarReducer(closing, { ...elapsed, focusInside: true })).toEqual(state);
+      expect(sidebarReducer(closing, { ...elapsed, pointerInside: true })).toEqual(state);
+      const entered = sidebarReducer(closing, { type: 'enter' });
+      expect(entered).toEqual(state);
+      expect(sidebarReducer(entered, elapsed)).toBe(entered);
+      const reopened = sidebarReducer(closing, { type: 'open' });
+      expect(reopened.kind).toBe('opened-press');
+      expect(sidebarReducer(reopened, elapsed)).toBe(reopened);
+    }
+  });
+
+  it('pinning cancels a pending close, and unpinning keeps the sidebar deliberately open', () => {
+    const pinned = sidebarReducer({ kind: 'closing', by: 'hover' }, { type: 'pin', pinned: true });
+    expect(pinned.kind).toBe('pinned');
+    for (const event of [elapsed, { type: 'leave' }, { type: 'escape' }, { type: 'scene-chosen' }] as const) {
+      expect(sidebarReducer(pinned, event)).toBe(pinned);
+    }
+    const unpinned = sidebarReducer(pinned, { type: 'pin', pinned: false });
+    expect(unpinned.kind).toBe('opened-press');
+    expect(sidebarReducer(unpinned, { type: 'scene-chosen' })).toEqual(closed);
   });
 });
 

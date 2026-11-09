@@ -22,7 +22,6 @@ import { plural, t } from '@lingui/core/macro';
 import {
   useLayoutEffect,
   useRef,
-  useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   type RefObject,
@@ -43,6 +42,8 @@ import { useSceneInfoOpener } from './scene-info-store.js';
 import { useNewMenu } from './new-menu.js';
 import { modernViewOf } from './views.js';
 import type { ModernView } from './layout.js';
+import type { MenuState } from './menu-model.js';
+import { useMenuPhase } from './use-menu-phase.js';
 
 const VIEW_NAMES: Readonly<Record<ModernView, () => string>> = {
   write: () => t`Write`,
@@ -121,7 +122,7 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   const { actions, view } = regions;
   const toolbar = useRef<HTMLDivElement>(null);
   const more = useRef<HTMLButtonElement>(null);
-  const [menu, setMenu] = useState<'closed' | 'open' | 'closing'>('closed');
+  const { phase: menu, opening, close, toggle, onClosed } = useMenuPhase();
   useRovingToolbar(toolbar);
   const sceneInfo = useSceneInfoOpener();
   const current = modernViewOf(view.rail, view.center);
@@ -129,17 +130,6 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
   // The corkboard is on the page (not a storyboard's shot board, which has its own size, nor the narrow "Open on desktop").
   const boardZoom = current === 'board' && regions.media === null && !view.narrow;
   const newMenu = useNewMenu({ create: regions.create, narrow: view.narrow });
-
-  // Each opening is a fresh popover (its key), so ⋯ pressed while the last one is still shrinking opens a new one at once.
-  const [opening, setOpening] = useState(0);
-  const toggle = (): void => {
-    if (menu === 'open') {
-      setMenu('closing');
-      return;
-    }
-    setOpening((count) => count + 1);
-    setMenu('open');
-  };
 
   return (
     <>
@@ -209,11 +199,11 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           align="end"
           className="modern-menu-popover"
           closing={menu === 'closing'}
-          onDismiss={() => setMenu((state) => (state === 'open' ? 'closing' : state))}
-          onClosed={() => setMenu('closed')}
+          onDismiss={close}
+          onClosed={onClosed}
           testId="modern-more-popover"
         >
-          <MoreMenu actions={actions} onClose={() => setMenu('closing')} />
+          <MoreMenu actions={actions} phase={menu} onClose={close} />
         </GlassPopover>
       )}
     </>
@@ -259,7 +249,7 @@ function actionSections(actions: readonly ShellAction[]): Section[] {
   return sections.flatMap((entries, at) => (entries.length > 0 ? [{ head: heads[at], entries }] : []));
 }
 
-function MoreMenu({ actions, onClose }: { actions: readonly ShellAction[]; onClose: () => void }): ReactNode {
+function MoreMenu({ actions, phase, onClose }: { actions: readonly ShellAction[]; phase: MenuState['kind']; onClose: () => void }): ReactNode {
   const ref = useRef<HTMLDivElement>(null);
   const theme = actions.find((action) => action.id === 'theme');
   const dark = activeTheme() === 'dark';
@@ -349,7 +339,7 @@ function MoreMenu({ actions, onClose }: { actions: readonly ShellAction[]; onClo
   sections.push({ head: t`Appearance`, entries: appearance });
 
   return (
-    <div ref={ref} id="modern-more-menu" role="menu" aria-label={t`More`} className="modern-menu" onKeyDown={onKeyDown}>
+    <div ref={ref} id="modern-more-menu" role="menu" aria-label={t`More`} className="modern-menu" data-state={phase} onKeyDown={onKeyDown}>
       {sections.map(({ head, entries }, index) => (
         <div key={entries[0]?.key ?? index} role="group" aria-labelledby={head === undefined ? undefined : `modern-menu-head-${index}`} className="modern-menu-section">
           {index === 0 ? null : <div role="separator" className="modern-menu-rule" />}

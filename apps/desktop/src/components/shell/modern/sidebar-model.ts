@@ -7,6 +7,8 @@
  * sidebar without reaching into the component.
  */
 
+import { assertNever, type Machine, type MachineTable } from '@caotang/machine';
+
 import type { RailTab } from '../regions.js';
 
 /** The sidebar's own tabs (§7.2). The codex is a view of the page in Modern, not a sidebar tab. */
@@ -49,6 +51,89 @@ export function agentTab(lastAgent: SidebarTab | null): SidebarTab {
 export function mayClose(facts: { readonly pinned: boolean; readonly focusInside: boolean; readonly pointerInside: boolean }): boolean {
   return !facts.pinned && !facts.focusInside && !facts.pointerInside;
 }
+
+export type SidebarState =
+  | { readonly kind: 'closed'; readonly intent: 'none' | 'hover' }
+  | { readonly kind: 'opened-hover' }
+  | { readonly kind: 'opened-press' }
+  | { readonly kind: 'pinned' }
+  | { readonly kind: 'closing'; readonly by: 'hover' | 'press' };
+
+export type SidebarEvent =
+  | { readonly type: 'hover' }
+  | { readonly type: 'hover-elapsed' }
+  | { readonly type: 'enter' }
+  | { readonly type: 'leave' }
+  | { readonly type: 'close-elapsed'; readonly focusInside: boolean; readonly pointerInside: boolean }
+  | { readonly type: 'press'; readonly toggle: boolean }
+  | { readonly type: 'open' }
+  | { readonly type: 'pin'; readonly pinned: boolean }
+  | { readonly type: 'escape' }
+  | { readonly type: 'scene-chosen' };
+
+export const sidebarTable: MachineTable<SidebarState, SidebarEvent> = {
+  id: 'modern.sidebar',
+  initial: 'closed',
+  final: [],
+  on: {
+    closed: {
+      hover: ['closed'], 'hover-elapsed': ['closed', 'opened-hover'], enter: ['closed'], leave: ['closed'],
+      press: ['opened-press'], open: ['opened-press'], pin: ['pinned', 'opened-press'],
+    },
+    'opened-hover': {
+      leave: ['closing'], press: ['opened-press'], open: ['opened-press'], pin: ['pinned', 'opened-press'],
+      escape: ['closed'], 'scene-chosen': ['closed'],
+    },
+    'opened-press': {
+      leave: ['closing'], press: ['closed', 'opened-press'], open: ['opened-press'], pin: ['pinned', 'opened-press'],
+      escape: ['closed'], 'scene-chosen': ['closed'],
+    },
+    pinned: { press: ['pinned'], open: ['pinned'], pin: ['pinned', 'opened-press'] },
+    closing: {
+      enter: ['opened-hover', 'opened-press'], leave: ['closing'],
+      'close-elapsed': ['closed', 'opened-hover', 'opened-press'], press: ['closed', 'opened-press'],
+      open: ['opened-press'], pin: ['pinned', 'opened-press'], escape: ['closed'], 'scene-chosen': ['closed'],
+    },
+  },
+};
+
+export function sidebarReducer(state: SidebarState, event: SidebarEvent): SidebarState {
+  switch (event.type) {
+    case 'hover':
+      return state.kind === 'closed' ? { kind: 'closed', intent: 'hover' } : state;
+    case 'hover-elapsed':
+      return state.kind === 'closed' && state.intent === 'hover' ? { kind: 'opened-hover' } : state;
+    case 'enter':
+      if (state.kind === 'closing') return { kind: state.by === 'hover' ? 'opened-hover' : 'opened-press' };
+      return state.kind === 'closed' ? { kind: 'closed', intent: 'none' } : state;
+    case 'leave':
+      if (state.kind === 'closed') return { kind: 'closed', intent: 'none' };
+      if (state.kind === 'pinned') return state;
+      return { kind: 'closing', by: state.kind === 'closing' ? state.by : state.kind === 'opened-hover' ? 'hover' : 'press' };
+    case 'close-elapsed':
+      if (state.kind !== 'closing') return state;
+      return !event.focusInside && !event.pointerInside
+        ? { kind: 'closed', intent: 'none' }
+        : { kind: state.by === 'hover' ? 'opened-hover' : 'opened-press' };
+    case 'press':
+      if (state.kind === 'pinned') return state;
+      if (event.toggle && (state.kind === 'opened-press' || (state.kind === 'closing' && state.by === 'press'))) {
+        return { kind: 'closed', intent: 'none' };
+      }
+      return { kind: 'opened-press' };
+    case 'open':
+      return state.kind === 'pinned' ? state : { kind: 'opened-press' };
+    case 'pin':
+      return { kind: event.pinned ? 'pinned' : 'opened-press' };
+    case 'escape':
+    case 'scene-chosen':
+      return state.kind === 'pinned' || state.kind === 'closed' ? state : { kind: 'closed', intent: 'none' };
+    default:
+      return assertNever(event);
+  }
+}
+
+export const sidebarMachine: Machine<SidebarState, SidebarEvent> = { table: sidebarTable, step: sidebarReducer };
 
 /** The part of `Storage` the pin uses. */
 export type PinStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
