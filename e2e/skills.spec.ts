@@ -175,6 +175,55 @@ test('a loaded skill reads its reference files and refuses a tool outside its al
   }
 });
 
+test('reloading after skill reads retains their instructions and reference in the resumed planner request', async ({ page }) => {
+  const folder = skillFolder();
+  let release = (): void => {};
+  try {
+    writeFileSync(join(folder, 'SKILL.md'), SKILL_MD.replace('---\n\n', 'allowed-tools: skill.read doc.read\n---\n\n'));
+    const endpoint = recordingEndpoint({ steps: [
+      { tool: 'skill.load', params: { name: 'close-third' }, expect: 'The style is loaded.' },
+      { tool: 'skill.read', params: { name: 'close-third', path: 'references/voice.md' }, expect: 'The reference is read.' },
+    ] });
+    await fakeEndpoint(page, endpoint.reply);
+    await useFakeEndpoint(page);
+    await createProject(page, 'Skill exchange resume');
+    const panel = await openSkills(page);
+    await panel.locator('input[aria-label="Skill folder"]').setInputFiles(folder);
+    await panel.getByRole('button', { name: /Read and approve/ }).click();
+    await panel.getByRole('button', { name: 'Approve this skill' }).click();
+    await panel.getByRole('button', { name: 'Done' }).click();
+    await waitForSaved(page);
+    let hold = true;
+    let heldRequest = false;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    await page.route('https://127.0.0.1:5999/**', async (route) => {
+      if (hold && route.request().method() === 'POST' && (route.request().postData() ?? '').includes('Never leave the room.')) {
+        heldRequest = true;
+        await held;
+      }
+      try { await route.fallback(); } catch { return; }
+    });
+    await sendIntent(page, 'Load my style and read its reference.');
+    await expect.poll(() => heldRequest).toBe(true);
+    hold = false;
+    await page.reload();
+    release();
+    const project = page.getByRole('listitem').filter({ hasText: 'Skill exchange resume' });
+    await project.getByRole('button', { name: 'Open' }).click();
+    const interrupted = page.getByTestId('interrupted-run');
+    await expect(interrupted.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    await interrupted.getByRole('button', { name: 'Resume' }).click();
+    await expect.poll(() => endpoint.seen.length).toBeGreaterThanOrEqual(2);
+    const resumed = endpoint.seen.at(-1);
+    expect(`${resumed?.user}\n${resumed?.tool}`).toContain(STYLE);
+    expect(`${resumed?.user}\n${resumed?.tool}`).toContain('Never leave the room.');
+    await expect(interrupted).toHaveCount(0);
+  } finally {
+    release();
+    rmSync(join(folder, '..'), { recursive: true, force: true });
+  }
+});
+
 test('a large plan with a pending skill load stays out of the background and drafts nothing', async ({ page }) => {
   const folder = skillFolder();
   try {

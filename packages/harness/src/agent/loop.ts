@@ -670,6 +670,7 @@ interface Turn {
   /** How many of `messages` the log already holds. */
   logged: number;
   loggedSkills?: string;
+  skillReadPending?: boolean;
   /** The documents a step's draft read, with their revisions, taken before the draft was asked for: what a restored card checks. */
   readonly reads: Map<PlanStep, StepRevisions>;
   /** The turn was rebuilt from a log (`resume`): its undo reaches only what it applies, and its ladder does not ask the model. */
@@ -1658,7 +1659,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   async function syncSkills(turn: Turn): Promise<boolean> {
     const run = turn.run;
-    if (run === undefined) return true;
+    if (run === undefined || turn.skillReadPending === true) return true;
     const skills = harness.loadedSkills(turn.id);
     const snapshot = canonicalJson(skills);
     if (snapshot !== turn.loggedSkills) {
@@ -1669,9 +1670,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return true;
   }
 
-  async function beginSkillLoad(turn: Turn, tool: string): Promise<void> {
-    if (tool !== 'skill.load' || turn.run === undefined) return;
+  async function beginSkillAccess(turn: Turn, tool: string, readExchange = false): Promise<void> {
+    if ((tool !== 'skill.load' && !(readExchange && tool === 'skill.read')) || turn.run === undefined) return;
     if (!(await turn.run.append({ t: 'skills.loading', turnId: turn.id }))) throw new Error('The skill load could not be recorded, so it was not run. Check the project storage and send the request again.');
+    if (readExchange) turn.skillReadPending = true;
     delete turn.loggedSkills;
   }
 
@@ -1766,7 +1768,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
       await logIntent(turn, callId, index, step.tool);
       const before = revisionsNow();
-      await beginSkillLoad(turn, step.tool);
+      await beginSkillAccess(turn, step.tool);
       const result = harness.executePlan(plan, context, { ...planOptions, from: index, until: index + 1 });
       await finishSkillLoad(turn, step.tool);
       if (!result.ok) {
@@ -2229,10 +2231,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     const granted = permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
-    await beginSkillLoad(turn, call.name);
-    const outcome = harness.call(call, granted);
-    await finishSkillLoad(turn, call.name);
-    return outcome;
+    await beginSkillAccess(turn, call.name, true);
+    return harness.call(call, granted);
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
@@ -2351,6 +2351,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   async function runReads(turn: Turn, steps: readonly PlanStep[], proposals: readonly unknown[]): Promise<Settled | undefined> {
     const results: { tool: string; ok: boolean; body: unknown }[] = [];
+    const settlements: (() => void)[] = [];
     const surfaced = new Set<string>();
     for (const [index, step] of steps.entries()) {
       checkStop(turn);
@@ -2403,7 +2404,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       } else {
         cardFor(turn, id, step.tool, step.params, 'running');
       }
-      const result = settleRead(turn, index, step, callId, outcome);
+      const result = turn.skillReadPending === true
+        ? { tool: step.tool, ok: outcome.ok, body: outcome.ok ? bodyOf(outcome.value) : errorSummary(withLoadHint(step.tool, outcome.error)) }
+        : settleRead(turn, index, step, callId, outcome);
+      if (turn.skillReadPending === true) settlements.push(() => { settleRead(turn, index, step, callId, outcome); });
       taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
       wireResult(turn, step, { ok: result.ok, body: result.body });
       results.push(result);
@@ -2431,6 +2435,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // sent again in the next request: the same names would reach the model twice (context-assembly §2).
     if (loadedAny) turn.addendumSent = harness.loadedAddendum();
     await syncRun(turn, 0);
+    if (turn.skillReadPending === true) {
+      delete turn.skillReadPending;
+      if (!(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the load was not reported as successful. Check the project storage and send the request again.');
+    }
+    for (const settle of settlements) settle();
     return undefined;
   }
 
@@ -3074,7 +3083,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       moveCard(turn, id, 'running');
       await logIntent(turn, id, from, step.tool);
       const before = revisionsNow();
-      await beginSkillLoad(turn, step.tool);
+      await beginSkillAccess(turn, step.tool);
       const outcome: ToolOutcome = harness.call(
         { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
         grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },

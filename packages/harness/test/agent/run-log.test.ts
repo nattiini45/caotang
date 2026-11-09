@@ -154,6 +154,19 @@ describe('planResume', () => {
     expect(planResume(log(start, saved, loading, saved, user, card), project({})).ok).toBe(true);
   });
 
+  it.each([1, 2])('refuses version %s logs without the complete skill-exchange guarantee', (version) => {
+    const rows = log(start, user, card);
+    expect(planResume([{ ...rows[0], v: version }, ...rows.slice(1)], project({}))).toMatchObject({ ok: false, reason: 'schema' });
+  });
+
+  it('keeps the exchange fence until the snapshot after its messages commits', () => {
+    const saved: RunEventDraft = { t: 'skills.loaded', turnId: 't1', skills: [] };
+    const loading: RunEventDraft = { t: 'skills.loading', turnId: 't1' };
+    const partial = log(start, saved, loading, user);
+    expect(planResume(partial, project({}))).toMatchObject({ ok: false, reason: 'schema', detail: expect.stringContaining('no committed snapshot') });
+    expect(planResume([...partial, { ...saved, seq: partial.length, at: 2_000 }], project({})).ok).toBe(true);
+  });
+
   it.each(['cancelled', 'refused'] as const)('keeps a %s decision on the card, so a resume knows the writer closed it', (decision) => {
     const verdict = planResume(log(start, user, card, { t: 'card.decided', turnId: 't1', decision }), project({}));
     expect(verdict.ok && verdict.replay.card?.decision).toBe(decision);
