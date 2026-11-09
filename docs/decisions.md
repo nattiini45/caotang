@@ -185,6 +185,8 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 
 ## Agent and tools
 
+- Settings › Hooks uses the bus's structural validator and tests the unsaved form against explicitly named local inputs; disabled or unmatched hooks are not passes, and testing never writes or calls a provider. Why: a writer can check a guard before saving it without accidentally running the guarded action. [delegated 2026-11-09]
+
 - Pure hooks run at all seven lifecycle events; turn submission can block before a model call, completed turns and saves only warn, and exports have a user-only, one-compile override that never skips validation or the permission gate. Save/export match either issuer by default; tool/turn events default to the agent. Turn-end continuation and non-check handlers stay unbuilt. Why: the same local checks should hold at meaningful writer gestures without risking saved words or hidden model calls. [delegated 2026-11-09]
 
 - The agent works in a plan → act → verify → report loop; multi-step work shows a plan card approved once. Why: batched confirmation. [delegated]

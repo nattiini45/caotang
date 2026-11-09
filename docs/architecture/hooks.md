@@ -1,6 +1,6 @@
 # Hooks — the writer's checks on agent calls, turns, saves and exports
 
-> Status: **built for pure checks.** All seven events, Settings › Hooks (list, enable and delete), `agent.hooks`, the user-only commands and the reports are built. Creating, editing and testing hooks in Settings follows in the next slice. Non-check handlers and a `turn.end` continuation remain specified, not built.
+> Status: **built for pure checks.** All seven events, Settings › Hooks (create, edit, enable, delete and test), `agent.hooks`, the user-only commands and the reports are built. Non-check handlers and a `turn.end` continuation remain specified, not built.
 > Cross-refs: where a hook sits among the rules and the gate = [agent-harness.md](agent-harness.md) §4 · the two commands = [command-bus.md](command-bus.md) §9 · `agent.hooks` = [project-format.md](project-format.md) §2 · the note the model reads = [context-assembly.md](context-assembly.md) §2 · the extension posture = [extensibility.md](extensibility.md) §4 rule 7.
 
 ## 1. Purpose
@@ -111,7 +111,7 @@ A hook that cannot be read (a handler that is not a `check`, an unknown key, a n
 
 `hook.save` creates a hook or replaces the one with the same `id` (the store mints the id of a new one); `hook.delete` removes one. Both are `issuedBy: 'user'` in effect (`agentRisk: 'never'`), undoable by an inverse command, and named in `NEVER_EXPOSED`, so no tool can be written over them. A planner-emitted call is refused in the writer's words ("hooks are set in Settings › Hooks, and the agent cannot add, change or remove one"). A test holds that no agent-reachable command writes a hook. `ProjectSession.setAgentRules` keeps the hooks when the writer changes the rules.
 
-**Settings › Hooks** lists the open project's hooks, with enable switches and undoable deletion through these commands. Creation, editing and testing follow in the next UI slice; a writer can still write a hook in `caotang.json`.
+**Settings › Hooks** creates, edits, enables and deletes the open project's hooks through these commands. Its form shares the bus's `readHook` validator and supports all four checks and seven events. **Test hook** checks the unsaved form against an explicit document, tool, issuer and sample text. It changes nothing, calls no provider, names the input and distinguishes a non-match from a pass. Pattern and word-count tests use the sample except after a tool, where word bounds read the document; status and coherence read current project state. Testing one document is not a claim that a full export or turn passed.
 
 ## 7. What the writer and the tools see
 
@@ -128,4 +128,4 @@ A hook that cannot be read (a handler that is not a `check`, an unknown key, a n
 
 ## 9. Decisions
 
-The decision line is in [decisions.md](../decisions.md), "Agent and tools". Creating, editing and testing hooks follows in the next Settings slice. Non-check handlers remain separate work: `mcp` and `model` need app-side configuration, `command` needs the desktop build, and `turn.end` continuation needs a demonstrated need and a model-call budget.
+The decision line is in [decisions.md](../decisions.md), "Agent and tools". Non-check handlers remain separate work: `mcp` and `model` need app-side configuration, `command` needs the desktop build, and `turn.end` continuation needs a demonstrated need and a model-call budget.
