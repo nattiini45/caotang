@@ -2667,6 +2667,11 @@ msgstr "A turn is running"
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "A turn is running. Wait for it to end or stop it, then send the command again."
+msgstr "A turn is running. Wait for it to end or stop it, then send the command again."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "A turn is running. Wait for it to end, or stop it, then run the macro."
 msgstr "A turn is running. Wait for it to end, or stop it, then run the macro."
 
@@ -2994,6 +2999,12 @@ msgstr "Add the first shot with the button below. Each card takes an image and t
 #: apps/desktop/src/media/storyboard-model.ts
 msgid "Add the first shot with the button below. Each card takes an image and the camera fields. To derive a scene’s shots, open the scene."
 msgstr "Add the first shot with the button below. Each card takes an image and the camera fields. To derive a scene’s shots, open the scene."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Add the missing argument to run this command."
+msgstr "Add the missing argument to run this command."
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
@@ -3521,6 +3532,11 @@ msgstr "Approved. The tools are searchable now, and the pins are updated to this
 #: apps/desktop/src/components/timeline/calendar-examples.ts
 msgid "AR"
 msgstr "AR"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Argument"
+msgstr "Argument"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
@@ -4922,6 +4938,7 @@ msgstr "Clip length, seconds"
 #: apps/desktop/src/components/CardPictureDialog.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/RecoveryDialog.tsx
+#: apps/desktop/src/components/SaveCommand.tsx
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/shell/ClassicShell.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
@@ -5160,6 +5177,10 @@ msgstr "Comic script written from the pages"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic settings changed"
 msgstr "Comic settings changed"
+
+#: apps/desktop/src/components/SaveCommand.tsx
+msgid "Command name"
+msgstr "Command name"
 
 #. Interpolated values: commandCount (how many commands match what is typed)
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
@@ -7122,6 +7143,11 @@ msgstr "Flashback"
 #: apps/desktop/src/app/shell-actions.ts
 msgid "Focus"
 msgstr "Focus"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Focus a document and select saved text in the editor, then send the command again."
+msgstr "Focus a document and select saved text in the editor, then send the command again."
 
 #. Changes a timeline scene can be given from the keyboard. Interpolated values: title, name, count, delta, other, part, day are scene titles, part words or numbers.
 #: apps/desktop/src/components/timeline/SceneChanges.tsx
@@ -11597,6 +11623,10 @@ msgstr "Project hooks"
 msgid "Project images"
 msgstr "Project images"
 
+#: apps/desktop/src/app/project-commands.ts
+msgid "Project macro"
+msgstr "Project macro"
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Project name"
@@ -11612,6 +11642,10 @@ msgstr "Project panels"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Project renamed"
 msgstr "Project renamed"
+
+#: apps/desktop/src/app/project-commands.ts
+msgid "Project skill"
+msgstr "Project skill"
 
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
@@ -11958,6 +11992,11 @@ msgstr "Read a skill reference"
 msgid "Read again"
 msgstr "Read again"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Read and approve this skill in Skills, then send the command again."
+msgstr "Read and approve this skill in Skills, then send the command again."
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Read and approve…"
@@ -12114,6 +12153,11 @@ msgstr "Reading the binder"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.codexRead.bare.active"
 msgstr "Reading the codex"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Reading the connected-server prompt…"
+msgstr "Reading the connected-server prompt…"
 
 #. Interpolated values: count, day, days, error
 #: apps/desktop/src/components/WritingHistory.tsx
@@ -12873,6 +12917,10 @@ msgstr "Review the tool list"
 msgid "Review the transcription"
 msgstr "Review the transcription"
 
+#: apps/desktop/src/app/project-commands.ts
+msgid "Review this skill first"
+msgstr "Review this skill first"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Review with agent"
@@ -12962,6 +13010,11 @@ msgstr "Run again"
 msgid "Run again the scan of {at}"
 msgstr "Run again the scan of {at}"
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Run command"
+msgstr "Run command"
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
@@ -13015,6 +13068,11 @@ msgstr "Run test"
 msgid "Run the queue"
 msgstr "Run the queue"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Run the selected connected-server prompt."
+msgstr "Run the selected connected-server prompt."
+
 #. Interpolated values: calls, cap
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Run this plan"
@@ -13067,6 +13125,14 @@ msgstr "Save anyway"
 msgid "Save as a new folder…"
 msgstr "Save as a new folder…"
 
+#: apps/desktop/src/components/SaveCommand.tsx
+msgid "Save as command"
+msgstr "Save as command"
+
+#: apps/desktop/src/components/SaveCommand.tsx
+msgid "Save as command…"
+msgstr "Save as command…"
+
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Save as recipe"
@@ -13081,6 +13147,10 @@ msgstr "Save budgets"
 #: apps/desktop/src/components/CoherenceSettings.tsx
 msgid "Save coherence settings"
 msgstr "Save coherence settings"
+
+#: apps/desktop/src/components/SaveCommand.tsx
+msgid "Save command"
+msgstr "Save command"
 
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
 #: apps/desktop/src/components/BinderFilters.tsx
@@ -13314,6 +13384,10 @@ msgstr "Saved. It applies from the next card."
 #: apps/desktop/src/components/Settings.tsx
 msgid "Saved. It applies to the agent’s next request."
 msgstr "Saved. It applies to the agent’s next request."
+
+#: apps/desktop/src/components/SaveCommand.tsx
+msgid "Saved. Review and approve it in Skills before running the command."
+msgstr "Saved. Review and approve it in Skills before running the command."
 
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
@@ -15068,6 +15142,10 @@ msgstr "That card is no longer waiting for a decision, so nothing was sent."
 msgid "That change has already been undone, so there is nothing to take back."
 msgstr "That change has already been undone, so there is nothing to take back."
 
+#: apps/desktop/src/app/project-commands.ts
+msgid "That command name is already used or reserved. Choose another name."
+msgstr "That command name is already used or reserved. Choose another name."
+
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "That did not finish: {reason}"
@@ -16191,6 +16269,12 @@ msgstr "The prompt pack names these pictures for the scenes this entry appears i
 msgid "the prompt pack’s generations"
 msgstr "the prompt pack’s generations"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The prompt was not run. Review the server in Settings › MCP, then try again."
+msgstr "The prompt was not run. Review the server in Settings › MCP, then try again."
+
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
 msgid "the Proof"
@@ -16918,6 +17002,12 @@ msgstr "This can happen after an update, or when the connection drops. Nothing i
 msgid "This changed since it was proposed, so it is not applied. Read it again, or remove it."
 msgstr "This changed since it was proposed, so it is not applied. Read it again, or remove it."
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This command stays in the foreground so its skill restrictions or outside-text warnings are kept."
+msgstr "This command stays in the foreground so its skill restrictions or outside-text warnings are kept."
+
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -17071,6 +17161,13 @@ msgstr "This plan needs {calls} {calls, plural, one {model call} other {model ca
 msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}. Choose how it runs."
 msgstr "This plan needs {calls} {calls, plural, one {model call} other {model calls}}. Choose how it runs."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "This plan used skill instructions or outside text. Switch to Ask and start the original command or request again so its restrictions and warnings are kept."
+msgstr "This plan used skill instructions or outside text. Switch to Ask and start the original command or request again so its restrictions and warnings are kept."
+
 #. Interpolated values: count, path, reason
 #: apps/desktop/src/app/lifecycle.ts
 msgid "This project defines {count} hooks. Review them in Settings › Hooks."
@@ -17138,6 +17235,10 @@ msgstr "This removes the item, the {descendants, plural, one {# item} other {# i
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
+
+#: apps/desktop/src/components/SaveCommand.tsx
+msgid "This request becomes a project skill that only you can invoke. It does not change permissions."
+msgstr "This request becomes a project skill that only you can invoke. It does not change permissions."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -18069,6 +18170,10 @@ msgstr "Use the page's source photo"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Use this profile"
 msgstr "Use this profile"
+
+#: apps/desktop/src/app/project-commands.ts
+msgid "Use up to 64 lower-case letters, numbers and hyphens, with no hyphen at either end."
+msgstr "Use up to 64 lower-case letters, numbers and hyphens, with no hyphen at either end."
 
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Used in"

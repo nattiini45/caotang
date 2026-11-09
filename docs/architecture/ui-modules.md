@@ -1,5 +1,9 @@
 # UI modules — binder / corkboard / inspector / settings (v0.1 contracts)
 
+The Agent composer includes project skills, `/macro-<slug>` commands and reviewed connected-server prompt commands beside its nine built-ins (agent-harness §2, Project commands). Missing arguments are labelled inline fields, not model questions. Settled turns offer **Save as command…**, which creates a user-only SKILL.md through `skill.write` and keeps review mandatory. The same combobox keys and IME guards apply to every command source in both shells. Restricted or outside-prompt turns explain why they stay in the foreground.
+
+Classic's toolbar grows with its action rows whenever translated labels need to wrap, not only below a fixed viewport breakpoint. Its single-row minimum remains 52 px; the 1100 px rail and toolbar spacing rules remain unchanged.
+
 > Status: built.
 > Scope note: these are **view contracts**. All state lives in the project-store / app settings; all mutations route through the command bus (ARCHITECTURE §1.4, command-bus.md §1). UI modules own no persisted state — only view state (`view.*` commands, never persisted, command-bus §9).
 > Shells: this spec is the **Classic** shell. A second shell, **Modern**, re-arranges the same components (one tree, never forked) and is specified, not built, in [modern-interface.md](modern-interface.md); Settings › Appearance › Interface chooses between them (being built).

@@ -30,6 +30,7 @@ export interface SkillFrontMatter {
   readonly 'disable-model-invocation'?: boolean;
   readonly 'user-invocable'?: boolean;
   readonly 'argument-hint'?: string;
+  readonly arguments?: readonly string[];
 }
 
 export interface Skill {

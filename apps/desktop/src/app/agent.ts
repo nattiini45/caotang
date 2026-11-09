@@ -76,6 +76,7 @@ import {
   isMacroCommand,
   macroCommandName,
   macroIntent,
+  parseSlash,
   resolveSlash,
   RUN_LOG_VERSION,
   structureDigest,
@@ -102,9 +103,12 @@ import {
   type TraceSink,
   type TurnOptions,
   type TurnReport,
+  type SubmitOptions as SessionSubmitOptions,
 } from '@caotang/harness';
+import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
 import { createRunLogPort, nodeById, valueRetentionRoot } from '@caotang/store';
+import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
 import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
@@ -120,6 +124,8 @@ import { TaskStore, type TaskRecord } from './task-store.js';
 import type * as LazyHarness from './lazy-harness.js';
 import { uiLocale } from '../i18n/format-locale.js';
 import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
+import { commandArguments, expandSkillCommand, projectCommands, type ProjectCommand } from './project-commands.js';
+import { currentEditorCaret } from './editor-selection.js';
 
 /** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
 type HarnessModule = typeof LazyHarness;
@@ -155,6 +161,8 @@ function pinsOf(resolved: { readonly profile: ProfileView; readonly model: strin
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
+  readonly writerSkill?: SessionSubmitOptions['writerSkill'];
+  readonly outsidePrompt?: SessionSubmitOptions['outsidePrompt'];
   readonly demo?: boolean;
   /** Deferred rows loaded for this turn before the planner's first request, besides the ones the active document preloads. */
   readonly preload?: readonly ToolName[];
@@ -505,6 +513,9 @@ export class AgentController {
         preload: [...new Set([...loop.preloadFor(node), ...(options.preload ?? [])])],
         ...turn,
         ...(options.forcePlan === true ? { forcePlan: true } : {}),
+        ...(options.writerSkill === undefined ? {} : { writerSkill: options.writerSkill }),
+        ...(options.outsidePrompt === undefined ? {} : { outsidePrompt: options.outsidePrompt }),
+        ...(options.hiddenFromPlanner === true ? { hiddenFromPlanner: true } : {}),
       }),
     );
   }
@@ -520,10 +531,19 @@ export class AgentController {
    * the context), or the restore the panel confirms. While a turn runs, the commands that would start a turn or restore one wait for it
    * to end, and the text is kept; help and the context are answered at once.
    */
-  sendLine(text: string): LineOutcome {
+  sendLine(text: string, supplied: Readonly<Record<string, string>> = {}, promptSelection?: string): LineOutcome {
     const line = text.trim();
     if (line === '') return { kind: 'shown' };
     this.commandNote = null;
+    const parsed = parseSlash(line);
+    const projectCommand = parsed === undefined ? undefined : this.commands().find((command) => command.name === parsed.name);
+    if ((promptSelection !== undefined || Object.keys(supplied).length > 0) &&
+      (projectCommand?.kind !== 'mcp' || promptSelection === undefined || promptSelection !== this.promptSelection(projectCommand))) {
+      this.commandNote = { kind: 'info', title: t`The prompt was not run. Review the server in Settings › MCP, then try again.`, lines: [] };
+      this.bump();
+      return { kind: 'kept' };
+    }
+    if (projectCommand !== undefined) return this.sendProjectCommand(projectCommand, line, supplied);
     const resolved = resolveSlash(line, this.slashContext());
     const starts = resolved.kind === 'plan' || (resolved.kind === 'intent' && resolved.command !== undefined) || (resolved.kind === 'session' && resolved.action === 'restore');
     if (this.busy && starts) {
@@ -549,7 +569,8 @@ export class AgentController {
         return { kind: 'kept' };
       case 'session': {
         if (resolved.action === 'help') {
-          this.commandNote = helpNote(resolved.arg);
+          const help = helpNote(resolved.arg);
+          this.commandNote = { ...help, lines: [...help.lines, ...this.commands().map((command) => `/${command.name} ${command.args.map((arg) => arg.hint).join(' ')} — ${command.description}`)] };
           this.bump();
           return { kind: 'shown' };
         }
@@ -576,6 +597,89 @@ export class AgentController {
         return { kind: 'restore', turnId: target.turn.turnId, summary: target.turn.report?.summary ?? '' };
       }
     }
+  }
+
+  commands(): readonly ProjectCommand[] {
+    const client = this.session.commandClient();
+    const prompts = client?.settings().servers.flatMap((server) => server.enabled && client.healthOf(server.key)?.state !== 'configured' ? client.listPrompts(server.key) : []) ?? [];
+    return projectCommands(this.session.skills().rows, this.session.macros(), prompts);
+  }
+
+  private sendProjectCommand(command: ProjectCommand, line: string, supplied: Readonly<Record<string, string>>): LineOutcome {
+    const keep = (title: string, missing?: string, values?: Readonly<Record<string, string>>): LineOutcome => {
+      this.commandNote = { kind: 'ask', title, lines: [], ...(missing === undefined ? {} : { argument: { name: missing, line, ...(values === undefined ? {} : { values, ...(command.kind === 'mcp' ? { promptSelection: this.promptSelection(command) } : {}) }) } }) };
+      this.bump();
+      return { kind: 'kept' };
+    };
+    if (this.busy) return keep(t`A turn is running. Wait for it to end or stop it, then send the command again.`);
+    if (command.kind === 'skill') {
+      const row = command.row;
+      if (row.review !== 'reviewed') return keep(t`Read and approve this skill in Skills, then send the command again.`);
+      const node = this.activeNode();
+      const caret = currentEditorCaret();
+      const document = caret === null || caret.dirty ? undefined : this.session.state.documents.get(caret.docId);
+      const selection = document === undefined || caret === null || caret.from === caret.to ? null : captureTextAnchor(document.body, caret.from, caret.to, document.revision);
+      const expanded = expandSkillCommand(command, line, {
+        ...(node === undefined || !this.session.state.documents.has(node.id) || withheldAnywhere({ rules: this.session.rulesNow() }, this.session.state).has(node.id) ? {} : { DOC: node.title }),
+        ...(selection === null || selection === undefined || withheldAnywhere({ rules: this.session.rulesNow() }, this.session.state).has(caret!.docId) ? {} : { SELECTION: JSON.stringify({ doc: caret!.docId, ...selection }) }),
+      });
+      if (!expanded.ok) {
+        const name = expanded.error.missing.slice(1);
+        if (name === 'SELECTION' || name === 'DOC') return keep(t`Focus a document and select saved text in the editor, then send the command again.`);
+        return keep(t`Add the missing argument to run this command.`, name);
+      }
+      void this.submit(expanded.value, { command: command.name, writerSkill: { name: row.name, pin: row.skill.pin, body: expanded.value }, hiddenFromPlanner: true });
+      this.commandNote = { kind: 'info', title: t`This command stays in the foreground so its skill restrictions or outside-text warnings are kept.`, lines: [] };
+      this.bump();
+      return { kind: 'sent' };
+    }
+    const args = commandArguments(line, command.args, supplied);
+    if (args.missing !== undefined) return keep(t`Add the missing argument to run this command.`, args.missing, command.kind === 'mcp' ? args.values : undefined);
+    if (command.kind === 'macro') {
+      const values = Object.fromEntries(Object.entries(args.values).flatMap(([name, value]) => {
+        const spec = command.macro.params.properties[name];
+        if ((spec?.kind === 'integer' || spec?.kind === 'number') && !command.macro.params.required.includes(name) && value.trim() === '') return [];
+        return [[name, spec?.kind === 'integer' || spec?.kind === 'number' ? Number(value) : spec?.kind === 'boolean' ? (value === 'true' ? true : value === 'false' ? false : value) : value]];
+      }));
+      const result = this.runMacro(command.macro.id, values);
+      return result.started ? { kind: 'sent' } : keep(result.problem);
+    }
+    void this.runPrompt(command, args.values);
+    return { kind: 'sent' };
+  }
+
+  private promptSelection(command: Extract<ProjectCommand, { kind: 'mcp' }>): string {
+    return JSON.stringify({ prompt: command.prompt, server: this.session.commandClient()?.serverFor(command.prompt.serverKey) });
+  }
+
+  private async runPrompt(command: Extract<ProjectCommand, { kind: 'mcp' }>, args: Record<string, string>): Promise<void> {
+    const client = this.session.commandClient();
+    if (client === undefined) return;
+    const abort = new AbortController();
+    this.busy = true;
+    this.turnAbort = abort;
+    this.commandNote = { kind: 'info', title: t`Reading the connected-server prompt…`, lines: [] };
+    this.bump();
+    let text: string | undefined;
+    try {
+      const result = await createMcpTransport(client).readPrompt(command.prompt.serverKey, command.prompt.name, args, { signal: abort.signal });
+      if (abort.signal.aborted || this.detached) return;
+      text = JSON.stringify(result);
+    } catch (error) {
+      this.commandNote = { kind: 'info', title: t`The prompt was not run. Review the server in Settings › MCP, then try again.`, lines: [error instanceof Error ? error.message : String(error)] };
+    } finally {
+      this.busy = false;
+      this.stopping = false;
+      this.turnAbort = null;
+      if (text === undefined) this.afterTurn(null);
+      this.bump();
+    }
+    if (text === undefined) return;
+    this.commandNote = { kind: 'info', title: t`This command stays in the foreground so its skill restrictions or outside-text warnings are kept.`, lines: [] };
+    await this.submit(t`Run the selected connected-server prompt.`, {
+      command: command.name, hiddenFromPlanner: true,
+      outsidePrompt: { serverName: command.prompt.serverName, name: command.prompt.name, text },
+    });
   }
 
   /** `/context`: what the next chat turn would send, as a note under the Intent box (agent-harness §2). */
@@ -702,6 +806,11 @@ export class AgentController {
     const turn = this.turns.find((entry) => entry.turnId === turnId);
     const held = turn?.report?.heldSteps;
     if (turn === undefined || held === undefined || held.length === 0 || this.busy || this.heldRun.has(turnId)) return null;
+    if (turn.report?.heldRequiresRestart === true) {
+      this.message = t`This plan used skill instructions or outside text. Switch to Ask and start the original command or request again so its restrictions and warnings are kept.`;
+      this.bump();
+      return null;
+    }
     this.heldRun.add(turnId);
     this.modeOverride = 'ask';
     this.bump();

@@ -156,6 +156,7 @@ export interface WireOptions {
   /** A call's wall-clock cap, which progress does not extend. Absent, a call has none beyond the idle limit. */
   readonly maxTotalMs?: number;
   readonly signal?: AbortSignal;
+  readonly cacheMode?: 'refresh';
   /** Told of each progress report on a call, cleaned (see progress.ts). A wire that has no progress to report never calls it. */
   readonly onProgress?: (progress: WireProgress) => void;
 }
@@ -312,7 +313,7 @@ class StreamableHttpWire implements McpWire {
   async listPrompts(options: WireOptions): Promise<readonly WirePrompt[]> {
     return this.request(options, 'prompts', async (client) => {
       this.require(client, 'prompts');
-      const listed = await client.listPrompts(undefined, { timeout: options.timeoutMs, signal: options.signal });
+      const listed = await client.listPrompts(undefined, { timeout: options.timeoutMs, signal: options.signal, cacheMode: options.cacheMode });
       return listed.prompts.map((prompt) => ({
         name: prompt.name,
         title: prompt.title,

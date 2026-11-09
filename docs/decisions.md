@@ -1,5 +1,13 @@
 # Decisions
 
+- [delegated 2026-11-09] Pending inline MCP arguments remain bound to their originally selected prompt hash, connection generation and server configuration across all fields; a changed or reconnected source requires a fresh invocation rather than inheriting earlier input (#61, PR #524 F6).
+
+- [delegated 2026-11-09] Running a reviewed MCP prompt revalidates its listing before and after the read with a forced SDK cache refresh, rather than trusting server TTL or an older in-flight catalogue; picker and resource caching remain unchanged (#61, PR #524 F4).
+
+- [delegated 2026-11-09] A held Plan-only plan that used loaded skill instructions or outside text requires a fresh invocation in Ask rather than a bare-step retry, because that retry cannot retain its originating restrictions or taint; unconstrained held-plan retries are unchanged (#61, PR #524 F1).
+
+- [delegated 2026-11-09] Saved prompts are user-only SKILL.md skills, not another store; user-invocable project skills, namespaced macros and reviewed MCP prompts share the composer. Writer invocation keeps reviewed pins, caps, tool restrictions and every normal gate. Outside prompt text is enveloped and taints its turn; restricted and tainted command turns remain foreground until the queue can preserve those constraints. Expanded skill and prompt turns stay out of later conversation memory, including after resume (#61).
+
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
 - Findings offers a save retry only for a failed browser write while its session is active. A folder conflict keeps its existing reopen-from-Projects guidance without offering the same stale-digest save again. Why: recovery must be able to change the failed condition (#379, PR #507 review). [delegated 2026-11-09]
