@@ -253,8 +253,8 @@ export const MODERN_HOMES: readonly Home[] = [
     setup: 'scene',
     routes: actionRoutes('Settings', settings, [
       {
-        via: 'palette › each of the nine sections by name',
-        steps: ['Providers', 'Context', 'Agent', 'Macros', 'Writing', 'Coherence', 'MCP & tools', 'Appearance', 'Data'].map((section): Step => ({ offers: section, detail: 'Settings' })),
+        via: 'palette › each of the ten sections by name',
+        steps: ['Providers', 'Context', 'Agent', 'Macros', 'Hooks', 'Writing', 'Coherence', 'MCP & tools', 'Appearance', 'Data'].map((section): Step => ({ offers: section, detail: 'Settings' })),
       },
     ]),
   },
@@ -683,7 +683,7 @@ export const MODERN_HOMES: readonly Home[] = [
   {
     id: 'settings-sections',
     section: '7.6',
-    classic: 'Settings, all nine sections',
+    classic: 'Settings, all ten sections',
     modern: 'Same; Appearance gains Interface, Reduce transparency and Reduce motion',
     setup: 'scene',
     routes: [

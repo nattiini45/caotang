@@ -509,7 +509,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
     expect(guide).toContain('- **Agent.** **Load every tool on every request**, off by default.');
-    expect(guide).toContain('It has nine sections: Providers, Context, Agent, Macros, Writing, Coherence, MCP & tools, Appearance and Data.');
+    expect(guide).toContain('It has ten sections: Providers, Context, Agent, Macros, Hooks, Writing, Coherence, MCP & tools, Appearance and Data.');
     expect(changelog).toContain('**Settings › Agent** has **Load every tool on every request**, off by default');
   });
 
