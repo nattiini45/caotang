@@ -246,6 +246,7 @@ export interface CoherenceStatus {
   readonly writable: boolean;
   readonly notices: readonly string[];
   readonly saveFailure: string | null;
+  readonly canRetrySave: boolean;
 }
 
 export interface SessionOptions {
@@ -1700,6 +1701,7 @@ export class ProjectSession {
       writable: this.coherenceWritable,
       notices: this.coherenceNotices,
       saveFailure: this.coherenceFailure ?? this.coherenceFolderFailure,
+      canRetrySave: this.coherenceFailure !== null && !this.persistence.isStopped(),
     };
   }
 
@@ -2071,4 +2073,3 @@ function countInEntries(body: string, entries: readonly CodexEntry[], terms: rea
 
 /** A listing of the project's images that has finished, or the error it gave. */
 type HeldImages = { readonly records: AssetRecords } | { readonly failure: unknown };
-

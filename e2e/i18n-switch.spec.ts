@@ -214,6 +214,7 @@ test.describe('the switched document and accessibility', () => {
 
   test('has a valid lang, no lang mismatch, and content surfaces carry the project language', async ({ page }) => {
     await createProject(page, 'Direction Book');
+    await chapterWithScene(page, 'English scene');
     const settings = await openAppearance(page);
     await languageRadio(settings, 'ar-XB').click();
     await expect.poll(() => documentLanguage(page)).toEqual({ lang: 'ar-XB', dir: 'rtl' });
@@ -221,9 +222,13 @@ test.describe('the switched document and accessibility', () => {
     await settings.locator('.settings-head button').click();
 
     // Writer content keeps the project's language and automatic direction while the UI mirrors.
-    const title = page.locator('.row-title').first();
+    const title = page.locator('.row[data-type="document"] .row-title').first();
+    await expect(title).toHaveText('English scene');
     await expect(title).toHaveAttribute('lang', 'en');
     await expect(title).toHaveAttribute('dir', 'auto');
+    const sections = page.locator('.row.is-section .row-title');
+    await expect(sections).toHaveCount(2);
+    expect(await sections.evaluateAll((elements) => elements.map((element) => element.closest('[lang]')?.getAttribute('lang')))).toEqual(['ar-XB', 'ar-XB']);
 
     await page.addScriptTag({ path: require.resolve('axe-core') });
     const violations = await page.evaluate(async () => {

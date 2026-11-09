@@ -103,6 +103,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await page.getByTestId('modern-narrow-views').click();
         await page.getByTestId('modern-views-timeline').click();
         await expect(page.locator('#modern-page')).toHaveAttribute('data-view', 'timeline');
+        await expect(page.getByTestId('timeline-agenda')).toBeVisible();
         await expect(page.getByTestId('modern-lens')).toBeHidden();
       }
       await page.mouse.move(2, Math.round(PHONE.height / 2));

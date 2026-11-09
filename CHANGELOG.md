@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Sidebar labels and scrolling (#378, #380).** Modern's sidebar tabs keep translated names and counts whole, wrapping when needed. The fixed Manuscript and Research headings follow the interface language without changing stored project titles. Dialogs, sidebar panels and the narrow Settings section strip show soft edges only where more content remains to scroll, in both interfaces, with opaque and forced-color fallbacks.
+
 - **Phone writing instructions.** Empty Write directs you to the binder rather than asking for Ctrl+Enter. Its guidance and New chapter action are available in English and German; desktop keeps the keyboard shortcut.
 
 - **Phone reading and writing (#496–#498, #502, #503).** Returning Home projects now come first for screen readers and keyboards as well as visually. Modern keeps New and More visible with long titles and makes Write reachable by Tab from every view. Screenplay Source retains its full writing height on touch screens in both shells. Got it waits for the first-run dismissal to save; a storage error leaves the card available to retry.
@@ -15,6 +17,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Typing on an iPhone (#374).** Modern now hides its bottom tab bar when iOS Safari opens the on-screen keyboard without resizing the page layout. It returns when the keyboard closes or the field loses focus; pinch zoom and small browser-chrome changes do not hide it. Phone text fields use 16 px type to prevent Safari's focus auto-zoom, without disabling pinch zoom.
 
 ### Added
+
+- **Clear sidebar states (#379).** Binder, Findings, Activity and Trace pair empty, loading and error guidance with named SVG glyphs in English and German. Findings distinguishes a completed check from first use, retains review/save failures and offers a retry for browser saves, while external folder conflicts direct the writer to reopen the folder; Activity shows Undo progress and retryable failure. Shell icons use 19 copied Lucide definitions, with their ISC notice, instead of adding an icon package.
 
 - **Document modes beside the title (#476), and browser-safe navigation (#483).** Modern moves screenplay **Script · Source · Pages** into the top ornament and adds **Graph · Ink** for dialogue, with a document-type icon on the title capsule. Graph nodes open Ink at their line; both modes keep the same draft. Classic keeps its existing screenplay controls and split dialogue view. Search reaches every view and reopens the sidebar even on its current tab; **Agent › Sidebar** returns to the last Activity or Trace log. The English and German keyboard tables list the navigation paths and browser limitations instead of claiming numbered shortcuts that browsers, screenplay editing or macOS already use.
 

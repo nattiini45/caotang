@@ -16,6 +16,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 - **Projects.** Create, open, rename and remove projects in your browser. Set the title, author, language, ISBN and cover. Export a project as a `.caotang` bundle and import one back. In Chrome or Edge, open a project folder or save to one. A folder of a project this browser already keeps opens as that project when it holds the same book, and a folder of a project another tab has open is refused. Caotang asks before it saves over a change it did not make, or before it writes back a `caotang.json` that another program removed. A folder's writing sessions come into this browser when you open it.
 - **Binder.** A manuscript of chapters and scenes, and a research section that is never compiled. Drag to reorder, rename, set a status or a label, delete and undo. A filter bar (text, status, label, word counts, keywords and recent dates) with saved filters, and a footer with word goals, a sprint timer, a writing history and the words a stopped tab kept.
+- **Panel guidance.** Binder, Findings, Activity and Trace show named state glyphs and next steps in English and German, distinguishing empty content from loading, failed checks and tracing being off. The fixed Manuscript and Research headings follow the interface language; your folder and document titles stay as written. Failed browser findings saves and Activity Undo have a retry beside the failure. If another program changed the findings in a project folder, reopen that folder from Projects instead.
 - **Corkboard.** The scenes of a chapter, or the chapters of the manuscript, as cards in three sizes. Drag to reorder.
 - **Inspector.** Synopsis, notes, keywords, status and label, codex links and scene declarations for the selected item, and the container settings of a dialogue.
 - **Editor.** Scenes are Markdown and save as you type. Word counts, a daily target and focus mode. Agent drafts appear in the scene first, in a preview bar.
@@ -139,7 +140,7 @@ In Modern, **Import…**, **Filters**, the Codex's **Filter** and **More** discl
 
 An open native filter picker keeps its first Escape before **Filters** closes.
 
-On phones, Home shows existing projects first visually and Settings' sections scroll sideways on one row, in either interface. Home's screen-reader and keyboard order are unchanged (#496). Confirm and Choice dialogs consistently put Cancel before their actions.
+On phones, Home shows existing projects first visually and Settings' sections scroll sideways on one row, in either interface. Soft scroll edges show where more dialog, sidebar or Settings content remains; reduced transparency, higher contrast and forced colors keep native scrolling without the fades. Modern's sidebar tabs wrap when translated labels need more room instead of cutting off their names. Home's screen-reader and keyboard order are unchanged (#496). Confirm and Choice dialogs consistently put Cancel before their actions.
 
 ## Your key and your privacy
 

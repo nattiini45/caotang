@@ -21,6 +21,12 @@ Undo of your typing in a scene survives a reload (redo may not). The toolbar's U
 
 ## Projects
 
+Long dialogs and sidebar panels soften the edges where more content remains to scroll. On a phone, Settings' section names scroll sideways, with the same cue at either end. Reduced transparency, higher contrast and forced colors turn these decorative fades off; scrolling still works. Modern's sidebar tabs keep their full names, wrapping onto another row when translated labels or larger type need room.
+
+Binder, Findings, Activity and Trace pair their state words with a symbol and explain what to do next. An empty panel is different from code that is loading or could not load. Findings says when a check has recorded no findings, when a review is still running and when it stopped; a failed browser save offers **Try saving findings again**. If another program changed the findings file in your project folder, the message directs you to reopen the folder from Projects instead of offering a retry that cannot resolve the conflict. Activity shows when Undo is still working and keeps a failed Undo beside **Try Undo again**. Trace says whether recording is off or no turn has been recorded yet. These messages and actions follow the interface language, including German.
+
+The Binder's fixed section names follow your interface language: **Manuskript** and **Recherche** in German. Your folder and document titles stay as written, and switching the interface language changes no stored project title.
+
 - **Create.** On the projects screen, type a name under **New project**, then choose **Create project**.
 - **Open.** Choose **Open** next to a project under **Projects in this browser**.
 - **What an open says.** When a project or folder opens, Caotang says what it noted, in whole sentences. A field the file carries that Caotang does not use is named once, with its count, and the next save drops it. Smaller things are counted, so the note stays short. A document whose file is not UTF-8 pauses the open on a review: each file is named with the encoding its bytes look like, a preview you can check, and the choice to convert it or leave it as it is. Converting first saves the original bytes beside the project under `.caotang-backup/`. On a close call you can ask the AI — it reads a short excerpt through the Background role, and only suggests a reading.

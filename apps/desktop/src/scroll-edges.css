@@ -1,0 +1,77 @@
+[data-scroll-edges] {
+  --scroll-ground: var(--raised);
+}
+
+.rail-panel[data-scroll-edges] {
+  --scroll-ground: var(--panel);
+}
+
+[data-scroll-edges]:not(.settings-nav)::before,
+[data-scroll-edges]:not(.settings-nav)::after {
+  content: '';
+  position: sticky;
+  z-index: 2;
+  display: block;
+  block-size: 12px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+[data-scroll-edges]:not(.settings-nav)::before {
+  inset-block-start: 0;
+  margin-block-end: -12px;
+  background: linear-gradient(var(--scroll-ground), transparent);
+}
+
+[data-scroll-edges]:not(.settings-nav)::after {
+  inset-block-end: 0;
+  margin-block-start: -12px;
+  background: linear-gradient(transparent, var(--scroll-ground));
+}
+
+[data-scroll-edges~='top']:not(.settings-nav)::before,
+[data-scroll-edges~='bottom']:not(.settings-nav)::after {
+  opacity: 1;
+}
+
+.settings-nav[data-scroll-edges~='start']::before,
+.settings-nav[data-scroll-edges~='end']::after {
+  content: '';
+  position: sticky;
+  z-index: 2;
+  flex: 0 0 16px;
+  align-self: stretch;
+  pointer-events: none;
+}
+
+.settings-nav[data-scroll-edges~='start']::before {
+  inset-inline-start: -8px;
+  margin-inline-end: calc(-16px - var(--space-1));
+  background: linear-gradient(to right, var(--scroll-ground), transparent);
+}
+
+.settings-nav[data-scroll-edges~='end']::after {
+  inset-inline-end: -8px;
+  margin-inline-start: calc(-16px - var(--space-1));
+  background: linear-gradient(to left, var(--scroll-ground), transparent);
+}
+
+[dir='rtl'] .settings-nav[data-scroll-edges~='start']::before {
+  background: linear-gradient(to left, var(--scroll-ground), transparent);
+}
+
+[dir='rtl'] .settings-nav[data-scroll-edges~='end']::after {
+  background: linear-gradient(to right, var(--scroll-ground), transparent);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  [data-scroll-edges]::before,
+  [data-scroll-edges]::after {
+    visibility: hidden;
+  }
+}
+
+:root[data-shell='modern'][data-transparency='reduced'] [data-scroll-edges]::before,
+:root[data-shell='modern'][data-transparency='reduced'] [data-scroll-edges]::after {
+  visibility: hidden;
+}

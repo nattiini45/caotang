@@ -68,7 +68,15 @@ test('Write, Board and Codex are one radio group with a lens; the keys choose, a
   // A selection inside the words (the hook reports a range, not a collapsed caret): the last word but its full stop.
   await surface.focus();
   await page.keyboard.press('End');
+  await expect.poll(() => surface.evaluate(() => {
+    const selection = window.getSelection();
+    return [selection?.anchorOffset, selection?.focusOffset];
+  })).toEqual([11, 11]);
   await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => surface.evaluate(() => {
+    const selection = window.getSelection();
+    return [selection?.anchorOffset, selection?.focusOffset];
+  })).toEqual([10, 10]);
   for (let step = 0; step < 4; step += 1) await page.keyboard.press('Shift+ArrowLeft');
   await expect.poll(async () => {
     const selection = await selectionOf(page);

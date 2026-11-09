@@ -18,6 +18,7 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 
 import { EmptyState } from './shared.js';
+import { PanelGlyph as Icon } from './panel-glyph.js';
 
 /** The import of a view's code failed. The view's own errors are not this. */
 export class ChunkLoadError extends Error {
@@ -104,7 +105,8 @@ export class LazyBoundary extends Component<LazyBoundaryProps, LazyBoundaryState
     const reason = retried ? t`Reload the page to fetch it again.` : t`This can happen after an update, or when the connection drops.`;
     if (variant === 'toast') {
       return (
-        <div className="status-line is-error" role="alert">
+        <div className="status-line is-error" role="alert" data-panel-state="error">
+          <Icon name="error" label={t`Error`} />
           <span>
             {title}. {reason}
           </span>
@@ -113,8 +115,8 @@ export class LazyBoundary extends Component<LazyBoundaryProps, LazyBoundaryState
       );
     }
     return (
-      <div role="alert">
-        <EmptyState title={title} actions={actions}>
+      <div role="alert" data-panel-state="error">
+        <EmptyState title={title} actions={actions} state="error" glyph={<Icon name="error" label={t`Error`} />}>
           {reason} <Trans>Nothing in the project changed.</Trans>
         </EmptyState>
       </div>
@@ -129,11 +131,13 @@ export class LazyBoundary extends Component<LazyBoundaryProps, LazyBoundaryState
 function LoadingLine({ label, variant }: { readonly label: string; readonly variant: 'pane' | 'toast' }): ReactNode {
   const text = t`Loading ${{ subject: label }}…`;
   return variant === 'toast' ? (
-    <p className="status-line" role="status">
+    <p className="status-line" role="status" data-panel-state="loading">
+      <Icon name="loading" label={t`Loading`} />
       {text}
     </p>
   ) : (
-    <div className="empty-state" role="status">
+    <div className="empty-state" role="status" data-panel-state="loading">
+      <Icon name="loading" label={t`Loading`} />
       {text}
     </div>
   );

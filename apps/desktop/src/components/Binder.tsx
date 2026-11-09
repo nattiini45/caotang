@@ -61,6 +61,7 @@ import { openDialog } from './dialog-requests.js';
 import { useNarrow } from './narrow.js';
 import { EmptyState, InlineText, Menu, useReport, useSession, wordsLabel, type MenuAnchor, type MenuItem } from './shared.js';
 import { ManuscriptImportActions } from './ManuscriptImport.js';
+import { PanelGlyph as Icon } from './panel-glyph.js';
 import { ScriptImportActions } from './ScriptImport.js';
 import {
   createNode,
@@ -574,9 +575,10 @@ export function Binder(props: BinderProps): ReactNode {
       {filtered !== null && filtered.matchCount === 0 ? (
         <EmptyState
           title={t`No scenes match`}
+          glyph={<Icon name="search" label={t`No matches`} />}
           actions={
             <button type="button" className="button is-quiet" onClick={() => furniture.clearFilter()}>
-              Clear filter
+              <Trans>Clear filter</Trans>
             </button>
           }
         >
@@ -643,13 +645,14 @@ export function Binder(props: BinderProps): ReactNode {
       {manuscriptEmpty ? (
         <EmptyState
           title={t`The manuscript is empty`}
+          glyph={<Icon name="manuscript" label={t`Empty manuscript`} />}
           actions={
             <>
               <button type="button" className="button is-primary" onClick={() => create('manuscript', 'folder', 'Chapter 1')}>
-                Create Chapter 1
+                <Trans>Create Chapter 1</Trans>
               </button>
               <button type="button" className="button" onClick={() => onAgentIntent(EMPTY_STATE_INTENTS.restructure)}>
-                Let the agent structure it
+                <Trans>Let the agent structure it</Trans>
               </button>
             </>
           }
@@ -661,9 +664,10 @@ export function Binder(props: BinderProps): ReactNode {
       {researchEmpty ? (
         <EmptyState
           title={t`Research is empty`}
+          glyph={<Icon name="codex" label={t`Empty research`} />}
           actions={
             <button type="button" className="button" onClick={() => create('research', 'document')}>
-              New research note
+              <Trans>New research note</Trans>
             </button>
           }
         >
@@ -754,13 +758,14 @@ function BinderRowView(props: RowViewProps): ReactNode {
   const content = { lang: contentLang, dir: 'auto' as const };
 
   if (row.kind === 'section') {
+    const title = node.id === 'manuscript' ? t`Manuscript` : t`Research`;
     return (
       <div
         role="treeitem"
         aria-level={1}
         aria-expanded={true}
         aria-selected={selected}
-        aria-label={node.title}
+        aria-label={title}
         tabIndex={props.focusable ? 0 : -1}
         className={`row is-section${selected ? ' is-selected' : ''}${dropClass}`}
         data-node-id={node.id}
@@ -769,8 +774,8 @@ function BinderRowView(props: RowViewProps): ReactNode {
         onDragOver={props.onDragOver}
         onDrop={props.onDrop}
       >
-        <span className="row-title" {...content}>
-          {node.title}
+        <span className="row-title">
+          {title}
         </span>
         <span className="row-meta">
           {props.agentAccess === null ? null : (
@@ -780,7 +785,7 @@ function BinderRowView(props: RowViewProps): ReactNode {
           )}
           {itemsLabel(childrenOf(state, node.id).length)}
         </span>
-        <RowActions title={node.title} onActions={props.onActions} />
+        <RowActions title={title} onActions={props.onActions} />
       </div>
     );
   }
