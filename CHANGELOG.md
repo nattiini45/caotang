@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Reloading a pending plan (#509).** A plan's pending card is saved before it is shown, so reloading as soon as the plan appears still offers its steps for review and resume.
+
 - **Sidebar labels and scrolling (#378, #380).** Modern's sidebar tabs keep translated names and counts whole, wrapping when needed. The fixed Manuscript and Research headings follow the interface language without changing stored project titles. Dialogs, sidebar panels and the narrow Settings section strip show soft edges only where more content remains to scroll, in both interfaces, with opaque and forced-color fallbacks.
 
 - **Phone writing instructions.** Empty Write directs you to the binder rather than asking for Ctrl+Enter. Its guidance and New chapter action are available in English and German; desktop keeps the keyboard shortcut.

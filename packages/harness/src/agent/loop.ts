@@ -2598,6 +2598,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         !remaining.some((step) => asksWriter(step, turn.id)) &&
         policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
       if (auto) holdToBudget(turn, editable, writes);
+      if (start.nested !== true) await logCard(turn, kind, editable, auto ? 'running' : 'awaiting-approval');
+      checkStop(turn);
       // Each step that has not run is pending from the moment its card is shown (agent-harness §8).
       for (const [index, step] of editable.steps.entries()) {
         if (ranAt(editable, index)) continue;
@@ -2605,7 +2607,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       emit({ type: 'plan', turnId: turn.id, card: shown.card, ...(auto ? { auto: true as const } : {}) });
       showGhosts(turn, editable, kind, prefix);
-      if (start.nested !== true) await logCard(turn, kind, editable, auto ? 'running' : 'awaiting-approval');
       if (auto) {
         const hold = await options.beforeAutoApply?.(shown.card);
         checkStop(turn);

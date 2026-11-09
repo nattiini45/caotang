@@ -8,6 +8,9 @@ import type { ChatMessage } from '@caotang/gateway';
 import { rebuildDerived, setBody, type Manifest } from '@caotang/store';
 
 import {
+  createAgentPorts,
+  createAgentSession,
+  createHarness,
   createMemoryRunLog,
   createRunWriter,
   NOT_LOGGED_NOTICE,
@@ -20,6 +23,7 @@ import {
   type RunEventDraft,
 } from '../../src/index.js';
 import { CHAPTER_TWO, LANDING, STORM, makeState } from '../fixtures.js';
+import { mockGateway } from './gateway.js';
 
 const A = 'n_AAAAAAAAAA';
 const B = 'n_BBBBBBBBBB';
@@ -291,6 +295,69 @@ describe('summarizeRun', () => {
 });
 
 describe('the run writer', () => {
+  it.each([
+    { revision: 0, stop: false },
+    { revision: 1, stop: false },
+    { revision: 0, stop: true },
+    { revision: 1, stop: true },
+  ])('persists plan revision $revision before displaying it, with stop during persistence: $stop', async ({ revision, stop }) => {
+    const state = makeState();
+    const port = createMemoryRunLog();
+    const controller = new AbortController();
+    let writeStarted = (): void => {};
+    let releaseWrite = (): void => {};
+    const started = new Promise<void>((resolve) => { writeStarted = resolve; });
+    const released = new Promise<void>((resolve) => { releaseWrite = resolve; });
+    let writes = 0;
+    let decisions = 0;
+    const visible: Promise<readonly unknown[]>[] = [];
+    const session = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts() }),
+      gateway: await mockGateway([]),
+      decide: async () => decisions++ === 0 ? { action: 'edit', edits: [{ op: 'drop', index: 0 }] } : { action: 'cancel' },
+      emit: (event) => {
+        if (event.type === 'plan') visible.push(port.events('run_CARD'));
+      },
+      runLog: {
+        projectId: 'p_CARD',
+        newRunId: () => 'run_CARD',
+        port: {
+          ...port,
+          append: async (runId, events, patch) => {
+            if (events.some((event) => event.t === 'card.pending') && writes++ === revision) {
+              writeStarted();
+              await released;
+            }
+            await port.append(runId, events, patch);
+          },
+        },
+      },
+    });
+    const pending = session.submitPlan('Add two notes.', {
+      steps: [
+        { tool: 'notes.append', params: { doc: LANDING, text: 'First note.' }, expect: 'A first note is added.' },
+        { tool: 'notes.append', params: { doc: LANDING, text: 'Second note.' }, expect: 'A second note is added.' },
+      ],
+    }, { signal: controller.signal });
+    await started;
+    try {
+      expect(visible).toHaveLength(revision);
+      expect(decisions).toBe(revision);
+      if (stop) controller.abort();
+    } finally {
+      releaseWrite();
+    }
+    expect((await pending).status).toBe('cancelled');
+    expect(visible).toHaveLength(stop ? revision : 2);
+    expect(decisions).toBe(stop ? revision : 2);
+    for (const [index, rows] of visible.entries()) {
+      expect(summarizeRun(await rows, (id) => state.documents.get(id)?.revision)).toMatchObject({
+        intent: 'Add two notes.', applied: 0, total: 2 - index, resumable: true,
+      });
+    }
+    expect((await port.events('run_CARD') as RunEvent[]).some((event) => event.t === 'step.applied')).toBe(false);
+  });
+
   it('numbers and stamps events in the order they are given, one append each', async () => {
     const port = createMemoryRunLog();
     await port.create(newRunRecord('run_W', { projectId: 'p', intent: 'x', now: 1 }));
