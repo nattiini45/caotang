@@ -871,6 +871,13 @@ const isWrite = (risk: string): boolean => risk === 'write-auto' || risk === 'wr
 const DELEGATE_ALONE =
   'agent.delegate runs before anything is written, and its result comes back to you first. Nothing was run. Call it in a reply without write steps (reads may go with it), then plan the writes, including any step the agent proposed.';
 
+const SKILL_BEFORE_DRAFT =
+  'skill.load must finish before a later step is drafted. Nothing was drafted for this step. Load the skill in a read-only reply first, then plan from its instructions and tool limits.';
+
+function pendingSkillBefore(steps: readonly PlanStep[], index: number, done?: (index: number) => boolean): boolean {
+  return steps.slice(0, index).some((step, at) => step.tool === 'skill.load' && done?.(at) !== true);
+}
+
 /** The ask-back for a turn that used its model-call bound. The user decides what to do with the rest. */
 function budgetAskBack(limit: number): AskBack {
   return askBackOf(modelCallBound(limit).stop);
@@ -1927,6 +1934,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         continue;
       }
       if (!MODEL_BACKED.has(step.tool)) continue;
+      if (pendingSkillBefore(steps, index)) {
+        refusals.push({ index, tool: step.tool, message: SKILL_BEFORE_DRAFT });
+        refusedBeforeCard(turn, step, SKILL_BEFORE_DRAFT);
+        continue;
+      }
       const drafted = await draftFor(turn, step);
       if (drafted.ok) {
         proposals[index] = drafted.proposal;
@@ -2517,6 +2529,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         stale[index] = false;
         continue;
       }
+      if (pendingSkillBefore(editable.steps, index, (at) => ranAt(editable, at))) return { editable, refusal: SKILL_BEFORE_DRAFT };
       const drafted = await draftFor(turn, step);
       if (!drafted.ok) return { editable, refusal: drafted.message };
       proposals[index] = drafted.proposal;
@@ -3699,6 +3712,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     try {
       for (const [index, step] of steps.entries()) {
         checkStop(turn);
+        if (MODEL_BACKED.has(step.tool) && pendingSkillBefore(steps, index)) {
+          refusals.push({ index, tool: step.tool, message: SKILL_BEFORE_DRAFT });
+          continue;
+        }
         revisions[index] = revisionsOf(harness.state, step);
         try {
           const one = await stage(turn, [step]);

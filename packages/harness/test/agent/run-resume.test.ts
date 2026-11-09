@@ -496,7 +496,7 @@ describe('loaded skill restrictions survive a reload', () => {
       mode,
       decide: async (card) => {
         cards.push(card);
-        if (cards.length === 1) return { action: 'edit', edits: [{ op: 'set', index: card.card.steps.findIndex((step) => step.status !== 'done'), path: ['targets'], value: [STORM] }] };
+        if (cards.length === 1) return { action: 'edit', edits: [{ op: 'set', index: card.card.steps.findIndex((step) => step.status !== 'done'), path: ['params', 'targets'], value: [STORM] }] };
         return cards.length === 2 ? { action: 'approve' } : { action: 'cancel' };
       },
       runLog: { port, projectId: PROJECT },

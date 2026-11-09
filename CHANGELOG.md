@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Loading before drafting.** A plan cannot draft a later step before its `skill.load` has finished. The agent is told to load the skill in a read-only phase first; the same boundary protects supplied plans, card edits and background staging.
+
 - **Resuming a skill-guided run.** Loaded instructions, review pins and tool restrictions now survive a reload. Resume validates and restores them before any card or conversation continues; a stale or missing snapshot refuses the resume. Older interrupted logs without a snapshot need a new request.
 
 - **Reloading a pending plan (#509).** A plan's pending card is saved before it is shown, so reloading as soon as the plan appears still offers its steps for review and resume.
