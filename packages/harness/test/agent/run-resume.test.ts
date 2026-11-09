@@ -451,7 +451,7 @@ describe('loaded skill restrictions survive a reload', () => {
     bytes: new TextEncoder().encode(`---\nname: style\ndescription: Read-only style.\nallowed-tools: doc.read\n---\n${body}\n`),
   }];
 
-  async function interrupted(at: 'card' | 'conversation') {
+  async function interrupted(at: 'card' | 'conversation' | 'read', failSnapshot = false) {
     const state = makeState();
     const skill = files();
     state.skills.set('style', skill);
@@ -461,6 +461,7 @@ describe('loaded skill restrictions survive a reload', () => {
     const hung = new Promise<void>((resolve) => { hang = resolve; });
     const base = await mockGateway([transcript(request, [steps(load)])]);
     let calls = 0;
+    let published = false;
     const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } });
     const session = createAgentSession({
       harness,
@@ -476,11 +477,19 @@ describe('loaded skill restrictions survive a reload', () => {
       },
       context: createContextPort({ state }),
       decide: async () => ({ action: 'approve' }),
+      emit: (event) => {
+        if (at === 'read' && event.type === 'card' && event.card.tool === 'skill.load' && event.card.status === 'done') {
+          published = true;
+          hang();
+        }
+      },
       runLog: {
         projectId: PROJECT,
         port: {
           ...log,
           append: async (runId, events, patch) => {
+            if (at === 'read' && published) return new Promise<void>(() => {});
+            if (failSnapshot && events.some((event) => event.t === 'skills.loaded' && event.skills.length > 0)) throw new Error('the skill snapshot could not be saved');
             await log.append(runId, events, patch);
             if (at === 'card' && events.some((event) => event.t === 'step.applied' && event.tool === 'skill.load')) {
               hang();
@@ -498,7 +507,8 @@ describe('loaded skill restrictions survive a reload', () => {
     const rows = await log.events(runId) as RunEvent[];
     const replay = planResume(rows, (id) => state.documents.get(id)?.revision);
     const snapshot = [{ name: 'style', body: 'Read only.', pin, allowedTools: ['doc.read'] }];
-    expect(replay.ok && replay.replay.skills).toEqual(snapshot);
+    if (failSnapshot) expect(run?.cannotResume).toBe(true);
+    else expect(replay.ok && replay.replay.skills).toEqual(snapshot);
     if (at === 'card') {
       const appliedAt = rows.findIndex((event) => event.t === 'step.applied' && event.tool === 'skill.load');
       expect(appliedAt).toBeGreaterThan(0);
@@ -545,17 +555,29 @@ describe('loaded skill restrictions survive a reload', () => {
     expect(finished.replay?.skills).toEqual([{ name: 'style', body: 'Read only.', pin: fixture.pin, allowedTools: ['doc.read'] }]);
   });
 
-  it('restores the restrictions before continuing a logged conversation', async () => {
-    const fixture = await interrupted('conversation');
+  it.each(['conversation', 'read'] as const)('restores restrictions when interrupted at the %s boundary before the next request', async (at) => {
+    const fixture = await interrupted(at);
     const before = outcomeOf(fixture.state);
     const { report, cards, requests, harness } = await resume(fixture);
-    expect(requests).toHaveLength(2);
+    expect(requests).toHaveLength(at === 'read' ? 3 : 2);
+    if (at === 'read') expect(report.trace[0]).toMatchObject({ tool: 'skill.load', outcome: 'refused', code: 'permission-denied' });
     expect(JSON.stringify(requests.at(-1)?.messages)).toContain('limits this turn to: doc.read');
     expect(cards).toHaveLength(0);
     expect(report.status).toBe('replied');
     expect(harness.log.entries()).toHaveLength(0);
     expect(outcomeOf(fixture.state)).toEqual(before);
     expect(tree(fixture.state, STORM)?.label).toBeNull();
+  });
+
+  it('refuses resume when the read-only load snapshot could not be saved', async () => {
+    const fixture = await interrupted('read', true);
+    const before = outcomeOf(fixture.state);
+    const { report, cards, requests } = await resume(fixture);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain('not logged completely');
+    expect(cards).toEqual([]);
+    expect(requests).toEqual([]);
+    expect(outcomeOf(fixture.state)).toEqual(before);
   });
 
   it.each(['review', 'pin', 'missing snapshot'] as const)('refuses a changed %s without a model call or a write', async (changed) => {

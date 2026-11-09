@@ -2214,7 +2214,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     const granted = permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
-    return harness.call(call, granted);
+    const outcome = harness.call(call, granted);
+    if (outcome.ok && call.name === 'skill.load') await syncSkills(turn);
+    return outcome;
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
@@ -4023,6 +4025,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (log === undefined) return refuse(RESUME_INTENT, { code: 'needs_input', reason: 'this session keeps no run log, so there is nothing to resume', options: ['send the request again'] });
     let rows: readonly unknown[];
     try {
+      const record = (await log.port.open(log.projectId)).find((run) => run.runId === runId);
+      if (record?.cannotResume === true) return refuse(record.intent, { code: 'needs_input', reason: 'this run was not logged completely, so it cannot be resumed', options: ['discard the log and send the request again'] });
+      if (record === undefined) return refuse(RESUME_INTENT, { code: 'needs_input', reason: 'there is no open run with this id in this project', options: ['send the request again'] });
       rows = await log.port.events(runId);
     } catch (error) {
       return refuse(RESUME_INTENT, { code: 'needs_input', reason: `the run log could not be read: ${messageOf(error)}`, options: ['try again', 'discard the log and send the request again'] });

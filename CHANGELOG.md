@@ -8,7 +8,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Reading skills before drafting.** A plan cannot draft a later step before its `skill.load` or requested `skill.read` has finished. The agent receives the effective tool limits when it loads a skill and reads the instructions and references in a read-only phase first; edits and reorders cannot reuse a proposal across a pending skill read. Skill-guided work stays in the foreground, and older queued plans containing skill tools fail without provider work instead of dropping their skill context.
 
-- **Resuming a skill-guided run.** Loaded instructions, review pins and tool restrictions now survive a reload. Resume validates and restores them before any card or conversation continues; a stale or missing snapshot refuses the resume. Older interrupted logs without a snapshot need a new request.
+- **Resuming a skill-guided run.** Loaded instructions, review pins and tool restrictions now survive a reload. A read-only load saves its snapshot before showing its result, and a failed log write refuses direct resume too. Resume validates and restores the snapshot before any card or conversation continues; a stale or missing snapshot refuses the resume. Older interrupted logs without a snapshot need a new request.
 
 - **Reloading a pending plan (#509).** A plan's pending card is saved before it is shown, so reloading as soon as the plan appears still offers its steps for review and resume.
 
