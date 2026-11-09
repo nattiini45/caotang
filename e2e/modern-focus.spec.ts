@@ -89,8 +89,9 @@ test('focus mode fades the ornaments, the tab bar and the agent window; the poin
   await expect(page.getByTestId('modern-focus-leave')).toHaveClass(/mat-glass/);
 
   // Typing in the text never brings them back.
+  await page.clock.install();
   await page.keyboard.type(' The ferry was late.');
-  await page.waitForTimeout(400);
+  await page.clock.runFor(400);
   await expect(stage(page)).toHaveAttribute('data-focus', 'hidden');
 
   // The pointer near the bottom edge does, and away from the edges they fade again.
@@ -126,7 +127,8 @@ test('keyboard focus in the faded ornaments holds them, a key outside the text s
   await page.keyboard.press('Shift+Tab');
   await expect(binder(page).getByRole('button', { name: 'Agent', exact: true })).toBeFocused();
   await expect(stage(page)).toHaveAttribute('data-focus', 'shown');
-  await page.waitForTimeout(1_000);
+  await page.clock.install();
+  await page.clock.runFor(1_000);
   await expect(stage(page)).toHaveAttribute('data-focus', 'shown');
 
   // A key outside a text field shows them too; the pointer back over the page and a click in the text hide them again.
@@ -181,10 +183,7 @@ test('Scene info lists the scene’s open findings, and Show in Findings opens t
   test.setTimeout(120_000);
   // Built in Classic (the suite's pin), as findings.spec.ts does: two declared scenes whose days break their order, then a scan.
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto('/');
-  // A fresh profile starts in Modern (#313); Classic is chosen and the page reloaded, so the project is built in Classic.
-  await page.evaluate(() => localStorage.setItem('caotang.interface', 'classic'));
-  await page.reload();
+  await page.addInitScript(() => localStorage.setItem('caotang.interface', 'classic'));
   await createProject(page, 'Findings Book');
   await page.getByRole('button', { name: 'Create Chapter 1' }).click();
   for (const title of ['Scene A', 'Scene B']) {
