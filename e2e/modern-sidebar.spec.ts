@@ -37,11 +37,13 @@ const editorText = (page: Page): Locator => page.getByRole('main').getByRole('te
 
 async function expectClosed(page: Page): Promise<void> {
   await expect(binder(page)).toHaveAttribute('data-state', 'closed');
+  await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'closed');
   await expect(sidebar(page)).toBeHidden();
 }
 
 async function expectOpen(page: Page): Promise<void> {
   await expect(binder(page)).toHaveAttribute('data-state', 'open');
+  await expect(sidebar(page)).toHaveAttribute('data-panel-state', /^(opened-hover|opened-press|pinned|closing)$/);
   await expect(sidebar(page)).toBeVisible();
 }
 
@@ -119,7 +121,7 @@ test('a hover held for 140 ms opens the sidebar without moving focus, and it clo
 
   // Moving from the bar into the sidebar keeps it open.
   await sidebar(page).hover({ position: { x: 40, y: 200 } });
-  await page.waitForTimeout(600);
+  await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'opened-hover');
   await expectOpen(page);
 
   await page.mouse.move(1300, 450);
@@ -153,8 +155,17 @@ test('a click, Enter or Space opens it with focus on the current row; Escape clo
   await expect(current).toBeFocused();
 
   // Focus inside keeps it open after the pointer has gone.
+  const phases = await sidebar(page).evaluateHandle((element) => {
+    const seen: string[] = [];
+    const observer = new MutationObserver(() => seen.push(element.getAttribute('data-panel-state') ?? ''));
+    observer.observe(element, { attributes: true, attributeFilter: ['data-panel-state'] });
+    return { seen, observer };
+  });
   await page.mouse.move(1300, 450);
-  await page.waitForTimeout(700);
+  await expect.poll(() => phases.evaluate(({ seen }) => seen)).toEqual(['closing', 'opened-press']);
+  await phases.evaluate(({ observer }) => observer.disconnect());
+  await phases.dispose();
+  await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'opened-press');
   await expectOpen(page);
   await page.keyboard.press('Escape');
   await expectClosed(page);
@@ -268,7 +279,7 @@ test('Keep open pins the sidebar, the page moves over, a scene chosen keeps it, 
   await sidebar(page).locator('.row-title', { hasText: 'The ferry' }).click();
   await page.mouse.move(1300, 450);
   await editorText(page).click();
-  await page.waitForTimeout(700);
+  await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'pinned');
   await expectOpen(page);
 
   // A reload may land on the projects screen (WebKit and Firefox keep a bundle, not a folder, and do not reopen it): open it again.

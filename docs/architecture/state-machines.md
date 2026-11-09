@@ -63,6 +63,18 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `modern.menu`
+
+Owner: `apps/desktop/src/components/shell/modern/menu-model.ts`, interpreted by `useMenuPhase` for More, New and the narrow Views menu. Product contract: [modern-interface.md §8.5](modern-interface.md#85-the-binder-tab-bar-and-sidebar). Events are `open`, `toggle`, `close` and animation completion (`closed`). Each explicit opening increments an in-memory generation; a completion carries that generation and cannot finish a newer closing menu. Repeated dismissals while closing are ignored. Toggle during closing reopens immediately.
+
+`GlassPopover` still owns animation cancellation, inertness and focus return. More and New keep a fresh popover key on reopening; Views retains its popover. The menu root publishes `data-state="open|closing"` while mounted and unmounts when closed. There is no persistence, trace row, visual or motion change. Exhaustive model tests and a StrictMode hook/popover harness cover stale completions, interrupted animations, timer cleanup and focus return.
+
+### `modern.sidebar`
+
+Owner: `apps/desktop/src/components/shell/modern/sidebar-model.ts`; product contract: [modern-interface.md §8.5](modern-interface.md#85-the-binder-tab-bar-and-sidebar). `sidebarReducer` accepts hover intent/elapsed, pointer enter/leave, close elapsed, press, external open, pin, Escape and scene-chosen events. `closed` carries pending hover intent; `closing` retains whether hover or press opened the sidebar. A close elapsed event carries live pointer/focus facts and either closes or restores the opening intent. Reentry cancels closing, a press takes over a hover-open, and pinning rejects delayed closes, Escape and scene-chosen dismissal.
+
+Timers are effects in `BinderSidebar`, not clocks in the reducer. Changing phase or unmounting cancels them. The component retains the existing focus handoffs and editor-ready polling (the latter belongs to the editor-session batch). The nav's `data-state="open|closed"` remains compatible with existing readers; its sidebar publishes `data-panel-state` with the full phase. Pin persistence remains `caotang.modern.binderPinned`, with `true` or no key. There is no project/bundle format change or trace row. Exhaustive table tests cover every phase and event, including guarded close outcomes and stale elapsed events; browser specs cover focus, external requests and timing.
+
 ### `sprint.timer`
 
 Owner: `packages/furniture/src/sprint.ts`; product context: [goals-progress.md §9, item 4](goals-progress.md#9-history-metrics-and-goal-kinds). Events are `start`, `pause`, `resume`, `tick`, `stop`, `setDuration` and `reset`. Timed events carry epoch milliseconds and a session word-total sample. The owner provides the clock; paused time and words typed during a pause do not count.
