@@ -7783,6 +7783,11 @@ msgstr ""
 msgid "Imported"
 msgstr ""
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported “{file}”."
+msgstr ""
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {containers, plural, one {# dialogue container} other {# dialogue containers}} from {file}."
@@ -7868,6 +7873,7 @@ msgstr ""
 msgid "Importing…"
 msgstr ""
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
 #: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
 msgid "Importing… Please wait for the import to finish."
 msgstr ""
@@ -15800,6 +15806,11 @@ msgstr ""
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "the images of this project could not be listed ({error}), so no export was written"
+msgstr ""
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "The import of “{file}” could not be finished: {reason}"
 msgstr ""
 
 #: apps/desktop/src/components/InkGate.tsx

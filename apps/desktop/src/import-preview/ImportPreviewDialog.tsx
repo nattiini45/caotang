@@ -10,8 +10,10 @@
  * the codex rows; the reader's options; the report; Cancel and Import.
  */
 
+/* lingui-set comment="Interpolated values: file is the imported file name; reason is the import failure message" */
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 
 import type { ProjectSession } from '../app/session.js';
 import { chordKey, keyFacts } from '../app/keymap.js';
@@ -176,18 +178,23 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
     if (node !== undefined) setScrollTo((current) => ({ block: node.startBlock, seq: (current?.seq ?? 0) + 1 }));
   };
 
+  const failCommit = (message: string): void => {
+    if (currentImportPreview()?.id === request.id) send({ type: 'commit-failed', message });
+    else report({ text: t`The import of “${{ file: isolate(source.fileName) }}” could not be finished: ${{ reason: message }}`, tone: 'error' });
+  };
+
   const commit = async (): Promise<void> => {
     if (plan === null || !send({ type: 'commit' })) return;
     try {
       if (source.commit !== undefined) {
         const done = await source.commit(plan);
-        if (currentImportPreview()?.id !== request.id) return;
         if (!done.ok) {
-          send({ type: 'commit-failed', message: done.message });
+          failCommit(done.message);
           return;
         }
-        if (done.message !== undefined) report({ text: done.message, tone: 'info' });
-        close(true);
+        const current = currentImportPreview()?.id === request.id;
+        if (done.message !== undefined || !current) report({ text: done.message ?? t`Imported “${{ file: isolate(source.fileName) }}”.`, tone: 'info' });
+        if (current) close(true);
         return;
       }
       const pictures = source.picturesOption === undefined || settings.options[source.picturesOption] === true ? (source.pictures?.() ?? []) : [];
@@ -214,17 +221,15 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
         return;
       }
       const result = await session.importTree(built.params, built.pictures);
-      if (currentImportPreview()?.id !== request.id) return;
       if (!result.ok) {
-        send({ type: 'commit-failed', message: explain(result.error) });
+        failCommit(explain(result.error));
         return;
       }
       const scanned = scan.sentence(source.fileName);
       report({ text: [importedSentence(source.fileName, built), ...(scanned === undefined ? [] : [scanned])].join(' '), tone: 'info' });
-      close(true);
+      if (currentImportPreview()?.id === request.id) close(true);
     } catch (failure: unknown) {
-      if (currentImportPreview()?.id !== request.id) return;
-      send({ type: 'commit-failed', message: failure instanceof Error ? failure.message : String(failure) });
+      failCommit(failure instanceof Error ? failure.message : String(failure));
     }
   };
 
