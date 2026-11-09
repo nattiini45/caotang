@@ -1656,15 +1656,27 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     };
   };
 
-  async function syncSkills(turn: Turn): Promise<void> {
+  async function syncSkills(turn: Turn): Promise<boolean> {
     const run = turn.run;
-    if (run === undefined) return;
+    if (run === undefined) return true;
     const skills = harness.loadedSkills(turn.id);
     const snapshot = canonicalJson(skills);
     if (snapshot !== turn.loggedSkills) {
-      await run.append({ t: 'skills.loaded', turnId: turn.id, skills });
-      turn.loggedSkills = snapshot;
+      const saved = await run.append({ t: 'skills.loaded', turnId: turn.id, skills });
+      if (saved) turn.loggedSkills = snapshot;
+      return saved;
     }
+    return true;
+  }
+
+  async function beginSkillLoad(turn: Turn, tool: string): Promise<void> {
+    if (tool !== 'skill.load' || turn.run === undefined) return;
+    if (!(await turn.run.append({ t: 'skills.loading', turnId: turn.id }))) throw new Error('The skill load could not be recorded, so it was not run. Check the project storage and send the request again.');
+    delete turn.loggedSkills;
+  }
+
+  async function finishSkillLoad(turn: Turn, tool: string): Promise<void> {
+    if (tool === 'skill.load' && !(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the load was not reported as successful. Check the project storage and send the request again.');
   }
 
   /**
@@ -1754,7 +1766,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
       await logIntent(turn, callId, index, step.tool);
       const before = revisionsNow();
+      await beginSkillLoad(turn, step.tool);
       const result = harness.executePlan(plan, context, { ...planOptions, from: index, until: index + 1 });
+      await finishSkillLoad(turn, step.tool);
       if (!result.ok) {
         await logFailed(turn, callId, index, step.tool, result.error.message);
         return result;
@@ -1763,6 +1777,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.status === 'applied') {
         completed.push(...outcome.steps);
         undoGroupId ??= outcome.undoGroupId;
+        if (undoGroupId !== undefined) turn.undoGroupId ??= undoGroupId;
         await logApplied(turn, callId, index, step.tool, outcome.steps[0]?.value.summary, before);
         continue;
       }
@@ -2214,8 +2229,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     const granted = permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
+    await beginSkillLoad(turn, call.name);
     const outcome = harness.call(call, granted);
-    if (outcome.ok && call.name === 'skill.load') await syncSkills(turn);
+    await finishSkillLoad(turn, call.name);
     return outcome;
   }
 
@@ -3057,10 +3073,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       moveCard(turn, id, 'running');
       await logIntent(turn, id, from, step.tool);
       const before = revisionsNow();
+      await beginSkillLoad(turn, step.tool);
       const outcome: ToolOutcome = harness.call(
         { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
         grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },
       );
+      await finishSkillLoad(turn, step.tool);
       if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
       else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {

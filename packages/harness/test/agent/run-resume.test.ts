@@ -451,7 +451,7 @@ describe('loaded skill restrictions survive a reload', () => {
     bytes: new TextEncoder().encode(`---\nname: style\ndescription: Read-only style.\nallowed-tools: doc.read\n---\n${body}\n`),
   }];
 
-  async function interrupted(at: 'card' | 'conversation' | 'read', failSnapshot = false) {
+  async function interrupted(at: 'card' | 'confirm' | 'conversation' | 'read', failure?: 'snapshot' | 'snapshot-and-marker' | 'intent') {
     const state = makeState();
     const skill = files();
     state.skills.set('style', skill);
@@ -463,6 +463,9 @@ describe('loaded skill restrictions survive a reload', () => {
     let calls = 0;
     let published = false;
     const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } });
+    let loads = 0;
+    const call = harness.call;
+    harness.call = (tool, context) => { if (tool.name === 'skill.load') loads += 1; return call(tool, context); };
     const session = createAgentSession({
       harness,
       gateway: {
@@ -478,9 +481,9 @@ describe('loaded skill restrictions survive a reload', () => {
       context: createContextPort({ state }),
       decide: async () => ({ action: 'approve' }),
       emit: (event) => {
-        if (at === 'read' && event.type === 'card' && event.card.tool === 'skill.load' && event.card.status === 'done') {
+        if (event.type === 'card' && event.card.tool === 'skill.load' && event.card.status === 'done') {
           published = true;
-          hang();
+          if (at === 'read') hang();
         }
       },
       runLog: {
@@ -488,35 +491,44 @@ describe('loaded skill restrictions survive a reload', () => {
         port: {
           ...log,
           append: async (runId, events, patch) => {
-            if (at === 'read' && published) return new Promise<void>(() => {});
-            if (failSnapshot && events.some((event) => event.t === 'skills.loaded' && event.skills.length > 0)) throw new Error('the skill snapshot could not be saved');
+            if (at === 'read' && published && failure === undefined) return new Promise<void>(() => {});
+            if (failure === 'intent' && events.some((event) => event.t === 'skills.loading')) throw new Error('the skill intent could not be saved');
+            if (failure !== undefined && events.some((event) => event.t === 'skills.loaded' && event.skills.length > 0)) throw new Error('the skill snapshot could not be saved');
             await log.append(runId, events, patch);
             if (at === 'card' && events.some((event) => event.t === 'step.applied' && event.tool === 'skill.load')) {
               hang();
               return new Promise<void>(() => {});
             }
           },
+          update: (runId, patch) => failure === 'snapshot-and-marker' && patch.cannotResume === true ? Promise.reject(new Error('the marker could not be saved')) : log.update(runId, patch),
         },
       },
     });
-    if (at === 'card') void session.submitPlan(request, { steps: [load, ...writes] });
-    else void session.submit(request);
-    await hung;
+    const running = at === 'card' ? session.submitPlan(request, { steps: [load, ...writes] }) : at === 'confirm' ? session.submitPlan(request, { steps: [load] }) : session.submit(request);
+    if (failure === undefined) await hung;
+    else {
+      expect((await running).status).toBe('failed');
+      expect(published).toBe(false);
+    }
     const [run] = await log.open(PROJECT);
     const runId = run?.runId ?? '';
     const rows = await log.events(runId) as RunEvent[];
     const replay = planResume(rows, (id) => state.documents.get(id)?.revision);
     const snapshot = [{ name: 'style', body: 'Read only.', pin, allowedTools: ['doc.read'] }];
-    if (failSnapshot) expect(run?.cannotResume).toBe(true);
+    if (failure === 'snapshot-and-marker') {
+      expect(run?.cannotResume).not.toBe(true);
+      expect(replay).toMatchObject({ ok: false, reason: 'schema', detail: expect.stringContaining('no committed snapshot') });
+    } else if (failure !== undefined) expect(run?.cannotResume).toBe(true);
     else expect(replay.ok && replay.replay.skills).toEqual(snapshot);
-    if (at === 'card') {
+    if (failure !== undefined) expect(rows.some((event) => event.t === 'step.applied' && event.tool === 'skill.load')).toBe(false);
+    if (at === 'card' && failure === undefined) {
       const appliedAt = rows.findIndex((event) => event.t === 'step.applied' && event.tool === 'skill.load');
       expect(appliedAt).toBeGreaterThan(0);
       expect(rows.slice(0, appliedAt)).toContainEqual(expect.objectContaining({ t: 'skills.loaded', skills: snapshot }));
       expect(replay.ok && replay.replay.card?.completed).toEqual([0]);
     }
     await log.update(runId, { status: 'interrupted' });
-    return { state, log, runId, pin };
+    return { state, log, runId, pin, loads };
   }
 
   async function resume(fixture: Awaited<ReturnType<typeof interrupted>>, mode: PermissionMode = 'auto', reviewedPin: () => string | undefined = () => fixture.pin, port: RunLogPort = fixture.log) {
@@ -569,12 +581,17 @@ describe('loaded skill restrictions survive a reload', () => {
     expect(tree(fixture.state, STORM)?.label).toBeNull();
   });
 
-  it('refuses resume when the read-only load snapshot could not be saved', async () => {
-    const fixture = await interrupted('read', true);
+  it.each([
+    ['read', 'snapshot'], ['read', 'snapshot-and-marker'], ['read', 'intent'],
+    ['card', 'snapshot'], ['card', 'snapshot-and-marker'], ['card', 'intent'],
+    ['confirm', 'snapshot'], ['confirm', 'snapshot-and-marker'], ['confirm', 'intent'],
+  ] as const)('refuses successful publication and resume on the %s path after a failed %s write', async (at, failure) => {
+    const fixture = await interrupted(at, failure);
+    if (at !== 'card') expect(fixture.loads).toBe(failure === 'intent' ? 0 : 1);
     const before = outcomeOf(fixture.state);
     const { report, cards, requests } = await resume(fixture);
     expect(report.status).toBe('failed');
-    expect(report.askBack?.reason).toContain('not logged completely');
+    expect(report.askBack?.reason).toContain(failure === 'snapshot-and-marker' ? 'no committed snapshot' : 'not logged completely');
     expect(cards).toEqual([]);
     expect(requests).toEqual([]);
     expect(outcomeOf(fixture.state)).toEqual(before);
