@@ -2430,6 +2430,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
     // sent again in the next request: the same names would reach the model twice (context-assembly §2).
     if (loadedAny) turn.addendumSent = harness.loadedAddendum();
+    await syncRun(turn, 0);
     return undefined;
   }
 

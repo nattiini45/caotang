@@ -553,6 +553,61 @@ describe('loaded skill restrictions survive a reload', () => {
     return { report: await session.resume(runId), cards, requests, harness };
   }
 
+  it.each([['load', false], ['load', true], ['reference', false], ['reference', true]] as const)('saves the completed %s exchange before planning again (native: %s)', async (boundary, native) => {
+    const state = makeState();
+    const skill = [
+      { path: 'SKILL.md', bytes: new TextEncoder().encode('---\nname: style\ndescription: Style.\nallowed-tools: skill.read doc.read\n---\nKeep the singular kestrel voice.\n') },
+      { path: 'references/voice.md', bytes: new TextEncoder().encode('The reference requires silver herons.') },
+    ];
+    state.skills.set('style', skill);
+    const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
+    const log = createMemoryRunLog();
+    const calls = [load, { tool: 'skill.read', params: { name: 'style', path: 'references/voice.md' }, expect: 'The reference is read.' }];
+    const base = await mockGateway([{ match: () => true, respond: (req) => {
+      const index = req.messages.filter((message) => message.role === 'assistant').length;
+      const step = calls[index] ?? load;
+      return native
+        ? { content: '', toolCalls: [{ id: `read-${index}`, name: step.tool, argumentsJson: JSON.stringify(step.params) }], finishReason: 'tool_calls' }
+        : { content: steps(step) };
+    } }]);
+    let drop = (): void => {};
+    const dropped = new Promise<void>((resolve) => { drop = resolve; });
+    let planning = 0;
+    let gone = false;
+    const session = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } }),
+      gateway: { ...base, modelCaps: () => ({ tools: native }) },
+      context: createContextPort({ state }),
+      decide: async () => { throw new Error('A read-only exchange must not need approval.'); },
+      emit: (event) => {
+        if (event.type === 'turn' && event.phase === 'planning' && ++planning === (boundary === 'load' ? 2 : 3)) { gone = true; drop(); }
+      },
+      runLog: { projectId: PROJECT, port: { ...log, append: (runId, events, patch) => gone ? new Promise<void>(() => {}) : log.append(runId, events, patch) } },
+    });
+    void session.submit(request);
+    await dropped;
+    const [run] = await log.open(PROJECT);
+    const runId = run?.runId ?? '';
+    const replay = planResume(await log.events(runId), (id) => state.documents.get(id)?.revision);
+    expect(replay.ok).toBe(true);
+    expect(JSON.stringify(replay.replay?.messages)).toContain('Keep the singular kestrel voice.');
+    if (boundary === 'reference') expect(JSON.stringify(replay.replay?.messages)).toContain('The reference requires silver herons.');
+    await log.update(runId, { status: 'interrupted' });
+    const resumedRequests: ChatRequest[] = [];
+    const resumedGateway = await mockGateway([{ match: () => true, respond: () => ({ content: native ? 'Context retained.' : answer('Context retained.') }) }]);
+    const resumed = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } }),
+      gateway: { ...resumedGateway, modelCaps: () => ({ tools: native }), complete: (req, signal) => { resumedRequests.push(req); return resumedGateway.complete(req, signal); } },
+      context: createContextPort({ state }),
+      decide: async () => { throw new Error('A resumed read-only exchange must not need approval.'); },
+      runLog: { port: log, projectId: PROJECT },
+    });
+    expect((await resumed.resume(runId)).status).toBe('replied');
+    expect(resumedRequests).toHaveLength(1);
+    expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('Keep the singular kestrel voice.');
+    if (boundary === 'reference') expect(JSON.stringify(resumedRequests[0]?.messages)).toContain('The reference requires silver herons.');
+  });
+
   it.each(['ask', 'auto'] as const)('keeps a pending card restricted in %s mode despite edits and approval', async (mode) => {
     const fixture = await interrupted('card');
     const before = outcomeOf(fixture.state);
