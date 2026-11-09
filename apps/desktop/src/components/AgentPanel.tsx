@@ -649,7 +649,7 @@ function CommandNoteView({ note, onDismiss, onRun }: { note: CommandNote; onDism
   return (
     <section className={`agent-command-note is-${note.kind}`} role="status" aria-label="Command result" data-testid="agent-command-note">
       <p className="agent-command-title">{note.title}</p>
-      {note.argument === undefined ? null : <CommandArgument key={`${note.argument.line}:${note.argument.name}`} argument={note.argument} onRun={onRun} />}
+      {note.argument === undefined ? null : <CommandArgument key={`${note.argument.promptSelection ?? ''}:${note.argument.line}:${note.argument.name}`} argument={note.argument} onRun={onRun} />}
       {note.lines.length === 0 ? null : (
         <ul>
           {note.lines.map((line, index) => (

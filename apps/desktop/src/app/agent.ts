@@ -537,8 +537,9 @@ export class AgentController {
     this.commandNote = null;
     const parsed = parseSlash(line);
     const projectCommand = parsed === undefined ? undefined : this.commands().find((command) => command.name === parsed.name);
-    if ((promptSelection !== undefined || Object.keys(supplied).length > 0) &&
-      (projectCommand?.kind !== 'mcp' || promptSelection === undefined || promptSelection !== this.promptSelection(projectCommand))) {
+    if ((projectCommand === undefined && parsed?.name.startsWith('mcp-') === true) ||
+      ((promptSelection !== undefined || Object.keys(supplied).length > 0) &&
+        (projectCommand?.kind !== 'mcp' || promptSelection === undefined || promptSelection !== this.promptSelection(projectCommand)))) {
       this.commandNote = { kind: 'info', title: t`The prompt was not run. Review the server in Settings › MCP, then try again.`, lines: [] };
       this.bump();
       return { kind: 'kept' };

@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Unavailable prompt commands.** An MCP command whose source went away is refused locally instead of sending its command text and arguments to the model provider. Reissuing a command after its prompt or connection changes starts with empty argument fields.
+
 - **Pending command arguments.** Optional numeric macro values left blank keep their defaults instead of becoming zero. Inline MCP input stays bound to the reviewed definition and connection it started with, so a changed or reconnected source cannot inherit earlier input.
 
 - **Command arguments and prompt review.** Quoted values that resemble named arguments stay positional, inline MCP inputs preserve arbitrary argument names and earlier values, and prompt runs recheck the reviewed definition before and after reading, even when the server caches its catalogue.

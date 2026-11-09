@@ -437,6 +437,8 @@ Server prompts recheck their reviewed definition before and after reading. If it
 
 If you change or reconnect the server while filling in a prompt's arguments, start the command again. Earlier fields are never sent to that replacement connection. Leaving an optional numeric macro argument blank keeps its configured default; an explicit `0` remains zero.
 
+An unavailable `/mcp-…` command stays in the composer and is not sent to your model provider. Start the command again after reconnecting; its fields start empty. Use `//mcp-…` only when you deliberately want to send that literal text as an ordinary model request.
+
 ## Agent instructions and memory
 
 Some things you would otherwise say in every request: "British spelling. Past tense, close third person on Mara. No semicolons in dialogue." Write them once in **CAOTANG.md**, and the agent reads them with every request. Choose **Instructions** in the toolbar to open the panel.

@@ -1,5 +1,7 @@
 # Decisions
 
+- [delegated 2026-11-09] An unavailable `mcp-` command is refused locally rather than treated as an ordinary model request; only the existing explicit `//` escape sends that literal slash text to the provider. A reissued form starts empty when its prompt selection changes (#61, PR #524 F7/F8).
+
 - [delegated 2026-11-09] Pending inline MCP arguments remain bound to their originally selected prompt hash, connection generation and server configuration across all fields; a changed or reconnected source requires a fresh invocation rather than inheriting earlier input (#61, PR #524 F6).
 
 - [delegated 2026-11-09] Running a reviewed MCP prompt revalidates its listing before and after the read with a forced SDK cache refresh, rather than trusting server TTL or an older in-flight catalogue; picker and resource caching remain unchanged (#61, PR #524 F4).

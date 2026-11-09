@@ -303,6 +303,47 @@ for (const change of ['definition', 'replacement', 'reconnect'] as const) {
   }
 }
 
+for (const unavailable of ['disconnected', 'disabled', 'master-off', 'removed', 'unlisted'] as const) {
+  test(`an MCP command whose source is ${unavailable} never falls through to the provider`, async () => {
+    const script = { listTools: [], prompts: [{ name: 'recap', arguments: [{ name: 'chapter', required: true }] }], respond: () => ({ content: [] }) };
+    const wire = createMockWire(script);
+    let reads = 0;
+    wire.getPrompt = async () => { reads += 1; return { messages: [] }; };
+    const client = createMcpClient({ settings: { enabled: true, servers: [] }, wire: () => wire });
+    const added = client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
+    if (!added.ok) throw new Error(added.error);
+    const key = added.value.key;
+    await client.connect(key);
+    client.approveReview(key, client.review(key)!.fingerprint);
+    const { controller, session, requests } = await rig([], undefined, client);
+    const line = `/${controller.commands()[0]!.name} chapter="Private intended only for the server"`;
+    if (unavailable === 'disconnected') await client.disconnect(key);
+    else if (unavailable === 'disabled') await client.updateServer(key, { enabled: false });
+    else if (unavailable === 'master-off') await client.setMasterEnabled(false);
+    else if (unavailable === 'removed') await client.removeServer(key);
+    else { script.prompts = []; await client.refreshCatalog(key); }
+    expect(controller.sendLine(line)).toEqual({ kind: 'kept' });
+    await settled(controller);
+    expect(controller.snapshot().command?.title).toContain('The prompt was not run.');
+    expect(controller.turnCount()).toBe(0);
+    expect(reads).toBe(0);
+    expect(requests()).toBe(0);
+    await session.close();
+    await client.close();
+  });
+}
+
+test('an unavailable MCP command is literal provider text only with the explicit double-slash escape', async () => {
+  const { controller, session, requests } = await rig([{ match: isPlannerCall, respond: () => ({ content: JSON.stringify({ reply: 'Done.' }) }) }]);
+  expect(controller.sendLine('/mcp-missing chapter=private')).toEqual({ kind: 'kept' });
+  expect(requests()).toBe(0);
+  expect(controller.sendLine('//mcp-missing chapter=explicitly-shared')).toEqual({ kind: 'sent' });
+  await settled(controller);
+  expect(requests()).toBeGreaterThan(0);
+  expect(controller.snapshot().turns[0]?.intent).toBe('/mcp-missing chapter=explicitly-shared');
+  await session.close();
+});
+
 test('/restore with no finished turn says so, and /restore last offers the existing confirmation for the newest turn that wrote', async () => {
   const { controller, session, state } = await rig([drafts('The ferry rowed on.', 'Brief: Open the scene.')], (s) => withScene(s, 'The Ferry'));
   expect(controller.sendLine('/restore')).toEqual({ kind: 'kept' });
