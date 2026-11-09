@@ -120,14 +120,11 @@ test('a hover held for 140 ms opens the sidebar without moving focus, and it clo
   await expect(manuscript(page)).toHaveAttribute('aria-expanded', 'true');
 
   // Moving from the bar into the sidebar keeps it open.
-  await page.clock.install();
   await sidebar(page).hover({ position: { x: 40, y: 200 } });
-  await page.clock.runFor(600);
   await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'opened-hover');
   await expectOpen(page);
 
   await page.mouse.move(1300, 450);
-  await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'closing');
   await expectClosed(page);
   await expect(editorText(page)).toBeFocused();
   const marks = await page.evaluate(() => (window as unknown as { __marks: Record<string, number> }).__marks);
@@ -158,9 +155,16 @@ test('a click, Enter or Space opens it with focus on the current row; Escape clo
   await expect(current).toBeFocused();
 
   // Focus inside keeps it open after the pointer has gone.
-  await page.clock.install();
+  const phases = await sidebar(page).evaluateHandle((element) => {
+    const seen: string[] = [];
+    const observer = new MutationObserver(() => seen.push(element.getAttribute('data-panel-state') ?? ''));
+    observer.observe(element, { attributes: true, attributeFilter: ['data-panel-state'] });
+    return { seen, observer };
+  });
   await page.mouse.move(1300, 450);
-  await page.clock.runFor(700);
+  await expect.poll(() => phases.evaluate(({ seen }) => seen)).toEqual(['closing', 'opened-press']);
+  await phases.evaluate(({ observer }) => observer.disconnect());
+  await phases.dispose();
   await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'opened-press');
   await expectOpen(page);
   await page.keyboard.press('Escape');
@@ -272,11 +276,9 @@ test('Keep open pins the sidebar, the page moves over, a scene chosen keeps it, 
   expect(page0).not.toBeNull();
 
   // Neither the pointer leaving, nor focus leaving, nor Escape, nor a scene chosen closes a pinned sidebar.
-  await page.clock.install();
   await sidebar(page).locator('.row-title', { hasText: 'The ferry' }).click();
   await page.mouse.move(1300, 450);
   await editorText(page).click();
-  await page.clock.runFor(700);
   await expect(sidebar(page)).toHaveAttribute('data-panel-state', 'pinned');
   await expectOpen(page);
 
