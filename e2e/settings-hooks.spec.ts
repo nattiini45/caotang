@@ -32,6 +32,8 @@ test('create, edit, toggle, test and delete a project hook without a provider or
   await sample(page);
   const panel = page.getByTestId('hook-settings');
   await newPattern(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.getByTestId('settings').evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
   await panel.getByLabel('Tools (optional, comma-separated)', { exact: true }).fill('notes.append, scene.*');
   await panel.getByRole('button', { name: 'Save hook', exact: true }).click();
   const row = panel.getByTestId('hook-row');
@@ -42,6 +44,7 @@ test('create, edit, toggle, test and delete a project hook without a provider or
   await expect(panel.getByLabel('Tools (optional, comma-separated)')).toHaveValue('notes.append, scene.*');
   await panel.getByRole('button', { name: 'Test hook', exact: true }).click();
   const testPanel = panel.getByRole('region', { name: 'Hook test' });
+  expect(await page.getByTestId('settings').evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
   await expect(testPanel.getByLabel('Test document', { exact: true })).toBeFocused();
   await expect(panel.getByRole('button', { name: 'Test hook', exact: true })).toHaveAttribute('aria-expanded', 'true');
   await testPanel.getByRole('button', { name: 'Run test', exact: true }).click();
@@ -85,6 +88,7 @@ test('create, edit, toggle, test and delete a project hook without a provider or
   await panel.getByRole('button', { name: 'Save hook', exact: true }).click();
   await expect(row).toContainText('Keep surprises concrete');
   await waitForSaved(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.reload();
   await page.getByRole('button', { name: 'Open', exact: true }).click();
   await openHooks(page);
