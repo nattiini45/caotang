@@ -96,7 +96,7 @@ import {
 } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
 import { createProjectCommandRegistry, type McpInvokeCommandPort, type McpReadResourceCommandPort, type ProjectState } from '@caotang/store';
-import { skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
+import { isOffered, skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
 import { shotCommandPort } from '@caotang/storyboard';
 
 import { createCallCache } from './cache.js';
@@ -120,7 +120,7 @@ import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, ty
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
-import { createSkillLoads, skillLoadPort, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';
+import { createSkillLoads, skillLoadPort, skillReadPort, skillResourcePaths, skillStatesOf, skillToolRefusal, type LoadedSkill, type SkillsOption } from './tools/skills.js';
 import { storyboardPorts } from './tools/storyboard.js';
 import { stageTimelineEdit, type TimelineProposal } from './tools/timeline-edit.js';
 import { stageTranscriptionPlan, transcriptionPort, type PictureTranscriptionHost, type PictureTranscriptionPlan } from './tools/transcription.js';
@@ -330,6 +330,7 @@ export interface Harness {
   skillCatalog(): SkillCatalog | undefined;
   /** The skills `skill.load` has loaded under this turn, in the order they were loaded. Forgotten by `endTurn`. */
   loadedSkills(turnId: string): readonly LoadedSkill[];
+  restoreSkills(turnId: string, skills: readonly LoadedSkill[]): Result<void, CommandError>;
   /**
    * Loads deferred native rows for a turn without a search: a UI action that starts a turn about one of them, or the context table
    * (agent-harness §3). A row that is not deferred is already declared, and a name that is not a row is ignored.
@@ -339,7 +340,7 @@ export interface Harness {
    * The rules' answer for a step with these params. A step that does not prepare is not judged here, since its own refusal comes first.
    * `external` names a loaded external tool, whose nodes are unknown: `writes` is whether its effective risk is a write.
    */
-  ruleCheck(tool: string, params: unknown, external?: { readonly writes: boolean }): RuleCheck;
+  ruleCheck(tool: string, params: unknown, external?: { readonly writes: boolean }, turnId?: string): RuleCheck;
   /** The binder nodes a read-deny keeps from what `tool` reads: prompts, read tools and scans leave them out. */
   withheld(tool: string): ReadonlySet<string>;
   /** The binder nodes a read-deny keeps from any tool: what a prompt built now would leave out, whichever tool it was for. */
@@ -713,7 +714,15 @@ export function createHarness(options: HarnessOptions): Harness {
     ...coherencePorts(clock, options.coherence),
     'tool.search': toolSearchPort(index, deferredRows, loaded),
     // The project's skills: wired only where the app says how to find the writer's review of one (HarnessOptions.skills).
-    ...(options.skills === undefined ? {} : { 'skill.load': skillLoadPort(skillStates, skillLoads, SKILL_LOAD_CAP) }),
+    ...(options.skills === undefined ? {} : {
+      'skill.load': skillLoadPort(skillStates, skillLoads, SKILL_LOAD_CAP,
+        () => new Set([...TOOL_METADATA.filter((tool) => tool.name !== 'agent.plan').map((tool) => tool.name), ...index().tools.map((tool) => tool.qualifiedName)]),
+        (turnId) => {
+          syncLoadedTurn(turnId);
+          loaded.load([{ source: 'native', name: 'skill.read' }]);
+        }),
+      'skill.read': skillReadPort(skillStates, skillLoads, capOf('skill.read')),
+    }),
     ...(registry['shot.setMeta'].apply === undefined ? {} : storyboardPorts(options.presentAssets ?? (() => new Set<string>()))),
     // The dialogue table is a read of the container's Ink, so it needs no provider and is wired by default
     // (dialogue-narrative.md §7, row 23). `dialogue.draft` is the agent ports' (`createAgentPorts`): it writes the loop's staged Ink.
@@ -1138,6 +1147,8 @@ export function createHarness(options: HarnessOptions): Harness {
   }
 
   function invokeCall(call: ToolCall, turn: TurnContext, warned: HookNote[]): { readonly outcome: ToolOutcome; readonly applied: boolean } {
+    const restricted = skillToolRefusal(skillLoads, turn.turnId, call.name);
+    if (restricted !== undefined) return { outcome: failure(restricted) as ToolOutcome, applied: false };
     // An external caller may write only where the project has opened external writes, and its tools are described to it so (extensibility §9).
     const prep = prepareCall(call.name, call.params, turn.source === 'mcp' ? externalWrites : true, call.proposal);
     if (!prep.ok) return { outcome: failure(prep.error) as ToolOutcome, applied: false };
@@ -1249,6 +1260,8 @@ export function createHarness(options: HarnessOptions): Harness {
   const host: PlanHost = {
     known: (tool) => entries.has(tool as ToolName),
     check: (tool, params, proposal, turnId) => {
+      const restricted = turnId === undefined ? undefined : skillToolRefusal(skillLoads, turnId, tool);
+      if (restricted !== undefined) return failure(restricted);
       const prep = prepareCall(tool, params, true, proposal);
       if (!prep.ok) return failure(prep.error) as Result<{ readonly preview?: unknown; readonly hooks?: readonly HookRun[] }, CommandError>;
       // A deny shows on the plan card as a refused step, before anything is drafted or approved. An ask is the card itself.
@@ -1315,6 +1328,7 @@ export function createHarness(options: HarnessOptions): Harness {
   function deferredRows(): readonly NativeIndexRow[] {
     return listTools()
       .filter((tool) => tool.load === 'deferred' && tool.callable && tool.wired && tool.externalOnly !== true)
+      .filter((tool) => tool.name !== 'skill.read' || loaded.nativeNames().includes('skill.read'))
       .map((tool) => ({ source: 'native', name: tool.name, description: tool.description, keywords: tool.keywords ?? [], risk: tool.risk === 'read' ? 'read' : 'write' }));
   }
 
@@ -1363,6 +1377,8 @@ export function createHarness(options: HarnessOptions): Harness {
   async function callExternal(call: ToolCall, given: TurnContext): Promise<ToolOutcome> {
     const identity = identityRefusal(call, given);
     if (identity !== undefined) return failure(identity) as ToolOutcome;
+    const restricted = skillToolRefusal(skillLoads, given.turnId, call.name);
+    if (restricted !== undefined) return failure(restricted) as ToolOutcome;
     if (given.source === 'mcp') {
       return failure(
         refusal('permission-denied', `"${call.name}" is an external tool, and an external caller may not reach another server through Caotang. Nothing was called.`, {
@@ -1470,6 +1486,8 @@ export function createHarness(options: HarnessOptions): Harness {
   async function callAsync(call: ToolCall, given: TurnContext): Promise<ToolOutcome> {
     const identity = identityRefusal(call, given);
     if (identity !== undefined) return failure(identity) as ToolOutcome;
+    const restricted = skillToolRefusal(skillLoads, given.turnId, call.name);
+    if (restricted !== undefined) return failure(restricted) as ToolOutcome;
     const turn = given;
     syncLoadedTurn(turn.turnId);
     const fingerprint = canonicalJson({ name: call.name, params: call.params, proposal: call.proposal ?? null });
@@ -1547,6 +1565,26 @@ export function createHarness(options: HarnessOptions): Harness {
       return catalog === undefined || catalog.text === '' ? undefined : catalog;
     },
     loadedSkills: (turnId) => skillLoads.of(turnId),
+    restoreSkills: (turnId, snapshots) => {
+      const states = skillStates();
+      const found = snapshots.map((snapshot) => states.find((candidate) => candidate.skill.frontMatter.name === snapshot.name && isOffered(candidate) && candidate.skill.pin === snapshot.pin && candidate.skill.body.trim() === snapshot.body));
+      for (const [index, snapshot] of snapshots.entries()) {
+        const skill = found[index]?.skill;
+        const declared = skill?.frontMatter['allowed-tools']?.split(/\s+/u).filter(Boolean);
+        if (skill === undefined || (declared !== undefined && (snapshot.allowedTools === undefined || snapshot.allowedTools.some((name) => !declared.includes(name))))) {
+          return failure(refusal('permission-denied', 'The run’s loaded skills no longer match their approved snapshots, so it was not resumed.', { correctiveHint: 'discard the log and send the request again after reviewing the skills' })) as Result<void, CommandError>;
+        }
+      }
+      for (const snapshot of snapshots) skillLoads.add(turnId, snapshot);
+      if (snapshots.length > 0) {
+        syncLoadedTurn(turnId);
+        loaded.load([
+          { source: 'native', name: 'skill.load' },
+          ...(found.some((candidate) => candidate !== undefined && skillResourcePaths(candidate.skill).length > 0) ? [{ source: 'native' as const, name: 'skill.read' }] : []),
+        ]);
+      }
+      return ok(undefined);
+    },
     loadedNativeTools: () => {
       const names = new Set(loaded.nativeNames());
       return listTools().filter((tool) => names.has(tool.name) && tool.callable && tool.wired && tool.externalOnly !== true);
@@ -1554,7 +1592,7 @@ export function createHarness(options: HarnessOptions): Harness {
     preload: (turnId, names) => {
       const deferred = new Set(listTools().filter((tool) => tool.load === 'deferred' && tool.externalOnly !== true).map((tool) => tool.name as string));
       syncLoadedTurn(turnId);
-      loaded.load(names.filter((name) => deferred.has(name)).map((name) => ({ source: 'native', name })));
+      loaded.load(names.filter((name) => deferred.has(name) && name !== 'skill.read').map((name) => ({ source: 'native', name })));
     },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
@@ -1572,7 +1610,9 @@ export function createHarness(options: HarnessOptions): Harness {
       const set = currentRules();
       return set.rules.length === 0 ? NO_WITHHELD : withheldAnywhere(set, state);
     },
-    ruleCheck: (tool, params, loadedExternal) => {
+    ruleCheck: (tool, params, loadedExternal, turnId) => {
+      const restricted = turnId === undefined ? undefined : skillToolRefusal(skillLoads, turnId, tool);
+      if (restricted !== undefined) return { denied: restricted };
       const set = currentRules();
       if (set.rules.length === 0 && set.unreadable !== true) return {};
       if (loadedExternal !== undefined) {

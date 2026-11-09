@@ -306,6 +306,7 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
           { id: 'harness.progress.skillLoad.active', message: 'Reading the skill “{name}”', values: { name: clipped(name) } },
         );
   },
+  'skill.read': () => plain({ id: 'harness.progress.skillRead.content', message: 'Read a skill reference' }, { id: 'harness.progress.skillRead.active', message: 'Reading a skill reference' }),
   'memory.read': (params) => {
     const slug = textOf(params, 'slug');
     return slug === undefined

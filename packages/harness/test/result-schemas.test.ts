@@ -81,6 +81,7 @@ describe('the registry declares a result for every callable row', () => {
       'shots.annotate',
       'shots.derive',
       'skill.load',
+      'skill.read',
       'synopsis.set',
       'timeline.edit',
       'timeline.read',

@@ -102,6 +102,10 @@ describe('what a plan costs and whether it may run unattended', () => {
     expect(backgroundEligibility([synopses(), { tool: 'coherence.review', params: {}, expect: 'x' }]).eligible).toBe(false);
     expect(backgroundEligibility([{ tool: 'meta.set', params: {}, expect: 'x' }]).eligible).toBe(false);
   });
+
+  it.each(['skill.load', 'skill.read'])('keeps %s in the foreground instead of losing its turn-local context', (tool) => {
+    expect(backgroundEligibility([{ tool, params: { name: 'style' }, expect: 'Read the skill.' }, synopses()])).toMatchObject({ eligible: false, reason: expect.stringContaining('Skills belong to this turn') });
+  });
 });
 
 describe('the offer before a big plan is staged', () => {

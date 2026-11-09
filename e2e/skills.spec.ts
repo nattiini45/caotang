@@ -100,7 +100,7 @@ test('a skill is imported, read, approved and listed, and the agent is told of i
     await panel.getByRole('button', { name: /Read and approve/ }).click();
     await expect(panel.getByRole('heading', { name: loose('Read “close-third”') })).toBeVisible();
     await expect(panel.getByRole('note').filter({ hasText: 'Caotang reads the instructions and does not run them' })).toBeVisible();
-    await expect(panel.getByRole('note').filter({ hasText: 'cannot read them in this build' })).toBeVisible();
+    await expect(panel.getByRole('note').filter({ hasText: 'can read text files under references/ and assets/' })).toBeVisible();
     await expect(panel.getByLabel('Text of Instructions')).toContainText(STYLE);
     await expect(panel.getByLabel('Text of references/voice.md')).toContainText('Never leave the room.');
     await expect(panel.getByLabel('Text of scripts/check.sh')).toContainText('not run by Caotang');
@@ -139,6 +139,74 @@ test('a skill is imported, read, approved and listed, and the agent is told of i
     const afterEdit = endpoint.seen.slice(edited).map((request) => `${request.system}\n${request.user}`).join('\n');
     expect(afterEdit).not.toContain('- close-third:');
     expect(afterEdit).not.toContain('Never name the narrator.');
+  } finally {
+    rmSync(join(folder, '..'), { recursive: true, force: true });
+  }
+});
+
+test('a loaded skill reads its reference files and refuses a tool outside its allowed list', async ({ page }) => {
+  const folder = skillFolder();
+  try {
+    writeFileSync(join(folder, 'SKILL.md'), SKILL_MD.replace('---\n\n', 'allowed-tools: skill.read doc.read\n---\n\n'));
+    const endpoint = recordingEndpoint({ steps: [
+      { tool: 'skill.load', params: { name: 'close-third' }, expect: 'The style is loaded.' },
+      { tool: 'skill.read', params: { name: 'close-third', path: 'references/voice.md' }, expect: 'The reference is read.' },
+      { tool: 'project.overview', params: {}, expect: 'The overview is refused.' },
+    ] });
+    await fakeEndpoint(page, endpoint.reply);
+    await useFakeEndpoint(page);
+    await createProject(page, 'Bounded Skill');
+    const panel = await openSkills(page);
+    await panel.locator('input[aria-label="Skill folder"]').setInputFiles(folder);
+    await panel.getByRole('button', { name: /Read and approve/ }).click();
+    await expect(panel.getByRole('note').filter({ hasText: 'limits the turn to these tools' })).toBeVisible();
+    await panel.getByRole('button', { name: 'Approve this skill' }).click();
+    await panel.getByRole('button', { name: 'Done' }).click();
+    await sendIntent(page, 'Load my style and read its reference, then try the overview.');
+    await expect.poll(() => endpoint.seen.length).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n')).toContain('Never leave the room.');
+    const results = endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n');
+    expect(results).toContain('"allowedTools"');
+    expect(results).toContain('limits this turn to: skill.read, doc.read');
+    expect(endpoint.seen[0]?.tools).not.toContain('skill__read');
+    expect(endpoint.seen.slice(1).some((request) => request.tools?.includes('skill__read'))).toBe(true);
+  } finally {
+    rmSync(join(folder, '..'), { recursive: true, force: true });
+  }
+});
+
+test('a large plan with a pending skill load stays out of the background and drafts nothing', async ({ page }) => {
+  const folder = skillFolder();
+  try {
+    const docs = ['First', 'Second', 'Third', 'Fourth', 'Fifth'];
+    const endpoint = recordingEndpoint({ steps: [...LOAD_STYLE.steps,
+      { tool: 'synopsis.fill', params: { docs, source: 'text', max_words: 20 }, expect: 'The scenes have synopses.' },
+    ] });
+    await fakeEndpoint(page, endpoint.reply);
+    await useFakeEndpoint(page);
+    await createProject(page, 'Foreground Skills');
+    await page.getByRole('button', { name: 'New folder' }).click();
+    await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Act one');
+    await page.keyboard.press('Enter');
+    for (const title of docs) {
+      await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+      await page.getByRole('textbox', { name: 'Rename Untitled' }).fill(title);
+      await page.keyboard.press('Enter');
+      await page.getByRole('textbox', { name: 'Document text' }).fill(`${title} has some text.`);
+      await waitForSaved(page);
+    }
+    const panel = await openSkills(page);
+    await panel.locator('input[aria-label="Skill folder"]').setInputFiles(folder);
+    await panel.getByRole('button', { name: /Read and approve/ }).click();
+    await panel.getByRole('button', { name: 'Approve this skill' }).click();
+    await panel.getByRole('button', { name: 'Done' }).click();
+    await sendIntent(page, 'Load my house style and fill all five synopses.');
+    await expect.poll(() => endpoint.seen.length).toBeGreaterThanOrEqual(2);
+    await expect(page.getByRole('combobox', { name: 'Intent' })).toBeEnabled();
+    await expect(page.getByTestId('plan-offer')).toHaveCount(0);
+    await expect(page.getByTestId('plan-card')).toHaveCount(0);
+    expect(endpoint.seen).toHaveLength(2);
+    expect(endpoint.seen.map((request) => `${request.user}\n${request.tool}`).join('\n')).toContain('skill.load and skill.read must finish');
   } finally {
     rmSync(join(folder, '..'), { recursive: true, force: true });
   }

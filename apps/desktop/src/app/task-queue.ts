@@ -287,7 +287,8 @@ export class TaskQueue {
     try {
       let agent: TaskAgent | string;
       try {
-        agent = await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used));
+        const eligible = backgroundEligibility(started.steps);
+        agent = eligible.eligible ? await this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used)) : eligible.reason;
       } catch (error) {
         // A lazy chunk or the harness failed to load: this task's items fail with the reason, and the pump goes on to the next task.
         const errorText = error instanceof Error ? error.message : String(error);

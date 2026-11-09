@@ -252,6 +252,7 @@ test('loadInterrupted leaves the list alone while a turn is running, and fills i
 function waitingOnCard(intent: string, landing: string, spend: Record<string, number>): Record<string, unknown>[] {
   return [
     { t: 'turn.start', v: RUN_LOG_VERSION, turnId: 't1', intent, wire: 'planner', native: false },
+    { t: 'skills.loaded', turnId: 't1', skills: [] },
     { t: 'messages', turnId: 't1', appended: [{ role: 'user', content: `Request: ${intent}` }] },
     { t: 'spend', turnId: 't1', spend, reservedCalls: 1 },
     {
@@ -276,6 +277,20 @@ function countingModel(calls: { count: number }): MockScript {
     },
   };
 }
+
+test('an unfinished skill-load intent is discard-only even after an earlier empty snapshot', async () => {
+  const calls = { count: 0 };
+  const { port, projectId, controller, session, landing } = await open([countingModel(calls)]);
+  const spend = { modelCalls: 1, promptTokens: 10, completionTokens: 5, estimatedTokens: 0, steps: 0, activeMs: 50 };
+  const events = [...waitingOnCard('Load the style.', landing, spend), { t: 'skills.loading', turnId: 't1' }];
+  await seed(port, { runId: 'run_SKILL', projectId, intent: 'Load the style.', events });
+  await controller.loadInterrupted();
+  expect(controller.snapshot().interrupted).toMatchObject([{ runId: 'run_SKILL', resumable: false }]);
+  expect(await controller.resumeRun('run_SKILL')).toBeNull();
+  expect(controller.snapshot().pending).toBeNull();
+  expect(calls.count).toBe(0);
+  await session.close();
+});
 
 test('Resume does not start when the run log cannot be read a second time: it says so, makes no model call and keeps the log', async () => {
   const calls = { count: 0 };
@@ -313,6 +328,21 @@ test('Resume does not start when the run log cannot be read a second time: it sa
   expect(snapshot.turns).toHaveLength(0);
   expect(calls.count).toBe(0);
   expect((await port.open(projectId)).map((run) => run.runId)).toEqual(['run_GOOD']);
+  await session.close();
+});
+
+test('Resume refuses a legacy log without a skill snapshot before a card or provider call', async () => {
+  const calls = { count: 0 };
+  const { port, projectId, controller, session, landing } = await open([countingModel(calls)]);
+  const spend = { modelCalls: 3, promptTokens: 100, completionTokens: 40, estimatedTokens: 0, steps: 0, activeMs: 500 };
+  const events = waitingOnCard('Label the landing.', landing, spend).filter((event) => event['t'] !== 'skills.loaded');
+  await seed(port, { runId: 'run_LEGACY', projectId, intent: 'Label the landing.', events });
+  await controller.loadInterrupted();
+  const report = await controller.resumeRun('run_LEGACY');
+  expect(report?.status).toBe('failed');
+  expect(report?.askBack?.reason).toContain('skill snapshot');
+  expect(controller.snapshot().pending).toBeNull();
+  expect(calls.count).toBe(0);
   await session.close();
 });
 

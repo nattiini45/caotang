@@ -209,6 +209,7 @@ export type PortToolName =
   | 'dialogue.table'
   // The project's skills (extensibility.md §10). Wired only where the app supplies `HarnessOptions.skills`, so the outward MCP server, which does not, never lists it.
   | 'skill.load'
+  | 'skill.read'
   // Delegation (agent-harness §2): answered by the agent loop; the port (tools/delegate.ts) is what a caller outside a turn gets.
   | 'agent.delegate'
   // The picture tools that need the host (pictures.md §8.1): `pictures.view` reads stored bytes and asks the host whether the model

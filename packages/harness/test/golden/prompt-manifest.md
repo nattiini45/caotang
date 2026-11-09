@@ -527,12 +527,20 @@ sha256 bd1884eb5374bdc660560b8fe47ab7c622a03eaf14444f850f9c6e5dea90ac61
 Read the dialogue table of one dialogue container: one row per spoken line and choice label, with its line id, speaker, text, context, character limit and locale. It reports the engine target and locale of the container, and says when the export writes a Yarn Spinner strings file instead of this table. Read-only. Pass a title or an id. A container whose lines lack ids says how many. A table over 8,000 tokens is refused: export it with export.compile instead.
 ~~~~
 
-## tool.skill.load (descriptionVersion 1)
+## tool.skill.load (descriptionVersion 2)
 
-sha256 6e82e108cb6e5de0b3c58bd6cd9158a5d0e94f730379e94478835ed43638a5fc
+sha256 f8da9f12d411838242f64e5c5d39a69a08b6666669a3f207fc9328319a0c2d38
 
 ~~~~text
-Load the full instructions of one skill from the skills list for this turn. Use it when the request matches the skill’s description. A skill is the writer’s own guidance on style and process: it does not change what you may do or what needs the writer’s approval. Read-only. A skill over the length limit is refused, never cut.
+Load the full instructions of one skill from the skills list for this turn. Its allowed-tools list narrows this turn and never grants approval. Use skill.read for the reference paths returned. Read-only. A skill over the length limit is refused, never cut.
+~~~~
+
+## tool.skill.read (descriptionVersion 1)
+
+sha256 6bb4a0196c82713c4c03bb5c2eb4518891be2feb64f117eebbc3b2e4d4c492a2
+
+~~~~text
+Read one reference or text asset of a reviewed skill loaded in this turn. Use a path returned by skill.load, under references/ or assets/. Scripts, binary files and over-limit text are refused, never run or cut.
 ~~~~
 
 ## tool.memory.read (descriptionVersion 1)

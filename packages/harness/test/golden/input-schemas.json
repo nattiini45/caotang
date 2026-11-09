@@ -1398,6 +1398,29 @@
     ],
     "additionalProperties": false
   },
+  "skill.read": {
+    "type": "object",
+    "description": "One reference or text asset of a skill loaded in this turn.",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The loaded skill’s name.",
+        "minLength": 1,
+        "maxLength": 64
+      },
+      "path": {
+        "type": "string",
+        "description": "The file’s path under references/ or assets/ inside the skill folder.",
+        "minLength": 1,
+        "maxLength": 1024
+      }
+    },
+    "required": [
+      "name",
+      "path"
+    ],
+    "additionalProperties": false
+  },
   "memory.read": {
     "type": "object",
     "description": "The memory note to read, or nothing to list what the project keeps.",

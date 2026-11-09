@@ -118,6 +118,26 @@ function queueOver(
 
 const statusOf = (queue: TaskQueue, id: string): string | undefined => queue.snapshot().find((task) => task.id === id)?.status;
 
+test('a stored skill-dependent task refuses resume before constructing its agent or staging an isolated item', async () => {
+  const db = memoryDb();
+  const h = queueOver(db);
+  await h.queue.open();
+  const queued = await h.queue.enqueue('Draft with a skill.', [scene('A')]);
+  await h.queue.idle();
+  if (!queued.ok) throw new Error(queued.reason);
+  const saved = h.queue.snapshot()[0] as TaskRecord;
+  const steps = [{ tool: 'skill.load', params: { name: 'style' }, expect: 'Load the style.' }, ...saved.steps];
+  await db.put(taskKey(PROJECT, saved.id), { ...saved, steps, items: itemsOf(steps), used: 0, status: 'interrupted' });
+  const next = queueOver(db);
+  await next.queue.open();
+  await next.queue.resume(saved.id);
+  await next.queue.idle();
+  expect(next.sessions).toEqual([]);
+  expect(next.staged).toEqual([]);
+  expect(next.queue.snapshot()[0]?.status).toBe('failed');
+  expect(next.queue.snapshot()[0]?.items[0]?.error).toContain('Skills belong to this turn');
+});
+
 test('a queued plan is saved under its project and id, with an item for each drafting step and each synopsis document', async () => {
   const db = memoryDb();
   const { queue } = queueOver(db);

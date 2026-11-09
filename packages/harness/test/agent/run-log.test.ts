@@ -8,6 +8,9 @@ import type { ChatMessage } from '@caotang/gateway';
 import { rebuildDerived, setBody, type Manifest } from '@caotang/store';
 
 import {
+  createAgentPorts,
+  createAgentSession,
+  createHarness,
   createMemoryRunLog,
   createRunWriter,
   NOT_LOGGED_NOTICE,
@@ -20,6 +23,7 @@ import {
   type RunEventDraft,
 } from '../../src/index.js';
 import { CHAPTER_TWO, LANDING, STORM, makeState } from '../fixtures.js';
+import { mockGateway } from './gateway.js';
 
 const A = 'n_AAAAAAAAAA';
 const B = 'n_BBBBBBBBBB';
@@ -125,10 +129,29 @@ describe('planResume', () => {
   it('refuses a log with an event kind, a version or a shape it does not know', () => {
     const base = log(start, user, card);
     expect(planResume([...base, { t: 'future.event', seq: 9, at: 1 }], project({}))).toMatchObject({ ok: false, reason: 'schema' });
-    expect(planResume(log({ ...start, v: 2 as never }), project({}))).toMatchObject({ ok: false, reason: 'schema' });
+    for (const v of [1, RUN_LOG_VERSION + 1]) expect(planResume(log({ ...start, v: v as never }), project({}))).toMatchObject({ ok: false, reason: 'schema' });
     expect(planResume(log(start, { ...card, proposals: [null] } as RunEventDraft), project({}))).toMatchObject({ ok: false, reason: 'schema' });
     expect(planResume([], project({}))).toMatchObject({ ok: false, reason: 'schema' });
     expect(planResume([{ t: 'turn.end', seq: 0 }, 7], project({}))).toMatchObject({ ok: false, reason: 'schema' });
+  });
+
+  it('replays loaded-skill snapshots and rejects malformed or duplicate entries', () => {
+    const skill = { name: 'style', body: 'Write plainly.', pin: 'a'.repeat(64), allowedTools: ['doc.read'] };
+    const saved: RunEventDraft = { t: 'skills.loaded', turnId: 't1', skills: [skill] };
+    const replay = planResume(log(start, saved, user, card), project({}));
+    expect(replay.ok && replay.replay.skills).toEqual([skill]);
+    for (const skills of [[{ ...skill, pin: 'bad' }], [{ ...skill, allowedTools: [42] }], [skill, skill], [{ ...skill, body: null }]]) {
+      expect(planResume(log(start, { ...saved, skills } as RunEventDraft), project({}))).toMatchObject({ ok: false, reason: 'schema' });
+    }
+    const empty = planResume(log(start, saved, { ...saved, skills: [] }, user, card), project({}));
+    expect(empty.ok && empty.replay.skills).toEqual([]);
+  });
+
+  it('does not restore an earlier empty snapshot across an unfinished skill-load intent', () => {
+    const saved: RunEventDraft = { t: 'skills.loaded', turnId: 't1', skills: [] };
+    const loading: RunEventDraft = { t: 'skills.loading', turnId: 't1' };
+    expect(planResume(log(start, saved, loading, user), project({}))).toMatchObject({ ok: false, reason: 'schema', detail: expect.stringContaining('no committed snapshot') });
+    expect(planResume(log(start, saved, loading, saved, user, card), project({})).ok).toBe(true);
   });
 
   it.each(['cancelled', 'refused'] as const)('keeps a %s decision on the card, so a resume knows the writer closed it', (decision) => {
@@ -291,11 +314,74 @@ describe('summarizeRun', () => {
 });
 
 describe('the run writer', () => {
+  it.each([
+    { revision: 0, stop: false },
+    { revision: 1, stop: false },
+    { revision: 0, stop: true },
+    { revision: 1, stop: true },
+  ])('persists plan revision $revision before displaying it, with stop during persistence: $stop', async ({ revision, stop }) => {
+    const state = makeState();
+    const port = createMemoryRunLog();
+    const controller = new AbortController();
+    let writeStarted = (): void => {};
+    let releaseWrite = (): void => {};
+    const started = new Promise<void>((resolve) => { writeStarted = resolve; });
+    const released = new Promise<void>((resolve) => { releaseWrite = resolve; });
+    let writes = 0;
+    let decisions = 0;
+    const visible: Promise<readonly unknown[]>[] = [];
+    const session = createAgentSession({
+      harness: createHarness({ state, ports: createAgentPorts() }),
+      gateway: await mockGateway([]),
+      decide: async () => decisions++ === 0 ? { action: 'edit', edits: [{ op: 'drop', index: 0 }] } : { action: 'cancel' },
+      emit: (event) => {
+        if (event.type === 'plan') visible.push(port.events('run_CARD'));
+      },
+      runLog: {
+        projectId: 'p_CARD',
+        newRunId: () => 'run_CARD',
+        port: {
+          ...port,
+          append: async (runId, events, patch) => {
+            if (events.some((event) => event.t === 'card.pending') && writes++ === revision) {
+              writeStarted();
+              await released;
+            }
+            await port.append(runId, events, patch);
+          },
+        },
+      },
+    });
+    const pending = session.submitPlan('Add two notes.', {
+      steps: [
+        { tool: 'notes.append', params: { doc: LANDING, text: 'First note.' }, expect: 'A first note is added.' },
+        { tool: 'notes.append', params: { doc: LANDING, text: 'Second note.' }, expect: 'A second note is added.' },
+      ],
+    }, { signal: controller.signal });
+    await started;
+    try {
+      expect(visible).toHaveLength(revision);
+      expect(decisions).toBe(revision);
+      if (stop) controller.abort();
+    } finally {
+      releaseWrite();
+    }
+    expect((await pending).status).toBe('cancelled');
+    expect(visible).toHaveLength(stop ? revision : 2);
+    expect(decisions).toBe(stop ? revision : 2);
+    for (const [index, rows] of visible.entries()) {
+      expect(summarizeRun(await rows, (id) => state.documents.get(id)?.revision)).toMatchObject({
+        intent: 'Add two notes.', applied: 0, total: 2 - index, resumable: true,
+      });
+    }
+    expect((await port.events('run_CARD') as RunEvent[]).some((event) => event.t === 'step.applied')).toBe(false);
+  });
+
   it('numbers and stamps events in the order they are given, one append each', async () => {
     const port = createMemoryRunLog();
     await port.create(newRunRecord('run_W', { projectId: 'p', intent: 'x', now: 1 }));
     const writer = createRunWriter({ port, runId: 'run_W', nextSeq: 0, clock: () => 77 });
-    await Promise.all([writer.append(start), writer.append(user), writer.append(card, { status: 'awaiting-approval' })]);
+    expect(await Promise.all([writer.append(start), writer.append(user), writer.append(card, { status: 'awaiting-approval' })])).toEqual([true, true, true]);
     const stored = (await port.events('run_W')) as RunEvent[];
     expect(stored.map((event) => [event.seq, event.t, event.at])).toEqual([
       [0, 'turn.start', 77],
@@ -312,8 +398,8 @@ describe('the run writer', () => {
     const writer = createRunWriter({ port, runId: 'run_F', nextSeq: 0, onNotice: (message) => notices.push(message) });
     await writer.append(start);
     port.failNextAppend();
-    await writer.append(user);
-    await writer.append(card);
+    expect(await writer.append(user)).toBe(false);
+    expect(await writer.append(card)).toBe(false);
     expect(writer.broken).toBe(true);
     expect(notices).toHaveLength(1);
     expect(notices[0]).toContain(NOT_LOGGED_NOTICE);

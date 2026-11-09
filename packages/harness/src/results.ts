@@ -366,9 +366,17 @@ export const skillLoadResult = param.object(
     skill: param.string('The skill\'s name.'),
     label: param.string('The label the writer sees.'),
     instructions: param.string('The skill\'s instructions.'),
-    note: param.string('What the build cannot yet read of the skill.'),
+    allowedTools: strings('The effective tool-name intersection for this turn; absent when unrestricted, empty when none are allowed.'),
+    note: param.string('Script and unknown-tool notices.'),
+    files: strings('Reference and asset paths skill.read can request.'),
   },
   ['skill', 'label', 'instructions'],
+);
+
+export const skillReadResult = param.object(
+  'One skill reference, read whole.',
+  { skill: param.string('The skill’s name.'), path: param.string('The file’s path.'), text: param.string('The file’s text.') },
+  ['skill', 'path', 'text'],
 );
 
 export const memoryReadResult = param.object(
@@ -558,6 +566,7 @@ export const RESULT_SPECS = {
   'dialogue.draft': DIALOGUE_DRAFT_RESULT,
   'dialogue.table': DIALOGUE_TABLE_RESULT,
   'skill.load': skillLoadResult,
+  'skill.read': skillReadResult,
   'memory.read': memoryReadResult,
   'agent.delegate': agentDelegateResult,
   'scene.brief': sceneBriefResult,
@@ -834,7 +843,8 @@ export interface ToolResults {
     readonly table?: readonly Readonly<Record<string, unknown>>[];
     readonly csv?: string;
   };
-  'skill.load': { readonly skill: string; readonly label: string; readonly instructions: string; readonly note?: string };
+  'skill.load': { readonly skill: string; readonly label: string; readonly instructions: string; readonly allowedTools?: readonly string[]; readonly note?: string; readonly files?: readonly string[] };
+  'skill.read': { readonly skill: string; readonly path: string; readonly text: string };
   'memory.read': {
     readonly slug?: string;
     readonly type?: string;

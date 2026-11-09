@@ -128,9 +128,9 @@ export interface ReviewCard {
 const SCRIPTS_NOTICE: MessageDescriptor =
   msg`This skill includes scripts. Caotang reads the instructions and does not run them. Other programs that read the same folder, such as Claude Code or Codex, may run them.`;
 
-const ALLOWED_TOOLS_NOTICE: MessageDescriptor = msg`Not enforced in this build: it does not limit what the agent can do here.`;
+const ALLOWED_TOOLS_NOTICE: MessageDescriptor = msg`While loaded, this skill limits the turn to these tools. It never grants approval. Unknown tool names are ignored; a list with no known names permits no tools.`;
 
-const OTHER_FILES_NOTICE: MessageDescriptor = msg`These files are kept with the skill. The agent cannot read them in this build.`;
+const OTHER_FILES_NOTICE: MessageDescriptor = msg`After loading this skill, the agent can read text files under references/ and assets/. Scripts are never run.`;
 
 /** The scripts notice, in the current interface language. */
 export function scriptsNotice(): string {

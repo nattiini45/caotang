@@ -25,6 +25,7 @@ import {
   type AgentSession,
   type Decision,
   type PendingCard,
+  type PermissionMode,
 } from '../../src/index.js';
 import { mockGateway } from './gateway.js';
 import { prose } from './scripts.js';
@@ -195,6 +196,7 @@ async function nativeGateway(scripts: readonly MockScript[], seen: ChatRequest[]
 }
 
 interface NativeOptions {
+  readonly mode?: PermissionMode;
   readonly decisions?: readonly Decision[];
   readonly decide?: (card: PendingCard) => Promise<Decision> | Decision;
   readonly thinking?: ThinkingLevel;
@@ -247,6 +249,7 @@ async function nativeFixture(scripts: readonly MockScript[], options: NativeOpti
       if (held.session !== undefined) options.onEvent?.(event, held.session);
     },
     sessionId: 'nvt',
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
   });
   held.session = session;
@@ -650,6 +653,46 @@ describe('a native planner reply the provider cut (issue #97)', () => {
     expect(second.maxOutputTokens).toBe(10);
   });
 
+  it('retries once at the same output limit when the advertised cap equals the cap that cut the reply (issue #326)', async () => {
+    const intent = 'Read The Friend.';
+    const cap = 5;
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        { content: 'Reading the scene before I label anything.', calls: [{ id: 'cut', name: 'doc.read', args: '{"doc": "The Fri' }], finish: 'length' },
+        { content: 'I will ask for less.' },
+      ]),
+      { limits: { maxOutputTokens: cap, modelMaxOutputTokens: cap } },
+    );
+    const report = await fixture.session.submit(intent);
+    expect(report.status).toBe('replied');
+    expect(report.cutReplies).toBe(1);
+    const requests = plannerRequests(fixture.seen);
+    expect(requests).toHaveLength(2);
+    expect(requests.map((request) => request.maxOutputTokens)).toEqual([undefined, undefined]);
+    expect(requests.map((request) => request.maxOutputTokens ?? cap)).toEqual([cap, cap]);
+    expect(resultFor(requests[1] as ChatRequest, 'cut')?.body).toEqual({ ok: false, error: expect.stringContaining('cut off at the model’s output limit') });
+  });
+
+  it.each([6, 8, 10, 64])('keeps the retry output limit within the advertised cap of %i tokens (issue #326)', async (advertised) => {
+    const intent = 'Read The Friend.';
+    const cap = 5;
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        { content: 'Reading the scene before I label anything.', calls: [{ id: 'cut', name: 'doc.read', args: '{"doc": "The Fri' }], finish: 'length' },
+        { content: 'I will ask for less.' },
+      ]),
+      { limits: { maxOutputTokens: cap, modelMaxOutputTokens: advertised } },
+    );
+    const report = await fixture.session.submit(intent);
+    expect(report.status).toBe('replied');
+    expect(report.cutReplies).toBe(1);
+    const requests = plannerRequests(fixture.seen);
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.maxOutputTokens).toBeUndefined();
+    expect(requests[1]?.maxOutputTokens).toBe(Math.min(cap * 2, advertised));
+    for (const request of requests) expect(request.maxOutputTokens ?? cap).toBeLessThanOrEqual(advertised);
+  });
+
   it('keeps an earlier call’s own refusal in a cut reply: only the last call can have been cut', async () => {
     const intent = 'Read The Friend twice.';
     const fixture = await nativeFixture(
@@ -696,5 +739,37 @@ describe('a native planner reply the provider cut (issue #97)', () => {
     // A plain approve is refused with the reason, and the consent runs it.
     expect(fixture.pending[1]?.card.notice).toContain('may be missing steps');
     expect(fixture.state.manifest.tree.find((node) => node.id === FRIEND)?.label).toBe('act-2');
+  });
+
+  it('keeps a single write-auto step from a cut reply on a card in auto mode until acceptTruncated (issue #326)', async () => {
+    const intent = 'Label The Friend act-2.';
+    const state = makeState();
+    const originalLabel = state.manifest.tree.find((node) => node.id === FRIEND)?.label;
+    const pending: PendingCard[] = [];
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        { content: 'Labelling.', calls: [{ id: 'w', name: 'meta.set', args: { targets: [FRIEND], label: 'act-2' } }], finish: 'length' },
+      ]),
+      {
+        state,
+        mode: 'auto',
+        decide: (card) => {
+          pending.push(card);
+          expect(state.manifest.tree.find((node) => node.id === FRIEND)?.label).toBe(originalLabel);
+          expect(card.card).toMatchObject({ replyCut: true, cut: true, approvable: false, canAcceptCut: true });
+          expect(card.card.steps).toHaveLength(1);
+          expect(card.card.steps[0]?.tool).toBe('meta.set');
+          return pending.length === 1 ? { action: 'approve' } : { action: 'approve', acceptTruncated: true };
+        },
+      },
+    );
+    const report = await fixture.session.submit(intent);
+    expect(report.status).toBe('applied');
+    expect(report.mode).toBe('auto');
+    expect(report.cutReplies).toBe(1);
+    expect(pending).toHaveLength(2);
+    expect(pending[1]?.card.notice).toContain('may be missing steps');
+    expect(report.cards).toMatchObject([{ kind: 'plan', tools: ['meta.set'], decision: 'approved' }]);
+    expect(state.manifest.tree.find((node) => node.id === FRIEND)?.label).toBe('act-2');
   });
 });

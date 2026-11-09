@@ -669,6 +669,7 @@ interface Turn {
   run?: RunWriter;
   /** How many of `messages` the log already holds. */
   logged: number;
+  loggedSkills?: string;
   /** The documents a step's draft read, with their revisions, taken before the draft was asked for: what a restored card checks. */
   readonly reads: Map<PlanStep, StepRevisions>;
   /** The turn was rebuilt from a log (`resume`): its undo reaches only what it applies, and its ladder does not ask the model. */
@@ -869,6 +870,17 @@ const isWrite = (risk: string): boolean => risk === 'write-auto' || risk === 'wr
 /** The refusal for a delegation sent in the same reply as a write. */
 const DELEGATE_ALONE =
   'agent.delegate runs before anything is written, and its result comes back to you first. Nothing was run. Call it in a reply without write steps (reads may go with it), then plan the writes, including any step the agent proposed.';
+
+const SKILL_BEFORE_DRAFT =
+  'skill.load and skill.read must finish before later steps are drafted. Load the skill and read its references in a read-only reply first, then plan from the instructions and tool limits.';
+
+function pendingSkillBefore(steps: readonly PlanStep[], index: number, done?: (index: number) => boolean): boolean {
+  return steps.slice(0, index).some((step, at) => (step.tool === 'skill.load' || step.tool === 'skill.read') && done?.(at) !== true);
+}
+
+function skillDraftBlocked(editable: EditableSteps): boolean {
+  return editable.steps.some((step, index) => !ranAt(editable, index) && MODEL_BACKED.has(step.tool) && pendingSkillBefore(editable.steps, index, (at) => ranAt(editable, at)));
+}
 
 /** The ask-back for a turn that used its model-call bound. The user decides what to do with the rest. */
 function budgetAskBack(limit: number): AskBack {
@@ -1329,13 +1341,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** What the writer's agent rules say about a step (agent-harness §4, "Rules"): a refusal, or a rule that asks for the writer's card. */
-  const ruleOf = (step: PlanStep): RuleCheck => {
+  const ruleOf = (step: PlanStep, turnId: string): RuleCheck => {
     const external = loadedExternal(step.tool);
-    return harness.ruleCheck(step.tool, step.params, external === undefined ? undefined : { writes: external.effectiveRisk !== 'read-auto' });
+    return harness.ruleCheck(step.tool, step.params, external === undefined ? undefined : { writes: external.effectiveRisk !== 'read-auto' }, turnId);
   };
 
   /** A rule makes this step the writer's call: it is never approved by a mode, and a single write-auto step shows a card. */
-  const asksWriter = (step: PlanStep): boolean => ruleOf(step).ask !== undefined;
+  const asksWriter = (step: PlanStep, turnId: string): boolean => ruleOf(step, turnId).ask !== undefined;
 
   /** The writes a turn has applied so far, in order, as the report names them. Reads are not writes. */
   const writesOf = (turn: Turn): string[] =>
@@ -1475,10 +1487,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   const nativeToolsFor = (pins: Pins): ToolDef[] | undefined => {
     if (gateway.modelCaps?.(pins.profileId, pins.model)?.tools !== true) return undefined;
-    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
+    const tools = plannerToolDefs(plannerListings(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
     return tools.length === 0 ? undefined : tools;
   };
   const nativeTools = (turn: Turn): ToolDef[] | undefined => nativeToolsFor(turn.pins);
+
+  function plannerListings(): readonly ToolListing[] {
+    const references = harness.loadedNativeTools().some((tool) => tool.name === 'skill.read');
+    return harness.tools().filter((tool) => tool.name !== 'skill.read' || references);
+  }
 
   function transcriptionRoute(turn: Turn, route?: TranscriptionSecondRead): TranscriptionRouteInfo {
     const profileId = route?.profileId ?? turn.pins.profileId;
@@ -1518,7 +1535,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (!turn.native) return call;
     // The declarations keep the turn's first order, and a tool loaded mid-turn joins at the end: the prompt cache keys on the
     // tools first, so re-sorting them would cost every later call its cached prefix (provider-gateway §3).
-    const fresh = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
+    const fresh = plannerToolDefs(plannerListings(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
     const tools = stableToolOrder(turn.declaredTools, fresh);
     turn.declaredTools = tools;
     return tools.length === 0 ? call : { ...call, tools };
@@ -1639,13 +1656,37 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     };
   };
 
+  async function syncSkills(turn: Turn): Promise<boolean> {
+    const run = turn.run;
+    if (run === undefined) return true;
+    const skills = harness.loadedSkills(turn.id);
+    const snapshot = canonicalJson(skills);
+    if (snapshot !== turn.loggedSkills) {
+      const saved = await run.append({ t: 'skills.loaded', turnId: turn.id, skills });
+      if (saved) turn.loggedSkills = snapshot;
+      return saved;
+    }
+    return true;
+  }
+
+  async function beginSkillLoad(turn: Turn, tool: string): Promise<void> {
+    if (tool !== 'skill.load' || turn.run === undefined) return;
+    if (!(await turn.run.append({ t: 'skills.loading', turnId: turn.id }))) throw new Error('The skill load could not be recorded, so it was not run. Check the project storage and send the request again.');
+    delete turn.loggedSkills;
+  }
+
+  async function finishSkillLoad(turn: Turn, tool: string): Promise<void> {
+    if (tool === 'skill.load' && !(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the load was not reported as successful. Check the project storage and send the request again.');
+  }
+
   /**
-   * Writes the messages added since the last write, then the spend. `reserved` is the model calls about to be started and not settled:
+   * Writes loaded skills, the messages added since the last write, then the spend. `reserved` is the model calls about to be started and not settled:
    * a crash loses them, and a resume counts them as spent so the run's limits stay honest.
    */
   async function syncRun(turn: Turn, reserved: number, status?: RunStatus): Promise<void> {
     const run = turn.run;
     if (run === undefined) return;
+    await syncSkills(turn);
     if (turn.messages.length > turn.logged) {
       const appended = turn.messages.slice(turn.logged);
       turn.logged = turn.messages.length;
@@ -1689,6 +1730,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function logApplied(turn: Turn, callId: string, index: number, tool: string, summary: string | undefined, before: Revisions | undefined): Promise<void> {
     const run = turn.run;
     if (run === undefined) return;
+    await syncSkills(turn);
     const after = before === undefined ? {} : changedSince(before);
     try {
       await options.runLog?.flush?.();
@@ -1724,7 +1766,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
       await logIntent(turn, callId, index, step.tool);
       const before = revisionsNow();
+      await beginSkillLoad(turn, step.tool);
       const result = harness.executePlan(plan, context, { ...planOptions, from: index, until: index + 1 });
+      await finishSkillLoad(turn, step.tool);
       if (!result.ok) {
         await logFailed(turn, callId, index, step.tool, result.error.message);
         return result;
@@ -1733,6 +1777,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.status === 'applied') {
         completed.push(...outcome.steps);
         undoGroupId ??= outcome.undoGroupId;
+        if (undoGroupId !== undefined) turn.undoGroupId ??= undoGroupId;
         await logApplied(turn, callId, index, step.tool, outcome.steps[0]?.value.summary, before);
         continue;
       }
@@ -1898,7 +1943,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // again when it runs: this is the card the writer sees, and that is the backstop. A plan the read path runs (every headless plan,
       // and a macro's) is the exception: a read has no draft to spend, so the read path refuses it as it runs with the same words, and
       // the plan's other reads still run, as they do on the planner's own read-only reply.
-      const denied = ruleOf(step).denied;
+      const denied = ruleOf(step, turn.id).denied;
       if (denied !== undefined) {
         if (options.readsRun === true && riskOf(step.tool) === 'read') continue;
         const message = refusalSentence(denied.message, denied.correctiveHint);
@@ -1908,6 +1953,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         continue;
       }
       if (!MODEL_BACKED.has(step.tool)) continue;
+      if (pendingSkillBefore(steps, index)) {
+        refusals.push({ index, tool: step.tool, message: SKILL_BEFORE_DRAFT });
+        refusedBeforeCard(turn, step, SKILL_BEFORE_DRAFT);
+        continue;
+      }
       const drafted = await draftFor(turn, step);
       if (drafted.ok) {
         proposals[index] = drafted.proposal;
@@ -1924,6 +1974,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * refusal here: the assembly's own checks are the backstop behind the ones this file makes first.
    */
   async function draftFor(turn: Turn, step: PlanStep): Promise<Drafted> {
+    const denied = ruleOf(step, turn.id).denied;
+    if (denied !== undefined) return refusedDraft(refusalSentence(denied.message, denied.correctiveHint));
     // The documents the draft reads, as they are before the model is asked: a restored card checks its draft against them.
     turn.reads.set(step, revisionsOf(harness.state, step));
     try {
@@ -2177,7 +2229,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     const granted = permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
-    return harness.call(call, granted);
+    await beginSkillLoad(turn, call.name);
+    const outcome = harness.call(call, granted);
+    await finishSkillLoad(turn, call.name);
+    return outcome;
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
@@ -2216,7 +2271,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * run or added to a plan.
    */
   async function runDelegate(turn: Turn, step: PlanStep, id: string): Promise<ToolOutcome> {
-    const checked = harness.previewPlan({ steps: [step] });
+    const checked = harness.previewPlan({ steps: [step] }, { turnId: turn.id });
     const refused = checked.ok ? checked.value.steps.find((entry) => entry.status === 'refused')?.error : checked.error;
     if (refused !== undefined) return err(refused);
     const params = step.params as unknown as DelegateParams;
@@ -2302,8 +2357,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const id = nextCallPrefix(turn, 'r');
       const proposal = proposals[index];
       // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
-      const asked = asksWriter(step);
-      const first: ToolOutcome = asked
+      const ruled = ruleOf(step, turn.id);
+      const asked = ruled.ask !== undefined;
+      const first: ToolOutcome = ruled.denied !== undefined ? err(ruled.denied) : asked
         ? err(refusal('permission-denied', `a rule asks for the writer’s confirmation of ${step.tool}`, { target: step.tool }))
         : step.tool === 'agent.delegate'
           ? await runDelegate(turn, step, id)
@@ -2354,6 +2410,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.ok && isResultOf('tool.search', step.tool, outcome.value)) {
         for (const name of outcome.value.data.surfaced) surfaced.add(name);
       }
+      if (outcome.ok && step.tool === 'skill.load' && harness.loadedNativeTools().some((tool) => tool.name === 'skill.read')) surfaced.add('skill.read');
     }
     const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
     taint(turn, loadedNow.map((tool) => ({ serverName: tool.serverName, label: sourceName(tool.serverName, tool.toolName) })));
@@ -2373,6 +2430,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
     // sent again in the next request: the same names would reach the model twice (context-assembly §2).
     if (loadedAny) turn.addendumSent = harness.loadedAddendum();
+    await syncRun(turn, 0);
     return undefined;
   }
 
@@ -2390,6 +2448,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     kind: 'plan' | 'confirm',
     notice: string | undefined,
   ): { readonly card: PlanCardView; readonly preflight: PlanPreflight } | { readonly refused: CommandError } {
+    if (skillDraftBlocked(editable)) return { refused: refusal('invalid-params', SKILL_BEFORE_DRAFT, { correctiveHint: 'load the skill in a read-only reply first' }) };
     // The native steps are checked as one plan, so a step may name what an earlier native step creates. An external step is
     // not a native tool, so the harness cannot check it; its call checks it against the server's pinned schema (mcp.invoke),
     // and its row here is ready. Both are read from the same `from`, so a resumed card checks only what has not run.
@@ -2485,6 +2544,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * `which` picks the steps to draft again, and only a model-backed step is ever drafted.
    */
   async function redraft(turn: Turn, editable: EditableSteps, which: (index: number) => boolean): Promise<{ readonly editable: EditableSteps; readonly refusal?: string }> {
+    if (skillDraftBlocked(editable)) return { editable, refusal: SKILL_BEFORE_DRAFT };
     const proposals = [...editable.proposals];
     const stale = [...editable.stale];
     for (const [index, step] of editable.steps.entries()) {
@@ -2586,9 +2646,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         start.humanOnly !== true &&
         held === undefined &&
         shown.card.approvable &&
-        !remaining.some(asksWriter) &&
+        !remaining.some((step) => asksWriter(step, turn.id)) &&
         policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
       if (auto) holdToBudget(turn, editable, writes);
+      if (start.nested !== true) await logCard(turn, kind, editable, auto ? 'running' : 'awaiting-approval');
+      checkStop(turn);
       // Each step that has not run is pending from the moment its card is shown (agent-harness §8).
       for (const [index, step] of editable.steps.entries()) {
         if (ranAt(editable, index)) continue;
@@ -2596,7 +2658,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       emit({ type: 'plan', turnId: turn.id, card: shown.card, ...(auto ? { auto: true as const } : {}) });
       showGhosts(turn, editable, kind, prefix);
-      if (start.nested !== true) await logCard(turn, kind, editable, auto ? 'running' : 'awaiting-approval');
       if (auto) {
         const hold = await options.beforeAutoApply?.(shown.card);
         checkStop(turn);
@@ -3013,10 +3074,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       moveCard(turn, id, 'running');
       await logIntent(turn, id, from, step.tool);
       const before = revisionsNow();
+      await beginSkillLoad(turn, step.tool);
       const outcome: ToolOutcome = harness.call(
         { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
         grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },
       );
+      await finishSkillLoad(turn, step.tool);
       if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
       else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
@@ -3145,7 +3208,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const single = plan.steps.length === 1 ? (plan.steps[0] as PlanStep) : undefined;
     // A rule that asks gives a single write-auto call the one-step card a write-confirm call has (agent-harness §4, "Rules").
     // A tainted turn does the same: the outside text it read may be what asked for the write (issue #54).
-    const asked = single !== undefined && (asksWriter(single) || (turn.tainted && riskOf(single.tool) === 'write-auto'));
+    const asked = single !== undefined && (asksWriter(single, turn.id) || (turn.tainted && riskOf(single.tool) === 'write-auto'));
     const kind: 'plan' | 'confirm' = restore?.kind ?? (single !== undefined && (riskOf(single.tool) === 'write-confirm' || asked) ? 'confirm' : 'plan');
     // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2), unless the writer asked for a plan card (`/plan`).
     // A card restored from a log is shown, not run.
@@ -3319,7 +3382,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function offerBackground(turn: Turn, plan: Plan): Promise<Settled | undefined> {
     const ask = options.beforeStage;
     const calls = estimatedModelCalls(plan.steps);
-    if (ask === undefined || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
+    if (ask === undefined || calls < BACKGROUND_OFFER_MIN_CALLS || harness.loadedSkills(turn.id).length > 0 || !backgroundEligibility(plan.steps).eligible) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
@@ -3561,7 +3624,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(languages === undefined ? {} : { languages }),
       task: { tool: 'meta', instruction: `Request: ${intent}` },
       // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
-      role: native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
+      role: native ? plannerSystemNative(plannerListings(), loadEvery()) : plannerSystem(plannerListings(), loadEvery()),
       turns: priorTurns,
       activity: harness.log.entries(),
     });
@@ -3675,6 +3738,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     try {
       for (const [index, step] of steps.entries()) {
         checkStop(turn);
+        if (MODEL_BACKED.has(step.tool) && pendingSkillBefore(steps, index)) {
+          refusals.push({ index, tool: step.tool, message: SKILL_BEFORE_DRAFT });
+          continue;
+        }
         revisions[index] = revisionsOf(harness.state, step);
         try {
           const one = await stage(turn, [step]);
@@ -3844,7 +3911,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
     const turn = newTurn(turnOptions, [...started]);
     if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
-    turn.run = await openRun(turn, intent, logPlan);
+    const restored = logPlan.mode === 'resume' ? harness.restoreSkills(turn.id, logPlan.replay.skills ?? []) : undefined;
+    turn.run = restored?.ok === false ? undefined : await openRun(turn, intent, logPlan);
     const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;
     running.set(turn.id, turn);
     trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
@@ -3853,10 +3921,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     let settled: Settled;
     try {
-      const submitted = harness.lifecycleHooks({ event: 'turn.submit', turnId: turn.id, tool: '', params: {}, text: intent, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
-      flushHooks(turn);
-      const blocked = blockOf(submitted);
-      settled = blocked === undefined ? await first(turn) : { status: 'failed', askBack: askBackOf({ code: 'hook_blocked', reason: `Hook “${blocked.name}”: ${blocked.decision.reason}`, options: ['change the request so the hook passes', 'change the hook in Settings › Hooks'] }) };
+      if (restored?.ok === false) {
+        settled = { status: 'failed', askBack: askBackFor(restored.error) };
+      } else {
+        const submitted = harness.lifecycleHooks({ event: 'turn.submit', turnId: turn.id, tool: '', params: {}, text: intent, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
+        flushHooks(turn);
+        const blocked = blockOf(submitted);
+        settled = blocked === undefined ? await first(turn) : { status: 'failed', askBack: askBackOf({ code: 'hook_blocked', reason: `Hook “${blocked.name}”: ${blocked.decision.reason}`, options: ['change the request so the hook passes', 'change the hook in Settings › Hooks'] }) };
+      }
     } catch (error) {
       settled = stoppedBy(error);
     }
@@ -3881,12 +3953,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     // An unflushed view (a cancelled or failed turn) must not retain its bytes after the turn is over.
     options.pictureOutbox?.take(turn.id);
-    harness.endTurn(turn.id);
     const totals = gateway.ledger.turnTotals(turn.id);
     const report = reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests });
     finished.push(report);
     sessionUse = addUse(sessionUse, report.budgetUse);
     await closeRun(turn, report);
+    harness.endTurn(turn.id);
     // What L6 reads for this turn once its activity rows are gone, or when it wrote none: a reply's own answer is its outcome.
     started[slot] = {
       ...started[slot],
@@ -3982,6 +4054,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (log === undefined) return refuse(RESUME_INTENT, { code: 'needs_input', reason: 'this session keeps no run log, so there is nothing to resume', options: ['send the request again'] });
     let rows: readonly unknown[];
     try {
+      const record = (await log.port.open(log.projectId)).find((run) => run.runId === runId);
+      if (record?.cannotResume === true) return refuse(record.intent, { code: 'needs_input', reason: 'this run was not logged completely, so it cannot be resumed', options: ['discard the log and send the request again'] });
+      if (record === undefined) return refuse(RESUME_INTENT, { code: 'needs_input', reason: 'there is no open run with this id in this project', options: ['send the request again'] });
       rows = await log.port.events(runId);
     } catch (error) {
       return refuse(RESUME_INTENT, { code: 'needs_input', reason: `the run log could not be read: ${messageOf(error)}`, options: ['try again', 'discard the log and send the request again'] });
@@ -3991,6 +4066,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const intent = verdict.replay?.intent ?? RESUME_INTENT;
     if (!verdict.ok) return refuse(intent, resumeAskBack(verdict.reason, verdict.detail));
     const { replay } = verdict;
+    if (replay.skills === undefined) return refuse(intent, resumeAskBack('schema', 'the log has no loaded-skill snapshot, so its tool restrictions cannot be restored'));
     if (replay.ended !== undefined) return refuse(intent, { code: 'needs_input', reason: 'this run already finished, so there is nothing to resume', options: ['discard the log'] });
     // A conversation is continued on the wire it began on; a restored card makes no further model call, so it can be shown on any provider.
     const wireNow = nativeToolsFor({ profileId: resumeOptions.profileId ?? options.profileId, model: resumeOptions.model ?? options.model, thinking: undefined }) !== undefined;
