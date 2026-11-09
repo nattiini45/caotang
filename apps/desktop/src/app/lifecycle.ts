@@ -573,11 +573,10 @@ export interface ExportedBundle {
  */
 export async function exportBundle(store: RuntimeStore, session: ProjectSession): Promise<ExportedBundle> {
   await session.settle();
-  const warnings = session.saveHookWarnings();
   const sessions = await readSessions(store, session.projectId);
-  const bundle = await bundleOf(session.state, sessions, session.assets, coherenceTextOf(session), session.tasksHome()?.text());
+  const bundle = await bundleOf(session.state, sessions, session.assets, coherenceTextOf(session), session.tasksHome()?.text(), 'user', () => session.saveHookWarnings());
   session.markExported();
-  return { ...bundle, notices: [...bundle.notices, ...warnings] };
+  return bundle;
 }
 
 /**
@@ -621,6 +620,7 @@ async function bundleOf(
   coherence: string | undefined,
   tasks: string | undefined,
   copyFor: 'user' | 'internal' = 'user',
+  saveWarnings?: () => readonly string[],
 ): Promise<ExportedBundle> {
   const notices: string[] = [];
   const omissions: string[] = [];
@@ -631,9 +631,11 @@ async function bundleOf(
     );
   }
   // The findings file and the recurring tasks ride beside caotang.json (coherence.md §3, agent-harness.md §12), and the images in assets/.
+  const assetFiles = await assets.snapshot();
+  notices.push(...(saveWarnings?.() ?? []));
   const exported = await exportProjectZip(state, {
     sessions,
-    assets: await assets.snapshot(),
+    assets: assetFiles,
     ...(coherence === undefined ? {} : { coherence }),
     ...(tasks === undefined ? {} : { tasks }),
     copyFor,
@@ -1720,7 +1722,6 @@ export async function saveFolder(
   }
   await session.settle();
   const fs = folderArtifactFs(root);
-  const warnings = session.saveHookWarnings();
   const onDisk = await readManifestText(fs);
   // Whose project the folder holds (`folderProjectRoute`). A separate copy made from the folder's own book has an id of its own (adopt), and
   // writing it there would turn the folder's book into the copy, so that save is refused, before anything is written and whatever the
@@ -1779,6 +1780,7 @@ export async function saveFolder(
   // as it is copied (folder-guard.ts).
   const watch = watchSave(fs, { now, expected: before, held: held === null ? null : held.digests, report });
   const toWrite = copyState(session.state);
+  const warnings = session.saveHookWarnings();
   // As with documents, only the copy's own folder can hold skill files this session removed. Any other folder keeps every file it has.
   if (held === null) {
     toWrite.removedSkillFiles.clear();
