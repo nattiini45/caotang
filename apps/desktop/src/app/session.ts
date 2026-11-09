@@ -919,6 +919,10 @@ export class ProjectSession {
     return skillsView(this.state, (name) => this.skillReviews.pinOf(name));
   }
 
+  commandClient(): McpClient | undefined {
+    return this.harnessOptions.mcp?.client;
+  }
+
   /** Takes one skill folder into the project (`skill.import`): the files are staged, and the command names them. */
   importSkill(folder: string, files: readonly SkillFile[]): Result<ExecutionOutcome, CommandError> {
     return this.dispatch('skill.import', { stagingId: this.skillStaging.stage({ folder, files }) });

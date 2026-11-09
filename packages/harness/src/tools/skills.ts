@@ -75,6 +75,13 @@ export interface LoadedSkill {
   readonly body: string;
   readonly pin: string;
   readonly allowedTools?: readonly string[];
+  readonly origin?: 'writer';
+}
+
+export interface WriterSkill {
+  readonly name: string;
+  readonly pin: string;
+  readonly body: string;
 }
 
 /** The skills each turn has loaded, by turn id. Forgotten per turn (`forget`), so a body never reaches a later turn. */
@@ -111,17 +118,38 @@ export function skillBlock(skills: readonly LoadedSkill[]): string {
 
 const GENERIC = (name: string): string => `“${name.slice(0, 64)}” is not a skill you can load`;
 
+export function isWriterInvocable(candidate: SkillState): boolean {
+  return candidate.enabled && candidate.reviewed && candidate.skill.frontMatter['user-invocable'] !== false;
+}
+
+export function skillLoadData(skill: Skill, allowedTools: readonly string[] | undefined, unknown: readonly string[]) {
+  const files = skillResourcePaths(skill);
+  const notes = [
+    ...(skill.hasScripts ? ['This skill includes scripts. Caotang reads the instructions and does not run them.'] : []),
+    ...(unknown.length === 0 ? [] : [`Unknown allowed-tools names were ignored: ${unknown.join(', ')}.`]),
+  ];
+  return {
+    skill: skill.frontMatter.name,
+    label: skillLabel(skill.frontMatter.name),
+    instructions: skill.body.trim(),
+    ...(allowedTools === undefined ? {} : { allowedTools }),
+    ...(files.length === 0 ? {} : { files }),
+    ...(notes.length === 0 ? {} : { note: notes.join(' ') }),
+  };
+}
+
 /** The `skill.load` port. `cap` is the row's response cap, in tokens. */
-export function skillLoadPort(states: () => readonly SkillState[], loads: SkillLoads, cap: number, knownTools: () => ReadonlySet<string>, loadedReferences: (turnId: string) => void): ToolPort {
+export function skillLoadPort(states: () => readonly SkillState[], loads: SkillLoads, cap: number, knownTools: () => ReadonlySet<string>, loadedReferences: (turnId: string) => void, writer?: WriterSkill): ToolPort {
   return (params, context): ToolOutcome => {
     const name = String(params['name'] ?? '');
-    const found = states().find((candidate) => candidate.skill.frontMatter.name === name && isOffered(candidate));
+    const selected = writer ?? loads.of(context.turnId).find((skill) => skill.name === name && skill.origin === 'writer');
+    const found = states().find((candidate) => candidate.skill.frontMatter.name === name && (selected === undefined || selected.pin === candidate.skill.pin) && (writer === undefined ? isOffered(candidate) : isWriterInvocable(candidate) && writer.name === name));
     if (found === undefined) {
       // One answer for a name that does not exist and for a skill the writer has not turned on and reviewed, so the refusal says
       // nothing about a skill the model has not been told of.
       return failure(notFound(GENERIC(name), 'load only a skill named in the skills list', 'name')) as ToolOutcome;
     }
-    const { skill } = found;
+    const skill = selected === undefined ? found.skill : { ...found.skill, body: selected.body };
     const files = skillResourcePaths(skill);
     const declared = skill.frontMatter['allowed-tools']?.split(/\s+/u).filter(Boolean);
     const known = knownTools();
@@ -130,18 +158,7 @@ export function skillLoadPort(states: () => readonly SkillState[], loads: SkillL
     const limits = loads.of(context.turnId).flatMap((loaded) => loaded.allowedTools === undefined ? [] : [loaded.allowedTools]);
     if (allowedTools !== undefined) limits.push(allowedTools);
     const effective = limits[0]?.filter((tool, index, list) => list.indexOf(tool) === index && limits.every((limit) => limit.includes(tool)));
-    const notes = [
-      ...(skill.hasScripts ? ['This skill includes scripts. Caotang reads the instructions and does not run them.'] : []),
-      ...(unknown.length === 0 ? [] : [`Unknown allowed-tools names were ignored: ${unknown.join(', ')}.`]),
-    ];
-    const data = {
-      skill: skill.frontMatter.name,
-      label: skillLabel(skill.frontMatter.name),
-      instructions: skill.body.trim(),
-      ...(effective === undefined ? {} : { allowedTools: effective }),
-      ...(files.length === 0 ? {} : { files }),
-      ...(notes.length === 0 ? {} : { note: notes.join(' ') }),
-    };
+    const data = skillLoadData(skill, effective, unknown);
     if (!fitsCap(data, cap)) {
       return failure(
         limitExceeded(
@@ -151,7 +168,7 @@ export function skillLoadPort(states: () => readonly SkillState[], loads: SkillL
         ),
       ) as ToolOutcome;
     }
-    loads.add(context.turnId, { name: skill.frontMatter.name, body: skill.body.trim(), pin: skill.pin, ...(allowedTools === undefined ? {} : { allowedTools }) });
+    loads.add(context.turnId, { name: skill.frontMatter.name, body: skill.body.trim(), pin: skill.pin, ...(allowedTools === undefined ? {} : { allowedTools }), ...(selected === undefined ? {} : { origin: 'writer' }) });
     if (files.length > 0) loadedReferences(context.turnId);
     const value: ToolValue = { data, summary: `loaded the skill “${skill.frontMatter.name}”`, affected: [] };
     context.logRow(`loaded the skill “${skill.frontMatter.name}”`);
@@ -176,7 +193,7 @@ export function skillReadPort(states: () => readonly SkillState[], loads: SkillL
     const name = String(params['name'] ?? '');
     const path = String(params['path'] ?? '');
     const loaded = loads.of(context.turnId).find((skill) => skill.name === name);
-    const found = states().find((candidate) => candidate.skill.frontMatter.name === name && isOffered(candidate) && candidate.skill.pin === loaded?.pin);
+    const found = states().find((candidate) => candidate.skill.frontMatter.name === name && (loaded?.origin === 'writer' ? isWriterInvocable(candidate) : isOffered(candidate)) && candidate.skill.pin === loaded?.pin);
     if (loaded === undefined || found === undefined) {
       return failure(notFound(GENERIC(name), 'load a reviewed skill in this turn before reading its files', 'name')) as ToolOutcome;
     }

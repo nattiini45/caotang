@@ -9,7 +9,8 @@
 
 import { plural, t } from '@lingui/core/macro';
 import { useId, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react';
-import { matchCommands, menuQuery, type BuiltinCommand } from '@caotang/harness';
+import { BUILTIN_COMMANDS, menuQuery } from '@caotang/harness';
+import type { CommandChoice } from '../app/project-commands.js';
 
 import { radioStep } from './radio-keys.js';
 import { isImeEnter } from '../app/ime.js';
@@ -17,6 +18,7 @@ import { isImeEnter } from '../app/ime.js';
 /* lingui-set comment="Interpolated values: commandCount (how many commands match what is typed)" */
 
 export interface CommandComposerProps {
+  readonly commands?: readonly CommandChoice[];
   readonly value: string;
   readonly onChange: (value: string) => void;
   /** Runs a line the list completed whole: Enter on a command that needs no argument. */
@@ -27,9 +29,9 @@ export interface CommandComposerProps {
 }
 
 /** The arguments of a command as the list shows them: `<doc> [draft|continue]`. */
-const hintOf = (command: BuiltinCommand): string => command.args.map((arg) => arg.hint).join(' ');
+const hintOf = (command: CommandChoice): string => command.argumentHint ?? command.args.map((arg) => arg.hint).join(' ');
 
-export function CommandComposer({ value, onChange, onRun, placeholder, disabled, inputRef }: CommandComposerProps): ReactNode {
+export function CommandComposer({ value, onChange, onRun, placeholder, disabled, inputRef, commands = [] }: CommandComposerProps): ReactNode {
   const listId = useId();
   const [composing, setComposing] = useState(false);
   // Escape closes the list for the text it was pressed on; the next keystroke opens it again.
@@ -37,12 +39,12 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
   const [picked, setPicked] = useState<{ readonly forText: string; readonly name: string } | null>(null);
 
   const query = menuQuery(value);
-  const matches = query === undefined ? [] : matchCommands(query);
+  const matches = query === undefined ? [] : [...BUILTIN_COMMANDS, ...commands].filter((command) => command.name.startsWith(query));
   const visible = !disabled && !composing && closedFor !== value && matches.length > 0;
   const active = (picked?.forText === value ? matches.find((command) => command.name === picked.name) : undefined) ?? matches[0];
-  const optionId = (command: BuiltinCommand): string => `${listId}-${command.name}`;
+  const optionId = (command: CommandChoice): string => `${listId}-${command.name}`;
 
-  const complete = (command: BuiltinCommand): void => {
+  const complete = (command: CommandChoice): void => {
     onChange(`/${command.name} `);
     inputRef.current?.focus();
   };
@@ -116,9 +118,10 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => complete(command)}
               >
-                <span className="command-name">/{command.name}</span>
+                <span className="command-name"><bdi>/{command.name}</bdi></span>
                 {command.args.length === 0 ? null : <span className="command-hint">{hintOf(command)}</span>}
-                <span className="command-description">{command.description}</span>
+                <span className="command-description"><bdi>{command.description}</bdi></span>
+                {'source' in command ? <span className="command-description"><bdi>{command.source}</bdi></span> : null}
               </li>
             ))}
           </ul>

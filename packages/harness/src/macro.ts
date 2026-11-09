@@ -74,9 +74,9 @@ export interface MacroCheck {
   readonly tools: readonly string[];
 }
 
-/** The command name a macro's turn is logged under: `macro-` and the slug, cut to the 32 characters a command name may have. */
+/** The command name a macro's turn is logged under: `macro-` and the complete slug. */
 export function macroCommandName(slug: string): string {
-  return `macro-${slug}`.slice(0, 32);
+  return `macro-${slug}`;
 }
 
 /** Whether a logged command name is a macro's, so a turn resumed from the run log is kept out of the planner as the run that began it was. */

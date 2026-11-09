@@ -287,7 +287,7 @@ describe('expandMacro', () => {
 
   it('names a macro’s turn by its slug and its name', () => {
     expect(macroCommandName('revise-chapter')).toBe('macro-revise-chapter');
-    expect(macroCommandName('x'.repeat(40))).toHaveLength(32);
+    expect(macroCommandName('x'.repeat(40))).toHaveLength(46);
     expect(macroIntent({ name: 'Revise chapter' })).toBe('Run the macro “Revise chapter”');
   });
 });

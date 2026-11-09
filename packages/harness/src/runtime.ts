@@ -120,7 +120,7 @@ import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, ty
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
-import { createSkillLoads, skillLoadPort, skillReadPort, skillResourcePaths, skillStatesOf, skillToolRefusal, type LoadedSkill, type SkillsOption } from './tools/skills.js';
+import { createSkillLoads, isWriterInvocable, skillLoadData, skillLoadPort, skillReadPort, skillResourcePaths, skillStatesOf, skillToolRefusal, type LoadedSkill, type SkillsOption } from './tools/skills.js';
 import { storyboardPorts } from './tools/storyboard.js';
 import { stageTimelineEdit, type TimelineProposal } from './tools/timeline-edit.js';
 import { stageTranscriptionPlan, transcriptionPort, type PictureTranscriptionHost, type PictureTranscriptionPlan } from './tools/transcription.js';
@@ -331,6 +331,7 @@ export interface Harness {
   skillCatalog(): SkillCatalog | undefined;
   /** The skills `skill.load` has loaded under this turn, in the order they were loaded. Forgotten by `endTurn`. */
   loadedSkills(turnId: string): readonly LoadedSkill[];
+  loadWriterSkill(selection: { readonly name: string; readonly pin: string; readonly body: string }, turn: TurnContext): ToolOutcome;
   restoreSkills(turnId: string, skills: readonly LoadedSkill[]): Result<void, CommandError>;
   /**
    * Loads deferred native rows for a turn without a search: a UI action that starts a turn about one of them, or the context table
@@ -705,6 +706,8 @@ export function createHarness(options: HarnessOptions): Harness {
   const skillSource = options.skills;
   const skillStates = (): readonly SkillState[] => (skillSource === undefined ? [] : skillStatesOf(state, skillSource));
   const SKILL_LOAD_CAP = capOf('skill.load');
+  let writerSkill: { readonly name: string; readonly pin: string; readonly body: string } | undefined;
+  const knownSkillTools = (): ReadonlySet<string> => new Set([...TOOL_METADATA.filter((tool) => tool.name !== 'agent.plan').map((tool) => tool.name), ...index().tools.map((tool) => tool.qualifiedName)]);
   // The coherence engine answers its two synchronous tools by default (tools/coherence.ts), and its review, which awaits a
   // model, is the default async port (`asyncPorts`). A caller's port of the same name replaces the default, so the app can
   // supply its own. `tool.search` is a read, so it is wired whether or not a server is connected (tools/search.ts).
@@ -716,12 +719,12 @@ export function createHarness(options: HarnessOptions): Harness {
     'tool.search': toolSearchPort(index, deferredRows, loaded),
     // The project's skills: wired only where the app says how to find the writer's review of one (HarnessOptions.skills).
     ...(options.skills === undefined ? {} : {
-      'skill.load': skillLoadPort(skillStates, skillLoads, SKILL_LOAD_CAP,
-        () => new Set([...TOOL_METADATA.filter((tool) => tool.name !== 'agent.plan').map((tool) => tool.name), ...index().tools.map((tool) => tool.qualifiedName)]),
+      'skill.load': (params, context) => skillLoadPort(skillStates, skillLoads, SKILL_LOAD_CAP,
+        knownSkillTools,
         (turnId) => {
           syncLoadedTurn(turnId);
           loaded.load([{ source: 'native', name: 'skill.read' }]);
-        }),
+        }, writerSkill)(params, context),
       'skill.read': skillReadPort(skillStates, skillLoads, capOf('skill.read')),
     }),
     ...(registry['shot.setMeta'].apply === undefined ? {} : storyboardPorts(options.presentAssets ?? (() => new Set<string>()))),
@@ -1566,13 +1569,23 @@ export function createHarness(options: HarnessOptions): Harness {
       return catalog === undefined || catalog.text === '' ? undefined : catalog;
     },
     loadedSkills: (turnId) => skillLoads.of(turnId),
+    loadWriterSkill: (selection, turn) => {
+      writerSkill = selection;
+      try {
+        return callTool({ name: 'skill.load', params: { name: selection.name }, callId: 'writer-skill' }, turn);
+      } finally {
+        writerSkill = undefined;
+      }
+    },
     restoreSkills: (turnId, snapshots) => {
       const states = skillStates();
-      const found = snapshots.map((snapshot) => states.find((candidate) => candidate.skill.frontMatter.name === snapshot.name && isOffered(candidate) && candidate.skill.pin === snapshot.pin && candidate.skill.body.trim() === snapshot.body));
+      const known = knownSkillTools();
+      const found = snapshots.map((snapshot) => states.find((candidate) => candidate.skill.frontMatter.name === snapshot.name && candidate.skill.pin === snapshot.pin && (snapshot.origin === 'writer' ? isWriterInvocable(candidate) : snapshot.origin === undefined && isOffered(candidate) && candidate.skill.body.trim() === snapshot.body)));
       for (const [index, snapshot] of snapshots.entries()) {
         const skill = found[index]?.skill;
         const declared = skill?.frontMatter['allowed-tools']?.split(/\s+/u).filter(Boolean);
-        if (skill === undefined || (declared !== undefined && (snapshot.allowedTools === undefined || snapshot.allowedTools.some((name) => !declared.includes(name))))) {
+        const unknown = declared?.filter((name) => !known.has(name)) ?? [];
+        if (skill === undefined || (declared !== undefined && (snapshot.allowedTools === undefined || snapshot.allowedTools.some((name) => !declared.includes(name)))) || (snapshot.origin === 'writer' && !fitsCap(skillLoadData({ ...skill, body: snapshot.body }, snapshot.allowedTools, unknown), SKILL_LOAD_CAP))) {
           return failure(refusal('permission-denied', 'The run’s loaded skills no longer match their approved snapshots, so it was not resumed.', { correctiveHint: 'discard the log and send the request again after reviewing the skills' })) as Result<void, CommandError>;
         }
       }

@@ -100,6 +100,9 @@ test('Save as macro is offered under the approved plan, and the macro it makes r
   await expect.poll(() => treeStatus(page, 'The Storm')).toBe('revised');
   const last = page.locator('.agent-turn').last();
   await expect(last.getByTestId('checkpoint')).toBeVisible();
+  await expect(last.locator('.agent-phase')).toHaveText('Applied');
+  await expect(last.getByRole('button', { name: 'Save as command…', exact: true })).toHaveCount(0);
+  await expect(turn(page).getByRole('button', { name: 'Save as command…', exact: true })).toBeVisible();
 
   // One undo group for the run: restoring the turn takes both steps back.
   await last.getByTestId('checkpoint').getByRole('button', { name: 'Restore to before this turn' }).click();
