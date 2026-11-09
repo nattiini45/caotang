@@ -61,6 +61,7 @@ import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
 import { AgentRulesSettings } from './AgentRulesSettings.js';
 import { MacrosPanel } from './MacrosPanel.js';
+import { HookSettings } from './HookSettings.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
 import { PictureStorageMeter } from './PictureStorageMeter.js';
@@ -86,13 +87,14 @@ function FormMessage({ message }: { message: { readonly text: string; readonly t
   );
 }
 
-export type SettingsSection = 'providers' | 'context' | 'agent' | 'macros' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
+export type SettingsSection = 'providers' | 'context' | 'agent' | 'macros' | 'hooks' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
 
 const SECTIONS: readonly { readonly id: SettingsSection; readonly label: MessageDescriptor }[] = [
   { id: 'providers', label: msg`Providers` },
   { id: 'context', label: msg`Context` },
   { id: 'agent', label: msg`Agent` },
   { id: 'macros', label: msg`Macros` },
+  { id: 'hooks', label: msg`Hooks` },
   { id: 'writing', label: msg`Writing` },
   { id: 'coherence', label: msg`Coherence` },
   { id: 'mcp', label: msg`MCP & tools` },
@@ -193,6 +195,7 @@ export function Settings({
               />
             ) : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
+            {section === 'hooks' ? <HookSettings session={session} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
             {section === 'appearance' ? <AppearanceSection services={services} /> : null}

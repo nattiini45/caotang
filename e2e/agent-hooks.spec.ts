@@ -4,6 +4,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';
 import { ZIP_ENGINE } from '../packages/store/src/index.js';
+import { binderRow } from './support.js';
 
 /**
  * The writer's hooks (hooks.md) on the demo provider, so no key is needed. A hook lives in the project's `caotang.json` under
@@ -21,6 +22,9 @@ async function openSample(page: Page): Promise<void> {
 }
 
 async function sendIntent(page: Page, intent: string): Promise<void> {
+  const notice = page.getByRole('status').filter({ hasText: /This project defines/ });
+  await expect(notice).toBeVisible();
+  await notice.getByRole('button', { name: 'Dismiss', exact: true }).click();
   const field = page.getByRole('combobox', { name: 'Intent' });
   // A project that was just opened has its agent panel closed.
   if ((await field.count()) === 0) await page.getByRole('region', { name: 'Agent' }).getByRole('button', { name: 'Agent', exact: true }).click();
@@ -122,4 +126,62 @@ test('a hook that is turned off, and a hook for another tool, say nothing', asyn
   await expect(card.locator('.plan-step-hook')).toHaveCount(0);
   await expect(card.locator('.plan-step-error')).toHaveCount(0);
   await card.getByRole('button', { name: /^Cancel/ }).click();
+});
+
+test('an export hook blocks beside Compile and a writer can override it for one export only', async ({ page }, testInfo) => {
+  await openSample(page);
+  const bundle = await exportedBundle(page);
+  await importAndOpen(page, await bundleWithHooks(testInfo, bundle, 'export-blocked', [{
+    ...LANTERN,
+    name: 'Only final scenes', event: 'export.before', matcher: { issuedBy: 'any' }, onBlock: 'block',
+    handler: { kind: 'check', check: { kind: 'status', allowed: ['Not a status'] } },
+  }]));
+  await expect(page.getByText('This project defines one hook. Review it in Settings › Hooks.', { exact: false })).toBeVisible();
+  await binderRow(page, 'The Landing').click();
+  await page.getByRole('button', { name: 'Compile…', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export', exact: true });
+  await dialog.getByRole('textbox', { name: 'Save these settings as a new recipe' }).fill('Hook check');
+  await dialog.getByRole('button', { name: 'Save as recipe' }).click();
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Only final scenes');
+  await expect(dialog.getByRole('button', { name: 'Compile anyway', exact: true })).toBeVisible();
+  await dialog.getByRole('radio', { name: /Only.*The Landing/ }).check();
+  await expect(dialog.getByRole('button', { name: 'Compile anyway', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Only final scenes');
+  await dialog.locator('input[name="export-format"][value="md"]').check();
+  await expect(dialog.getByRole('button', { name: 'Compile anyway', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Only final scenes');
+  await dialog.getByRole('combobox', { name: 'Recipe', exact: true }).selectOption('Manuscript');
+  await expect(dialog.getByRole('button', { name: 'Compile anyway', exact: true })).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Only final scenes');
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    dialog.getByRole('button', { name: 'Compile anyway', exact: true }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBeTruthy();
+  await expect(dialog).not.toBeVisible();
+  await page.getByRole('button', { name: 'Compile…', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Only final scenes');
+});
+
+test('Settings lists a project hook, switches it off without deleting it, and deletes it through the user-only command', async ({ page }, testInfo) => {
+  await openSample(page);
+  const bundle = await exportedBundle(page);
+  await importAndOpen(page, await bundleWithHooks(testInfo, bundle, 'manage-hooks', [LANTERN]));
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Hooks', exact: true }).click();
+  const row = settings.getByTestId('hook-row');
+  await expect(row).toContainText('No lanterns');
+  await row.getByRole('checkbox').uncheck();
+  await expect(row.getByRole('checkbox')).not.toBeChecked();
+  await expect(settings.getByRole('status')).toContainText('Saved.');
+  await row.getByRole('button', { name: /Delete/ }).click();
+  await expect(row).toHaveCount(0);
+  await expect(settings.getByRole('status')).toContainText('Undo brings it back.');
 });

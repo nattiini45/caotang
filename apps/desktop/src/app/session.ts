@@ -57,6 +57,7 @@ import {
   createViewState,
   execute,
   executeAsync,
+  refusal,
   restorePlan,
   type ActivityLog,
   type BusContext,
@@ -125,7 +126,7 @@ import { assetRecordsOf } from '@caotang/exporter/export-metadata';
 import type { EmitFailure, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { checkMacro, dialogueFactsOf, excludedBy, withheldState, type Harness, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
+import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, withheldState, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -489,7 +490,7 @@ export class ProjectSession {
           void this.loadExporter().catch(() => undefined);
           throw this.exportNotReady();
         }
-        return service.commandPort().compile(state, request);
+        return service.commandPort().compile(state, { ...request, ...(this.compileHookNotes === undefined ? {} : { notes: this.compileHookNotes }) });
       },
     };
     this.registry = createProjectCommandRegistry({
@@ -683,15 +684,23 @@ export class ProjectSession {
    * ------------------------------------------------------------------ */
 
   /** Build a user command with a fresh id and run it. The one door the UI uses. */
-  dispatch<N extends CommandName>(name: N, params: CommandParams[N]): Result<ExecutionOutcome, CommandError> {
+  dispatch<N extends CommandName>(name: N, params: CommandParams[N], options: { readonly compileAnyway?: boolean } = {}): Result<ExecutionOutcome, CommandError> {
     return this.run({
       id: newId('cmd'),
       name,
       params,
       issuedBy: 'user',
       createdAt: Date.now(),
-    });
+    }, options.compileAnyway === true);
   }
+
+  saveHookWarnings(): readonly string[] {
+    return hookMessages(createHookRunner(() => this.state.manifest.agent?.hooks, { state: this.state }).run({
+      event: 'project.save', issuedBy: 'user', tool: '', params: {}, affected: this.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id),
+    }));
+  }
+
+  private compileHookNotes: (() => readonly string[]) | undefined;
 
   /**
    * Every dispatch that returned an error, oldest first. A refused dispatch writes no activity row (command-bus §8: one
@@ -703,8 +712,25 @@ export class ProjectSession {
   }
 
   /** `execute()` plus the two things every dispatch owes the UI: a re-render and a persistence pass. */
-  private run(command: Command): Result<ExecutionOutcome, CommandError> {
-    const result = execute(command, this.bus, this.registry);
+  private run(command: Command, compileAnyway = false): Result<ExecutionOutcome, CommandError> {
+    const exporting = command.issuedBy === 'user' && (command.name === 'export.compile' || command.name === 'export.compileSelection');
+    const runner = exporting && (this.state.manifest.agent?.hooks?.length ?? 0) > 0 ? createHookRunner(() => this.state.manifest.agent?.hooks, { state: this.state }) : undefined;
+    const input = { issuedBy: 'user' as const, tool: 'export.compile', params: command.params as Readonly<Record<string, unknown>>, affected: runner === undefined ? [] : exportHookNodes(this.state, command.params as Readonly<Record<string, unknown>>) };
+    const runs: HookRun[] = [...(runner?.run({ ...input, event: 'export.before' }) ?? [])];
+    const blocked = blockOf(runs);
+    const previous = this.compileHookNotes;
+    this.compileHookNotes = runner === undefined ? undefined : () => {
+      runs.push(...runner.run({ ...input, event: 'export.after' }));
+      return hookMessages(runs);
+    };
+    let result: Result<ExecutionOutcome, CommandError>;
+    try {
+      result = blocked !== undefined && !compileAnyway
+        ? err(refusal('permission-denied', hookMessages([blocked]).join(' '), { correctiveHint: t`change the hook in Settings › Hooks, or choose Compile anyway for this export`, details: { hookBlocked: true } }))
+        : execute(command, this.bus, this.registry);
+    } finally {
+      this.compileHookNotes = previous;
+    }
     if (!result.ok) {
       this.rejections.push({ command: command.name, issuedBy: command.issuedBy, code: result.error.code });
     } else if (command.name === 'project.deleteNode') {

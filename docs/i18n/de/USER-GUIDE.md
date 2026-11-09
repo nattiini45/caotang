@@ -449,6 +449,7 @@ Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen
 
 ## Hooks
 <!-- source: aec2ad42 -->
+> **Translation stale:** This section no longer matches the English source. The in-app help link opens the current English section.
 
 Dieser Abschnitt ist noch nicht übersetzt. Die englische Fassung im [englischen Benutzerhandbuch](../../USER-GUIDE.md) ist maßgeblich; der Hilfe-Link in Caotang öffnet sie.
 
@@ -529,9 +530,9 @@ Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen be
 - **Zurück zu Klassisch.** **Klassische Oberfläche verwenden** unter **⋯ › Darstellung**, **Zur klassischen Oberfläche wechseln** in der Suche oder **Klassisch** unter Einstellungen › Erscheinungsbild › Oberfläche wechselt sofort zurück, und Caotang merkt sich die Wahl in diesem Browser. Der Code von Modern wird nur geladen, solange Modern an ist; Klassisch lädt nichts zusätzlich.
 
 ## Einstellungen
-<!-- source: 517e8dc0 -->
+<!-- source: 34501b4c -->
 
-Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat neun Abschnitte: Anbieter, Kontext, Agent, Makros, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
+Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat zehn Abschnitte: Anbieter, Kontext, Agent, Makros, Hooks, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
 
 Zahlen, Daten und Uhrzeiten folgen der Sprache der Oberfläche (siehe **Erscheinungsbild**), mit der Region Ihres Systems, wo sie passt: In einer englischen Oberfläche lautet das Datum eines Ziels auf einem britischen System „31 Oct 2026“, auf einem amerikanischen „Oct 31, 2026“, und eine englische Oberfläche auf einem System in einer anderen Sprache verwendet US-Englisch. Kodex-Namen, Figuren und Stichwörter werden in der Reihenfolge der Projektsprache (Projektdetails) aufgeführt, ohne Rücksicht auf Groß- und Kleinschreibung oder Akzente und mit Zahlen nach ihrem Wert, sodass „Kapitel 9“ vor „Kapitel 10“ kommt und ein schwedisches Projekt Å nach Z einordnet.
 

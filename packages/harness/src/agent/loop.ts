@@ -86,7 +86,7 @@ import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
 import { isResultOf } from '../results.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome, ToolValue } from '../types.js';
-import type { HookRun } from '../hooks.js';
+import { blockOf, type HookRun } from '../hooks.js';
 import { canonicalJson, isRecord } from '../util.js';
 import type { TraceInput, TraceSink } from './trace.js';
 import { isCommandName } from '../commands/slash.js';
@@ -3920,7 +3920,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     let settled: Settled;
     try {
-      settled = restored?.ok === false ? { status: 'failed', askBack: askBackFor(restored.error) } : await first(turn);
+      if (restored?.ok === false) {
+        settled = { status: 'failed', askBack: askBackFor(restored.error) };
+      } else {
+        const submitted = harness.lifecycleHooks({ event: 'turn.submit', turnId: turn.id, tool: '', params: {}, text: intent, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
+        flushHooks(turn);
+        const blocked = blockOf(submitted);
+        settled = blocked === undefined ? await first(turn) : { status: 'failed', askBack: askBackOf({ code: 'hook_blocked', reason: `Hook “${blocked.name}”: ${blocked.decision.reason}`, options: ['change the request so the hook passes', 'change the hook in Settings › Hooks'] }) };
+      }
     } catch (error) {
       settled = stoppedBy(error);
     }
@@ -3939,6 +3946,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // A call a limit cut short that its tool absorbs (a review reports what it had, with a note) leaves the turn's status as the tool reported it.
     if (limitStop !== undefined && settled.budgetStop === undefined && turnOptions.signal?.aborted !== true) settled = { ...settled, budgetStop: limitStop };
     syncSteps(turn);
+
+    harness.lifecycleHooks({ event: 'turn.end', turnId: turn.id, tool: '', params: {}, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
+    flushHooks(turn);
 
     // An unflushed view (a cancelled or failed turn) must not retain its bytes after the turn is over.
     options.pictureOutbox?.take(turn.id);

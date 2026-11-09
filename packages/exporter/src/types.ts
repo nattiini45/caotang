@@ -273,6 +273,7 @@ export interface ExportCommandRequest {
   readonly recipeName?: string;
   readonly templateId?: string;
   readonly at: number;
+  readonly notes?: () => readonly string[];
 }
 
 /** What the bus reports back: the compile's facts. Mirrors the store's `ExportCommandDigest`. */

@@ -31,6 +31,7 @@ import {
   type RunEventDraft,
   type RuleSet,
   type RunLogPort,
+  type HookSpec,
 } from '../../src/index.js';
 import { FRIEND, LANDING, STORM, clock, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
@@ -531,12 +532,12 @@ describe('loaded skill restrictions survive a reload', () => {
     return { state, log, runId, pin, loads };
   }
 
-  async function resume(fixture: Awaited<ReturnType<typeof interrupted>>, mode: PermissionMode = 'auto', reviewedPin: () => string | undefined = () => fixture.pin, port: RunLogPort = fixture.log) {
+  async function resume(fixture: Awaited<ReturnType<typeof interrupted>>, mode: PermissionMode = 'auto', reviewedPin: () => string | undefined = () => fixture.pin, port: RunLogPort = fixture.log, hooks: readonly HookSpec[] = []) {
     const { state, runId } = fixture;
     const requests: ChatRequest[] = [];
     const cards: PendingCard[] = [];
     const base = await mockGateway([transcript(request, [steps(load), steps(...writes), answer('Done.')])]);
-    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin } });
+    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin }, hooks });
     const session = createAgentSession({
       harness,
       gateway: { ...base, complete: (req, signal) => { requests.push(req); return base.complete(req, signal); } },
@@ -595,6 +596,17 @@ describe('loaded skill restrictions survive a reload', () => {
     expect(cards).toEqual([]);
     expect(requests).toEqual([]);
     expect(outcomeOf(fixture.state)).toEqual(before);
+  });
+
+  it('validates restored skills before running a turn.submit hook', async () => {
+    const fixture = await interrupted('conversation');
+    const hooks: HookSpec[] = [{ id: 'h_0000000001', name: 'Block submission', event: 'turn.submit', onBlock: 'block', enabled: true,
+      handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'Load the style skill', message: 'Do not start.' }] } } }];
+    const { report, requests } = await resume(fixture, 'auto', () => undefined, fixture.log, hooks);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain('skill');
+    expect(report.hooks ?? []).toEqual([]);
+    expect(requests).toEqual([]);
   });
 
   it.each(['review', 'pin', 'missing snapshot'] as const)('refuses a changed %s without a model call or a write', async (changed) => {
