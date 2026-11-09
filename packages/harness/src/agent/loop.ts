@@ -872,10 +872,10 @@ const DELEGATE_ALONE =
   'agent.delegate runs before anything is written, and its result comes back to you first. Nothing was run. Call it in a reply without write steps (reads may go with it), then plan the writes, including any step the agent proposed.';
 
 const SKILL_BEFORE_DRAFT =
-  'skill.load must finish before a later step is drafted. Load the skill in a read-only reply first, then plan from its instructions and tool limits.';
+  'skill.load and skill.read must finish before later steps are drafted. Load the skill and read its references in a read-only reply first, then plan from the instructions and tool limits.';
 
 function pendingSkillBefore(steps: readonly PlanStep[], index: number, done?: (index: number) => boolean): boolean {
-  return steps.slice(0, index).some((step, at) => step.tool === 'skill.load' && done?.(at) !== true);
+  return steps.slice(0, index).some((step, at) => (step.tool === 'skill.load' || step.tool === 'skill.read') && done?.(at) !== true);
 }
 
 function skillDraftBlocked(editable: EditableSteps): boolean {

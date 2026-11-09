@@ -127,6 +127,9 @@ export function skillLoadPort(states: () => readonly SkillState[], loads: SkillL
     const known = knownTools();
     const allowedTools = declared?.filter((name) => known.has(name));
     const unknown = declared?.filter((name) => !known.has(name)) ?? [];
+    const limits = loads.of(context.turnId).flatMap((loaded) => loaded.allowedTools === undefined ? [] : [loaded.allowedTools]);
+    if (allowedTools !== undefined) limits.push(allowedTools);
+    const effective = limits[0]?.filter((tool, index, list) => list.indexOf(tool) === index && limits.every((limit) => limit.includes(tool)));
     const notes = [
       ...(skill.hasScripts ? ['This skill includes scripts. Caotang reads the instructions and does not run them.'] : []),
       ...(unknown.length === 0 ? [] : [`Unknown allowed-tools names were ignored: ${unknown.join(', ')}.`]),
@@ -135,6 +138,7 @@ export function skillLoadPort(states: () => readonly SkillState[], loads: SkillL
       skill: skill.frontMatter.name,
       label: skillLabel(skill.frontMatter.name),
       instructions: skill.body.trim(),
+      ...(effective === undefined ? {} : { allowedTools: effective }),
       ...(files.length === 0 ? {} : { files }),
       ...(notes.length === 0 ? {} : { note: notes.join(' ') }),
     };

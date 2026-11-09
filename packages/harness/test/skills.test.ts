@@ -261,6 +261,7 @@ describe('loaded allowed-tools', () => {
     for (const names of ['', 'not.a.tool', 'doc.read not.a.tool']) {
       const { harness } = withSkills({ style: limited(names) });
       const result = valueOf(load(harness, 'style'));
+      expect(result.data).toMatchObject({ allowedTools: names.includes('doc.read') ? ['doc.read'] : [] });
       if (names.includes('not.a.tool')) expect(result.data).toMatchObject({ note: expect.stringContaining('not.a.tool') });
       expect(refusalOf(run(harness, 'project.overview', {}, { turnId: 'turn-skill' })).code).toBe('permission-denied');
     }
@@ -269,15 +270,15 @@ describe('loaded allowed-tools', () => {
   it('intersects loaded lists and cannot widen a restriction by reloading an edited skill', () => {
     const other = skillFiles('other', { extra: ['allowed-tools: doc.read'] });
     const { harness, state, pins } = withSkills({ style: limited('skill.load doc.read project.overview'), other });
-    valueOf(load(harness, 'style'));
-    valueOf(load(harness, 'other'));
+    expect(valueOf(load(harness, 'style')).data).toMatchObject({ allowedTools: ['skill.load', 'doc.read', 'project.overview'] });
+    expect(valueOf(load(harness, 'other')).data).toMatchObject({ allowedTools: ['doc.read'] });
     expect(refusalOf(run(harness, 'project.overview', {}, { turnId: 'turn-skill' })).code).toBe('permission-denied');
     valueOf(run(harness, 'doc.read', { doc: LANDING }, { turnId: 'turn-skill' }));
     const solo = withSkills({ style: limited('skill.load doc.read') });
-    valueOf(load(solo.harness, 'style'));
+    expect(valueOf(load(solo.harness, 'style')).data).toMatchObject({ allowedTools: ['skill.load', 'doc.read'] });
     solo.state.skills.set('style', skillFiles('style'));
     solo.pins.set('style', pinOf('style', solo.state.skills.get('style') ?? []));
-    valueOf(load(solo.harness, 'style'));
+    expect(valueOf(load(solo.harness, 'style')).data).toMatchObject({ allowedTools: ['skill.load', 'doc.read'] });
     expect(refusalOf(run(solo.harness, 'project.overview', {}, { turnId: 'turn-skill' })).code).toBe('permission-denied');
     state.skills.set('style', skillFiles('style'));
     pins.clear();
