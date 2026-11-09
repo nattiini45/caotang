@@ -128,6 +128,15 @@ const HEADER_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const MAX_CUSTOM_HEADERS = 16;
 const MAX_HEADER_VALUE = 1_024;
 
+function isRecord(raw: unknown): raw is Record<string, unknown> {
+  return typeof raw === 'object' && raw !== null && !Array.isArray(raw);
+}
+
+function trimString(raw: string, field: string): string {
+  if (typeof raw !== 'string') throw new ProfileError('invalid', 'Enter a text value for this field.', field);
+  return raw.trim();
+}
+
 /**
  * A generic profile's extra headers. Names must be header names and values printable —
  * a newline would let a header smuggle another header. `null` clears the set.
@@ -136,6 +145,7 @@ const MAX_HEADER_VALUE = 1_024;
  */
 function checkHeaders(kind: ProfileKind, preset: PresetDef | undefined, raw: Readonly<Record<string, string>> | null | undefined): Record<string, string> | undefined {
   if (raw === undefined || raw === null) return undefined;
+  if (!isRecord(raw)) throw new ProfileError('invalid', 'Enter custom headers as a name-to-value object.', 'customHeaders');
   if (kind === 'mock' || (preset !== undefined && preset.id !== 'generic')) {
     throw new ProfileError('invalid', 'Custom headers are only available on a generic OpenAI-compatible endpoint.', 'customHeaders');
   }
@@ -147,7 +157,7 @@ function checkHeaders(kind: ProfileKind, preset: PresetDef | undefined, raw: Rea
   for (const [rawName, rawValue] of entries) {
     const name = rawName.trim().toLowerCase();
     if (!HEADER_NAME.test(name)) throw new ProfileError('invalid', `"${rawName}" is not a valid header name.`, 'customHeaders');
-    const value = rawValue.trim();
+    const value = trimString(rawValue, 'customHeaders');
     if (value === '') throw new ProfileError('invalid', `The ${name} header is empty.`, 'customHeaders');
     const hasControl = [...value].some((ch) => {
       const code = ch.charCodeAt(0);
@@ -162,7 +172,7 @@ function checkHeaders(kind: ProfileKind, preset: PresetDef | undefined, raw: Rea
 }
 
 function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
-  const name = (raw.name ?? '').trim();
+  const name = trimString(raw.name ?? '', 'name');
   if (name === '') throw new ProfileError('invalid', 'Give the profile a name.', 'name');
   if (name.length > 80) throw new ProfileError('invalid', 'The profile name is longer than 80 characters.', 'name');
 
@@ -171,22 +181,28 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
   let preset: PresetDef | undefined;
   let fields: Record<string, string> | undefined;
   if (kind === 'mock') {
-    const given = (raw.baseUrl ?? '').trim();
+    const given = trimString(raw.baseUrl ?? '', 'baseUrl');
     if (given !== '' && given !== MOCK_BASE_URL) {
       throw new ProfileError('invalid', `A mock profile uses ${MOCK_BASE_URL} as its base URL.`, 'baseUrl');
     }
     baseUrl = MOCK_BASE_URL;
-    defaultModel = (raw.defaultModel ?? '').trim() || MOCK_DEFAULT_MODEL;
+    defaultModel = trimString(raw.defaultModel ?? '', 'defaultModel') || MOCK_DEFAULT_MODEL;
   } else {
+    if (raw.preset !== undefined && raw.preset !== null && typeof raw.preset !== 'string') {
+      throw new ProfileError('invalid', 'Choose one of the provider presets.', 'preset');
+    }
     preset = presetFor(raw.preset ?? 'generic');
     if (preset === undefined) {
       throw new ProfileError('invalid', `"${raw.preset ?? ''}" is not one of the provider presets.`, 'preset');
     }
     // The extra fields a preset declares; unknown keys in `fields` are ignored.
+    if (raw.fields !== undefined && raw.fields !== null && !isRecord(raw.fields)) {
+      throw new ProfileError('invalid', 'Enter provider fields as a name-to-value object.', 'fields');
+    }
     if (preset.fields !== undefined || raw.fields !== undefined) {
       fields = {};
       for (const field of preset.fields ?? []) {
-        const value = (raw.fields?.[field.key] ?? field.defaultValue ?? '').trim();
+        const value = trimString(raw.fields?.[field.key] ?? field.defaultValue ?? '', `fields.${field.key}`);
         if (field.required && value === '') {
           throw new ProfileError('invalid', `Enter the ${field.label.toLowerCase()} for this provider.`, `fields.${field.key}`);
         }
@@ -195,10 +211,10 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
       if (Object.keys(fields).length === 0) fields = undefined;
     }
     // The base URL: the save's own when given, else the preset's (templated from fields).
-    const candidate = (raw.baseUrl ?? '').trim() !== '' ? raw.baseUrl : (preset.baseUrlFor?.(fields ?? {}) ?? preset.baseUrl);
+    const candidate = trimString(raw.baseUrl ?? '', 'baseUrl') !== '' ? raw.baseUrl : (preset.baseUrlFor?.(fields ?? {}) ?? preset.baseUrl);
     // A local model preset may use http to this computer; every other endpoint is https only.
     baseUrl = preset.local === undefined ? normalizeBaseUrl(candidate ?? '') : normalizeLocalBaseUrl(candidate ?? '');
-    defaultModel = (raw.defaultModel ?? '').trim() || preset.defaultModel;
+    defaultModel = trimString(raw.defaultModel ?? '', 'defaultModel') || preset.defaultModel;
     if (defaultModel === '') {
       throw new ProfileError('invalid', 'Enter the model name, for example openai/gpt-4.1-mini.', 'defaultModel');
     }
@@ -222,6 +238,7 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     checked.maxOutputTokens = raw.maxOutputTokens;
   }
   if (raw.pricePer1k !== undefined) {
+    if (!isRecord(raw.pricePer1k)) throw new ProfileError('invalid', 'Prices must be zero or more.', 'pricePer1k');
     const { prompt, completion } = raw.pricePer1k;
     if (![prompt, completion].every((n) => Number.isFinite(n) && n >= 0)) {
       throw new ProfileError('invalid', 'Prices must be zero or more.', 'pricePer1k');
@@ -292,7 +309,7 @@ function checkParams(raw: RequestParams): RequestParams | undefined {
 
 /** A profile's caching policy, checked: `off` or `auto`, and Anthropic's lifetime `5m` or `1h`. Anything else is refused. */
 function checkCachePolicy(raw: CachePolicy | null): CachePolicy {
-  if (raw === null || typeof raw !== 'object') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
+  if (!isRecord(raw)) throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
   if (raw.mode !== 'off' && raw.mode !== 'auto') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
   if (raw.ttl !== undefined && raw.ttl !== '5m' && raw.ttl !== '1h') {
     throw new ProfileError('invalid', 'A cached prompt is kept for 5 minutes or 1 hour.', 'promptCache');
@@ -305,7 +322,7 @@ function checkCachePolicy(raw: CachePolicy | null): CachePolicy {
  * pasted with a line break makes every request fail with a confusing 401.
  */
 function checkKey(raw: string, keyOptional: boolean): string {
-  const key = raw.trim();
+  const key = trimString(raw, 'apiKey');
   if (/\s/.test(key)) throw new ProfileError('invalid', 'The API key contains a space or a line break. Paste it again.', 'apiKey');
   requireKeyFor(key !== '', keyOptional);
   return key;
@@ -371,8 +388,8 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
     async create(input) {
       // The retired kind name still arrives in data written before presets; it is the endpoint kind.
       const kind: ProfileKind = (input.kind as string) === 'openai-compatible' ? 'endpoint' : input.kind;
-      const preset = kind === 'endpoint' ? presetFor(input.preset ?? 'generic') : undefined;
       const fields = checkFields(kind, input);
+      const preset = kind === 'endpoint' ? presetFor(input.preset ?? 'generic') : undefined;
       const key = kind === 'endpoint' ? checkKey(input.apiKey ?? '', preset?.keyOptional === true) : '';
       const id = freshId();
       // The key is sealed before the record exists, so a failed seal leaves no profile
@@ -410,6 +427,9 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       const preset = rec.kind === 'endpoint' ? presetFor(rec.preset ?? 'generic') : undefined;
       // `null` clears the saved price; an absent price keeps it (ProfilePatch).
       const price = patch.pricePer1k === null ? undefined : (patch.pricePer1k ?? rec.pricePer1k);
+      if (rec.kind === 'endpoint' && patch.fields !== undefined && patch.fields !== null && !isRecord(patch.fields)) {
+        throw new ProfileError('invalid', 'Enter provider fields as a name-to-value object.', 'fields');
+      }
       const mergedFields = patch.fields === undefined ? rec.fields : { ...(rec.fields ?? {}), ...patch.fields };
       const fields = checkFields(rec.kind, {
         name: patch.name ?? rec.name,
