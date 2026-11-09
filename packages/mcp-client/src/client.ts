@@ -46,11 +46,12 @@ import {
 } from './config.js';
 import { cancelledText, inputRequiredText, McpFailure, notFoundText, PIN_MISMATCH_TEXT, readErrorText, serverErrorText, timeoutText, totalTimeoutText, unreachableText, type McpError } from './errors.js';
 import { effectiveRiskOf, type EffectiveRisk } from './risk.js';
+import { EXTERNAL_RESULT_TOKEN_CAP, resultTokens } from './invoke.js';
 import { diffPins, hasDelta, listingFingerprint, pinsAfterReview, pinStateOf, type PinDelta, type PinState } from './pins.js';
 import { createStreamableHttpWire } from './lazy-wire.js';
 import type { WireProgress } from './progress.js';
 import { corsProbe, WireError, WireLoadError } from './wire-error.js';
-import type { McpWire, WireAnnotations, WireCallResult, WireCapabilities, WireDeps, WireFactory, WireResourceContents, WireTool } from './wire.js';
+import type { McpWire, WireAnnotations, WireCallResult, WireCapabilities, WireDeps, WireFactory, WireOptions, WirePromptResult, WireResourceContents, WireTool } from './wire.js';
 
 /** §3.3: the reachable-but-blocked message, verbatim. */
 export const CORS_REFUSAL = 'server reachable but refuses browser connections (CORS). The desktop app on the roadmap connects without this restriction.';
@@ -134,13 +135,15 @@ export interface ExternalResourceDescriptor {
   readonly pinState: PinState;
 }
 
-/** A prompt a server lists. Nothing in this package runs one. */
+/** A prompt a server lists. Its text and arguments are untrusted. */
 export interface ExternalPromptDescriptor {
   readonly serverKey: string;
   readonly serverName: string;
   readonly name: string;
   readonly description: string;
   readonly arguments: readonly { readonly name: string; readonly description: string; readonly required: boolean }[];
+  readonly candidateHash: string;
+  readonly connectionGeneration: number;
   readonly pinState: PinState;
 }
 
@@ -261,7 +264,7 @@ export interface McpClient {
   indexedTools(): IndexedTools;
   /** The resources and resource templates the server last listed. Read-only: reading one is `mcp.readResource`'s, and the writer's. */
   listResources(key: string): ExternalResourceDescriptor[];
-  /** The prompts the server last listed. Nothing here runs one. */
+  /** The prompts the server last listed. */
   listPrompts(key: string): ExternalPromptDescriptor[];
   /** Why a list is missing, if it is. */
   catalogStatus(key: string): CatalogStatus;
@@ -325,6 +328,8 @@ export interface McpTransport {
    * connection), and the command decides the rest before this step is reached. A failure is thrown as an {@link McpFailure}.
    */
   readResource(serverKey: string, uri: string, options?: { readonly signal?: AbortSignal }): Promise<readonly WireResourceContents[]>;
+  /** Writer-only caller: reads a currently reviewed prompt, preserving its messages and roles. */
+  readPrompt(serverKey: string, name: string, args: Record<string, string>, options?: { readonly signal?: AbortSignal }): Promise<WirePromptResult>;
   /** Lists resources, templates and prompts again (the picker's refresh). It never rejects. */
   refreshCatalog(serverKey: string): Promise<void>;
 }
@@ -556,14 +561,17 @@ class McpClientImpl implements McpClient {
 
   listPrompts(key: string): ExternalPromptDescriptor[] {
     const server = this.config.servers.find((candidate) => candidate.key === key);
-    const catalog = this.runtimes.get(key)?.catalog;
-    if (server === undefined || catalog === undefined) return [];
+    const rt = this.runtimes.get(key);
+    const catalog = rt?.catalog;
+    if (server === undefined || rt === undefined || catalog === undefined) return [];
     return catalog.prompts.map((prompt) => ({
       serverKey: key,
       serverName: server.name,
       name: prompt.name,
       description: prompt.description,
       arguments: prompt.arguments.map((argument) => ({ ...argument })),
+      candidateHash: prompt.candidateHash,
+      connectionGeneration: rt.generation,
       pinState: stateOf(server.pinnedPrompts, prompt.name, prompt.candidateHash),
     }));
   }
@@ -578,21 +586,25 @@ class McpClientImpl implements McpClient {
     };
   }
 
-  async refreshCatalog(key: string): Promise<void> {
+  async refreshCatalog(key: string, options: Pick<WireOptions, 'cacheMode' | 'signal'> = {}): Promise<void> {
     const server = this.config.servers.find((candidate) => candidate.key === key);
     const rt = this.runtimes.get(key);
     if (server === undefined || rt === undefined || !this.config.enabled || !server.enabled) return;
-    // A listing that is under way brings the catalog with it, so the refresh waits for that one and asks nothing more.
     if (rt.pending !== undefined) {
       await rt.pending.catch(() => undefined);
+      if (options.cacheMode === 'refresh') return this.refreshCatalog(key, options);
       return;
     }
-    if (rt.catalogPending !== undefined) return rt.catalogPending;
+    if (rt.catalogPending !== undefined) {
+      if (options.cacheMode !== 'refresh') return rt.catalogPending;
+      await rt.catalogPending.catch(() => undefined);
+      return this.refreshCatalog(key, options);
+    }
     const wire = rt.wire;
     if (wire === undefined || rt.listing === undefined || rt.health.state === 'configured') return;
     const generation = rt.generation;
     const pending = (async (): Promise<void> => {
-      const catalog = await this.loadCatalog(server, wire);
+      const catalog = await this.loadCatalog(server, wire, options);
       if (rt.generation !== generation || rt.listing === undefined) return;
       rt.listing = await withCatalog(rt.listing, catalog);
       rt.catalog = catalog;
@@ -924,14 +936,73 @@ class McpClientImpl implements McpClient {
     }
   }
 
+  async readPromptWire(serverKey: string, name: string, args: Record<string, string>, options: { readonly signal?: AbortSignal } = {}): Promise<WirePromptResult> {
+    const checked = () => {
+      const server = this.config.servers.find((candidate) => candidate.key === serverKey);
+      const rt = this.runtimes.get(serverKey);
+      if (server === undefined || !this.config.enabled || !server.enabled || rt?.wire === undefined || rt.health.state === 'configured') {
+        throw new McpFailure({ code: 'unreachable', message: unreachableText(server?.name ?? serverKey) });
+      }
+      if (options.signal?.aborted === true) throw new McpFailure(mapReadFailure(new WireError('abort', 'the read was aborted'), server.name, name, this.callTimeoutMs));
+      const prompt = rt.catalog?.prompts.find((candidate) => candidate.name === name);
+      if (rt.catalog?.promptsUnavailable !== undefined || prompt === undefined || stateOf(server.pinnedPrompts, name, prompt.candidateHash) !== 'verified') {
+        throw new McpFailure({ code: 'pin_mismatch', message: PIN_MISMATCH_TEXT });
+      }
+      return { server, rt, wire: rt.wire, generation: rt.generation, prompt };
+    };
+    const selected = checked();
+    const config = JSON.stringify(selected.server);
+    const stillSelected = () => {
+      const current = checked();
+      if (current.rt !== selected.rt || current.wire !== selected.wire || current.generation !== selected.generation ||
+        current.prompt.candidateHash !== selected.prompt.candidateHash || JSON.stringify(current.server) !== config) {
+        throw new McpFailure({ code: 'pin_mismatch', message: PIN_MISMATCH_TEXT });
+      }
+      return current;
+    };
+    await this.refreshCatalog(serverKey, { cacheMode: 'refresh', ...(options.signal === undefined ? {} : { signal: options.signal }) });
+    const before = stillSelected();
+    const declared = new Set(before.prompt.arguments.map((argument) => argument.name));
+    if (args === null || typeof args !== 'object' || Array.isArray(args) || Object.entries(args).some(([key, value]) => !declared.has(key) || typeof value !== 'string') ||
+      before.prompt.arguments.some((argument) => {
+        const value = args[argument.name];
+        return argument.required && (!Object.hasOwn(args, argument.name) || typeof value !== 'string' || value.trim() === '');
+      })) {
+      throw new McpFailure({ code: 'schema', message: `arguments do not match prompt '${name}': provide its required arguments and only declared string arguments` });
+    }
+    let result: WirePromptResult;
+    try {
+      result = await before.wire.getPrompt(name, { ...args }, { timeoutMs: this.callTimeoutMs, ...(options.signal === undefined ? {} : { signal: options.signal }) });
+    } catch (error) {
+      const failure = asWireError(error);
+      if (failure.kind === 'network' || failure.kind === 'cors' || failure.kind === 'auth') {
+        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs));
+      }
+      throw new McpFailure(mapReadFailure(failure, before.server.name, name, this.callTimeoutMs));
+    }
+    await this.refreshCatalog(serverKey, { cacheMode: 'refresh', ...(options.signal === undefined ? {} : { signal: options.signal }) });
+    stillSelected();
+    if (result === null || typeof result !== 'object' || !Array.isArray(result.messages) ||
+      (result.description !== undefined && typeof result.description !== 'string') ||
+      result.messages.some((message) => message === null || typeof message !== 'object' ||
+        (message.role !== 'user' && message.role !== 'assistant') || message.content === null || typeof message.content !== 'object' ||
+        !('type' in message.content) || message.content.type !== 'text' || !('text' in message.content) || typeof message.content.text !== 'string')) {
+      throw new McpFailure({ code: 'server_error', message: `prompt '${name}' returned unsupported non-text content` });
+    }
+    if (resultTokens([result]) > EXTERNAL_RESULT_TOKEN_CAP) {
+      throw new McpFailure({ code: 'server_error', message: `prompt '${name}' exceeded the ${EXTERNAL_RESULT_TOKEN_CAP} token limit; nothing was read` });
+    }
+    return result;
+  }
+
   // -- connection and listing ------------------------------------------------
 
   /**
    * Lists resources, templates and prompts on an open connection. It never throws and never touches the server's health: a part that
    * fails is told with its reason, and the tools stay as they were. A server that does not advertise a feature is not asked for it.
    */
-  private async loadCatalog(server: McpServerConfig, wire: McpWire): Promise<Catalog> {
-    const options = { timeoutMs: this.listTimeoutMs };
+  private async loadCatalog(server: McpServerConfig, wire: McpWire, refresh: Pick<WireOptions, 'cacheMode' | 'signal'> = {}): Promise<Catalog> {
+    const options = { timeoutMs: this.listTimeoutMs, ...(refresh.signal === undefined ? {} : { signal: refresh.signal }) };
     let resources = [...EMPTY_CATALOG.resources];
     let templates = [...EMPTY_CATALOG.templates];
     let prompts = [...EMPTY_CATALOG.prompts];
@@ -961,7 +1032,7 @@ class McpClientImpl implements McpClient {
     }
     if (caps.prompts) {
       try {
-        const listing = await wire.listPrompts(options);
+        const listing = await wire.listPrompts({ ...options, ...(refresh.cacheMode === undefined ? {} : { cacheMode: refresh.cacheMode }) });
         cut = cut || listing.length > CATALOG_LIMIT;
         prompts = await listedPrompts(listing.slice(0, CATALOG_LIMIT));
       } catch (error) {
@@ -1267,6 +1338,7 @@ export function createMcpTransport(client: McpClient): McpTransport {
     callTool: (serverKey, toolName, args, options) => client.callWire(serverKey, toolName, args, options),
     relist: (serverKey) => client.refresh(serverKey),
     readResource: (serverKey, uri, options) => client.readWire(serverKey, uri, options),
+    readPrompt: (serverKey, name, args, options) => client.readPromptWire(serverKey, name, args, options),
     refreshCatalog: (serverKey) => client.refreshCatalog(serverKey),
   };
 }

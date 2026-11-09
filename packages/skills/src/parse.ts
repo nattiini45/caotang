@@ -22,6 +22,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'disable-model-invocation',
   'user-invocable',
   'argument-hint',
+  'arguments',
 ]);
 
 const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
@@ -86,6 +87,10 @@ function frontMatterOf(fields: ReadonlyMap<string, FieldValue>, folder: string):
   }
   const license = text(fields.get('license'), 'license');
   const hint = text(fields.get('argument-hint'), 'argument-hint');
+  const args = fields.get('arguments');
+  if (args !== undefined && (args.kind !== 'list' || args.items.some((name) => !/^[a-zA-Z_][a-zA-Z0-9_]*$/u.test(name) || ['ARGUMENTS', 'SELECTION', 'DOC'].includes(name)) || new Set(args.items).size !== args.items.length)) {
+    throw new Refusal('“arguments” should be a list of distinct argument names');
+  }
   const metadataField = fields.get('metadata');
   let metadata: Record<string, string> | undefined;
   if (metadataField !== undefined) {
@@ -112,6 +117,7 @@ function frontMatterOf(fields: ReadonlyMap<string, FieldValue>, folder: string):
     ...(disable === undefined ? {} : { 'disable-model-invocation': disable }),
     ...(invocable === undefined ? {} : { 'user-invocable': invocable }),
     ...(hint === undefined ? {} : { 'argument-hint': hint }),
+    ...(args?.kind === 'list' ? { arguments: [...args.items] } : {}),
   };
   return { frontMatter, ...(issue === undefined ? {} : { issue }) };
 }

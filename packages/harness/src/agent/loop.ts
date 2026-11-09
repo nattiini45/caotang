@@ -219,6 +219,7 @@ import {
   type Revisions,
   type RunLogOptions,
   type RunReplay,
+  type OutsidePrompt,
   type RunWriter,
   type PendingStep,
 } from './run-log.js';
@@ -418,6 +419,8 @@ export interface TurnOptions {
 export interface SubmitOptions extends TurnOptions {
   /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
   readonly preload?: readonly ToolName[];
+  readonly writerSkill?: { readonly name: string; readonly pin: string; readonly body: string };
+  readonly outsidePrompt?: OutsidePrompt;
 }
 
 /** What `AgentSession.contextPreview` reports: the layers of the planner's next request, their tokens and drops. */
@@ -619,6 +622,7 @@ interface Turn {
   deciding: boolean;
   /** The turn is a planner conversation, which a cancelled card with a note can carry on. */
   converses: boolean;
+  readonly hiddenFromPlanner: boolean;
   /** Counts the calls a turn makes, so every call id within it is unique. */
   seq: number;
   /** The model requests the turn has made, a delegated agent's included: the `callIndex` the trace joins on. */
@@ -3471,7 +3475,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function offerBackground(turn: Turn, plan: Plan): Promise<Settled | undefined> {
     const ask = options.beforeStage;
     const calls = estimatedModelCalls(plan.steps);
-    if (ask === undefined || calls < BACKGROUND_OFFER_MIN_CALLS || harness.loadedSkills(turn.id).length > 0 || !backgroundEligibility(plan.steps).eligible) return undefined;
+    if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0 || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
@@ -3697,6 +3701,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       mode: turn.mode,
       budgetUse: usageOf(turn),
       ...(turn.held.length === 0 ? {} : { heldSteps: turn.held }),
+      ...(turn.held.length > 0 && (turn.tainted || harness.loadedSkills(turn.id).length > 0) ? { heldRequiresRestart: true as const } : {}),
       ...(turn.hooks.length === 0 ? {} : { hooks: [...turn.hooks] }),
       ...(turn.command === undefined ? {} : { command: turn.command }),
     };
@@ -3726,22 +3731,41 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /** The planner's turn: the request goes to the model, which answers or proposes steps (agent-harness §2). */
-  async function plannedTurn(turn: Turn, intent: string, preload: readonly ToolName[]): Promise<Settled> {
+  async function plannedTurn(turn: Turn, intent: string, preload: readonly ToolName[], submitOptions: SubmitOptions = {}): Promise<Settled> {
+    let writerFiles: readonly string[] = [];
+    let writerDetails: string | undefined;
+    if (submitOptions.writerSkill !== undefined) {
+      await beginSkillAccess(turn, 'skill.load', true);
+      checkStop(turn);
+      const loaded = harness.loadWriterSkill(submitOptions.writerSkill, { turnId: turn.id });
+      if (!loaded.ok) return { status: 'failed', askBack: askBackFor(loaded.error) };
+      if (isResultOf('skill.load', 'skill.load', loaded.value)) {
+        const data = loaded.value.data;
+        writerFiles = data.files ?? [];
+        writerDetails = modelResult({ tool: 'skill.load', ok: true, body: { skill: data.skill, files: data.files, allowedTools: data.allowedTools, note: data.note, hookNotes: loaded.value.hookNotes } }, turn.nonce);
+      }
+    }
     // The wire is picked here, once per turn, from the model's capabilities: native tool calls when the
     // model can take them, the JSON envelope otherwise. The system message states the protocol the call
     // speaks (protocol.ts `plannerSystem`/`plannerSystemNative` — same rules, different wording).
     turn.native = nativeTools(turn) !== undefined;
     turn.converses = true;
-    const { planner, skills, dropped } = plannerAssembly(turn.native, intent, turn.priorTurns, turn.nonce, turn.languages);
+    const instruction = submitOptions.writerSkill === undefined ? intent : skillBlock(harness.loadedSkills(turn.id));
+    const { planner, skills, dropped } = plannerAssembly(turn.native, instruction, turn.priorTurns, turn.nonce, turn.languages);
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     trace({ kind: 'context', at: now(), turnId: turn.id, callIndex: turn.calls + 1, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     turn.messages.push(...planner.messages);
+    if (writerDetails !== undefined) turn.messages.push({ role: 'user', content: writerDetails });
+    if (submitOptions.outsidePrompt !== undefined) {
+      const prompt = submitOptions.outsidePrompt;
+      turn.messages.push({ role: 'user', content: modelResult({ tool: 'prompt', ok: true, body: { untrusted: true, source: { serverName: prompt.serverName, toolName: prompt.name }, isError: false, content: prompt.text } }, turn.nonce) });
+    }
     // A preload loads the rows as a search would have, and their descriptors follow the request in the same slot a search's do
     // (`loadedToolsMessage`), so the cached prefix is untouched. Nothing is preloaded when every tool is declared already.
     // `skill.load` is preloaded whenever there is a list to load from, so the model never has to search for it.
     const wanted: readonly ToolName[] = skills === undefined ? preload : [...preload, 'skill.load'];
-    if (wanted.length > 0 && !loadEvery()) {
+    if ((wanted.length > 0 || writerFiles.length > 0) && !loadEvery()) {
       harness.preload(turn.id, wanted);
       const rows = harness.loadedNativeTools();
       if (rows.length > 0) {
@@ -3750,6 +3774,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     if (skills !== undefined) turn.messages.push({ role: 'user', content: skills.text });
+    if (submitOptions.writerSkill !== undefined) {
+      await syncRun(turn, 0);
+      delete turn.skillReadPending;
+      if (!(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the command was not run. Check the project storage and send the request again.');
+    }
     return converse(turn);
   }
 
@@ -3897,6 +3926,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       notes: [],
       deciding: false,
       converses: false,
+      hiddenFromPlanner: turnOptions.hiddenFromPlanner === true,
       seq: 0,
       calls: 0,
       mode: modeNow(),
@@ -3920,9 +3950,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       forcePlan: turnOptions.forcePlan === true,
       readsWithoutCard: turnOptions.readsWithoutCard === true,
       nonce: turnNonce(id),
-      tainted: false,
+      tainted: turnOptions.outsidePrompt !== undefined,
       hooks: [],
-      taintedBy: [],
+      taintedBy: turnOptions.outsidePrompt === undefined ? [] : [{ serverName: turnOptions.outsidePrompt.serverName, label: sourceName(turnOptions.outsidePrompt.serverName, turnOptions.outsidePrompt.name) }],
     };
   }
 
@@ -3933,7 +3963,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     | { readonly mode: 'none' };
 
   /** Starts the turn's run in the log, or continues the one a resume names. A log that cannot be written is a turn that cannot be resumed, and no more. */
-  async function openRun(turn: Turn, intent: string, plan: LogPlan): Promise<RunWriter | undefined> {
+  async function openRun(turn: Turn, intent: string, plan: LogPlan, submitOptions: SubmitOptions): Promise<RunWriter | undefined> {
     const log = options.runLog;
     if (log === undefined || plan.mode === 'none') return undefined;
     const runId = plan.mode === 'resume' ? plan.runId : (log.newRunId?.() ?? `run_${newId('cmd').slice('cmd_'.length)}`);
@@ -3964,6 +3994,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         native: plan.mode === 'new' ? nativeTools(turn) !== undefined : plan.replay.native,
         ...(plan.mode === 'resume' ? { resumedFrom: plan.replay.turnId } : {}),
         ...(turn.command === undefined ? {} : { command: turn.command }),
+        ...(turn.hiddenFromPlanner ? { hiddenFromPlanner: true } : {}),
+        ...(submitOptions.outsidePrompt === undefined ? {} : { outsidePrompt: submitOptions.outsidePrompt }),
         // A restored card builds no new prompt, so the conversation behind it keeps the filter it was built with.
         withheld: plan.mode === 'resume' && plan.replay.card !== undefined ? plan.replay.withheld : [...harness.withheldAnywhere()].sort(),
       },
@@ -4002,7 +4034,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const turn = newTurn(turnOptions, [...started]);
     if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
     const restored = logPlan.mode === 'resume' ? harness.restoreSkills(turn.id, logPlan.replay.skills ?? []) : undefined;
-    turn.run = restored?.ok === false ? undefined : await openRun(turn, intent, logPlan);
+    turn.run = restored?.ok === false ? undefined : await openRun(turn, intent, logPlan, turnOptions);
     const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;
     running.set(turn.id, turn);
     trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
@@ -4014,7 +4046,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (restored?.ok === false) {
         settled = { status: 'failed', askBack: askBackFor(restored.error) };
       } else {
-        const submitted = harness.lifecycleHooks({ event: 'turn.submit', turnId: turn.id, tool: '', params: {}, text: intent, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
+        const writerSkill = turnOptions.writerSkill ?? (logPlan.mode === 'resume' ? logPlan.replay.skills?.find((skill) => skill.origin === 'writer') : undefined);
+        const submitted = harness.lifecycleHooks({ event: 'turn.submit', turnId: turn.id, tool: '', params: {}, text: turnOptions.outsidePrompt?.text ?? writerSkill?.body ?? intent, affected: harness.state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id) });
         flushHooks(turn);
         const blocked = blockOf(submitted);
         settled = blocked === undefined ? await first(turn) : { status: 'failed', askBack: askBackOf({ code: 'hook_blocked', reason: `Hook “${blocked.name}”: ${blocked.decision.reason}`, options: ['change the request so the hook passes', 'change the hook in Settings › Hooks'] }) };
@@ -4180,13 +4213,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     // A resumed macro run stays the writer's: after a reload only the logged command says which turn it was.
-    const resumed: TurnOptions = replay.command === undefined ? resumeOptions : { ...resumeOptions, command: replay.command, ...(isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}) };
+    const resumed: SubmitOptions = { ...resumeOptions, ...(replay.command === undefined ? {} : { command: replay.command }), ...(replay.hiddenFromPlanner === true || isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}), ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }) };
     return runTurn(intent, resumed, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
   return {
     submit(intent: string, submitOptions: SubmitOptions = {}): Promise<TurnReport> {
-      return runTurn(intent, submitOptions, (turn) => plannedTurn(turn, intent, submitOptions.preload ?? []));
+      return runTurn(intent, submitOptions, (turn) => plannedTurn(turn, intent, submitOptions.preload ?? [], submitOptions));
     },
 
     submitPlan(intent: string, plan: unknown, turnOptions: TurnOptions = {}): Promise<TurnReport> {

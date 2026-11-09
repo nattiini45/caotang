@@ -256,7 +256,8 @@ button.chip {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-5);
-  height: 52px;
+  height: auto;
+  min-height: 52px;
   padding: 0 14px 0 var(--space-5);
   border-bottom: 1px solid var(--line);
   background: var(--paper);
@@ -268,6 +269,11 @@ button.chip {
   align-items: center;
   gap: var(--space-4);
   min-width: 0;
+}
+
+.toolbar-end {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .project-name {
@@ -2886,7 +2892,9 @@ label.settings-check {
 .command-name {
   font-weight: 600;
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
+
 
 .command-hint {
   font-family: var(--mono, ui-monospace, monospace);
@@ -3716,10 +3724,6 @@ label.settings-check {
     padding-bottom: var(--space-3);
   }
 
-  .toolbar-end {
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
 }
 
 /* The narrow layout (ui-modules §0.6, §1): below 960 px, a phone or a tablet in portrait. One centre column; the rail is a drawer and the

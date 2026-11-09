@@ -40,6 +40,12 @@ type Stamp = { readonly seq: number; readonly at: number };
 /** A document revision by document id. */
 export type Revisions = Readonly<Record<string, number>>;
 
+export interface OutsidePrompt {
+  readonly serverName: string;
+  readonly name: string;
+  readonly text: string;
+}
+
 export type RunEvent =
   | (Stamp & {
       readonly t: 'turn.start';
@@ -56,6 +62,8 @@ export type RunEvent =
       readonly withheld?: readonly string[];
       /** The slash command that started the turn, by name (`TurnReport.command`). Absent for any other turn. */
       readonly command?: string;
+      readonly hiddenFromPlanner?: boolean;
+      readonly outsidePrompt?: OutsidePrompt;
     })
   | (Stamp & { readonly t: 'messages'; readonly turnId: string; readonly appended: readonly ChatMessage[] })
   | (Stamp & { readonly t: 'skills.loading'; readonly turnId: string })
@@ -308,7 +316,8 @@ function skillsOk(value: unknown): value is readonly LoadedSkill[] {
   return Array.isArray(value) && value.length <= 50 && new Set(value.map((skill: unknown) => isRecord(skill) ? skill['name'] : undefined)).size === value.length && value.every((skill: unknown) =>
     isRecord(skill) && typeof skill['name'] === 'string' && /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u.test(skill['name']) &&
     typeof skill['pin'] === 'string' && /^[a-f0-9]{64}$/u.test(skill['pin']) && isString(skill['body']) &&
-    (skill['allowedTools'] === undefined || (Array.isArray(skill['allowedTools']) && skill['allowedTools'].every(isString))));
+    (skill['allowedTools'] === undefined || (Array.isArray(skill['allowedTools']) && skill['allowedTools'].every(isString))) &&
+    (skill['origin'] === undefined || skill['origin'] === 'writer'));
 }
 
 /** A spend figure: finite and not below zero. It may be fractional: milliseconds and dollars are, and token counts are the provider's, so they are not held to whole numbers. */
@@ -320,8 +329,12 @@ function spendOk(value: unknown): value is BudgetSpend {
   return isCount(value['modelCalls']) && isCount(value['steps']) && ['promptTokens', 'completionTokens', 'estimatedTokens', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
 }
 
+function outsidePromptOk(value: unknown): value is OutsidePrompt {
+  return isRecord(value) && isString(value['serverName']) && isString(value['name']) && isString(value['text']);
+}
+
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
-  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])),
+  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])) && (e['hiddenFromPlanner'] === undefined || typeof e['hiddenFromPlanner'] === 'boolean') && (e['outsidePrompt'] === undefined || outsidePromptOk(e['outsidePrompt'])),
   messages: (e) => isString(e['turnId']) && messagesOk(e['appended']),
   'skills.loading': (e) => isString(e['turnId']),
   'skills.loaded': (e) => isString(e['turnId']) && skillsOk(e['skills']),
@@ -390,6 +403,8 @@ export interface RunReplay {
   readonly withheld: readonly string[];
   /** The slash command that started the run, when one did. */
   readonly command?: string;
+  readonly hiddenFromPlanner?: boolean;
+  readonly outsidePrompt?: OutsidePrompt;
   /** The conversation as it was last written down, every message verbatim. */
   readonly messages: readonly ChatMessage[];
   readonly skills?: readonly LoadedSkill[];
@@ -430,6 +445,8 @@ function replayOf(events: readonly RunEvent[]): Replayed {
   let native = false;
   let withheld: readonly string[] = [];
   let command: string | undefined;
+  let hiddenFromPlanner = false;
+  let outsidePrompt: OutsidePrompt | undefined;
   const messages: ChatMessage[] = [];
   let skills: readonly LoadedSkill[] | undefined;
   let skillsPending = false;
@@ -454,6 +471,8 @@ function replayOf(events: readonly RunEvent[]): Replayed {
         if (!started) {
           intent = event.intent;
           command = event.command;
+          hiddenFromPlanner = event.hiddenFromPlanner === true;
+          outsidePrompt = event.outsidePrompt;
           wire = event.wire;
           started = true;
         }
@@ -518,6 +537,8 @@ function replayOf(events: readonly RunEvent[]): Replayed {
     native,
     withheld,
     ...(command === undefined ? {} : { command }),
+    ...(hiddenFromPlanner ? { hiddenFromPlanner: true } : {}),
+    ...(outsidePrompt === undefined ? {} : { outsidePrompt }),
     messages,
     ...(skills === undefined ? {} : { skills }),
     ...(open && card !== undefined ? { card } : {}),
@@ -606,6 +627,9 @@ export function planResume(rows: readonly unknown[], revisions: (docId: string) 
   if (first.t !== 'turn.start') return { ok: false, reason: 'schema', detail: 'the run log does not begin with the start of a turn', docs: [] };
 
   const { replay, skillsPending, pending, owned, ownedOpen } = replayOf(parsed.events);
+  if (replay.command?.startsWith('mcp-') === true && replay.outsidePrompt === undefined) {
+    return { ok: false, reason: 'schema', detail: 'the connected prompt’s original text is missing, so its submit checks cannot be repeated', docs: [], replay };
+  }
   if (skillsPending) return { ok: false, reason: 'schema', detail: 'a skill load has no committed snapshot, so its instructions and tool limits cannot be restored', docs: [], replay };
   if (replay.ended !== undefined) return { ok: true, kind: 'clean', replay };
 
