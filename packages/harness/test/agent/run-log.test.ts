@@ -135,6 +135,18 @@ describe('planResume', () => {
     expect(planResume([{ t: 'turn.end', seq: 0 }, 7], project({}))).toMatchObject({ ok: false, reason: 'schema' });
   });
 
+  it('replays loaded-skill snapshots and rejects malformed or duplicate entries', () => {
+    const skill = { name: 'style', body: 'Write plainly.', pin: 'a'.repeat(64), allowedTools: ['doc.read'] };
+    const saved: RunEventDraft = { t: 'skills.loaded', turnId: 't1', skills: [skill] };
+    const replay = planResume(log(start, saved, user, card), project({}));
+    expect(replay.ok && replay.replay.skills).toEqual([skill]);
+    for (const skills of [[{ ...skill, pin: 'bad' }], [{ ...skill, allowedTools: [42] }], [skill, skill], [{ ...skill, body: null }]]) {
+      expect(planResume(log(start, { ...saved, skills } as RunEventDraft), project({}))).toMatchObject({ ok: false, reason: 'schema' });
+    }
+    const empty = planResume(log(start, saved, { ...saved, skills: [] }, user, card), project({}));
+    expect(empty.ok && empty.replay.skills).toEqual([]);
+  });
+
   it.each(['cancelled', 'refused'] as const)('keeps a %s decision on the card, so a resume knows the writer closed it', (decision) => {
     const verdict = planResume(log(start, user, card, { t: 'card.decided', turnId: 't1', decision }), project({}));
     expect(verdict.ok && verdict.replay.card?.decision).toBe(decision);

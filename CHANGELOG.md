@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Resuming a skill-guided run.** Loaded instructions, review pins and tool restrictions now survive a reload. Resume validates and restores them before any card or conversation continues; a stale or missing snapshot refuses the resume. Older interrupted logs without a snapshot need a new request.
+
 - **Reloading a pending plan (#509).** A plan's pending card is saved before it is shown, so reloading as soon as the plan appears still offers its steps for review and resume.
 
 - **Sidebar labels and scrolling (#378, #380).** Modern's sidebar tabs keep translated names and counts whole, wrapping when needed. The fixed Manuscript and Research headings follow the interface language without changing stored project titles. Dialogs, sidebar panels and the narrow Settings section strip show soft edges only where more content remains to scroll, in both interfaces, with opaque and forced-color fallbacks.

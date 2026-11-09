@@ -96,7 +96,7 @@ import {
 } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
 import { createProjectCommandRegistry, type McpInvokeCommandPort, type McpReadResourceCommandPort, type ProjectState } from '@caotang/store';
-import { skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
+import { isOffered, skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
 import { shotCommandPort } from '@caotang/storyboard';
 
 import { createCallCache } from './cache.js';
@@ -120,7 +120,7 @@ import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, ty
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
-import { createSkillLoads, skillLoadPort, skillReadPort, skillStatesOf, skillToolRefusal, type LoadedSkill, type SkillsOption } from './tools/skills.js';
+import { createSkillLoads, skillLoadPort, skillReadPort, skillResourcePaths, skillStatesOf, skillToolRefusal, type LoadedSkill, type SkillsOption } from './tools/skills.js';
 import { storyboardPorts } from './tools/storyboard.js';
 import { stageTimelineEdit, type TimelineProposal } from './tools/timeline-edit.js';
 import { stageTranscriptionPlan, transcriptionPort, type PictureTranscriptionHost, type PictureTranscriptionPlan } from './tools/transcription.js';
@@ -330,6 +330,7 @@ export interface Harness {
   skillCatalog(): SkillCatalog | undefined;
   /** The skills `skill.load` has loaded under this turn, in the order they were loaded. Forgotten by `endTurn`. */
   loadedSkills(turnId: string): readonly LoadedSkill[];
+  restoreSkills(turnId: string, skills: readonly LoadedSkill[]): Result<void, CommandError>;
   /**
    * Loads deferred native rows for a turn without a search: a UI action that starts a turn about one of them, or the context table
    * (agent-harness §3). A row that is not deferred is already declared, and a name that is not a row is ignored.
@@ -1556,6 +1557,26 @@ export function createHarness(options: HarnessOptions): Harness {
       return catalog === undefined || catalog.text === '' ? undefined : catalog;
     },
     loadedSkills: (turnId) => skillLoads.of(turnId),
+    restoreSkills: (turnId, snapshots) => {
+      const states = skillStates();
+      const found = snapshots.map((snapshot) => states.find((candidate) => candidate.skill.frontMatter.name === snapshot.name && isOffered(candidate) && candidate.skill.pin === snapshot.pin && candidate.skill.body.trim() === snapshot.body));
+      for (const [index, snapshot] of snapshots.entries()) {
+        const skill = found[index]?.skill;
+        const declared = skill?.frontMatter['allowed-tools']?.split(/\s+/u).filter(Boolean);
+        if (skill === undefined || (declared !== undefined && (snapshot.allowedTools === undefined || snapshot.allowedTools.some((name) => !declared.includes(name))))) {
+          return failure(refusal('permission-denied', 'The run’s loaded skills no longer match their approved snapshots, so it was not resumed.', { correctiveHint: 'discard the log and send the request again after reviewing the skills' })) as Result<void, CommandError>;
+        }
+      }
+      for (const snapshot of snapshots) skillLoads.add(turnId, snapshot);
+      if (snapshots.length > 0) {
+        syncLoadedTurn(turnId);
+        loaded.load([
+          { source: 'native', name: 'skill.load' },
+          ...(found.some((candidate) => candidate !== undefined && skillResourcePaths(candidate.skill).length > 0) ? [{ source: 'native' as const, name: 'skill.read' }] : []),
+        ]);
+      }
+      return ok(undefined);
+    },
     loadedNativeTools: () => {
       const names = new Set(loaded.nativeNames());
       return listTools().filter((tool) => names.has(tool.name) && tool.callable && tool.wired && tool.externalOnly !== true);

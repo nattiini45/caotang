@@ -25,6 +25,7 @@ import { canonicalJson } from '../util.js';
 import type { BudgetSpend } from './budget.js';
 import type { StepRevisions } from './background.js';
 import type { TurnStatus } from './events.js';
+import type { LoadedSkill } from '../tools/skills.js';
 
 /** The version of the event shapes below. A `turn.start` of another version is refused, not guessed at. */
 export const RUN_LOG_VERSION = 1;
@@ -55,6 +56,7 @@ export type RunEvent =
       readonly command?: string;
     })
   | (Stamp & { readonly t: 'messages'; readonly turnId: string; readonly appended: readonly ChatMessage[] })
+  | (Stamp & { readonly t: 'skills.loaded'; readonly turnId: string; readonly skills: readonly LoadedSkill[] })
   | (Stamp & {
       readonly t: 'card.pending';
       readonly turnId: string;
@@ -296,6 +298,13 @@ function messagesOk(value: unknown): value is readonly ChatMessage[] {
   );
 }
 
+function skillsOk(value: unknown): value is readonly LoadedSkill[] {
+  return Array.isArray(value) && value.length <= 50 && new Set(value.map((skill: unknown) => isRecord(skill) ? skill['name'] : undefined)).size === value.length && value.every((skill: unknown) =>
+    isRecord(skill) && typeof skill['name'] === 'string' && /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u.test(skill['name']) &&
+    typeof skill['pin'] === 'string' && /^[a-f0-9]{64}$/u.test(skill['pin']) && isString(skill['body']) &&
+    (skill['allowedTools'] === undefined || (Array.isArray(skill['allowedTools']) && skill['allowedTools'].every(isString))));
+}
+
 /** A spend figure: finite and not below zero. It may be fractional: milliseconds and dollars are, and token counts are the provider's, so they are not held to whole numbers. */
 const isAmount = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
@@ -308,6 +317,7 @@ function spendOk(value: unknown): value is BudgetSpend {
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
   'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])),
   messages: (e) => isString(e['turnId']) && messagesOk(e['appended']),
+  'skills.loaded': (e) => isString(e['turnId']) && skillsOk(e['skills']),
   'card.pending': (e) =>
     isString(e['turnId']) &&
     (e['kind'] === 'plan' || e['kind'] === 'confirm') &&
@@ -374,6 +384,7 @@ export interface RunReplay {
   readonly command?: string;
   /** The conversation as it was last written down, every message verbatim. */
   readonly messages: readonly ChatMessage[];
+  readonly skills?: readonly LoadedSkill[];
   /** The card still open: shown and not answered, or answered and not yet fully run. Absent when the run was between cards. */
   readonly card?: ReplayCard;
   readonly applied: readonly AppliedStep[];
@@ -411,6 +422,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
   let withheld: readonly string[] = [];
   let command: string | undefined;
   const messages: ChatMessage[] = [];
+  let skills: readonly LoadedSkill[] | undefined;
   let card: { -readonly [K in keyof ReplayCard]: ReplayCard[K] } | undefined;
   let cardSeq = -1;
   let lastMessages = -1;
@@ -440,6 +452,9 @@ function replayOf(events: readonly RunEvent[]): Replayed {
         messages.push(...event.appended);
         lastMessages = event.seq;
         ownedOpen.clear();
+        break;
+      case 'skills.loaded':
+        skills = event.skills;
         break;
       case 'card.pending':
         cardSeq = event.seq;
@@ -489,6 +504,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
     withheld,
     ...(command === undefined ? {} : { command }),
     messages,
+    ...(skills === undefined ? {} : { skills }),
     ...(open && card !== undefined ? { card } : {}),
     applied,
     ...(ended === undefined ? {} : { ended }),

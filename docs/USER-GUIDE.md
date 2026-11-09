@@ -456,6 +456,8 @@ A skill is a set of instructions you write once and the agent follows when your 
 
 When a skill is approved and on, the agent is told its name and description. It loads the skill when your request fits, and the instructions guide that turn's drafts. After loading a skill, the agent can read its text files under `references/` and `assets/` with `skill.read`, but never runs its scripts. An `allowed-tools` list limits that turn to its exact tool names; loading several lists keeps only tools all of them allow. Unknown names are ignored with a notice; a list with no known names permits no tools. Starting a new turn clears these restrictions. A skill never grants permission: every change that needs your approval still shows its card, whatever a skill says. A skill whose instructions you keep for yourself (`disable-model-invocation: true` in its first lines) is listed as **Only you use it**, and the agent is never told about it.
 
+An interrupted run saves its loaded skills and tool restrictions. Resume restores them only while the same skill files are still on and approved. A stale or missing snapshot stops the resume before any model call or change; discard the log and send your request again. Older interrupted logs without a snapshot also need a new request.
+
 Skills are kept in the project, in the folder `.agents/skills/`, so a project folder, a `.caotang` bundle and this browser's copy all carry them, and other programs that read that folder use them too. The agent can suggest a skill in its answer, and it cannot create, change, import or turn on a skill; only you can.
 
 ## Macros

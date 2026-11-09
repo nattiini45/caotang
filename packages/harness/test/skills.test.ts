@@ -228,6 +228,20 @@ describe('skill.read', () => {
 describe('loaded allowed-tools', () => {
   const limited = (names: string) => skillFiles('style', { extra: [`allowed-tools: "${names}"`] });
 
+  it('restores only reviewed snapshots and never accepts a widened or missing tool limit', () => {
+    const { harness, pins } = withSkills({ style: limited('doc.read') });
+    valueOf(load(harness, 'style'));
+    const snapshots = harness.loadedSkills('turn-skill');
+    expect(harness.restoreSkills('resumed', snapshots).ok).toBe(true);
+    expect(refusalOf(run(harness, 'project.overview', {}, { turnId: 'resumed' })).code).toBe('permission-denied');
+    for (const patch of [{ allowedTools: ['project.overview'] }, { allowedTools: undefined }, { body: 'Changed.' }]) {
+      expect(harness.restoreSkills('invalid', snapshots.map((skill) => ({ ...skill, ...patch }))).ok).toBe(false);
+      expect(harness.loadedSkills('invalid')).toEqual([]);
+    }
+    pins.clear();
+    expect(harness.restoreSkills('unreviewed', snapshots).ok).toBe(false);
+  });
+
   it('narrows sync, async, external, plan and before-drafting paths, then expires at endTurn', async () => {
     const { harness } = withSkills({ style: limited('doc.read') });
     valueOf(load(harness, 'style'));

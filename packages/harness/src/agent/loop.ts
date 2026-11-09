@@ -669,6 +669,7 @@ interface Turn {
   run?: RunWriter;
   /** How many of `messages` the log already holds. */
   logged: number;
+  loggedSkills?: string;
   /** The documents a step's draft read, with their revisions, taken before the draft was asked for: what a restored card checks. */
   readonly reads: Map<PlanStep, StepRevisions>;
   /** The turn was rebuilt from a log (`resume`): its undo reaches only what it applies, and its ladder does not ask the model. */
@@ -1644,13 +1645,25 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     };
   };
 
+  async function syncSkills(turn: Turn): Promise<void> {
+    const run = turn.run;
+    if (run === undefined) return;
+    const skills = harness.loadedSkills(turn.id);
+    const snapshot = canonicalJson(skills);
+    if (snapshot !== turn.loggedSkills) {
+      await run.append({ t: 'skills.loaded', turnId: turn.id, skills });
+      turn.loggedSkills = snapshot;
+    }
+  }
+
   /**
-   * Writes the messages added since the last write, then the spend. `reserved` is the model calls about to be started and not settled:
+   * Writes loaded skills, the messages added since the last write, then the spend. `reserved` is the model calls about to be started and not settled:
    * a crash loses them, and a resume counts them as spent so the run's limits stay honest.
    */
   async function syncRun(turn: Turn, reserved: number, status?: RunStatus): Promise<void> {
     const run = turn.run;
     if (run === undefined) return;
+    await syncSkills(turn);
     if (turn.messages.length > turn.logged) {
       const appended = turn.messages.slice(turn.logged);
       turn.logged = turn.messages.length;
@@ -1694,6 +1707,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function logApplied(turn: Turn, callId: string, index: number, tool: string, summary: string | undefined, before: Revisions | undefined): Promise<void> {
     const run = turn.run;
     if (run === undefined) return;
+    await syncSkills(turn);
     const after = before === undefined ? {} : changedSince(before);
     try {
       await options.runLog?.flush?.();
@@ -3854,7 +3868,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
     const turn = newTurn(turnOptions, [...started]);
     if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
-    turn.run = await openRun(turn, intent, logPlan);
+    const restored = logPlan.mode === 'resume' ? harness.restoreSkills(turn.id, logPlan.replay.skills ?? []) : undefined;
+    turn.run = restored?.ok === false ? undefined : await openRun(turn, intent, logPlan);
     const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;
     running.set(turn.id, turn);
     trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
@@ -3863,7 +3878,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     let settled: Settled;
     try {
-      settled = await first(turn);
+      settled = restored?.ok === false ? { status: 'failed', askBack: askBackFor(restored.error) } : await first(turn);
     } catch (error) {
       settled = stoppedBy(error);
     }
@@ -3885,12 +3900,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     // An unflushed view (a cancelled or failed turn) must not retain its bytes after the turn is over.
     options.pictureOutbox?.take(turn.id);
-    harness.endTurn(turn.id);
     const totals = gateway.ledger.turnTotals(turn.id);
     const report = reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests });
     finished.push(report);
     sessionUse = addUse(sessionUse, report.budgetUse);
     await closeRun(turn, report);
+    harness.endTurn(turn.id);
     // What L6 reads for this turn once its activity rows are gone, or when it wrote none: a reply's own answer is its outcome.
     started[slot] = {
       ...started[slot],
@@ -3995,6 +4010,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const intent = verdict.replay?.intent ?? RESUME_INTENT;
     if (!verdict.ok) return refuse(intent, resumeAskBack(verdict.reason, verdict.detail));
     const { replay } = verdict;
+    if (replay.skills === undefined) return refuse(intent, resumeAskBack('schema', 'the log has no loaded-skill snapshot, so its tool restrictions cannot be restored'));
     if (replay.ended !== undefined) return refuse(intent, { code: 'needs_input', reason: 'this run already finished, so there is nothing to resume', options: ['discard the log'] });
     // A conversation is continued on the wire it began on; a restored card makes no further model call, so it can be shown on any provider.
     const wireNow = nativeToolsFor({ profileId: resumeOptions.profileId ?? options.profileId, model: resumeOptions.model ?? options.model, thinking: undefined }) !== undefined;

@@ -9,6 +9,7 @@ import type { ChatChunk, ChatRequest, Clock } from '@caotang/gateway';
 import { createKeyStore, createManualClock, createMemoryVaultPort, createGateway, createProfileStore } from '@caotang/gateway';
 import { createMockProvider, isPlannerCall, userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { addDocument, getBody, type ProjectState } from '@caotang/store';
+import { parseSkillFolder, type SkillFile } from '@caotang/skills';
 
 import {
   createAgentPorts,
@@ -24,6 +25,7 @@ import {
   type Decision,
   type MemoryRunLog,
   type PendingCard,
+  type PermissionMode,
   type RunEvent,
   type RuleSet,
   type RunLogPort,
@@ -408,6 +410,151 @@ describe('a run resumed between cards is held to the read rules in force when it
     const runId = await droppedBetweenCards(state, log, HIDE_SECRET);
     const { report } = await resumeUnder(state, log, runId, { rules: [] });
     expect(report.status).toBe('replied');
+  });
+});
+
+describe('loaded skill restrictions survive a reload', () => {
+  const request = 'Load the style skill, then label the scenes.';
+  const load = { tool: 'skill.load', params: { name: 'style' }, expect: 'The style is loaded.' };
+  const writes = [
+    { tool: 'meta.set', params: { targets: [LANDING], label: 'act-2' }, expect: 'The Landing is labelled.' },
+    { tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'The Friend is labelled.' },
+  ];
+  const files = (body = 'Read only.'): SkillFile[] => [{
+    path: 'SKILL.md',
+    bytes: new TextEncoder().encode(`---\nname: style\ndescription: Read-only style.\nallowed-tools: doc.read\n---\n${body}\n`),
+  }];
+
+  async function interrupted(at: 'card' | 'conversation') {
+    const state = makeState();
+    const skill = files();
+    state.skills.set('style', skill);
+    const pin = parseSkillFolder('style', skill).skill?.pin ?? '';
+    const log = createMemoryRunLog();
+    let hang = (): void => {};
+    const hung = new Promise<void>((resolve) => { hang = resolve; });
+    const base = await mockGateway([transcript(request, [steps(load)])]);
+    let calls = 0;
+    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin: () => pin } });
+    const session = createAgentSession({
+      harness,
+      gateway: {
+        ...base,
+        complete: (req, signal) => {
+          if (at === 'conversation' && calls++ === 1) {
+            hang();
+            return { [Symbol.asyncIterator]: () => ({ next: () => new Promise<never>(() => {}) }) } as never;
+          }
+          return base.complete(req, signal);
+        },
+      },
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'approve' }),
+      runLog: {
+        projectId: PROJECT,
+        port: {
+          ...log,
+          append: async (runId, events, patch) => {
+            await log.append(runId, events, patch);
+            if (at === 'card' && events.some((event) => event.t === 'step.applied' && event.tool === 'skill.load')) {
+              hang();
+              return new Promise<void>(() => {});
+            }
+          },
+        },
+      },
+    });
+    if (at === 'card') void session.submitPlan(request, { steps: [load, ...writes] });
+    else void session.submit(request);
+    await hung;
+    const [run] = await log.open(PROJECT);
+    const runId = run?.runId ?? '';
+    const rows = await log.events(runId) as RunEvent[];
+    const replay = planResume(rows, (id) => state.documents.get(id)?.revision);
+    const snapshot = [{ name: 'style', body: 'Read only.', pin, allowedTools: ['doc.read'] }];
+    expect(replay.ok && replay.replay.skills).toEqual(snapshot);
+    if (at === 'card') {
+      const appliedAt = rows.findIndex((event) => event.t === 'step.applied' && event.tool === 'skill.load');
+      expect(appliedAt).toBeGreaterThan(0);
+      expect(rows.slice(0, appliedAt)).toContainEqual(expect.objectContaining({ t: 'skills.loaded', skills: snapshot }));
+      expect(replay.ok && replay.replay.card?.completed).toEqual([0]);
+    }
+    await log.update(runId, { status: 'interrupted' });
+    return { state, log, runId, pin };
+  }
+
+  async function resume(fixture: Awaited<ReturnType<typeof interrupted>>, mode: PermissionMode = 'auto', reviewedPin: () => string | undefined = () => fixture.pin, port: RunLogPort = fixture.log) {
+    const { state, runId } = fixture;
+    const requests: ChatRequest[] = [];
+    const cards: PendingCard[] = [];
+    const base = await mockGateway([transcript(request, [steps(load), steps(...writes), answer('Done.')])]);
+    const harness = createHarness({ state, ports: createAgentPorts(), skills: { reviewedPin } });
+    const session = createAgentSession({
+      harness,
+      gateway: { ...base, complete: (req, signal) => { requests.push(req); return base.complete(req, signal); } },
+      context: createContextPort({ state }),
+      mode,
+      decide: async (card) => {
+        cards.push(card);
+        if (cards.length === 1) return { action: 'edit', edits: [{ op: 'set', index: card.card.steps.findIndex((step) => step.status !== 'done'), path: ['targets'], value: [STORM] }] };
+        return cards.length === 2 ? { action: 'approve' } : { action: 'cancel' };
+      },
+      runLog: { port, projectId: PROJECT },
+    });
+    return { report: await session.resume(runId), cards, requests, harness };
+  }
+
+  it.each(['ask', 'auto'] as const)('keeps a pending card restricted in %s mode despite edits and approval', async (mode) => {
+    const fixture = await interrupted('card');
+    const before = outcomeOf(fixture.state);
+    const { report, cards, requests, harness } = await resume(fixture, mode);
+    expect(cards).toHaveLength(3);
+    expect(cards.every((card) => !card.card.approvable && card.card.steps.filter((step) => step.status !== 'done').every((step) => step.status === 'refused'))).toBe(true);
+    expect(report.status).toBe('cancelled');
+    expect(requests).toHaveLength(0);
+    expect(harness.log.entries()).toHaveLength(0);
+    expect(outcomeOf(fixture.state)).toEqual(before);
+    expect(tree(fixture.state, STORM)?.label).toBeNull();
+    const finished = planResume(await fixture.log.events(fixture.runId), (id) => fixture.state.documents.get(id)?.revision);
+    expect(finished.replay?.skills).toEqual([{ name: 'style', body: 'Read only.', pin: fixture.pin, allowedTools: ['doc.read'] }]);
+  });
+
+  it('restores the restrictions before continuing a logged conversation', async () => {
+    const fixture = await interrupted('conversation');
+    const before = outcomeOf(fixture.state);
+    const { report, cards, requests, harness } = await resume(fixture);
+    expect(requests).toHaveLength(2);
+    expect(JSON.stringify(requests.at(-1)?.messages)).toContain('limits this turn to: doc.read');
+    expect(cards).toHaveLength(0);
+    expect(report.status).toBe('replied');
+    expect(harness.log.entries()).toHaveLength(0);
+    expect(outcomeOf(fixture.state)).toEqual(before);
+    expect(tree(fixture.state, STORM)?.label).toBeNull();
+  });
+
+  it.each(['review', 'pin', 'missing snapshot'] as const)('refuses a changed %s without a model call or a write', async (changed) => {
+    const fixture = await interrupted('conversation');
+    let reviewed: string | undefined = fixture.pin;
+    if (changed === 'review') reviewed = undefined;
+    if (changed === 'pin') {
+      const edited = files('A newly reviewed body.');
+      fixture.state.skills.set('style', edited);
+      reviewed = parseSkillFolder('style', edited).skill?.pin;
+    }
+    const port = changed === 'missing snapshot' ? {
+      ...fixture.log,
+      events: async (runId: string) => (await fixture.log.events(runId) as RunEvent[]).filter((event) => event.t !== 'skills.loaded'),
+    } : fixture.log;
+    const before = outcomeOf(fixture.state);
+    const logged = await fixture.log.events(fixture.runId);
+    const { report, cards, requests, harness } = await resume(fixture, 'auto', () => reviewed, port);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toMatch(/skill|snapshot/u);
+    expect(cards).toHaveLength(0);
+    expect(requests).toHaveLength(0);
+    expect(harness.log.entries()).toHaveLength(0);
+    expect(outcomeOf(fixture.state)).toEqual(before);
+    expect(await fixture.log.events(fixture.runId)).toEqual(logged);
   });
 });
 

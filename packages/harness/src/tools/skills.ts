@@ -122,11 +122,7 @@ export function skillLoadPort(states: () => readonly SkillState[], loads: SkillL
       return failure(notFound(GENERIC(name), 'load only a skill named in the skills list', 'name')) as ToolOutcome;
     }
     const { skill } = found;
-    const files = skill.files.filter((file) => {
-      if (!resourcePath(file.path)) return false;
-      const text = textOfBytes(file.bytes);
-      return text !== undefined && !text.includes('\0');
-    }).map((file) => file.path);
+    const files = skillResourcePaths(skill);
     const declared = skill.frontMatter['allowed-tools']?.split(/\s+/u).filter(Boolean);
     const known = knownTools();
     const allowedTools = declared?.filter((name) => known.has(name));
@@ -161,6 +157,14 @@ export function skillLoadPort(states: () => readonly SkillState[], loads: SkillL
 
 function resourcePath(path: string): boolean {
   return skillPathProblem(path) === undefined && (path.startsWith('references/') || path.startsWith('assets/'));
+}
+
+export function skillResourcePaths(skill: Skill): readonly string[] {
+  return skill.files.filter((file) => {
+    if (!resourcePath(file.path)) return false;
+    const text = textOfBytes(file.bytes);
+    return text !== undefined && !text.includes('\0');
+  }).map((file) => file.path);
 }
 
 export function skillReadPort(states: () => readonly SkillState[], loads: SkillLoads, cap: number): ToolPort {
