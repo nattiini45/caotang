@@ -271,7 +271,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const cost = costDetail?.totalUsd;
   const documentCount = plan?.scopeDocIds.length ?? 0;
   const extractCalls = plan?.estimate.extractCalls ?? 0;
-  const noOpenFindings = filter === 'open' && runs.length > 0 && open === 0;
+  const noOpenFindings = filter === 'open' && open === 0 && (runs.length > 0 || (file?.findings.length ?? 0) > 0);
 
   return (
     <div className="findings" data-testid="findings-panel">

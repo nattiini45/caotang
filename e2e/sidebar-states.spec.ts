@@ -37,6 +37,27 @@ test('sidebar panels explain real empty and disabled states with named glyphs', 
   await expect(sidebar.getByRole('heading', { name: 'No turns traced yet' })).toBeVisible();
 });
 
+test('retained fixed findings still name the empty open filter after their run is discarded', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect(page.locator('.agent-report-text')).toBeVisible();
+  await page.getByRole('tab', { name: 'Findings' }).click();
+  await expect(page.getByTestId('findings-open')).toHaveText('1 open');
+  await page.getByRole('button', { name: 'Mark fixed', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'No open findings', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /^Discard run from / }).click();
+  await expect(page.getByRole('button', { name: /^Discard run from / })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'No open findings', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'No open findings', exact: true })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Show findings with status' }).selectOption('fixed');
+  await expect(page.locator('.findings article.finding[data-status="fixed"]')).toHaveCount(1);
+  await page.getByRole('combobox', { name: 'Show findings with status' }).selectOption('dismissed');
+  await expect(page.getByRole('img', { name: 'No findings to show', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'No open findings', exact: true })).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Show findings with status' }).selectOption('all');
+  await expect(page.locator('.findings article.finding[data-status="fixed"]')).toHaveCount(1);
+});
+
 test('empty sidebar actions and trace guidance follow a German interface', async ({ page }) => {
   await createProject(page, 'Deutsche Seitenleiste');
   await page.getByTestId('open-settings').click();
