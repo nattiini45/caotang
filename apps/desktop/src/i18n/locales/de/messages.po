@@ -13276,13 +13276,11 @@ msgstr "Gespeicherte Filter"
 msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr "„{name}“ als {kind, select, status {status} label {label} other {status}} gespeichert."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. Exports go there from now on."
 msgstr "Projekt im Ordner „{folder}“ gespeichert. Exporte landen von jetzt an dort."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. What it replaced is kept in {backup}. Exports go there from now on."
 msgstr "Projekt im Ordner „{folder}“ gespeichert. Was ersetzt wurde, liegt in {backup}. Exporte landen von jetzt an dort."
 
@@ -13377,6 +13375,11 @@ msgstr "Filter „{name}“ wird gespeichert"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.memoryWrite.active"
 msgstr "Die Gedächtnisnotiz „{title}“ wird gespeichert"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Saving to the folder…"
+msgstr "Das Projekt wird im Ordner gespeichert…"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -15745,10 +15748,7 @@ msgstr "Die fokussierte Szene"
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr "Der Ordner „{folderName}“ enthält bereits Dateien, daher wurde nichts darin gespeichert. Ein neuer Ordner für dieses Projekt muss leer sein. Wählen Sie einen anderen Ordner oder erstellen Sie im Ordner-Dialog einen leeren."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "The folder could not be saved: {error}"
 msgstr "Der Ordner konnte nicht gespeichert werden: {error}"
 

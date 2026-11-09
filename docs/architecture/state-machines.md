@@ -63,6 +63,12 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `folder.save`
+
+Owner: `apps/desktop/src/app/folder-save-model.ts`; `components/use-folder-save.ts` interprets folder picking, saves, comparisons and attachment. Product contract: [project-format.md §4](project-format.md#4-write-path-atomicity--crash-safety). Events are `pick`, `save`, `ask`, `saved`, `fail` and `cancel`. `picking` ignores a second pick; `saving` ignores pick, save and cancel. `asking` holds one discriminated question: an overwrite offer with the original snapshot identity or a non-empty folder name. Answering or choosing another folder consumes that question before effects run. Failure returns to `idle` and reports the existing error; success becomes `saved` and permits another gesture. No state is terminal.
+
+The owner updates the reducer's current state synchronously before starting an effect, so two gestures in one React batch cannot start two pickers. Only `saving` announces **Saving to the folder…**, and a `data-testid="folder-save"` status publishes every `data-state`. Stored folder handles, digests, snapshots and files retain their previous shapes; the store write protocol is unchanged. The exhaustive test checks the table; the browser regression holds the real picker and manifest write separately to test the in-flight windows without sleeps.
+
 ### `sprint.timer`
 
 Owner: `packages/furniture/src/sprint.ts`; product context: [goals-progress.md §9, item 4](goals-progress.md#9-history-metrics-and-goal-kinds). Events are `start`, `pause`, `resume`, `tick`, `stop`, `setDuration` and `reset`. Timed events carry epoch milliseconds and a session word-total sample. The owner provides the clock; paused time and words typed during a pause do not count.

@@ -27,24 +27,21 @@ import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 import { pictureStorageReport, type ProjectState, type RuntimeStore, type SweepCandidate } from '@caotang/store';
 
+import { useFolderSave } from './use-folder-save.js';
+import type { FolderOffer } from '../app/folder-save-model.js';
 import type { AgentController, SubmitOptions } from '../app/agent.js';
 import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { newPlan, newTarget, type NewKind } from '../app/new-menu.js';
 import { downloadBytes } from '../app/download.js';
-import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
+import { folderAccessSupported, type DirectoryHandleLike } from '../app/fs-access.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
 import { shellActions } from '../app/shell-actions.js';
 import { narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
   exportBundle,
-  folderOverwriteSnapshotFor,
   noteLeaveSuggestion,
-  previewFolderChanges,
-  saveFolder,
   type FolderFileChange,
   type FolderFilePreview,
-  type FolderOverwriteSnapshot,
-  type FolderSaveAnswers,
 } from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
@@ -207,10 +204,6 @@ export function Workspace({
   /** The unused picture files a sweep would remove, offered before an export, until the writer has answered. */
   const [sweepOffer, setSweepOffer] = useState<readonly SweepCandidate[] | null>(null);
   const [storedToday, setStoredToday] = useState(0);
-  /** A save to the folder that the folder's state stopped, with the reason, until the writer has answered the question it asks. */
-  const [folderOffer, setFolderOffer] = useState<FolderOffer | null>(null);
-  /** The name of a folder "Save as a new folder…" refused because it is not empty, until the writer chooses again or cancels. */
-  const [notEmptyFolder, setNotEmptyFolder] = useState<string | null>(null);
   // One agent controller per open project: its turns, its pending decision and its ghost belong to this session.
   // The budgets are read at each turn, so a change in Settings › Context applies to the next one (context-assembly §3).
   // The controller is its own download (the agent loop, the tool table and the task queue): the editor and the rails are drawn without
@@ -755,107 +748,12 @@ export function Workspace({
     report({ text: t`Exported the activity log as ${{ file: name }}.`, tone: 'info' });
   };
 
-  /**
-   * Writes the project into a folder with the answers the writer has given so far. A refusal is not written over: it becomes a
-   * question, and the writer's answer is the next call (lifecycle `saveFolder`).
-   */
-  const writeFolder = (folder: DirectoryHandleLike, answers: FolderSaveAnswers): void => {
-    void (async () => {
-      try {
-        const outcome = await saveFolder(session, folder, answers);
-        if (outcome.kind === 'refused') {
-          const overwriteSnapshot = folderOverwriteSnapshotFor(outcome);
-          if (overwriteSnapshot === undefined) throw new Error('The folder save question no longer matches the folder state. Save again to review it.');
-          const previewBatch = await previewFolderChanges(session, folder, outcome.previewFiles ?? [], outcome.omittedPreviewFiles ?? 0);
-          setFolderOffer({
-            folder,
-            reason: outcome.reason,
-            overwriteSnapshot,
-            files: outcome.files,
-            previews: previewBatch.previews,
-            omittedPreviews: previewBatch.omitted,
-            partial: outcome.partial === true,
-            after: outcome.after === true,
-            removed: outcome.removed === true,
-            answers,
-          });
-          return;
-        }
-        setFolderOffer(null);
-        // From here on the session's exports are written into this folder too (exports.ts).
-        await session.attachFolder(folder);
-        report({
-          text: [
-            outcome.backup === undefined
-              ? t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. Exports go there from now on.`
-              : t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. What it replaced is kept in ${{ backup: outcome.backup }}. Exports go there from now on.`,
-            ...(outcome.warnings ?? []),
-          ].join(' '),
-          tone: 'info',
-        });
-      } catch (error) {
-        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
-      }
-    })();
-  };
-
-  // The save the writer asked for as the project opened ("Keep this browser's version and save it to the folder"), made once. The
-  // handler is read through a ref, as the chords are, so the effect runs for the folder alone.
-  const writeFolderNow = useRef(writeFolder);
-  useEffect(() => {
-    writeFolderNow.current = writeFolder;
-  });
-  const pendingSaved = useRef<DirectoryHandleLike | null>(null);
-  useEffect(() => {
-    if (pendingFolder === null || pendingSaved.current === pendingFolder) return;
-    pendingSaved.current = pendingFolder;
-    writeFolderNow.current(pendingFolder, {});
-  }, [pendingFolder]);
-
-  const saveToFolder = (): void => {
-    void (async () => {
-      try {
-        const folder = await pickDirectory('readwrite');
-        if (folder === null) return;
-        writeFolder(folder, {});
-      } catch (error) {
-        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
-      }
-    })();
-  };
-
-  /**
-   * "Save as a new folder…": the writer picks a folder, which must be empty, and the project is saved there through the same folder save
-   * (`writeFolder`, lifecycle `saveFolder`), after which the session's folder is the new one. A folder that holds anything is refused
-   * with a sentence, and the writer can choose again or cancel. The picker opens from the click, which is the gesture it needs.
-   */
-  const saveAsNewFolder = (): void => {
-    setFolderOffer(null);
-    setNotEmptyFolder(null);
-    void (async () => {
-      try {
-        const folder = await pickDirectory('readwrite');
-        if (folder === null) return;
-        if (!(await folderIsEmpty(folder))) {
-          setNotEmptyFolder(folder.name);
-          return;
-        }
-        writeFolder(folder, {});
-      } catch (error) {
-        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
-      }
-    })();
-  };
-
-  /** The writer's yes to the question a folder save asked: the answer that question needs, and the save again. */
-  const answerFolderQuestion = (): void => {
-    if (folderOffer === null) return;
-    const { folder, reason, answers, overwriteSnapshot } = folderOffer;
-    setFolderOffer(null);
-    writeFolder(folder, reason === 'locked'
-      ? { ...answers, lockConfirmed: true }
-      : { ...answers, overwriteConfirmed: true, overwriteSnapshot });
-  };
+  const folderSave = useFolderSave(session, report, pendingFolder);
+  const folderOffer = folderSave.state.kind === 'asking' && folderSave.state.question.kind === 'overwrite' ? folderSave.state.question.offer : null;
+  const notEmptyFolder = folderSave.state.kind === 'asking' && folderSave.state.question.kind === 'not-empty' ? folderSave.state.question.name : null;
+  const saveToFolder = (): void => folderSave.pick();
+  const saveAsNewFolder = (): void => folderSave.pick(true);
+  const answerFolderQuestion = folderSave.answer;
 
   const toggleTheme = (): void => {
     const next: Theme = theme === 'dark' ? 'light' : 'dark';
@@ -1175,7 +1073,12 @@ export function Workspace({
         </button>
       </div>
     ) : null,
-    saveState: <SaveIndicator state={saveState} onExport={exportNow} />,
+    saveState: <>
+      <SaveIndicator state={saveState} onExport={exportNow} />
+      <span className="save-state" role="status" data-testid="folder-save" data-state={folderSave.state.kind}>
+        {folderSave.state.kind === 'saving' ? <Trans>Saving to the folder…</Trans> : null}
+      </span>
+    </>,
     progress: { target, setTarget: saveTarget, saveState, exportBackup: exportNow },
     search: {
       state,
@@ -1251,7 +1154,7 @@ export function Workspace({
           open={folderOffer !== null && !folderQuestion(folderOffer).newFolder}
           title={folderOffer ? folderQuestion(folderOffer).title : t`Save to the folder?`}
           confirmLabel={folderOffer ? folderQuestion(folderOffer).confirm : t`Save`}
-          onCancel={() => setFolderOffer(null)}
+          onCancel={folderSave.cancel}
           onConfirm={answerFolderQuestion}
         >
           {folderOffer && !folderQuestion(folderOffer).newFolder ? folderQuestion(folderOffer).body : null}
@@ -1264,7 +1167,7 @@ export function Workspace({
             { label: t`Save as a new folder…`, onChoose: saveAsNewFolder },
             { label: folderOffer ? folderQuestion(folderOffer).confirm : t`Save`, onChoose: answerFolderQuestion, danger: true },
           ]}
-          onCancel={() => setFolderOffer(null)}
+          onCancel={folderSave.cancel}
         >
           {folderOffer && folderQuestion(folderOffer).newFolder ? folderQuestion(folderOffer).body : null}
         </ChoiceDialog>
@@ -1272,7 +1175,7 @@ export function Workspace({
           open={notEmptyFolder !== null}
           title={notEmptyQuestion(notEmptyFolder ?? '').title}
           choices={[{ label: t`Choose another folder…`, onChoose: saveAsNewFolder }]}
-          onCancel={() => setNotEmptyFolder(null)}
+          onCancel={folderSave.cancel}
         >
           {notEmptyQuestion(notEmptyFolder ?? '').body}
         </ChoiceDialog>
@@ -1333,26 +1236,6 @@ function SaveIndicator({ state, onExport }: { state: SaveState; onExport: () => 
       ) : null}
     </span>
   );
-}
-
-/** A folder save the folder's state stopped: the reason, and the answers the writer had already given. */
-interface FolderOffer {
-  readonly folder: DirectoryHandleLike;
-  readonly reason: 'locked' | 'changed' | 'unknown' | 'earlier' | 'files';
-  readonly overwriteSnapshot: FolderOverwriteSnapshot;
-  /** The documents and codex entries another program changed, removed or added, named in words (lifecycle `folderChanges`). */
-  readonly files: readonly FolderFileChange[];
-  /** A read-only comparison of each named file's folder text and this tab's text. */
-  readonly previews: readonly FolderFilePreview[];
-  /** Number of exact file comparisons omitted by the preview-size limits. */
-  readonly omittedPreviews: number;
-  /** The change was found part way through the save, so the files before it and the pictures were written, and these were not. */
-  readonly partial: boolean;
-  /** The change was found after the save was written in full: the folder holds the other program's version of these files. */
-  readonly after: boolean;
-  /** The folder's caotang.json is gone rather than changed, so there is no newer copy to open. */
-  readonly removed: boolean;
-  readonly answers: FolderSaveAnswers;
 }
 
 /** The changed files, one line each, for a question that names them. Nothing renders for a save with none. */

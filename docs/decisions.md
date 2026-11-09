@@ -2,6 +2,8 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- During a compile, Escape and Cancel both keep the Export dialog open until the compile settles; failed readiness can be retried in place. Folder saves show “Saving to the folder…” and accept only one picker or write at a time. Import commits expose a retryable failure and cannot be dismissed while committing; a replaced preview tells its original request it did not commit. A stale AI encoding answer never overwrites a newer manual choice. Why: writers, tests and agents read one named in-memory flow without changing stored projects or files. Caspar: “All new visible states approved as a set.” [owner 2026-11-09]
+
 - Lifecycle state is a `kind`-keyed union with a pure step and a transition table exported as data from `@caotang/machine`; each converted machine is listed with its generated table in docs/architecture/state-machines.md and a repo-level test fails when step and table disagree. No state-machine library. Why: the writer-visible states, the tests and the agents all read one definition, and the kit adds well under 1 kB gzip where XState's smallest use measured 13.0 kB gzip. Caspar: “All three (recommended)”. [owner 2026-11-09]
 
 - Agent-facing machines log transitions as `machine` rows in `caotang.trace/1` (additive kind, schema and agent-harness.md §5.2 updated together; still memory only, never in a project, bundle or MCP). Why: an agent or a bug report can read which state a turn was in without reconstructing it from events. Caspar: “All three (recommended)”. [owner 2026-11-09]

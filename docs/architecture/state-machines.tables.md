@@ -6,6 +6,27 @@ Regenerate with `UPDATE_STATE_MACHINES=1 pnpm exec vitest run test/state-machine
 The convention and owning specs are in [state-machines.md](state-machines.md).
 Unlisted events return the same state. Listed self-transitions may update payloads.
 
+## folder.save
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `asking` | `cancel` | `idle` |
+| `asking` | `pick` | `picking` |
+| `asking` | `save` | `saving` |
+| `idle` | `pick` | `picking` |
+| `idle` | `save` | `saving` |
+| `picking` | `ask` | `asking` |
+| `picking` | `cancel` | `idle` |
+| `picking` | `fail` | `idle` |
+| `picking` | `save` | `saving` |
+| `saved` | `pick` | `picking` |
+| `saved` | `save` | `saving` |
+| `saving` | `ask` | `asking` |
+| `saving` | `fail` | `idle` |
+| `saving` | `saved` | `saved` |
+
 ## sprint.timer
 
 Initial: `idle`. Final: none.

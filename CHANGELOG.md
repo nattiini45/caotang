@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Dialog flow races.** Escape and Cancel now agree during a compile, and a failed export-readiness check can be retried. A rejected import commit shows its error and permits retry; replacing a preview notifies its original caller. Folder saves ignore repeated gestures while busy and show **Saving to the folder…** in English and German. An old AI encoding suggestion no longer replaces a newer manual choice.
+
 - **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
 
 - **Reading skills before drafting.** A plan cannot draft a later step before its `skill.load` or requested `skill.read` has finished. The agent receives the effective tool limits when it loads a skill and reads the instructions and references in a read-only phase first; edits and reorders cannot reuse a proposal across a pending skill read. Skill-guided work stays in the foreground, and older queued plans containing skill tools fail without provider work instead of dropping their skill context.
