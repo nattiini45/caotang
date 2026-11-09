@@ -2732,22 +2732,22 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             for (const card of [...turn.statusCards]) moveCard(turn, card.id, 'cancelled');
             throw error;
           }
-          for (const { step, rule } of rules) {
+          const approvals = rules.map(({ step, rule }) => {
             const index = editable.steps.indexOf(step);
             const callId = callIdFor(kind, prefix, index);
             const auditCallId = kind === 'plan' && !awaited(step.tool) ? planStepCallId(planRunPrefix(editable, start.from, prefix, index), index) : callId;
-            await turn.run?.append({ t: 'rule.approved', turnId: turn.id, callId: auditCallId, tool: step.tool, rule });
-            if (turn.run === undefined || turn.run.broken) {
-              held = 'The automatic approval could not be recorded. Review this card yourself, or fix project storage and try again.';
-              notice = held;
-              break;
-            }
-            trace({ kind: 'rule.approved', at: now(), turnId: turn.id, callId, tool: step.tool, rule });
-            turn.automaticRules.set(step, rule);
-          }
-          if (held !== undefined) {
+            return { step, rule, callId, auditCallId };
+          });
+          const committed = await turn.run?.append(approvals.map(({ step, rule, auditCallId }) => ({ t: 'rule.approved', turnId: turn.id, callId: auditCallId, tool: step.tool, rule })));
+          if (committed !== true) {
+            held = 'The automatic approval could not be recorded. Review this card yourself, or fix project storage and try again.';
+            notice = held;
             for (const { step } of rules) turn.automaticRules.delete(step);
             continue;
+          }
+          for (const { step, rule, callId } of approvals) {
+            trace({ kind: 'rule.approved', at: now(), turnId: turn.id, callId, tool: step.tool, rule });
+            turn.automaticRules.set(step, rule);
           }
         }
         return { settled: 'approved', editable, edits, retries, auto: true };

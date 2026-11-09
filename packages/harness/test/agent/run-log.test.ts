@@ -421,6 +421,23 @@ describe('the run writer', () => {
     expect((await port.open('p'))[0]).toMatchObject({ cannotResume: true });
   });
 
+  it.each([false, true])('stores a numbered batch in one transaction, with no partial batch on failure: %s', async (fail) => {
+    const port = createMemoryRunLog();
+    await port.create(newRunRecord('run_BATCH', { projectId: 'p', intent: 'x', now: 1 }));
+    const sizes: number[] = [];
+    const writer = createRunWriter({ port: { ...port, append: async (id, events, patch) => {
+      sizes.push(events.length);
+      await port.append(id, events, patch);
+    } }, runId: 'run_BATCH', nextSeq: 0, clock: () => 77 });
+    await writer.append(start);
+    if (fail) port.failNextAppend();
+    expect(await writer.append([user, card], { status: 'awaiting-approval' })).toBe(!fail);
+    expect(sizes).toEqual([1, 2]);
+    const stored = await port.events('run_BATCH') as RunEvent[];
+    expect(stored.map((event) => [event.seq, event.t, event.at])).toEqual(fail ? [[0, 'turn.start', 77]] : [[0, 'turn.start', 77], [1, 'messages', 77], [2, 'card.pending', 77]]);
+    if (fail) expect((await port.open('p'))[0]?.cannotResume).toBe(true);
+  });
+
   it('carries the cause of a failure that is not an append, once', () => {
     const notices: string[] = [];
     const writer = createRunWriter({ port: createMemoryRunLog(), runId: 'run_G', nextSeq: 0, onNotice: (message) => notices.push(message) });

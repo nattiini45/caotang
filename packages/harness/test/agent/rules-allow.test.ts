@@ -183,6 +183,23 @@ describe('Settings-authored allow rules', () => {
     expect((await run).status).toBe('applied');
   });
 
+  it('retains no partial approval when a multi-write card’s audit cannot commit completely', async () => {
+    const log = createMemoryRunLog();
+    let approved = 0;
+    const r = await rig([ALLOW, { ...ALLOW, tool: 'meta.set' }], { runLog: { projectId: 'project', port: { ...log, append: async (id, events, patch) => {
+      const count = events.filter((event) => event.t === 'rule.approved').length;
+      if (approved + count > 1) throw new Error('The complete approval batch cannot be saved.');
+      approved += count;
+      await log.append(id, events, patch);
+    } } } });
+    const before = r.harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes;
+    expect((await r.run([REPLACE, { tool: 'meta.set', params: { targets: [LANDING], status: 'final' }, expect: 'The status is final.' }])).status).toBe('cancelled');
+    expect(r.asked).toHaveLength(1);
+    expect(r.harness.state.manifest.tree.find((node) => node.id === FRIEND)?.notes).toBe(before);
+    expect(log.dump()).not.toContain('rule.approved');
+    expect(r.trace.records().some((event) => event.kind === 'rule.approved')).toBe(false);
+  });
+
   it.each(['rule', 'mode'] as const)('rechecks the %s after awaited logging before applying an automatically approved step', async (changed) => {
     let rules: readonly SourcedRule[] = [ALLOW];
     let mode: 'ask' | 'plan-only' = 'ask';
