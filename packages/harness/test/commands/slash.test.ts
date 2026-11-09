@@ -147,6 +147,8 @@ describe('the menu', () => {
     expect(isCommandName('Draft')).toBe(false);
     expect(isCommandName('a b')).toBe(false);
     expect(isCommandName('')).toBe(false);
-    expect(isCommandName('x'.repeat(40))).toBe(false);
+    expect(isCommandName('x'.repeat(64))).toBe(true);
+    expect(isCommandName('1-saved')).toBe(true);
+    expect(isCommandName('x'.repeat(65))).toBe(false);
   });
 });

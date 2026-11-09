@@ -8,6 +8,7 @@ import { formatCount } from '../i18n/locale.js';
 
 /** A result shown under the Intent box until the writer dismisses it or sends the next line. It is view state: never saved, never sent. */
 export interface CommandNote {
+  readonly argument?: { readonly name: string; readonly line: string; readonly values?: Readonly<Record<string, string>>; readonly promptSelection?: string };
   readonly kind: 'help' | 'ask' | 'context' | 'info';
   readonly title: string;
   readonly lines: readonly string[];

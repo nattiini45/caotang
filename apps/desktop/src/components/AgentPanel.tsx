@@ -57,6 +57,7 @@ import { accessibleText } from '../i18n/accessible-text.js';
 import { UserText } from '../i18n/UserText.js';
 
 import { TurnMenu } from './TurnMenu.js';
+import { SaveCommand } from './SaveCommand.js';
 
 /** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
 const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
@@ -158,6 +159,14 @@ export function AgentPanel({
   const pictureNames = useMemo(() => new Map([...pictures.values()].map((picture) => [picture.id, picture.fileName] as const)), [pictures]);
   const transcriptionRoutes = agent.transcriptionRoutes();
   const waitingSkills = session.skills().waiting;
+  const [, refreshCommands] = useState(0);
+  useEffect(() => {
+    const client = session.commandClient();
+    const refresh = (): void => refreshCommands((value) => value + 1);
+    const offHealth = client?.onHealthChange(refresh);
+    const offTools = client?.onToolListChanged(refresh);
+    return () => { offHealth?.(); offTools?.(); };
+  }, [session]);
   const [intent, setIntent] = useState(() => memoryFor(agent).intent);
   useEffect(() => {
     memoryFor(agent).intent = intent;
@@ -205,10 +214,10 @@ export function AgentPanel({
   // Enter: send when no turn runs, queue as the next turn when one does. A line that starts with a slash is read as a command first
   // (agent-harness §2): it may start a turn of its own, answer under the box, or ask to restore. A line the command could not use stays in
   // the box for the writer to correct.
-  const send = (line: string): void => {
+  const send = (line: string, values?: Readonly<Record<string, string>>, promptSelection?: string): void => {
     const text = line.trim();
     if (text === '') return;
-    const outcome = agent.sendLine(text);
+    const outcome = agent.sendLine(text, values, promptSelection);
     if (outcome.kind === 'kept') return;
     setIntent('');
     setOldInstruction(null);
@@ -351,6 +360,7 @@ export function AgentPanel({
   const intentForm = (
     <form className="agent-intent" onKeyDown={intentIme.noteKey} onSubmit={submit}>
       <CommandComposer
+        commands={agent.commands()}
         inputRef={intentRef}
         value={intent}
         onChange={setIntent}
@@ -477,7 +487,7 @@ export function AgentPanel({
             </p>
           ) : null}
 
-          {snapshot.command !== null ? <CommandNoteView note={snapshot.command} onDismiss={() => agent.dismissCommandNote()} /> : null}
+          {snapshot.command !== null ? <CommandNoteView note={snapshot.command} onRun={send} onDismiss={() => agent.dismissCommandNote()} /> : null}
 
           {/* Skills the writer has not read and approved are not offered to the agent (extensibility.md §10). The panel says how many wait. */}
           {waitingSkills > 0 ? (
@@ -635,10 +645,11 @@ export function AgentPanel({
 }
 
 /** What the last slash command said: help, a missing or ambiguous argument, the context, or why a line was kept. It is the panel's, not a turn's. */
-function CommandNoteView({ note, onDismiss }: { note: CommandNote; onDismiss: () => void }): ReactNode {
+function CommandNoteView({ note, onDismiss, onRun }: { note: CommandNote; onDismiss: () => void; onRun: (line: string, values?: Readonly<Record<string, string>>, promptSelection?: string) => void }): ReactNode {
   return (
     <section className={`agent-command-note is-${note.kind}`} role="status" aria-label="Command result" data-testid="agent-command-note">
       <p className="agent-command-title">{note.title}</p>
+      {note.argument === undefined ? null : <CommandArgument key={`${note.argument.promptSelection ?? ''}:${note.argument.line}:${note.argument.name}`} argument={note.argument} onRun={onRun} />}
       {note.lines.length === 0 ? null : (
         <ul>
           {note.lines.map((line, index) => (
@@ -651,6 +662,22 @@ function CommandNoteView({ note, onDismiss }: { note: CommandNote; onDismiss: ()
       </button>
     </section>
   );
+}
+
+function CommandArgument({ argument, onRun }: { readonly argument: NonNullable<CommandNote['argument']>; readonly onRun: (line: string, values?: Readonly<Record<string, string>>, promptSelection?: string) => void }): ReactNode {
+  const [value, setValue] = useState('');
+  return <form className="settings-form" onSubmit={(event) => {
+    event.preventDefault();
+    if (argument.values !== undefined) {
+      onRun(argument.line, { ...argument.values, [argument.name]: value }, argument.promptSelection);
+      return;
+    }
+    const word = JSON.stringify(value);
+    onRun(`${argument.line} ${/^[1-9]$/u.test(argument.name) ? word : `${argument.name}=${word}`}`);
+  }}>
+    <label>{t`Argument`}: <bdi>{argument.name}</bdi><input value={value} onChange={(event) => setValue(event.target.value)} required /></label>
+    <button type="submit" className="button" disabled={value.trim() === ''}>{t`Run command`}</button>
+  </form>;
 }
 
 /** The restore dialog's state for a turn: the later changes it would also take back are read now, from the undo stack. */
@@ -794,6 +821,7 @@ function TurnBlock({
             : phaseLabel(turn.phase)}
         </span>
       </header>
+      {settled && !turn.command?.startsWith('mcp-') && !turn.command?.startsWith('macro-') ? <SaveCommand session={session} intent={turn.intent} /> : null}
       <TaskChecklist list={turn.tasks} settled={settled} />
       {turn.provider !== null ? <p className="agent-on muted"><Trans>Ran on <UserText value={turn.provider} /></Trans></p> : null}
 
@@ -1157,9 +1185,9 @@ function HeldPlan({ report, disabled, onRun }: { report: TurnReport; disabled: b
           return <li key={`${index}:${step.tool}`}>{phrase.contentRef === undefined ? phrase.content : renderRef(phrase.contentRef, { userValues: WRITER_VALUE_KEYS })}</li>;
         })}
       </ol>
-      <button type="button" className="button" disabled={disabled} onClick={onRun}>
+      {report.heldRequiresRestart === true ? <p role="status"><Trans>This plan used skill instructions or outside text. Switch to Ask and start the original command or request again so its restrictions and warnings are kept.</Trans></p> : <button type="button" className="button" disabled={disabled} onClick={onRun}>
         <Trans>Switch to Ask and run this plan</Trans>
-      </button>
+      </button>}
     </section>
   );
 }
