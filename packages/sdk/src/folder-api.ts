@@ -7,6 +7,7 @@
 export { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from './node-fs.js';
 export { LOCK_FILE, LOCK_TAKEOVER_FILE, ProjectLockedError, acquireProjectLock, type ProjectLock, type LockRefusal } from './lock.js';
 export { mergeServerDelta } from './coherence-file.js';
+export type { StopReason } from './writer-stop.js';
 export {
   coherenceFileOf,
   scopeNodeOf,

@@ -339,6 +339,22 @@ The loop is callback-shaped, `decide(pending)` for every card and `emit(event)` 
 
 Turns and calls run one at a time. The events of a turn are held until read, and past 4,096 held events the oldest streamed text (`model.delta`, `model.reasoning`, `draft.delta`) is dropped, never another event.
 
+An `AgentRun` iterator accepts concurrent `next()` calls in request order: each event satisfies one read. An end settles all pending reads after the held events drain; a failure rejects all remaining pending reads after that drain. Returning the iterator settles its outstanding reads with `done` and stops further delivery to it, without cancelling the turn or its report. The queue's `open`, `ended` and `failed` states and the folder writer's shared `StopReason` are registered in [state-machines.md](state-machines.md). The folder stop is memory only, and the lock file stays byte-compatible.
+
+The CLI's `REPORT_STATUS_EXIT_CODES` and `ASK_BACK_EXIT_CODES` tables in `packages/cli/src/output.ts` preserve the report mapping. A successful status wins over an ask-back; otherwise an ask-back wins over the status fallback. Usage, folder and signal errors are assigned by the caller, not inferred from a report.
+
+| Condition | Exit code |
+|---|---|
+| `replied` or `applied`, even with an ask-back | 0 |
+| `failed` without an ask-back, or an internal error | 1 |
+| Invalid command line, no project, or missing required key | 2 |
+| Folder held by another writer | 3 |
+| `needs_input`, `budget_exhausted`, `hook_blocked`, or `cancelled` without an ask-back | 4 |
+| `conflict`, `anchor_unresolvable`, or a folder changed by another program | 5 |
+| `verify_failed` | 6 |
+| SIGINT | 130 |
+| SIGTERM | 143 |
+
 ## 12. Recurring tasks
 
 A recurring task is an intent, a plan or a scan that the project remembers and offers when it is due. The definitions live in `tasks.json` beside `caotang.json` (project-format §1); the model, the codec, the recovery posture and the due-date rule are the pure package `@caotang/tasks`, and the run is the desktop app's (`apps/desktop` `recurring-tasks.ts`). The recovery posture is `coherence.json`'s: an unreadable file is kept under a `.corrupt-<timestamp>` name and restored from a snapshot, a file from a newer format is shown and never overwritten, and so is a file with no `formatVersion`, which is most likely another program's: it is left as it is and nothing is saved to it until the writer renames or removes it. This section is the browser build. A command line for tasks, an agent or MCP tool for them, a tray, and a model task that starts by itself are not built (below).

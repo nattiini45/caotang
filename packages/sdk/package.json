@@ -18,6 +18,7 @@
     "@caotang/gateway": "workspace:*",
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/machine": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",
     "@caotang/store": "workspace:*",

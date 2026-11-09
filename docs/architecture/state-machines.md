@@ -63,6 +63,24 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `mcp.confirmation-round`
+
+Owner: `packages/mcp-server/src/confirm.ts`, used by `tools.ts`; product contract: [extensibility.md §9](extensibility.md#9-caotang-as-an-mcp-server). A round starts `unasked`; `ask` binds its existing sealed payload in `asked`. An elicitation `answer` becomes `accepted` only for an accept with boolean `confirmed: true`; decline, cancel and other elicitation answers become `declined`, `cancelled` and `not-confirmed`. Missing answers and non-elicitation responses leave it `asked`. The four final decisions absorb every event. Changed arguments bind no prior round and require a fresh question.
+
+Lifecycle tags wrap, but are never added to, the signed `RoundState` payload. `accepted` names the host's answer, not a successful write: preparation and current-project checks can still refuse it. Invalid, expired and foreign seals are rejected by the MCP SDK before this dispatch path, rather than represented as reducer decisions. The nonce ledger still publishes the in-flight answer before a concurrent accepted replay can write again. No request-state bytes, TTL, key handling or persistence change; this is an in-memory decision model, not a durable confirmation store.
+
+### `sdk.writer`
+
+Owner: `packages/sdk/src/writer-stop.ts`, interpreted by `folder.ts`; product contracts: [extensibility.md §9](extensibility.md#9-caotang-as-an-mcp-server) and [agent-harness.md §11](agent-harness.md#11-headless-use). A writer starts `open`. A `drift` event stops it in `drift` or `saved-drift`, depending on whether its own manifest save already completed. A `partial` timeline batch stops an open writer in `partial`, or attaches its recovery words to the existing stop without replacing that cause. No stopped state can reopen; the table has no final states because a partial report can still attach recovery information without permitting a write.
+
+`StopReason` is the shared union for these three stopped states. `OpenFolder.changed` and `stoppedError()` remain compatibility projections. The MCP server remembers the announced `StopReason` instead of a second stop flag, and reads `writtenPartway` from the folder's recovery information instead of keeping another copy. Error wording, notification timing and the first stop's precedence stay unchanged. This state is memory only; neither project files nor `.caotang-mcp.lock` change.
+
+### `sdk.events`
+
+Owner: `packages/sdk/src/run.ts`; product contract: [agent-harness.md §11](agent-harness.md#11-headless-use). `end` takes `open` to `ended`; `fail` takes any state to `failed` with the error. This deliberately preserves failure after end and replacement of a failure by a later failure, so no state is declared final. Pushes are accepted only while open. Buffered events drain before an end or failure is delivered.
+
+Pending iterator requests are FIFO, including concurrent `next()` calls. Closing settles every outstanding request after delivering any held events, and iterator return settles that iterator's pending requests with `done`. A failed iterator remains finished for subsequent reads. The table tests cover closure states; scenario tests prove queue ordering, concurrent completion and early return. Nothing is persisted or added to a trace.
+
 ### `sprint.timer`
 
 Owner: `packages/furniture/src/sprint.ts`; product context: [goals-progress.md §9, item 4](goals-progress.md#9-history-metrics-and-goal-kinds). Events are `start`, `pause`, `resume`, `tick`, `stop`, `setDuration` and `reset`. Timed events carry epoch milliseconds and a session word-total sample. The owner provides the clock; paused time and words typed during a pause do not count.

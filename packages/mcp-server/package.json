@@ -29,6 +29,7 @@
     "@caotang/font-noto-hebrew": "workspace:*",
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/machine": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/sdk": "workspace:*",
     "@caotang/store": "workspace:*",

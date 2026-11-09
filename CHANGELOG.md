@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Reading agent events from a script (#531).** Concurrent reads of an `AgentRun` now receive events in request order instead of leaving the first reader waiting forever. Finishing, failing or returning the iterator settles every outstanding read; the turn's report remains available separately.
+
 - **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
 
 - **Reading skills before drafting.** A plan cannot draft a later step before its `skill.load` or requested `skill.read` has finished. The agent receives the effective tool limits when it loads a skill and reads the instructions and references in a read-only phase first; edits and reorders cannot reuse a proposal across a pending skill read. Skill-guided work stays in the foreground, and older queued plans containing skill tools fail without provider work instead of dropping their skill context.

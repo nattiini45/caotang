@@ -2,6 +2,8 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- An SDK `AgentRun` event iterator serves concurrent `next()` requests in FIFO order and settles every outstanding read on end, failure or iterator return; return does not cancel the turn or its report (#531, agent-harness.md §11). Why: a second pending read must not replace and strand the first. [delegated 2026-11-09]
+
 - Lifecycle state is a `kind`-keyed union with a pure step and a transition table exported as data from `@caotang/machine`; each converted machine is listed with its generated table in docs/architecture/state-machines.md and a repo-level test fails when step and table disagree. No state-machine library. Why: the writer-visible states, the tests and the agents all read one definition, and the kit adds well under 1 kB gzip where XState's smallest use measured 13.0 kB gzip. Caspar: “All three (recommended)”. [owner 2026-11-09]
 
 - Agent-facing machines log transitions as `machine` rows in `caotang.trace/1` (additive kind, schema and agent-harness.md §5.2 updated together; still memory only, never in a project, bundle or MCP). Why: an agent or a bug report can read which state a turn was in without reconstructing it from events. Caspar: “All three (recommended)”. [owner 2026-11-09]

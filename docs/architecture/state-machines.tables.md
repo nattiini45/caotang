@@ -6,6 +6,42 @@ Regenerate with `UPDATE_STATE_MACHINES=1 pnpm exec vitest run test/state-machine
 The convention and owning specs are in [state-machines.md](state-machines.md).
 Unlisted events return the same state. Listed self-transitions may update payloads.
 
+## mcp.confirmation-round
+
+Initial: `unasked`. Final: `accepted`, `cancelled`, `declined`, `not-confirmed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `accepted` | — | — |
+| `asked` | `answer` | `accepted`, `asked`, `cancelled`, `declined`, `not-confirmed` |
+| `cancelled` | — | — |
+| `declined` | — | — |
+| `not-confirmed` | — | — |
+| `unasked` | `ask` | `asked` |
+
+## sdk.events
+
+Initial: `open`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `ended` | `fail` | `failed` |
+| `failed` | `fail` | `failed` |
+| `open` | `end` | `ended` |
+| `open` | `fail` | `failed` |
+
+## sdk.writer
+
+Initial: `open`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `drift` | `partial` | `drift` |
+| `open` | `drift` | `drift`, `saved-drift` |
+| `open` | `partial` | `partial` |
+| `partial` | `partial` | `partial` |
+| `saved-drift` | `partial` | `saved-drift` |
+
 ## sprint.timer
 
 Initial: `idle`. Final: none.
