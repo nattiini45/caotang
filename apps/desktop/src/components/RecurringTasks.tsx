@@ -5,6 +5,9 @@
  */
 
 import { useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { useLingui } from '@lingui/react';
+import { Trans } from '@lingui/react/macro';
 
 import { WEEKDAYS } from '@caotang/tasks';
 
@@ -37,6 +40,7 @@ export function RecurringTasksPanel({
   /** The section heading's level: 4 in Classic's drawer, 3 in Modern's window, whose title is the h2 (modern-interface.md §9.1). */
   headingLevel?: 3 | 4;
 }): ReactNode {
+  useLingui();
   const Heading = headingLevel === 3 ? 'h3' : 'h4';
   const snapshot = useSyncExternalStore(recurring.subscribe, recurring.snapshot);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -70,8 +74,8 @@ export function RecurringTasksPanel({
 
   const { status } = snapshot;
   return (
-    <section className="recurring" aria-label="Recurring tasks" data-testid="recurring-tasks">
-      <Heading>Recurring tasks</Heading>
+    <section className="recurring" aria-label={t`Recurring tasks`} data-testid="recurring-tasks">
+      <Heading><Trans>Recurring tasks</Trans></Heading>
       <p className="recurring-note muted">
         A task runs only while this project is open in a visible tab. When one is due you are offered it, and a continuity scan, which reads
         your project and calls no model, may start by itself. Tasks live in tasks.json beside caotang.json; when each last ran is kept in
@@ -163,7 +167,7 @@ export function RecurringTasksPanel({
 
       {editing === null ? (
         <button type="button" className="button" onClick={startNew} disabled={!status.writable}>
-          New task
+          <Trans>New task</Trans>
         </button>
       ) : (
         <TaskForm editing={editing} onChange={(draft) => setEditing({ ...editing, draft, error: null })} onSubmit={save} onCancel={() => setEditing(null)} />
@@ -197,12 +201,13 @@ function TaskForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onCancel: () => void;
 }): ReactNode {
+  useLingui();
   const { draft } = editing;
   const set = (patch: Partial<TaskDraft>): void => onChange({ ...draft, ...patch });
   const timed = draft.schedule === 'daily' || draft.schedule === 'weekly';
   const model = draft.body === 'intent';
   return (
-    <form className="recurring-form settings-form" noValidate aria-label={editing.id === null ? 'New task' : 'Edit task'} onSubmit={onSubmit}>
+    <form className="recurring-form settings-form" noValidate aria-label={editing.id === null ? t`New task` : t`Edit task`} onSubmit={onSubmit}>
       <label>
         <span>Task name</span>
         <input type="text" value={draft.name} maxLength={80} onChange={(event) => set({ name: event.target.value })} />

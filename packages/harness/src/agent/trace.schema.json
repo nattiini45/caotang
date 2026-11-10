@@ -51,6 +51,7 @@
         "kind": { "const": "machine" },
         "turnId": { "type": "string" },
         "machine": { "type": "string", "description": "The transition table's id." },
+        "subjectId": { "type": "string", "description": "The turn or task whose out-of-turn transition is grouped under reviews." },
         "from": { "type": "string" },
         "event": { "type": "string" },
         "to": { "type": "string" }

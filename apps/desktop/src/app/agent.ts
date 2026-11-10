@@ -84,6 +84,8 @@ import {
   withheldAnywhere,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
+  TRACE_REVIEWS,
+  turnMarkerFields,
   type ContextConfig,
   type LanguagePolicy,
   type AgentEvent,
@@ -111,7 +113,7 @@ import { createRunLogPort, nodeById, valueRetentionRoot } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
-import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
+import { documentIdFor, draftCheckOf, newTurnRecord, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView, type TurnRecord } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
@@ -326,7 +328,7 @@ function noProviderText(): string {
 export { agentFor } from './agent-registry.js';
 
 export class AgentController {
-  private turns: TurnView[] = [];
+  private turns: TurnRecord[] = [];
   private state = initialAgentState();
   private startupTrace: { at: number; from: AgentSnapshot['phase']; event: AgentStateEvent['type']; to: AgentSnapshot['phase'] }[] = [];
   private endTrace: Extract<TraceInput, { kind: 'turn.end' }> | null = null;
@@ -439,6 +441,10 @@ export class AgentController {
     }
   }
 
+  traceMachine(record: Pick<Extract<TraceInput, { kind: 'machine' }>, 'machine' | 'subjectId' | 'from' | 'event' | 'to'>): void {
+    this.writeTrace({ kind: 'machine', at: this.clock(), turnId: TRACE_REVIEWS, ...record });
+  }
+
   constructor(
     private readonly session: ProjectSession,
     private readonly providers: ProviderService,
@@ -488,7 +494,10 @@ export class AgentController {
     const drafts = this.draftCheck();
     return {
       phase: this.state.kind,
-      turns: this.turns,
+      turns: this.turns.map((turn) => {
+        const fields = turnMarkerFields([...this.sessions.values()].map((agent) => agent.turnMarker(turn.turnId)).find((marker) => marker !== undefined) ?? { kind: 'live' });
+        return { ...turn, ...fields, restoredAt: fields.restoredAt ?? null, restoredFromStep: fields.restoredFromStep ?? null };
+      }),
       pending: this.pending,
       busy: this.busy,
       stoppable: this.busy || this.pending !== null,
@@ -728,6 +737,12 @@ export class AgentController {
       resolve: docResolverFor(state, withheldAnywhere({ rules: this.session.rulesNow() }, state)),
       recipes: (state.manifest.recipes ?? []).map((recipe) => ({ name: recipe.name, format: recipe.format })),
     };
+  }
+
+  trySubmit(intent: string, options: SubmitOptions = {}, plan?: { readonly steps: readonly PlanStep[] }):
+    { readonly started: false } | { readonly started: true; readonly report: Promise<TurnReport | null> } {
+    if (this.state.kind !== 'idle') return { started: false };
+    return { started: true, report: plan === undefined ? this.submit(intent, options) : this.submitPlan(intent, plan, options) };
   }
 
   /**
@@ -1519,7 +1534,6 @@ export class AgentController {
     if (agent === undefined) return null;
     const result = agent.rewindConversation(turnId);
     if (result.rewound.length === 0) return null;
-    this.turns = this.turns.map((turn) => (result.rewound.includes(turn.turnId) ? { ...turn, rewound: true } : turn));
     this.announcement = t`Conversation rewound. The agent no longer sees that turn or the ones after it.`;
     this.bump();
     return result;
@@ -1528,7 +1542,7 @@ export class AgentController {
   /** Whether the conversation can be rewound to before this turn: nothing is running and the turn is still sent to the model. */
   canRewind(turnId: string): boolean {
     const turn = this.turns.find((entry) => entry.turnId === turnId);
-    return !this.busy && turn !== undefined && !turn.rewound && this.sessionOf(turnId) !== undefined;
+    return !this.busy && turn !== undefined && this.sessionOf(turnId)?.turnMarker(turnId)?.kind !== 'rewound' && this.sessionOf(turnId) !== undefined;
   }
 
   /** The session that ran this turn: a turn belongs to the session of the role it ran under. */
@@ -1549,12 +1563,6 @@ export class AgentController {
       const ids = taken.filter((turn) => this.sessionOf(turn.turnId) === agent).map((turn) => turn.turnId);
       if (ids.length > 0) agent.markRestored(ids, at, partial !== undefined && ids[0] === partial.turnId ? partial.step : undefined);
     }
-    const ids = new Set(taken.map((turn) => turn.turnId));
-    this.turns = this.turns.map((turn) =>
-      ids.has(turn.turnId) && !turn.rewound
-        ? { ...turn, restoredAt: at, restoredFromStep: partial !== undefined && turn.turnId === partial.turnId ? partial.step : null }
-        : turn,
-    );
   }
 
   /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */
@@ -1607,7 +1615,7 @@ export class AgentController {
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
       if (this.turnAbort !== null) this.move({ type: 'turn', owner: this.turnAbort, patch: { turnId: event.turnId } });
-      this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn, this.commandForNextTurn)];
+      this.turns = [...this.turns, newTurnRecord(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn, this.commandForNextTurn)];
       this.handEarlyNotes(event.turnId);
     }
     // A note has reached the model: it is no longer waiting.

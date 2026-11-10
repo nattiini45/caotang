@@ -94,6 +94,8 @@ import { isCommandName } from '../commands/slash.js';
 import { isMacroCommand } from '../macro.js';
 import { canMove } from '@caotang/machine';
 import { turnPhaseTable } from './turn-machine.js';
+import { stepTurnMarker, turnMarkerFields, turnMarkerTable, type TurnMarker, type TurnMarkerEvent } from './turn-marker.js';
+import { TRACE_REVIEWS } from './trace.js';
 import { cardDecisionTable, decideCard as stepCardDecision, type CardDecisionEvent, type CardDecisionState } from './card-decision.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
@@ -511,6 +513,7 @@ export interface AgentSession {
    * A turn rewound or unknown is left as it is.
    */
   markRestored(turnIds: readonly string[], at: number, fromStep?: number): void;
+  turnMarker(turnId: string): TurnMarker | undefined;
   /**
    * What the next planner request would send now: its layers with their tokens, and what was left out. It assembles the request the way a
    * turn does and sends nothing, so no model call is made and the gateway sees no request (`/context`).
@@ -1056,6 +1059,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const finished: TurnReport[] = [];
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
   const started: RecentTurn[] = [];
+  const markers = new Map<string, TurnMarker>();
+  const recentTurns = (): RecentTurn[] => started.map((turn) => ({ ...turn, ...turnMarkerFields(markers.get(turn.turnId) ?? { kind: 'live' }) }));
+  const moveMarker = (turnId: string, event: TurnMarkerEvent): void => {
+    const from = markers.get(turnId);
+    if (from === undefined) return;
+    const next = stepTurnMarker(from, event);
+    if (next === from) return;
+    markers.set(turnId, next);
+    trace({ kind: 'machine', at: now(), turnId: TRACE_REVIEWS, machine: turnMarkerTable.id, subjectId: turnId, from: from.kind, event: event.type, to: next.kind });
+  };
   /**
    * The call id each step of a turn was dispatched under, in the order the steps ran: the step's status-card id, and the id its commands carry
    * (a plan names a step `<plan>.<index>`, a mixed plan's native run `<prefix>.s<k>.<index>`, a one-step card its own id). `restoreStep` reads
@@ -3992,11 +4005,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     logPlan: LogPlan = { mode: 'new', wire: 'planner' },
   ): Promise<TurnReport> {
     // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
-    const turn = newTurn(turnOptions, [...started]);
+    const turn = newTurn(turnOptions, recentTurns());
     if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
     const restored = logPlan.mode === 'resume' ? harness.restoreSkills(turn.id, logPlan.replay.skills ?? []) : undefined;
     turn.run = restored?.ok === false ? undefined : await openRun(turn, intent, logPlan, turnOptions);
     const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;
+    markers.set(turn.id, { kind: 'live' });
     running.set(turn.id, turn);
     trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
     if (policyOf(turn).decides) takeBase(turn);
@@ -4262,18 +4276,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] } {
       const at = started.findIndex((entry) => entry.turnId === turnId);
       if (at === -1) return { intent: '', rewound: [] };
-      for (let index = at; index < started.length; index++) started[index] = { ...started[index]!, rewound: true };
+      for (let index = at; index < started.length; index++) moveMarker(started[index]!.turnId, { type: 'rewind' });
       return { intent: started[at]!.intent, rewound: started.slice(at).map((entry) => entry.turnId) };
     },
 
     markRestored(turnIds: readonly string[], at: number, fromStep?: number): void {
       turnIds.forEach((id, position) => {
-        const slot = started.findIndex((entry) => entry.turnId === id);
-        if (slot === -1 || started[slot]!.rewound === true) return;
-        const { restoredFromStep: _before, ...rest } = started[slot]!;
-        started[slot] = { ...rest, restoredAt: at, ...(position === 0 && fromStep !== undefined ? { restoredFromStep: fromStep } : {}) };
+        moveMarker(id, { type: 'restore', at, ...(position === 0 && fromStep !== undefined ? { fromStep } : {}) });
       });
     },
+
+    turnMarker: (turnId: string) => markers.get(turnId),
 
     reports: () => [...finished],
 
@@ -4281,7 +4294,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
       // The port reads the limits of the pins of the turn that started last; a running turn keeps its own.
       if (running.size === 0) latestPins = pins;
-      const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, [...started], undefined, pinned.languages ?? options.languages?.());
+      const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, recentTurns(), undefined, pinned.languages ?? options.languages?.());
       return {
         promptTokens: planner.preview.promptTokens,
         layers: planner.prompt.layers.map((layer) => ({ id: layer.id, name: layer.name, tokens: layer.tokens, included: layer.included, ...(layer.budget === undefined ? {} : { budget: layer.budget }) })),

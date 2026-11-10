@@ -24,6 +24,7 @@
  */
 
 import { DETERMINISTIC_CHECK_IDS, type DeterministicCheckId } from '@caotang/coherence';
+import { recurringRunTable, stepRecurringRun, type RecurringRunState, type RecurringRunEvent } from './recurring-state.js';
 import {
   TASKS_LIMIT,
   checkTask,
@@ -218,10 +219,17 @@ export class RecurringTasks {
   private readonly offered = new Set<string>();
   /** The offers a screen reader has been told about. */
   private readonly announced = new Set<string>();
-  private running: string | null = null;
+  private run: RecurringRunState = { kind: 'idle' };
+  private get running(): string | null { return this.run.kind === 'idle' ? null : this.run.taskId; }
   private announcement = '';
   private message: string | null = null;
   private evaluating = false;
+
+  private moveRun(event: RecurringRunEvent): void {
+    const previous = this.run;
+    this.run = stepRecurringRun(previous, event);
+    if (this.run !== previous) this.options.agent.traceMachine({ machine: recurringRunTable.id, subjectId: event.taskId, from: previous.kind, event: event.type, to: this.run.kind });
+  }
 
   constructor(private readonly options: RecurringOptions) {
     this.runs = options.runs ?? null;
@@ -300,6 +308,7 @@ export class RecurringTasks {
    */
   async evaluate(opening = false): Promise<void> {
     if (this.runs === null || this.evaluating) return;
+    const starting: AgentTask[] = [];
     this.evaluating = true;
     try {
       const file = this.file();
@@ -309,7 +318,6 @@ export class RecurringTasks {
       for (const id of [...this.offered]) if (!live.has(id)) this.offered.delete(id);
       // An offer that has gone (run, skipped, removed or switched off) is announced again when its task comes due again.
       for (const id of [...this.announced]) if (!this.offered.has(id)) this.announced.delete(id);
-      const starting: AgentTask[] = [];
       for (const task of dueTasks(file, this.runs.lastRuns(), now, timeZone, opening)) {
         if (task.id === this.running) continue;
         if (effectiveWhenDue(task) === 'run') starting.push(task);
@@ -322,9 +330,12 @@ export class RecurringTasks {
         this.announcement = names.length === 1 ? `Task due: ${names[0]}. Run now or Skip.` : `${names.length} tasks are due: ${names.join(', ')}.`;
       }
       this.bump();
-      for (const task of starting) await this.runTask(task.id, 'due');
     } finally {
       this.evaluating = false;
+    }
+    for (const task of starting) {
+      if (this.running !== null) break;
+      await this.runTask(task.id, 'due');
     }
   }
 
@@ -367,24 +378,30 @@ export class RecurringTasks {
       this.bump();
       return;
     }
-    if (task.body.kind !== 'scan' && this.options.agent.snapshot().busy) {
-      this.message = 'The agent is working on another turn. Run the task when it has finished.';
-      this.bump();
-      return;
-    }
-    this.running = id;
-    this.offered.delete(id);
-    this.bump();
+    this.moveRun({ type: 'start', taskId: id });
     let record: TaskRunRecord;
     try {
-      record = await this.execute(task, trigger);
+      const execution = this.execute(task, trigger);
+      if (execution === null) {
+        this.moveRun({ type: 'finish', taskId: id });
+        this.message = 'The agent is working on another turn. Run the task when it has finished.';
+        this.bump();
+        return;
+      }
+      this.offered.delete(id);
+      this.bump();
+      record = await execution;
     } catch (error) {
       record = this.recordOf(task, trigger, 'failed', `The run stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`);
     }
-    this.running = null;
-    await this.runs.record(record);
-    this.announcement = `${task.name}: ${record.summary}`;
-    this.bump();
+    this.moveRun({ type: 'record', taskId: id });
+    try {
+      await this.runs.record(record);
+      this.announcement = `${task.name}: ${record.summary}`;
+    } finally {
+      this.moveRun({ type: 'finish', taskId: id });
+      this.bump();
+    }
   }
 
   private recordOf(task: AgentTask, trigger: TaskRunRecord['trigger'], status: TaskRunRecord['status'], summary: string, extra: Partial<TaskRunRecord> = {}): TaskRunRecord {
@@ -401,23 +418,24 @@ export class RecurringTasks {
     };
   }
 
-  private async execute(task: AgentTask, trigger: TaskRunRecord['trigger']): Promise<TaskRunRecord> {
+  private execute(task: AgentTask, trigger: TaskRunRecord['trigger']): Promise<TaskRunRecord> | null {
     const { agent } = this.options;
     if (task.body.kind === 'scan') return this.scan(task, task.body, trigger);
     // The file can only lower what a run may do: the lowest of its permission, the app's setting and the panel's mode.
     const mode = effectiveMode(task.permission, agent.settingMode(), agent.mode());
     const options = { role: 'background' as const, mode, ...(task.maxModelCalls === undefined ? {} : { maxModelCalls: task.maxModelCalls }) };
-    const report =
-      task.body.kind === 'intent'
-        ? await agent.submit(task.body.text, options)
-        : await agent.submitPlan(task.name, { steps: task.body.steps }, options);
-    if (report === null) return this.recordOf(task, trigger, 'failed', agent.snapshot().message ?? 'The turn did not run.');
-    const status = report.status === 'failed' ? 'failed' : report.status === 'cancelled' ? 'stopped' : 'done';
-    return this.recordOf(task, trigger, status, report.summary, {
-      requests: report.tokens.requests,
-      promptTokens: report.tokens.promptTokens,
-      completionTokens: report.tokens.completionTokens,
-      turnId: report.turnId,
+    const admitted = agent.trySubmit(task.body.kind === 'intent' ? task.body.text : task.name, options,
+      task.body.kind === 'plan' ? { steps: task.body.steps } : undefined);
+    if (!admitted.started) return null;
+    return admitted.report.then((report) => {
+      if (report === null) return this.recordOf(task, trigger, 'failed', agent.snapshot().message ?? 'The turn did not run.');
+      const status = report.status === 'failed' ? 'failed' : report.status === 'cancelled' ? 'stopped' : 'done';
+      return this.recordOf(task, trigger, status, report.summary, {
+        requests: report.tokens.requests,
+        promptTokens: report.tokens.promptTokens,
+        completionTokens: report.tokens.completionTokens,
+        turnId: report.turnId,
+      });
     });
   }
 
