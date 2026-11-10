@@ -70,6 +70,7 @@ export interface ShellProgress {
   /** Saves the daily target (the app setting), as the editor's quick-set does. */
   readonly setTarget: (words: number) => void;
   readonly saveState: SaveState;
+  readonly stopCause?: 'newer-text' | 'updated';
   /** Export a backup, the save state's own button on a failed save. */
   readonly exportBackup: () => void;
 }

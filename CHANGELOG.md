@@ -16,6 +16,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Export job failures.** A failed file or compile-log write now stays visible in the Export dialog and can be retried without reopening it. MCP exports return the failed job instead of success, and the SDK waits for each export job before reporting a turn's result. Exported files and compile-log rows keep their formats.
 
+- **Stopped-tab recovery.** The notice stays above other dialogs, including ones that arrive later, while their input stays underneath. Its cause and kept-copy status now belong to one session state; saved projects and kept-word formats are unchanged.
+
 - **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.
 
 - **Opening browser storage.** If another tab blocks an upgrade, opening now asks you to close the other Caotang tabs and reload instead of waiting indefinitely.
