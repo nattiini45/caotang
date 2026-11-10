@@ -8,13 +8,52 @@
  * arrives with a short slide (none under reduced motion).
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+
+import { topModal } from '../../modal.js';
+import { modalStack } from '../../modal-stack.js';
 
 import type { ModernSlotProps } from './slots.js';
 
 export function ModernNotices({ regions }: ModernSlotProps): ReactNode {
+  const state = useSyncExternalStore(modalStack.subscribe, modalStack.getSnapshot);
+  const ref = useRef<HTMLDivElement>(null);
+  const covered = state.kind === 'open';
+  const top = state.entries.at(-1)?.id;
+  useEffect(() => {
+    const notices = ref.current;
+    const dialog = topModal();
+    if (!covered || notices === null || dialog === null) return;
+    const announcements = (['status', 'alert'] as const).map((role) => {
+      const node = document.createElement('div');
+      node.className = 'visually-hidden';
+      if (role === 'alert') node.setAttribute('role', role);
+      node.setAttribute('aria-live', role === 'alert' ? 'assertive' : 'polite');
+      node.setAttribute('aria-atomic', 'true');
+      node.dataset['testid'] = `modal-notice-${role}`;
+      dialog.append(node);
+      return { role, node };
+    });
+    const update = (): void => {
+      for (const { role, node } of announcements) {
+        const message = Array.from(notices.querySelectorAll(`[role="${role}"]`)).map((notice) => {
+          const text = notice.cloneNode(true) as HTMLElement;
+          for (const control of text.querySelectorAll('button:not([class~="status-link"]), input, select, textarea')) control.remove();
+          return text.textContent?.trim();
+        }).join('\n');
+        if (node.textContent !== message) node.textContent = message;
+      }
+    };
+    const observer = new MutationObserver(update);
+    observer.observe(notices, { childList: true, subtree: true, characterData: true });
+    queueMicrotask(update);
+    return () => {
+      observer.disconnect();
+      for (const { node } of announcements) node.remove();
+    };
+  }, [covered, top]);
   return (
-    <div className="modern-notices" data-testid="modern-notices">
+    <div ref={ref} className="modern-notices" data-testid="modern-notices" data-state={covered ? 'covered' : 'visible'} inert={covered}>
       {regions.storageBanner === null ? null : (
         <div className="modern-toast" data-testid="modern-toast">
           {regions.storageBanner}
