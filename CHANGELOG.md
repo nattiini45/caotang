@@ -24,6 +24,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Expanded onboarding text.** Modern's Projects screen wraps long introduction text and demo labels within the page, including while narrow Settings is open over it.
+
 - **Turn prices follow the calls that served them.** A turn that uses another role or a provider-listed price shows its recorded per-call total instead of multiplying every token by the Chat profile's price. Old costs do not change when a profile's price changes.
 
 - **Retained conflict recovery.** A later producer, read or write failure no longer hides an unresolved document conflict. The editor footer and Documents save channel keep the copy-before-reload guidance until the conflict is resolved.

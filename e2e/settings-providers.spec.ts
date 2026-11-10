@@ -46,6 +46,7 @@ async function storedProfiles(page: Page): Promise<Record<string, unknown>[]> {
  * the page reloads, so the app's own restore path reads them.
  */
 async function seedProfiles(page: Page, records: readonly Record<string, unknown>[]): Promise<void> {
+  await expect(page.getByTestId('open-settings')).toBeAttached();
   // The app writes its first-run demo profile asynchronously after the page loads; wait for that write to land
   // before seeding behind its back, or the app's own persist lands last and overwrites the seeded records.
   await expect.poll(async () => (await storedProfiles(page)).some((profile) => profile['name'] === 'Demo (no key)')).toBe(true);
@@ -907,11 +908,15 @@ for (const locale of ['de', 'en-XA', 'ar-XB']) {
     await expect(checkbox).toBeChecked();
     await expect(usage.getByRole('table')).toHaveCount(0);
     await expect(usage.locator('.usage-records li')).toHaveCount(2);
+    const expectedCounts = await page.evaluate((tag) => {
+      const format = new Intl.NumberFormat(tag);
+      return { requests: format.format(1), input: format.format(1000), output: format.format(200) };
+    }, locale);
     for (const record of await usage.locator('.usage-records li').all()) {
       await expect(record.locator('.usage-record-values dt')).toHaveCount(6);
-      await expect(record.locator('.usage-record-values dd').nth(2)).toHaveText('1');
-      await expect(record.locator('.usage-record-values dd').nth(3)).toHaveText('1,000'.replace(',', locale === 'de' ? '.' : ','));
-      await expect(record.locator('.usage-record-values dd').nth(4)).toHaveText('200');
+      await expect(record.locator('.usage-record-values dd').nth(2)).toHaveText(expectedCounts.requests);
+      await expect(record.locator('.usage-record-values dd').nth(3)).toHaveText(expectedCounts.input);
+      await expect(record.locator('.usage-record-values dd').nth(4)).toHaveText(expectedCounts.output);
       const geometry = await record.evaluate((element) => {
         const bounds = element.getBoundingClientRect();
         return [...element.querySelectorAll('h5, dt, dd')].map((cell) => {

@@ -309,6 +309,8 @@ Built (M7, #308): Scene info (`components/shell/modern/scene-info.tsx`) is a non
 
 Built (M10, #311): every dialog, Settings, the context menus and Home are sheet glass (dialogs .78/.86 over a .40/.50 veil, menus and toasts .84/.91, values computed in `e2e/unit/modern-surfaces.spec.ts`) that grows out of its opener and shrinks back into it (`morph.ts`), or fades under reduced motion; their controls are 44 px. The stale-tab notice stays a modal dialog (reached by the walk from a second tab, #313).
 
+Home's text and button labels wrap within their available width, including unbroken expanded locale text. Its demo actions stay inside their column, so Home does not introduce page overflow behind narrow Settings.
+
 ### 7.7 Keys
 
 Every chord in ui-modules §2.5 and §5.6 and the screenplay chords keeps its meaning in Modern (§8.9). The browser app does not take Ctrl/Cmd+1–5 from browser tabs, or Ctrl/Cmd+Shift+1–3 from screenplay elements and macOS screenshots (#483). **Search** or Ctrl+K (Cmd+K), then the view's name, **Binder**, **Findings** or **Agent**, reaches each place without a numbered chord. **Agent** with the **Sidebar** detail opens the last Activity or Trace tab; **Ask the agent** opens the companion window. A sidebar request opens it even when that tab is already selected. The guide's Keyboard table is the shortcut sheet, in English and German. There is no Electron host in this build; dedicated native chords need a host-specific decision, not browser interception.
