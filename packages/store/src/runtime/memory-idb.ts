@@ -174,6 +174,15 @@ interface FactoryData {
   stores: Map<string, BackingStore>;
 }
 
+function versionChangeEvent(type: string, oldVersion: number, newVersion: number): IDBVersionChangeEvent {
+  const event = new Event(type) as IDBVersionChangeEvent;
+  Object.defineProperties(event, {
+    oldVersion: { value: oldVersion },
+    newVersion: { value: newVersion },
+  });
+  return event;
+}
+
 // ---------------------------------------------------------------------------
 // Requests
 // ---------------------------------------------------------------------------
@@ -280,14 +289,14 @@ class OpenRequest extends OpenRequestBase {
     private readonly requested: number | undefined,
   ) {
     super();
-    queueMicrotask(() => this.run());
+    this.factory.queueOpen(this.name, () => this.run());
   }
 
   private upgrade(): FakeTransaction {
     return this.result.transaction([], 'versionchange') as FakeTransaction;
   }
 
-  private run(): void {
+  private run(connectionsClosed = false): void {
     const existing = this.factory.dataFor(this.name);
     const current = existing?.version ?? 0;
     const target = this.requested ?? (current === 0 ? 1 : current);
@@ -298,10 +307,27 @@ class OpenRequest extends OpenRequestBase {
         'VersionError',
         `requested version ${this.requested} is below the current version ${current}`,
       ) as DOMException;
-      this.onerror?.call(this, this.fire('error'));
+      try {
+        this.onerror?.call(this, this.fire('error'));
+      } finally {
+        this.factory.finishOpen(this.name);
+      }
       return;
     }
 
+    if (target > current && !connectionsClosed) {
+      this.factory.waitForConnections(this.name, target, () => {
+        const event = versionChangeEvent('blocked', current, target);
+        this.dispatchEvent(event);
+        this.onblocked?.call(this, event);
+      }, () => this.run(true));
+      return;
+    }
+    this.finishOpen(current, target);
+  }
+
+  private finishOpen(current: number, target: number): void {
+    const existing = this.factory.dataFor(this.name);
     const data = existing ?? this.factory.createData(this.name, target);
     data.version = target;
     this.result = new FakeDatabase(this.factory, this.name, data);
@@ -311,20 +337,48 @@ class OpenRequest extends OpenRequestBase {
       // delivered, so an `onupgradeneeded` handler can create object stores.
       const tx = this.upgrade();
       this.transaction = tx;
-      const event = new Event('upgradeneeded') as unknown as IDBVersionChangeEvent;
-      Object.defineProperty(event, 'oldVersion', { value: current });
-      Object.defineProperty(event, 'newVersion', { value: null });
-      Object.defineProperty(event, 'target', { value: this });
-      tx.runActive(() => {
-        this.dispatchEvent(event);
-        this.onupgradeneeded?.call(this, event);
-      });
+      const event = versionChangeEvent('upgradeneeded', current, target);
+      const stores = new Map(data.stores);
+      const indexes = new Map([...stores.values()].map((store) => [store, new Map(store.indexes)]));
+      try {
+        tx.runActive(() => {
+          this.dispatchEvent(event);
+          this.onupgradeneeded?.call(this, event);
+        });
+      } catch (error) {
+        tx.recordHandlerError(error);
+        tx.abortWith(domError('AbortError', 'the upgrade handler failed'));
+      }
+      if (tx.finished) {
+        data.version = current;
+        data.stores = stores;
+        for (const [store, previous] of indexes) {
+          store.indexes.clear();
+          for (const [name, path] of previous) store.indexes.set(name, path);
+        }
+        if (existing === undefined) this.factory.dropData(this.name);
+        this.result.close();
+        queueMicrotask(() => {
+          this.error = domError('AbortError', 'the version upgrade was aborted') as DOMException;
+          this.setDone();
+          try {
+            this.onerror?.call(this, this.fire('error'));
+          } finally {
+            this.factory.finishOpen(this.name);
+          }
+        });
+        return;
+      }
       tx.finishVersionChange();
     }
 
     queueMicrotask(() => {
       this.setDone();
-      this.onsuccess?.call(this, this.fire('success'));
+      try {
+        this.onsuccess?.call(this, this.fire('success'));
+      } finally {
+        this.factory.finishOpen(this.name);
+      }
     });
   }
 }
@@ -752,6 +806,7 @@ class FakeTransaction extends EventTarget implements IDBTransaction {
   finishVersionChange(): void {
     this.active = false;
     this.finished = true;
+    this.db.detachUpgradeTransaction(this);
   }
 
   abortWith(error: Error | null): void {
@@ -808,6 +863,7 @@ class FakeDatabase extends EventTarget implements IDBDatabase {
     private readonly data: FactoryData,
   ) {
     super();
+    this.factory.registerConnection(this);
   }
 
   get version(): number {
@@ -871,7 +927,19 @@ class FakeDatabase extends EventTarget implements IDBDatabase {
   }
 
   close(): void {
+    if (this.closed) return;
     this.closed = true;
+    this.factory.closeConnection(this);
+  }
+
+  notifyVersionChange(newVersion: number): void {
+    const event = versionChangeEvent('versionchange', this.version, newVersion);
+    this.dispatchEvent(event);
+    try {
+      this.onversionchange?.call(this, event);
+    } catch (error) {
+      this.factory.recordHandlerError(error);
+    }
   }
 }
 
@@ -896,6 +964,9 @@ function keyFromId(key: string): IDBValidKey {
  */
 export class MemoryIndexedDb implements IDBFactory {
   private readonly data = new Map<string, FactoryData>();
+  private readonly opening = new Map<string, (() => void)[]>();
+  private readonly connections = new Set<FakeDatabase>();
+  private readonly waiting = new Set<() => void>();
   private readonly running: FakeTransaction[] = [];
   private fault: WriteFault | null = null;
   private readonly handlers: unknown[] = [];
@@ -903,6 +974,50 @@ export class MemoryIndexedDb implements IDBFactory {
   static cmp = compareKeys;
 
   cmp = compareKeys;
+
+  queueOpen(name: string, run: () => void): void {
+    const queued = this.opening.get(name);
+    if (queued !== undefined) {
+      queued.push(run);
+      return;
+    }
+    this.opening.set(name, [run]);
+    queueMicrotask(run);
+  }
+
+  finishOpen(name: string): void {
+    const queued = this.opening.get(name);
+    queued?.shift();
+    const next = queued?.[0];
+    if (next === undefined) this.opening.delete(name);
+    else queueMicrotask(next);
+  }
+
+  registerConnection(db: FakeDatabase): void {
+    this.connections.add(db);
+  }
+
+  closeConnection(db: FakeDatabase): void {
+    this.connections.delete(db);
+    for (const resume of this.waiting) resume();
+  }
+
+  waitForConnections(name: string, newVersion: number, blocked: () => void, ready: () => void): void {
+    const connections = [...this.connections].filter((db) => db.name === name);
+    for (const db of connections) db.notifyVersionChange(newVersion);
+    const hasConnections = (): boolean => [...this.connections].some((db) => db.name === name) || this.running.some((tx) => tx.db.name === name);
+    if (!hasConnections()) {
+      queueMicrotask(ready);
+      return;
+    }
+    const resume = (): void => {
+      if (hasConnections()) return;
+      this.waiting.delete(resume);
+      queueMicrotask(ready);
+    };
+    this.waiting.add(resume);
+    blocked();
+  }
 
   dataFor(name: string): FactoryData | undefined {
     return this.data.get(name);
@@ -925,6 +1040,9 @@ export class MemoryIndexedDb implements IDBFactory {
   unregister(tx: FakeTransaction): void {
     const at = this.running.indexOf(tx);
     if (at >= 0) this.running.splice(at, 1);
+    queueMicrotask(() => {
+      for (const resume of this.waiting) resume();
+    });
   }
 
   /**

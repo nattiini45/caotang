@@ -339,6 +339,8 @@ export {
   applySceneMetaPatch,
   coherenceNoteProblem,
   findingTransition,
+  findingStatusTable,
+  findingStatusMachine,
   findingsDiscardedWith,
   inverseScenePatch,
   isDayOffset,

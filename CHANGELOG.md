@@ -16,6 +16,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Export job failures.** A failed file or compile-log write now stays visible in the Export dialog and can be retried without reopening it. MCP exports return the failed job instead of success, and the SDK waits for each export job before reporting a turn's result. Exported files and compile-log rows keep their formats.
 
+- **Opening browser storage.** If another tab blocks an upgrade, opening now asks you to close the other Caotang tabs and reload instead of waiting indefinitely.
+
+- **Undoing a finding verdict.** Undo restores the finding's prior note and curation timestamps as well as its status. Discard run can then remove a finding whose first change you undid. Concurrent copies of one agent tool call also share one apply instead of applying twice.
+
 - **Dialog flow races.** Escape and Cancel now agree during a compile, and a failed export-readiness check can be retried. A rejected import commit shows its error and permits retry; replacing a preview notifies its original caller. Folder saves ignore repeated gestures while busy and show **Saving to the folder…** in English and German. An old AI encoding suggestion no longer replaces a newer manual choice.
 
 - **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.

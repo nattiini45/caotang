@@ -116,6 +116,7 @@ import {
   coherenceRemoveKnowledgeFact as coherenceRemoveKnowledgeFactDescriptor,
   commands,
   inverseScenePatch,
+  findingTransition,
   isEmptySceneMeta,
   trimCoherenceNote,
   ApplyRefusal,
@@ -128,7 +129,6 @@ import {
   type BinderCreateParams,
   type CoherenceSetFindingStatusParams,
   type CoherenceSetSceneMetaParams,
-  type CoherenceStatusName,
   type BinderMoveParams,
   type BinderRenameParams,
   type BinderSetMetaParams,
@@ -476,6 +476,7 @@ function stampContent(node: TreeNode, clock: CommandClock): void {
 export interface RestoredStamps {
   readonly createdAt?: string | undefined;
   readonly updatedAt?: string | undefined;
+  readonly finding?: { readonly updatedAt: string; readonly touchedAt: string | undefined; readonly note: string | undefined };
 }
 
 /**
@@ -1711,7 +1712,9 @@ export function createProjectCommandRegistry(
     if (finding === undefined) {
       throw new Error(`coherence.setFindingStatus reached its apply with finding "${params.findingId}", which validate refused`);
     }
-    const before = { status: finding.status, dismissedReason: finding.dismissedReason, note: finding.note };
+    const transition = findingTransition(finding.status, params.status);
+    if (!transition.ok) throw new Error(transition.message);
+    const before = { status: finding.status, dismissedReason: finding.dismissedReason, note: finding.note, updatedAt: finding.updatedAt, touchedAt: finding.touchedAt };
     const stamp = new Date(clock.now()).toISOString();
     const note = trimCoherenceNote(params.note);
 
@@ -1724,17 +1727,23 @@ export function createProjectCommandRegistry(
     else if (params.status !== 'fixed') delete finding.note;
     finding.updatedAt = stamp;
     finding.touchedAt = stamp;
-
-    // The inverse restores the status, the reason and the note this change replaced. Its
-    // `updatedAt` is the undo's own reading: the restored timestamp is display metadata, and
-    // a status command has no field that could carry the prior one (see the coherence notes).
+    const restored = restore.recall(context.commandId)?.finding;
+    if (restored !== undefined) {
+      finding.updatedAt = restored.updatedAt;
+      if (restored.touchedAt === undefined) delete finding.touchedAt;
+      else finding.touchedAt = restored.touchedAt;
+      if (restored.note === undefined) delete finding.note;
+      else finding.note = restored.note;
+    }
     const inverse: CoherenceSetFindingStatusParams = {
       findingId: params.findingId,
-      status: before.status as CoherenceStatusName,
+      status: before.status,
       ...(before.status === 'dismissed' && before.dismissedReason !== undefined ? { reason: before.dismissedReason } : {}),
       ...(before.note !== undefined ? { note: before.note } : {}),
     };
-    context.undo.inverse(inverseCommand('coherence.setFindingStatus', inverse, clock));
+    context.undo.inverse(inverseWith('coherence.setFindingStatus', inverse, clock, restore, {
+      finding: { updatedAt: before.updatedAt, touchedAt: before.touchedAt, note: before.note },
+    }));
 
     const docIds = [...new Set((finding.evidence ?? []).map((passage) => passage.docId))].filter((id) => nodeById(state, id) !== undefined);
     const titles = docIds.map((docId) => nodeTitle(state, docId));

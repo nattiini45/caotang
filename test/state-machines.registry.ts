@@ -7,6 +7,15 @@ import { sidebarTable } from '../apps/desktop/src/components/shell/modern/sideba
 import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-model.js';
 import { sprintTable } from '../packages/furniture/src/sprint.js';
 import { exportJobMachine } from '../packages/exporter/src/export-job.js';
+import { findingStatusTable } from '../packages/bus/src/coherence.js';
+import { callIdTable } from '../packages/bus/src/idempotency.js';
+import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
+import { assetStagingTable } from '../packages/store/src/asset-staging.js';
+import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
 
-export const machineTables = [sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
-  exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table, sidebarTable, menuTable, exportJobMachine.table] as const;
+export const machineTables = [
+  sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
+  exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
+  sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
+  assetStagingTable, assetRemovalHoldTable, exportJobMachine.table,
+] as const;
