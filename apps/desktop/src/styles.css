@@ -370,9 +370,9 @@ button.chip {
 
 .workspace-status {
   position: fixed;
-  inset-inline-start: 50%;
+  inset-inline: 0;
   bottom: 16px;
-  transform: translateX(-50%);
+  margin-inline: auto;
   width: max-content;
   max-width: min(680px, calc(100vw - 32px));
   display: flex;
