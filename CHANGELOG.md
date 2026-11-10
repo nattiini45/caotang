@@ -20,6 +20,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Retained conflict recovery.** A later producer, read or write failure no longer hides an unresolved document conflict. The editor footer and Documents save channel keep the copy-before-reload guidance until the conflict is resolved.
+
 - **Document save conflicts.** A revision conflict now has its own save state instead of looking like a storage failure. The prose, screenplay and Ink save lines warn in English and German that newer text is already stored, keep your words in this tab and direct you to copy the unsaved text somewhere safe before reloading. This warning stays visible during later typing and save attempts while the revision failure is unresolved. Autosave timing and saved project formats are unchanged.
 
 - **Save channels.** Failed task or app-settings writes now turn the save indicator red and name the failed part. An unresolved document conflict stays red as Documents even after an unchanged flush; copy unsaved text somewhere safe before reloading. Findings, tasks and settings share one ordered save queue. Undo returns its own result, so a later undo cannot overwrite its explanation.

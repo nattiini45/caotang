@@ -783,16 +783,22 @@ describe('§9 — the revision the flush carries', () => {
     const conflict = new RevisionConflictError(DOC, 3, 9);
     const { autosave } = harness([{ kind: 'fail', error: conflict }, { kind: 'ok', revision: 10 }]);
     const causes: unknown[] = [];
+    const conflicts: boolean[] = [];
     autosave.subscribe((event) => { causes.push(event.status.lastError); });
+    autosave.subscribe((event) => { conflicts.push(event.status.revisionConflict); });
+    expect(autosave.status(DOC).revisionConflict).toBe(false);
     autosave.open(DOC, { body: 'a', revision: 3 });
     autosave.noteEdit(DOC, 'b');
     await autosave.flush(DOC);
     expect(autosave.status(DOC)).toMatchObject({ state: 'conflict', lastError: conflict });
+    expect(autosave.status(DOC).revisionConflict).toBe(true);
     autosave.noteEdit(DOC, 'a');
     expect(autosave.status(DOC)).toMatchObject({ state: 'pending', lastError: conflict });
     expect(causes.at(-1)).toBe(conflict);
     expect((await autosave.flush(DOC))[0]?.outcome).toBe('unchanged');
     expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, lastError: conflict });
+    expect(autosave.status(DOC).revisionConflict).toBe(true);
+    expect(conflicts.at(-1)).toBe(true);
     expect(autosave.status(DOC).lastError).toBeInstanceOf(RevisionConflictError);
     expect(causes.at(-1)).toBe(conflict);
     if (resolution === 'write') {
@@ -802,6 +808,8 @@ describe('§9 — the revision the flush carries', () => {
     else autosave.open(DOC, { body: 'resolved', revision: 9 });
     expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, lastError: null });
     expect(causes.at(-1)).toBe(null);
+    expect(autosave.status(DOC).revisionConflict).toBe(false);
+    expect(conflicts.at(-1)).toBe(false);
   });
 
   it('reports a conflict as a conflict, keeps the body, and retries nothing', async () => {

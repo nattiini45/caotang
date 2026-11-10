@@ -767,6 +767,8 @@ A developer can run the agent against a project folder from a Node script, a com
 
 ## When something seems wrong
 
+If a document has a revision conflict, a later error does not clear it. The editor and save indicator keep the instruction to copy your unsaved text somewhere safe before reloading, until a successful write or an accepted reopen/replacement resolves the conflict.
+
 - **The agent says it cannot do that.** The built-in demo provider answers only three requests. Add a provider in Settings › Providers.
 - **Approve is greyed out.** The card waits until its draft has been shown in its scene. Open that scene.
 - **Apply is greyed out.** The draft preview waits until the draft has been shown in its scene. Open that scene.

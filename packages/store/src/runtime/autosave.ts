@@ -315,8 +315,9 @@ export interface AutosaveStatus {
   readonly dirty: boolean;
   /** The revision the next flush will be based on. */
   readonly revision: number;
-  /** The last flush failure, cleared by the next success. */
+  /** The latest producer/read/write failure; revisionConflict separately retains an unresolved revision refusal. */
   readonly lastError: unknown | null;
+  readonly revisionConflict: boolean;
 }
 
 export interface AutosaveEvent {
@@ -550,6 +551,7 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       dirty: state.pending !== null || state.kind === 'saving',
       revision: state.revision,
       lastError: state.lastError,
+      revisionConflict: state.revisionConflict,
     };
   }
 
@@ -694,7 +696,7 @@ export function createAutosave(options: AutosaveOptions): Autosave {
     open, noteEdit, flush,
     status(docId) {
       const slot = slots.get(docId);
-      return slot ? statusOf(slot) : { state: 'clean', dirty: false, revision: 0, lastError: null };
+      return slot ? statusOf(slot) : { state: 'clean', dirty: false, revision: 0, lastError: null, revisionConflict: false };
     },
     dirtyDocIds: () => [...slots.values()]
       .filter((slot) => slot.current.pending !== null || slot.current.kind === 'saving')
