@@ -380,7 +380,7 @@ export class AgentController {
   /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
   private readonly sessionId = newId('cmd').slice('cmd_'.length);
   /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
-  private modeOverride: PermissionMode | null = null;
+  private modeOverride: { readonly mode: PermissionMode } | null = null;
   private readonly heldRun = new Set<string>();
   /** The drafts of the card the loop is showing. Each is a value of its own, so a draft shown for an earlier card is never this one. */
   private ghosts: GhostView[] = [];
@@ -771,7 +771,7 @@ export class AgentController {
   mode(): PermissionMode {
     if (this.runMode !== null) return this.runMode;
     const settings = this.agentSettings();
-    const mode = this.modeOverride ?? settings.defaultMode;
+    const mode = this.modeOverride?.mode ?? settings.defaultMode;
     return mode === 'auto' && settings.lockAuto ? 'ask' : mode;
   }
 
@@ -788,7 +788,7 @@ export class AgentController {
       this.bump();
       return;
     }
-    this.modeOverride = mode;
+    this.modeOverride = { mode };
     const modeKey = mode === 'plan-only' ? 'planOnly' : mode === 'accept-edits' ? 'acceptEdits' : mode;
     this.announcement = t`Mode: ${select(modeKey, {
         planOnly: 'Plan only',
@@ -818,12 +818,17 @@ export class AgentController {
     // A macro's held plan stays the writer's: the retry is logged under the macro's command, so it is kept from the planner live and, if it is
     // interrupted, when it is resumed from the run log.
     const macro = isMacroCommand(turn.command ?? undefined) ? turn.command : null;
+    const askMode = { mode: 'ask' as const };
+    let previousMode = this.modeOverride;
     const report = await this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) => {
-      this.modeOverride = 'ask';
+      previousMode = this.modeOverride;
+      this.modeOverride = askMode;
+      this.bump();
       return agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true });
     });
     if (report === null) {
       this.heldRun.delete(turnId);
+      if (this.modeOverride === askMode) this.modeOverride = previousMode;
       this.bump();
     }
     return report;

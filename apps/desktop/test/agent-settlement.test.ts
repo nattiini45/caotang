@@ -10,12 +10,22 @@ import type { ProviderService } from '../src/app/providers.js';
 import { sampleProjectState } from '../src/app/demo.js';
 import type * as LazyHarness from '../src/app/lazy-harness.js';
 
-const clock = vi.hoisted(() => ({ current: null as ReturnType<typeof createManualClock> | null }));
+const clock = vi.hoisted(() => ({ current: null as ReturnType<typeof createManualClock> | null, beforeSubmit: null as (() => Promise<void>) | null }));
 
 vi.mock('../src/app/lazy-harness.js', async (importOriginal) => {
   const actual = await importOriginal<typeof LazyHarness>();
   return {
     ...actual,
+    createAgentSession: (...args: Parameters<typeof actual.createAgentSession>) => {
+      const session = actual.createAgentSession(...args);
+      return {
+        ...session,
+        submitPlan: async (...args: Parameters<typeof session.submitPlan>) => {
+          await clock.beforeSubmit?.();
+          return session.submitPlan(...args);
+        },
+      };
+    },
     createBudgetMeter: (limits: Parameters<typeof actual.createBudgetMeter>[0], options: Parameters<typeof actual.createBudgetMeter>[1]) =>
       actual.createBudgetMeter(clock.current === null ? limits : { ...limits, deadline: clock.current.now() + 60_000 }, {
         ...options,
@@ -28,6 +38,7 @@ beforeEach(() => {
   vi.stubGlobal('document', new EventTarget());
   vi.stubGlobal('window', new EventTarget());
   clock.current = null;
+  clock.beforeSubmit = null;
 });
 
 afterEach(() => {
@@ -136,6 +147,58 @@ it('retires a background offer when its turn reaches the deadline', async () => 
     expect(f.controller.snapshot().stoppable).toBe(false);
   } finally {
     f.controller.stop();
+    await f.session.close();
+  }
+});
+
+it('publishes Ask when the held turn starts, before its first harness event', async () => {
+  const f = await fixture();
+  const starting = deferred();
+  const release = deferred();
+  try {
+    f.controller.setMode('plan-only');
+    await f.controller.submitPlan('Tag the storm.', { steps: f.steps });
+    const turnId = f.controller.snapshot().turns[0]!.turnId;
+    clock.beforeSubmit = async () => {
+      starting.resolve();
+      await release.promise;
+    };
+    const running = f.controller.runHeldPlan(turnId);
+    await starting.promise;
+    expect(f.controller.mode()).toBe('ask');
+    expect(f.controller.snapshot().mode).toBe('ask');
+    release.resolve();
+    expect((await running)?.status).toBe('applied');
+  } finally {
+    release.resolve();
+    f.controller.stop();
+    await f.session.close();
+  }
+});
+
+it.each([false, true])('rolls back a failed start without overwriting a newer Ask choice (%s)', async (chooseAgain) => {
+  const f = await fixture();
+  const starting = deferred();
+  const release = deferred();
+  try {
+    f.controller.setMode('plan-only');
+    await f.controller.submitPlan('Tag the storm.', { steps: f.steps });
+    const turnId = f.controller.snapshot().turns[0]!.turnId;
+    clock.beforeSubmit = async () => {
+      starting.resolve();
+      await release.promise;
+      throw new Error('The turn could not start.');
+    };
+    const running = f.controller.runHeldPlan(turnId);
+    await starting.promise;
+    if (chooseAgain) f.controller.setMode('ask');
+    release.resolve();
+    expect(await running).toBeNull();
+    expect(f.controller.snapshot().heldRun).not.toContain(turnId);
+    expect(f.controller.snapshot().mode).toBe(chooseAgain ? 'ask' : 'plan-only');
+    expect(f.controller.snapshot().busy).toBe(false);
+  } finally {
+    release.resolve();
     await f.session.close();
   }
 });
