@@ -5,7 +5,11 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+
+import { bundleWorkSource } from '../../../test/support/bundle-work.js';
+import { measureWork, type WorkResult } from '../../../test/support/measure-work.js';
 
 import { describeFdxImport, importFdx, lengthInEighths, parseFdxParagraphs, parseFdxTitlePage, parseFountain, printedText } from '../src/index.js';
 
@@ -266,6 +270,20 @@ describe('a file Final Draft wrote (TestFDX-FD.fdx, wildwinter/screenplay-tools,
 });
 
 describe('linear time on deep nesting', () => {
+  const entry = new URL('../src/fdx.ts', import.meta.url);
+  const wrapper = `
+    export function measuredParse(xml) { return exports.parseFdxParagraphs(xml).length; }
+  `;
+  const growth = 8;
+
+  function expectLinear(small: WorkResult<number>, large: WorkResult<number>, characters: number): void {
+    expect(large.steps + large.scanned + large.backtracks).toBeLessThan(characters * 4);
+    for (const metric of ['steps', 'scanned', 'backtracks'] as const) {
+      expect(small[metric], metric).toBeGreaterThan(0);
+      expect(large[metric] / small[metric], metric).toBeLessThan(growth);
+    }
+  }
+
   /** A file of `count` scene headings, each nesting a summary, a note and a dual pair, plus a run of deep nesting. */
   function nested(count: number): string {
     const one = [
@@ -277,26 +295,32 @@ describe('linear time on deep nesting', () => {
     return `<FinalDraft><Content>${one.repeat(count)}</Content><Junk>${'<Paragraph><Summary>'.repeat(depth)}${'</Summary></Paragraph>'.repeat(depth)}</Junk></FinalDraft>`;
   }
 
-  it('reads a 5 MB file with nested paragraphs in time linear in its size', () => {
-    const timed = (count: number): number => {
-      const source = nested(count);
-      let best = Number.POSITIVE_INFINITY;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const started = performance.now();
-        expect(parseFdxParagraphs(source)).toHaveLength(count * 6);
-        best = Math.min(best, performance.now() - started);
-      }
-      return best;
-    };
-    const large = nested(10_000);
-    expect(large.length).toBeGreaterThan(5_000_000);
+  it('reads a 5 MB file with nested paragraphs in time linear in its size', { timeout: 120_000 }, async () => {
+    const inputs = [2_500, 10_000].map((count) => ({ count, source: nested(count) }));
+    expect(inputs[1]!.source.length).toBeGreaterThan(5_000_000);
     parseFdxParagraphs(nested(500));
-    const small = timed(2_500);
-    const big = timed(10_000);
-    const ratio = big / small;
-    expect(ratio, `${Math.round(big)} ms for 10 000 scenes against ${Math.round(small)} ms for 2 500`).toBeLessThan(8);
-    expect(big, `10 000 scenes took ${Math.round(big)} ms`).toBeLessThan(4000);
-  }, 60_000);
+    for (const { count, source } of inputs) expect(parseFdxParagraphs(source)).toHaveLength(count * 6);
+    const source = await bundleWorkSource(entry, ['parseFdxParagraphs']);
+    const measured = measureWork<number>(source + wrapper, inputs.map(({ source }) => ({ name: 'measuredParse', args: [source] })));
+    expect(measured.map(({ result }) => result)).toEqual(inputs.map(({ count }) => count * 6));
+    expectLinear(measured[0]!, measured[1]!, inputs[1]!.source.length);
+    process.stdout.write(`FDX work: ${JSON.stringify(measured)}\n`);
+  });
+
+  it('rejects recomputing the open-name count by scanning the nested stack', { timeout: 120_000 }, async () => {
+    const file = new URL('../src/fdx-xml.ts', import.meta.url);
+    const original = readFileSync(file, 'utf8');
+    const quadratic = original.replace('(openCount.get(name) ?? 0)', 'stack.filter((el) => el.name === name).length');
+    expect(quadratic).not.toBe(original);
+    const inputs = [500, 2_000].map((depth) => `<FinalDraft><Junk>${'<a>'.repeat(depth)}${'</a>'.repeat(depth)}</Junk></FinalDraft>`);
+    for (const xml of inputs) expect(parseFdxParagraphs(xml)).toEqual([]);
+    const source = await bundleWorkSource(entry, ['parseFdxParagraphs'], { [fileURLToPath(file)]: quadratic });
+    const measured = measureWork<number>(source + wrapper, inputs.map((xml) => ({ name: 'measuredParse', args: [xml] })));
+    expect(measured.map(({ result }) => result)).toEqual([0, 0]);
+    expect(() => expectLinear(measured[0]!, measured[1]!, inputs[1]!.length)).toThrow();
+    expect(measured[1]!.steps / measured[0]!.steps).toBeGreaterThan(growth);
+    process.stdout.write(`FDX repeated-stack-scan mutant steps: ${measured.map(({ steps }) => steps).join(' -> ')}\n`);
+  });
 
   it('reads a closing tag whose name is not open as nothing, however many there are', () => {
     const xml = `<Content><Paragraph Type="Action"><Text>kept</Text>${'</Summary>'.repeat(10_000)}</Paragraph></Content>`;
