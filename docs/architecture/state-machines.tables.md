@@ -403,6 +403,17 @@ Initial: `idle`. Final: `conflict`.
 | `writing` | `saved` | `idle` |
 | `writing` | `stop` | `conflict` |
 
+## recurring.run
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `idle` | `start` | `running` |
+| `recording` | `finish` | `idle`, `recording` |
+| `running` | `finish` | `idle`, `running` |
+| `running` | `record` | `recording`, `running` |
+
 ## sdk.events
 
 Initial: `open`. Final: none.
@@ -498,6 +509,18 @@ Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
 | `starting` | `close` | `interrupted` |
 | `starting` | `fail` | `failed` |
 | `starting` | `ready` | `ready` |
+
+## turn.marker
+
+Initial: `live`. Final: `rewound`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `live` | `restore` | `restored` |
+| `live` | `rewind` | `rewound` |
+| `restored` | `restore` | `restored` |
+| `restored` | `rewind` | `rewound` |
+| `rewound` | — | — |
 
 ## turn.phase
 

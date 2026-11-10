@@ -94,6 +94,7 @@ export interface MachineTraceRecord extends Base {
   readonly kind: 'machine';
   readonly turnId: string;
   readonly machine: string;
+  readonly subjectId?: string;
   readonly from: string;
   readonly event: string;
   readonly to: string;
@@ -889,6 +890,9 @@ export function parseTrace(jsonl: string): Result<readonly TraceRecord[], string
     }
     for (const [field, type] of Object.entries(REQUIRED_FIELDS[kind])) {
       if (!typeOk(value[field], type)) return { ok: false, error: `line ${line} (${kind}) lacks ${field}, or it is not a ${type}` };
+    }
+    if (kind === 'machine' && value['subjectId'] !== undefined && typeof value['subjectId'] !== 'string') {
+      return { ok: false, error: `line ${line} (machine) subjectId is not a string` };
     }
     out.push(value as unknown as TraceRecord);
   }

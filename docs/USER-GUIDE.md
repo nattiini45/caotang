@@ -474,6 +474,8 @@ The files travel with the project: a project folder, a `.caotang` bundle and thi
 
 ## Recurring tasks
 
+If the agent is already working, **Run now** records no failed run. A due task stays offered; try it again after that turn ends. Newly due offers still appear while a scan runs; another automatic scan waits until a later due check rather than interrupting the current one.
+
 A recurring task is something you want done again and again: a continuity scan every Monday, or "read the scenes I changed today and tell me what is loose" each evening. Open the agent panel and find **Recurring tasks**. **New task** asks for a name, what it does (**Ask the agent**, or **Scan for continuity problems**), when it is due (**Only when I run it**, **Each time the project opens**, **Every day** or **Every week**, from a time of day in your own clock), and what it may do (**Ask before it changes anything**, or **Change nothing**). A task that asks the agent can be given **Most model calls in a run**. Each task has **Run now**, **Edit**, **Turn off** and **Delete**, and **Runs on this machine** lists what it did, with the model calls and tokens it used.
 
 When a task is due you are **offered** it: a card with **Run now** and **Skip**, shown even when the agent panel is closed, and read out to a screen reader. **Skip** keeps the offer from coming back until the task's next time. A task you did not get to for several days is offered once, not once for each day. **Run now** on a task that asks the agent is an ordinary agent turn, with its plan card and its checkpoint, run on the model you chose for the **Background** task in **Settings › Providers**. The task's own limit on what it may do can only lower the panel's mode, never raise it.

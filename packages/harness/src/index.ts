@@ -15,6 +15,8 @@
  * reachable only once an MCP client is given. README.md has the wire protocol and the module map.
  */
 
+export { stepTurnMarker, turnMarkerFields, turnMarkerTable, type TurnMarker, type TurnMarkerEvent } from './agent/turn-marker.js';
+
 export {
   TOOL_METADATA,
   TOOL_NAMES,

@@ -20,6 +20,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Recurring task admission.** A task claims its agent turn before publishing that it is running, so another turn cannot turn it into a false failed history row. Newly due offers remain visible while a scan runs, and a task keeps its run slot until history recording finishes. Restore/rewind badges and conversation context now read the same in-memory marker state; saved task and run-log formats are unchanged.
+
 - **Findings review progress.** An approved model review stays visible in the workspace when you leave Findings, and its progress returns with the tab. Start cannot launch two reviews at once. Stop keeps partial findings and shows a stopped outcome instead of an error. Settings also names a failed interface load beside its choice, with a retry.
 
 - **Dialog stacking.** A dialog arriving over another keeps its input underneath and returns focus when it closes. The stopped-tab notice always wins. Modern hides background notice capsules while a dialog is open, announces new notices inside it, and keeps new errors over later information until visible, so Skills review has a clean edge without hiding a failure or changing its glass.

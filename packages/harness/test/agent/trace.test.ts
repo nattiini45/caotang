@@ -280,9 +280,10 @@ describe('machine trace records', () => {
   it('redacts every machine string before storage and in either export', () => {
     const s = store();
     const secret = `Bearer abc.def.ghi-123456 ${KEY}`;
-    s.write({ ...input, turnId: secret, machine: secret, from: secret, event: secret, to: secret });
+    s.write({ ...input, turnId: secret, machine: secret, subjectId: secret, from: secret, event: secret, to: secret });
     const [row] = s.records();
     expect(row).toMatchObject({ turnId: 'Bearer [redacted] [redacted]', machine: 'Bearer [redacted] [redacted]', from: 'Bearer [redacted] [redacted]', event: 'Bearer [redacted] [redacted]', to: 'Bearer [redacted] [redacted]' });
+    expect(row).toMatchObject({ subjectId: 'Bearer [redacted] [redacted]' });
     for (const omitText of [false, true]) {
       const jsonl = s.toJsonl({ omitText });
       expect(jsonl).not.toContain(KEY);
@@ -298,6 +299,19 @@ describe('machine trace records', () => {
     s.write(start('next'));
     expect(s.records('t')).toEqual([]);
     expect(kinds(parsed(s.toJsonl()))).toEqual(['header', 'turn.start']);
+  });
+
+  it('keeps a structural subject in text-free exports and validates its optional type', () => {
+    const s = store();
+    s.write({ ...input, turnId: TRACE_REVIEWS, subjectId: 'task-1' });
+    const records = parsed(s.toJsonl({ omitText: true }));
+    expect(records[1]).toMatchObject({ turnId: TRACE_REVIEWS, subjectId: 'task-1' });
+    expect(validateArguments(schema, records[1])).toEqual({ ok: true });
+    for (const value of [null, 3, false, [], {}]) {
+      const row = { ...records[1], subjectId: value };
+      expect(parseTrace([records[0], row].map((record) => JSON.stringify(record)).join('\n'))).toMatchObject({ ok: false });
+      expect(validateArguments(schema, row).ok).toBe(false);
+    }
   });
 });
 
@@ -642,6 +656,26 @@ async function tracedTurn(intent: string, scripts: Parameters<typeof createMockP
 }
 
 describe('the records a turn writes', () => {
+  it('keeps restore markers in one session owner and groups their traces outside the ended turn', async () => {
+    const s = store();
+    const { session, report } = await tracedTurn('Say hello.', { scripts: [transcript('Say hello.', [JSON.stringify({ reply: 'Hello.' })])] }, s);
+    const ended = s.records(report.turnId);
+    session.markRestored([report.turnId], 5, 2);
+    expect(session.turnMarker(report.turnId)).toEqual({ kind: 'restored', at: 5, fromStep: 2 });
+    session.rewindConversation(report.turnId);
+    session.markRestored([report.turnId], 9);
+    expect(session.turnMarker(report.turnId)).toEqual({ kind: 'rewound', restored: { at: 5, fromStep: 2 } });
+    expect(s.records(report.turnId)).toEqual(ended);
+    expect(ended.at(-1)?.kind).toBe('turn.end');
+    expect(s.records(TRACE_REVIEWS)).toMatchObject([
+      { kind: 'machine', machine: 'turn.marker', subjectId: report.turnId, from: 'live', event: 'restore', to: 'restored' },
+      { kind: 'machine', machine: 'turn.marker', subjectId: report.turnId, from: 'restored', event: 'rewind', to: 'rewound' },
+    ]);
+    const text = s.toJsonl({ omitText: true });
+    expect(parseTrace(text).ok).toBe(true);
+    expect(preMachineV1ReaderAt0c40cf22(text).ok).toBe(true);
+  });
+
   it('holds the turn in order, with the model calls joined by turn and call index, and ends with the returned report', async () => {
     const s = store();
     const { report } = await tracedTurn(
