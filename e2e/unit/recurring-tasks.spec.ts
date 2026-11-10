@@ -584,3 +584,91 @@ test('the run history survives a reload, in the app database, and a project open
   expect((await TaskRuns.open('p_elsewhere', db)).history(task.id)).toEqual([]);
   db.close();
 });
+
+test('a task owns its controller turn before its running notice can start another turn', async () => {
+  const task = seedTask(1, { schedule: { kind: 'manual' }, permission: 'read-only', body: { kind: 'intent', text: DEMO_INTENTS.continuity } });
+  const r = await rig([task]);
+  let foreground: ReturnType<AgentController['submit']> | undefined;
+  const off = r.recurring.subscribe(() => {
+    if (foreground === undefined && r.recurring.snapshot().running === task.id) foreground = r.agent.submit(DEMO_INTENTS.continuity);
+  });
+  try {
+    await r.recurring.runNow(task.id);
+    expect(r.runs.history(task.id)[0]?.status).toBe('done');
+    expect(await foreground).toBeNull();
+    expect(r.agent.snapshot().phase).toBe('idle');
+  } finally {
+    off();
+    await foreground;
+    await r.session.close();
+  }
+});
+
+test('a scan in flight does not prevent a newly due task from being offered', async () => {
+  const scan = seedTask(1, { schedule: { kind: 'on-open' }, whenDue: 'run' });
+  const later = seedTask(2, { schedule: { kind: 'daily', at: '11:00' } });
+  const automatic = seedTask(3, { schedule: { kind: 'daily', at: '11:00' }, whenDue: 'run' });
+  const r = await rig([scan, later, automatic]);
+  for (const task of [later, automatic]) await r.runs.record({ taskId: task.id, at: '2026-06-09T09:30:00Z', status: 'done', trigger: 'due', summary: 'Yesterday’s run.', requests: 0, promptTokens: 0, completionTokens: 0 });
+  let release: () => void = () => undefined;
+  let entered: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const scanning = new Promise<void>((resolve) => { entered = resolve; });
+  const ready = r.session.harnessReady.bind(r.session);
+  r.session.harnessReady = async () => { entered(); await held; return ready(); };
+  const attached = r.recurring.attach();
+  try {
+    await scanning;
+    expect(r.recurring.snapshot().offers.map((offer) => offer.id)).not.toContain(later.id);
+    r.clock.now = new Date('2026-06-10T09:30:00Z');
+    await r.recurring.evaluate();
+    expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toContain(later.id);
+    expect(r.recurring.snapshot().message).toBeNull();
+    expect(r.runs.history(automatic.id)).toHaveLength(1);
+  } finally {
+    release();
+    await attached;
+    r.recurring.detach();
+    await r.session.close();
+  }
+});
+
+test('a busy controller keeps the due offer without recording a failed run', async () => {
+  const task = seedTask(1, { schedule: { kind: 'on-open' }, body: { kind: 'intent', text: DEMO_INTENTS.continuity } });
+  const r = await rig([task]);
+  await r.recurring.evaluate(true);
+  const foreground = r.agent.submit(DEMO_INTENTS.fillSynopses);
+  try {
+    await r.recurring.runNow(task.id);
+    expect(r.recurring.snapshot().message).toContain('working on another turn');
+    expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toContain(task.id);
+    expect(r.runs.history(task.id)).toEqual([]);
+  } finally {
+    r.agent.stop();
+    await foreground;
+    await r.session.close();
+  }
+});
+
+test('a task keeps its run slot until its history is recorded', async () => {
+  const first = seedTask(1, { schedule: { kind: 'manual' } });
+  const second = seedTask(2, { schedule: { kind: 'manual' } });
+  const r = await rig([first, second]);
+  let release: () => void = () => undefined;
+  let entered: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const recording = new Promise<void>((resolve) => { entered = resolve; });
+  const record = r.runs.record.bind(r.runs);
+  r.runs.record = async (run) => { if (run.taskId === first.id) { entered(); await held; } await record(run); };
+  const running = r.recurring.runNow(first.id);
+  try {
+    await recording;
+    await r.recurring.runNow(second.id);
+    expect(r.recurring.snapshot().message).toContain('Another task is running');
+    expect(r.runs.history(second.id)).toEqual([]);
+  } finally {
+    release();
+    await running;
+    await r.session.close();
+  }
+});

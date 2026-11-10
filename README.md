@@ -2,6 +2,10 @@
 
 The agent names when it is loading, processing an approval or stopping. Its composer and Stop stay available while the turn starts.
 
+Recurring task offers keep updating while a scan runs. If the agent is busy, a due task stays offered without a failed run; choose **Run now** after the turn ends.
+
+After a project restore, the agent names the project changes taken back and keeps its earlier report as **Original result**. Rewinding the conversation alone does not claim to undo project changes.
+
 Dialogs keep unfinished input underneath a later dialog; Escape acts on the top one. A stopped-tab notice always takes precedence. In Modern, background notice capsules wait out the dialog visually, while new notices are still announced and current ones return afterward. An error received while covered is kept over later information; a newer error replaces it.
 
 Agent trace exports name turn, tool-card and approval-round state transitions. Traces remain memory-only and compatible with older readers.

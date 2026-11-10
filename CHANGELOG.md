@@ -22,6 +22,12 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Retained conflict recovery.** A later producer, read or write failure no longer hides an unresolved document conflict. The editor footer and Documents save channel keep the copy-before-reload guidance until the conflict is resolved.
 
+- **Narrow restore cards.** German and padded pseudo-locale actions wrap inside the Agent panel without sideways scrolling. German restore/checkpoint wording consistently uses **Durchlauf**, and **Recurring tasks** and **New task** follow the interface language.
+
+- **Restore result wording.** English and German confirmations keep the original result separate from their scope warning, without adding punctuation to the supplied summary. Restored turns name the whole or partial project changes taken back and retain the unchanged earlier report as **Original result**; conversation-only rewind makes no undo claim.
+
+- **Recurring task admission.** A task claims its agent turn before publishing that it is running, so another turn cannot turn it into a false failed history row. Newly due offers remain visible while a scan runs, and a task keeps its run slot until history recording finishes. Restore/rewind badges and conversation context now read the same in-memory marker state; saved task and run-log formats are unchanged.
+
 - **Document save conflicts.** A revision conflict now has its own save state instead of looking like a storage failure. The prose, screenplay and Ink save lines warn in English and German that newer text is already stored, keep your words in this tab and direct you to copy the unsaved text somewhere safe before reloading. This warning stays visible during later typing and save attempts while the revision failure is unresolved. Autosave timing and saved project formats are unchanged.
 - **Modern failed-save capsules.** Short labels name the failed part without squeezing the project title, New or More. Activate the label for full recovery guidance and applicable backup actions in Scene info › Progress; hover, keyboard, screen readers and narrow touch layouts retain access. Classic keeps its full status line.
 

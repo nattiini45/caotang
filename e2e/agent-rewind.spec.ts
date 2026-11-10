@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from './endpoint.js';
+import { waitForShell } from './support.js';
 
 /**
  * The two axes of a turn's checkpoint in the agent panel (agent-harness §5): the project is restored, the conversation is rewound,
@@ -107,6 +108,8 @@ test('restore both takes the project back and rewinds the conversation after a c
   await menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ }).click();
   await page.getByRole('button', { name: /^Restore both/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Restore the project and rewind the conversation?' });
+  await expect(dialog.locator('p').first()).toHaveText('This restores the project to its state before this turn. Your edits since then are included in the restore. The agent then forgets this turn and the ones after it.');
+  await expect(dialog).toContainText('Original result:');
   await expect(dialog).toContainText('The agent then forgets this turn and the ones after it.');
   await expect(dialog).toContainText('Your edits since then are included in the restore');
   await dialog.getByRole('button', { name: 'Restore both', exact: true }).click();
@@ -120,6 +123,8 @@ test('restore both takes the project back and rewinds the conversation after a c
 
 test('restoring the project alone keeps the conversation: the turns stay in the list, outside the rewound block', async ({ page }) => {
   await twoTurns(page);
+  const report = page.locator('.agent-turn', { hasText: FIRST }).locator('.agent-report-text');
+  const original = await report.innerText();
 
   await menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ }).click();
   await page.getByRole('button', { name: /^Restore project to before this turn/ }).click();
@@ -128,8 +133,29 @@ test('restoring the project alone keeps the conversation: the turns stay in the 
   await expect(page.getByRole('status').filter({ hasText: 'Restored to before that turn. 1 later change was taken back with it.' })).toBeVisible();
   await expect(page.getByRole('treeitem', { name: /The Storm/ })).not.toContainText(/final/i);
   await expect(page.getByTestId('agent-rewound')).toHaveCount(0);
+  await expect(report).toContainText('This turn’s project changes were taken back.');
+  await expect(report).toContainText(`Original result: ${original}`);
   // The first-run demo turn, and the two of this test.
   await expect(page.locator('.agent-turn')).toHaveCount(3);
+});
+
+test('German restore copy separates the original report and names the project changes taken back', async ({ page }) => {
+  await twoTurns(page);
+  const turn = page.locator('.agent-turn', { hasText: FIRST });
+  const original = await turn.locator('.agent-report-text').innerText();
+  await page.getByTestId('open-settings').click();
+  const settings = page.getByTestId('settings');
+  await settings.locator('[data-section="appearance"]').click();
+  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
+  await turn.getByTestId('checkpoint').getByRole('button').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.locator('p').first()).toHaveText('Dies stellt das Projekt auf den Stand vor diesem Durchlauf wieder her. Ihre Änderungen seitdem sind in der Wiederherstellung enthalten.');
+  await expect(dialog).toContainText(`Ursprüngliches Ergebnis: ${original}`);
+  await dialog.getByRole('button', { name: 'Wiederherstellen', exact: true }).click();
+  await expect(turn.locator('.agent-report-text')).toContainText('Die Projektänderungen dieses Durchlaufs wurden zurückgenommen.');
+  await expect(turn.locator('.agent-report-text')).toContainText(`Ursprüngliches Ergebnis: ${original}`);
 });
 
 test('the menu opens from the keyboard, closes with Escape and returns focus to its button', async ({ page }) => {
@@ -146,6 +172,37 @@ test('the menu opens from the keyboard, closes with Escape and returns focus to 
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(toggle).toBeFocused();
 });
+
+for (const locale of ['de', 'en-XA']) {
+  test(`the narrow ${locale} restore card fits the Agent panel and localizes its recurring controls`, async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('caotang.pseudo', '1'));
+    await twoTurns(page);
+    await page.getByTestId('open-settings').click();
+    const settings = page.getByTestId('settings');
+    await settings.locator('[data-section="appearance"]').click();
+    await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: /^Modern/ }).check();
+    await waitForShell(page, 'modern');
+    await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
+    await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    await settings.getByRole('banner').getByRole('button').click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const panel = page.locator('.modern-companion .agent-body');
+    const restore = page.locator('.agent-turn', { hasText: FIRST }).getByTestId('checkpoint').getByRole('button');
+    await restore.scrollIntoViewIfNeeded();
+    expect(await panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
+    expect(await restore.evaluate((element) => getComputedStyle(element).whiteSpace)).not.toBe('nowrap');
+    const bounds = await restore.boundingBox();
+    const panelBounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(panelBounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(panelBounds!.x);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(panelBounds!.x + panelBounds!.width);
+    const recurring = page.getByTestId('recurring-tasks');
+    await expect(recurring.locator('h3')).toHaveText(locale === 'de' ? 'Wiederkehrende Aufgaben' : /⟦/);
+    await expect(recurring.locator(':scope > button')).toHaveText(locale === 'de' ? 'Neue Aufgabe' : /⟦/);
+    if (locale === 'de') await expect(page.locator('.agent-turn', { hasText: FIRST }).locator('.checkpoint-label')).toContainText('Durchlauf');
+  });
+}
 
 test('a rewind that is refused because a turn started since the menu was drawn says so', async ({ page }) => {
   await sendIntent(page, FIRST);

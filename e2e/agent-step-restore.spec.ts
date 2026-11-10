@@ -60,6 +60,8 @@ test('restoring to before step 2 keeps step 1 and takes back steps 2 and 3', asy
   await expect(page.getByRole('treeitem', { name: /The Storm/ })).not.toContainText(/revised/i);
   await expect(page.getByRole('treeitem', { name: /The Friend/ })).not.toContainText(/final/i);
   await expect(turn(page).getByTestId('partial-restore')).toContainText('Restored from step 2');
+  await expect(turn(page).locator('.agent-report-text')).toContainText('Some of this turn’s project changes were taken back.');
+  await expect(turn(page).locator('.agent-report-text')).toContainText('Original result:');
   // The turn's checkpoint still stands for step 1, and only that step can be restored now.
   await expect(turn(page).getByTestId('checkpoint').getByRole('button', { name: 'Restore to before this turn' })).toBeVisible();
   await expect(turn(page).getByTestId('step-menu')).toHaveCount(1);

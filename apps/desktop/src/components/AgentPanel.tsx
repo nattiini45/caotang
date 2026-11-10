@@ -55,6 +55,7 @@ import { TaskChecklist } from './TaskChecklist.js';
 import { renderRef, WRITER_VALUE_KEYS } from '../i18n/render-ref.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 import { UserText } from '../i18n/UserText.js';
+import { RestoreResult } from './RestoreResult.js';
 
 import { TurnMenu } from './TurnMenu.js';
 import { SaveCommand } from './SaveCommand.js';
@@ -615,18 +616,15 @@ export function AgentPanel({
       >
         {restoring?.stepId !== undefined ? (
           <p>
-            {restoring.summary
-              ? <Trans>This restores the project to its state before this step of the turn: <UserText value={restoring.summary} />. The steps after it, and your edits since then, are included in the restore. The steps before it stay.</Trans>
-              : <Trans>This restores the project to its state before this step of the turn. The steps after it, and your edits since then, are included in the restore. The steps before it stay.</Trans>}
+            <Trans>This restores the project to its state before this step of the turn. The steps after it, and your edits since then, are included in the restore. The steps before it stay.</Trans>
           </p>
         ) : (
           <p>
-            {restoring?.summary
-              ? <Trans>This restores the project to its state before this turn: <UserText value={restoring.summary} />. Your edits since then are included in the restore.</Trans>
-              : <Trans>This restores the project to its state before this turn. Your edits since then are included in the restore.</Trans>}
+            <Trans>This restores the project to its state before this turn. Your edits since then are included in the restore.</Trans>
             {restoring?.both === true ? <> {t`The agent then forgets this turn and the ones after it.`}</> : null}
           </p>
         )}
+        {restoring?.summary ? <p className="muted"><RestoreResult summary={restoring.summary} /></p> : null}
         {restoring?.note === undefined ? null : <p className="muted">{restoring.note}</p>}
         {restoring?.exact === true && restoring.later.length > 0 ? (
           <p data-testid="restore-exact">
@@ -922,7 +920,8 @@ function TurnBlock({
         </p>
       ) : null}
 
-      {turn.report !== null ? <ReportLine report={turn.report} price={turn.price} /> : null}
+      {turn.report !== null ? <ReportLine report={turn.report} price={turn.price}
+        restoration={turn.restoredAt === null ? null : turn.restoredFromStep === null ? 'whole' : 'partial'} /> : null}
     </li>
   );
 }
@@ -1196,7 +1195,7 @@ function HeldPlan({ report, disabled, onRun }: { report: TurnReport; disabled: b
   );
 }
 
-function ReportLine({ report, price }: { report: TurnReport; price: TurnView['price'] }): ReactNode {
+function ReportLine({ report, price, restoration }: { report: TurnReport; price: TurnView['price']; restoration: 'whole' | 'partial' | null }): ReactNode {
   const tokens = report.tokens;
   const calls = report.modelCalls;
   const prompt = tokens.promptTokens;
@@ -1205,7 +1204,7 @@ function ReportLine({ report, price }: { report: TurnReport; price: TurnView['pr
   const cost = turnCostOf(tokens, price);
   return (
     <div className="agent-report" aria-label={t`Report`}>
-      <p className="agent-report-text">{report.summary}</p>
+      <p className="agent-report-text">{restoration === null ? report.summary : <RestoreResult summary={report.summary} restoration={restoration} />}</p>
       <p className="muted agent-report-meta">
         {plural(calls, { one: `# model call · about ${prompt} tokens in, ${completion} out`, other: `# model calls · about ${prompt} tokens in, ${completion} out` })}
       </p>

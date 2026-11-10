@@ -463,6 +463,8 @@ If you change or reconnect the server while filling in a prompt's arguments, sta
 
 An unavailable `/mcp-…` command stays in the composer and is not sent to your model provider. Start the command again after reconnecting; its fields start empty. Use `//mcp-…` only when you deliberately want to send that literal text as an ordinary model request.
 
+After a project restore, the turn says whether all or some of its project changes were taken back. Its earlier report stays unchanged under **Original result**; it is history, not a claim that those changes are still in the project. A restore confirmation keeps that original result separate from the warning about which edits will be taken back. Rewinding the conversation alone does not say project changes were undone.
+
 ## Agent instructions and memory
 
 Some things you would otherwise say in every request: "British spelling. Past tense, close third person on Mara. No semicolons in dialogue." Write them once in **CAOTANG.md**, and the agent reads them with every request. Choose **Instructions** in the toolbar to open the panel.
@@ -475,6 +477,8 @@ Some things you would otherwise say in every request: "British spelling. Past te
 The files travel with the project: a project folder, a `.caotang` bundle and this browser's copy all carry them, and the Caotang MCP server lets a connected program read them, never change them. A note file that Caotang cannot read is kept exactly as it is and listed as one it cannot read; opening the project never deletes it.
 
 ## Recurring tasks
+
+If the agent is already working, **Run now** records no failed run. A due task stays offered; try it again after that turn ends. Newly due offers still appear while a scan runs; another automatic scan waits until a later due check rather than interrupting the current one.
 
 A recurring task is something you want done again and again: a continuity scan every Monday, or "read the scenes I changed today and tell me what is loose" each evening. Open the agent panel and find **Recurring tasks**. **New task** asks for a name, what it does (**Ask the agent**, or **Scan for continuity problems**), when it is due (**Only when I run it**, **Each time the project opens**, **Every day** or **Every week**, from a time of day in your own clock), and what it may do (**Ask before it changes anything**, or **Change nothing**). A task that asks the agent can be given **Most model calls in a run**. Each task has **Run now**, **Edit**, **Turn off** and **Delete**, and **Runs on this machine** lists what it did, with the model calls and tokens it used.
 

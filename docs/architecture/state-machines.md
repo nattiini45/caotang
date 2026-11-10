@@ -215,6 +215,14 @@ Saved statuses remain `queued`, `running`, `ready`, `failed`, `cancelled`, `inte
 
 Owner: `apps/desktop/src/app/agent-state.ts`, interpreted by `agent.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). The foreground has eight named states: idle, starting, running, parked-on-card, approving, parked-on-offer, stopping and detached. Only a card state owns a parked decision and only an offer state owns a background choice. An approval retains its original decision until its awaited save/listing settles; stale owners cannot re-park or clear a newer turn. Queue and note events update their sub-state without changing the foreground phase. Interrupted-run reads remain latest-wins. A detached state retains the foreground resources needed for re-attachment but owns no parked choice. There is no final state because the controller can attach again. Every transition is in memory, exposed by the snapshot/panel and the trace sink; no saved format changes.
 
+### `recurring.run`
+
+Owner: `apps/desktop/src/app/recurring-state.ts`, interpreted by `recurring-tasks.ts`; contract: [agent-harness.md §12](agent-harness.md#12-recurring-tasks). Idle accepts a task only once; running owns execution, recording owns its history write, and only that task can finish either state. Controller admission is synchronous before the run is published. Offer evaluation is independent of an awaited scan. Saved task definitions and history statuses are unchanged.
+
+### `turn.marker`
+
+Owner: `packages/harness/src/agent/turn-marker.ts`, stored once by the harness session. Live becomes restored or rewound; restored may be replaced by a later whole/partial restore or become rewound; rewind wins over any later restore while retaining earlier restoration metadata. RecentTurn and the panel TurnView are projections of that one state, not separately updated marker stores. The state and its out-of-turn trace rows are memory only.
+
 ### `mcp.health`
 
 `mcp.health` owns the in-memory configured, connecting, failed, connected and healthy states (extensibility.md §3.2–§3.4). Connect starts before credentials resolve. Listed and approve events separate a successful connection from a reviewed tool list; fail carries a typed reason beside corrective prose. Disconnect, disable and credential/address edits reset the state and invalidate in-flight work with the existing generation fence. Retry clears the old failure. Settings publishes the same state as `data-state` and the failure code as `data-reason`; nothing new is persisted.

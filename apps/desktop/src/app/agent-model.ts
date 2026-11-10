@@ -63,7 +63,7 @@ export interface ContextView {
   readonly dropped: readonly string[];
 }
 
-export interface TurnView {
+export interface TurnRecord {
   readonly turnId: string;
   readonly intent: string;
   /** The slash command that started the turn (`draft`), or `null`. It is known when the turn starts; the report names it too. */
@@ -101,6 +101,9 @@ export interface TurnView {
   readonly steering: readonly SteeringNote[];
   /** The run's spend and its limits after the last model call, for the live spend line (agent-harness §7.1). `null` before the first call. */
   readonly run: { readonly spend: BudgetSpend; readonly limits: RunLimits } | null;
+}
+
+export interface TurnView extends TurnRecord {
   /** The writer rewound the conversation past this turn: the model is not sent it (context-assembly §2, L6). It stays in the panel, collapsed. */
   readonly rewound: boolean;
   /** When the writer took this turn's project changes back while keeping the conversation (epoch ms), or `null`. L6 says so too. */
@@ -110,13 +113,13 @@ export interface TurnView {
 }
 
 /** A turn that has been submitted and has not yet reported its id. */
-export function newTurnView(
+export function newTurnRecord(
   turnId: string,
   intent: string,
   provider: string | null = null,
   price: { readonly prompt: number; readonly completion: number } | null = null,
   command: string | null = null,
-): TurnView {
+): TurnRecord {
   return {
     turnId,
     intent,
@@ -140,24 +143,28 @@ export function newTurnView(
     tasks: emptyTaskList(turnId),
     steering: [],
     run: null,
-    rewound: false,
-    restoredAt: null,
-    restoredFromStep: null,
   };
+}
+
+export function newTurnView(turnId: string, intent: string, provider: string | null = null,
+  price: { readonly prompt: number; readonly completion: number } | null = null, command: string | null = null): TurnView {
+  return { ...newTurnRecord(turnId, intent, provider, price, command), rewound: false, restoredAt: null, restoredFromStep: null };
 }
 
 /**
  * Folds one event into a turn, and into the turn's task list beside it. An event for another turn is returned unchanged, so a
  * caller may pass every event through every turn it holds. `nameOf` shows a document reference by its title in the task list.
  */
-export function reduceTurn(turn: TurnView, event: AgentEvent, nameOf?: NameOf): TurnView {
+export function reduceTurn(turn: TurnView, event: AgentEvent, nameOf?: NameOf): TurnView;
+export function reduceTurn(turn: TurnRecord, event: AgentEvent, nameOf?: NameOf): TurnRecord;
+export function reduceTurn(turn: TurnRecord, event: AgentEvent, nameOf?: NameOf): TurnRecord {
   if (event.turnId !== turn.turnId) return turn;
   const tasks = reduceTaskList(turn.tasks, event, nameOf);
   const next = reduceView(turn, event);
   return tasks === next.tasks ? next : { ...next, tasks };
 }
 
-function reduceView(turn: TurnView, event: AgentEvent): TurnView {
+function reduceView(turn: TurnRecord, event: AgentEvent): TurnRecord {
   switch (event.type) {
     case 'turn':
       return { ...turn, phase: event.phase, mode: event.mode ?? turn.mode };

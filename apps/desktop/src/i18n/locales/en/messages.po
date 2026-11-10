@@ -6482,6 +6482,10 @@ msgstr "Edit queued message {number}"
 msgid "Edit synopsis"
 msgstr "Edit synopsis"
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Edit task"
+msgstr "Edit task"
+
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -9758,6 +9762,10 @@ msgstr "New skill…"
 msgid "New storyboard here"
 msgstr "New storyboard here"
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "New task"
+msgstr "New task"
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "New, not reviewed"
@@ -10974,6 +10982,10 @@ msgstr "Or use an image already in the project for shot {number}"
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Order links"
 msgstr "Order links"
+
+#: apps/desktop/src/components/RestoreResult.tsx
+msgid "Original result: <0/>"
+msgstr "Original result: <0/>"
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -12386,6 +12398,10 @@ msgstr "Recording is off"
 #: apps/desktop/src/components/Home.tsx
 msgid "Recovering the project"
 msgstr "Recovering the project"
+
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Recurring tasks"
+msgstr "Recurring tasks"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -14523,6 +14539,10 @@ msgstr "Some changes have not reached browser storage yet, so the project stays 
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some documents in this folder changed since Caotang last saved them"
 msgstr "Some documents in this folder changed since Caotang last saved them"
+
+#: apps/desktop/src/components/RestoreResult.tsx
+msgid "Some of this turn’s project changes were taken back."
+msgstr "Some of this turn’s project changes were taken back."
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
@@ -17444,18 +17464,8 @@ msgstr "This request becomes a project skill that only you can invoke. It does n
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
-msgid "This restores the project to its state before this step of the turn: <0/>. The steps after it, and your edits since then, are included in the restore. The steps before it stay."
-msgstr "This restores the project to its state before this step of the turn: <0/>. The steps after it, and your edits since then, are included in the restore. The steps before it stay."
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
 msgid "This restores the project to its state before this step of the turn. The steps after it, and your edits since then, are included in the restore. The steps before it stay."
 msgstr "This restores the project to its state before this step of the turn. The steps after it, and your edits since then, are included in the restore. The steps before it stay."
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
-msgid "This restores the project to its state before this turn: <0/>. Your edits since then are included in the restore."
-msgstr "This restores the project to its state before this turn: <0/>. Your edits since then are included in the restore."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -17588,6 +17598,10 @@ msgstr "This tab cannot save: another tab has newer text for this project. Expor
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "This tests the form above, including unsaved changes. It reads only local project state and the text below. No action runs, no file is written and no provider is called."
 msgstr "This tests the form above, including unsaved changes. It reads only local project state and the text below. No action runs, no file is written and no provider is called."
+
+#: apps/desktop/src/components/RestoreResult.tsx
+msgid "This turn’s project changes were taken back."
+msgstr "This turn’s project changes were taken back."
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
