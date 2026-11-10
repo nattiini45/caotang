@@ -1,6 +1,6 @@
 # Decisions
 
-- [owner 2026-11-09] Autosave revision refusals have a separate `conflict` state beside storage errors, visible in the prose, screenplay and Ink save lines in English and German. The message keeps the writer's words in this tab and directs them to export a backup before reloading; it does not claim a stale retry will save. Debounce timing, retry opportunities, document records and the save protocol stay compatible. Why: a moved revision needs different recovery from a full disk (state-machines B7a, Caspar's answer 5).
+- [owner 2026-11-09] Autosave revision refusals have a separate `conflict` state beside storage errors, visible in the prose, screenplay and Ink save lines in English and German. The message keeps the writer's words in this tab and directs them to copy the unsaved text somewhere safe before reloading; it does not claim a stale retry will save. Debounce timing, retry opportunities, document records and the save protocol stay compatible. Why: a moved revision needs different recovery from a full disk (state-machines B7a, Caspar's answer 5).
 
 - [delegated 2026-11-09] Save as command is offered for reusable request text, not the synthetic labels of MCP prompt or macro turns; those already have their own invocation and must not create an unrelated saved skill (#61, PR #524 F9).
 

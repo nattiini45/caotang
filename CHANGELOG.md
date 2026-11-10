@@ -14,7 +14,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
-- **Document save conflicts.** A revision conflict now has its own save state instead of looking like a storage failure. The prose, screenplay and Ink save lines say in English and German that newer text is already stored, keep your words in this tab and direct you to export a backup before reloading. Autosave timing and saved project formats are unchanged.
+- **Document save conflicts.** A revision conflict now has its own save state instead of looking like a storage failure. The prose, screenplay and Ink save lines say in English and German that newer text is already stored, keep your words in this tab and direct you to copy the unsaved text somewhere safe before reloading. Autosave timing and saved project formats are unchanged.
 
 - **Opening browser storage.** If another tab blocks an upgrade, opening now asks you to close the other Caotang tabs and reload instead of waiting indefinitely.
 
