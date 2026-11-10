@@ -12,7 +12,7 @@
  *   - a lazy chunk on BUDGET.lazy over its own raw cap, missing from the build, or in the first load (Modern's `modern-shell`,
  *     modern-interface.md §12, loads only while Modern is on);
  *   - the entry stylesheet (the stylesheet links in index.html) more than BUDGET.css.entryMargin over BUDGET.css.entry, or a lazy
- *     stylesheet over its cap on BUDGET.css.caps (Modern's, 94.5 kB raw);
+ *     stylesheet over its cap on BUDGET.css.caps (Modern's, 96.6 kB raw);
  *   - "Modern first load" (the first load plus `modern-shell`'s JS and CSS, gzip) more than BUDGET.modernFirstLoadDelta over Classic's
  *     first load.
  *
