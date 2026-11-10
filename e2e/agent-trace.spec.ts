@@ -111,6 +111,27 @@ test('Leave out manuscript text exports the structure with every text replaced b
   expect(text).toContain('"gen_ai.usage.input_tokens"');
 });
 
+test('an export without manuscript text keeps the named turn and tool-card transitions', async ({ page }) => {
+  await openSample(page);
+  await openTrace(page);
+  await page.getByRole('button', { name: 'Export trace…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export trace' });
+  await dialog.getByRole('checkbox', { name: 'Leave out manuscript text' }).check();
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Export', exact: true }).click()]);
+  const parsed = parseTrace(readFileSync(await download.path(), 'utf8'));
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const rows = parsed.value.filter((record) => record.kind === 'machine');
+  expect(rows.map((row) => row.machine)).toEqual(expect.arrayContaining(['turn.phase', 'card.status']));
+  expect(rows.at(-1)).toMatchObject({ machine: 'turn.phase', event: 'done', to: 'done' });
+  for (const row of rows) {
+    expect(row.turnId).toBeTruthy();
+    expect(typeof row.from).toBe('string');
+    expect(typeof row.event).toBe('string');
+    expect(typeof row.to).toBe('string');
+  }
+});
+
 for (const shell of ['classic', 'modern'] as const) {
   test(`Clear trace in ${shell}: the named switch stops recording and Space turns it back on`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
