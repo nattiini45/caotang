@@ -198,6 +198,73 @@ Initial: `open`. Final: none.
 | `open` | `dismissed` | `dismissed` |
 | `open` | `fixed` | `fixed` |
 
+## document.autosave
+
+Initial: `clean`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `clean` | `cancel-window` | `clean` |
+| `clean` | `edit` | `pending` |
+| `clean` | `open` | `clean` |
+| `clean` | `produce` | `clean` |
+| `clean` | `produced` | `clean` |
+| `clean` | `producer-failed` | `error`, `pending` |
+| `clean` | `read-failed` | `clean` |
+| `clean` | `reseat` | `clean` |
+| `clean` | `reseated` | `clean` |
+| `clean` | `reset-budget` | `clean` |
+| `clean` | `take` | `clean`, `pending`, `saving` |
+| `clean` | `window-fired` | `clean` |
+| `conflict` | `cancel-window` | `conflict` |
+| `conflict` | `edit` | `pending` |
+| `conflict` | `open` | `clean`, `conflict` |
+| `conflict` | `produce` | `conflict` |
+| `conflict` | `produced` | `conflict` |
+| `conflict` | `producer-failed` | `error`, `pending` |
+| `conflict` | `read-failed` | `conflict` |
+| `conflict` | `reseat` | `clean` |
+| `conflict` | `reseated` | `clean`, `conflict` |
+| `conflict` | `reset-budget` | `conflict` |
+| `conflict` | `take` | `clean`, `conflict`, `pending`, `saving` |
+| `conflict` | `window-fired` | `conflict` |
+| `error` | `cancel-window` | `error` |
+| `error` | `edit` | `pending` |
+| `error` | `open` | `clean`, `error` |
+| `error` | `produce` | `error` |
+| `error` | `produced` | `error` |
+| `error` | `producer-failed` | `error`, `pending` |
+| `error` | `read-failed` | `error` |
+| `error` | `reseat` | `clean` |
+| `error` | `reseated` | `clean`, `error` |
+| `error` | `reset-budget` | `error` |
+| `error` | `take` | `clean`, `error`, `pending`, `saving` |
+| `error` | `window-fired` | `error` |
+| `pending` | `cancel-window` | `pending` |
+| `pending` | `edit` | `pending` |
+| `pending` | `open` | `clean`, `pending` |
+| `pending` | `produce` | `pending` |
+| `pending` | `produced` | `pending` |
+| `pending` | `producer-failed` | `error`, `pending` |
+| `pending` | `read-failed` | `pending` |
+| `pending` | `reseat` | `clean` |
+| `pending` | `reseated` | `clean`, `pending` |
+| `pending` | `reset-budget` | `pending` |
+| `pending` | `take` | `clean`, `pending`, `saving` |
+| `pending` | `window-fired` | `pending` |
+| `saving` | `cancel-window` | `saving` |
+| `saving` | `edit` | `saving` |
+| `saving` | `produce` | `saving` |
+| `saving` | `produced` | `saving` |
+| `saving` | `producer-failed` | `error`, `pending` |
+| `saving` | `read-failed` | `saving` |
+| `saving` | `reseat` | `saving` |
+| `saving` | `reseated` | `clean`, `saving` |
+| `saving` | `reset-budget` | `saving` |
+| `saving` | `window-fired` | `saving` |
+| `saving` | `write-failed` | `conflict`, `error`, `pending` |
+| `saving` | `written` | `clean`, `pending` |
+
 ## export.job
 
 Initial: `queued`. Final: `failed`, `written`.

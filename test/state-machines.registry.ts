@@ -25,6 +25,7 @@ import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
 import { assetStagingTable } from '../packages/store/src/asset-staging.js';
 import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
+import { autosaveTable } from '../packages/store/src/runtime/autosave-machine.js';
 import { healthTable } from '../packages/mcp-client/src/health.js';
 import { turnPhaseTable } from '../packages/harness/src/agent/turn-machine.js';
 import { cardStatusTable } from '../packages/harness/src/agent/cards.js';
@@ -35,7 +36,7 @@ export const machineTables = [
   sprintTable, taskStatusTable, agentControllerTable, recurringRunTable, turnMarkerTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
-  assetStagingTable, assetRemovalHoldTable, reviewTable, interfaceTable,
+  assetStagingTable, assetRemovalHoldTable, autosaveTable, reviewTable, interfaceTable,
   turnPhaseTable, cardStatusTable,
   cardDecisionTable, budgetMeterTable,
   exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,

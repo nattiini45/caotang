@@ -73,6 +73,12 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `document.autosave`
+
+Owner: `packages/store/src/runtime/autosave-machine.ts`; contracts: [project-format.md §4](project-format.md#4-write-path-atomicity--crash-safety) and [editor-engine.md §9](editor-engine.md#9-autosave-revisions--word-counts). `stepAutosave(slot, event)` returns the next slot and effects; `autosaveMachine` exposes the same step's state projection for exhaustive checks. `open` seeds a quiet slot; `edit` replaces pending text and rearms its window; production events cache a producer's answer without executing it in the reducer. `take` either recognizes unchanged text or starts one guarded write. `written` takes the store's revision and drains a newer edit only after that edit's window expired. `write-failed` retains the newest body and distinguishes a revision `conflict` from an ordinary `error`; it arms no retry. `producer-failed` arms one retry, then stands as an error. `reset-budget` is an explicit flush's new opportunity to read a producer. `reseat` and `reseated` surround the wait for an active write, discard obsolete typing and never move the revision backwards. Window events only describe scheduling; the async owner keeps the actual timer and promise handles.
+
+The five status kinds are reusable, not final: edits, explicit flushes and reseats remain possible. `status()` and `subscribe()` are the typed inspection API, and the editor save lines publish `data-state`. Nothing is logged or persisted by the machine; stored documents, journals, bus parameters and the editor adapter API stay compatible. The exhaustive sample matrix and existing autosave/rebase scenarios cover producer re-entry, newest-body retention, timing and concurrent reseats.
+
 ### `findings.review`
 
 Owner: `apps/desktop/src/app/coherence-review-state.ts`, held once by `ProjectSession`; product contract: [coherence.md §6.2–6.3](coherence.md#62-run-scoping-bunshos-three-modes-mapped). `plan`, `dismiss`, `start`, `progress`, `stop`, `done` and `fail` drive the pure step. Only `planned` accepts Start, synchronously before model effects. `running` retains the plan, completed-call count and stop request until the effect settles; cancellation wins over either completion or rejection. Complete results return to idle with a retained summary; stopped, partial and failed outcomes remain until the next plan. No state is terminal because a new review can be planned.

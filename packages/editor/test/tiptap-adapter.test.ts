@@ -525,7 +525,7 @@ describe('the unsaved state is a status, not one flag (§9)', () => {
     vi.advanceTimersByTime(800);
     await settle();
     const status = instance.saveStatus();
-    expect(status.state).toBe('error');
+    expect(status.state).toBe('conflict');
     expect(status.lastError).toBeInstanceOf(RevisionConflictError);
     expect(instance.getContent()).toBe('Mine Hello.\n');
     expect(instance.hasUnsavedEdits()).toBe(true);
