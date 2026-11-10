@@ -180,6 +180,8 @@ interface AppSettings {
 - Settings, findings and tasks share the in-memory `save.channel` queue contract ([state-machines.md](state-machines.md)). Settings retain their versionless stored shape; the queue, pending count and refusal are never stored in it. Settings have a separate save subscription so a pending or refused durable-only change is visible without publishing that preference early.
 
 ### 5.2 Sections & validation surfaces
+
+MCP controls await their settings mutation, prevent repeated actions while saving and show a refused save beside the control or form. Unsaved server configuration, review pins and trust grants are not published. A failed token replacement rolls the vault back; an import saves each accepted server once in its final enabled state and keeps submitted JSON when entries are refused (extensibility §§3.1, 3.6, 8).
 | Section | Contents | Validation |
 |---|---|---|
 | Hooks | the open project's hooks, enable switches, creation, editing, undoable deletion and an explicit-input local test; without a project, directions to open one | the form shares `readHook` validation with user-only `hook.save`/`hook.delete`; tests use only the form and local state, distinguish non-matches from passes, write nothing and call no provider. |

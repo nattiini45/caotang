@@ -10,6 +10,7 @@ import { DEFAULT_SETTINGS } from '../src/app/settings.js';
 import type { AppDb } from '../src/app/app-db.js';
 import { activateEnglish } from '../src/i18n/runtime.js';
 import { saveStateWords } from '../src/app/integrity-model.js';
+import { SaveChannel } from '../src/app/save-channel.js';
 
 beforeEach(() => {
   activateEnglish();
@@ -72,5 +73,26 @@ it('returns undo outcomes to their own callers rather than overwriting a shared 
   const empty = session.undoLast();
   expect(await refused).toEqual({ kind: 'failed', message: expect.stringContaining('already been undone') });
   expect(await empty).toEqual({ kind: 'empty' });
+  await session.close();
+});
+
+it('saved waits for an included channel and refuses when that write fails', async () => {
+  const state = project();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  await writeProjectState(store, state);
+  const channel = new SaveChannel('settings');
+  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: shadowOf(state), saveChannels: [channel] });
+  await session.settle();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const write = channel.enqueue(async () => { await gate; return 'full'; });
+  let finished = false;
+  const saved = session.saved().then(() => { finished = true; }, (error: unknown) => error);
+  await session.persistence.settle();
+  expect(session.saveState()).toBe('saving');
+  expect(finished).toBe(false);
+  release();
+  await write;
+  expect(await saved).toBeInstanceOf(Error);
   await session.close();
 });

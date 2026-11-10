@@ -145,7 +145,7 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
     await settings.update({ provider: { activeProfileId: active.id } });
   }
   const mcp = new McpApp({
-    settings: { current: () => settings.current().mcp, update: (patch) => settings.update(patch) },
+    settings: { current: () => settings.current().mcp, update: (patch, options) => settings.update(patch, options) },
     keys: service.keys,
     ...(options.mcpWire === undefined ? {} : { wire: options.mcpWire }),
   });

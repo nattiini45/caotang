@@ -234,7 +234,7 @@ export interface McpClientOptions {
   readonly callTimeoutMs?: number;
   /** The wall-clock cap of a call, which progress does not extend. Defaults to {@link CALL_MAX_TOTAL_MS}. */
   readonly callMaxTotalMs?: number;
-  /** Called with the whole slice after every change to it, so the app can persist it. */
+  /** Called with the proposed whole slice; an awaited refusal leaves the configuration unpublished. */
   readonly onChange?: (settings: McpSettings) => void | Promise<string | null>;
   /**
    * Called with the reference of a bearer token that a change dropped, so the vault can take it
