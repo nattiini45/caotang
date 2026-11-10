@@ -14,6 +14,7 @@
 
 import { err, ok, type Result } from '@caotang/bus';
 import { systemClock, type Clock, type TimerId, type Usage } from '@caotang/gateway';
+import { assertNever, type MachineTable } from '@caotang/machine';
 
 import type { BudgetDimension, TurnBudget } from './mode.js';
 
@@ -100,11 +101,72 @@ const costOf = (price: { readonly prompt: number; readonly completion: number },
 /** A token figure the meter can add: finite and not below zero. */
 const isAmount = (value: number): boolean => Number.isFinite(value) && value >= 0;
 
+type BudgetClockState = { readonly kind: 'active'; readonly since: number } | { readonly kind: 'paused'; readonly depth: number };
+type BudgetStoppedState = { readonly kind: 'stopped'; readonly reason: BudgetStop; readonly timing: BudgetClockState };
+
+export type BudgetMeterState = BudgetClockState | BudgetStoppedState | {
+  readonly kind: 'disposed';
+  readonly lifecycle: BudgetClockState | BudgetStoppedState;
+};
+
+export type BudgetMeterEvent =
+  | { readonly type: 'pause' }
+  | { readonly type: 'resume'; readonly now: number }
+  | { readonly type: 'stop'; readonly reason: BudgetStop }
+  | { readonly type: 'dispose' };
+
+export const budgetMeterTable: MachineTable<BudgetMeterState, BudgetMeterEvent> = {
+  id: 'budget-meter', initial: 'active', final: [],
+  on: {
+    active: { pause: ['paused'], stop: ['stopped'], dispose: ['disposed'] },
+    paused: { pause: ['paused'], resume: ['active', 'paused'], stop: ['stopped'], dispose: ['disposed'] },
+    stopped: { pause: ['stopped'], resume: ['stopped'], dispose: ['disposed'] },
+    disposed: { pause: ['paused', 'disposed'], resume: ['active', 'disposed'], stop: ['disposed'] },
+  },
+};
+
+const lifecycleOf = (state: BudgetMeterState): BudgetClockState | BudgetStoppedState => state.kind === 'disposed' ? state.lifecycle : state;
+const timingOf = (state: BudgetMeterState): BudgetClockState => {
+  const lifecycle = lifecycleOf(state);
+  return lifecycle.kind === 'stopped' ? lifecycle.timing : lifecycle;
+};
+
+export function stepBudgetMeter(state: BudgetMeterState, event: BudgetMeterEvent): BudgetMeterState {
+  const lifecycle = lifecycleOf(state);
+  const timing = timingOf(state);
+  switch (event.type) {
+    case 'dispose':
+      return state.kind === 'disposed' ? state : { kind: 'disposed', lifecycle };
+    case 'stop': {
+      if (lifecycle.kind === 'stopped') return state;
+      const stopped: BudgetStoppedState = { kind: 'stopped', reason: event.reason, timing };
+      return state.kind === 'disposed' ? { kind: 'disposed', lifecycle: stopped } : stopped;
+    }
+    case 'pause':
+    case 'resume': {
+      if (event.type === 'resume' && timing.kind === 'active') return state;
+      const next: BudgetClockState = event.type === 'pause'
+        ? { kind: 'paused', depth: timing.kind === 'paused' ? timing.depth + 1 : 1 }
+        : timing.kind === 'paused' && timing.depth > 1
+          ? { kind: 'paused', depth: timing.depth - 1 }
+          : { kind: 'active', since: event.now };
+      if (lifecycle.kind === 'stopped') {
+        const stopped: BudgetStoppedState = { ...lifecycle, timing: next };
+        return state.kind === 'disposed' ? { kind: 'disposed', lifecycle: stopped } : stopped;
+      }
+      if (state.kind === 'disposed' && timing.kind === 'paused' && next.kind === 'paused') return { kind: 'disposed', lifecycle: next };
+      return next;
+    }
+    default:
+      return assertNever(event);
+  }
+}
+
 export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOptions = {}): BudgetMeter {
   const clock = options.clock ?? systemClock;
   const restored = options.restored;
   const controller = new AbortController();
-  let stoppedBy: BudgetStop | undefined;
+  let state: BudgetMeterState = { kind: 'active', since: clock.now() };
   let modelCalls = restored?.modelCalls ?? 0;
   let promptTokens = restored?.promptTokens ?? 0;
   let completionTokens = restored?.completionTokens ?? 0;
@@ -112,14 +174,18 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
   let costUsd = restored?.costUsd;
   let steps = restored?.steps ?? 0;
   let activeBase = restored?.activeMs ?? 0;
-  let runningSince: number | undefined = clock.now();
-  let pauses = 0;
   let sequence = 0;
   let timer: TimerId | undefined;
   const held = new Map<string, Reservation>();
 
-  // A clock stepped backwards must not take time off what the run has already used.
-  const activeMs = (): number => activeBase + (runningSince === undefined ? 0 : Math.max(0, clock.now() - runningSince));
+  const activeMs = (): number => {
+    const timing = timingOf(state);
+    return activeBase + (timing.kind === 'paused' ? 0 : Math.max(0, clock.now() - timing.since));
+  };
+  const stoppedBy = (): BudgetStop | undefined => {
+    const lifecycle = lifecycleOf(state);
+    return lifecycle.kind === 'stopped' ? lifecycle.reason : undefined;
+  };
 
   const timeHit = (): BudgetStop | undefined => {
     const now = clock.now();
@@ -135,28 +201,28 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
   };
 
   const stop = (reason: BudgetStop): void => {
-    if (stoppedBy !== undefined) return;
-    stoppedBy = reason;
+    if (stoppedBy() !== undefined) return;
+    state = stepBudgetMeter(state, { type: 'stop', reason });
     disarm();
     controller.abort();
   };
 
   /** Stops the run when a time limit has passed by the clock; the answer is the stop, if any. */
   const check = (): BudgetStop | undefined => {
-    if (stoppedBy === undefined) {
+    if (stoppedBy() === undefined) {
       const hit = timeHit();
       if (hit !== undefined) stop(hit);
     }
-    return stoppedBy;
+    return stoppedBy();
   };
 
   /** One timer, set for the nearest limit still ahead; it checks the clock again when it fires. */
   const arm = (): void => {
     disarm();
-    if (stoppedBy !== undefined) return;
+    if (stoppedBy() !== undefined || state.kind === 'disposed') return;
     let due: number | undefined;
     if (limits.deadline !== undefined) due = limits.deadline - clock.now();
-    if (limits.maxActiveMs !== undefined && runningSince !== undefined) {
+    if (limits.maxActiveMs !== undefined && timingOf(state).kind === 'active') {
       const left = limits.maxActiveMs - activeMs();
       due = due === undefined ? left : Math.min(due, left);
     }
@@ -241,24 +307,26 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
     stepsLeft: () => (limits.maxSteps === undefined ? Infinity : Math.max(0, limits.maxSteps - steps)),
 
     pauseClock() {
-      pauses += 1;
-      if (pauses > 1 || runningSince === undefined) return;
-      activeBase = activeMs();
-      runningSince = undefined;
+      const wasActive = timingOf(state).kind === 'active';
+      if (wasActive) activeBase = activeMs();
+      state = stepBudgetMeter(state, { type: 'pause' });
+      if (!wasActive) return;
       arm();
     },
 
     resumeClock() {
-      if (pauses === 0) return;
-      pauses -= 1;
-      if (pauses > 0) return;
-      runningSince = clock.now();
+      const wasPaused = timingOf(state).kind === 'paused';
+      state = stepBudgetMeter(state, { type: 'resume', now: clock.now() });
+      if (!wasPaused || timingOf(state).kind === 'paused') return;
       arm();
     },
 
     stopped: check,
     stop,
-    dispose: disarm,
+    dispose() {
+      state = stepBudgetMeter(state, { type: 'dispose' });
+      disarm();
+    },
     toJSON: () => ({ limits, spend: meter.spend() }),
   };
 
