@@ -20,6 +20,7 @@
     "@caotang/comic": "workspace:*",
     "@caotang/dialogue": "workspace:*",
     "@caotang/i18n": "workspace:*",
+    "@caotang/machine": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/pictures": "workspace:*",
     "@caotang/screenplay": "workspace:*",
