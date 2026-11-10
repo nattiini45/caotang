@@ -6482,6 +6482,10 @@ msgstr "Edit queued message {number}"
 msgid "Edit synopsis"
 msgstr "Edit synopsis"
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Edit task"
+msgstr "Edit task"
+
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
@@ -9758,6 +9762,10 @@ msgstr "New skill…"
 msgid "New storyboard here"
 msgstr "New storyboard here"
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "New task"
+msgstr "New task"
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "New, not reviewed"
@@ -12381,6 +12389,10 @@ msgstr "Recording is off"
 #: apps/desktop/src/components/Home.tsx
 msgid "Recovering the project"
 msgstr "Recovering the project"
+
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Recurring tasks"
+msgstr "Recurring tasks"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx

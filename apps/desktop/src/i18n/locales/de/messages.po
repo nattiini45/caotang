@@ -1207,7 +1207,7 @@ msgstr "{label}+{first} bis {last}"
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "{later, plural, one {Restored to before that turn. # later change was taken back with it.} other {Restored to before that turn. # later changes were taken back with it.}}"
-msgstr "{later, plural, one {Auf den Stand vor diesem Zug zurückgesetzt. # spätere Änderung wurde damit zurückgenommen.} other {Auf den Stand vor diesem Zug zurückgesetzt. # spätere Änderungen wurden damit zurückgenommen.}}"
+msgstr "{later, plural, one {Auf den Stand vor diesem Durchlauf zurückgesetzt. # spätere Änderung wurde damit zurückgenommen.} other {Auf den Stand vor diesem Durchlauf zurückgesetzt. # spätere Änderungen wurden damit zurückgenommen.}}"
 
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
@@ -4692,7 +4692,7 @@ msgstr "wird geprüft…"
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Checkpoint · restore to before this turn"
-msgstr "Sicherungspunkt · auf den Stand vor diesem Zug zurücksetzen"
+msgstr "Sicherungspunkt · auf den Stand vor diesem Durchlauf zurücksetzen"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -6482,6 +6482,10 @@ msgstr "Wartende Nachricht {number} bearbeiten"
 #: apps/desktop/src/components/Binder.tsx
 msgid "Edit synopsis"
 msgstr "Zusammenfassung bearbeiten"
+
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Edit task"
+msgstr "Aufgabe bearbeiten"
 
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
@@ -9759,6 +9763,10 @@ msgstr "Neue Skill…"
 msgid "New storyboard here"
 msgstr "Neues Storyboard hier"
 
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "New task"
+msgstr "Neue Aufgabe"
+
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
 msgid "New, not reviewed"
@@ -12382,6 +12390,10 @@ msgstr "Aufzeichnung ausgeschaltet"
 #: apps/desktop/src/components/Home.tsx
 msgid "Recovering the project"
 msgstr "Projekt wird wiederhergestellt"
+
+#: apps/desktop/src/components/RecurringTasks.tsx
+msgid "Recurring tasks"
+msgstr "Wiederkehrende Aufgaben"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -17450,7 +17462,7 @@ msgstr "Dies stellt den Stand des Projekts vor diesem Schritt des Durchlaufs wie
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "This restores the project to its state before this turn. Your edits since then are included in the restore."
-msgstr "Dies stellt das Projekt auf den Stand vor diesem Zug wieder her. Ihre Änderungen seitdem sind in der Wiederherstellung enthalten."
+msgstr "Dies stellt das Projekt auf den Stand vor diesem Durchlauf wieder her. Ihre Änderungen seitdem sind in der Wiederherstellung enthalten."
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts

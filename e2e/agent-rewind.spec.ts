@@ -150,7 +150,7 @@ test('German restore copy separates the original report and names the project ch
   await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
   await turn.getByTestId('checkpoint').getByRole('button').click();
   const dialog = page.getByRole('dialog');
-  await expect(dialog.locator('p').first()).toHaveText('Dies stellt das Projekt auf den Stand vor diesem Zug wieder her. Ihre Änderungen seitdem sind in der Wiederherstellung enthalten.');
+  await expect(dialog.locator('p').first()).toHaveText('Dies stellt das Projekt auf den Stand vor diesem Durchlauf wieder her. Ihre Änderungen seitdem sind in der Wiederherstellung enthalten.');
   await expect(dialog).toContainText(`Ursprüngliches Ergebnis: ${original}`);
   await dialog.getByRole('button', { name: 'Wiederherstellen', exact: true }).click();
   await expect(turn.locator('.agent-report-text')).toContainText('Die Projektänderungen dieses Durchlaufs wurden zurückgenommen.');
@@ -171,6 +171,36 @@ test('the menu opens from the keyboard, closes with Escape and returns focus to 
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(toggle).toBeFocused();
 });
+
+for (const locale of ['de', 'en-XA']) {
+  test(`the narrow ${locale} restore card fits the Agent panel and localizes its recurring controls`, async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('caotang.pseudo', '1'));
+    await twoTurns(page);
+    await page.getByTestId('open-settings').click();
+    const settings = page.getByTestId('settings');
+    await settings.locator('[data-section="appearance"]').click();
+    await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: /^Modern/ }).check();
+    await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
+    await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    await settings.getByRole('banner').getByRole('button').click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const panel = page.locator('.modern-companion .agent-body');
+    const restore = page.locator('.agent-turn', { hasText: FIRST }).getByTestId('checkpoint').getByRole('button');
+    await restore.scrollIntoViewIfNeeded();
+    expect(await panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
+    expect(await restore.evaluate((element) => getComputedStyle(element).whiteSpace)).not.toBe('nowrap');
+    const bounds = await restore.boundingBox();
+    const panelBounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(panelBounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(panelBounds!.x);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(panelBounds!.x + panelBounds!.width);
+    const recurring = page.getByTestId('recurring-tasks');
+    await expect(recurring.locator('h3')).toHaveText(locale === 'de' ? 'Wiederkehrende Aufgaben' : /⟦/);
+    await expect(recurring.locator(':scope > button')).toHaveText(locale === 'de' ? 'Neue Aufgabe' : /⟦/);
+    if (locale === 'de') await expect(page.locator('.agent-turn', { hasText: FIRST }).locator('.checkpoint-label')).toContainText('Durchlauf');
+  });
+}
 
 test('a rewind that is refused because a turn started since the menu was drawn says so', async ({ page }) => {
   await sendIntent(page, FIRST);

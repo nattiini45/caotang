@@ -14,12 +14,11 @@ for (const locale of ['en', 'de'] as const) {
         if (locale === 'en') activateEnglish();
         else await activateCatalogue(locale);
         const html = renderToStaticMarkup(<I18nProvider i18n={i18n}><RestoreResult summary={summary} restoration={restoration} /></I18nProvider>);
-        const text = html.replace(/<[^>]*>/gu, '');
-        expect(text).toContain(`${locale === 'de' ? 'Ursprüngliches Ergebnis' : 'Original result'}: ${summary}`);
-        expect(text.endsWith(summary)).toBe(true);
-        expect(text).not.toContain('..');
-        if (restoration === 'whole') expect(text).toContain(locale === 'de' ? 'Die Projektänderungen dieses Durchlaufs wurden zurückgenommen.' : 'This turn’s project changes were taken back.');
-        if (restoration === 'partial') expect(text).toContain(locale === 'de' ? 'Einige Projektänderungen dieses Durchlaufs wurden zurückgenommen.' : 'Some of this turn’s project changes were taken back.');
+        expect(html).toContain(`${locale === 'de' ? 'Ursprüngliches Ergebnis' : 'Original result'}: <bdi dir="auto">${summary}</bdi>`);
+        expect(html.endsWith('</bdi>')).toBe(true);
+        expect(html).not.toContain('..');
+        if (restoration === 'whole') expect(html).toContain(locale === 'de' ? 'Die Projektänderungen dieses Durchlaufs wurden zurückgenommen.' : 'This turn’s project changes were taken back.');
+        if (restoration === 'partial') expect(html).toContain(locale === 'de' ? 'Einige Projektänderungen dieses Durchlaufs wurden zurückgenommen.' : 'Some of this turn’s project changes were taken back.');
       });
     }
   }
