@@ -30,6 +30,7 @@ import type { ImageRef } from './prose.js';
 import { figureSourcesOf, formatBytes, resolveFigures, usedAssetFilesOf, type FigureHost, type FigurePack, type FigureRecord } from './figures.js';
 import { copySpec, docxSpec, epubCoverSpec, epubSpec, profileForSource, type FigureTargetSpec } from './picture-profile.js';
 import { createEmitter, isSkippedRendered, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
+import type { ExportJob } from './export-job.js';
 import {
   ExportUnavailableError,
   NoPersistentIdentifierError,
@@ -191,6 +192,8 @@ export interface ExporterService extends Exporter {
   idle(): Promise<void>;
   /** Failures recorded by the queue, in the order they ran. */
   failures(): readonly EmitFailure[];
+  job(id: string): ExportJob | undefined;
+  settled(id: string): Promise<ExportJob>;
   /** The store-facing port: pass it as `createProjectCommandRegistry({ exporter })`. */
   commandPort(): ExportCommandPortShape;
   /**
@@ -683,6 +686,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
     ready: () => emitter.ready(),
     idle: () => emitter.idle(),
     failures: () => emitter.failures(),
+    job: (id) => emitter.job(id),
+    settled: (id) => emitter.settled(id),
 
     commandPort: () => ({
       compile(state, request) {
@@ -764,12 +769,14 @@ export function createExporter(options: ExporterOptions): ExporterService {
     // The names are reserved together, and only after the plan has accepted the compile: a refused plan reserves nothing.
     const placed = emitter.reserveGroup(filesOf(compiled, `${base}.${EXTENSION[format]}`));
     const paths = placed.map((file) => file.path);
-    emitter.publishFiles({
+    const job = emitter.publishFiles({
       files: placed.map((file) => ({ path: file.path, format, render: file.render })),
       entry,
     });
 
     const digest: ExportCommandDigest = {
+      jobId: job.id,
+      status: 'queued',
       format,
       output: paths[0] ?? '',
       chapterCount: compiled.entry.chapterCount,
