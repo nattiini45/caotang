@@ -15,6 +15,8 @@
  * ```
  */
 
+export { exportJobMachine, type ExportJob, type ExportJobState, type ExportJobEvent } from './export-job.js';
+
 export {
   BINARY_FORMATS,
   EXPORT_FORMATS,

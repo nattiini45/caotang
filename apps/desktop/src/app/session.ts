@@ -123,7 +123,7 @@ import {
 } from '@caotang/store';
 import { newId } from '@caotang/ids';
 import { assetRecordsOf } from '@caotang/exporter/export-metadata';
-import type { EmitFailure, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
+import type { EmitFailure, ExportJob, ExportPreview, ExportPreviewRequest, ExportProof, ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
 import { blockOf, checkMacro, createHookRunner, dialogueFactsOf, excludedBy, exportHookNodes, hookMessages, withheldState, type Harness, type HookRun, type PictureOutbox, type SourcedRule, type TranscriptionGenerationInput } from '@caotang/harness';
@@ -1391,6 +1391,10 @@ export class ProjectSession {
   /** Resolves when every queued export write has settled, so the bytes of a finished compile are in the store. */
   exportsIdle(): Promise<void> {
     return this.exporterService?.idle() ?? Promise.resolve();
+  }
+
+  async exportJobSettled(id: string): Promise<ExportJob> {
+    return (await this.loadExporter()).settled(id);
   }
 
   /** The export jobs that failed, oldest first. An export that wrote nothing has its reason here. */

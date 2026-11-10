@@ -278,6 +278,8 @@ export interface ExportCommandRequest {
 
 /** What the bus reports back: the compile's facts. Mirrors the store's `ExportCommandDigest`. */
 export interface ExportCommandDigest {
+  readonly jobId: string;
+  readonly status: 'queued';
   readonly format: string;
   readonly output: string;
   readonly chapterCount: number;

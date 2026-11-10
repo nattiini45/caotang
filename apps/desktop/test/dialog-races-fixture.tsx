@@ -28,12 +28,12 @@ export async function mountExportRace(failReadiness: boolean) {
   const store = await openRuntimeStore(new MemoryIndexedDb());
   const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
   const actualReady = session.exportsReady.bind(session);
-  const actualIdle = session.exportsIdle.bind(session);
+  const actualSettled = session.exportJobSettled.bind(session);
   let ready = deferred<void>();
   const idle = deferred<void>();
   let calls = 0;
   session.exportsReady = () => ++calls === 1 && failReadiness ? Promise.reject(new Error('B2 readiness failed')) : ready.promise.then(actualReady);
-  session.exportsIdle = () => idle.promise.then(actualIdle);
+  session.exportJobSettled = (id) => idle.promise.then(() => actualSettled(id));
   const mounted = host();
   let closes = 0;
   mounted.render(createElement(ExportDialog, { session, selection: null, onClose: () => { closes++; mounted.root.unmount(); } }));

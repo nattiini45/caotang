@@ -475,7 +475,7 @@ describe('the raster formats through the command bus', () => {
   }
 
   let serial = 0;
-  function rig(rasterizer: ComicRasterizer | undefined): Rig {
+  function rig(rasterizer: ComicRasterizer | undefined, signal?: AbortSignal): Rig {
     const state = comicProject();
     const clock = { now: () => COMPILED_AT };
     const bytes = new Map<string, Uint8Array>();
@@ -487,6 +487,7 @@ describe('the raster formats through the command bus', () => {
       clock,
       metadata: () => ({ author: 'Ada Lovelace', identifier: IDENTIFIER, language: 'en' }),
       ...(rasterizer === undefined ? {} : { rasterizeComic: rasterizer }),
+      ...(signal === undefined ? {} : { comicRasterSignal: () => signal }),
     });
     const registry = createProjectCommandRegistry({ clock, exporter: exporter.commandPort() });
     const undo: UndoStore = createUndoStore({ dispatch: (command) => execute(command, bus, registry) });
@@ -505,6 +506,23 @@ describe('the raster formats through the command bus', () => {
     };
     return { state, exporter, bytes, run };
   }
+
+  it.each(['cbz', 'comic-epub'] as const)('settles a %s cancelled before its queued render as a failed job without a file', async (format) => {
+    const controller = new AbortController();
+    const rasterizer = recordingRasterizer();
+    const r = rig(rasterizer, controller.signal);
+    await r.exporter.ready();
+    const outcome = r.run('export.compileSelection', { includeRootIds: ['n_COMICBOOK01'], format });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) throw new Error(outcome.error.message);
+    const digest = outcome.value.result as { jobId: string; status: string };
+    expect(digest.status).toBe('queued');
+    expect(r.exporter.job(digest.jobId)?.state.kind).toBe('queued');
+    controller.abort();
+    expect((await r.exporter.settled(digest.jobId)).state.kind).toBe('failed');
+    expect(r.bytes.size).toBe(0);
+    expect(rasterizer.events).not.toContain('page 1');
+  });
 
   it.each([
     ['cbz', 'exports/Night Ferry (comic).cbz', 'ComicInfo.xml'],

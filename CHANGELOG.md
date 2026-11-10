@@ -16,6 +16,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Findings review progress.** An approved model review stays visible in the workspace when you leave Findings, and its progress returns with the tab. Start cannot launch two reviews at once. Stop keeps partial findings and shows a stopped outcome instead of an error. Settings also names a failed interface load beside its choice, with a retry.
 
+- **Export job failures.** A failed file or compile-log write now stays visible in the Export dialog and can be retried without reopening it. MCP exports return the failed job instead of success, and the SDK waits for each export job before reporting a turn's result. Exported files and compile-log rows keep their formats.
+
+- **Reading agent events from a script (#531).** Concurrent reads of an `AgentRun` now receive events in request order instead of leaving the first reader waiting forever. Finishing, failing or returning the iterator settles every outstanding read; the turn's report remains available separately.
+
 - **Reading agent events from a script (#531).** Concurrent reads of an `AgentRun` now receive events in request order instead of leaving the first reader waiting forever. Finishing, failing or returning the iterator settles every outstanding read; the turn's report remains available separately.
 - **Stopped-tab recovery.** The notice stays above other dialogs, including ones that arrive later, while their input stays underneath. Its cause and kept-copy status now belong to one session state; saved projects and kept-word formats are unchanged.
 

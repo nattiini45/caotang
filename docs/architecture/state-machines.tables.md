@@ -63,6 +63,20 @@ Initial: `open`. Final: none.
 | `open` | `dismissed` | `dismissed` |
 | `open` | `fixed` | `fixed` |
 
+## export.job
+
+Initial: `queued`. Final: `failed`, `written`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | — | — |
+| `queued` | `render` | `rendering` |
+| `rendering` | `failed` | `failed` |
+| `rendering` | `write` | `writing` |
+| `writing` | `failed` | `failed` |
+| `writing` | `written` | `written` |
+| `written` | — | — |
+
 ## findings.review
 
 Initial: `idle`. Final: none.

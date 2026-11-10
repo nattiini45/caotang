@@ -8,6 +8,7 @@ import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-mode
 import { sprintTable } from '../packages/furniture/src/sprint.js';
 import { reviewTable } from '../apps/desktop/src/app/coherence-review-state.js';
 import { interfaceTable } from '../apps/desktop/src/app/interface.js';
+import { exportJobMachine } from '../packages/exporter/src/export-job.js';
 import { eventQueueTable } from '../packages/sdk/src/run.js';
 import { writerStopTable } from '../packages/sdk/src/writer-stop.js';
 import { confirmationRoundTable } from '../packages/mcp-server/src/confirm.js';
@@ -25,6 +26,6 @@ export const machineTables = [
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
   assetStagingTable, assetRemovalHoldTable, reviewTable, interfaceTable,
-  eventQueueTable, writerStopTable, confirmationRoundTable,
+  exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
   tabStopTable, persistenceTable, pendingEntryTable,
 ] as const;

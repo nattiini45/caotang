@@ -64,6 +64,8 @@ function makeState(): ProjectState {
 }
 
 const DIGEST: ExportCommandDigest = {
+  jobId: 'export-1',
+  status: 'queued',
   format: 'md',
   output: 'exports/The Lighthouse Keeper.md',
   chapterCount: 1,
