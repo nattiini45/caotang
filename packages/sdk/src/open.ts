@@ -242,7 +242,6 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
           turn.emit = (event) => {
             if (event.type !== 'report') return queue.push(event);
             reported = amend(event.report);
-            queue.push({ ...event, report: reported });
           };
           current = turn;
           try {
@@ -257,6 +256,7 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
             await saveIfWriting();
             return reported ?? amend(result);
           } finally {
+            if (reported !== undefined) queue.push({ type: 'report', turnId: reported.turnId, report: reported });
             current = undefined;
           }
         });
