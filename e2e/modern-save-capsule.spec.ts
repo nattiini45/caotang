@@ -135,3 +135,30 @@ test('the narrow failure row clears document-mode controls and the page', async 
   await expect(page.getByTestId('scene-info-progress')).toBeFocused();
   await expect(page.getByTestId('scene-info-save-state')).toBeInViewport({ ratio: 1 });
 });
+
+test('document modes fit while the narrow chunk is still loading', async ({ page }) => {
+  await createProject(page, 'A recognizable project title');
+  await page.locator('.modern-new').click();
+  await page.getByTestId('new-screenplay').click();
+  const modes = page.locator('.document-mode-outlet .segmented');
+  await expect(modes).toBeVisible();
+  let release: () => void = () => {};
+  const released = new Promise<void>((resolve) => { release = resolve; });
+  let held = false;
+  await page.route('**/narrow-panels.tsx*', async (route) => {
+    held = true;
+    await released;
+    await route.continue();
+  });
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => held).toBe(true);
+    await expect.poll(async () => {
+      const box = await modes.boundingBox();
+      return box !== null && box.x >= 0 && box.x + box.width <= 390;
+    }).toBe(true);
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: 'wait' });
+  }
+});

@@ -182,7 +182,7 @@ export const BUDGET = {
      */
     entry: 105_500,
     entryMargin: 0.01,
-    // Current: 96,600 B raw for `modern-shell`'s stylesheet: 95,592 B measured after sharing save-recovery row/truncation/control rules, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
+    // Current: 96,600 B raw for `modern-shell`'s stylesheet: 95,670 B measured after sharing save-recovery row/truncation/control rules, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
     // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
@@ -204,7 +204,7 @@ export const BUDGET = {
     // 94,550 bytes raw measured (+1,019 on main's 93,531); the cap is that plus about 1%. Raising an owner-recorded cap: see the PR.
     caps: { 'modern-shell': 96_600 },
   },
-  // Current: 36,500 B gzip over Classic's first load: 36,131 B measured after save-recovery CSS deduplication and Scene info reuse, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
+  // Current: 36,500 B gzip over Classic's first load: 36,144 B measured after save-recovery CSS deduplication and Scene info reuse, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.

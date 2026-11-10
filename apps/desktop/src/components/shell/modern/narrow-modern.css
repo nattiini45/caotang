@@ -59,7 +59,6 @@
     inset-inline: calc(var(--n-side) + var(--page-gutter));
     min-block-size: var(--narrow-top-bar);
     block-size: auto;
-    flex-wrap: wrap;
     inline-size: auto;
     max-inline-size: none;
   }

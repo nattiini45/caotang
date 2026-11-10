@@ -189,6 +189,10 @@
 }
 
 @media (max-width: 959px) {
+  :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top {
+    flex-wrap: wrap;
+  }
+
   :root[data-shell='modern'] .modern-stage:has(.document-mode-outlet > *) {
     --document-mode-row: 52px;
   }
