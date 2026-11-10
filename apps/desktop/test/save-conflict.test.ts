@@ -2,9 +2,23 @@ import { afterEach, expect, it } from 'vitest';
 import { RevisionConflictError } from '@caotang/store';
 import { documentSaveState, saveConflictWords } from '../src/app/save-conflict.js';
 import { saveLineOf } from '../src/media/screenplay-model.js';
+import { saveStateWords } from '../src/app/integrity-model.js';
 import { activateCatalogue, activateEnglish } from '../src/i18n/runtime.js';
 
 afterEach(() => activateEnglish());
+
+it('gives the footer and project capsule the same conflict recovery instruction', async () => {
+  for (const locale of ['en', 'de'] as const) {
+    await activateCatalogue(locale);
+    const recovery = locale === 'de'
+      ? 'Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.'
+      : 'Copy your unsaved text somewhere safe before reloading.';
+    expect(saveConflictWords()).toContain(recovery);
+    const capsule = saveStateWords('failed', 'newer-text', ['documents']);
+    expect(capsule.text).toContain(recovery);
+    expect(capsule.offersBackup).toBe(false);
+  }
+});
 
 it('names the revision conflict and recovery in English and German', async () => {
   for (const locale of ['en', 'de'] as const) {
@@ -12,8 +26,8 @@ it('names the revision conflict and recovery in English and German', async () =>
     const words = saveLineOf({ state: 'conflict', dirty: true, revision: 3, lastError: new Error('revision moved') });
     expect(words).toBe(saveConflictWords());
     expect(words).toBe(locale === 'en'
-      ? 'Newer text is already saved for this document. Your words are kept in this tab. Copy them somewhere safe before reloading.'
-      : 'Für dieses Dokument ist bereits neuerer Text gespeichert. Ihre Wörter bleiben in diesem Tab. Kopieren Sie sie vor dem Neuladen an einen sicheren Ort.');
+      ? 'Newer text is already saved for this document. Your words are kept in this tab. Copy your unsaved text somewhere safe before reloading.'
+      : 'Für dieses Dokument ist bereits neuerer Text gespeichert. Ihre Wörter bleiben in diesem Tab. Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.');
   }
 });
 

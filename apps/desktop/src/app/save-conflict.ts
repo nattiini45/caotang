@@ -6,5 +6,5 @@ export function documentSaveState(status: Pick<AutosaveStatus, 'state' | 'lastEr
 }
 
 export function saveConflictWords(): string {
-  return t`Newer text is already saved for this document. Your words are kept in this tab. Copy them somewhere safe before reloading.`;
+  return t`Newer text is already saved for this document. Your words are kept in this tab. Copy your unsaved text somewhere safe before reloading.`;
 }

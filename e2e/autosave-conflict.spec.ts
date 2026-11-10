@@ -23,9 +23,12 @@ for (const shell of ['classic', 'modern'] as const) {
         conflictObservations(): { state: string | null; words: string | null }[];
       }).conflictObservations());
       expect(states.every(({ state, words }) => state === 'conflict' && words === recovery)).toBe(true);
+      await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'failed');
+      await expect(page.getByTestId('save-state')).not.toContainText(locale === 'de' ? 'nächsten Änderung' : 'next change');
       await page.evaluate(() => (window as unknown as { releaseAutosaveConflict(): void }).releaseAutosaveConflict());
       await editor.fill('The retained words can be saved after the refusal is resolved.');
       await expect(page.getByTestId('document-save-state')).toHaveAttribute('data-state', 'clean');
+      await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved');
       await expect(editor).toContainText('The retained words can be saved');
     });
   }

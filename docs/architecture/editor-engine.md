@@ -281,6 +281,7 @@ Rules (all fixture-tested, §11):
 
 - The editor save line derives its visible state from both the lifecycle and the retained failure. While `lastError` is a `RevisionConflictError`, its words and `data-state="conflict"` persist through later edits and pending or in-flight retry attempts. The underlying autosave lifecycle and retry timing are unchanged; a successful write, reseat or quiet reopen clears that failure and the visible conflict. This keeps the safe-copy instruction visible without treating another stale attempt as recovery.
 - A document conflict uses the existing load-banner warning treatment: warning border, raised surface and normal-size interface text in the existing semantic colors, in both schemes and at narrow widths. It does not change Glass 2 materials or add tokens. German recovery text uses the catalog's formal `Sie` register.
+- The document warning and project save capsule use the same recovery instruction: copy the unsaved text somewhere safe before reloading. The capsule names Documents as the failed channel while the footer identifies this document. Neither promises that the next edit will save during a retained revision conflict; both clear their warning when autosave clears that cause.
 
 ## 10. v0.1 extension set & editor scope
 

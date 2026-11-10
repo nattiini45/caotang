@@ -49,10 +49,16 @@ export async function showAutosaveConflict(page: Page, shell: 'classic' | 'moder
   const status = page.getByTestId('document-save-state');
   await expect(status).toHaveAttribute('data-state', 'conflict');
   await expect(status).toHaveText(locale === 'de'
-    ? 'Für dieses Dokument ist bereits neuerer Text gespeichert. Ihre Wörter bleiben in diesem Tab. Kopieren Sie sie vor dem Neuladen an einen sicheren Ort.'
-    : 'Newer text is already saved for this document. Your words are kept in this tab. Copy them somewhere safe before reloading.');
+    ? 'Für dieses Dokument ist bereits neuerer Text gespeichert. Ihre Wörter bleiben in diesem Tab. Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.'
+    : 'Newer text is already saved for this document. Your words are kept in this tab. Copy your unsaved text somewhere safe before reloading.');
   await expect(status).toHaveAttribute('aria-live', 'polite');
   await expect(status).toHaveCSS('border-inline-start-width', '3px');
+  const capsule = page.getByTestId('save-state');
+  await expect(capsule).toHaveAttribute('data-state', 'failed');
+  await expect(capsule).toHaveText(locale === 'de'
+    ? 'Nicht gespeichert: Dokumente. Für ein Dokument ist bereits neuerer Text gespeichert. Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.'
+    : 'Not saved: Documents. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading.');
+  await expect(capsule.getByRole('button', { name: /Export/ })).toHaveCount(0);
   await expect(page.getByTestId('stale-tab-notice')).toHaveCount(0);
   await expect(surface).toContainText('My newest words are still here.');
 }
