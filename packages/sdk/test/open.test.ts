@@ -3,7 +3,7 @@
  * scripted endpoint behind the global-fetch seam; the folder is the store's own, written to a temporary directory.
  */
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -382,6 +382,28 @@ describe('call()', () => {
     await expect(project.call('project.overview', {})).rejects.toThrow(/closed/);
     expect(() => project.run('hello')).toThrow(/closed/);
     await project.close();
+  });
+});
+
+describe('export job completion', () => {
+  it('reports a rejected compile-log write as a failed export step and retries as a new job', async () => {
+    mkdirSync(join(root, 'exports'), { recursive: true });
+    const log = join(root, 'exports', 'compile-log.json');
+    writeFileSync(log, 'corrupt evidence');
+    await using project = await open({ approval: 'approve-all', write: true });
+    const plan = { steps: [{ tool: 'export.compile', params: { format: 'md', selection: { root: 'manuscript', includeSubtrees: true } }, expect: 'The manuscript is exported.' }] };
+    const run = project.run('Export the manuscript.', { plan });
+    const events = await eventsOf(run);
+    const report = await run.report;
+    expect(report.status).toBe('failed');
+    expect(report.steps[0]).toMatchObject({ status: 'failed', tool: 'export.compile', error: expect.stringContaining('JSON') });
+    expect(events.at(-1)).toEqual({ type: 'report', turnId: report.turnId, report });
+    expect(readFileSync(log, 'utf8')).toBe('corrupt evidence');
+    writeFileSync(log, '[]');
+    const retry = await project.run('Export the manuscript.', { plan }).report;
+    expect(retry.status).toBe('applied');
+    const firstJob = (report.steps[0]?.data?.['result'] as { jobId: string }).jobId;
+    expect((retry.steps[0]?.data?.['result'] as { jobId: string }).jobId).not.toBe(firstJob);
   });
 });
 

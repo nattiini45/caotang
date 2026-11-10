@@ -6,6 +6,7 @@ import { encodingPanelMachine } from '../apps/desktop/src/app/encoding-dialog-mo
 import { sidebarTable } from '../apps/desktop/src/components/shell/modern/sidebar-model.js';
 import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-model.js';
 import { sprintTable } from '../packages/furniture/src/sprint.js';
+import { exportJobMachine } from '../packages/exporter/src/export-job.js';
 import { eventQueueTable } from '../packages/sdk/src/run.js';
 import { writerStopTable } from '../packages/sdk/src/writer-stop.js';
 import { confirmationRoundTable } from '../packages/mcp-server/src/confirm.js';
@@ -28,6 +29,6 @@ export const machineTables = [
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
   assetStagingTable, assetRemovalHoldTable, turnPhaseTable, cardStatusTable,
   cardDecisionTable, budgetMeterTable,
-  eventQueueTable, writerStopTable, confirmationRoundTable,
+  exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
   tabStopTable, persistenceTable, pendingEntryTable,
 ] as const;

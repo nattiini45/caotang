@@ -496,10 +496,6 @@ export function ExportDialog({
     try {
       await ensureReady();
       if (!live.current) return;
-      // Failures are cumulative for the life of the exporter, and a path a later compile re-used may carry an older
-      // failure. Only the entries this compile adds are matched, so a path that wrote successfully now is not reported
-      // as failed because an earlier compile of the same name failed.
-      const priorFailures = session.exportFailures().length;
       // A comic compile counts its panels for the status line; the selection is the book or page it compiles.
       const comicPanels = partId !== null ? comicPanelCountOf(session, partId) : undefined;
       const outcome = partId !== null
@@ -511,18 +507,14 @@ export function ExportDialog({
         return;
       }
       const digest = outcome.value.result as ExportCommandDigest;
-      // The files are written by the exporter's queue, after the command has returned. Wait for them, then download.
-      await session.exportsIdle();
+      const job = await session.exportJobSettled(digest.jobId);
       if (!live.current) return;
-      const paths = digest.outputs ?? [digest.output];
-      const thisCompile = session.exportFailures().slice(priorFailures);
-      for (const path of paths) {
-        const failure = thisCompile.find((candidate) => candidate.path === path);
-        if (failure !== undefined) {
-          moveCompile({ type: 'failed', failure: { text: t`The ${format} file could not be made: ${{ reason: failure.message }}` } });
-          return;
-        }
+      if (job.state.kind === 'failed') {
+        moveCompile({ type: 'failed', failure: { text: t`The ${format} file could not be made: ${{ reason: job.state.failures.map((failure) => failure.message).join('; ') }}` } });
+        return;
       }
+      if (job.state.kind !== 'written') throw new Error(`Export job ${job.id} has not settled.`);
+      const paths = job.state.outputs;
       const files: { name: string; bytes: Uint8Array }[] = [];
       for (const path of paths) {
         const bytes = await session.readExport(path);
