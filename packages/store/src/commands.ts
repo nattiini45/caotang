@@ -312,6 +312,8 @@ export interface ExportCommandRequest {
 
 /** What the bus reports and returns for one compile — the facts, not the blob (exporter.md §5). */
 export interface ExportCommandDigest {
+  readonly jobId: string;
+  readonly status: 'queued';
   readonly format: string;
   /** The `exports/` path reserved for the artifact. */
   readonly output: string;

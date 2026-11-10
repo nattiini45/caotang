@@ -1196,6 +1196,26 @@ describe('the confirmation round trip on the wire', () => {
     }
   });
 
+  it('export.compile reports a failed log write and can compile again after the log is repaired', async () => {
+    const fixture = await startFixture({ label: 'export-failed-job', allowWrites: true, seed: true });
+    const client = await connectClient(fixture.url, fixture.token, acceptConfirm);
+    try {
+      mkdirSync(join(fixture.root, 'exports'), { recursive: true });
+      const log = join(fixture.root, 'exports', 'compile-log.json');
+      writeFileSync(log, 'corrupt evidence');
+      const request = { name: 'export.compile', arguments: { selection: { root: 'manuscript', includeSubtrees: true }, format: 'md' } };
+      const result = await client.callTool(request);
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(resultJson(result))).toContain('JSON');
+      expect(readFileSync(log, 'utf8')).toBe('corrupt evidence');
+      writeFileSync(log, '[]');
+      expect((await client.callTool(request)).isError).not.toBe(true);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  });
+
   // The gates a screenplay, game or shot-list compile applies to its selection run at apply, after the writer is asked. The confirmation runs
   // them first (session.check), so a compile the exporter would refuse is refused with its reason, and the writer is never asked for it.
   it.each([
