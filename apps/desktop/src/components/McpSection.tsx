@@ -105,6 +105,7 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
 
   const run = async (action: () => Promise<unknown> | unknown, done?: string): Promise<void> => {
     setBusy(true);
+    setMessage(null);
     try {
       setMessage(outcomeMessage(await action(), done));
     } catch (error) {
@@ -132,9 +133,17 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
           {stateLabel(health.state)}
         </span>
       </header>
-      <p className="mcp-detail" role="status" data-testid="mcp-detail">
-        {view.detail}
-      </p>
+      {health.state === 'failed' ? (
+        <FormMessage message={{ text: view.detail, tone: 'error' }} />
+      ) : (
+        <p className="mcp-detail" role="status" data-testid="mcp-detail">{view.detail}</p>
+      )}
+      {view.failureDetail === undefined ? null : (
+        <details className="field-note">
+          <summary><Trans>Server details</Trans></summary>
+          <p className="mcp-description">{view.failureDetail}</p>
+        </details>
+      )}
       <AuthLine mcp={mcp} server={server} />
 
       <div className="mcp-actions">
@@ -196,7 +205,7 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
         showLists={view.review === undefined}
       />
 
-      <FormMessage message={message} />
+      {health.state === 'failed' ? null : <FormMessage message={message} />}
     </li>
   );
 }
@@ -502,6 +511,7 @@ function isHealth(outcome: unknown): outcome is McpServerHealth {
  */
 function outcomeMessage(outcome: unknown, done: string | undefined): { text: string; tone: 'info' | 'error' } | null {
   if (isFailure(outcome)) return { text: outcome.error, tone: 'error' };
-  if (isHealth(outcome) && (outcome.state === 'configured' || outcome.state === 'failed')) return { text: outcome.detail ?? t`The server is not connected.`, tone: 'error' };
+  if (isHealth(outcome) && outcome.state === 'failed') return null;
+  if (isHealth(outcome) && outcome.state === 'configured') return { text: outcome.detail ?? t`The server is not connected.`, tone: 'error' };
   return done === undefined ? null : { text: done, tone: 'info' };
 }

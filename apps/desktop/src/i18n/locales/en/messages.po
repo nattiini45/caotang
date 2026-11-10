@@ -13967,6 +13967,11 @@ msgstr "Server address (on this computer, ending in /v1)"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
+msgid "Server details"
+msgstr "Server details"
+
+#. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#: apps/desktop/src/components/McpSection.tsx
 msgid "Server list"
 msgstr "Server list"
 
@@ -15446,6 +15451,11 @@ msgstr "The app settings could not be opened here, so they will not be kept: {er
 msgid "the aspect ratio is one of the ratios in the list"
 msgstr "the aspect ratio is one of the ratios in the list"
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The bearer token is missing. Enter it on this card, save it, then choose Connect again."
+msgstr "The bearer token is missing. Enter it on this card, save it, then choose Connect again."
+
 #. Modern interface: the stage and the page.
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the binder"
@@ -15608,8 +15618,8 @@ msgstr "The complete script written from “<0/>”, shown before approval"
 
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
-msgid "The connection failed. Connect again to retry, or check the server address and token."
-msgstr "The connection failed. Connect again to retry, or check the server address and token."
+msgid "The connection was cancelled. Choose Connect to try again."
+msgstr "The connection was cancelled. Choose Connect to try again."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -16027,6 +16037,11 @@ msgstr "The list holds names, addresses and enabled tools. It never holds a toke
 #: apps/desktop/src/components/Binder.tsx
 msgid "The manuscript is empty"
 msgstr "The manuscript is empty"
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The MCP connector could not be loaded. Check your internet connection, then choose Connect again."
+msgstr "The MCP connector could not be loaded. Check your internet connection, then choose Connect again."
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -16569,10 +16584,50 @@ msgstr "the selection is longer than the 2000 characters a coverage can hold, so
 msgid "The server also lists {prompts} {prompts, plural, one {prompt} other {prompts}} and {templates} {templates, plural, one {resource template} other {resource templates}}, shown in full below. They are pinned when you approve, and a changed one is shown again."
 msgstr "The server also lists {prompts} {prompts, plural, one {prompt} other {prompts}} and {templates} {templates, plural, one {resource template} other {resource templates}}, shown in full below. They are pinned when you approve, and a changed one is shown again."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server asked for more input to connect. Caotang cannot provide it here. Check the server’s sign-in requirements, then choose Connect again."
+msgstr "The server asked for more input to connect. Caotang cannot provide it here. Check the server’s sign-in requirements, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server did not answer. Check the address above, then choose Connect to try again."
+msgstr "The server did not answer. Check the address above, then choose Connect to try again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server has no tool list at this address. Check the address above, then choose Connect again."
+msgstr "The server has no tool list at this address. Check the address above, then choose Connect again."
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "The server is not connected."
 msgstr "The server is not connected."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server rejected the sign-in. Check the token for this server, then choose Connect again."
+msgstr "The server rejected the sign-in. Check the token for this server, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server returned an error Caotang could not classify. Check the server details, then choose Connect again."
+msgstr "The server returned an error Caotang could not classify. Check the server details, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server returned an HTTP error. Check the address above, then choose Connect again."
+msgstr "The server returned an HTTP error. Check the address above, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server sent a tool list Caotang could not read. Ask its administrator to check the tool list, then choose Connect again."
+msgstr "The server sent a tool list Caotang could not read. Ask its administrator to check the tool list, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server took too long to answer. Choose Connect to try again."
+msgstr "The server took too long to answer. Choose Connect to try again."
 
 #. Interpolated values: error
 #: apps/desktop/src/app/services.ts
@@ -17365,10 +17420,20 @@ msgstr "This scope is over the 20-document guard. Approving the plan approves re
 msgid "This scope is over the document guard, so approve it only if you mean the whole of it."
 msgstr "This scope is over the document guard, so approve it only if you mean the whole of it."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "This server does not allow connections from a browser. Ask its administrator to allow this app, then choose Connect again."
+msgstr "This server does not allow connections from a browser. Ask its administrator to allow this app, then choose Connect again."
+
 #. The MCP catalog. Interpolated values: name and names are text a server supplied; reason is a failure message the server gave; the count is a number.
 #: apps/desktop/src/components/McpCatalog.tsx
 msgid "This server lists more than Caotang keeps. Only the first part of each list is shown."
 msgstr "This server lists more than Caotang keeps. Only the first part of each list is shown."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "This server uses an MCP version Caotang cannot use. Ask its maker for an update, then choose Connect again."
+msgstr "This server uses an MCP version Caotang cannot use. Ask its maker for an update, then choose Connect again."
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts

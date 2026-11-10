@@ -20,7 +20,12 @@ for (const locale of ['en', 'de'] as const) {
     await expect(card).toHaveAttribute('data-reason', 'network');
     await expect(card.getByTestId('mcp-state')).toHaveText(locale === 'de' ? 'Fehlgeschlagen' : 'Failed');
     await expect(connect()).toBeEnabled();
-    await expect(card.getByTestId('mcp-detail')).toContainText('server unreachable');
+    await expect(card.getByTestId('mcp-detail')).toHaveCount(0);
+    await expect(card.getByRole('alert')).toHaveCount(1);
+    await expect(card.getByRole('alert')).toHaveText(locale === 'de'
+      ? 'Der Server hat nicht geantwortet. Prüfen Sie die Adresse oben und wählen Sie dann Verbinden, um es erneut zu versuchen.'
+      : 'The server did not answer. Check the address above, then choose Connect to try again.');
+    await expect(card).not.toContainText('server unreachable');
     await expect(card).not.toContainText('Connected.');
     for (const width of [960, 1100]) {
       await page.setViewportSize({ width, height: 900 });

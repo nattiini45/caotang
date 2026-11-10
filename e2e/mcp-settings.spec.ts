@@ -103,8 +103,9 @@ test('MCP & tools starts switched off, and a server is contacted only when a per
   await settings.getByTestId('mcp-master').check();
   await expect(settings.getByText('On. The servers below may be connected.')).toBeVisible();
   await local.getByRole('button', { name: 'Connect', exact: true }).click();
-  await expect(local.getByTestId('mcp-detail')).toContainText('server unreachable', { timeout: 20_000 });
-  await expect(local.getByRole('alert')).toContainText('server unreachable');
+  await expect(local.getByRole('alert')).toHaveText('The server did not answer. Check the address above, then choose Connect to try again.', { timeout: 20_000 });
+  await expect(local.getByTestId('mcp-detail')).toHaveCount(0);
+  await expect(local.getByRole('alert')).toHaveCount(1);
   await expect(local.getByRole('alert')).not.toContainText('Connected.');
   await expect(local.getByTestId('mcp-state')).toHaveText('Failed');
 });
