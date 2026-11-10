@@ -204,7 +204,7 @@ export const BUDGET = {
     // 94,550 bytes raw measured (+1,019 on main's 93,531); the cap is that plus about 1%. Raising an owner-recorded cap: see the PR.
     caps: { 'modern-shell': 96_600 },
   },
-  // Current: 36,500 B gzip over Classic's first load: 36,133 B measured after save-recovery CSS deduplication and Scene info reuse, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
+  // Current: 36,500 B gzip over Classic's first load: 36,131 B measured after save-recovery CSS deduplication and Scene info reuse, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
