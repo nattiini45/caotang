@@ -43,3 +43,13 @@ test('a failed initial agent download settles instead of staying in starting', a
   await expect(page.getByRole('alert').filter({ hasText: 'The turn stopped unexpectedly:' })).toContainText('fixture harness is unavailable');
   await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
 });
+
+test('an approval-waiting panel stays working until Stop settles the turn', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Draft the opening scene', exact: true }).click();
+  const panel = page.getByTestId('agent-panel');
+  await expect(page.getByTestId('plan-card')).toBeVisible();
+  await expect(panel).toHaveAttribute('data-state', 'working');
+  await panel.getByRole('button', { name: 'Stop', exact: true }).click();
+  await expect(panel).toHaveAttribute('data-state', 'idle');
+});
