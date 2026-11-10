@@ -389,6 +389,7 @@ export function AgentPanel({
       className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}`}
       aria-label={inWindow ? undefined : t`Agent`}
       data-testid="agent-panel"
+      data-state={snapshot.phase}
       onKeyDown={onPanelKey}
     >
       <header className="agent-head">
@@ -418,7 +419,10 @@ export function AgentPanel({
             of step, not each streamed word: the line is derived from the task list and only moves when the step does. */}
         {snapshot.pending !== null || snapshot.busy ? (
           <span className="agent-busy" role="status" aria-live="polite" data-testid="agent-step">
-            {stepLine ?? (snapshot.pending !== null ? t`Waiting for you` : t`Working…`)}
+            {snapshot.phase === 'starting' ? t`The agent is loading.`
+              : snapshot.phase === 'approving' ? t`Your approval is being processed.`
+                : snapshot.phase === 'stopping' ? t`The agent is stopping.`
+                  : stepLine ?? (snapshot.pending !== null || snapshot.offer !== null ? t`Waiting for you` : t`Working…`)}
           </span>
         ) : null}
         {/* What the run has used of the limits the writer set: tokens, cost, steps and time worked, after each model call. */}

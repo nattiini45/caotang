@@ -179,6 +179,10 @@ The runtime adds `starting` while waiting for setup and `cancelling` while a run
 
 Saved statuses remain `queued`, `running`, `ready`, `failed`, `cancelled`, `interrupted` and `applied`. `starting` and `cancelling` exist only in memory, and the snapshot keeps the stored status alongside its runtime phase. Neither phase is written to a task record or accepted by the persisted-status reader. No record migration is needed.
 
+### `agent.controller`
+
+Owner: `apps/desktop/src/app/agent-state.ts`, interpreted by `agent.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). The foreground has eight named states: idle, starting, running, parked-on-card, approving, parked-on-offer, stopping and detached. Only a card state owns a parked decision and only an offer state owns a background choice. An approval retains its original decision until its awaited save/listing settles; stale owners cannot re-park or clear a newer turn. Queue and note events update their sub-state without changing the foreground phase. Interrupted-run reads remain latest-wins. A detached state retains the foreground resources needed for re-attachment but owns no parked choice. There is no final state because the controller can attach again. Every transition is in memory, exposed by the snapshot/panel and the trace sink; no saved format changes.
+
 ### `turn.phase`
 
 Owner: `packages/harness/src/agent/turn-machine.ts`, interpreted by `loop.ts`; contract: [agent-harness.md §§2, 8](agent-harness.md#2-interaction-loop). An event names the requested phase. The table admits planning, approval, execution and retry boundaries, including repeated active phases, and refuses any exit from `done`, `failed` or `cancelled` or a return to `started`. The owner throws on an illegal move rather than publishing it. A successful turn publishes its report before `done`; failed and cancelled turns retain their existing phase-before-report ordering.

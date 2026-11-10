@@ -13085,6 +13085,7 @@ msgid "Run the queue"
 msgstr "Warteschlange abarbeiten"
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Run the selected connected-server prompt."
 msgstr "Den ausgewählten Prompt des verbundenen Servers ausführen."
@@ -15361,10 +15362,20 @@ msgstr "Der Agent wurde noch nicht ausgeführt"
 msgid "The agent is busy with another turn. Let it finish, then fix the finding."
 msgstr "Der Agent ist mit einem anderen Durchlauf beschäftigt. Lassen Sie ihn fertig werden und beheben Sie dann die Feststellung."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The agent is loading."
+msgstr "Der Agent wird geladen."
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "Der Agent ist für dieses Projekt noch nicht bereit. Öffnen Sie das Agenten-Panel und versuchen Sie es erneut."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The agent is stopping."
+msgstr "Der Agent wird gestoppt."
 
 #. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
@@ -18841,6 +18852,11 @@ msgstr "Sie haben das Zeichen der Fußnote {label} („{text}“) gelöscht. Ihr
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
 msgstr "Sie haben das Zeichen der Fußnote {label} gelöscht. Ihre Anmerkung steht noch am Ende der Szene. Die Anmerkung auch löschen?"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Your approval is being processed."
+msgstr "Deine Zustimmung wird verarbeitet."
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts

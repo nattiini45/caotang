@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '@caotang/gateway';
 import { createMockProvider, isPlannerCall, type MockScript } from '@caotang/gateway/mock';
 import { addDocument, MemoryIndexedDb, openRuntimeStore } from '@caotang/store';
-import type { PlanStep } from '@caotang/harness';
+import { createTraceStore, type PlanStep } from '@caotang/harness';
 
 import { AgentController } from '../src/app/agent.js';
 import { ProjectSession } from '../src/app/session.js';
@@ -84,6 +84,46 @@ function when(controller: AgentController, ready: () => boolean): Promise<void> 
 }
 
 const cardShown = (controller: AgentController) => when(controller, () => controller.snapshot().pending !== null);
+
+it('publishes loading and stopping before a lazy turn starts, then returns to idle', async () => {
+  const f = await fixture();
+  const held = deferred();
+  const ready = f.session.harnessReady.bind(f.session);
+  vi.spyOn(f.session, 'harnessReady').mockImplementationOnce(async () => { await held.promise; return ready(); });
+  try {
+    const running = f.controller.submitPlan('Tag the storm.', { steps: f.steps });
+    expect(f.controller.snapshot()).toMatchObject({ phase: 'starting', busy: true, stoppable: true });
+    f.controller.stop();
+    expect(f.controller.snapshot().phase).toBe('stopping');
+    held.resolve();
+    expect((await running)?.status).toBe('cancelled');
+    expect(f.controller.snapshot()).toMatchObject({ phase: 'idle', busy: false, stoppable: false });
+  } finally {
+    held.resolve();
+    await f.session.close();
+  }
+});
+
+it('exports the controller phases through idle before the final turn-end record', async () => {
+  const f = await fixture();
+  const trace = createTraceStore({ sessionId: 'controller' });
+  Object.assign(f.providers, { trace: { sink: () => trace } });
+  try {
+    const shown = cardShown(f.controller);
+    const running = f.controller.submitPlan('Tag the storm.', { steps: f.steps }, { forcePlan: true });
+    await shown;
+    expect(f.controller.snapshot().phase).toBe('parked-on-card');
+    f.controller.answer({ action: 'approve' });
+    expect(f.controller.snapshot().phase).toBe('approving');
+    await running;
+    const rows = trace.records().filter((record) => record.kind === 'machine' && record.machine === 'agent.controller');
+    expect(rows.map((row) => row.to)).toEqual(expect.arrayContaining(['starting', 'running', 'parked-on-card', 'approving', 'idle']));
+    expect(rows.at(-1)).toMatchObject({ event: 'finish', to: 'idle' });
+    expect(trace.records().at(-1)?.kind).toBe('turn.end');
+  } finally {
+    await f.session.close();
+  }
+});
 
 it('retires the approval and Stop controls when the deadline ends a parked turn', async () => {
   clock.current = createManualClock(1_000_000);

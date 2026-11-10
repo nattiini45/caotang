@@ -407,6 +407,8 @@ A command that would start a turn, or restore one, waits while a turn is running
 
 Reading the agent's work:
 
+The header says when the agent is loading, processing your approval or stopping. You can keep typing while it loads, or choose Stop. A waiting card or background choice is shown as waiting for you, not as work still running.
+
 Trace exports include the named states a turn, tool card and approval round moved through. These structural records are kept only in the open tab, like the rest of the trace, and do not go into your project or run log. A successful turn reaches Done only after its report is available.
 
 If a turn ends while a card waits, its approval and Stop controls retire with it. Choosing **Approve** again while your typing is being saved tells you to wait. If **Switch to Ask and run this plan** cannot start, the button stays available and your mode does not change; add or select a provider, then try it again.

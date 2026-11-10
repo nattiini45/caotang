@@ -1,5 +1,7 @@
 # Caotang
 
+The agent names when it is loading, processing an approval or stopping. Its composer and Stop stay available while the turn starts.
+
 Agent trace exports name turn, tool-card and approval-round state transitions. Traces remain memory-only and compatible with older readers.
 
 An agent turn that ends retires its approval and Stop controls. If a held plan cannot start, **Switch to Ask and run this plan** stays available without changing your mode.

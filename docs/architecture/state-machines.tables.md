@@ -6,6 +6,81 @@ Regenerate with `UPDATE_STATE_MACHINES=1 pnpm exec vitest run test/state-machine
 The convention and owning specs are in [state-machines.md](state-machines.md).
 Unlisted events return the same state. Listed self-transitions may update payloads.
 
+## agent.controller
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `approving` | `approval-finished` | `approving`, `running` |
+| `approving` | `approval-notice` | `approving` |
+| `approving` | `card` | `parked-on-card` |
+| `approving` | `detach` | `detached` |
+| `approving` | `finish` | `approving`, `idle` |
+| `approving` | `interrupted` | `approving` |
+| `approving` | `notes` | `approving` |
+| `approving` | `queue` | `approving` |
+| `approving` | `repark` | `approving`, `parked-on-card` |
+| `approving` | `stop` | `stopping` |
+| `approving` | `turn` | `approving` |
+| `detached` | `attach` | `idle`, `running`, `starting`, `stopping` |
+| `detached` | `begin` | `detached` |
+| `detached` | `finish` | `detached` |
+| `detached` | `interrupted` | `detached` |
+| `detached` | `notes` | `detached` |
+| `detached` | `queue` | `detached` |
+| `detached` | `ready` | `detached` |
+| `detached` | `stop` | `detached` |
+| `detached` | `turn` | `detached` |
+| `idle` | `begin` | `starting` |
+| `idle` | `detach` | `detached` |
+| `idle` | `interrupted` | `idle` |
+| `idle` | `notes` | `idle` |
+| `idle` | `queue` | `idle` |
+| `parked-on-card` | `answer` | `approving`, `running` |
+| `parked-on-card` | `card` | `parked-on-card` |
+| `parked-on-card` | `detach` | `detached` |
+| `parked-on-card` | `finish` | `idle`, `parked-on-card` |
+| `parked-on-card` | `interrupted` | `parked-on-card` |
+| `parked-on-card` | `notes` | `parked-on-card` |
+| `parked-on-card` | `queue` | `parked-on-card` |
+| `parked-on-card` | `stop` | `stopping` |
+| `parked-on-card` | `turn` | `parked-on-card` |
+| `parked-on-offer` | `detach` | `detached` |
+| `parked-on-offer` | `finish` | `idle`, `parked-on-offer` |
+| `parked-on-offer` | `interrupted` | `parked-on-offer` |
+| `parked-on-offer` | `notes` | `parked-on-offer` |
+| `parked-on-offer` | `offer` | `parked-on-offer` |
+| `parked-on-offer` | `offer-answered` | `running` |
+| `parked-on-offer` | `offer-error` | `parked-on-offer` |
+| `parked-on-offer` | `queue` | `parked-on-offer` |
+| `parked-on-offer` | `stop` | `stopping` |
+| `parked-on-offer` | `turn` | `parked-on-offer` |
+| `running` | `card` | `parked-on-card` |
+| `running` | `detach` | `detached` |
+| `running` | `finish` | `idle`, `running` |
+| `running` | `interrupted` | `running` |
+| `running` | `notes` | `running` |
+| `running` | `offer` | `parked-on-offer` |
+| `running` | `queue` | `running` |
+| `running` | `stop` | `stopping` |
+| `running` | `turn` | `running` |
+| `starting` | `detach` | `detached` |
+| `starting` | `finish` | `idle`, `starting` |
+| `starting` | `interrupted` | `starting` |
+| `starting` | `notes` | `starting` |
+| `starting` | `queue` | `starting` |
+| `starting` | `ready` | `running`, `starting` |
+| `starting` | `stop` | `stopping` |
+| `starting` | `turn` | `starting` |
+| `stopping` | `detach` | `detached` |
+| `stopping` | `finish` | `idle`, `stopping` |
+| `stopping` | `interrupted` | `stopping` |
+| `stopping` | `notes` | `stopping` |
+| `stopping` | `queue` | `stopping` |
+| `stopping` | `ready` | `stopping` |
+| `stopping` | `turn` | `stopping` |
+
 ## asset.removal-hold
 
 Initial: `clear`. Final: none.
