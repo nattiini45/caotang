@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Stopped-tab recovery.** The notice stays above other dialogs, including ones that arrive later, while their input stays underneath. Its cause and kept-copy status now belong to one session state; saved projects and kept-word formats are unchanged.
+
 - **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
 
 - **Saving reusable commands.** MCP prompt and macro turns no longer offer Save as command for a synthetic run label that would create an unrelated skill. Their existing commands remain available for another run.

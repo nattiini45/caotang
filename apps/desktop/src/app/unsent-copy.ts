@@ -134,55 +134,6 @@ export function newStopId(): string {
   return `stop-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
 }
 
-/**
- * The stop this tab's session made, if any (persistence.ts records it when the session stops). A session stops once and stays stopped until
- * the tab reloads, so one record is enough for the stopped-tab notice (StaleTabNotice.tsx) to read. `keptLatest` is whether the latest write
- * of this stop's entry landed, so the notice can say what the browser holds now rather than what it held once.
- */
-interface StopRecord {
-  readonly projectId: string;
-  readonly stopId: string;
-  readonly keptLatest: boolean;
-}
-
-let stop: StopRecord | null = null;
-const stopListeners = new Set<() => void>();
-
-function notifyStop(): void {
-  for (const listener of stopListeners) listener();
-}
-
-/** Records that this tab's session has stopped on a project, before its entry is written. */
-export function noteStop(projectId: string, stopId: string): void {
-  stop = { projectId, stopId, keptLatest: false };
-  notifyStop();
-}
-
-/** Records whether the latest write of a stop's entry landed. A write for any other stop is not this tab's stop, so it is ignored. */
-export function noteStopKept(stopId: string, landed: boolean): void {
-  if (stop === null || stop.stopId !== stopId) return;
-  stop = { ...stop, keptLatest: landed };
-  notifyStop();
-}
-
-/**
- * Whether the words this tab's stopped session holds are kept in this browser: the latest write of its entry landed, and the entry is still
- * there. Another stop's entry never counts, so a copy from an earlier stop does not make the notice say these words are kept.
- */
-export function stopKeptInBrowser(storage: UnsentStorage | undefined): boolean {
-  const current = stop;
-  if (current === null || !current.keptLatest) return false;
-  return readUnsentEntries(storage, current.projectId).some((entry) => entry.stopId === current.stopId);
-}
-
-/** Subscribes to changes of the stop record, for the notice's useSyncExternalStore. Returns the unsubscribe. */
-export function subscribeStop(listener: () => void): () => void {
-  stopListeners.add(listener);
-  return () => {
-    stopListeners.delete(listener);
-  };
-}
-
 /** Every stop's entry for a project, in the order they were first written. `[]` when there is none, or the storage is unavailable. */
 export function readUnsentEntries(storage: UnsentStorage | undefined, projectId: string): readonly UnsentEntry[] {
   return (storage === undefined ? null : storedEntries(storage, projectId)) ?? [];

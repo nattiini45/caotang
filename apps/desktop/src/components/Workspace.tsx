@@ -57,7 +57,7 @@ import { dismissBannerForVisit, durabilitySentence, isBannerDismissedForVisit } 
 import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notices.js';
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
 import { PictureNotices } from './PictureNotices.js';
-import { saveStateWords } from '../app/integrity-model.js';
+import { saveStateWords, type StopCause } from '../app/integrity-model.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
@@ -458,6 +458,8 @@ export function Workspace({
     ) : null;
   const undoLabel = session.undoLabel();
   const saveState = session.saveState();
+  const stopped = session.tabStop().getSnapshot();
+  const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
   const exportSelection: ExportSelection | null =
     selectedNode === undefined || selectedNode.id === 'manuscript' || selectedNode.id === 'research' || selectedNode.id === 'root'
@@ -1175,8 +1177,8 @@ export function Workspace({
         </button>
       </div>
     ) : null,
-    saveState: <SaveIndicator state={saveState} onExport={exportNow} />,
-    progress: { target, setTarget: saveTarget, saveState, exportBackup: exportNow },
+    saveState: <SaveIndicator state={saveState} cause={stopCause} onExport={exportNow} />,
+    progress: { target, setTarget: saveTarget, saveState, stopCause, exportBackup: exportNow },
     search: {
       state,
       activeDocId: view.activeDocId,
@@ -1278,7 +1280,7 @@ export function Workspace({
         </ChoiceDialog>
 
         {saveState === 'conflict' ? (
-          <StaleTabNotice onExport={exportNow} onReload={() => window.location.reload()} />
+          <StaleTabNotice stop={session.tabStop()} onExport={exportNow} onReload={() => window.location.reload()} />
         ) : null}
 
         {settingsSection !== null ? (
@@ -1318,8 +1320,8 @@ function DeleteSummary({ descendants, documents, words }: { descendants: number;
  * The save state in the toolbar. A failure says what is safe right now and the one thing to do about it (ui-modules §5.3, rule 4):
  * the words are in this tab and are written again on the next change, and a backup is the copy that does not depend on the browser.
  */
-function SaveIndicator({ state, onExport }: { state: SaveState; onExport: () => void }): ReactNode {
-  const words = saveStateWords(state);
+function SaveIndicator({ state, cause, onExport }: { state: SaveState; cause: StopCause | undefined; onExport: () => void }): ReactNode {
+  const words = saveStateWords(state, cause);
   return (
     <span className={`save-state is-${state}`} role="status" data-testid="save-state" data-state={state}>
       {words.text}

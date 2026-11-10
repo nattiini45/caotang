@@ -8,14 +8,10 @@ import {
   clearUnsentCopy,
   restoreParentOf,
   newStopId,
-  noteStop,
-  noteStopKept,
   putBackDocuments,
   readUnsentEntries,
   removeUnsentEntry,
   restoreStep,
-  stopKeptInBrowser,
-  subscribeStop,
   unsentDocuments,
   unsentKey,
   unsentStamp,
@@ -24,6 +20,7 @@ import {
   type UnsentStorage,
 } from '../../apps/desktop/src/app/unsent-copy.js';
 import { IDS, project } from './fixtures.js';
+import { TabStop } from '../../apps/desktop/src/app/tab-stop.js';
 
 /**
  * The unsent copy of a stopped tab (unsent-copy.ts): which words it holds, how each stop keeps its own entry, how a put-back is retried
@@ -248,18 +245,19 @@ test.describe('the stopped-tab notice reads its own stop (unsent-copy.ts stopKep
   test('the words count as kept only when this stop’s latest write landed and its entry is there', () => {
     const STOP_A = newStopId();
     const storage = mapStorage();
-    noteStop(PROJECT, STOP_A);
-    expect(stopKeptInBrowser(storage)).toBe(false);
+    const stop = new TabStop(PROJECT, STOP_A);
+    stop.send({ type: 'stop', cause: 'newer-text' });
+    expect(stop.keptInBrowser(storage)).toBe(false);
 
-    noteStopKept(STOP_A, true);
-    expect(stopKeptInBrowser(storage)).toBe(false);
+    stop.send({ type: 'keep', landed: true });
+    expect(stop.keptInBrowser(storage)).toBe(false);
 
     writeUnsentEntry(storage, PROJECT, STOP_A, [{ docId: IDS.sceneA, title: 'Scene A', body: 'Kept.' }]);
-    noteStopKept(STOP_A, true);
-    expect(stopKeptInBrowser(storage)).toBe(true);
+    stop.send({ type: 'keep', landed: true });
+    expect(stop.keptInBrowser(storage)).toBe(true);
 
-    noteStopKept(STOP_A, false);
-    expect(stopKeptInBrowser(storage)).toBe(false);
+    stop.send({ type: 'keep', landed: false });
+    expect(stop.keptInBrowser(storage)).toBe(false);
   });
 
   test('another stop’s entry never makes this stop’s words count as kept, and a write for another stop is ignored', () => {
@@ -267,24 +265,28 @@ test.describe('the stopped-tab notice reads its own stop (unsent-copy.ts stopKep
     const STOP_B = newStopId();
     const storage = mapStorage();
     writeUnsentEntry(storage, PROJECT, STOP_A, [{ docId: IDS.sceneA, title: 'Scene A', body: 'An earlier stop.' }]);
-    noteStop(PROJECT, STOP_B);
-    noteStopKept(STOP_A, true);
-    expect(stopKeptInBrowser(storage)).toBe(false);
-    noteStopKept(STOP_B, true);
-    expect(stopKeptInBrowser(storage)).toBe(false);
+    const stop = new TabStop(PROJECT, STOP_B);
+    stop.send({ type: 'stop', cause: 'newer-text' });
+    const other = new TabStop(PROJECT, STOP_A);
+    other.send({ type: 'stop', cause: 'updated' });
+    other.send({ type: 'keep', landed: true });
+    expect(stop.keptInBrowser(storage)).toBe(false);
+    stop.send({ type: 'keep', landed: true });
+    expect(stop.keptInBrowser(storage)).toBe(false);
   });
 
   test('a subscriber hears each change of the stop record, and an unsubscribed one hears none', () => {
     const STOP_A = newStopId();
     let heard = 0;
-    const unsubscribe = subscribeStop(() => {
+    const stop = new TabStop(PROJECT, STOP_A);
+    const unsubscribe = stop.subscribe(() => {
       heard += 1;
     });
-    noteStop(PROJECT, STOP_A);
-    noteStopKept(STOP_A, true);
+    stop.send({ type: 'stop', cause: 'newer-text' });
+    stop.send({ type: 'keep', landed: true });
     expect(heard).toBe(2);
     unsubscribe();
-    noteStopKept(STOP_A, false);
+    stop.send({ type: 'keep', landed: false });
     expect(heard).toBe(2);
   });
 });

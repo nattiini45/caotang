@@ -194,6 +194,8 @@ interface AppSettings {
 
 ### 5.3 Browser-storage persistence
 
+The stopped-tab notice and save wording read the current session's `TabStop`, which joins its cause (`newer-text|updated`) with its latest kept-copy result. The notice publishes `data-state="stopped"`. It wins over any other open dialog and any dialog that arrives later; those dialogs stay mounted underneath with their input intact. Escape does not dismiss the notice. The existing backup action, two-step reload, kept-versus-memory wording, and named put-back steps (`create|write|done`) are unchanged. See [state-machines.md](state-machines.md) for the persistence, stopped-tab and pending-entry contracts.
+
 Evidence: Dabble's web app carries a constant *"Data may be evicted"* warning: browser eviction is a real, shipped-competitor failure mode for the IndexedDB working store (IndexedDB storage is best-effort by design). The posture, for the **browser build** (a native desktop-shell wrap would remove the entire class):
 
 1. **`navigator.storage.persist()` at project open** — called automatically when a project is opened (after the working store has something worth protecting); the result is **not re-asked** if already granted (`navigator.storage.persisted()` checked first). Firefox prompts the user via its own permission UI; Chromium grants per its heuristics. Never a Caotang-side modal for the *request* — the affordance lives in Settings.

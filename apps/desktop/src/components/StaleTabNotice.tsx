@@ -12,34 +12,43 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Trans } from '@lingui/react/macro';
 
-import { stopCause, subscribeStopCause } from '../app/integrity-model.js';
-import { browserStorage, stopKeptInBrowser, subscribeStop } from '../app/unsent-copy.js';
+import type { TabStop } from '../app/tab-stop.js';
+import { browserStorage } from '../app/unsent-copy.js';
 
 export interface StaleTabNoticeProps {
+  readonly stop: TabStop;
   /** Makes the bundle of what this tab holds, the copy that keeps the words. */
   readonly onExport: () => void;
   /** Reloads the page, which carries on from what the browser stored. The words in this tab are kept here only when a copy was made. */
   readonly onReload: () => void;
 }
 
-export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): ReactNode {
+export function StaleTabNotice({ stop, onExport, onReload }: StaleTabNoticeProps): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
+  const safeAction = useRef<HTMLButtonElement>(null);
   const titleId = useId();
+  const descriptionId = useId();
   // Whether the writer has asked to reload, and is being told what that loses before the reload is offered.
   const [reloadAsked, setReloadAsked] = useState(false);
-  // Whether this browser holds the words as of the latest change: read on every render, so a refused write is never shown as kept
-  // (unsent-copy.ts stopKeptInBrowser). A copy an earlier stop left does not count.
-  const kept = useSyncExternalStore(subscribeStop, () => stopKeptInBrowser(browserStorage()));
-  // Why this tab stopped (integrity-model.ts `StopCause`): another tab stored newer text, or another tab upgraded Caotang's storage, which a reload of this
-  // tab carries on from once the updated Caotang is the one this tab runs.
-  const updated = useSyncExternalStore(subscribeStopCause, stopCause) === 'updated';
+  const state = useSyncExternalStore(stop.subscribe, stop.getSnapshot);
+  const kept = stop.keptInBrowser(browserStorage());
+  const updated = state.kind === 'stopped' && state.cause === 'updated';
 
   // Shown as a modal from the start, so the page underneath cannot be used while the words are unsaved.
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog || dialog.open) return;
     dialog.showModal();
+    safeAction.current?.focus();
+    const observer = new MutationObserver((records) => {
+      if (!records.some((record) => record.target !== dialog && record.target instanceof HTMLDialogElement && record.target.open)) return;
+      dialog.close();
+      dialog.showModal();
+      safeAction.current?.focus();
+    });
+    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
     return () => {
+      observer.disconnect();
       if (dialog.open) dialog.close();
     };
   }, []);
@@ -49,6 +58,8 @@ export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): Rea
       ref={ref}
       className="confirm"
       aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      data-state={state.kind}
       data-testid="stale-tab-notice"
       data-kept={kept ? 'browser' : 'memory'}
       onCancel={(event) => {
@@ -60,7 +71,7 @@ export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): Rea
         <h2 id={titleId}>
           {updated ? <Trans>Caotang was updated in another tab</Trans> : <Trans>This project is open in another tab</Trans>}
         </h2>
-        <div className="confirm-text">
+        <div className="confirm-text" id={descriptionId}>
           {reloadAsked ? (
             kept ? (
               <>
@@ -129,7 +140,7 @@ export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): Rea
         <div className="confirm-actions">
           {reloadAsked ? (
             <>
-              <button type="button" className="button" autoFocus onClick={() => setReloadAsked(false)}>
+              <button ref={safeAction} type="button" className="button" autoFocus onClick={() => setReloadAsked(false)}>
                 <Trans>Keep this tab</Trans>
               </button>
               {kept ? (
@@ -150,7 +161,7 @@ export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): Rea
               <button type="button" className="button" onClick={() => setReloadAsked(true)}>
                 <Trans>Reload this tab</Trans>
               </button>
-              <button type="button" className="button is-primary" autoFocus onClick={onExport}>
+              <button ref={safeAction} type="button" className="button is-primary" autoFocus onClick={onExport}>
                 <Trans>Export a backup</Trans>
               </button>
             </>

@@ -62,6 +62,43 @@ async function storeNewerText(other: Page, projectId: string | null, sceneId: st
   );
 }
 
+test('the stopped-tab notice keeps focus above existing and late dialogs without losing their input', async ({ page }) => {
+  await projectWithScene(page, 'Stopped Dialogs', 'Saved here first.');
+  const other = await secondTab(page);
+  await storeNewerText(other, await projectIdOf(page), await idOf(page, 'The Landing'));
+  await page.getByRole('textbox', { name: 'Document text' }).fill('These words stay in this tab.');
+  await page.evaluate(() => {
+    const dialog = document.createElement('dialog');
+    dialog.id = 'underlying-dialog';
+    const input = document.createElement('input');
+    input.value = 'A draft that must stay';
+    dialog.append(input);
+    document.body.append(dialog);
+    dialog.showModal();
+  });
+  const notice = page.getByTestId('stale-tab-notice');
+  await expect(notice).toHaveAttribute('data-state', 'stopped');
+  await expect(notice.getByRole('button', { name: 'Export a backup' })).toBeFocused();
+  await expect(page.locator('#underlying-dialog input')).toHaveValue('A draft that must stay');
+  await page.evaluate(() => {
+    const dialog = document.createElement('dialog');
+    dialog.id = 'late-dialog';
+    const input = document.createElement('input');
+    input.value = 'A later draft';
+    dialog.append(input);
+    document.body.append(dialog);
+    dialog.showModal();
+  });
+  await expect(notice.getByRole('button', { name: 'Export a backup' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(notice).toBeVisible();
+  await expect(page.locator('#underlying-dialog')).toHaveAttribute('open', '');
+  await expect(page.locator('#late-dialog input')).toHaveValue('A later draft');
+  await notice.getByRole('button', { name: 'Reload this tab' }).click();
+  await expect(notice.getByRole('button', { name: 'Keep this tab' })).toBeVisible();
+  await expect(page.locator('#underlying-dialog input')).toHaveValue('A draft that must stay');
+});
+
 test('a project another tab has open is refused, the first tab keeps its words, and the second opens it once the first lets go', async ({
   page,
 }) => {

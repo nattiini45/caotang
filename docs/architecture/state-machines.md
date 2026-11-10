@@ -63,6 +63,20 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `tab.stop` and `persistence.status`
+
+Owner: `apps/desktop/src/app/tab-stop.ts` and `persistence-model.ts`, interpreted by `Persistence`. Product contract: [project-format.md §4](project-format.md#4-write-path-atomicity--crash-safety) and [ui-modules.md §5.3](ui-modules.md#53-browser-storage-persistence). Each session owns one `TabStop`: `running` accepts `stop(cause)` and becomes `stopped(cause, keptLatest: false)`; only a stopped tab accepts the latest copy's `keep(landed)` result. The cause is `newer-text` or `updated`. The stop cannot reset, but its kept-copy result can change, so it is not a final state. Persistence alone sends these events; the session, pending journal, notice and save wording read that same session's store. There is no page-global cause or current-stop record.
+
+Persistence keeps `idle`, `writing`, `failed(error)` and terminal `conflict(error)`. A write accepts `saved`, `fail` or `stop`; a failed write drops its shadow and retries on the next scheduled pass. Conflict replaces the redundant stopped flag, refuses every later store write, and continues to keep changed words in the unsent copy. Queue coalescing and the stored document shadow stay with the executor. The notice publishes `data-state="stopped"`; the save indicator retains its existing `saved|saving|failed|conflict` contract. The notice stays above other native dialogs, including dialogs arriving later, without unmounting their fields or changing the recovery wording.
+
+The stores and machine states are memory-only. `caotang.unsent.<projectId>` remains the versionless array of `{ stopId, savedAt, documents, origin? }`; no machine state is added to it. A successful latest write counts as kept only while this stop's own entry is still present. Stored projects, bundles and trace formats are unchanged.
+
+### `pending.entry`
+
+Owner: `apps/desktop/src/app/pending-entry.ts`, interpreted synchronously by `PendingJournal`; product contract: [project-format.md §4](project-format.md#4-write-path-atomicity--crash-safety). `empty` accepts `hold(entry)`; `held` and `written` accept newer words, a landed `write`, `prune(storedBody)`, document removal or a return to the stored body (`drop`), and `stop(copyLanded)`. Prune removes an entry only when the store holds its exact body. A stop clears it only when the unsent copy landed. `pruned` and `cleared-for-stop` are final; a later edit creates a fresh slot. A refused storage write leaves the slot held and keeps the journal's existing failure reporting and retry behavior.
+
+The slot's phase is never serialized: `caotang.pending.<projectId>` still stores only `{ docId, body, baseRevision, at }[]`, mutually readable with older builds. Recovery still classifies entries as save, offer or drop before the editor mounts. Kept-word restoration retains the named `RestoreStep` decision (`create|write|done`): retries write an existing empty document rather than creating it twice, and leave a restored document the writer has since edited alone. Entries leave the unsent copy only after the put-back is saved.
+
 ### `modern.menu`
 
 Owner: `apps/desktop/src/components/shell/modern/menu-model.ts`, interpreted by `useMenuPhase` for More, New and the narrow Views menu. Product contract: [modern-interface.md §8.5](modern-interface.md#85-the-binder-tab-bar-and-sidebar). Events are `open`, `toggle`, `close` and animation completion (`closed`). Each explicit opening increments an in-memory generation; a completion carries that generation and cannot finish a newer closing menu. Repeated dismissals while closing are ignored. Toggle during closing reopens immediately.
