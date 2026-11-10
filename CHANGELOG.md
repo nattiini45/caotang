@@ -15,6 +15,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Fixed
 
 - **Findings review progress.** An approved model review stays visible in the workspace when you leave Findings, and its progress returns with the tab. Start cannot launch two reviews at once. Stop keeps partial findings and shows a stopped outcome instead of an error. Settings also names a failed interface load beside its choice, with a retry.
+
+- **Reading agent events from a script (#531).** Concurrent reads of an `AgentRun` now receive events in request order instead of leaving the first reader waiting forever. Finishing, failing or returning the iterator settles every outstanding read; the turn's report remains available separately.
 - **Stopped-tab recovery.** The notice stays above other dialogs, including ones that arrive later, while their input stays underneath. Its cause and kept-copy status now belong to one session state; saved projects and kept-word formats are unchanged.
 
 - **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.

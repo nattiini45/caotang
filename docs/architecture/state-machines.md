@@ -73,6 +73,24 @@ The session owns the abort controller and pending promise, applies complete or p
 
 Owner: `apps/desktop/src/app/interface.ts`; product contract: [ui-modules.md §0](ui-modules.md#0-shared-view-rules-apply-to-all-four-modules). `choose` begins loading from any state, while `loaded` and `failed` settle only a loading state. The asynchronous owner publishes only the latest request's completion. `interfaceStatus()` retains chosen and shown interfaces, with a failure detail only in `failed`; Settings subscribes, publishes `data-state` and offers retry. The existing localStorage key, shell-attribute timing and Classic fallback stay unchanged. Exhaustive model and race tests cover stale success/failure; mounted Settings tests cover announcements, retry and focus return.
 
+### `mcp.confirmation-round`
+
+Owner: `packages/mcp-server/src/confirm.ts`, used by `tools.ts`; product contract: [extensibility.md §9](extensibility.md#9-caotang-as-an-mcp-server). A round starts `unasked`; `ask` binds its existing sealed payload in `asked`. An elicitation `answer` becomes `accepted` only for an accept with boolean `confirmed: true`; decline, cancel and other elicitation answers become `declined`, `cancelled` and `not-confirmed`. Missing answers and non-elicitation responses leave it `asked`. The four final decisions absorb every event. Changed arguments bind no prior round and require a fresh question.
+
+Lifecycle tags wrap, but are never added to, the signed `RoundState` payload. `accepted` names the host's answer, not a successful write: preparation and current-project checks can still refuse it. Invalid, expired and foreign seals are rejected by the MCP SDK before this dispatch path, rather than represented as reducer decisions. The nonce ledger still publishes the in-flight answer before a concurrent accepted replay can write again. No request-state bytes, TTL, key handling or persistence change; this is an in-memory decision model, not a durable confirmation store.
+
+### `sdk.writer`
+
+Owner: `packages/sdk/src/writer-stop.ts`, interpreted by `folder.ts`; product contracts: [extensibility.md §9](extensibility.md#9-caotang-as-an-mcp-server) and [agent-harness.md §11](agent-harness.md#11-headless-use). A writer starts `open`. A `drift` event stops it in `drift` or `saved-drift`, depending on whether its own manifest save already completed. A `partial` timeline batch stops an open writer in `partial`, or attaches its recovery words to the existing stop without replacing that cause. No stopped state can reopen; the table has no final states because a partial report can still attach recovery information without permitting a write.
+
+`StopReason` is the shared union for these three stopped states. `OpenFolder.changed` and `stoppedError()` remain compatibility projections. The MCP server remembers the announced `StopReason` instead of a second stop flag, and reads `writtenPartway` from the folder's recovery information instead of keeping another copy. Error wording, notification timing and the first stop's precedence stay unchanged. This state is memory only; neither project files nor `.caotang-mcp.lock` change.
+
+### `sdk.events`
+
+Owner: `packages/sdk/src/run.ts`; product contract: [agent-harness.md §11](agent-harness.md#11-headless-use). `end` takes `open` to `ended`; `fail` takes any state to `failed` with the error. This deliberately preserves failure after end and replacement of a failure by a later failure, so no state is declared final. Pushes are accepted only while open. Buffered events drain before an end or failure is delivered.
+
+Pending iterator requests are FIFO, including concurrent `next()` calls. Closing settles every outstanding request after delivering any held events, and iterator return settles that iterator's pending requests with `done`. A failed iterator remains finished for subsequent reads. The table tests cover closure states; scenario tests prove queue ordering, concurrent completion and early return. Nothing is persisted or added to a trace.
+
 ### `tab.stop` and `persistence.status`
 
 Owner: `apps/desktop/src/app/tab-stop.ts` and `persistence-model.ts`, interpreted by `Persistence`. Product contract: [project-format.md §4](project-format.md#4-write-path-atomicity--crash-safety) and [ui-modules.md §5.3](ui-modules.md#53-browser-storage-persistence). Each session owns one `TabStop`: `running` accepts `stop(cause)` and becomes `stopped(cause, keptLatest: false)`; only a stopped tab accepts the latest copy's `keep(landed)` result. The cause is `newer-text` or `updated`. The stop cannot reset, but its kept-copy result can change, so it is not a final state. Persistence alone sends these events; the session, pending journal, notice and save wording read that same session's store. There is no page-global cause or current-stop record.

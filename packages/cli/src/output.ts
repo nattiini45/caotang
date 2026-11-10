@@ -41,21 +41,24 @@ export function jsonLine(value: StreamLine): string {
   return `${JSON.stringify(value)}\n`;
 }
 
-/** What the exit code says about a turn that ended with this report. */
+export const REPORT_STATUS_EXIT_CODES = {
+  replied: ExitCode.Ok,
+  applied: ExitCode.Ok,
+  cancelled: ExitCode.NeedsInput,
+  failed: ExitCode.Internal,
+} as const satisfies Readonly<Record<TurnReport['status'], ExitCode>>;
+
+export const ASK_BACK_EXIT_CODES = {
+  needs_input: ExitCode.NeedsInput,
+  budget_exhausted: ExitCode.NeedsInput,
+  hook_blocked: ExitCode.NeedsInput,
+  conflict: ExitCode.Conflict,
+  anchor_unresolvable: ExitCode.Conflict,
+  verify_failed: ExitCode.VerifyFailed,
+} as const satisfies Readonly<Record<NonNullable<TurnReport['askBack']>['code'], ExitCode>>;
+
 export function exitCodeOf(report: TurnReport): ExitCode {
-  if (report.status === 'replied' || report.status === 'applied') return ExitCode.Ok;
-  switch (report.askBack?.code) {
-    case 'needs_input':
-    case 'budget_exhausted':
-    case 'hook_blocked':
-      return ExitCode.NeedsInput;
-    case 'conflict':
-    case 'anchor_unresolvable':
-      return ExitCode.Conflict;
-    case 'verify_failed':
-      return ExitCode.VerifyFailed;
-    case undefined:
-      // A turn the writer stopped has no ask-back; one a script stopped (a signal) is given its own code by the caller.
-      return report.status === 'cancelled' ? ExitCode.NeedsInput : ExitCode.Internal;
-  }
+  const code = report.askBack?.code;
+  if (report.status === 'replied' || report.status === 'applied' || code === undefined) return REPORT_STATUS_EXIT_CODES[report.status];
+  return ASK_BACK_EXIT_CODES[code];
 }

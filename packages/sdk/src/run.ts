@@ -6,6 +6,23 @@
  */
 
 import type { AgentEvent, TurnReport } from '@caotang/harness';
+import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
+
+export type EventQueueState = { kind: 'open' } | { kind: 'ended' } | { kind: 'failed'; error: unknown };
+export type EventQueueEvent = { type: 'end' } | { type: 'fail'; error: unknown };
+
+export const eventQueueTable: MachineTable<EventQueueState, EventQueueEvent> = {
+  id: 'sdk.events', initial: 'open', final: [],
+  on: { open: { end: ['ended'], fail: ['failed'] }, ended: { fail: ['failed'] }, failed: { fail: ['failed'] } },
+};
+
+export const eventQueueMachine = defineMachine(eventQueueTable, (state, event): EventQueueState => {
+  switch (event.type) {
+    case 'end': return state.kind === 'open' ? { kind: 'ended' } : state;
+    case 'fail': return { kind: 'failed', error: event.error };
+    default: return assertNever(event);
+  }
+});
 
 /** The most events held for a caller that is not reading. Past it the oldest streamed text is dropped; no other event ever is. */
 export const MAX_QUEUED_EVENTS = 4_096;
@@ -31,29 +48,26 @@ export interface EventQueue {
 
 export function createEventQueue(limit: number = MAX_QUEUED_EVENTS): EventQueue {
   const held: AgentEvent[] = [];
-  let waiting: ((result: IteratorResult<AgentEvent>) => void) | undefined;
-  let rejectWaiting: ((error: unknown) => void) | undefined;
-  let closed = false;
-  let failure: { readonly error: unknown } | undefined;
+  const waiting: {
+    owner: object;
+    resolve(result: IteratorResult<AgentEvent>): void;
+    reject(error: unknown): void;
+  }[] = [];
+  let state: EventQueueState = { kind: 'open' };
 
   const settle = (): void => {
-    if (waiting === undefined || rejectWaiting === undefined) return;
-    const next = held.shift();
-    if (next !== undefined) {
-      const resolve = waiting;
-      waiting = rejectWaiting = undefined;
-      resolve({ value: next, done: false });
-    } else if (closed) {
-      const [resolve, reject] = [waiting, rejectWaiting];
-      waiting = rejectWaiting = undefined;
-      if (failure === undefined) resolve({ value: undefined, done: true });
-      else reject(failure.error);
+    while (waiting.length > 0 && (held.length > 0 || state.kind !== 'open')) {
+      const reader = waiting.shift()!;
+      const next = held.shift();
+      if (next !== undefined) reader.resolve({ value: next, done: false });
+      else if (state.kind === 'failed') reader.reject(state.error);
+      else reader.resolve({ value: undefined, done: true });
     }
   };
 
   return {
     push(event) {
-      if (closed) return;
+      if (state.kind !== 'open') return;
       held.push(event);
       if (held.length > limit) {
         const dropped = held.findIndex(isStreamedText);
@@ -62,12 +76,11 @@ export function createEventQueue(limit: number = MAX_QUEUED_EVENTS): EventQueue 
       settle();
     },
     end() {
-      closed = true;
+      state = eventQueueMachine.step(state, { type: 'end' });
       settle();
     },
     fail(error) {
-      closed = true;
-      failure = { error };
+      state = eventQueueMachine.step(state, { type: 'fail', error });
       settle();
     },
     iterator() {
@@ -76,20 +89,27 @@ export function createEventQueue(limit: number = MAX_QUEUED_EVENTS): EventQueue 
         next() {
           if (finished) return Promise.resolve({ value: undefined, done: true });
           return new Promise<IteratorResult<AgentEvent>>((resolve, reject) => {
-            waiting = (result) => {
-              if (result.done === true) finished = true;
-              resolve(result);
-            };
-            rejectWaiting = (error) => {
-              finished = true;
-              reject(error);
-            };
+            waiting.push({
+              owner: iterator,
+              resolve(result) {
+                if (result.done === true) finished = true;
+                resolve(result);
+              },
+              reject(error) {
+                finished = true;
+                reject(error);
+              },
+            });
             settle();
           });
         },
         return() {
           finished = true;
           held.length = 0;
+          for (let index = 0; index < waiting.length;) {
+            if (waiting[index]!.owner === iterator) waiting.splice(index, 1)[0]!.resolve({ value: undefined, done: true });
+            else index += 1;
+          }
           return Promise.resolve({ value: undefined, done: true });
         },
         [Symbol.asyncIterator]() {
