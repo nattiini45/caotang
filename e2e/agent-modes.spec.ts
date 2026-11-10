@@ -67,6 +67,8 @@ test('Plan only keeps the refused write as a plan with no Approve, and Switch to
   await card.locator('button.is-primary').click();
   await expect(page.getByTestId('checkpoint')).toBeVisible();
   await expect.poll(() => synopsisOf(page, 'The Storm')).toMatch(/^A storm takes the lamp/);
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+  await expect(held).toHaveCount(0);
 });
 
 test('Accept edits applies the demo synopses with no card, behind an auto-approved badge, and the checkpoint restores them', async ({ page }) => {
