@@ -298,6 +298,7 @@ describe('no source file is invisible to search', () => {
     const expected = [...classic, ...(modernCommitted ? modern : []), ...[
       'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de', 'background-task-cancelling', 'background-task-cancelling-de',
       'classic-light-folder-saving-en', 'classic-light-folder-saving-de', 'modern-light-glass-folder-saving-en', 'modern-light-glass-folder-saving-de',
+      'classic-light-autosave-conflict-en', 'classic-light-autosave-conflict-de', 'modern-light-glass-autosave-conflict-en', 'modern-light-glass-autosave-conflict-de',
     ].map((name) => `e2e/visual/__snapshots__/${name}.png`)].sort();
     expect(baselines).toEqual(expected);
     for (const rel of baselines) expect([...readFileSync(join(repoRoot, rel)).subarray(0, 8)], rel).toEqual(PNG_SIGNATURE);

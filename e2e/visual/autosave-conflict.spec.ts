@@ -10,7 +10,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await showAutosaveConflict(page, shell, locale);
       const status = page.getByTestId('document-save-state');
       await status.scrollIntoViewIfNeeded();
-      await expect(page.locator('.editor-status')).toHaveScreenshot(`${shell}-autosave-conflict-${locale}.png`, {
+      await expect(page.locator('.editor-status')).toHaveScreenshot(`${shell === 'classic' ? 'classic-light' : 'modern-light-glass'}-autosave-conflict-${locale}.png`, {
         animations: 'disabled', caret: 'hide', maxDiffPixels: 0,
       });
     });
