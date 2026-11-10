@@ -219,7 +219,7 @@ function SceneInfoPanel({
     ? cloneElement(regions.inspector, { grouping })
     : regions.inspector;
   const { progress } = regions;
-  const save = saveStateWords(progress.saveState);
+  const save = saveStateWords(progress.saveState, progress.stopCause);
   // The project's line (§7.1): its name, which opens Project details, as the title capsule's project name does.
   const details = regions.actions.find((action) => action.id === 'details');
 
