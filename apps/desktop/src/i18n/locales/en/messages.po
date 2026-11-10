@@ -430,6 +430,16 @@ msgstr "{action, select, creating {Creating the project} openingProject {Opening
 msgid "{action}: {detail}"
 msgstr "{action}: {detail}"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{added, plural, one {# finding} other {# findings}} kept."
+msgstr "{added, plural, one {# finding} other {# findings}} kept."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{added, plural, one {# finding} other {# findings}} kept. Start another review when you are ready."
+msgstr "{added, plural, one {# finding} other {# findings}} kept. Start another review when you are ready."
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{added, plural, one {New: # finding} other {New: # findings}}"
@@ -539,6 +549,11 @@ msgstr "{commandCount, plural, one {# command} other {# commands}}"
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "{comments, plural, one {# comment.} other {# comments.}}"
 msgstr "{comments, plural, one {# comment.} other {# comments.}}"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{completedCalls, plural, one {# model call completed.} other {# model calls completed.}}"
+msgstr "{completedCalls, plural, one {# model call completed.} other {# model calls completed.}}"
 
 #. Live USD spend against its USD limit; values include the currency sign.
 #: apps/desktop/src/app/agent-model.ts
@@ -4652,6 +4667,8 @@ msgid "Check run discarded"
 msgstr "Check run discarded"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Check stopped"
 msgstr "Check stopped"
@@ -4881,6 +4898,11 @@ msgstr "Circular"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Classic"
 msgstr "Classic"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Classic could not finish loading. Try again."
+msgstr "Classic could not finish loading. Try again."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -8774,6 +8796,11 @@ msgstr "Loading picture…"
 msgid "Loading the Ink compiler…"
 msgstr "Loading the Ink compiler…"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Loading the interface…"
+msgstr "Loading the interface…"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -9303,6 +9330,11 @@ msgstr "Models listed by {profile}"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Modern"
 msgstr "Modern"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Modern could not load. The current interface is still in use. Try again or choose Classic."
+msgstr "Modern could not load. The current interface is still in use. Try again or choose Classic."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -13018,6 +13050,8 @@ msgid "RTF file"
 msgstr "RTF file"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Run a scan or start another review to try again. Any findings already recorded are kept below."
 msgstr "Run a scan or start another review to try again. Any findings already recorded are kept below."
@@ -14256,6 +14290,11 @@ msgstr "Show older ({count} more)"
 msgid "Show on timeline"
 msgstr "Show on timeline"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Show review"
+msgstr "Show review"
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Show settings changed"
@@ -14703,7 +14742,9 @@ msgid "Stop following {title}"
 msgstr "Stop following {title}"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/FindingsPanel.tsx
+#: apps/desktop/src/components/Workspace.tsx
 msgid "Stop the review"
 msgstr "Stop the review"
 
@@ -16080,6 +16121,16 @@ msgstr "The model review is complete: {added, plural, one {# finding} other {# f
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The model review is partial."
+msgstr "The model review is partial."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "The model review is running."
+msgstr "The model review is running."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The model review needs a provider. Connect one in Settings to read the story for plot and character problems."
 msgstr "The model review needs a provider. Connect one in Settings to read the story for plot and character problems."
 
@@ -16090,8 +16141,8 @@ msgstr "The model review plan"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
-msgid "The model review stopped early, so it is partial: {added, plural, one {# finding} other {# findings}} kept. {note}"
-msgstr "The model review stopped early, so it is partial: {added, plural, one {# finding} other {# findings}} kept. {note}"
+msgid "The model review was stopped."
+msgstr "The model review was stopped."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -17847,6 +17898,7 @@ msgstr "Trusted for reads. Lets read-only tools run without asking, and only too
 msgid "Trusted for reads. Lets read-only tools run without asking, and only tools the server marks read-only. Review the tool list first; the switch opens after the review."
 msgstr "Trusted for reads. Lets read-only tools run without asking, and only tools the server marks read-only. Review the tool list first; the switch opens after the review."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx

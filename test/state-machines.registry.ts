@@ -6,6 +6,8 @@ import { encodingPanelMachine } from '../apps/desktop/src/app/encoding-dialog-mo
 import { sidebarTable } from '../apps/desktop/src/components/shell/modern/sidebar-model.js';
 import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-model.js';
 import { sprintTable } from '../packages/furniture/src/sprint.js';
+import { reviewTable } from '../apps/desktop/src/app/coherence-review-state.js';
+import { interfaceTable } from '../apps/desktop/src/app/interface.js';
 import { exportJobMachine } from '../packages/exporter/src/export-job.js';
 import { eventQueueTable } from '../packages/sdk/src/run.js';
 import { writerStopTable } from '../packages/sdk/src/writer-stop.js';
@@ -29,7 +31,8 @@ export const machineTables = [
   sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
-  assetStagingTable, assetRemovalHoldTable, turnPhaseTable, cardStatusTable,
+  assetStagingTable, assetRemovalHoldTable, reviewTable, interfaceTable,
+  turnPhaseTable, cardStatusTable,
   cardDecisionTable, budgetMeterTable,
   exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
   tabStopTable, persistenceTable, pendingEntryTable, healthTable,
