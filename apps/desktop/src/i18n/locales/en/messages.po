@@ -7829,6 +7829,11 @@ msgstr "Import…"
 msgid "Imported"
 msgstr "Imported"
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported “{file}”."
+msgstr "Imported “{file}”."
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {containers, plural, one {# dialogue container} other {# dialogue containers}} from {file}."
@@ -7913,6 +7918,11 @@ msgstr "Importing the staged picture"
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Importing…"
 msgstr "Importing…"
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Importing… Please wait for the import to finish."
+msgstr "Importing… Please wait for the import to finish."
 
 #. The shelf of scenes without a day. Interpolated values: chain, step, steps, after, name, count, part are positions and part words; title is a scene title.
 #: apps/desktop/src/components/timeline/TimelineShelf.tsx
@@ -13375,13 +13385,13 @@ msgstr "Saved filters"
 msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. Exports go there from now on."
 msgstr "Saved the project to the folder “{folder}”. Exports go there from now on."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. What it replaced is kept in {backup}. Exports go there from now on."
 msgstr "Saved the project to the folder “{folder}”. What it replaced is kept in {backup}. Exports go there from now on."
 
@@ -13480,6 +13490,11 @@ msgstr "Saving the filter “{name}”"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.memoryWrite.active"
 msgstr "Saving the memory note “{title}”"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Saving to the folder…"
+msgstr "Saving to the folder…"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/components/EditorPane.tsx
@@ -15864,10 +15879,8 @@ msgstr "The focused scene"
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "The folder could not be saved: {error}"
 msgstr "The folder could not be saved: {error}"
 
@@ -15914,6 +15927,11 @@ msgstr "the images of this project are still being listed, so no export was writ
 #: apps/desktop/src/app/session.ts
 msgid "the images of this project could not be listed ({error}), so no export was written"
 msgstr "the images of this project could not be listed ({error}), so no export was written"
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "The import of “{file}” could not be finished: {reason}"
+msgstr "The import of “{file}” could not be finished: {reason}"
 
 #: apps/desktop/src/components/InkGate.tsx
 msgid "The Ink compiler could not be loaded"

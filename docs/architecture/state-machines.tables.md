@@ -23,6 +23,46 @@ Initial: `idle`. Final: none.
 | `running` | `progress` | `running` |
 | `running` | `stop` | `running` |
 
+## folder.save
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `asking` | `cancel` | `idle` |
+| `asking` | `pick` | `picking` |
+| `asking` | `save` | `saving` |
+| `idle` | `pick` | `picking` |
+| `idle` | `save` | `saving` |
+| `picking` | `ask` | `asking` |
+| `picking` | `cancel` | `idle` |
+| `picking` | `fail` | `idle` |
+| `picking` | `save` | `saving` |
+| `saved` | `pick` | `picking` |
+| `saved` | `save` | `saving` |
+| `saving` | `ask` | `asking` |
+| `saving` | `fail` | `idle` |
+| `saving` | `saved` | `saved` |
+
+## import.preview
+
+Initial: `loading`. Final: `closed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `closed` | — | — |
+| `commit-failed` | `cancel` | `closed` |
+| `commit-failed` | `commit` | `committing` |
+| `committing` | `commit-failed` | `commit-failed` |
+| `committing` | `committed` | `closed` |
+| `failed` | `cancel` | `closed` |
+| `loading` | `cancel` | `closed` |
+| `loading` | `load-failed` | `failed` |
+| `loading` | `loaded` | `ready` |
+| `loading` | `progress` | `loading` |
+| `ready` | `cancel` | `closed` |
+| `ready` | `commit` | `committing` |
+
 ## interface.load
 
 Initial: `ready`. Final: none.
@@ -132,3 +172,48 @@ Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
 | `starting` | `close` | `interrupted` |
 | `starting` | `fail` | `failed` |
 | `starting` | `ready` | `ready` |
+
+## ui.encoding.panel
+
+Initial: `loading`. Final: `closed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `asking` | `action` | `ready` |
+| `asking` | `answered` | `asking`, `ready` |
+| `asking` | `choose` | `ready` |
+| `asking` | `close` | `closed` |
+| `closed` | — | — |
+| `loading` | `close` | `closed` |
+| `loading` | `loaded` | `ready` |
+| `loading` | `unreadable` | `unreadable` |
+| `ready` | `action` | `ready` |
+| `ready` | `ask` | `asking` |
+| `ready` | `choose` | `ready` |
+| `ready` | `close` | `closed` |
+| `unreadable` | `close` | `closed` |
+
+## ui.export.compile
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `reset` | `idle` |
+| `failed` | `start` | `running` |
+| `idle` | `reset` | `idle` |
+| `idle` | `start` | `running` |
+| `running` | `failed` | `failed` |
+| `running` | `succeeded` | `idle` |
+
+## ui.export.readiness
+
+Initial: `waiting`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `check` | `failed`, `waiting` |
+| `ready` | `check` | `ready`, `waiting` |
+| `waiting` | `check` | `waiting` |
+| `waiting` | `failed` | `failed`, `waiting` |
+| `waiting` | `ready` | `ready`, `waiting` |

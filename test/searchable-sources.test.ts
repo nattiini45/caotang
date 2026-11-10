@@ -297,6 +297,7 @@ describe('no source file is invisible to search', () => {
     const modernCommitted = baselines.some((rel) => rel.includes('/modern-'));
     const expected = [...classic, ...(modernCommitted ? modern : []), ...[
       'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de', 'background-task-cancelling', 'background-task-cancelling-de', 'findings-review-stopped', 'findings-review-stopped-de',
+      'classic-light-folder-saving-en', 'classic-light-folder-saving-de', 'modern-light-glass-folder-saving-en', 'modern-light-glass-folder-saving-de',
     ].map((name) => `e2e/visual/__snapshots__/${name}.png`)].sort();
     expect(baselines).toEqual(expected);
     for (const rel of baselines) expect([...readFileSync(join(repoRoot, rel)).subarray(0, 8)], rel).toEqual(PNG_SIGNATURE);

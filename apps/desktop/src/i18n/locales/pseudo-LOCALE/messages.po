@@ -7829,6 +7829,11 @@ msgstr ""
 msgid "Imported"
 msgstr ""
 
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Imported “{file}”."
+msgstr ""
+
 #. Interpolated values: choices, count, entries, file, name, scenes, sections, stripped
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "Imported {containers, plural, one {# dialogue container} other {# dialogue containers}} from {file}."
@@ -7912,6 +7917,11 @@ msgstr ""
 #: apps/desktop/src/components/ProjectPanel.tsx
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "Importing…"
+msgstr ""
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "Importing… Please wait for the import to finish."
 msgstr ""
 
 #. The shelf of scenes without a day. Interpolated values: chain, step, steps, after, name, count, part are positions and part words; title is a scene title.
@@ -13375,13 +13385,13 @@ msgstr ""
 msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr ""
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. Exports go there from now on."
 msgstr ""
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "Saved the project to the folder “{folder}”. What it replaced is kept in {backup}. Exports go there from now on."
 msgstr ""
 
@@ -13479,6 +13489,11 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.memoryWrite.active"
+msgstr ""
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Saving to the folder…"
 msgstr ""
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
@@ -15864,10 +15879,8 @@ msgstr ""
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr ""
 
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
-#: apps/desktop/src/components/Workspace.tsx
+#. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
+#: apps/desktop/src/components/use-folder-save.ts
 msgid "The folder could not be saved: {error}"
 msgstr ""
 
@@ -15913,6 +15926,11 @@ msgstr ""
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "the images of this project could not be listed ({error}), so no export was written"
+msgstr ""
+
+#. Interpolated values: file is the imported file name; reason is the import failure message
+#: apps/desktop/src/import-preview/ImportPreviewDialog.tsx
+msgid "The import of “{file}” could not be finished: {reason}"
 msgstr ""
 
 #: apps/desktop/src/components/InkGate.tsx
