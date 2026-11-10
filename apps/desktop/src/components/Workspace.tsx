@@ -1113,10 +1113,7 @@ export function Workspace({
         ) : null}
       </>
     ),
-    saveState: <>
-      <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />
-      <span data-testid="folder-save" data-state={folderSave.state.kind} hidden />
-    </>,
+    saveState: <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />,
     progress: { target, setTarget: saveTarget, saveState, saveWords, exportBackup: exportNow },
     search: {
       state,
@@ -1151,6 +1148,7 @@ export function Workspace({
   return (
     <ReportContext.Provider value={report}>
       <ModalStackState />
+      <span data-testid="folder-save" data-state={folderSave.state.kind} hidden />
       <Shell regions={regions}>
         <ConfirmDialog
           open={doomed !== undefined}

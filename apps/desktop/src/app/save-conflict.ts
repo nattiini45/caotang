@@ -1,8 +1,8 @@
 import { t } from '@lingui/core/macro';
-import { RevisionConflictError, type AutosaveStatus } from '@caotang/store';
+import type { AutosaveStatus } from '@caotang/store';
 
-export function documentSaveState(status: Pick<AutosaveStatus, 'state' | 'lastError'>): AutosaveStatus['state'] {
-  return status.lastError instanceof RevisionConflictError ? 'conflict' : status.state;
+export function documentSaveState(status: Pick<AutosaveStatus, 'state' | 'revisionConflict'>): AutosaveStatus['state'] {
+  return status.revisionConflict ? 'conflict' : status.state;
 }
 
 export function saveConflictWords(): string {

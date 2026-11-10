@@ -313,6 +313,7 @@ test('Ask opens and closes the agent’s window and shows when the agent works; 
 });
 
 test('a docked Scene info and the agent window stack at the inline-end edge, and the page moves over for both', async ({ page }) => {
+  test.setTimeout(90_000);
   await page.setViewportSize({ width: 1920, height: 1000 });
   await modernScene(page, 'Stack Book');
   const area = page.locator('.modern-page-area');

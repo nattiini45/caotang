@@ -14,7 +14,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await openSaveSettings(page);
     await expect(page.getByTestId('settings')).toHaveAttribute('data-modal-state', 'top');
     await expect(indicator).toHaveAttribute('data-state', 'failed');
-    await expect(indicator).toContainText('Not saved: Settings.');
+    await expect(indicator).toContainText('Not saved: Settings');
     if (shell === 'modern') {
       await expect(page.getByTestId('modern-notices')).toHaveAttribute('data-state', 'covered');
       await expect(page.getByTestId('modern-notices')).toHaveAttribute('inert', '');
@@ -23,7 +23,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await expect(page.getByTestId('modal-stack')).toHaveAttribute('data-state', 'empty');
     await expect(indicator).toBeVisible();
     await expect(indicator).toHaveAttribute('data-state', 'failed');
-    await expect(indicator).toContainText('Not saved: Settings.');
+    await expect(indicator).toContainText('Not saved: Settings');
     if (shell === 'modern') await expect(page.getByTestId('modern-notices')).toHaveAttribute('data-state', 'visible');
   });
 
@@ -32,8 +32,9 @@ for (const shell of ['classic', 'modern'] as const) {
     await createProject(page, 'Documents waiting to save');
     await makeFailingDocument(page);
     const indicator = page.getByTestId('save-state');
-    await expect(indicator).toContainText('Not saved: Documents.');
-    await expect(indicator).toContainText('Copy your unsaved text somewhere safe before reloading.');
+    await expect(indicator).toContainText('Not saved: Documents');
+    if (shell === 'modern') await expect(indicator).toHaveAccessibleName(/Copy your unsaved text somewhere safe before reloading\./);
+    else await expect(indicator).toContainText('Copy your unsaved text somewhere safe before reloading.');
     await expect(indicator.getByRole('button', { name: 'Export a backup' })).toHaveCount(0);
     await expect(page.getByTestId('stale-tab-notice')).toHaveCount(0);
     const editor = page.getByRole('textbox', { name: 'Document text' });
@@ -42,7 +43,7 @@ for (const shell of ['classic', 'modern'] as const) {
       documentConflictStatus(): { dirty: boolean };
     }).documentConflictStatus().dirty)).toBe(false);
     await expect(indicator).toHaveAttribute('data-state', 'failed');
-    await expect(indicator).toContainText('Not saved: Documents.');
+    await expect(indicator).toContainText('Not saved: Documents');
     await page.evaluate(() => (window as unknown as { releaseDocumentConflict(): void }).releaseDocumentConflict());
     await editor.fill('The resolved words.');
     await waitForSaved(page);

@@ -17,6 +17,7 @@ interface SlotData {
   readonly producing: boolean;
   readonly reseating: number;
   readonly lastError: unknown | null;
+  readonly revisionConflict: boolean;
 }
 
 export type AutosaveSlot = SlotData & (
@@ -43,7 +44,7 @@ export type AutosaveEffect =
 export function autosaveSlot(body: string, revision: number): AutosaveSlot {
   return {
     kind: 'clean', revision, persistedBody: body, latestBody: body, pending: null,
-    scheduled: false, producing: false, reseating: 0, lastError: null,
+    scheduled: false, producing: false, reseating: 0, lastError: null, revisionConflict: false,
   };
 }
 
@@ -112,7 +113,7 @@ export function stepAutosave(slot: AutosaveSlot, event: AutosaveSlotEvent): {
       const { writing, ...data } = slot;
       return {
         slot: { ...data, kind: slot.pending === null ? 'clean' : 'pending', revision: event.revision,
-          persistedBody: writing.body, latestBody: slot.pending?.body ?? writing.body, lastError: null },
+          persistedBody: writing.body, latestBody: slot.pending?.body ?? writing.body, lastError: null, revisionConflict: false },
         effects: [{ type: 'notify' }, ...(slot.pending !== null && !slot.scheduled ? [{ type: 'drain' } as const] : [])],
       };
     }
@@ -121,7 +122,8 @@ export function stepAutosave(slot: AutosaveSlot, event: AutosaveSlotEvent): {
       const { writing, ...data } = slot;
       return {
         slot: { ...data, kind: event.conflict ? 'conflict' : slot.pending === null ? 'error' : 'pending',
-          pending: slot.pending ?? { source: writing.body, body: writing.body, attempts: 0, failure: null }, lastError: event.error },
+          pending: slot.pending ?? { source: writing.body, body: writing.body, attempts: 0, failure: null },
+          lastError: event.error, revisionConflict: slot.revisionConflict || event.conflict },
         effects: [{ type: 'notify' }],
       };
     }

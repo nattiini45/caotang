@@ -10423,6 +10423,11 @@ msgstr "Noch nicht gespeichert. Ihre Wörter sind in diesem Tab; sie werden bei 
 
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved: {parts}"
+msgstr "Nicht gespeichert: {parts}"
+
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
 msgid "Not saved: {parts}. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading."
 msgstr "Nicht gespeichert: {parts}. Für ein Dokument ist bereits neuerer Text gespeichert. Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort."
 

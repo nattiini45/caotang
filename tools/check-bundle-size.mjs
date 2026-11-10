@@ -12,7 +12,7 @@
  *   - a lazy chunk on BUDGET.lazy over its own raw cap, missing from the build, or in the first load (Modern's `modern-shell`,
  *     modern-interface.md §12, loads only while Modern is on);
  *   - the entry stylesheet (the stylesheet links in index.html) more than BUDGET.css.entryMargin over BUDGET.css.entry, or a lazy
- *     stylesheet over its cap on BUDGET.css.caps (Modern's, 94.5 kB raw);
+ *     stylesheet over its cap on BUDGET.css.caps (Modern's, 96.6 kB raw);
  *   - "Modern first load" (the first load plus `modern-shell`'s JS and CSS, gzip) more than BUDGET.modernFirstLoadDelta over Classic's
  *     first load.
  *
@@ -182,7 +182,7 @@ export const BUDGET = {
      */
     entry: 105_500,
     entryMargin: 0.01,
-    // Current: 95,500 B raw for `modern-shell`'s stylesheet (navigation #474; before it 94,500 B, the cap the owner recorded and asked no trim of) (docs/decisions.md, "[owner 2026-11-05]").
+    // Current: 96,600 B raw for `modern-shell`'s stylesheet: 95,670 B measured after sharing save-recovery row/truncation/control rules, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
     /** Lazy stylesheets by chunk name, raw. Modern's (tokens/modern.css and shell-modern.css): 12.3 kB raw, 2.7 kB gzip at #305. */
     // Stageshow polish #357: the Modern control kit (controls-modern.css: buttons, fields, selects, checks, radios, switches, segmented,
     // disclosures, badges, help text, empty states) took the sheet from 47.6 kB to 60,375 bytes raw (9.6 kB gzip); the cap is 59,089 (its first cut) plus
@@ -202,9 +202,9 @@ export const BUDGET = {
     // 390 px, k-tonal and k-quiet). 93,531 bytes raw measured on the merge; the cap is that plus about 1%.
     // Navigation (#474): the + New capsule and its two-line menu, the Findings count, the views' words hidden at 960–1179 px.
     // 94,550 bytes raw measured (+1,019 on main's 93,531); the cap is that plus about 1%. Raising an owner-recorded cap: see the PR.
-    caps: { 'modern-shell': 95_500 },
+    caps: { 'modern-shell': 96_600 },
   },
-  // Current: 35,900 B gzip over Classic's first load (sidebar/menu lifecycle: 35,508 B measured after optimisation plus about 1%; owner 2026-11-09).
+  // Current: 36,500 B gzip over Classic's first load: 36,144 B measured after save-recovery CSS deduplication and Scene info reuse, plus about 1% (owner's standing 2026-11-08 rule; #580/#578).
   /**
    * "Modern first load" (Classic's plus Modern's chunk and stylesheet, gzip) may exceed Classic's first load by this much. Raised from
    * 25,000 for narrow layout + focus mode, #312/#351; Classic unchanged: 25.4 kB measured on their merge, which is that plus 0.5 kB.
@@ -227,7 +227,7 @@ export const BUDGET = {
   // Navigation (#474): 34,502 bytes measured (+1,600 on main's 32,902: Modern's chunk +6.8 kB raw and its stylesheet +1.0 kB raw; Classic's
   // first load itself grew 1,309 bytes gzip for new-menu.ts in the entry). The allowance is that plus about 1%. Raising an owner-recorded
   // allowance: see the PR.
-  modernFirstLoadDelta: 35_900,
+  modernFirstLoadDelta: 36_500,
 };
 
 /** The lazy chunk whose JS and CSS make "Modern first load". */

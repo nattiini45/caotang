@@ -627,6 +627,8 @@ This layout has been tried in an emulated browser with touch input at phone and 
 
 ## The Modern interface
 
+A failed-save capsule names the part that was not saved, such as **Not saved: Documents** or **Not saved: Settings**, without crowding the project title, **New** or **More**. Hover for the full recovery instruction, or activate the capsule by keyboard, pointer or touch to open **Scene info › Progress** on that instruction. Screen readers receive the full guidance without opening it. On a narrow screen the failure stays visible on its own row. Progress offers a backup only when it is appropriate; for a document conflict, copy unsaved text somewhere safe before reloading.
+
 Caotang has two interfaces, **Classic** and **Modern**, and both do the same things. A new writer starts in Modern. If you used Caotang in this browser before, it stays Classic until you choose; your projects and settings are the same in either. Choose in **Settings › Appearance › Interface**, and the switch happens at once, with an unsaved scene and a running agent turn kept.
 
 Modern shows the page and a few controls, and brings the rest in when you ask for it. The manuscript is one page of paper floating on a harbour wallpaper (dawn in the light theme, night in the dark), with glass controls on its edges.
@@ -772,6 +774,8 @@ A script can read progress events while it waits for the final report. Multiple 
 A developer can run the agent against a project folder from a Node script, a command line or CI, with the `@caotang/sdk` package. There are no cards to click there, so the script chooses a policy that answers them: refuse every change (the default), approve every card, or its own function. Nothing is saved unless the script asks for it, and it can read the diff first. Its README is [packages/sdk/README.md](../packages/sdk/README.md). Keep the app and a script off the same folder at once: the script leaves the same lock file the MCP server does, and the app asks before it saves over it.
 
 ## When something seems wrong
+
+If a document has a revision conflict, a later error does not clear it. The editor and save indicator keep the instruction to copy your unsaved text somewhere safe before reloading, until a successful write or an accepted reopen/replacement resolves the conflict.
 
 - **The agent says it cannot do that.** The built-in demo provider answers only three requests. Add a provider in Settings › Providers.
 - **Approve is greyed out.** The card waits until its draft has been shown in its scene. Open that scene.

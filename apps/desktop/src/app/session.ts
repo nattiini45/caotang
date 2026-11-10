@@ -1858,7 +1858,7 @@ export class ProjectSession {
 
   private saveSources(): readonly SaveSource[] {
     const status = this.persistence.getStatus();
-    const documentConflict = [...this.state.documents.keys()].some((id) => this.autosave.status(id).lastError instanceof RevisionConflictError);
+    const documentConflict = [...this.state.documents.keys()].some((id) => this.autosave.status(id).revisionConflict);
     return [
       { state: status === 'idle' ? 'saved' : status === 'writing' ? 'saving' : status, channel: 'project' },
       { state: documentConflict ? 'failed' : this.autosave.dirtyDocIds().length > 0 ? 'saving' : 'saved', channel: 'documents' },

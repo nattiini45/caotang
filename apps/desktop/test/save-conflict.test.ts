@@ -23,7 +23,7 @@ it('gives the footer and project capsule the same conflict recovery instruction'
 it('names the revision conflict and recovery in English and German', async () => {
   for (const locale of ['en', 'de'] as const) {
     await activateCatalogue(locale);
-    const words = saveLineOf({ state: 'conflict', dirty: true, revision: 3, lastError: new Error('revision moved') });
+    const words = saveLineOf({ state: 'conflict', dirty: true, revision: 3, lastError: new Error('revision moved'), revisionConflict: true });
     expect(words).toBe(saveConflictWords());
     expect(words).toBe(locale === 'en'
       ? 'Newer text is already saved for this document. Your words are kept in this tab. Copy your unsaved text somewhere safe before reloading.'
@@ -36,11 +36,11 @@ it('keeps the conflict recovery instruction while later typing is pending or sav
   for (const locale of ['en', 'de'] as const) {
     await activateCatalogue(locale);
     for (const state of ['pending', 'saving', 'clean', 'error'] as const) {
-      const status = { state, dirty: state !== 'clean', revision: 3, lastError: conflict };
+      const status = { state, dirty: state !== 'clean', revision: 3, lastError: conflict, revisionConflict: true };
       expect(saveLineOf(status)).toBe(saveConflictWords());
       expect(documentSaveState(status)).toBe('conflict');
     }
   }
-  expect(documentSaveState({ state: 'clean', lastError: null })).toBe('clean');
-  expect(saveLineOf({ state: 'clean', dirty: false, revision: 9, lastError: null })).toBe('Saved');
+  expect(documentSaveState({ state: 'clean', revisionConflict: false })).toBe('clean');
+  expect(saveLineOf({ state: 'clean', dirty: false, revision: 9, lastError: null, revisionConflict: false })).toBe('Saved');
 });
