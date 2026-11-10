@@ -337,7 +337,9 @@ test('connecting a server loads the MCP SDK from the build, under the policy', a
   // The address is a closed port: the connection is refused, and the card says so. The SDK chunk was fetched to try it.
   const local = settings.locator('[data-server="Local tools"]');
   await local.getByRole('button', { name: 'Connect', exact: true }).click();
-  await expect(local.getByTestId('mcp-detail')).toContainText('server unreachable', { timeout: 20_000 });
+  await expect(local).toHaveAttribute('data-state', 'failed', { timeout: 20_000 });
+  await expect(local.getByRole('alert')).toHaveText('The server did not answer. Check the address above, then choose Connect to try again.');
+  await expect(local.getByTestId('mcp-detail')).toHaveCount(0);
   expect(chunks()).toContain('wire');
   expect(await violations(page)).toEqual([]);
 });

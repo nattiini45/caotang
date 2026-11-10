@@ -137,6 +137,23 @@ Initial: `queued`. Final: `failed`, `written`.
 | `writing` | `written` | `written` |
 | `written` | — | — |
 
+## findings.review
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `cancelled` | `plan` | `planned` |
+| `failed` | `plan` | `planned` |
+| `idle` | `plan` | `planned` |
+| `partial` | `plan` | `planned` |
+| `planned` | `dismiss` | `idle` |
+| `planned` | `start` | `running` |
+| `running` | `done` | `cancelled`, `idle`, `partial` |
+| `running` | `fail` | `cancelled`, `failed` |
+| `running` | `progress` | `running` |
+| `running` | `stop` | `running` |
+
 ## folder.save
 
 Initial: `idle`. Final: none.
@@ -177,6 +194,18 @@ Initial: `loading`. Final: `closed`.
 | `ready` | `cancel` | `closed` |
 | `ready` | `commit` | `committing` |
 
+## interface.load
+
+Initial: `ready`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `choose` | `loading` |
+| `loading` | `choose` | `loading` |
+| `loading` | `failed` | `failed` |
+| `loading` | `loaded` | `ready` |
+| `ready` | `choose` | `loading` |
+
 ## mcp.confirmation-round
 
 Initial: `unasked`. Final: `accepted`, `cancelled`, `declined`, `not-confirmed`.
@@ -189,6 +218,29 @@ Initial: `unasked`. Final: `accepted`, `cancelled`, `declined`, `not-confirmed`.
 | `declined` | — | — |
 | `not-confirmed` | — | — |
 | `unasked` | `ask` | `asked` |
+
+## mcp.health
+
+Initial: `configured`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `configured` | `connect` | `connecting` |
+| `configured` | `reset` | `configured` |
+| `connected` | `approve` | `healthy` |
+| `connected` | `connect` | `connecting` |
+| `connected` | `fail` | `failed` |
+| `connected` | `reset` | `configured` |
+| `connecting` | `fail` | `failed` |
+| `connecting` | `listed` | `connected`, `healthy` |
+| `connecting` | `reset` | `configured` |
+| `failed` | `connect` | `connecting` |
+| `failed` | `fail` | `failed` |
+| `failed` | `reset` | `configured` |
+| `healthy` | `approve` | `healthy` |
+| `healthy` | `connect` | `connecting` |
+| `healthy` | `fail` | `failed` |
+| `healthy` | `reset` | `configured` |
 
 ## modern.menu
 
@@ -461,3 +513,13 @@ Initial: `waiting`. Final: none.
 | `waiting` | `check` | `waiting` |
 | `waiting` | `failed` | `failed`, `waiting` |
 | `waiting` | `ready` | `ready`, `waiting` |
+
+## ui.modal-stack
+
+Initial: `empty`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `empty` | `open` | `open` |
+| `open` | `close` | `empty`, `open` |
+| `open` | `open` | `open` |

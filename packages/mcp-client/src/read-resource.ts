@@ -111,7 +111,7 @@ export function prepareReadResource(deps: ReadResourceValidateDeps, params: unkn
     return refuse('not-found', `no MCP server with key '${serverKey}' is configured`, uri, 'pick the resource again from a server that is connected');
   }
   const health = deps.client.healthOf(serverKey);
-  if (health === undefined || health.state === 'configured') {
+  if (health === undefined || (health.state !== 'connected' && health.state !== 'healthy')) {
     return fromMcpError({ code: 'unreachable', message: unreachableText(server.name) }, server.name, uri);
   }
 

@@ -41,7 +41,7 @@ import {
   type RoleRef,
   type RoleSettings,
 } from '../app/settings.js';
-import { applyInterface, rememberInterface, type Interface } from '../app/interface.js';
+import { applyInterface, interfaceStatus, rememberInterface, subscribeInterface, type Interface } from '../app/interface.js';
 import { readModernPreferences, setModernPreference, type ModernPreferences } from '../app/modern-preferences.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
@@ -67,6 +67,7 @@ import { McpSection } from './McpSection.js';
 import { PictureStorageMeter } from './PictureStorageMeter.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { formatCount, useComposingEnter } from './shared.js';
+import { Modal, useModalDialog } from './modal.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -130,24 +131,10 @@ export function Settings({
   const ref = useRef<HTMLDialogElement>(null);
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const narrow = useNarrow();
-  // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was (Menu and ExportDialog do
-  // the same). It is read on the first render, before the dialog takes focus. While the dialog is modal the rest of the page is
-  // inert, so the focus call made during a development double-mount is a no-op and the dialog keeps focus.
-  const [opener] = useState<Element | null>(() => document.activeElement);
-  useEffect(
-    () => () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    },
-    [opener],
-  );
-
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog !== null && !dialog.open) dialog.showModal();
-  }, []);
+  useModalDialog(ref);
 
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="settings"
       aria-labelledby="settings-title"
@@ -203,7 +190,7 @@ export function Settings({
           </div>
         </div>
       </div>
-    </dialog>
+    </Modal>
   );
 }
 
@@ -1441,13 +1428,12 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
     });
   };
 
-  // The interface on the page now (app/interface.ts puts it there as data-shell).
-  const [shell, setShell] = useState<Interface>(() => (document.documentElement.dataset['shell'] === 'modern' ? 'modern' : 'classic'));
+  const shellStatus = useSyncExternalStore(subscribeInterface, interfaceStatus);
+  const shellChoices = useRef<HTMLFieldSetElement>(null);
+  const shell = shellStatus.chosen;
   const chooseShell = (next: Interface): void => {
-    // Modern's stylesheet loads on first use; a failed load leaves its tokens out, and the radio still says what was chosen.
     void applyInterface(next).catch(() => undefined);
     rememberInterface(next);
-    setShell(next);
   };
   // Modern's two switches (modern-interface.md §9.4), shown while Modern is chosen; they apply to Modern only.
   const [modernPrefs, setModernPrefs] = useState<ModernPreferences>(() => readModernPreferences());
@@ -1471,7 +1457,7 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
       <p className="muted">
         <Trans>The choice is kept in this browser. Until you choose, the page follows the system.</Trans>
       </p>
-      <fieldset className="settings-radios">
+      <fieldset ref={shellChoices} className="settings-radios" data-state={shellStatus.kind} data-testid="interface-choice">
         <legend>{t`Interface`}</legend>
         <label className="check">
           <input type="radio" name="shell" checked={shell === 'classic'} onChange={() => chooseShell('classic')} /> <Trans>Classic</Trans>
@@ -1481,6 +1467,20 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
           {t`Modern`}
         </label>
       </fieldset>
+      {shellStatus.kind === 'loading' ? <p role="status">{t`Loading the interface…`}</p> : null}
+      {shellStatus.kind === 'failed' ? (
+        <div>
+          <p className="form-message is-error" role="alert">
+            {shell === 'modern'
+              ? t`Modern could not load. The current interface is still in use. Try again or choose Classic.`
+              : t`Classic could not finish loading. Try again.`}
+          </p>
+          <button type="button" className="button" onClick={() => {
+            shellChoices.current?.querySelector<HTMLInputElement>('input:checked')?.focus();
+            chooseShell(shell);
+          }}>{t`Try again`}</button>
+        </div>
+      ) : null}
       <p className="muted">
         {t`Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. New writers start in Modern; if you used Caotang before, it stays Classic until you choose. The choice is kept in this browser and applies at once.`}
       </p>

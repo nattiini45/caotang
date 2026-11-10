@@ -162,7 +162,7 @@ export function prepareInvoke(deps: ValidateDeps, params: unknown): Result<McpIn
     return refuse('not-found', `no MCP server with key '${serverKey}' is configured`, toolName, 'call tool.search to find the tool under a server that is connected');
   }
   const health = deps.client.healthOf(serverKey);
-  if (health === undefined || health.state === 'configured') {
+  if (health === undefined || (health.state !== 'connected' && health.state !== 'healthy')) {
     return fromMcpError({ code: 'unreachable', message: unreachableText(server.name) }, server.name, toolName);
   }
   const tool = deps.client.describe(serverKey, toolName);

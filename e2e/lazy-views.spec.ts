@@ -9,11 +9,32 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
+import type * as InterfaceModule from '../apps/desktop/src/app/interface.js';
 
 const STORYBOARD_MODULE = '**/src/media/StoryboardView.tsx*';
 const PROMPT_PACK_MODULE = '**/src/media/PromptPackPanel.tsx*';
 /** The Ink compiler (inkjs), which the dev server serves as one pre-bundled module. */
 const INK_COMPILER_MODULE = '**/.vite/deps/inkjs_full*';
+
+test('a failed Modern load is named beside the interface choice and Classic remains selectable', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const path = '/src/app/interface.ts';
+    const { setModernShellLoader } = await import(path) as typeof InterfaceModule;
+    setModernShellLoader(() => Promise.reject(new Error('Simulated offline chunk.')));
+  });
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.locator('[data-section="appearance"]').click();
+  await settings.locator('input[name="shell"]').nth(1).check();
+  await expect(settings.getByTestId('interface-choice')).toHaveAttribute('data-state', 'failed');
+  await expect(settings.getByRole('alert')).toContainText('Modern could not load. The current interface is still in use. Try again or choose Classic.');
+  await settings.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(settings.getByTestId('interface-choice')).toHaveAttribute('data-state', 'failed');
+  await settings.locator('input[name="shell"]').nth(0).check();
+  await expect(settings.getByTestId('interface-choice')).toHaveAttribute('data-state', 'ready');
+  await expect(settings.getByRole('alert')).toHaveCount(0);
+});
 
 /** Makes a storyboard from the context menu of the manuscript's first chapter; the new node is selected and its view opens. */
 async function makeStoryboard(page: Page): Promise<void> {

@@ -15,6 +15,7 @@
     "@caotang/bus": "workspace:*",
     "@caotang/gateway": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/machine": "workspace:*",
     "@caotang/pictures": "workspace:*"
   },
   "devDependencies": {

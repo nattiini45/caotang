@@ -24,6 +24,11 @@
   --mat-sheet-rim: var(--m-sheet-rim);
 }
 
+:root[data-shell='modern'] .modern-notices[data-state='covered'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 :root[data-shell='modern']:not([data-theme='dark']) {
   --m-sheet: rgba(255, 252, 250, 0.97);
   --m-float: rgba(255, 252, 250, 0.97);

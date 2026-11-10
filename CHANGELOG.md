@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **MCP connection health.** Settings shows **Connecting** while checking a server and **Failed** when it cannot connect, with one translated alert and **Connect** to retry. These states are translated into German and survive closing and reopening Settings without changing saved server settings.
+
 - **Machine transitions in agent traces.** Exported traces now name the turn, tool-card and approval-round state transitions. They stay in the open tab's memory, and older trace readers skip the additive rows. A successful turn publishes its report before Done.
 
 - **Settings-authored allow rules.** You can allow eligible native tool cards to run automatically in Ask. Deny beats ask, and ask beats allow. Project-file and imported rules cannot grant approval; Plan only, read-only access, outside-tool confirmations and safety refusals remain unchanged. Each call approved by a rule is recorded in the run log and Trace with that rule; a failed audit save asks you instead.
@@ -15,6 +17,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
 ### Fixed
+
+- **Findings review progress.** An approved model review stays visible in the workspace when you leave Findings, and its progress returns with the tab. Start cannot launch two reviews at once. Stop keeps partial findings and shows a stopped outcome instead of an error. Settings also names a failed interface load beside its choice, with a retry.
+
+- **Dialog stacking.** A dialog arriving over another keeps its input underneath and returns focus when it closes. The stopped-tab notice always wins. Modern hides background notice capsules while a dialog is open, announces new notices inside it, and keeps new errors over later information until visible, so Skills review has a clean edge without hiding a failure or changing its glass.
 
 - **Export job failures.** A failed file or compile-log write now stays visible in the Export dialog and can be retried without reopening it. MCP exports return the failed job instead of success, and the SDK waits for each export job before reporting a turn's result. Exported files and compile-log rows keep their formats.
 

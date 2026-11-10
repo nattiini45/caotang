@@ -7,7 +7,7 @@
  * held the term, and its undo puts the term and each item's value back in one step.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
@@ -17,7 +17,7 @@ import type { VocabularyKind } from '@caotang/bus';
 
 import { isImeEnter } from '../app/keymap.js';
 import { explain, removeTerm, saveTerm } from './actions.js';
-import { useReturnFocus } from './dialog-focus.js';
+import { Modal, useModalDialog } from './modal.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport } from './shared.js';
@@ -36,22 +36,17 @@ export function VocabularyEditor({ session }: { session: ProjectSession }): Reac
 function VocabularyEditorDialog({ session, initial }: { session: ProjectSession; initial: VocabularyKind }): ReactNode {
   const report = useReport();
   const dialog = useRef<HTMLDialogElement>(null);
-  const returnFocus = useReturnFocus();
   const [kind, setKind] = useState<VocabularyKind>(initial);
   const [draftName, setDraftName] = useState('');
   const [draftColor, setDraftColor] = useState('#8a8a8a');
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  useEffect(() => {
-    const element = dialog.current;
-    if (element !== null && !element.open) element.showModal();
-  }, []);
+  useModalDialog(dialog);
 
   const terms = kind === 'status' ? session.state.manifest.vocabulary.statuses : session.state.manifest.vocabulary.labels;
 
   /** Closes the editor, and hands focus back to the control it opened from. */
   const close = (): void => {
-    returnFocus();
     closeDialog();
   };
 
@@ -72,7 +67,7 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
   };
 
   return (
-    <dialog
+    <Modal
       ref={dialog}
       className="project-dialog vocabulary-dialog"
       aria-labelledby="vocabulary-dialog-title"
@@ -156,7 +151,7 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
           </button>
         </div>
       </div>
-    </dialog>
+    </Modal>
   );
 }
 
