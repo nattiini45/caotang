@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Dialog flow races.** Escape and Cancel now agree during a compile, and a failed export-readiness check can be retried. A rejected import commit shows its error and permits retry; replacing a preview notifies its original caller. Folder saves ignore repeated gestures while busy and show **Saving to the folder…** in English and German. An old AI encoding suggestion no longer replaces a newer manual choice.
+
 - **Cancelling a background task.** Cancel now works while the task is starting or its agent is loading. The row shows **Cancelling…** until the runner stops, and closing the project cannot turn that cancellation into a task that offers Resume. Saved task records stay compatible.
 
 - **Saving reusable commands.** MCP prompt and macro turns no longer offer Save as command for a synthetic run label that would create an unrelated skill. Their existing commands remain available for another run.
