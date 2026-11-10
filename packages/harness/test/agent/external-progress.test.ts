@@ -197,6 +197,23 @@ describe('progress on a running external call', () => {
 });
 
 describe('Stop reaches an external call in flight', () => {
+  it('keeps a read cancelled when the server has sent no progress and no card exists', async () => {
+    const intent = 'Stop a quiet lore lookup.';
+    const f = await fixtureFor(intent, READ, { query: 'Hanne' }, {
+      slow: async (call) => {
+        queueMicrotask(() => f.stop.abort());
+        await call.wait(60_000);
+        return { content: [], isError: false };
+      },
+    });
+    const report = await f.session.submit(intent, { signal: f.stop.signal });
+    expect(report.status).toBe('cancelled');
+    expect(report.stop?.by).toBe('user');
+    expect(report.askBack).toBeUndefined();
+    expect(report.summary).toBe('Stopped by you. Nothing was written.');
+    expect(cardsOf(f.events, READ)).toEqual([]);
+  });
+
   it('cancels a write, tells the server, and says in the card, the row, the step and the summary that it may already have acted', async () => {
     const intent = 'Note the lore.';
     let serverSawEnd = false;

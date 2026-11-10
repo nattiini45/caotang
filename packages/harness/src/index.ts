@@ -485,6 +485,7 @@ export {
   type ContextRecord,
   type HeaderRecord,
   type LadderRecord,
+  type MachineTraceRecord,
   type MessageRecord,
   type ModelRequestRecord,
   type ModelResponseRecord,
