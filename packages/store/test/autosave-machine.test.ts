@@ -11,6 +11,26 @@ const pending = stepAutosave(seed, { type: 'edit', source }).slot;
 const saving = stepAutosave(pending, { type: 'take', source, body: 'draft' }).slot;
 
 describe('the document autosave machine', () => {
+  it('retains a revision refusal across later failures and clears it only on an accepted body', () => {
+    const conflict = stepAutosave(saving, { type: 'write-failed', error, conflict: true }).slot;
+    expect(conflict.revisionConflict).toBe(true);
+    for (const type of ['read-failed', 'producer-failed'] as const) {
+      const later = new Error(type);
+      const failed = stepAutosave(stepAutosave(conflict, { type: 'edit', source: 'later' }).slot, { type, error: later }).slot;
+      expect(failed).toMatchObject({ revisionConflict: true, lastError: later });
+      const retry = stepAutosave(failed, { type: 'take', source: 'later', body: 'later' }).slot;
+      expect(stepAutosave(retry, { type: 'write-failed', error: later, conflict: false }).slot.revisionConflict).toBe(true);
+      expect(stepAutosave(retry, { type: 'written', revision: 9 }).slot).toMatchObject({ revisionConflict: false, lastError: null });
+      const reseating = stepAutosave(failed, { type: 'reseat' }).slot;
+      expect(reseating.revisionConflict).toBe(true);
+      expect(stepAutosave(reseating, { type: 'reseated', body: 'restored', revision: 9 }).slot.revisionConflict).toBe(false);
+    }
+    const unchanged = stepAutosave(conflict, { type: 'take', source: 'draft', body: 'stored' }).slot;
+    expect(unchanged).toMatchObject({ kind: 'clean', revisionConflict: true });
+    expect(stepAutosave(unchanged, { type: 'open', body: 'reopened', revision: 9 }).slot.revisionConflict).toBe(false);
+    expect(stepAutosave(pending, { type: 'read-failed', error }).slot.revisionConflict).toBe(false);
+  });
+
   it('agrees with every registered transition, including payload and re-entry variants', () => {
     const states: AutosaveSlot[] = [seed, pending, saving,
       stepAutosave(saving, { type: 'edit', source: 'newer' }).slot,

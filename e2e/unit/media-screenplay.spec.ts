@@ -139,10 +139,10 @@ test.describe('the body is the source of truth', () => {
 
 test.describe('the save line and the write that did not land', () => {
   test('the footer says what the prose editor says: saved, saving, or not saved yet with the words still in the tab', () => {
-    expect(saveLineOf({ state: 'clean', dirty: false, revision: 3, lastError: null })).toBe('Saved');
-    expect(saveLineOf({ state: 'pending', dirty: true, revision: 3, lastError: null })).toBe('Saving…');
-    expect(saveLineOf({ state: 'saving', dirty: true, revision: 3, lastError: null })).toBe('Saving…');
-    expect(saveLineOf({ state: 'error', dirty: true, revision: 3, lastError: new Error('disk full') })).toBe(
+    expect(saveLineOf({ state: 'clean', dirty: false, revision: 3, lastError: null, revisionConflict: false })).toBe('Saved');
+    expect(saveLineOf({ state: 'pending', dirty: true, revision: 3, lastError: null, revisionConflict: false })).toBe('Saving…');
+    expect(saveLineOf({ state: 'saving', dirty: true, revision: 3, lastError: null, revisionConflict: false })).toBe('Saving…');
+    expect(saveLineOf({ state: 'error', dirty: true, revision: 3, lastError: new Error('disk full'), revisionConflict: false })).toBe(
       'Not saved yet. Your words are in this tab; they will be written again on the next change.',
     );
   });

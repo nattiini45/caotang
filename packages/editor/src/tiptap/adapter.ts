@@ -185,10 +185,11 @@ export interface EditorSaveStatus {
   /** The same answer as `hasUnsavedEdits()`: true while a body is unsaved or mid-write. */
   readonly dirty: boolean;
   /**
-   * The last failure, with its cause. A `RevisionConflictError` from `@caotang/store` means the store moved on
-   * and the edits are kept for the writer. `null` after a successful write, or when none has failed.
+   * The latest failure, with its cause; revisionConflict separately retains an unresolved revision refusal.
+   * `null` after a successful write, or when none has failed.
    */
   readonly lastError: unknown;
+  readonly revisionConflict: boolean;
 }
 
 /**
@@ -411,6 +412,7 @@ const toSaveStatus = (status: AutosaveStatus): EditorSaveStatus => ({
   state: status.state,
   dirty: status.dirty,
   lastError: status.lastError,
+  revisionConflict: status.revisionConflict,
 });
 
 /** The editor's own flag, for a document with no store to report on. Nothing fails without a store. */
@@ -418,6 +420,7 @@ const localSaveStatus = (dirty: boolean): EditorSaveStatus => ({
   state: dirty ? 'pending' : 'clean',
   dirty,
   lastError: null,
+  revisionConflict: false,
 });
 
 /** The body a mount shows, and the revision that body is based on. Without a store the revision is the caller's to report. */

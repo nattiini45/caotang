@@ -19,8 +19,8 @@ import { useCallback, useSyncExternalStore, type MouseEvent as ReactMouseEvent }
 
 import { SCENE_INFO_ID, readDocked, writeDocked } from './scene-info-model.js';
 
-/** The field Scene info takes focus on as it opens: its first field (the synopsis, when there is a scene), or the synopsis. */
-export type SceneInfoFocus = 'first' | 'synopsis';
+/** Where Scene info takes focus as it opens: the first field, the synopsis, or Progress's save guidance. */
+export type SceneInfoFocus = 'first' | 'synopsis' | 'progress';
 
 export interface SceneInfoState {
   readonly open: boolean;

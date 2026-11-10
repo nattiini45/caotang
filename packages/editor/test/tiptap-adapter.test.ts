@@ -494,10 +494,10 @@ describe('the unsaved state is a status, not one flag (§9)', () => {
     const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
     instance.revealRange({ from: 0, to: 0 });
     instance.insertAtSelection('Mine ');
-    expect(instance.saveStatus()).toEqual({ state: 'pending', dirty: true, lastError: null });
+    expect(instance.saveStatus()).toEqual({ state: 'pending', dirty: true, lastError: null, revisionConflict: false });
     vi.advanceTimersByTime(800);
     await settle();
-    expect(instance.saveStatus()).toEqual({ state: 'clean', dirty: false, lastError: null });
+    expect(instance.saveStatus()).toEqual({ state: 'clean', dirty: false, lastError: null, revisionConflict: false });
   });
 
   it('a failed write is an error with its cause, and the edit stays unsaved (the indicator’s case)', async () => {
@@ -510,8 +510,8 @@ describe('the unsaved state is a status, not one flag (§9)', () => {
     instance.insertAtSelection('Mine ');
     vi.advanceTimersByTime(800);
     await settle();
-    expect(instance.saveStatus()).toEqual({ state: 'error', dirty: true, lastError: cause });
-    expect(onSaveStatusChange).toHaveBeenLastCalledWith({ state: 'error', dirty: true, lastError: cause });
+    expect(instance.saveStatus()).toEqual({ state: 'error', dirty: true, lastError: cause, revisionConflict: false });
+    expect(onSaveStatusChange).toHaveBeenLastCalledWith({ state: 'error', dirty: true, lastError: cause, revisionConflict: false });
     expect(instance.hasUnsavedEdits()).toBe(true);
   });
 
@@ -537,7 +537,7 @@ describe('the unsaved state is a status, not one flag (§9)', () => {
     const { instance } = await mountInto('Hello.\n', { revision: 4, autosave, onSaveStatusChange });
     instance.revealRange({ from: 0, to: 0 });
     instance.insertAtSelection('Mine ');
-    expect(onSaveStatusChange).toHaveBeenLastCalledWith({ state: 'pending', dirty: true, lastError: null });
+    expect(onSaveStatusChange).toHaveBeenLastCalledWith({ state: 'pending', dirty: true, lastError: null, revisionConflict: false });
 
     const seen = onSaveStatusChange.mock.calls.length;
     autosave.open('other-doc', { body: 'Other.\n', revision: 1 });
@@ -558,10 +558,10 @@ describe('the unsaved state is a status, not one flag (§9)', () => {
     const { instance } = await mountInto('Hello.\n', { onSaveStatusChange });
     instance.revealRange({ from: 0, to: 0 });
     instance.insertAtSelection('Mine ');
-    expect(instance.saveStatus()).toEqual({ state: 'pending', dirty: true, lastError: null });
-    expect(onSaveStatusChange).toHaveBeenLastCalledWith({ state: 'pending', dirty: true, lastError: null });
+    expect(instance.saveStatus()).toEqual({ state: 'pending', dirty: true, lastError: null, revisionConflict: false });
+    expect(onSaveStatusChange).toHaveBeenLastCalledWith({ state: 'pending', dirty: true, lastError: null, revisionConflict: false });
     await instance.setContent('Restored.\n', { historyExcluded: true, discardUnsaved: true });
-    expect(instance.saveStatus()).toEqual({ state: 'clean', dirty: false, lastError: null });
+    expect(instance.saveStatus()).toEqual({ state: 'clean', dirty: false, lastError: null, revisionConflict: false });
   });
 });
 
@@ -627,7 +627,7 @@ describe('a mount does not show a body the store has moved past', () => {
 
     expect(remount.getContent()).toBe('Mine Hello.\n');
     expect(autosave.pendingBodyOf('doc-under-test')).toBe('Mine Hello.\n');
-    expect(remount.saveStatus()).toEqual({ state: 'error', dirty: true, lastError: cause });
+    expect(remount.saveStatus()).toEqual({ state: 'error', dirty: true, lastError: cause, revisionConflict: false });
     remount.destroy();
   });
 

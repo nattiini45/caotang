@@ -24,7 +24,10 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 ## What works today
 
+An unresolved document conflict keeps its recovery guidance even if a later producer, read or write fails. Copy the unsaved text somewhere safe before reloading.
+
 - **Save channels.** The indicator includes findings, tasks and app-settings writes. A failed task or settings save turns it red and names the failed part; try that change again. An unresolved document conflict stays red as Documents; copy unsaved text somewhere safe before reloading. App settings stay outside project backups.
+  Modern keeps this label short so the project title, New and More remain usable. Activate it for the full recovery guidance in Scene info › Progress; the guidance is also available on hover and to screen readers, including on narrow screens.
 
 - **Stopped-tab recovery.** If a tab cannot save, its backup and reload notice stays above other dialogs without losing their input.
 

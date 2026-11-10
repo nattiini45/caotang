@@ -37,9 +37,17 @@ export async function showAutosaveConflict(page: Page, shell: 'classic' | 'moder
     const { ProjectSession } = await import(path) as typeof SessionModule;
     const dispatch = ProjectSession.prototype.dispatch;
     ProjectSession.prototype.dispatch = function (name, params, options) {
-      if (name === 'doc.write') return {
-        ok: false, error: { code: 'revision-conflict', message: 'The test stored newer text.', details: { actualRevision: 9 } },
-      };
+      if (name === 'doc.write') {
+        const { docId } = params as { docId: string };
+        Object.assign(window, { failConflictProducer: async (mode: 'read' | 'flush') => {
+          this.autosave.noteEdit(docId, () => { throw new Error('The later producer failed.'); });
+          if (mode === 'read') this.autosave.pendingBodyOf(docId);
+          else await this.autosave.flush(docId);
+          const status = this.autosave.status(docId);
+          return { revisionConflict: status.revisionConflict, error: (status.lastError as Error).message };
+        } });
+        return { ok: false, error: { code: 'revision-conflict', message: 'The test stored newer text.', details: { actualRevision: 9 } } };
+      }
       return dispatch.call(this, name, params, options);
     };
     Object.assign(window, { releaseAutosaveConflict: () => { ProjectSession.prototype.dispatch = dispatch; } });
@@ -55,9 +63,14 @@ export async function showAutosaveConflict(page: Page, shell: 'classic' | 'moder
   await expect(status).toHaveCSS('border-inline-start-width', '3px');
   const capsule = page.getByTestId('save-state');
   await expect(capsule).toHaveAttribute('data-state', 'failed');
-  await expect(capsule).toHaveText(locale === 'de'
+  const fullInstruction = locale === 'de'
     ? 'Nicht gespeichert: Dokumente. Für ein Dokument ist bereits neuerer Text gespeichert. Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.'
-    : 'Not saved: Documents. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading.');
+    : 'Not saved: Documents. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading.';
+  if (shell === 'modern') {
+    await expect(capsule).toHaveText(locale === 'de' ? 'Nicht gespeichert: Dokumente' : 'Not saved: Documents');
+    await expect(capsule).toHaveAccessibleName(fullInstruction);
+    await expect(capsule).toHaveAttribute('title', fullInstruction);
+  } else await expect(capsule).toHaveText(fullInstruction);
   await expect(capsule.getByRole('button', { name: /Export/ })).toHaveCount(0);
   await expect(page.getByTestId('stale-tab-notice')).toHaveCount(0);
   await expect(surface).toContainText('My newest words are still here.');

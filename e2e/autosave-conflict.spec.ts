@@ -3,6 +3,28 @@ import { showAutosaveConflict } from './autosave-conflict-support.js';
 
 for (const shell of ['classic', 'modern'] as const) {
   for (const locale of ['en', 'de'] as const) {
+    for (const failure of ['read', 'flush'] as const) {
+      test(`${shell}: a later producer ${failure} failure keeps both conflict instructions in ${locale}`, async ({ page }) => {
+        await showAutosaveConflict(page, shell, locale);
+        const footer = page.getByTestId('document-save-state');
+        const recovery = await footer.textContent();
+        const result = await page.evaluate((mode) => (window as unknown as {
+          failConflictProducer(mode: 'read' | 'flush'): Promise<{ revisionConflict: boolean; error: string }>;
+        }).failConflictProducer(mode), failure);
+        expect(result).toEqual({ revisionConflict: true, error: 'The later producer failed.' });
+        await expect(footer).toHaveAttribute('data-state', 'conflict');
+        await expect(footer).toHaveText(recovery!);
+        const capsule = page.getByTestId('save-state');
+        await expect(capsule).toHaveAttribute('data-state', 'failed');
+        const instruction = locale === 'de'
+          ? 'Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.'
+          : 'Copy your unsaved text somewhere safe before reloading.';
+        if (shell === 'modern') await expect(capsule).toHaveAccessibleName(new RegExp(instruction));
+        else await expect(capsule).toContainText(instruction);
+        await expect(page.getByTestId('stale-tab-notice')).toHaveCount(0);
+      });
+    }
+
     test(`${shell}: the document save line distinguishes a conflict in ${locale}`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await showAutosaveConflict(page, shell, locale);

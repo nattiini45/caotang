@@ -38,7 +38,8 @@ import { DocumentModeOutlet } from '../../DocumentModes.js';
 import { GlassPopover } from './glass-popover.js';
 import { Icon } from './icons.js';
 import type { ModernSlotProps } from './slots.js';
-import { useSceneInfoOpener } from './scene-info-store.js';
+import { openSceneInfo, useSceneInfoOpener } from './scene-info-store.js';
+import { SCENE_INFO_ID } from './scene-info-model.js';
 import { useNewMenu } from './new-menu.js';
 import { modernViewOf } from './views.js';
 import type { ModernView } from './layout.js';
@@ -119,7 +120,7 @@ export function useRovingToolbar(ref: RefObject<HTMLElement | null>): void {
 }
 
 export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
-  const { actions, view } = regions;
+  const { actions, view, progress } = regions;
   const toolbar = useRef<HTMLDivElement>(null);
   const more = useRef<HTMLButtonElement>(null);
   const { phase: menu, opening, close, toggle, onClosed } = useMenuPhase();
@@ -165,7 +166,27 @@ export function TopOrnament({ regions }: ModernSlotProps): ReactNode {
           ) : null}
         </button>
         <DocumentModeOutlet />
-        <span className="modern-ornament-state">{regions.saveState}</span>
+        <span className="visually-hidden" role="status">{progress.saveWords.text}</span>
+        {progress.saveWords.summary === undefined ? (
+          <span className="modern-ornament-state" aria-hidden="true">{regions.saveState}</span>
+        ) : (
+            <button
+              type="button"
+              className="modern-ornament-state modern-capsule modern-save-summary save-state is-failed"
+              data-testid="save-state"
+              data-state={progress.saveState}
+              title={progress.saveWords.text}
+              aria-label={progress.saveWords.text.startsWith(progress.saveWords.summary)
+                ? progress.saveWords.text
+                : `${progress.saveWords.summary}. ${progress.saveWords.text}`}
+              aria-haspopup="dialog"
+              aria-expanded={sceneInfo.open}
+              aria-controls={sceneInfo.open ? SCENE_INFO_ID : undefined}
+              onClick={(event) => openSceneInfo({ opener: event.currentTarget, focus: 'progress' })}
+            >
+              <span className="modern-save-label">{progress.saveWords.summary}</span>
+            </button>
+        )}
         {boardZoom ? <ZoomControl zoom={view.zoom} onZoom={view.setZoom} className="modern-zoom" itemClassName="modern-capsule" /> : null}
         {newMenu.button}
         <button

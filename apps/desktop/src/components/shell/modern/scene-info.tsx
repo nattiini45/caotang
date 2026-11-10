@@ -123,6 +123,7 @@ function SceneInfoPanel({
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const progressId = useId();
+  const saveId = useId();
   const projectId = useId();
   // The popover's place, from its opener, kept in the window on a resize (§8.2), written through the CSSOM (§11). Docked, the
   // stylesheet places it.
@@ -179,8 +180,9 @@ function SceneInfoPanel({
   useEffect(() => {
     const element = panel.current;
     if (element === null) return;
-    const field = element.querySelector<HTMLElement>('#inspector-synopsis');
+    const field = element.querySelector<HTMLElement>(focus === 'progress' ? '.scene-info-progress' : '#inspector-synopsis');
     (field ?? element).focus();
+    if (focus === 'progress') field?.scrollIntoView({ block: 'end' });
     // `focus` is read for its change: a route asks for the synopsis, which is the first field too.
   }, [request, focus]);
 
@@ -275,12 +277,12 @@ function SceneInfoPanel({
           )}
           {inspector}
           <SceneFindings regions={regions} />
-          <section className="scene-info-progress" aria-labelledby={progressId} data-testid="scene-info-progress">
+          <section className="scene-info-progress" aria-labelledby={progressId} aria-describedby={saveId} tabIndex={-1} data-testid="scene-info-progress">
             <h3 id={progressId} className="field-label">
               <Trans>Progress</Trans>
             </h3>
             <TargetQuickSet progress={progress.target} onSetTarget={progress.setTarget} />
-            <p className="scene-info-save" role="status" data-testid="scene-info-save-state" data-state={progress.saveState}>
+            <p id={saveId} className="scene-info-save" data-testid="scene-info-save-state" data-state={progress.saveState}>
               {save.text}
               {save.offersBackup ? (
                 <>
