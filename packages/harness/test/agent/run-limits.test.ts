@@ -317,7 +317,7 @@ describe('a time limit aborts a call in flight', () => {
     });
     await client.connect(key);
     const card = client.review(key);
-    if (card !== undefined) client.approveReview(key, card.fingerprint);
+    if (card !== undefined) await client.approveReview(key, card.fingerprint);
 
     const intent = 'Search the lore.';
     const find = steps({ tool: 'tool.search', params: { query: 'search' }, expect: 'the search tool is loaded' });

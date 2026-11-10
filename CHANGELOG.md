@@ -6,6 +6,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Named agent lifecycle.** The header distinguishes loading, approval processing and stopping, while the composer and Stop remain available. The panel publishes the controller state for reliable command readiness, including queued turns and background choices.
+
+- **MCP connection health.** Settings shows **Connecting** while checking a server and **Failed** when it cannot connect, with one translated alert and **Connect** to retry. These states are translated into German and survive closing and reopening Settings without changing saved server settings.
+
 - **Machine transitions in agent traces.** Exported traces now name the turn, tool-card and approval-round state transitions. They stay in the open tab's memory, and older trace readers skip the additive rows. A successful turn publishes its report before Done.
 
 - **Settings-authored allow rules.** You can allow eligible native tool cards to run automatically in Ask. Deny beats ask, and ask beats allow. Project-file and imported rules cannot grant approval; Plan only, read-only access, outside-tool confirmations and safety refusals remain unchanged. Each call approved by a rule is recorded in the run log and Trace with that rule; a failed audit save asks you instead.
@@ -17,6 +21,12 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Fixed
 
 - **Document save conflicts.** A revision conflict now has its own save state instead of looking like a storage failure. The prose, screenplay and Ink save lines warn in English and German that newer text is already stored, keep your words in this tab and direct you to copy the unsaved text somewhere safe before reloading. This warning stays visible during later typing and save attempts while the revision failure is unresolved. Autosave timing and saved project formats are unchanged.
+
+- **Save channels.** Failed task or app-settings writes now turn the save indicator red and name the failed part. An unresolved document conflict stays red as Documents even after an unchanged flush; copy unsaved text somewhere safe before reloading. Findings, tasks and settings share one ordered save queue. Undo returns its own result, so a later undo cannot overwrite its explanation.
+- **MCP settings safety.** Failed saves are reported without publishing an unsaved configuration or losing its token. Imports save disabled servers once, wait for completion and keep refused input for another try.
+- **Findings review progress.** An approved model review stays visible in the workspace when you leave Findings, and its progress returns with the tab. Start cannot launch two reviews at once. Stop keeps partial findings and shows a stopped outcome instead of an error. Settings also names a failed interface load beside its choice, with a retry.
+
+- **Dialog stacking.** A dialog arriving over another keeps its input underneath and returns focus when it closes. The stopped-tab notice always wins. Modern hides background notice capsules while a dialog is open, announces new notices inside it, and keeps new errors over later information until visible, so Skills review has a clean edge without hiding a failure or changing its glass.
 
 - **Export job failures.** A failed file or compile-log write now stays visible in the Export dialog and can be retried without reopening it. MCP exports return the failed job instead of success, and the SDK waits for each export job before reporting a turn's result. Exported files and compile-log rows keep their formats.
 

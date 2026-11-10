@@ -46,7 +46,7 @@ export const BEARER_REF_PREFIX = 'mcp:';
 /** What the MCP app needs from the settings store: the slice as it stands, and a write of the whole slice. */
 export interface McpSettingsPort {
   current(): McpSettings;
-  update(patch: { readonly mcp: McpSettings }): Promise<string | null>;
+  update(patch: { readonly mcp: McpSettings }, options?: { readonly publishAfterSave?: boolean }): Promise<string | null>;
 }
 
 /** The part of the key store the MCP client uses: a token is put, read, checked and removed under its reference. */
@@ -78,6 +78,7 @@ export class McpApp {
   readonly client: McpClient;
   private readonly keys: McpKeyPort;
   private readonly settings: McpSettingsPort;
+  private tokenWrites: Promise<unknown> = Promise.resolve();
 
   constructor(options: McpAppOptions) {
     this.keys = options.keys;
@@ -86,9 +87,7 @@ export class McpApp {
       settings: options.settings.current(),
       ...(options.wire === undefined ? {} : { wire: options.wire }),
       resolveBearer: (ref) => options.keys.reveal(ref),
-      onChange: (mcp) => {
-        void this.settings.update({ mcp });
-      },
+      onChange: (mcp) => this.settings.update({ mcp }, { publishAfterSave: true }),
       // A credential that a change dropped is taken out of the vault: the settings no longer name
       // it, and a token that nothing names is a token that is kept for ever. The removal is
       // awaited, like the removals below it: a vault that cannot be written is then the caller's
@@ -114,9 +113,15 @@ export class McpApp {
   async addServer(input: AddServerInput): Promise<AddServerOutcome> {
     const token = input.token?.trim() ?? '';
     const ref = token === '' ? undefined : `${BEARER_REF_PREFIX}${randomRef()}`;
-    if (ref !== undefined) await this.keys.put(ref, token);
     const auth: McpAuth = ref === undefined ? { kind: 'none' } : { kind: 'bearer', tokenRef: ref };
-    const result = this.client.addServer({ name: input.name, url: input.url, auth });
+    let result;
+    try {
+      if (ref !== undefined) await this.keys.put(ref, token);
+      result = await this.client.addServer({ name: input.name, url: input.url, auth });
+    } catch (error) {
+      if (ref !== undefined) await this.keys.remove(ref);
+      throw error;
+    }
     if (!result.ok) {
       if (ref !== undefined) await this.keys.remove(ref);
       return { ok: false, message: result.error };
@@ -125,15 +130,32 @@ export class McpApp {
   }
 
   /** Replaces a server's bearer token. The reference stays the same; the server must connect again to check the tool list. */
-  async setToken(key: string, token: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  setToken(key: string, token: string): Promise<{ ok: true } | { ok: false; message: string }> {
+    const pending = this.tokenWrites.then(() => this.replaceToken(key, token));
+    this.tokenWrites = pending.catch(() => undefined);
+    return pending;
+  }
+
+  private async replaceToken(key: string, token: string): Promise<{ ok: true } | { ok: false; message: string }> {
     const server = this.client.serverFor(key);
     if (server === undefined) return { ok: false, message: t`no MCP server with key ${{ key }} is configured` };
     const trimmed = token.trim();
     if (trimmed === '') return { ok: false, message: t`the token is empty — enter the token the server gave you` };
     const ref = server.auth.kind === 'bearer' ? server.auth.tokenRef : `${BEARER_REF_PREFIX}${randomRef()}`;
-    await this.keys.put(ref, trimmed);
-    const updated = await this.client.updateServer(key, { auth: { kind: 'bearer', tokenRef: ref } });
-    return updated.ok ? { ok: true } : { ok: false, message: updated.error };
+    const previous = await this.keys.reveal(ref);
+    let message: string;
+    try {
+      await this.keys.put(ref, trimmed);
+      const updated = await this.client.updateServer(key, { auth: { kind: 'bearer', tokenRef: ref } }, { url: server.url, auth: server.auth });
+      if (updated.ok) return { ok: true };
+      message = updated.error;
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    const named = this.client.settings().servers.some((current) => current.auth.kind === 'bearer' && current.auth.tokenRef === ref);
+    if (previous === undefined || !named) await this.keys.remove(ref);
+    else await this.keys.put(ref, previous);
+    return { ok: false, message };
   }
 
   /** Removes a server, its tools and its token. The client hands the token back when the server is gone. */
@@ -152,16 +174,17 @@ export class McpApp {
    * Adds the servers an import names. Each refused entry is kept with its name and reason; the others are added. An import
    * never carries a key, a pin or a trust grant (config.ts), so every server it adds starts unreviewed.
    */
-  importServers(text: string, now: string): ImportOutcome {
+  async importServers(text: string, now: string): Promise<ImportOutcome> {
     const existing = this.client.settings().servers;
     const parsed = parseServerImport(text, { existing, now, newKey: () => '' });
     const added: string[] = [];
     const refused: ImportRefusal[] = [...parsed.refused];
     for (const server of parsed.servers) {
-      const result = this.client.addServer({
+      const result = await this.client.addServer({
         name: server.name,
         url: server.url,
         auth: { kind: 'none' },
+        enabled: server.enabled,
         ...(server.enabledTools === undefined ? {} : { enabledTools: server.enabledTools }),
       });
       if (!result.ok) {
@@ -169,7 +192,6 @@ export class McpApp {
         continue;
       }
       added.push(server.name);
-      if (!server.enabled) void this.client.updateServer(result.value.key, { enabled: false });
     }
     return { added, refused };
   }

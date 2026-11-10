@@ -88,7 +88,7 @@ test('an export compiles through the bus into the open folder, and its undo remo
     expect(textOf(filesIn(tree).get(`${EXPORTS_DIR}/compile-log.json`))).toContain('"format": "md"');
 
     // The compile is one undo group, and its undo is the emitter's removal, in the session and the folder alike.
-    expect(await session.undoLast()).toBe(true);
+    expect(await session.undoLast()).toEqual({ kind: 'done' });
     await session.exportsIdle();
     expect(filesIn(tree).has(output)).toBe(false);
     expect(await session.readExport(output)).toBeNull();

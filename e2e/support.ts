@@ -185,6 +185,10 @@ export async function waitForSaved(page: Page): Promise<void> {
   await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'saved');
 }
 
+export async function waitForShell(page: Page, shell: 'classic' | 'modern'): Promise<void> {
+  await expect(page.getByTestId('shell')).toHaveAttribute('data-state', shell);
+}
+
 /** Read a document's body through the hook. */
 export async function bodyOf(page: Page, docId: string): Promise<string | null> {
   return page.evaluate((id) => {

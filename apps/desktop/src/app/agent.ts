@@ -84,7 +84,6 @@ import {
   withheldAnywhere,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
-  type BudgetMeter,
   type ContextConfig,
   type LanguagePolicy,
   type AgentEvent,
@@ -101,6 +100,7 @@ import {
   type RunLogPort,
   type ToolName,
   type TraceSink,
+  type TraceInput,
   type TurnOptions,
   type TurnReport,
   type SubmitOptions as SessionSubmitOptions,
@@ -126,6 +126,7 @@ import { uiLocale } from '../i18n/format-locale.js';
 import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
 import { commandArguments, expandSkillCommand, projectCommands, type ProjectCommand } from './project-commands.js';
 import { currentEditorCaret } from './editor-selection.js';
+import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent } from './agent-state.js';
 
 /** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
 type HarnessModule = typeof LazyHarness;
@@ -240,6 +241,7 @@ export interface BackgroundOptions {
 }
 
 export interface AgentSnapshot {
+  readonly phase: ReturnType<typeof initialAgentState>['kind'];
   /** Every turn this project has run in this visit, oldest first. */
   readonly turns: readonly TurnView[];
   /** The decision the loop is waiting for, or `null`. */
@@ -325,35 +327,13 @@ export { agentFor } from './agent-registry.js';
 
 export class AgentController {
   private turns: TurnView[] = [];
-  private pending: PendingCard | null = null;
-  private resolveDecision: ((decision: Decision) => void) | null = null;
-  private approving: { waitMessage: string | null } | null = null;
-  /** A turn is running, from its start until the loop has settled it: an approved card runs under it, so it is not clear at the approval. */
-  private busy = false;
-  /** The turn that set the per-turn fields below, so only that turn clears them. */
-  private turnOwner = 0;
+  private state = initialAgentState();
+  private startupTrace: { at: number; from: AgentSnapshot['phase']; event: AgentStateEvent['type']; to: AgentSnapshot['phase'] }[] = [];
+  private endTrace: Extract<TraceInput, { kind: 'turn.end' }> | null = null;
   private turnsStarted = 0;
-  /** The running turn's own abort controller: its signal rides in the turn's options. */
-  private turnAbort: AbortController | null = null;
-  /** The running turn's run limits (agent-harness §7.1): made from Settings when the turn starts, disposed when it settles. */
-  private meter: BudgetMeter | null = null;
-  private runningAgent: AgentSession | null = null;
-  private runningTurnId: string | null = null;
-  private stopping = false;
-  private queue: QueuedMessage[] = [];
-  private queuePaused = false;
   private queueSeq = 0;
-  private pendingNotes: PendingNote[] = [];
-  /** Notes written before the turn's session existed; they are in `pendingNotes` under a provisional id until the turn starts. */
-  private earlyNotes: { readonly noteId: string; readonly text: string }[] = [];
   private announcement = '';
-  /** The runs found interrupted, read from the run log when the panel attaches and after each turn. */
-  private interrupted: InterruptedRunView[] = [];
   private readonly runLog: RunLogPort;
-  private intentForNextTurn: string | null = null;
-  private commandForNextTurn: string | null = null;
-  private providerForNextTurn: string | null = null;
-  private priceForNextTurn: { readonly prompt: number; readonly completion: number } | null = null;
   /**
    * The agent session one open panel keeps across turns (context-assembly §2, L6), one for each task role a turn has run under
    * (`SubmitOptions.role`; the chat conversation is the `chat` one): the loop's
@@ -373,10 +353,6 @@ export class AgentController {
    * no turn running reads what it would resolve to now.
    */
   private readonly limitPins = new Map<TaskRole, LimitPins>();
-  /** The mode a running turn was given in place of the panel's (`SubmitOptions.mode`). */
-  private runMode: PermissionMode | null = null;
-  /** The model-call cap a running turn was given (`SubmitOptions.maxModelCalls`). */
-  private runCalls: number | null = null;
   /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
   private readonly sessionId = newId('cmd').slice('cmd_'.length);
   /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
@@ -402,8 +378,6 @@ export class AgentController {
   private commandNote: CommandNote | null = null;
   private readonly listeners = new Set<() => void>();
   private snapshotValue: AgentSnapshot;
-  /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
-  private detached = false;
   /** Lets go of the sweep's root for the drafts this controller holds (`attach` registers it). */
   private letGoOfRetention: () => void = () => undefined;
   /**
@@ -413,13 +387,57 @@ export class AgentController {
   private runLogUnreadableTold = false;
   /** The number of the latest check of the interrupted runs, so a check that finishes after a newer one has started is dropped. */
   private loadSeq = 0;
-  /** The offer the loop is waiting on, with the way to answer it. */
-  private offer: { view: OfferView; resolve: (answer: OfferAnswer) => void } | null = null;
   private readonly tasks: TaskQueue;
   /** The status each task had when the panel last heard of it, so only a change is announced. */
   private readonly taskStatus = new Map<string, TaskRecord['status']>();
   /** Opening and closing the queue run one after the other, so a panel that attaches twice reads the tasks once at a time. */
   private queueWork: Promise<void> = Promise.resolve();
+
+  private get turn() { return controllerTurn(this.state); }
+  private get busy() { return this.turn !== null; }
+  private get detached() { return this.state.kind === 'detached'; }
+  private get stopping() { return this.state.kind === 'stopping' || (this.state.kind === 'detached' && this.state.from === 'stopping'); }
+  private get pending() { return this.state.kind === 'parked-on-card' ? this.state.decision.pending : null; }
+  private get resolveDecision() { return this.state.kind === 'parked-on-card' ? this.state.decision.resolve : null; }
+  private get approving() { return this.state.kind === 'approving' ? this.state.approval : null; }
+  private get offer() { return this.state.kind === 'parked-on-offer' ? this.state.offer : null; }
+  private get turnAbort() { return this.turn?.owner ?? null; }
+  private get meter() { return this.turn?.meter ?? null; }
+  private get runningAgent() { return this.turn?.agent ?? null; }
+  private get runningTurnId() { return this.turn?.turnId ?? null; }
+  private get runMode() { return this.turn?.mode ?? null; }
+  private get runCalls() { return this.turn?.calls ?? null; }
+  private get intentForNextTurn() { return this.turn?.intent ?? null; }
+  private get commandForNextTurn() { return this.turn?.command ?? null; }
+  private get providerForNextTurn() { return this.turn?.provider ?? null; }
+  private get priceForNextTurn() { return this.turn?.price ?? null; }
+  private get queue() { return this.state.queue.messages; }
+  private get queuePaused() { return this.state.queue.paused; }
+  private get pendingNotes() { return this.state.notes.pending; }
+  private get earlyNotes() { return this.state.notes.early; }
+  private get interrupted() { return this.state.interrupted; }
+
+  private move(event: AgentStateEvent): void {
+    const previous = this.state;
+    this.state = stepAgentState(previous, event);
+    if (this.state === previous) return;
+    const row = { at: this.clock(), from: previous.kind, event: event.type, to: this.state.kind };
+    const turnId = this.runningTurnId ?? controllerTurn(previous)?.turnId ?? null;
+    if (turnId === null) {
+      this.startupTrace = this.busy ? [...this.startupTrace, row] : [];
+      return;
+    }
+    for (const pending of [...this.startupTrace, row]) this.writeTrace({ kind: 'machine', turnId, machine: agentControllerTable.id, ...pending });
+    this.startupTrace = [];
+  }
+
+  private writeTrace(record: TraceInput): void {
+    try {
+      this.traceSink()?.write(record);
+    } catch {
+      return;
+    }
+  }
 
   constructor(
     private readonly session: ProjectSession,
@@ -469,6 +487,7 @@ export class AgentController {
     const active = this.providers.active();
     const drafts = this.draftCheck();
     return {
+      phase: this.state.kind,
       turns: this.turns,
       pending: this.pending,
       busy: this.busy,
@@ -657,9 +676,7 @@ export class AgentController {
   private async runPrompt(command: Extract<ProjectCommand, { kind: 'mcp' }>, args: Record<string, string>): Promise<void> {
     const client = this.session.commandClient();
     if (client === undefined) return;
-    const abort = new AbortController();
-    this.busy = true;
-    this.turnAbort = abort;
+    const abort = this.begin(t`Run the selected connected-server prompt.`, command.name);
     this.commandNote = { kind: 'info', title: t`Reading the connected-server prompt…`, lines: [] };
     this.bump();
     let text: string | undefined;
@@ -670,9 +687,7 @@ export class AgentController {
     } catch (error) {
       this.commandNote = { kind: 'info', title: t`The prompt was not run. Review the server in Settings › MCP, then try again.`, lines: [error instanceof Error ? error.message : String(error)] };
     } finally {
-      this.busy = false;
-      this.stopping = false;
-      this.turnAbort = null;
+      this.move({ type: 'finish', owner: abort, keepEarly: true });
       if (text === undefined) this.afterTurn(null);
       this.bump();
     }
@@ -907,6 +922,12 @@ export class AgentController {
     return this.turnWith(fix.intent, {}, (agent, turn) => agent.submitPlan(fix.intent, fix.plan, turn));
   }
 
+  private begin(intent: string, command: string | null): AbortController {
+    const owner = new AbortController();
+    this.move({ type: 'begin', turn: { owner, agent: null, turnId: null, meter: null, mode: null, calls: null, intent, command, provider: null, price: null } });
+    return owner;
+  }
+
   /** Runs one turn on the active provider (or the demo's), with `start` as the turn's entry point. One turn runs at a time. */
   private async turnWith(
     intent: string,
@@ -916,11 +937,8 @@ export class AgentController {
     if (this.busy) return null;
     this.message = null;
     this.announcement = '';
-    this.busy = true;
     this.turnsStarted += 1;
-    const owner = this.turnsStarted;
-    const abort = new AbortController();
-    this.turnAbort = abort;
+    const abort = this.begin(intent, options.command ?? null);
     this.bump();
     let report: TurnReport | null = null;
     let pinnedRole: TaskRole | null = null;
@@ -939,11 +957,7 @@ export class AgentController {
       }
       // The dialogue tools compile Ink synchronously, so the compiler is loaded before the turn plans (ink-compiler.ts).
       await requestInkCompilerFor(this.session.state);
-      this.turnOwner = owner;
-      this.intentForNextTurn = intent;
-      this.commandForNextTurn = options.command ?? null;
-      this.providerForNextTurn = profile.name;
-      this.priceForNextTurn = profile.pricePer1k ?? null;
+      this.move({ type: 'turn', owner: abort, patch: { provider: profile.name, price: profile.pricePer1k ?? null } });
       // One agent session per controller keeps `started` RecentTurn list across turns (context-assembly §2, L6).
       // The turn carries its own pins, so a provider switch between turns keeps the session; the per-turn state
       // (call cache, plan cache, undo group, loaded tools) is cleared by `harness.endTurn` after every
@@ -958,10 +972,11 @@ export class AgentController {
       pinnedRole = role;
       // A session is kept for each role, so a turn under another role never carries the chat conversation or stamps its requests as chat.
       const agent = this.sessionFor(role, loop);
-      this.runningAgent = agent;
-      this.runMode = options.mode ?? null;
-      this.runCalls = options.maxModelCalls ?? null;
-      this.meter = loop.createBudgetMeter(this.runLimits(), options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
+      const turn = this.turn;
+      if (turn?.owner !== abort) return null;
+      this.move({ type: 'ready', turn: { ...turn, agent, mode: options.mode ?? null, calls: options.maxModelCalls ?? null,
+        meter: loop.createBudgetMeter(this.runLimits(), options.restoredSpend === undefined ? {} : { restored: options.restoredSpend }) } });
+      this.bump();
       report = await start(
         agent,
         {
@@ -981,31 +996,16 @@ export class AgentController {
     } finally {
       // The turn has settled, so the next one may start. Only the turn that set the per-turn fields clears them.
       const resolve = this.resolveDecision;
-      this.resolveDecision = null;
-      this.pending = null;
-      this.retireApproval(this.approving);
+      this.retireApproval(this.approving?.token ?? null);
       this.dropOffer();
       this.clearGhosts();
-      resolve?.({ action: 'cancel' });
-      this.busy = false;
-      this.stopping = false;
-      this.turnAbort = null;
       this.meter?.dispose();
-      this.meter = null;
+      this.move({ type: 'finish', owner: abort });
+      if (this.endTrace !== null) this.writeTrace({ ...this.endTrace, at: this.clock() });
+      this.endTrace = null;
+      resolve?.({ action: 'cancel' });
       // Between turns a role's prompts read what it would resolve to now, so a preview follows a change in Settings › Providers.
       if (pinnedRole !== null) this.limitPins.delete(pinnedRole);
-      this.runningAgent = null;
-      this.runMode = null;
-      this.runCalls = null;
-      this.runningTurnId = null;
-      this.earlyNotes = [];
-      if (this.turnOwner === owner) {
-        this.turnOwner = 0;
-        this.intentForNextTurn = null;
-        this.commandForNextTurn = null;
-        this.providerForNextTurn = null;
-        this.priceForNextTurn = null;
-      }
       // The findings a turn's coherence tools wrote are saved with the turn, since no bus command reports them (coherence.md §3).
       this.session.coherenceChanged();
       // Usage and the request log are kept after every turn, so a closed tab loses at most the turn in flight.
@@ -1027,11 +1027,11 @@ export class AgentController {
       const undelivered = this.pendingNotes.map(
         (note): QueuedMessage => ({ id: this.nextQueueId(), intent: note.text, options: {}, fromUndeliveredNote: true }),
       );
-      this.queue = [...undelivered, ...this.queue];
-      this.pendingNotes = [];
+      this.move({ type: 'queue', messages: [...undelivered, ...this.queue] });
+      this.move({ type: 'notes', pending: [] });
     }
     // A turn that stopped on a question, or never ran, holds the queue; a turn that went through (the answer to that question, say) lets it go.
-    this.queuePaused = (report === null || (report.status === 'failed' && report.askBack !== undefined)) && this.queue.length > 0;
+    this.move({ type: 'queue', paused: (report === null || (report.status === 'failed' && report.askBack !== undefined)) && this.queue.length > 0 });
     if (stopped) {
       this.announcement =
         this.queue.length > 0 && !this.queuePaused
@@ -1103,7 +1103,7 @@ export class AgentController {
     }
     if (superseded()) return;
     const same = JSON.stringify(views) === JSON.stringify(this.interrupted);
-    this.interrupted = views;
+    this.move({ type: 'interrupted', runs: views });
     if (!same) this.bump();
   }
 
@@ -1178,13 +1178,13 @@ export class AgentController {
    */
   stop(): void {
     if (this.turnAbort === null || this.stopping) return;
-    this.stopping = true;
     this.announcement = t`Stopping the turn.`;
-    this.turnAbort.abort();
+    const abort = this.turnAbort;
     const resolve = this.resolveDecision;
-    this.resolveDecision = null;
-    this.pending = null;
+    this.retireApproval(this.approving?.token ?? null);
     this.dropOffer();
+    this.move({ type: 'stop' });
+    abort.abort();
     this.clearGhosts();
     resolve?.({ action: 'cancel' });
     this.bump();
@@ -1210,8 +1210,7 @@ export class AgentController {
    */
   private holdNote(note: string): SteerResult {
     const held = { noteId: `early-${this.nextQueueId()}`, text: note };
-    this.earlyNotes = [...this.earlyNotes, held];
-    this.pendingNotes = [...this.pendingNotes, { ...held, lands: 'next-model-call' }];
+    this.move({ type: 'notes', early: [...this.earlyNotes, held], pending: [...this.pendingNotes, { ...held, lands: 'next-model-call' }] });
     this.announcement = t`Note sent. The agent reads it at its next step.`;
     this.bump();
     return 'sent';
@@ -1232,7 +1231,7 @@ export class AgentController {
       this.bump();
       return 'refused';
     }
-    this.pendingNotes = [...this.pendingNotes, { noteId: receipt.value.noteId, text: note, lands: receipt.value.lands }];
+    this.move({ type: 'notes', pending: [...this.pendingNotes, { noteId: receipt.value.noteId, text: note, lands: receipt.value.lands }] });
     this.announcement = t`Note sent. The agent reads it at its next step.`;
     this.bump();
     return 'sent';
@@ -1242,7 +1241,7 @@ export class AgentController {
   enqueue(intent: string, options: SubmitOptions = {}): void {
     const text = intent.trim();
     if (text === '') return;
-    this.queue = [...this.queue, { id: this.nextQueueId(), intent: text, options }];
+    this.move({ type: 'queue', messages: [...this.queue, { id: this.nextQueueId(), intent: text, options }] });
     const waiting = this.queue.length;
     this.announcement = this.busy
       ? t`Queued. ${{ count: waiting }} ${plural(waiting, { one: 'message', other: 'messages' })} waiting.`
@@ -1254,7 +1253,7 @@ export class AgentController {
   editQueued(id: string, intent: string): void {
     const text = intent.trim();
     if (text === '') return;
-    this.queue = this.queue.map((entry) => (entry.id === id ? { ...entry, intent: text } : entry));
+    this.move({ type: 'queue', messages: this.queue.map((entry) => (entry.id === id ? { ...entry, intent: text } : entry)) });
     this.bump();
   }
 
@@ -1265,13 +1264,12 @@ export class AgentController {
     const entry = this.queue[from] as QueuedMessage;
     const rest = this.queue.filter((candidate) => candidate.id !== id);
     const at = Math.max(0, Math.min(rest.length, to));
-    this.queue = [...rest.slice(0, at), entry, ...rest.slice(at)];
+    this.move({ type: 'queue', messages: [...rest.slice(0, at), entry, ...rest.slice(at)] });
     this.bump();
   }
 
   removeQueued(id: string): void {
-    this.queue = this.queue.filter((entry) => entry.id !== id);
-    if (this.queue.length === 0) this.queuePaused = false;
+    this.move({ type: 'queue', messages: this.queue.filter((entry) => entry.id !== id) });
     this.bump();
   }
 
@@ -1286,7 +1284,7 @@ export class AgentController {
 
   /** Resumes a paused queue. */
   runQueue(): void {
-    this.queuePaused = false;
+    this.move({ type: 'queue', paused: false });
     this.announcement = '';
     this.bump();
     if (!this.busy) queueMicrotask(() => void this.runNext());
@@ -1297,7 +1295,7 @@ export class AgentController {
     if (this.busy || this.queuePaused || this.detached) return;
     const next = this.queue[0];
     if (next === undefined) return;
-    this.queue = this.queue.slice(1);
+    this.move({ type: 'queue', messages: this.queue.slice(1) });
     this.bump();
     await this.submit(next.intent, next.options);
   }
@@ -1305,14 +1303,13 @@ export class AgentController {
   /** The loop's decision request. The card is parked here until the panel or the ghost answers it. */
   private decide(pending: PendingCard): Promise<Decision> {
     return new Promise<Decision>((resolve) => {
-      if (this.detached) {
+      if (!this.busy || this.detached || this.stopping) {
         resolve({ action: 'cancel' });
         return;
       }
       // A card that arrives while an older one still waits settles the older one first, so no decision is left parked.
       this.resolveDecision?.({ action: 'cancel' });
-      this.pending = pending;
-      this.resolveDecision = resolve;
+      this.move({ type: 'card', decision: { pending, resolve } });
       this.bump();
     });
   }
@@ -1328,7 +1325,7 @@ export class AgentController {
       this.message = this.approving
         ? t`This approval is already saving your typing. Wait for it to finish.`
         : t`That card is no longer waiting for a decision, so nothing was sent.`;
-      if (this.approving !== null) this.approving.waitMessage = this.message;
+      if (this.approving !== null) this.move({ type: 'approval-notice', token: this.approving.token, message: this.message });
       this.bump();
       return;
     }
@@ -1344,10 +1341,8 @@ export class AgentController {
     const parked = this.pending;
     const card = parked?.card ?? null;
     const abort = this.turnAbort;
-    const approval: { waitMessage: string | null } | null = decision.action === 'approve' ? { waitMessage: null } : null;
-    this.approving = approval;
-    this.resolveDecision = null;
-    this.pending = null;
+    const approval = decision.action === 'approve' ? {} : null;
+    this.move({ type: 'answer', ...(approval === null ? {} : { approval }) });
     // An approval keeps the drafts on screen until the typing is saved, so a card that has to wait again still has them.
     if (decision.action !== 'edit' && decision.action !== 'approve') this.clearGhosts();
     this.message = null;
@@ -1365,9 +1360,8 @@ export class AgentController {
         if (!saved) {
           // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
           this.message = t`Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.`;
-          if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
-            this.pending = parked;
-            this.resolveDecision = resolve;
+          if (parked !== null && approval !== null && this.approving?.token === approval) {
+            this.move({ type: 'repark', token: approval });
           } else {
             resolve({ action: 'cancel' });
           }
@@ -1395,9 +1389,8 @@ export class AgentController {
             this.message = abort?.signal.aborted
               ? t`The project’s images could not be listed again (${reason}). The turn was stopped, so nothing was exported.`
               : t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
-            if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
-              this.pending = parked;
-              this.resolveDecision = resolve;
+            if (parked !== null && approval !== null && this.approving?.token === approval) {
+              this.move({ type: 'repark', token: approval });
             } else {
               resolve({ action: 'cancel' });
             }
@@ -1419,9 +1412,10 @@ export class AgentController {
     resolve(decision);
   }
 
-  private retireApproval(approval: { readonly waitMessage: string | null } | null): boolean {
-    if (approval === null || this.approving !== approval) return false;
-    this.approving = null;
+  private retireApproval(token: object | null): boolean {
+    const approval = this.approving;
+    if (token === null || approval?.token !== token) return false;
+    this.move({ type: 'approval-finished', token });
     if (approval.waitMessage === null || this.message !== approval.waitMessage) return false;
     this.message = null;
     return true;
@@ -1600,24 +1594,24 @@ export class AgentController {
   /** Gives the turn the notes written while its session was loading, in order, and swaps each provisional id for the turn's own. */
   private handEarlyNotes(turnId: string): void {
     const early = this.earlyNotes;
-    this.earlyNotes = [];
+    this.move({ type: 'notes', early: [] });
     if (early.length === 0 || this.runningAgent === null) return;
     for (const held of early) {
       const receipt = this.runningAgent.steer(turnId, held.text);
       // A refused note stays waiting under its provisional id, so it still becomes a queued message when the turn ends.
       if (!receipt.ok) continue;
-      this.pendingNotes = this.pendingNotes.map((note) => (note.noteId === held.noteId ? { ...note, noteId: receipt.value.noteId, lands: receipt.value.lands } : note));
+      this.move({ type: 'notes', pending: this.pendingNotes.map((note) => (note.noteId === held.noteId ? { ...note, noteId: receipt.value.noteId, lands: receipt.value.lands } : note)) });
     }
   }
 
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
-      this.runningTurnId = event.turnId;
+      if (this.turnAbort !== null) this.move({ type: 'turn', owner: this.turnAbort, patch: { turnId: event.turnId } });
       this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn, this.commandForNextTurn)];
       this.handEarlyNotes(event.turnId);
     }
     // A note has reached the model: it is no longer waiting.
-    if (event.type === 'steer') this.pendingNotes = this.pendingNotes.filter((note) => note.noteId !== event.note.noteId);
+    if (event.type === 'steer') this.move({ type: 'notes', pending: this.pendingNotes.filter((note) => note.noteId !== event.note.noteId) });
     // A card is shown again after every edit and redraft, and each showing brings its own drafts, which follow its steps.
     if (event.type === 'plan') this.clearGhosts();
     const tree = this.session.state.manifest.tree;
@@ -1759,12 +1753,12 @@ export class AgentController {
   /** The loop's offer. It is parked here until the panel answers it, or the turn is stopped. */
   private askOffer(offer: PlanOffer): Promise<OfferAnswer> {
     return new Promise<OfferAnswer>((resolve) => {
-      if (this.detached) {
+      if (!this.busy || this.detached || this.stopping) {
         resolve('cancel');
         return;
       }
       this.dropOffer();
-      this.offer = { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve };
+      this.move({ type: 'offer', offer: { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve } });
       const calls = offer.estimatedCalls;
       this.announcement = t`This plan needs ${{ calls }} ${plural(calls, { one: 'model call', other: 'model calls' })}. Choose how it runs.`;
       this.bump();
@@ -1774,7 +1768,7 @@ export class AgentController {
   /** Cancels an offer that waits, so no answer is left parked. */
   private dropOffer(): void {
     const held = this.offer;
-    this.offer = null;
+    this.move({ type: 'offer-answered' });
     held?.resolve('cancel');
   }
 
@@ -1790,12 +1784,12 @@ export class AgentController {
       const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps);
       if (this.offer !== held) return;
       if (!queued.ok) {
-        this.offer = { ...held, view: { ...held.view, error: queued.reason } };
+        this.move({ type: 'offer-error', held, error: queued.reason });
         this.bump();
         return;
       }
     }
-    this.offer = null;
+    this.move({ type: 'offer-answered' });
     this.bump();
     held.resolve(choice);
   }
@@ -1923,7 +1917,18 @@ export class AgentController {
       role,
       sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
       clock: this.clock,
-      trace: this.traceSink,
+      trace: () => {
+        const sink = this.traceSink();
+        return sink === undefined ? undefined : { write: (record) => {
+          if (record.kind === 'turn.end') this.endTrace = record;
+          else if (record.kind === 'turn.start') {
+            this.writeTrace({ ...record, at: this.startupTrace[0]?.at ?? record.at });
+            for (const pending of this.startupTrace) this.writeTrace({ kind: 'machine', turnId: record.turnId, machine: agentControllerTable.id, ...pending });
+            this.startupTrace = [];
+          }
+          else this.writeTrace(record);
+        } };
+      },
       loadEveryTool: this.loadEveryTool,
       beforeStage: (offer) => this.askOffer(offer),
       mode: () => this.mode(),
@@ -2039,13 +2044,12 @@ export class AgentController {
 
   /** Ends the controller. A decision still waiting is cancelled, so the turn ends and nothing is left parked. */
   detach(): void {
-    this.detached = true;
     this.letGoOfRetention();
     this.letGoOfRetention = () => undefined;
     const resolve = this.resolveDecision;
-    this.resolveDecision = null;
-    this.pending = null;
+    this.retireApproval(this.approving?.token ?? null);
     this.dropOffer();
+    this.move({ type: 'detach' });
     this.clearGhosts();
     resolve?.({ action: 'cancel' });
     // The queue stops with the panel: a task in flight is interrupted and can be resumed when the project is open again.
@@ -2058,7 +2062,7 @@ export class AgentController {
    * detached and attached again before the first screen is drawn; a detach is therefore not the end of the controller.
    */
   attach(): void {
-    this.detached = false;
+    this.move({ type: 'attach' });
     this.letGoOfRetention();
     this.letGoOfRetention = this.session.addRetentionRoot(
       valueRetentionRoot(t`the agent’s drafts`, () => {

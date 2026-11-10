@@ -1086,7 +1086,7 @@ describe('a hook whose matcher names no tool, on an external write', () => {
       const client = createMcpClient({ settings: { enabled: true, servers: [server] }, wire: createMockWireFactory({ [KEY]: script }), probe: async () => false, now: () => ADDED, listTimeoutMs: 2_000, callTimeoutMs: 2_000 });
       await client.connect(KEY);
       const card = client.review(KEY);
-      if (card !== undefined) client.approveReview(KEY, card.fingerprint);
+      if (card !== undefined) await client.approveReview(KEY, card.fingerprint);
       return client;
     }
 

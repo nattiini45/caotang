@@ -116,7 +116,7 @@ describe('validate: the refusals, in the order they are checked', () => {
     if (fresh.ok) throw new Error('expected a refusal');
     expect(fresh.error).toMatchObject({ code: 'permission-denied', message: templateUnreviewedText('Story Bible', PAGE.uriTemplate) });
 
-    expect(opened.client.approveReview(STORY_KEY, opened.client.review(STORY_KEY)?.fingerprint ?? '').ok).toBe(true);
+    expect((await opened.client.approveReview(STORY_KEY, opened.client.review(STORY_KEY)?.fingerprint ?? '')).ok).toBe(true);
     expect(prepareReadResource({ client: opened.client }, { ...PICK, uri: 'wiki://bible/x', viaTemplate: PAGE.uriTemplate }).ok).toBe(true);
 
     const story = scripts[STORY_KEY];
@@ -242,7 +242,7 @@ describe('apply: what comes back, and what is refused', () => {
     const outcome = await applyMcpReadResource(depsOf(client), params, capture().context);
     if (outcome.ok) throw new Error('expected a refusal');
     expect(outcome.error.message).toBe(unreachableText('Story Bible'));
-    expect(client.healthOf(STORY_KEY)?.state).toBe('configured');
+    expect(client.healthOf(STORY_KEY)).toMatchObject({ state: 'failed', reason: 'network' });
   });
 
   it('checks again after listing again: a template that changed after the writer clicked is refused, and nothing is read', async () => {

@@ -103,9 +103,19 @@ export async function runCoherenceReview(input: {
   readonly now?: Date;
   /** The findings file as it stands now. The run is written into it when the model has answered, so a scan made meanwhile is kept. */
   readonly currentFile?: () => CoherenceFile;
+  readonly onProgress?: (completedCalls: number) => void;
 }): Promise<ReviewRunResult> {
+  let completedCalls = 0;
+  const model: CoherenceModel = {
+    model: input.model.model,
+    complete: async (request) => {
+      const reply = await input.model.complete(request);
+      input.onProgress?.(++completedCalls);
+      return reply;
+    },
+  };
   return runReview(input.state, input.file, input.plan, {
-    model: input.model,
+    model,
     approved: true,
     now: input.now ?? new Date(),
     context: reviewContextOf(input.state),

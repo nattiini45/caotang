@@ -20,6 +20,7 @@ import type { McpApp } from '../app/mcp.js';
 import { mcpServerView, reviewHeading, reviewSummary, stateLabel, toolStatusLabel } from '../app/mcp-model.js';
 import { CatalogReview, CatalogRows } from './McpCatalog.js';
 import { useComposingEnter } from './shared.js';
+import './mcp.css';
 
 
 /* lingui-set comment="MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number." */
@@ -27,6 +28,8 @@ export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
   useLingui();
   const [, refresh] = useReducer((count: number) => count + 1, 0);
   const client = mcp.client;
+  const [message, setMessage] = useState<{ text: string; tone: 'error' } | null>(null);
+  const [masterTarget, setMasterTarget] = useState<boolean | null>(null);
   useEffect(() => {
     const stopHealth = client.onHealthChange(() => refresh());
     const stopTools = client.onToolListChanged(() => refresh());
@@ -52,11 +55,16 @@ export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
           <input
             type="checkbox"
             role="switch"
-            aria-checked={settings.enabled}
-            checked={settings.enabled}
+            aria-checked={masterTarget ?? settings.enabled}
+            checked={masterTarget ?? settings.enabled}
             data-testid="mcp-master"
+            disabled={masterTarget !== null}
             onChange={(event) => {
-              void client.setMasterEnabled(event.target.checked).then(() => refresh());
+              setMasterTarget(event.target.checked);
+              setMessage(null);
+              void client.setMasterEnabled(event.target.checked)
+                .catch((error: unknown) => setMessage({ text: error instanceof Error ? error.message : String(error), tone: 'error' }))
+                .finally(() => { setMasterTarget(null); refresh(); });
             }}
           />
           <span><Trans>Use external tool servers</Trans></span>
@@ -67,6 +75,7 @@ export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
             : t`Off. No server is contacted, and no external tool is offered to the agent.`}
         </p>
       </div>
+      <FormMessage message={message} />
 
       <ol className="mcp-servers" aria-label={t`MCP servers`}>
         {servers.length === 0 ? <li className="field-note"><Trans>No servers yet. Add one below, or import a list.</Trans></li> : null}
@@ -99,10 +108,13 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
   const health: McpServerHealth = client.healthOf(server.key) ?? { key: server.key, state: 'configured' };
   const view = mcpServerView(server, health, client.review(server.key));
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [actionBusy, setBusy] = useState(false);
+  const busy = actionBusy || health.state === 'connecting';
+  const [trustTarget, setTrustTarget] = useState<boolean | null>(null);
 
   const run = async (action: () => Promise<unknown> | unknown, done?: string): Promise<void> => {
     setBusy(true);
+    setMessage(null);
     try {
       setMessage(outcomeMessage(await action(), done));
     } catch (error) {
@@ -117,7 +129,7 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
   };
 
   return (
-    <li className="mcp-server" data-server={server.name} data-state={health.state}>
+    <li className="mcp-server" data-server={server.name} data-state={health.state} data-reason={health.state === 'failed' ? health.reason : undefined} aria-busy={health.state === 'connecting'}>
       <header className="mcp-server-head">
         <div>
           <h4 className="mcp-server-name">{server.name}</h4>
@@ -130,13 +142,21 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
           {stateLabel(health.state)}
         </span>
       </header>
-      <p className="mcp-detail" role="status" data-testid="mcp-detail">
-        {view.detail}
-      </p>
+      {health.state === 'failed' ? (
+        <FormMessage message={{ text: view.detail, tone: 'error' }} />
+      ) : (
+        <p className="mcp-detail" role="status" data-testid="mcp-detail">{view.detail}</p>
+      )}
+      {view.failureDetail === undefined ? null : (
+        <details className="field-note">
+          <summary><Trans>Server details</Trans></summary>
+          <p className="mcp-description">{view.failureDetail}</p>
+        </details>
+      )}
       <AuthLine mcp={mcp} server={server} />
 
       <div className="mcp-actions">
-        {health.state === 'configured' ? (
+        {health.state === 'configured' || health.state === 'failed' || health.state === 'connecting' ? (
           <>
             <button type="button" className="button is-primary" disabled={busy || !server.enabled} onClick={() => void run(() => mcp.connect(server.key), 'Connected.')}>
               <Trans>Connect</Trans>
@@ -173,9 +193,13 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
         <input
           type="checkbox"
           aria-label={accessibleText(t`Trusted for reads: ${{ name: isolate(server.name) }}`)}
-          checked={server.trustReads}
+          checked={trustTarget ?? server.trustReads}
           disabled={!view.trustAvailable || busy}
-          onChange={(event) => void run(() => client.setTrustReads(server.key, event.target.checked))}
+          onChange={(event) => {
+            const checked = event.target.checked;
+            setTrustTarget(checked);
+            void run(() => client.setTrustReads(server.key, checked)).finally(() => setTrustTarget(null));
+          }}
         />
         <span>
           {view.trustAvailable
@@ -194,7 +218,7 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
         showLists={view.review === undefined}
       />
 
-      <FormMessage message={message} />
+      {health.state === 'failed' ? null : <FormMessage message={message} />}
     </li>
   );
 }
@@ -212,10 +236,13 @@ function ReviewPanel({
 }): ReactNode {
   useLingui();
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
-  const approve = (): void => {
-    const outcome = mcp.client.approveReview(server.key, review.fingerprint);
+  const [busy, setBusy] = useState(false);
+  const approve = async (): Promise<void> => {
+    setBusy(true);
+    const outcome = await mcp.client.approveReview(server.key, review.fingerprint);
     if (outcome.ok) setMessage({ text: reviewHeading(review).approved, tone: 'info' });
     else setMessage({ text: outcome.error, tone: 'error' });
+    setBusy(false);
     onChanged();
   };
   return (
@@ -226,7 +253,7 @@ function ReviewPanel({
         {review.tools.map((tool) => (
           <li key={tool.qualifiedName} data-tool-review={tool.toolName}>
             <p>
-              <code>{tool.toolName}</code> <span className={`mcp-pin is-${tool.status}`}>{toolStatusLabel(tool.status)}</span>
+              <code>{tool.toolName}</code> <span className={`mcp-pin is-${tool.status}`}>{toolStatusLabel(tool.status, true)}</span>
             </p>
             <pre className="mcp-description" aria-label={accessibleText(t`Full description of ${{ name: isolate(tool.toolName) }}`)}>
               {tool.description === '' ? t`(no description from the server)` : tool.description}
@@ -240,7 +267,7 @@ function ReviewPanel({
         </p>
       ) : null}
       <CatalogReview review={review} />
-      <button type="button" className="button is-primary" onClick={approve}>
+      <button type="button" className="button is-primary" disabled={busy} onClick={() => void approve()}>
         {reviewHeading(review).approve}
       </button>
       <FormMessage message={message} />
@@ -283,6 +310,8 @@ function ToolRow({
   onChanged: () => void;
 }): ReactNode {
   useLingui();
+  const [message, setMessage] = useState<{ text: string; tone: 'error' } | null>(null);
+  const [target, setTarget] = useState<boolean | null>(null);
   return (
     <tr data-tool={tool.toolName}>
       <td>
@@ -298,12 +327,18 @@ function ToolRow({
         <input
           type="checkbox"
           aria-label={accessibleText(t`Enable ${{ name: isolate(tool.toolName) }}`)}
-          checked={tool.enabled}
+          checked={target ?? tool.enabled}
+          disabled={target !== null}
           onChange={(event) => {
-            mcp.client.setToolEnabled(server.key, tool.toolName, event.target.checked);
-            onChanged();
+            setTarget(event.target.checked);
+            void mcp.client.setToolEnabled(server.key, tool.toolName, event.target.checked).then((outcome) => {
+              setMessage(outcome.ok ? null : { text: outcome.error, tone: 'error' });
+              setTarget(null);
+              onChanged();
+            });
           }}
         />
+        <FormMessage message={message} />
       </td>
     </tr>
   );
@@ -351,7 +386,7 @@ function AuthLine({ mcp, server }: { mcp: McpApp; server: McpServerConfig }): Re
               setMessage({ text: outcome.message, tone: 'error' });
             }
             refresh();
-          });
+          }).catch((error: unknown) => setMessage({ text: error instanceof Error ? error.message : String(error), tone: 'error' }));
         }}
       >
         <label>
@@ -392,7 +427,7 @@ function AddServerForm({ mcp, onAdded }: { mcp: McpApp; onAdded: () => void }): 
         setUrl('');
         setToken('');
         onAdded();
-      });
+      }).catch((error: unknown) => setMessage({ text: error instanceof Error ? error.message : String(error), tone: 'error' }));
   };
 
   return (
@@ -432,6 +467,7 @@ function ImportExport({ mcp, onChanged }: { mcp: McpApp; onChanged: () => void }
   const [text, setText] = useState('');
   const [shown, setShown] = useState<string | null>(null);
   const [result, setResult] = useState<{ added: readonly string[]; refused: readonly { entry: string; reason: string }[] } | null>(null);
+  const [busy, setBusy] = useState(false);
   return (
     <section className="mcp-io" aria-label={t`Server list as JSON`}>
       <h4><Trans>Server list as JSON</Trans></h4>
@@ -444,10 +480,14 @@ function ImportExport({ mcp, onChanged }: { mcp: McpApp; onChanged: () => void }
         <button
           type="button"
           className="button"
+          disabled={busy}
           onClick={() => {
-            setResult(mcp.importServers(text, new Date().toISOString()));
-            setText('');
-            onChanged();
+            setBusy(true);
+            void mcp.importServers(text, new Date().toISOString()).then((outcome) => {
+              setResult(outcome);
+              if (outcome.refused.length === 0) setText('');
+              onChanged();
+            }).finally(() => setBusy(false));
           }}
         >
           <Trans>Import</Trans>
@@ -496,10 +536,11 @@ function isHealth(outcome: unknown): outcome is McpServerHealth {
 
 /**
  * What a card says after an action. A refused action says why. A connection that did not come up is a failure as well: its
- * health is `configured` with the reason, and the card shows that reason, never "Connected." (extensibility §3.2).
+ * health is `failed` with the reason, and the card shows that reason, never "Connected." (extensibility §3.2).
  */
 function outcomeMessage(outcome: unknown, done: string | undefined): { text: string; tone: 'info' | 'error' } | null {
   if (isFailure(outcome)) return { text: outcome.error, tone: 'error' };
+  if (isHealth(outcome) && outcome.state === 'failed') return null;
   if (isHealth(outcome) && outcome.state === 'configured') return { text: outcome.detail ?? t`The server is not connected.`, tone: 'error' };
   return done === undefined ? null : { text: done, tone: 'info' };
 }

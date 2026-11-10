@@ -883,6 +883,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/pictures':
         specifier: workspace:*
         version: link:../pictures

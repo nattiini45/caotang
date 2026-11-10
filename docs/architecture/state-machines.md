@@ -1,5 +1,15 @@
 # State machines
 
+## Save channels
+
+`save.channel` is the shared serialized queue for findings, tasks and app settings (`apps/desktop/src/app/save-channel.ts`). Its stable snapshot is `idle`, `writing` with a pending count and the last refusal, or `failed` with the refusal. Enqueue is synchronous; settlement records the write's refusal or clears it on success. Unexpected rejected writes become a refusal without poisoning later queued work. All transitions notify save subscribers; `settled()` awaits the writes already queued. No channel state is persisted.
+
+The session joins the channels with project persistence and pending editor text, using conflict > failed > saving > saved. Failure stays visible while a retry runs. It publishes failed channel names separately for localized wording in both shells. Settings enter through the session defaults and unsubscribe when the session closes; value subscribers still see durable-only preferences only after commit. The owning contracts are [ui-modules.md §§5.1, 5.3](ui-modules.md#53-browser-storage-persistence) and [extensibility.md §8](extensibility.md).
+
+Undo returns its own `done|empty|failed` outcome, with the failure message attached, rather than leaving a mutable last-error string for a later reader. Restore consumes the same result internally; undo journals and project records are unchanged.
+
+A document's retained `RevisionConflictError` makes the Documents source failed even while a newer edit is pending or an unchanged-body flush has made it clean. This reads `lastError`, not the lifecycle or dirty flag, and clears only when autosave clears that error. Both shells name Documents and direct the writer to copy unsaved text somewhere safe before reloading; they offer no bundle backup for this failure because a bundle may omit conflict-held text. This does not stop the tab or change the autosave scheduler.
+
 Lifecycle contracts use `@caotang/machine`, a dependency-free leaf package. A machine has a `kind`-keyed state union, a `type`-keyed event union, a pure step and a transition table exported as data. The table is the shared vocabulary for code, tests, documentation and agents, not an actor runtime. The kit owns no clock, timer, storage, effects or subscriptions.
 
 ## Contract and API
@@ -68,6 +78,16 @@ The generated table is not a second specification to edit. Add the machine's eve
 Owner: `packages/store/src/runtime/autosave-machine.ts`; contracts: [project-format.md §4](project-format.md#4-write-path-atomicity--crash-safety) and [editor-engine.md §9](editor-engine.md#9-autosave-revisions--word-counts). `stepAutosave(slot, event)` returns the next slot and effects; `autosaveMachine` exposes the same step's state projection for exhaustive checks. `open` seeds a quiet slot; `edit` replaces pending text and rearms its window; production events cache a producer's answer without executing it in the reducer. `take` either recognizes unchanged text or starts one guarded write. `written` takes the store's revision and drains a newer edit only after that edit's window expired. `write-failed` retains the newest body and distinguishes a revision `conflict` from an ordinary `error`; it arms no retry. `producer-failed` arms one retry, then stands as an error. `reset-budget` is an explicit flush's new opportunity to read a producer. `reseat` and `reseated` surround the wait for an active write, discard obsolete typing and never move the revision backwards. Window events only describe scheduling; the async owner keeps the actual timer and promise handles.
 
 The five status kinds are reusable, not final: edits, explicit flushes and reseats remain possible. `status()` and `subscribe()` are the typed inspection API, and the editor save lines publish `data-state`. Nothing is logged or persisted by the machine; stored documents, journals, bus parameters and the editor adapter API stay compatible. The exhaustive sample matrix and existing autosave/rebase scenarios cover producer re-entry, newest-body retention, timing and concurrent reseats.
+
+### `findings.review`
+
+Owner: `apps/desktop/src/app/coherence-review-state.ts`, held once by `ProjectSession`; product contract: [coherence.md §6.2–6.3](coherence.md#62-run-scoping-bunshos-three-modes-mapped). `plan`, `dismiss`, `start`, `progress`, `stop`, `done` and `fail` drive the pure step. Only `planned` accepts Start, synchronously before model effects. `running` retains the plan, completed-call count and stop request until the effect settles; cancellation wins over either completion or rejection. Complete results return to idle with a retained summary; stopped, partial and failed outcomes remain until the next plan. No state is terminal because a new review can be planned.
+
+The session owns the abort controller and pending promise, applies complete or partial results through its existing findings queue, and stops and settles the review before closing. Findings subscribes through the session and publishes `data-state`; the workspace keeps Show review and Stop visible outside the tab. There is no new persisted field, trace row, or change to the finding-transition table. Exhaustive table tests cover all event pairs; deferred effects and browser tests cover duplicate starts, remounts, progress, cancellation and outcomes.
+
+### `interface.load`
+
+Owner: `apps/desktop/src/app/interface.ts`; product contract: [ui-modules.md §0](ui-modules.md#0-shared-view-rules-apply-to-all-four-modules). `choose` begins loading from any state, while `loaded` and `failed` settle only a loading state. The asynchronous owner publishes only the latest request's completion. `interfaceStatus()` retains chosen and shown interfaces, with a failure detail only in `failed`; Settings subscribes, publishes `data-state` and offers retry. The existing localStorage key, shell-attribute timing and Classic fallback stay unchanged. Exhaustive model and race tests cover stale success/failure; mounted Settings tests cover announcements, retry and focus return.
 
 ### `export.job`
 
@@ -177,6 +197,12 @@ Owner: `packages/furniture/src/sprint.ts`; product context: [goals-progress.md �
 
 The existing `SprintState.status` and `transitionSprint` API remain unchanged. `sprintMachine` adapts `status` to `kind` without adding a field to an existing sprint object, preserving identity for ignored events. `sprintTable` describes the reducer's stored status, not `sprintView`'s time-derived status: a running sprint can read as finished between ticks without a transition. A late pause or tick can finish the sprint, so those rows list both outcomes. `finished` accepts `reset` and is not terminal; the table has no final states. There is no persisted sprint record, migration, trace row or new UI state. The existing sprint scenarios remain unchanged, with a separate exhaustive table suite.
 
+### `ui.modal-stack`
+
+Owner: `apps/desktop/src/components/modal-stack.ts`, interpreted by `components/modal.tsx`. Product contracts: [ui-modules.md §0.4](ui-modules.md#04-modal-ownership-and-focus) and [modern-interface.md §8.3](modern-interface.md#83-morph). `empty` and `open` carry an ordered list of surface IDs and priorities. `open` inserts once, preserving arrival order within each priority; `close` removes exactly its ID, including a covered surface that unmounts. Unknown closes and duplicate opens preserve identity. There are no terminal states.
+
+The same store holds workspace delete, leave, compile, sweep and Settings payloads and feature/import request slots. Folder-save owns its questions as before. Native elements, openers and last-focused controls are effect-side bindings, not reducer data. One observer includes remaining native dialogs and DOM removals. State/depth, top/covered and Modern notice covered/visible are published in the DOM. Exhaustive model checks and browser tests cover arrival, priority, Escape, focus return and covered notice updates. No project, bundle, settings, stored-record or Glass 2 token changes.
+
 ### `task.status`
 
 Owner: `apps/desktop/src/app/task-store.ts` exports `taskStatusTable`; `task-queue.ts` interprets it. Product contract: [agent-harness.md §2, Background runs](agent-harness.md#2-interaction-loop). Events are `pump`, `agent-ready`, `cancel`, `close`, `reload`, `resume`, `ready`, `fail`, `settle` and `apply`.
@@ -184,6 +210,14 @@ Owner: `apps/desktop/src/app/task-store.ts` exports `taskStatusTable`; `task-que
 The runtime adds `starting` while waiting for setup and `cancelling` while a run stops. Cancellation during startup is retained, and a later close cannot overwrite it: `cancelling` accepts only `settle`, leading to `cancelled`. A closing active run may be `interrupted`; cancelling it still goes through `cancelling`. If a resumed task cannot start its agent, its pending items fail, but previously staged drafts still settle from `starting` into reviewable `ready`; a task with no drafts settles into `failed`. `failed`, `cancelled` and `applied` are terminal. Scenario tests own the async cancel/close ordering; the table alone is not evidence that an awaited operation honors cancellation.
 
 Saved statuses remain `queued`, `running`, `ready`, `failed`, `cancelled`, `interrupted` and `applied`. `starting` and `cancelling` exist only in memory, and the snapshot keeps the stored status alongside its runtime phase. Neither phase is written to a task record or accepted by the persisted-status reader. No record migration is needed.
+
+### `agent.controller`
+
+Owner: `apps/desktop/src/app/agent-state.ts`, interpreted by `agent.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). The foreground has eight named states: idle, starting, running, parked-on-card, approving, parked-on-offer, stopping and detached. Only a card state owns a parked decision and only an offer state owns a background choice. An approval retains its original decision until its awaited save/listing settles; stale owners cannot re-park or clear a newer turn. Queue and note events update their sub-state without changing the foreground phase. Interrupted-run reads remain latest-wins. A detached state retains the foreground resources needed for re-attachment but owns no parked choice. There is no final state because the controller can attach again. Every transition is in memory, exposed by the snapshot/panel and the trace sink; no saved format changes.
+
+### `mcp.health`
+
+`mcp.health` owns the in-memory configured, connecting, failed, connected and healthy states (extensibility.md §3.2–§3.4). Connect starts before credentials resolve. Listed and approve events separate a successful connection from a reviewed tool list; fail carries a typed reason beside corrective prose. Disconnect, disable and credential/address edits reset the state and invalidate in-flight work with the existing generation fence. Retry clears the old failure. Settings publishes the same state as `data-state` and the failure code as `data-reason`; nothing new is persisted.
 
 ### `turn.phase`
 

@@ -3,17 +3,17 @@
  * with the settings operations of §8 and the review flow of §3.4.
  *
  * One object owns the server list, each server's connection, the last listing it returned, and
- * the three health states. Everything the rest of the app reads is a snapshot: `health()`,
+ * the connection health machine. Everything the rest of the app reads is a snapshot: `health()`,
  * `indexedTools()`, `describe()`. Everything that changes a persisted setting goes through a
  * method here and then calls `onChange`, which is where the app writes the settings.
  *
- * **The three states are not two.** `configured` means there is no successful listing this
- * session. `connected` means a listing arrived and a pin changed or a tool is new, so the tools
+ * **Connection and tool availability are different.** `configured` is idle, `connecting` is a listing in flight, and `failed` has a typed reason. `connected` means a listing arrived and a pin changed or a tool is new, so the tools
  * wait for a review. `healthy` means the listing matches the reviewed pins and the tools may be
  * searched. A connection that works and a tool that can be called are different signals, and this
  * object keeps them apart.
  */
 
+import { healthMachine, type ConnectionHealth, type HealthEvent, type HealthFailureReason } from './health.js';
 import type { FetchLike } from '@modelcontextprotocol/client';
 import { err, ok, type Result } from '@caotang/bus';
 
@@ -84,17 +84,11 @@ const USABLE_NAME = /^[A-Za-z0-9_-]{1,64}$/;
 /** The longest name the model accepts, which a qualified name (prefix included) may not exceed. */
 const QUALIFIED_NAME_MAX = 64;
 
-export type HealthState = 'configured' | 'connected' | 'healthy';
+export type HealthState = ConnectionHealth['kind'];
 
-/** §3.2's runtime health, never persisted. */
-export interface McpServerHealth {
-  readonly key: string;
-  readonly state: HealthState;
-  /** Human and model-facing: the named corrective path for a failure. */
-  readonly detail?: string;
-  readonly toolsDiscovered?: number;
-  readonly pendingReview?: boolean;
-}
+export type McpServerHealth = {
+  [K in HealthState]: { readonly key: string; readonly state: K } & Omit<Extract<ConnectionHealth, { kind: K }>, 'kind'>;
+}[HealthState];
 
 /** §3.5's descriptor. The description and the schema are the server's text, verbatim: untrusted, and never rewritten. */
 export interface ExternalToolDescriptor {
@@ -164,7 +158,7 @@ export interface IndexedTools {
 export interface ReviewTool {
   readonly qualifiedName: string;
   readonly toolName: string;
-  readonly status: 'new' | 'changed' | 'unchanged';
+  readonly status: PinState;
   readonly description: string;
   readonly inputSchema: unknown;
   readonly outputSchema?: unknown;
@@ -176,7 +170,7 @@ export interface ReviewTool {
 
 export interface ReviewPrompt {
   readonly name: string;
-  readonly status: 'new' | 'changed' | 'unchanged';
+  readonly status: PinState;
   readonly description: string;
   readonly arguments: readonly { readonly name: string; readonly description: string; readonly required: boolean }[];
 }
@@ -184,7 +178,7 @@ export interface ReviewPrompt {
 export interface ReviewTemplate {
   readonly uriTemplate: string;
   readonly name: string;
-  readonly status: 'new' | 'changed' | 'unchanged';
+  readonly status: PinState;
   readonly description: string;
   readonly mimeType?: string;
 }
@@ -234,8 +228,8 @@ export interface McpClientOptions {
   readonly callTimeoutMs?: number;
   /** The wall-clock cap of a call, which progress does not extend. Defaults to {@link CALL_MAX_TOTAL_MS}. */
   readonly callMaxTotalMs?: number;
-  /** Called with the whole slice after every change to it, so the app can persist it. */
-  readonly onChange?: (settings: McpSettings) => void;
+  /** Called with the proposed whole slice; an awaited refusal leaves the configuration unpublished. */
+  readonly onChange?: (settings: McpSettings) => void | Promise<string | null>;
   /**
    * Called with the reference of a bearer token that a change dropped, so the vault can take it
    * out. A token that nothing names any more is a token that is kept for ever, so the reference
@@ -274,11 +268,11 @@ export interface McpClient {
    */
   refreshCatalog(key: string): Promise<void>;
   review(key: string): ReviewCard | undefined;
-  approveReview(key: string, fingerprint: string): Result<McpServerHealth, string>;
-  setTrustReads(key: string, value: boolean): Result<McpServerConfig, string>;
-  setToolEnabled(key: string, toolName: string, enabled: boolean): Result<McpServerConfig, string>;
-  addServer(input: AddServerInput): Result<McpServerConfig, string>;
-  updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>>;
+  approveReview(key: string, fingerprint: string): Promise<Result<McpServerHealth, string>>;
+  setTrustReads(key: string, value: boolean): Promise<Result<McpServerConfig, string>>;
+  setToolEnabled(key: string, toolName: string, enabled: boolean): Promise<Result<McpServerConfig, string>>;
+  addServer(input: AddServerInput): Promise<Result<McpServerConfig, string>>;
+  updateServer(key: string, patch: UpdateServerPatch, expected?: Pick<McpServerConfig, 'url' | 'auth'>): Promise<Result<McpServerConfig, string>>;
   removeServer(key: string): Promise<void>;
 }
 
@@ -291,6 +285,7 @@ export interface AddServerInput {
   readonly url: string;
   readonly auth: McpAuth;
   readonly enabledTools?: readonly string[];
+  readonly enabled?: boolean;
 }
 
 /** The fields an edit may change. Every field is optional; an absent one is left as it is. */
@@ -395,7 +390,9 @@ class McpClientImpl implements McpClient {
   private readonly listTimeoutMs: number;
   private readonly callTimeoutMs: number;
   private readonly callMaxTotalMs: number;
-  private readonly onChange: ((settings: McpSettings) => void) | undefined;
+  private readonly onChange: McpClientOptions['onChange'];
+  private changes: Promise<unknown> = Promise.resolve();
+  private readonly runtimeChanges = new Map<string, Promise<void>>();
   private readonly onTokenDropped: (tokenRef: string) => void | Promise<void>;
   /** The hand-back of a reference that is under way, so one reference is handed back once. */
   private readonly drops = new Map<string, Promise<void>>();
@@ -446,23 +443,32 @@ class McpClientImpl implements McpClient {
   }
 
   async setMasterEnabled(on: boolean): Promise<void> {
-    if (this.config.enabled === on) return;
-    this.config = { ...this.config, enabled: on };
-    if (!on) {
-      for (const server of this.config.servers) {
-        await this.demote(server.key, 'MCP & tools is off — turn it on in Settings › MCP & tools');
+    const result = await this.change(async (draft) => {
+      await this.setMasterEnabledNow(draft, on);
+      return ok(undefined);
+    });
+    if (!result.ok) throw new Error(result.error);
+  }
+
+  private async setMasterEnabledNow(draft: McpSettings, on: boolean): Promise<void> {
+    if (draft.enabled === on) return;
+    draft.enabled = on;
+    await this.persist(draft, async () => {
+      if (!on) {
+        for (const server of draft.servers) {
+          await this.demote(server.key, 'MCP & tools is off — turn it on in Settings › MCP & tools');
+        }
       }
-    }
-    this.persist();
+    });
   }
 
   async connect(key: string): Promise<McpServerHealth> {
     const server = this.config.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return this.runtime(key).health;
     const rt = this.runtime(key);
-    if (!this.config.enabled) return this.setHealth(key, 'configured', 'MCP & tools is off — turn it on in Settings › MCP & tools');
-    if (!server.enabled) return this.setHealth(key, 'configured', 'this server is disabled — enable it in Settings › MCP & tools');
-    if (rt.health.state !== 'configured' && rt.wire !== undefined && rt.listing !== undefined) return rt.health;
+    if (!this.config.enabled) return this.setHealth(key, { type: 'reset', detail: 'MCP & tools is off — turn it on in Settings › MCP & tools' });
+    if (!server.enabled) return this.setHealth(key, { type: 'reset', detail: 'this server is disabled — enable it in Settings › MCP & tools' });
+    if ((rt.health.state === 'connected' || rt.health.state === 'healthy') && rt.wire !== undefined && rt.listing !== undefined) return rt.health;
     return this.list(key);
   }
 
@@ -601,13 +607,17 @@ class McpClientImpl implements McpClient {
       return this.refreshCatalog(key, options);
     }
     const wire = rt.wire;
-    if (wire === undefined || rt.listing === undefined || rt.health.state === 'configured') return;
+    if (wire === undefined || rt.listing === undefined || (rt.health.state === 'configured' || rt.health.state === 'failed')) return;
     const generation = rt.generation;
     const pending = (async (): Promise<void> => {
       const catalog = await this.loadCatalog(server, wire, options);
-      if (rt.generation !== generation || rt.listing === undefined) return;
-      rt.listing = await withCatalog(rt.listing, catalog);
-      rt.catalog = catalog;
+      await this.runtimeChange(key, async () => {
+        const current = this.config.servers.find((candidate) => candidate.key === key);
+        if (rt.generation !== generation || rt.listing === undefined || current === undefined) return;
+        const latest = current === server ? catalog : await this.catalogFor(current, catalog);
+        rt.listing = await withCatalog(rt.listing, latest);
+        rt.catalog = latest;
+      });
     })();
     rt.catalogPending = pending;
     return pending.finally(() => {
@@ -625,7 +635,7 @@ class McpClientImpl implements McpClient {
       return {
         qualifiedName: tool.qualifiedName,
         toolName: tool.toolName,
-        status: state === 'new' ? 'new' : state === 'changed' ? 'changed' : 'unchanged',
+        status: state,
         description: tool.description,
         inputSchema: tool.inputSchema,
         ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
@@ -644,14 +654,14 @@ class McpClientImpl implements McpClient {
     const catalog = this.runtimes.get(key)?.catalog;
     const prompts: ReviewPrompt[] = (catalog?.prompts ?? []).map((prompt) => ({
       name: prompt.name,
-      status: reviewStatus(stateOf(server.pinnedPrompts, prompt.name, prompt.candidateHash)),
+      status: stateOf(server.pinnedPrompts, prompt.name, prompt.candidateHash),
       description: prompt.description,
       arguments: prompt.arguments.map((argument) => ({ ...argument })),
     }));
     const resourceTemplates: ReviewTemplate[] = (catalog?.templates ?? []).map((template) => ({
       uriTemplate: template.uriTemplate,
       name: template.name,
-      status: reviewStatus(stateOf(server.pinnedTemplates, template.uriTemplate, template.candidateHash)),
+      status: stateOf(server.pinnedTemplates, template.uriTemplate, template.candidateHash),
       description: template.description,
       ...(template.mimeType === undefined ? {} : { mimeType: template.mimeType }),
     }));
@@ -664,7 +674,7 @@ class McpClientImpl implements McpClient {
         : removedFrom(server.pinnedTemplates, resourceTemplates.map((template) => template.uriTemplate));
     const toolKind = listing.delta.firstConnect ? 'first-connect' : hasDelta(listing.delta) ? 'changed' : 'current';
     const catalogPending =
-      [...prompts, ...resourceTemplates].some((item) => item.status !== 'unchanged') || removedPrompts.length + removedTemplates.length > 0;
+      [...prompts, ...resourceTemplates].some((item) => item.status !== 'verified') || removedPrompts.length + removedTemplates.length > 0;
     const kind = toolKind === 'current' && catalogPending ? 'changed' : toolKind;
     return {
       serverKey: key,
@@ -680,14 +690,18 @@ class McpClientImpl implements McpClient {
     };
   }
 
-  approveReview(key: string, fingerprint: string): Result<McpServerHealth, string> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  approveReview(key: string, fingerprint: string): Promise<Result<McpServerHealth, string>> {
+    return this.change((draft) => this.runtimeChange(key, () => this.approveReviewNow(draft, key, fingerprint)));
+  }
+
+  private async approveReviewNow(draft: McpSettings, key: string, fingerprint: string): Promise<Result<McpServerHealth, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
     const rt = this.runtime(key);
     if (rt.listing === undefined) return err('connect the server first — there is no tool list to review yet');
     // A review confirms a listing that a live connection produced. Without a wire there is nothing behind the
     // listing, so approving it would mark the server healthy with no connection to call through.
-    if (rt.wire === undefined || rt.health.state === 'configured') {
+    if (rt.wire === undefined || (rt.health.state !== 'connected' && rt.health.state !== 'healthy')) {
       return err('the server is not connected, so its tool list cannot be approved — connect it first');
     }
     if (rt.listing.fingerprint !== fingerprint) {
@@ -697,15 +711,19 @@ class McpClientImpl implements McpClient {
     const pins = pinsAfterReview(server.pinnedTools, listed, this.clock());
     server.pinnedTools = pins;
     this.pinCatalog(server, rt.catalog);
+    await this.persist(draft);
     const delta = diffPins(pins, listed);
     rt.listing = { ...rt.listing, delta, removed: [] };
-    this.setHealth(key, 'healthy', healthDetailOf(rt.listing), { toolsDiscovered: rt.listing.tools.length, pendingReview: false });
-    this.persist();
+    this.setHealth(key, { type: 'approve', toolsDiscovered: rt.listing.tools.length, ...detailField(healthDetailOf(rt.listing)) });
     return ok(rt.health);
   }
 
-  setTrustReads(key: string, value: boolean): Result<McpServerConfig, string> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  setTrustReads(key: string, value: boolean): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.setTrustReadsNow(draft, key, value));
+  }
+
+  private async setTrustReadsNow(draft: McpSettings, key: string, value: boolean): Promise<Result<McpServerConfig, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
     if (value) {
       const rt = this.runtime(key);
@@ -714,12 +732,16 @@ class McpClientImpl implements McpClient {
       if (!reviewed) return err('review the tool list before trusting reads — trust is granted only after a review');
     }
     server.trustReads = value;
-    this.persist();
+    await this.persist(draft);
     return ok(cloneServer(server));
   }
 
-  setToolEnabled(key: string, toolName: string, enabled: boolean): Result<McpServerConfig, string> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  setToolEnabled(key: string, toolName: string, enabled: boolean): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.setToolEnabledNow(draft, key, toolName, enabled));
+  }
+
+  private async setToolEnabledNow(draft: McpSettings, key: string, toolName: string, enabled: boolean): Promise<Result<McpServerConfig, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
     if (toolName === '' || toolName.length > MCP_TOOL_NAME_MAX) return err(`a tool name is 1 to ${MCP_TOOL_NAME_MAX} characters`);
     const rt = this.runtime(key);
@@ -740,40 +762,44 @@ class McpClientImpl implements McpClient {
     const current = server.enabledTools ?? [...(known ?? [])];
     const next = enabled ? [...new Set([...current, toolName])] : current.filter((name) => name !== toolName);
     server.enabledTools = next.sort();
-    this.persist();
+    await this.persist(draft);
     return ok(cloneServer(server));
   }
 
-  addServer(input: AddServerInput): Result<McpServerConfig, string> {
-    if (this.config.servers.length >= MCP_SERVER_LIMIT) {
+  addServer(input: AddServerInput): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.addServerNow(draft, input));
+  }
+
+  private async addServerNow(draft: McpSettings, input: AddServerInput): Promise<Result<McpServerConfig, string>> {
+    if (draft.servers.length >= MCP_SERVER_LIMIT) {
       return err(`at most ${MCP_SERVER_LIMIT} MCP servers — remove one before adding another`);
     }
     const name = input.name.trim();
     if (name === '' || name.length > MCP_NAME_MAX) return err(`the name must be 1 to ${MCP_NAME_MAX} characters`);
     const url = checkServerUrl(input.url);
     if (!url.ok) return err(url.reason);
-    if (this.config.servers.some((server) => server.url === url.url)) return err('a server with this URL is already connected');
+    if (draft.servers.some((server) => server.url === url.url)) return err('a server with this URL is already connected');
     const authProblem = bearerProblem(input.auth);
     if (authProblem !== undefined) return err(authProblem);
     const selection = input.enabledTools === undefined ? undefined : toolNameList(input.enabledTools);
     if (selection === 'invalid') return err('the tool selection must be a list of tool names');
-    const key = this.newKey(new Set(this.config.servers.map((server) => server.key)));
+    const key = this.newKey(new Set(draft.servers.map((server) => server.key)));
     const server: McpServerConfig = {
       key,
       name,
       transport: 'http',
       url: url.url,
       auth: { ...input.auth },
-      enabled: true,
+      enabled: input.enabled ?? true,
       trustReads: false,
       pinnedTools: {},
       addedAt: this.clock(),
     };
     if (selection !== undefined) server.enabledTools = selection;
     if (input.auth.kind === 'bearer') this.drops.delete(input.auth.tokenRef);
-    this.config = { ...this.config, servers: [...this.config.servers, server] };
+    draft.servers.push(server);
+    await this.persist(draft);
     this.runtimes.set(key, freshRuntime(key, 'not connected this session'));
-    this.persist();
     return ok(cloneServer(server));
   }
 
@@ -785,9 +811,21 @@ class McpClientImpl implements McpClient {
    * caller is told about a sealed token that nothing names any more, instead of being told that
    * the change did not happen — it did happen, and the record says so.
    */
-  async updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  updateServer(key: string, patch: UpdateServerPatch, expected?: Pick<McpServerConfig, 'url' | 'auth'>): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.updateServerNow(draft, key, patch, expected));
+  }
+
+  private async updateServerNow(
+    draft: McpSettings,
+    key: string,
+    patch: UpdateServerPatch,
+    expected?: Pick<McpServerConfig, 'url' | 'auth'>,
+  ): Promise<Result<McpServerConfig, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
+    if (expected !== undefined && (server.url !== expected.url || canonicalJson(server.auth) !== canonicalJson(expected.auth))) {
+      return err('the server address or credentials changed — enter the token again for the current server');
+    }
     // Every field is checked before any is changed, so a refused edit leaves the server as it was. A
     // server that was saved with a bearer reference the loader cannot read is dropped on the next start.
     const name = patch.name === undefined ? undefined : patch.name.trim();
@@ -801,7 +839,7 @@ class McpClientImpl implements McpClient {
       const url = checkServerUrl(patch.url);
       if (!url.ok) return err(url.reason);
       if (url.url !== server.url) {
-        if (this.config.servers.some((other) => other.key !== key && other.url === url.url)) {
+        if (draft.servers.some((other) => other.key !== key && other.url === url.url)) {
           return err('a server with this URL is already connected');
         }
         address = url.url;
@@ -842,10 +880,9 @@ class McpClientImpl implements McpClient {
     }
     // A selection narrows what is searched and called; it never changes a pin or a trust grant, so it demotes nothing.
     if (selection !== undefined) server.enabledTools = selection;
-    if (reason !== undefined) await this.demote(key, reason);
     // The record is written before the credential is handed back: a record that still named a
     // token that is gone would leave the server without the credential its own settings name.
-    this.persist();
+    await this.persist(draft, reason === undefined ? undefined : () => this.demote(key, reason));
     // A credential the change dropped is handed back, so the vault does not keep a sealed token
     // that nothing names any more. A reference another server still names is not handed back:
     // the settings do not make a reference unique, and that server would lose a credential its
@@ -863,14 +900,20 @@ class McpClientImpl implements McpClient {
    * with nothing left to name it.
    */
   async removeServer(key: string): Promise<void> {
-    const closed = this.dropConnection(key);
-    const server = this.config.servers.find((candidate) => candidate.key === key);
-    this.config = { ...this.config, servers: this.config.servers.filter((candidate) => candidate.key !== key) };
-    this.runtimes.delete(key);
+    const result = await this.change(async (draft) => {
+      await this.removeServerNow(draft, key);
+      return ok(undefined);
+    });
+    if (!result.ok) throw new Error(result.error);
+  }
+
+  private async removeServerNow(draft: McpSettings, key: string): Promise<void> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
+    draft.servers = draft.servers.filter((candidate) => candidate.key !== key);
     // The record is written before the credential is handed back, so a record that still named
     // a token that is gone is never left behind.
-    this.persist();
-    await closed;
+    await this.persist(draft, () => this.demote(key, 'disconnected'));
+    this.runtimes.delete(key);
     // The server is gone, so nothing names its token any more: the reference is handed back, so
     // the vault does not keep a sealed token for ever. A reference another server still names is
     // not handed back.
@@ -904,7 +947,7 @@ class McpClientImpl implements McpClient {
     } catch (error) {
       const failure = asWireError(error);
       if (failure.kind === 'network' || failure.kind === 'cors' || failure.kind === 'auth') {
-        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs));
+        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs), failureReason(failure));
       }
       throw new McpFailure(mapCallFailure(failure, server.name, toolName, this.callTimeoutMs, this.callMaxTotalMs));
     }
@@ -924,13 +967,13 @@ class McpClientImpl implements McpClient {
     const rt = this.runtimes.get(serverKey);
     if (server === undefined || rt === undefined) throw new McpFailure({ code: 'unreachable', message: unreachableText(serverKey) });
     const wire = rt.wire;
-    if (wire === undefined || rt.health.state === 'configured') throw new McpFailure({ code: 'unreachable', message: unreachableText(server.name) });
+    if (wire === undefined || (rt.health.state === 'configured' || rt.health.state === 'failed')) throw new McpFailure({ code: 'unreachable', message: unreachableText(server.name) });
     try {
       return await wire.readResource(uri, { timeoutMs: this.callTimeoutMs, ...(options.signal === undefined ? {} : { signal: options.signal }) });
     } catch (error) {
       const failure = asWireError(error);
       if (failure.kind === 'network' || failure.kind === 'cors' || failure.kind === 'auth') {
-        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs));
+        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs), failureReason(failure));
       }
       throw new McpFailure(mapReadFailure(failure, server.name, uri, this.callTimeoutMs));
     }
@@ -940,7 +983,7 @@ class McpClientImpl implements McpClient {
     const checked = () => {
       const server = this.config.servers.find((candidate) => candidate.key === serverKey);
       const rt = this.runtimes.get(serverKey);
-      if (server === undefined || !this.config.enabled || !server.enabled || rt?.wire === undefined || rt.health.state === 'configured') {
+      if (server === undefined || !this.config.enabled || !server.enabled || rt?.wire === undefined || (rt.health.state === 'configured' || rt.health.state === 'failed')) {
         throw new McpFailure({ code: 'unreachable', message: unreachableText(server?.name ?? serverKey) });
       }
       if (options.signal?.aborted === true) throw new McpFailure(mapReadFailure(new WireError('abort', 'the read was aborted'), server.name, name, this.callTimeoutMs));
@@ -976,7 +1019,7 @@ class McpClientImpl implements McpClient {
     } catch (error) {
       const failure = asWireError(error);
       if (failure.kind === 'network' || failure.kind === 'cors' || failure.kind === 'auth') {
-        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs));
+        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs), failureReason(failure));
       }
       throw new McpFailure(mapReadFailure(failure, before.server.name, name, this.callTimeoutMs));
     }
@@ -1039,19 +1082,23 @@ class McpClientImpl implements McpClient {
         promptsUnavailable = catalogFailureDetail(asWireError(error), this.listTimeoutMs, 'prompts/list');
       }
     }
-    const removed = {
-      prompts: promptsUnavailable === undefined ? removedFrom(server.pinnedPrompts, prompts.map((prompt) => prompt.name)) : [],
-      templates: resourcesUnavailable === undefined ? removedFrom(server.pinnedTemplates, templates.map((template) => template.uriTemplate)) : [],
-    };
-    return {
+    return this.catalogFor(server, {
       resources,
       templates,
       prompts,
       ...(resourcesUnavailable === undefined ? {} : { resourcesUnavailable }),
       ...(promptsUnavailable === undefined ? {} : { promptsUnavailable }),
       cut,
-      fingerprint: await catalogFingerprint(prompts, templates, removed),
+      fingerprint: '',
+    });
+  }
+
+  private async catalogFor(server: McpServerConfig, catalog: Catalog): Promise<Catalog> {
+    const removed = {
+      prompts: catalog.promptsUnavailable === undefined ? removedFrom(server.pinnedPrompts, catalog.prompts.map((prompt) => prompt.name)) : [],
+      templates: catalog.resourcesUnavailable === undefined ? removedFrom(server.pinnedTemplates, catalog.templates.map((template) => template.uriTemplate)) : [],
     };
+    return { ...catalog, fingerprint: await catalogFingerprint(catalog.prompts, catalog.templates, removed) };
   }
 
   /** What a review keeps of the catalog: each prompt and template at the hash the person saw. A list that failed leaves its pins as they were. */
@@ -1082,11 +1129,15 @@ class McpClientImpl implements McpClient {
   private list(key: string): Promise<McpServerHealth> {
     const rt = this.runtime(key);
     if (rt.pending !== undefined) return rt.pending;
-    const pending = this.listNow(key);
+    let resolve!: (health: McpServerHealth) => void;
+    let reject!: (error: unknown) => void;
+    const pending = new Promise<McpServerHealth>((done, failed) => { resolve = done; reject = failed; });
     rt.pending = pending;
-    return pending.finally(() => {
+    const settled = pending.finally(() => {
       if (rt.pending === pending) rt.pending = undefined;
     });
+    void this.listNow(key).then(resolve, reject);
+    return settled;
   }
 
   /**
@@ -1113,14 +1164,16 @@ class McpClientImpl implements McpClient {
     // call, an edit). The teardown has already written the state, so a listing that returns after one writes nothing.
     const generation = rt.generation;
     const overtaken = (): boolean => rt.generation !== generation;
+    this.setHealth(key, { type: 'connect' });
+    if (overtaken()) return rt.health;
     if (server.auth.kind === 'bearer') {
       const token = await this.resolveToken(server.auth.tokenRef).catch(() => undefined);
       if (overtaken()) return rt.health;
       if (token === undefined || token === '') {
-        return this.demote(key, 'the bearer token is missing — enter it in the server card');
+        return this.demote(key, 'the bearer token is missing — enter it in the server card', 'token-missing');
       }
     }
-    // A wire that cannot be built, or a listing that the client cannot read, is a named `configured`
+    // A wire that cannot be built, or a listing that the client cannot read, is a named `failed`
     // state like any other failure. It is never a rejected promise: the settings card has to render it.
     let tools: readonly WireTool[];
     try {
@@ -1129,7 +1182,8 @@ class McpClientImpl implements McpClient {
       tools = await wire.listTools({ timeoutMs: this.listTimeoutMs });
     } catch (error) {
       if (overtaken()) return rt.health;
-      return this.demote(key, listFailureDetail(asWireError(error), this.listTimeoutMs));
+      const failure = asWireError(error);
+      return this.demote(key, listFailureDetail(failure, this.listTimeoutMs), failureReason(failure));
     }
     if (overtaken()) return rt.health;
     const previousKey = rt.listing?.listedKey;
@@ -1138,26 +1192,36 @@ class McpClientImpl implements McpClient {
       listing = await this.buildListing(server, tools);
     } catch (error) {
       if (overtaken()) return rt.health;
-      return this.demote(key, `the server's tool list could not be read: ${asWireError(error).message}`);
+      return this.demote(key, `the server's tool list could not be read: ${asWireError(error).message}`, 'result');
     }
     if (overtaken()) return rt.health;
     // Resources, templates and prompts are listed on the same connection. A failure there is told on the card and holds nothing back.
     const live = rt.wire;
     if (live === undefined) return rt.health;
-    const catalog = await this.loadCatalog(server, live);
+    let catalog = await this.loadCatalog(server, live);
     if (overtaken()) return rt.health;
-    rt.listing = await withCatalog(listing, catalog);
-    if (overtaken()) return rt.health;
-    rt.catalog = catalog;
-    const reviewPending = hasDelta(listing.delta);
-    const health = this.setHealth(key, reviewPending ? 'connected' : 'healthy', healthDetailOf(listing), {
-      toolsDiscovered: listing.tools.length,
-      pendingReview: reviewPending,
-    });
-    if (previousKey !== undefined && previousKey !== listing.listedKey) {
-      for (const listener of this.listChangeListeners) listener(key);
-    }
-    return health;
+    return this.runtimeChange(key, async () => {
+      if (overtaken()) return rt.health;
+      const current = this.config.servers.find((candidate) => candidate.key === key);
+      if (current === undefined) return rt.health;
+      if (current !== server) {
+        listing = await this.buildListing(current, tools);
+        catalog = await this.catalogFor(current, catalog);
+      }
+      rt.listing = await withCatalog(listing, catalog);
+      rt.catalog = catalog;
+      const reviewPending = hasDelta(listing.delta);
+      const health = this.setHealth(key, {
+        type: 'listed',
+        ...detailField(healthDetailOf(listing)),
+        toolsDiscovered: listing.tools.length,
+        pendingReview: reviewPending,
+      });
+      if (previousKey !== undefined && previousKey !== listing.listedKey) {
+        for (const listener of this.listChangeListeners) listener(key);
+      }
+      return health;
+    }).catch((error: unknown) => overtaken() ? rt.health : this.demote(key, `the server's tool list could not be read: ${asWireError(error).message}`, 'result'));
   }
 
   private async buildListing(server: McpServerConfig, tools: readonly WireTool[]): Promise<Listing> {
@@ -1210,7 +1274,7 @@ class McpClientImpl implements McpClient {
     const effectiveRisk = effectiveRiskOf({
       pinVerified: pinState === 'verified',
       // A server with no live connection has no reviewed listing to trust, so its tools stay confirm-only (§3.4).
-      pendingReview: health.pendingReview === true || health.state === 'configured',
+      pendingReview: health.pendingReview === true || (health.state !== 'connected' && health.state !== 'healthy'),
       trustReads: server.trustReads,
       ...(tool.annotations?.readOnlyHint === undefined ? {} : { readOnlyHint: tool.annotations.readOnlyHint }),
     });
@@ -1252,23 +1316,22 @@ class McpClientImpl implements McpClient {
     return wire === undefined ? Promise.resolve() : wire.close().catch(() => undefined);
   }
 
-  /** Demotes a server to `configured` with the reason, after its connection has been ended (see {@link dropConnection}). */
-  private async demote(key: string, detail: string): Promise<McpServerHealth> {
-    const closed = this.dropConnection(key);
-    const health = this.setHealth(key, 'configured', detail);
+  /** Resets a server to `configured`, or enters `failed` with a typed reason, after its connection has been ended (see {@link dropConnection}). */
+  private async demote(key: string, detail: string, reason?: HealthFailureReason): Promise<McpServerHealth> {
+    const commit = () => ({
+      closed: this.dropConnection(key),
+      health: this.setHealth(key, reason === undefined ? { type: 'reset', detail } : { type: 'fail', reason, detail }),
+    });
+    const { closed, health } = this.runtimeChanges.has(key) ? await this.runtimeChange(key, commit) : commit();
     await closed;
     return health;
   }
 
-  private setHealth(key: string, state: HealthState, detail?: string, extra: { toolsDiscovered?: number; pendingReview?: boolean } = {}): McpServerHealth {
+  private setHealth(key: string, event: HealthEvent): McpServerHealth {
     const rt = this.runtime(key);
-    const next: McpServerHealth = {
-      key,
-      state,
-      ...(detail === undefined ? {} : { detail }),
-      ...(extra.toolsDiscovered === undefined ? {} : { toolsDiscovered: extra.toolsDiscovered }),
-      ...(extra.pendingReview === undefined ? {} : { pendingReview: extra.pendingReview }),
-    };
+    const current = { ...rt.health, kind: rt.health.state } as ConnectionHealth;
+    const { kind, ...fields } = healthMachine.step(current, event);
+    const next = { ...fields, key, state: kind } as McpServerHealth;
     if (canonicalJson(next) !== canonicalJson(rt.health)) {
       rt.health = next;
       for (const listener of this.healthListeners) listener(next);
@@ -1280,8 +1343,39 @@ class McpClientImpl implements McpClient {
     return { resolveBearer: this.resolveToken, fetch: this.fetchImpl, probe: this.probe };
   }
 
-  private persist(): void {
-    this.onChange?.(this.settings());
+  private runtimeChange<T>(key: string, action: () => T | Promise<T>): Promise<T> {
+    const pending = (this.runtimeChanges.get(key) ?? Promise.resolve()).then(action);
+    const settled = pending.then(() => undefined, () => undefined);
+    this.runtimeChanges.set(key, settled);
+    void settled.then(() => {
+      if (this.runtimeChanges.get(key) === settled) this.runtimeChanges.delete(key);
+    });
+    return pending;
+  }
+
+  private change<T>(action: (draft: McpSettings) => Promise<Result<T, string>>): Promise<Result<T, string>> {
+    const pending = this.changes.then(async () => {
+      try {
+        return await action(this.settings());
+      } catch (error) {
+        if (!(error instanceof SettingsRefusal)) throw error;
+        return err(error.message);
+      }
+    });
+    this.changes = pending.catch(() => undefined);
+    return pending;
+  }
+
+  private async persist(next: McpSettings, afterSave?: () => Promise<unknown>): Promise<void> {
+    let refusal: string | null | void;
+    try {
+      refusal = await this.onChange?.({ enabled: next.enabled, servers: next.servers.map(cloneServer) });
+    } catch (error) {
+      throw new SettingsRefusal(error instanceof Error ? error.message : String(error));
+    }
+    if (refusal !== undefined && refusal !== null) throw new SettingsRefusal(refusal);
+    this.config = next;
+    await afterSave?.();
   }
 
   /**
@@ -1408,11 +1502,6 @@ export function healthDetailOf(listing: { readonly delta: PinDelta; readonly too
   return parts.length === 0 ? undefined : parts.join('; ');
 }
 
-/** A prompt's or template's pin state, as a review row names it. */
-function reviewStatus(state: PinState): 'new' | 'changed' | 'unchanged' {
-  return state === 'new' ? 'new' : state === 'changed' ? 'changed' : 'unchanged';
-}
-
 /** The card's fingerprint with the prompts and templates in it, when there are any. A server with none keeps the tools' fingerprint as it was. */
 async function withCatalog(listing: Listing, catalog: Catalog): Promise<Listing> {
   const fingerprint = catalog.fingerprint === '' ? listing.toolsFingerprint : await sha256Hex(`${listing.toolsFingerprint}:${catalog.fingerprint}`);
@@ -1526,4 +1615,14 @@ function mapReadFailure(failure: WireError, serverName: string, uri: string, tim
 function asWireError(error: unknown): WireError {
   if (error instanceof WireError) return error;
   return new WireError('protocol', error instanceof Error ? error.message : String(error));
+}
+
+class SettingsRefusal extends Error {}
+
+function failureReason(failure: WireError): HealthFailureReason {
+  return failure instanceof WireLoadError ? 'connector-load' : failure.kind;
+}
+
+function detailField(detail: string | undefined): { readonly detail?: string } {
+  return detail === undefined ? {} : { detail };
 }

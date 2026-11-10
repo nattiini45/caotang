@@ -130,7 +130,7 @@ test.describe('the MCP app: tokens, imports and the enabled tools (extensibility
       ],
     });
 
-    const result = app.importServers(text, NOW);
+    const result = await app.importServers(text, NOW);
     expect(result.added).toEqual(['Good', 'Off']);
     expect(result.refused.map((refusal) => refusal.entry)).toEqual(['"Trusted"', '"Bearer"', '"Plain"']);
     expect(result.refused[0]?.reason).toContain('trustReads');
@@ -144,7 +144,7 @@ test.describe('the MCP app: tokens, imports and the enabled tools (extensibility
   test('the tools an import selected are the only ones enabled once the server connects', async () => {
     const app = new McpApp({ settings: memorySettings(EMPTY_MCP_SETTINGS), keys: memoryKeys(), wire: scriptedServer(['search', 'delete']) });
     await app.client.setMasterEnabled(true);
-    app.importServers(JSON.stringify({ servers: [{ name: 'Good', url: 'https://good.example.com/mcp', enabledTools: ['search'] }] }), NOW);
+    await app.importServers(JSON.stringify({ servers: [{ name: 'Good', url: 'https://good.example.com/mcp', enabledTools: ['search'] }] }), NOW);
     const key = app.client.settings().servers[0]?.key ?? '';
 
     const health = await app.connect(key);
@@ -159,7 +159,7 @@ test.describe('the MCP app: tokens, imports and the enabled tools (extensibility
     const settings = memorySettings(EMPTY_MCP_SETTINGS);
     const first = new McpApp({ settings, keys: memoryKeys(), wire: scriptedServer(['search', 'delete']) });
     await first.client.setMasterEnabled(true);
-    first.importServers(JSON.stringify({ servers: [{ name: 'Good', url: 'https://good.example.com/mcp', enabledTools: ['search'] }] }), NOW);
+    await first.importServers(JSON.stringify({ servers: [{ name: 'Good', url: 'https://good.example.com/mcp', enabledTools: ['search'] }] }), NOW);
     expect(settings.value().servers[0]?.enabledTools).toEqual(['search']);
 
     // A later change the client makes, before the server has listed anything, writes the record again and keeps the selection.
@@ -284,7 +284,7 @@ test.describe('the MCP panel model (extensibility §3.2, §3.4)', () => {
       serverName: 'Good',
       kind: 'changed' as const,
       fingerprint: 'f',
-      tools: [{ qualifiedName: 'a', toolName: 'a', status: 'unchanged' as const, description: '', inputSchema: {}, candidateHash: 'h', enabled: true }],
+      tools: [{ qualifiedName: 'a', toolName: 'a', status: 'verified' as const, description: '', inputSchema: {}, candidateHash: 'h', enabled: true }],
       removed: [],
       prompts: [{ name: 'recap', status: 'changed' as const, description: 'Recap.', arguments: [] }],
       resourceTemplates: [{ uriTemplate: 'wiki://{page}', name: 'Page', status: 'new' as const, description: '' }],

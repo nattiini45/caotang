@@ -14,7 +14,7 @@ import { isolate } from '@caotang/i18n';
 import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { SKILL_FILE } from '@caotang/skills';
 
@@ -34,7 +34,7 @@ import {
 } from '../app/skills-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
-import { useReturnFocus } from './dialog-focus.js';
+import { Modal, useModalDialog } from './modal.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { useReport, useSession } from './shared.js';
 import './skills-dialog.css';
@@ -74,21 +74,16 @@ function SkillsDialog({ session }: { session: ProjectSession }): ReactNode {
   useLingui();
   useSession(session);
   const dialog = useRef<HTMLDialogElement>(null);
-  const returnFocus = useReturnFocus();
   const [view, setView] = useState<View>({ kind: 'list' });
 
-  useEffect(() => {
-    const element = dialog.current;
-    if (element !== null && !element.open) element.showModal();
-  }, []);
+  useModalDialog(dialog);
 
   const close = (): void => {
-    returnFocus();
     closeDialog();
   };
 
   return (
-    <dialog
+    <Modal
       ref={dialog}
       className="project-dialog skills-dialog"
       aria-labelledby="skills-dialog-title"
@@ -106,7 +101,7 @@ function SkillsDialog({ session }: { session: ProjectSession }): ReactNode {
         {view.kind === 'edit' ? <Editor session={session} name={view.name} onBack={() => setView({ kind: 'list' })} /> : null}
         {view.kind === 'new' ? <NewSkill session={session} onBack={() => setView({ kind: 'list' })} onCreated={(name) => setView({ kind: 'edit', name })} /> : null}
       </div>
-    </dialog>
+    </Modal>
   );
 }
 
