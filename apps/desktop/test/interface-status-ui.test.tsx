@@ -28,10 +28,15 @@ beforeEach(async () => {
     configurable: true,
     value(this: HTMLDialogElement) { this.open = true; },
   });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', {
+    configurable: true,
+    value(this: HTMLDialogElement) { this.open = false; this.dispatchEvent(new Event('close')); },
+  });
   localStorage.clear();
   setModernShellLoader(() => Promise.resolve());
   await applyInterface('classic');
   host = document.createElement('div');
+  host.id = 'root';
   document.body.append(host);
   root = createRoot(host);
 });
@@ -40,6 +45,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal');
+  Reflect.deleteProperty(HTMLDialogElement.prototype, 'close');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   setModernShellLoader(() => Promise.resolve());
