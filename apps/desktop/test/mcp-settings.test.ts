@@ -208,19 +208,73 @@ it('returns review, trust, selection and master-switch save refusals without gra
   expect(app.client.settings().enabled).toBe(true);
 });
 
-it('does not approve a connection that closed while its review was being saved', async () => {
-  const { app, save } = fixture();
+it.each([null, 'Approval storage refused.'])('serializes a disconnect with its pending review save: %s', async (refusal) => {
+  const { app, save, settings, writes } = fixture();
   const server = await add(app);
   await app.client.setMasterEnabled(true);
   await app.connect(server.key);
   let finish!: (refusal: string | null) => void;
+  save.mockResolvedValue('Rollback storage refused.');
   save.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
   const approved = app.client.approveReview(server.key, app.client.review(server.key)!.fingerprint);
   await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
-  await app.client.disconnect(server.key);
-  finish(null);
-  expect((await approved).ok).toBe(false);
+  const disconnected = app.client.disconnect(server.key);
+  finish(refusal);
+  const outcome = await approved;
+  await disconnected;
+  if (!outcome.ok) expect(settings.current().servers[0]!.pinnedTools).toEqual({});
   expect(app.client.healthOf(server.key)?.state).toBe('configured');
+  expect(Object.keys(settings.current().servers[0]!.pinnedTools)).toHaveLength(refusal === null ? 1 : 0);
+  expect(writes).toHaveLength(3);
+  expect((await app.connect(server.key)).state).toBe(outcome.ok ? 'healthy' : 'connected');
+  expect(outcome.ok).toBe(refusal === null);
+});
+
+it.each([
+  { refusal: null, catalog: false },
+  { refusal: 'Approval storage refused.', catalog: false },
+  { refusal: null, catalog: true },
+  { refusal: 'Approval storage refused.', catalog: true },
+])('keeps persisted review pins consistent when a fingerprint changes during its save: %j', async ({ refusal, catalog }) => {
+  const { app, save, settings, writes, wire } = fixture();
+  if (catalog) wire.mockImplementation(() => createMockWire({
+    listTools: [{ name: 'search', description: '', inputSchema: {} }],
+    prompts: [{ name: 'recap', description: 'Original prompt.' }],
+    respond: () => ({ content: [] }),
+  }));
+  const server = await add(app);
+  await app.client.setMasterEnabled(true);
+  await app.connect(server.key);
+  const review = app.client.review(server.key)!;
+  let finish!: (refusal: string | null) => void;
+  save.mockResolvedValue('Rollback storage refused.');
+  save.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const approved = app.client.approveReview(server.key, review.fingerprint);
+  await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
+  const listed = catalog
+    ? vi.spyOn(wire.mock.results[0]!.value, 'listPrompts').mockResolvedValue([{ name: 'recap', description: 'Changed prompt.' }])
+    : vi.spyOn(wire.mock.results[0]!.value, 'listTools').mockResolvedValue([{ name: 'search', description: 'Changed definition.', inputSchema: {} }]);
+  const capabilities = vi.spyOn(wire.mock.results[0]!.value, 'capabilities');
+  const refreshed = catalog ? app.client.refreshCatalog(server.key) : app.refresh(server.key);
+  await vi.waitFor(() => expect(listed).toHaveBeenCalledOnce());
+  await vi.waitFor(() => expect(capabilities).toHaveBeenCalledOnce());
+  expect(app.client.review(server.key)?.fingerprint).toBe(review.fingerprint);
+  finish(refusal);
+  const outcome = await approved;
+  if (!outcome.ok) expect(settings.current().servers[0]!.pinnedTools).toEqual({});
+  expect(outcome.ok).toBe(refusal === null);
+  await refreshed;
+  expect(app.client.review(server.key)?.fingerprint).not.toBe(review.fingerprint);
+  expect(catalog ? app.client.listPrompts(server.key)[0]?.pinState : app.client.listTools(server.key)[0]?.pinState).toBe(refusal === null ? 'changed' : 'new');
+  expect(Object.keys(settings.current().servers[0]!.pinnedTools)).toHaveLength(refusal === null ? 1 : 0);
+  if (refusal === null) expect(settings.current().servers[0]!.pinnedTools[review.tools[0]!.qualifiedName]?.hash).toBe(review.tools[0]!.candidateHash);
+  if (catalog) expect(Object.keys(settings.current().servers[0]!.pinnedPrompts ?? {})).toHaveLength(refusal === null ? 1 : 0);
+  const kept = settings.current();
+  expect((await app.client.approveReview(server.key, review.fingerprint)).ok).toBe(false);
+  expect(settings.current()).toEqual(kept);
+  expect(writes).toHaveLength(3);
+  await app.client.disconnect(server.key);
+  expect((await app.connect(server.key)).state).toBe(refusal === null ? 'healthy' : 'connected');
 });
 
 it('keeps the live connection when a disruptive settings change is refused', async () => {

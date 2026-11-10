@@ -398,6 +398,7 @@ class McpClientImpl implements McpClient {
   private readonly callMaxTotalMs: number;
   private readonly onChange: McpClientOptions['onChange'];
   private changes: Promise<unknown> = Promise.resolve();
+  private readonly runtimeChanges = new Map<string, Promise<void>>();
   private readonly onTokenDropped: (tokenRef: string) => void | Promise<void>;
   /** The hand-back of a reference that is under way, so one reference is handed back once. */
   private readonly drops = new Map<string, Promise<void>>();
@@ -616,9 +617,13 @@ class McpClientImpl implements McpClient {
     const generation = rt.generation;
     const pending = (async (): Promise<void> => {
       const catalog = await this.loadCatalog(server, wire, options);
-      if (rt.generation !== generation || rt.listing === undefined) return;
-      rt.listing = await withCatalog(rt.listing, catalog);
-      rt.catalog = catalog;
+      await this.runtimeChange(key, async () => {
+        const current = this.config.servers.find((candidate) => candidate.key === key);
+        if (rt.generation !== generation || rt.listing === undefined || current === undefined) return;
+        const latest = current === server ? catalog : await this.catalogFor(current, catalog);
+        rt.listing = await withCatalog(rt.listing, latest);
+        rt.catalog = latest;
+      });
     })();
     rt.catalogPending = pending;
     return pending.finally(() => {
@@ -692,7 +697,7 @@ class McpClientImpl implements McpClient {
   }
 
   approveReview(key: string, fingerprint: string): Promise<Result<McpServerHealth, string>> {
-    return this.change((draft) => this.approveReviewNow(draft, key, fingerprint));
+    return this.change((draft) => this.runtimeChange(key, () => this.approveReviewNow(draft, key, fingerprint)));
   }
 
   private async approveReviewNow(draft: McpSettings, key: string, fingerprint: string): Promise<Result<McpServerHealth, string>> {
@@ -708,18 +713,11 @@ class McpClientImpl implements McpClient {
     if (rt.listing.fingerprint !== fingerprint) {
       return err('the server changed again after this review — review its new tool list before approving it');
     }
-    const generation = rt.generation;
     const listed = rt.listing.tools.map((tool) => ({ qualifiedName: tool.qualifiedName, hash: tool.candidateHash, toolName: tool.toolName }));
     const pins = pinsAfterReview(server.pinnedTools, listed, this.clock());
     server.pinnedTools = pins;
     this.pinCatalog(server, rt.catalog);
     await this.persist(draft);
-    if (rt.generation !== generation || rt.listing === undefined || rt.wire === undefined) {
-      return err('the server is not connected, so its tool list cannot be approved — connect it first');
-    }
-    if (rt.listing.fingerprint !== fingerprint) {
-      return err('the server changed again after this review — review its new tool list before approving it');
-    }
     const delta = diffPins(pins, listed);
     rt.listing = { ...rt.listing, delta, removed: [] };
     this.setHealth(key, 'healthy', healthDetailOf(rt.listing), { toolsDiscovered: rt.listing.tools.length, pendingReview: false });
@@ -1090,19 +1088,23 @@ class McpClientImpl implements McpClient {
         promptsUnavailable = catalogFailureDetail(asWireError(error), this.listTimeoutMs, 'prompts/list');
       }
     }
-    const removed = {
-      prompts: promptsUnavailable === undefined ? removedFrom(server.pinnedPrompts, prompts.map((prompt) => prompt.name)) : [],
-      templates: resourcesUnavailable === undefined ? removedFrom(server.pinnedTemplates, templates.map((template) => template.uriTemplate)) : [],
-    };
-    return {
+    return this.catalogFor(server, {
       resources,
       templates,
       prompts,
       ...(resourcesUnavailable === undefined ? {} : { resourcesUnavailable }),
       ...(promptsUnavailable === undefined ? {} : { promptsUnavailable }),
       cut,
-      fingerprint: await catalogFingerprint(prompts, templates, removed),
+      fingerprint: '',
+    });
+  }
+
+  private async catalogFor(server: McpServerConfig, catalog: Catalog): Promise<Catalog> {
+    const removed = {
+      prompts: catalog.promptsUnavailable === undefined ? removedFrom(server.pinnedPrompts, catalog.prompts.map((prompt) => prompt.name)) : [],
+      templates: catalog.resourcesUnavailable === undefined ? removedFrom(server.pinnedTemplates, catalog.templates.map((template) => template.uriTemplate)) : [],
     };
+    return { ...catalog, fingerprint: await catalogFingerprint(catalog.prompts, catalog.templates, removed) };
   }
 
   /** What a review keeps of the catalog: each prompt and template at the hash the person saw. A list that failed leaves its pins as they were. */
@@ -1195,20 +1197,28 @@ class McpClientImpl implements McpClient {
     // Resources, templates and prompts are listed on the same connection. A failure there is told on the card and holds nothing back.
     const live = rt.wire;
     if (live === undefined) return rt.health;
-    const catalog = await this.loadCatalog(server, live);
+    let catalog = await this.loadCatalog(server, live);
     if (overtaken()) return rt.health;
-    rt.listing = await withCatalog(listing, catalog);
-    if (overtaken()) return rt.health;
-    rt.catalog = catalog;
-    const reviewPending = hasDelta(listing.delta);
-    const health = this.setHealth(key, reviewPending ? 'connected' : 'healthy', healthDetailOf(listing), {
-      toolsDiscovered: listing.tools.length,
-      pendingReview: reviewPending,
-    });
-    if (previousKey !== undefined && previousKey !== listing.listedKey) {
-      for (const listener of this.listChangeListeners) listener(key);
-    }
-    return health;
+    return this.runtimeChange(key, async () => {
+      if (overtaken()) return rt.health;
+      const current = this.config.servers.find((candidate) => candidate.key === key);
+      if (current === undefined) return rt.health;
+      if (current !== server) {
+        listing = await this.buildListing(current, tools);
+        catalog = await this.catalogFor(current, catalog);
+      }
+      rt.listing = await withCatalog(listing, catalog);
+      rt.catalog = catalog;
+      const reviewPending = hasDelta(listing.delta);
+      const health = this.setHealth(key, reviewPending ? 'connected' : 'healthy', healthDetailOf(listing), {
+        toolsDiscovered: listing.tools.length,
+        pendingReview: reviewPending,
+      });
+      if (previousKey !== undefined && previousKey !== listing.listedKey) {
+        for (const listener of this.listChangeListeners) listener(key);
+      }
+      return health;
+    }).catch((error: unknown) => overtaken() ? rt.health : this.demote(key, `the server's tool list could not be read: ${asWireError(error).message}`));
   }
 
   private async buildListing(server: McpServerConfig, tools: readonly WireTool[]): Promise<Listing> {
@@ -1305,8 +1315,10 @@ class McpClientImpl implements McpClient {
 
   /** Demotes a server to `configured` with the reason, after its connection has been ended (see {@link dropConnection}). */
   private async demote(key: string, detail: string): Promise<McpServerHealth> {
-    const closed = this.dropConnection(key);
-    const health = this.setHealth(key, 'configured', detail);
+    const { closed, health } = await this.runtimeChange(key, () => ({
+      closed: this.dropConnection(key),
+      health: this.setHealth(key, 'configured', detail),
+    }));
     await closed;
     return health;
   }
@@ -1329,6 +1341,16 @@ class McpClientImpl implements McpClient {
 
   private deps(): WireDeps {
     return { resolveBearer: this.resolveToken, fetch: this.fetchImpl, probe: this.probe };
+  }
+
+  private runtimeChange<T>(key: string, action: () => T | Promise<T>): Promise<T> {
+    const pending = (this.runtimeChanges.get(key) ?? Promise.resolve()).then(action);
+    const settled = pending.then(() => undefined, () => undefined);
+    this.runtimeChanges.set(key, settled);
+    void settled.then(() => {
+      if (this.runtimeChanges.get(key) === settled) this.runtimeChanges.delete(key);
+    });
+    return pending;
   }
 
   private change<T>(action: (draft: McpSettings) => Promise<Result<T, string>>): Promise<Result<T, string>> {
