@@ -306,3 +306,13 @@ Initial: `waiting`. Final: none.
 | `waiting` | `check` | `waiting` |
 | `waiting` | `failed` | `failed`, `waiting` |
 | `waiting` | `ready` | `ready`, `waiting` |
+
+## ui.modal-stack
+
+Initial: `empty`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `empty` | `open` | `open` |
+| `open` | `close` | `empty`, `open` |
+| `open` | `open` | `open` |

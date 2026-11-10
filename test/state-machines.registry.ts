@@ -9,6 +9,7 @@ import { sprintTable } from '../packages/furniture/src/sprint.js';
 import { tabStopTable } from '../apps/desktop/src/app/tab-stop.js';
 import { persistenceTable } from '../apps/desktop/src/app/persistence-model.js';
 import { pendingEntryTable } from '../apps/desktop/src/app/pending-entry.js';
+import { modalMachine } from '../apps/desktop/src/components/modal-stack.js';
 import { findingStatusTable } from '../packages/bus/src/coherence.js';
 import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
@@ -21,4 +22,5 @@ export const machineTables = [
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
   assetStagingTable, assetRemovalHoldTable,
   tabStopTable, persistenceTable, pendingEntryTable,
+  modalMachine.table,
 ] as const;

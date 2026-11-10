@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Dialog stacking.** A dialog arriving over another keeps its input underneath and returns focus when it closes. The stopped-tab notice always wins. Modern hides background notice capsules while a dialog is open, announces new notices inside it, and restores current notices afterward, so Skills review has a clean edge without changing its glass.
+
 - **Stopped-tab recovery.** The notice stays above other dialogs, including ones that arrive later, while their input stays underneath. Its cause and kept-copy status now belong to one session state; saved projects and kept-word formats are unchanged.
 
 - **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.

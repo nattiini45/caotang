@@ -20,6 +20,16 @@ Classic's toolbar grows with its action rows whenever translated labels need to 
 
 7. **Scroll discoverability (#380).** Long dialogs, the Settings body and narrow section strip, and the sidebar scroller show soft edge bands only while content remains in that direction. Bands follow scrolling, content and viewport changes without animation. They do not mask the scroller or clip its child dialogs and menus. Reduced transparency, higher contrast and forced colors leave native scrolling without decorative bands. The same observer and stylesheet serve both shells and load on the first dialog or workspace, not bare Home.
 
+### 0.4 Modal ownership and focus
+
+One in-memory `ModalStack` owns workspace dialog requests and native modal ordering in both shells. `ui.modal-stack` orders feature dialogs by arrival, confirmations above feature dialogs, and the stopped-tab notice above both. The notice wins, and the dialog input is kept underneath: covered dialogs remain mounted and open. Feature/import request replacement retains its existing semantics, including the import caller's close callback. Folder-save questions remain derived from their own machine.
+
+The shared `Modal` portals native dialogs outside inert sidebars and narrow panels. Escape belongs to the native top dialog, retaining its compile guard or subview navigation; the stopped notice cannot be dismissed. Closing returns focus to the surviving layer's remembered control, then the connected original opener when the stack empties. The workspace marker publishes `data-state="empty|open"` and `data-depth`; dialogs publish `data-modal-state="top|covered"`. A shared open/removal observer includes remaining native dialogs, replacing sidebar- and notice-specific observers. Nothing is persisted.
+
+Modern's nonmodal notice capsules are visually hidden and inert while a modal owns focus. Their state and lifetime continue unchanged: current notices return after close, expired notices stay expired, and newly arriving failures are not dismissed. A plain-text live region inside the top modal announces covered notice updates. Notices publish `data-state="covered|visible"`. Classic's inline status/banner remain unchanged because they do not float alongside the dialog edge. Glass 2 materials and motion are unchanged.
+
+The viewport-change handler resets narrow panel and overflow state on crossing to desktop width, not during render. Returning to phone width does not reopen an old panel.
+
 ## 1. Component topology (v0.1 layout)
 
 The Export dialog publishes its compile phase as `data-state` (`idle`, `running`, `failed`) and its readiness phase as `data-preview-state` (`waiting`, `ready`, `failed`). Escape and Cancel use the same running guard: neither dismisses a compile in progress. A refusal or write failure stays inside the dialog beside Compile, and the next compile retries readiness instead of retaining a failed preview. Readiness answers are numbered so an earlier check cannot replace a newer result. These phases are in memory only; the recipes, compile commands and exported file formats do not change. The tables and reducer tests are registered in [state-machines.md](state-machines.md).

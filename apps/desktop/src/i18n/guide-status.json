@@ -3,10 +3,6 @@
   "locales": {
     "de": {
       "sections": {
-        "caotang-user-guide": {
-          "hash": "633bef70",
-          "anchor": "caotang-benutzerhandbuch"
-        },
         "projects": {
           "hash": "f1aa6a0d",
           "anchor": "projekte"

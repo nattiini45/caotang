@@ -21,6 +21,7 @@ import { currentInterface } from '../app/interface.js';
 import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { accessibleText } from '../i18n/accessible-text.js';
+import { Modal, useModalDialog } from './modal.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
 export function useSession(session: ProjectSession): number {
@@ -228,6 +229,7 @@ export function Menu({
     else menu.focus();
     // Escape closes the menu wherever focus is, including on the control that opened it.
     const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest('dialog[open]') !== menu.closest('dialog[open]')) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         closeRef.current();
@@ -362,15 +364,10 @@ export function ConfirmDialog({
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
+  useModalDialog(ref, open, 'confirm');
 
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="confirm"
       // The visible title may isolate writer text; the accessible name is the same words without the
@@ -398,7 +395,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }
 
@@ -429,19 +426,10 @@ export function ChoiceDialog({
   const ref = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      // Firefox's showModal() focuses the first answer, not the autoFocus Cancel (#347): Cancel takes it here, in every engine.
-      cancel.current?.focus();
-    }
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
+  useModalDialog(ref, open, 'confirm', cancel);
 
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="confirm"
       aria-label={accessibleText(title)}
@@ -470,7 +458,7 @@ export function ChoiceDialog({
           ))}
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }
 

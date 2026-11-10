@@ -339,6 +339,8 @@ Scene info, **⋯** and the agent's profile line are popovers: one at a time, an
 
 ### 8.3 Morph
 
+Modal ownership is shared with Classic through `ui.modal-stack` ([ui-modules.md §0.4](ui-modules.md#04-modal-ownership-and-focus)). Dialogs escape inert sidebars; equal-priority arrivals stack, confirmations precede feature dialogs, and the stopped-tab notice wins without unmounting the input underneath. Nonmodal notice capsules become visually hidden and inert while a modal owns focus (`data-state="covered"`); current notices return as `visible` on close, without restarting their lifetime or dropping a newly arriving failure. Notice updates are announced as plain text inside the top modal. Skills review no longer shares its edge with readable background toast text (#513); sheet, veil and morph tokens do not change.
+
 A popover, sheet or window grows out of the control that opened it and shrinks back into it: a FLIP animation through the Web Animations API from the opener's rectangle to the target's, `--dur-3` with `--ease-spring` to open and `--dur-2` to close, the content fading in after the first third. Focus moves when the animation starts, not when it ends, and the target is interactive at once. A view change morphs the page: its position and size transition through custom properties set by the layout function, the old view fades and scales out, the new one fades in; the editor stays mounted (§4.1). Under reduced motion nothing moves: a popover appears with a 120 ms fade and a view changes at once. The View Transitions API may replace the page morph later; nothing depends on it.
 
 ### 8.4 Layout

@@ -147,6 +147,12 @@ Owner: `packages/furniture/src/sprint.ts`; product context: [goals-progress.md �
 
 The existing `SprintState.status` and `transitionSprint` API remain unchanged. `sprintMachine` adapts `status` to `kind` without adding a field to an existing sprint object, preserving identity for ignored events. `sprintTable` describes the reducer's stored status, not `sprintView`'s time-derived status: a running sprint can read as finished between ticks without a transition. A late pause or tick can finish the sprint, so those rows list both outcomes. `finished` accepts `reset` and is not terminal; the table has no final states. There is no persisted sprint record, migration, trace row or new UI state. The existing sprint scenarios remain unchanged, with a separate exhaustive table suite.
 
+### `ui.modal-stack`
+
+Owner: `apps/desktop/src/components/modal-stack.ts`, interpreted by `components/modal.tsx`. Product contracts: [ui-modules.md §0.4](ui-modules.md#04-modal-ownership-and-focus) and [modern-interface.md §8.3](modern-interface.md#83-morph). `empty` and `open` carry an ordered list of surface IDs and priorities. `open` inserts once, preserving arrival order within each priority; `close` removes exactly its ID, including a covered surface that unmounts. Unknown closes and duplicate opens preserve identity. There are no terminal states.
+
+The same store holds workspace delete, leave, compile, sweep and Settings payloads and feature/import request slots. Folder-save owns its questions as before. Native elements, openers and last-focused controls are effect-side bindings, not reducer data. One observer includes remaining native dialogs and DOM removals. State/depth, top/covered and Modern notice covered/visible are published in the DOM. Exhaustive model checks and browser tests cover arrival, priority, Escape, focus return and covered notice updates. No project, bundle, settings, stored-record or Glass 2 token changes.
+
 ### `task.status`
 
 Owner: `apps/desktop/src/app/task-store.ts` exports `taskStatusTable`; `task-queue.ts` interprets it. Product contract: [agent-harness.md §2, Background runs](agent-harness.md#2-interaction-loop). Events are `pump`, `agent-ready`, `cancel`, `close`, `reload`, `resume`, `ready`, `fail`, `settle` and `apply`.

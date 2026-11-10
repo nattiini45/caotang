@@ -9,6 +9,7 @@
 import { useSyncExternalStore } from 'react';
 
 import type { VocabularyKind } from '@caotang/bus';
+import { modalStack } from './modal-stack.js';
 
 export type DialogRequest =
   | { readonly kind: 'project' }
@@ -16,37 +17,24 @@ export type DialogRequest =
   | { readonly kind: 'agent-instructions' }
   | { readonly kind: 'vocabulary'; readonly term: VocabularyKind };
 
-let current: DialogRequest | null = null;
-const listeners = new Set<() => void>();
-
-function announce(): void {
-  for (const listener of listeners) listener();
-}
-
 /** Opens a dialog. Opening one while another is open replaces it: the writer asked for the newer one. */
 export function openDialog(request: DialogRequest): void {
-  current = request;
-  announce();
+  modalStack.write('feature', request);
 }
 
 /** Closes whatever is open. A close with nothing open changes nothing, and tells nobody. */
 export function closeDialog(): void {
-  if (current === null) return;
-  current = null;
-  announce();
+  modalStack.write('feature', null);
 }
 
 /** The request now open, or `null`. */
 export function currentDialog(): DialogRequest | null {
-  return current;
+  return modalStack.read<DialogRequest>('feature');
 }
 
 /** Calls `listener` whenever a request opens or closes. Returns the unsubscribe. */
 export function subscribeDialog(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return modalStack.subscribe(listener);
 }
 
 /** The open request, as a React value. Its identity changes only when a request opens or closes. */

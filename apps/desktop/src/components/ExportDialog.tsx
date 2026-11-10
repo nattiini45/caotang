@@ -52,6 +52,7 @@ import { ExportPreviewPanel, type PreviewState } from './ExportPreviewPanel.js';
 import { holdsOf } from './export-preview-model.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { formatCount, ModernFold, useReport, useSession, type StatusMessage } from './shared.js';
+import { Modal, useModalDialog } from './modal.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 
 
@@ -403,17 +404,7 @@ export function ExportDialog({
     ...(templateId === undefined ? {} : { templateId }),
   };
 
-  // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was. It is read on
-  // the first render, before any effect runs: an effect that runs twice (React's development double run) would
-  // otherwise read a control inside the dialog it has just opened.
-  const [opener] = useState<Element | null>(() => document.activeElement);
-  useEffect(() => {
-    const element = dialog.current;
-    if (element !== null && !element.open) element.showModal();
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  }, [opener]);
+  useModalDialog(dialog);
 
   /** Saves the recipe's options (`recipe.save`), keeping its selection and format. A refusal is said in the dialog. */
   const saveOptions = (next: ShownOptions): void => {
@@ -565,7 +556,7 @@ export function ExportDialog({
     if (compileRef.current.kind !== 'running') onClose();
   };
   return (
-    <dialog
+    <Modal
       ref={dialog}
       className="export-dialog"
       aria-labelledby="export-title"
@@ -917,7 +908,7 @@ export function ExportDialog({
           </div>
         </div>
       </div>
-    </dialog>
+    </Modal>
   );
 }
 

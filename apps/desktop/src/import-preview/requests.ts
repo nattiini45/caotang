@@ -9,6 +9,7 @@
 import { useSyncExternalStore } from 'react';
 
 import type { ImportPreviewSource } from './model.js';
+import { modalStack } from '../components/modal-stack.js';
 
 export interface ImportPreviewRequest {
   readonly source: ImportPreviewSource;
@@ -19,41 +20,30 @@ export interface ImportPreviewRequest {
 /** An open request, numbered, so a second import while one is open starts a fresh dialog. */
 export type OpenImportPreview = ImportPreviewRequest & { readonly id: number };
 
-let current: OpenImportPreview | null = null;
 let opened = 0;
-const listeners = new Set<() => void>();
-
-function announce(): void {
-  for (const listener of listeners) listener();
-}
 
 /** Opens the preview over this source. Nothing is written until the writer presses Import in it. */
 export function openImportPreview(request: ImportPreviewRequest): void {
-  const replaced = current;
+  const replaced = currentImportPreview();
   opened += 1;
-  current = { ...request, id: opened };
-  announce();
+  modalStack.write('import', { ...request, id: opened });
   replaced?.onClose?.(false);
 }
 
 /** Closes the open preview, if any. */
 export function closeImportPreview(committed = false, expectedId?: number): void {
-  const closing = current;
+  const closing = currentImportPreview();
   if (closing === null || (expectedId !== undefined && closing.id !== expectedId)) return;
-  current = null;
-  announce();
+  modalStack.write('import', null);
   closing.onClose?.(committed);
 }
 
 export function currentImportPreview(): OpenImportPreview | null {
-  return current;
+  return modalStack.read<OpenImportPreview>('import');
 }
 
 function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return modalStack.subscribe(listener);
 }
 
 export function useImportPreviewRequest(): OpenImportPreview | null {

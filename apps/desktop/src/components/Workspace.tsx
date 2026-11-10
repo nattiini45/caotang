@@ -36,7 +36,7 @@ import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, type DirectoryHandleLike } from '../app/fs-access.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
 import { shellActions } from '../app/shell-actions.js';
-import { narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
+import { NARROW_QUERY, narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
   exportBundle,
   noteLeaveSuggestion,
@@ -75,6 +75,7 @@ import { whenAgent } from '../app/agent-registry.js';
 import { openFindingCount, openFindingsOfScene } from '../app/findings-model.js';
 import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
+import { ModalStackState, useModalValue } from './modal.js';
 import { ProjectPanel } from './ProjectPanel.js';
 import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
@@ -153,14 +154,14 @@ export function Workspace({
   const [rail, setRail] = useState<RailTab>('binder');
   const [center, setCenterNow] = useState<CenterMode>('editor');
   /** Where the writer asked to go while proposed timeline changes were waiting, until they have answered the question that asks. */
-  const [leaving, setLeaving] = useState<CenterMode | 'home' | null>(null);
+  const [leaving, setLeaving] = useModalValue<CenterMode | 'home'>('leaving');
   // Reads `center` itself (not a ref), so the setter can be passed to a view built during render (react-hooks/refs).
   const setCenter = useCallback(
     (next: CenterMode): void => {
       if (center === 'timeline' && next !== 'timeline' && pendingRows(session.projectId) > 0) setLeaving(next);
       else setCenterNow(next);
     },
-    [session, center],
+    [session, center, setLeaving],
   );
   const [timelineFocus, setTimelineFocus] = useState<TimelineFocusRequest | null>(null);
   const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);
@@ -171,10 +172,16 @@ export function Workspace({
   const narrow = useNarrow();
   const [panel, setPanel] = useState<NarrowPanel | null>(null);
   const [overflow, setOverflow] = useState<MenuAnchor | null>(null);
-  if (!narrow && (panel !== null || overflow !== null)) {
-    setPanel(null);
-    setOverflow(null);
-  }
+  useEffect(() => {
+    const query = window.matchMedia(NARROW_QUERY);
+    const reset = (): void => {
+      if (query.matches) return;
+      setPanel(null);
+      setOverflow(null);
+    };
+    query.addEventListener('change', reset);
+    return () => query.removeEventListener('change', reset);
+  }, []);
   const [focusMode, setFocusMode] = useState(false);
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
@@ -184,10 +191,10 @@ export function Workspace({
   const [railRequest, setRailRequest] = useState(0);
   const [zoom, setZoom] = useState<ZoomLevel>('M');
   const [renaming, setRenaming] = useState<Renaming | null>(null);
-  const [askingDelete, setAskingDelete] = useState<string | null>(null);
+  const [askingDelete, setAskingDelete] = useModalValue<string>('delete');
   /** Where focus goes once the asked delete is confirmed (see `askDelete`). Read only from the handlers, never rendered. */
   const deletePlace = useRef<DeletePlace | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useModalValue<boolean>('export');
   const [focusDocId, setFocusDocId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<RevealRequest | null>(null);
   const [codexFocus, setCodexFocus] = useState<{ readonly entryId: string; readonly serial: number } | null>(null);
@@ -198,11 +205,11 @@ export function Workspace({
   const [agentOpen, setAgentOpen] = useState(startIntent !== null);
   /** Text the palette put in the agent's Intent box, unsent (modern-interface.md §8.9); the serial makes a repeat count. */
   const [agentDraft, setAgentDraft] = useState<{ readonly text: string; readonly serial: number } | null>(null);
-  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
+  const [settingsSection, setSettingsSection] = useModalValue<SettingsSection>('settings');
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissedForVisit());
   const [explainStorage, setExplainStorage] = useState(false);
   /** The unused picture files a sweep would remove, offered before an export, until the writer has answered. */
-  const [sweepOffer, setSweepOffer] = useState<readonly SweepCandidate[] | null>(null);
+  const [sweepOffer, setSweepOffer] = useModalValue<readonly SweepCandidate[]>('sweep');
   const [storedToday, setStoredToday] = useState(0);
   // One agent controller per open project: its turns, its pending decision and its ghost belong to this session.
   // The budgets are read at each turn, so a change in Settings › Context applies to the next one (context-assembly §3).
@@ -1114,6 +1121,7 @@ export function Workspace({
 
   return (
     <ReportContext.Provider value={report}>
+      <ModalStackState />
       {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have, in either shell. */}
       <Shell regions={regions}>
         <ConfirmDialog
