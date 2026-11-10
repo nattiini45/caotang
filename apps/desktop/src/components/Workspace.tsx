@@ -55,6 +55,7 @@ import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notic
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
 import { PictureNotices } from './PictureNotices.js';
 import { saveStateWords, type StopCause } from '../app/integrity-model.js';
+import type { SaveChannelName } from '../app/save-channel.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
@@ -451,6 +452,7 @@ export function Workspace({
     ) : null;
   const undoLabel = session.undoLabel();
   const saveState = session.saveState();
+  const failedSaveChannels = session.failedSaveChannels();
   const stopped = session.tabStop().getSnapshot();
   const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
@@ -484,8 +486,8 @@ export function Workspace({
 
   const undoNow = (): void => {
     void session.undoLast().then((done) => {
-      if (done) return;
-      const detail = session.undoErrorMessage();
+      if (done.kind === 'done') return;
+      const detail = done.kind === 'failed' ? done.message : null;
       report(detail ? { text: detail, tone: 'error' } : { text: t`There is nothing to undo.`, tone: 'info' });
     });
   };
@@ -1078,10 +1080,10 @@ export function Workspace({
       </div>
     ) : null,
     saveState: <>
-      <SaveIndicator state={saveState} cause={stopCause} onExport={exportNow} />
+      <SaveIndicator state={saveState} cause={stopCause} failedChannels={failedSaveChannels} onExport={exportNow} />
       <span data-testid="folder-save" data-state={folderSave.state.kind} hidden />
     </>,
-    progress: { target, setTarget: saveTarget, saveState, stopCause, exportBackup: exportNow },
+    progress: { target, setTarget: saveTarget, saveState, stopCause, failedSaveChannels, exportBackup: exportNow },
     search: {
       state,
       activeDocId: view.activeDocId,
@@ -1223,8 +1225,8 @@ function DeleteSummary({ descendants, documents, words }: { descendants: number;
  * The save state in the toolbar. A failure says what is safe right now and the one thing to do about it (ui-modules §5.3, rule 4):
  * the words are in this tab and are written again on the next change, and a backup is the copy that does not depend on the browser.
  */
-function SaveIndicator({ state, cause, onExport }: { state: SaveState; cause: StopCause | undefined; onExport: () => void }): ReactNode {
-  const words = saveStateWords(state, cause);
+function SaveIndicator({ state, cause, failedChannels, onExport }: { state: SaveState; cause: StopCause | undefined; failedChannels: readonly SaveChannelName[]; onExport: () => void }): ReactNode {
+  const words = saveStateWords(state, cause, failedChannels);
   return (
     <span className={`save-state is-${state}`} role="status" data-testid="save-state" data-state={state}>
       {words.text}

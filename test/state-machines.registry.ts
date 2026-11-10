@@ -7,6 +7,7 @@ import { sidebarTable } from '../apps/desktop/src/components/shell/modern/sideba
 import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-model.js';
 import { sprintTable } from '../packages/furniture/src/sprint.js';
 import { tabStopTable } from '../apps/desktop/src/app/tab-stop.js';
+import { saveChannelTable } from '../apps/desktop/src/app/save-channel.js';
 import { persistenceTable } from '../apps/desktop/src/app/persistence-model.js';
 import { pendingEntryTable } from '../apps/desktop/src/app/pending-entry.js';
 import { findingStatusTable } from '../packages/bus/src/coherence.js';
@@ -21,4 +22,5 @@ export const machineTables = [
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
   assetStagingTable, assetRemovalHoldTable,
   tabStopTable, persistenceTable, pendingEntryTable,
+  saveChannelTable,
 ] as const;

@@ -2,7 +2,7 @@
  * The decisions the data-safety paths make, as pure functions of what they are told. The editor, the folder save and the
  * demo run call these, and the model tests read them without a browser, so each rule is pinned where it is decided.
  */
-/* lingui-set comment="Interpolated values: fieldCount, fields, name, times, unsaid" */
+/* lingui-set comment="Interpolated values: fieldCount, fields, name, parts, times, unsaid" */
 
 import { plural, t } from '@lingui/core/macro';
 import { isolate, listFormat, type MessageRef } from '@caotang/i18n';
@@ -10,6 +10,7 @@ import { isolate, listFormat, type MessageRef } from '@caotang/i18n';
 import { formatterLocale } from '../i18n/format-locale.js';
 import { renderRef, titleValues } from '../i18n/render-ref.js';
 import type { SaveState, WrittenBody } from './session.js';
+import type { SaveChannelName } from './save-channel.js';
 
 import type { StopCause } from './tab-stop.js';
 export type { StopCause } from './tab-stop.js';
@@ -23,6 +24,7 @@ export type { StopCause } from './tab-stop.js';
 export function saveStateWords(
   state: SaveState,
   cause: StopCause = 'newer-text',
+  failedChannels: readonly SaveChannelName[] = [],
 ): { readonly text: string; readonly offersBackup: boolean } {
   if (state === 'saved') return { text: t`All changes saved in this browser`, offersBackup: false };
   if (state === 'saving') return { text: t`Saving…`, offersBackup: false };
@@ -30,6 +32,14 @@ export function saveStateWords(
     return { text: t`Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab.`, offersBackup: false };
   }
   if (state === 'conflict') return { text: t`Another tab has newer text`, offersBackup: false };
+  if (failedChannels.length > 0 && !(failedChannels.length === 1 && failedChannels[0] === 'project')) {
+    const names = { project: t`Project`, findings: t`Findings`, tasks: t`Tasks`, settings: t`Settings` };
+    const parts = listFormat(formatterLocale()).format(failedChannels.map((channel) => names[channel]));
+    return {
+      text: t`Not saved: ${{ parts }}. Your changes are kept in this tab. Try the change again.`,
+      offersBackup: failedChannels.some((channel) => channel !== 'settings'),
+    };
+  }
   return {
     text: t`Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change.`,
     offersBackup: true,

@@ -54,8 +54,8 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
     setUndoFailure(null);
     try {
       const done = await session.undoGroup(id);
-      if (done) return;
-      const detail = session.undoErrorMessage();
+      if (done.kind === 'done') return;
+      const detail = done.kind === 'failed' ? done.message : null;
       const message = detail ?? t`“${{ summary }}” could not be undone in full. The rest of its group is kept for another try.`;
       setUndoFailure({ id, summary, message });
       report({ text: message, tone: 'error' });

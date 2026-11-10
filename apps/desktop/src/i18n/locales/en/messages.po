@@ -147,12 +147,12 @@ msgstr "\"{lateTitle}\" happens {days} days after \"{earlyTitle}\""
 msgid "coherence.timeline.gapStrand"
 msgstr "\"{lateTitle}\" happens {days} days after \"{earlyTitle}\", within the {strand} strand"
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "“{name}”"
 msgstr "“{name}”"
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "“{name}” {times, plural, one {# time} other {# times}}"
 msgstr "“{name}” {times, plural, one {# time} other {# times}}"
@@ -3184,7 +3184,7 @@ msgstr "Aliases"
 msgid "All"
 msgstr "All"
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "All changes saved in this browser"
 msgstr "All changes saved in this browser"
@@ -3336,7 +3336,7 @@ msgstr "Another program may be using this folder: a lock file in it says so, and
 msgid "Another program removed <0>caotang.json</0> from this folder after Caotang last loaded or saved it, so nothing was written."
 msgstr "Another program removed <0>caotang.json</0> from this folder after Caotang last loaded or saved it, so nothing was written."
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Another tab has newer text"
 msgstr "Another tab has newer text"
@@ -4229,7 +4229,7 @@ msgstr "Cancelling…"
 msgid "Caotang"
 msgstr "Caotang"
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Caotang also noted {unsaid, plural, one {one smaller thing} other {# smaller things}} in the project’s files as it opened them."
 msgstr "Caotang also noted {unsaid, plural, one {one smaller thing} other {# smaller things}} in the project’s files as it opened them."
@@ -4288,7 +4288,7 @@ msgstr "Caotang was updated in another tab"
 msgid "Caotang was updated in another tab, so this tab cannot save to browser storage. The words here are still on screen."
 msgstr "Caotang was updated in another tab, so this tab cannot save to browser storage. The words here are still on screen."
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab."
 msgstr "Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab."
@@ -7064,6 +7064,7 @@ msgstr "Finding status changed"
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #. Modern interface: the binder tab bar and the sidebar beside it.
@@ -7072,6 +7073,7 @@ msgstr "Finding status changed"
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
+#: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -10346,7 +10348,7 @@ msgstr "Not ready"
 msgid "Not run. The hook is disabled or its matcher does not match this input."
 msgstr "Not run. The hook is disabled or its matcher does not match this input."
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
 msgstr "Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change."
@@ -10356,6 +10358,11 @@ msgstr "Not saved to browser storage yet. Your words are safe in this tab and ar
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Not saved yet. Your words are in this tab; they will be written again on the next change."
 msgstr "Not saved yet. Your words are in this tab; they will be written again on the next change."
+
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved: {parts}. Your changes are kept in this tab. Try the change again."
+msgstr "Not saved: {parts}. Your changes are kept in this tab. Try the change again."
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
@@ -11598,9 +11605,11 @@ msgid "Progress toward the manuscript"
 msgstr "Progress toward the manuscript"
 
 #. Goals in the Inspector. Interpolated values: title is the writer's own title for the item; current, target and pace are counts; unit and state are words; sentence is a whole goal sentence; weekday and day name a day.
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
 #. Modern interface: Scene info, the inspector as a popover from the title capsule.
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
+#: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/InspectorGoals.tsx
 #: apps/desktop/src/components/ProjectPanel.tsx
 #: apps/desktop/src/components/shell/modern/scene-info.tsx
@@ -13481,7 +13490,7 @@ msgstr "Saving will re-style {count} {blocks, plural, one {block} other {blocks}
 msgid "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
 msgstr "Saving writes this tab’s version over them. The folder’s version is kept first, in <0>.caotang-backup</0> in the folder, so if you need anything from it, copy it from there."
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
 #: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/components/EditorPane.tsx
@@ -14029,8 +14038,10 @@ msgstr "Setting the synopsis of “{doc}”"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #. The Modern interface's search and commands palette (Ctrl+K). A group heading, an item, or the line under an item.
 #. The workspace toolbar and its More menu. label is the name of the step Undo would take back; shortcut is a keyboard chord.
+#: apps/desktop/src/app/integrity-model.ts
 #: apps/desktop/src/app/palette-model.ts
 #: apps/desktop/src/app/shell-actions.ts
 #: apps/desktop/src/components/Home.tsx
@@ -15046,6 +15057,11 @@ msgstr "Task list · {done} of {total} done"
 msgid "Task roles"
 msgstr "Task roles"
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Tasks"
+msgstr "Tasks"
+
 #. Interpolated values: model, provider, values
 #: apps/desktop/src/components/RequestParamsFields.tsx
 msgid "Temperature"
@@ -15742,12 +15758,12 @@ msgstr "The file could not be read."
 msgid "store.load.frontMatterDiverged"
 msgstr "The file for “{title}” disagrees with the project about {which}. The project’s details are kept."
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "The file has {fieldCount, plural, one {# field} other {# fields}} Caotang keeps but does not use: {fields}. They are dropped on the next save."
 msgstr "The file has {fieldCount, plural, one {# field} other {# fields}} Caotang keeps but does not use: {fields}. They are dropped on the next save."
 
-#. Interpolated values: fieldCount, fields, name, times, unsaid
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "The file has a field Caotang keeps but does not use: {fields}. It is dropped on the next save."
 msgstr "The file has a field Caotang keeps but does not use: {fields}. It is dropped on the next save."

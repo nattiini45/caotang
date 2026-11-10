@@ -177,6 +177,7 @@ interface AppSettings {
 - All budgets are **config-exposed, not hardcoded** (context-assembly §8); unknown/missing keys load to defaults.
 - Mutation path: settings UI → app-level settings store (not the project bus — command-bus §9 "provider/settings mutation is app-level state"; the agent can never touch any of it, hard-deny class).
 - Settings writes are serialized. Most preferences publish immediately; Home's **Got it** publishes `firstRun.dismissed` only after its settings transaction commits. While pending, the card stays visible and Got it is disabled. A refused write leaves the card visible, reports the storage error inside it, and enables Got it for a retry. Concurrent preferences keep their values without overwriting the committed dismissal. Without an app database, the existing visit-only storage notice applies.
+- Settings, findings and tasks share the in-memory `save.channel` queue contract ([state-machines.md](state-machines.md)). Settings retain their versionless stored shape; the queue, pending count and refusal are never stored in it. Settings have a separate save subscription so a pending or refused durable-only change is visible without publishing that preference early.
 
 ### 5.2 Sections & validation surfaces
 | Section | Contents | Validation |
@@ -197,6 +198,8 @@ interface AppSettings {
 ### 5.3 Browser-storage persistence
 
 The stopped-tab notice and save wording read the current session's `TabStop`, which joins its cause (`newer-text|updated`) with its latest kept-copy result. The notice publishes `data-state="stopped"`. It wins over any other open dialog and any dialog that arrives later; those dialogs stay mounted underneath with their input intact. Escape does not dismiss the notice. The existing backup action, two-step reload, kept-versus-memory wording, and named put-back steps (`create|write|done`) are unchanged. See [state-machines.md](state-machines.md) for the persistence, stopped-tab and pending-entry contracts.
+
+The main save indicator aggregates project persistence, pending editor text, findings, tasks and app settings. Conflict takes priority over failure, failure over saving, and saved means no included source is pending or failed. A failed task or settings write turns it red and names the failed channel in the status text, in both shells. A refusal remains visible during a retry until a later write succeeds. Findings folder-copy failures retain their separate Findings-panel notice when the browser copy was saved. Tasks report a failed browser or folder write. Settings-only failures offer no project backup: a project bundle does not contain app settings. `data-state` remains `saved|saving|failed|conflict`; tests wait on that state rather than a delay. Session `saved()` and `settle()` await the included queues.
 
 Evidence: Dabble's web app carries a constant *"Data may be evicted"* warning: browser eviction is a real, shipped-competitor failure mode for the IndexedDB working store (IndexedDB storage is best-effort by design). The posture, for the **browser build** (a native desktop-shell wrap would remove the entire class):
 

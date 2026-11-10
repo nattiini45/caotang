@@ -13,6 +13,7 @@ import type { FindingView } from '../../app/findings-model.js';
 import type { NarrowPanel } from '../../app/narrow-model.js';
 import type { NewKind } from '../../app/new-menu.js';
 import type { SaveState } from '../../app/session.js';
+import type { SaveChannelName } from '../../app/save-channel.js';
 import type { TargetProgress } from '../../app/session-progress.js';
 import type { ShellAction } from '../../app/shell-actions.js';
 import type { CenterMode } from '../Binder.js';
@@ -71,6 +72,7 @@ export interface ShellProgress {
   readonly setTarget: (words: number) => void;
   readonly saveState: SaveState;
   readonly stopCause?: 'newer-text' | 'updated';
+  readonly failedSaveChannels?: readonly SaveChannelName[];
   /** Export a backup, the save state's own button on a failed save. */
   readonly exportBackup: () => void;
 }

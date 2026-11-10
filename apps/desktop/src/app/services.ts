@@ -12,6 +12,7 @@ import type { WireFactory } from '@caotang/mcp-client';
 import { sweepHistory } from './history-store.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
 import { McpApp } from './mcp.js';
+import { SaveChannel } from './save-channel.js';
 import { ProviderService } from './providers.js';
 import { DEFAULT_SETTINGS, applyPatch, mcpLoadWarnings, normalizeSettings, type AppSettings, type SettingsPatch } from './settings.js';
 
@@ -19,7 +20,7 @@ import { DEFAULT_SETTINGS, applyPatch, mcpLoadWarnings, normalizeSettings, type 
 export class SettingsStore {
   private value: AppSettings;
   private readonly listeners = new Set<() => void>();
-  private writes: Promise<string | null> = Promise.resolve(null);
+  readonly saveChannel = new SaveChannel('settings');
 
   constructor(
     private readonly db: AppDb | null,
@@ -41,7 +42,7 @@ export class SettingsStore {
   /** Applies a patch and stores it. `publishAfterSave` waits for the commit before notifying. Returns a refusal or `null`. */
   async update(patch: SettingsPatch, options: { readonly publishAfterSave?: boolean } = {}): Promise<string | null> {
     if (options.publishAfterSave) {
-      return this.enqueue(async () => {
+      return this.saveChannel.enqueue(async () => {
         const error = await this.write(applyPatch(this.value, patch));
         if (error !== null) return error;
         this.value = applyPatch(this.value, patch);
@@ -56,12 +57,7 @@ export class SettingsStore {
 
   /** Writes the current value. Never throws: a failed write is returned as text for the status line. */
   async persist(): Promise<string | null> {
-    return this.enqueue(() => this.write(this.value));
-  }
-
-  private enqueue(write: () => Promise<string | null>): Promise<string | null> {
-    this.writes = this.writes.then(write);
-    return this.writes;
+    return this.saveChannel.enqueue(() => this.write(this.value));
   }
 
   private async write(value: AppSettings): Promise<string | null> {

@@ -1,5 +1,13 @@
 # State machines
 
+## Save channels
+
+`save.channel` is the shared serialized queue for findings, tasks and app settings (`apps/desktop/src/app/save-channel.ts`). Its stable snapshot is `idle`, `writing` with a pending count and the last refusal, or `failed` with the refusal. Enqueue is synchronous; settlement records the write's refusal or clears it on success. Unexpected rejected writes become a refusal without poisoning later queued work. All transitions notify save subscribers; `settled()` awaits the writes already queued. No channel state is persisted.
+
+The session joins the channels with project persistence and pending editor text, using conflict > failed > saving > saved. Failure stays visible while a retry runs. It publishes failed channel names separately for localized wording in both shells. Settings enter through the session defaults and unsubscribe when the session closes; value subscribers still see durable-only preferences only after commit. The owning contracts are [ui-modules.md §§5.1, 5.3](ui-modules.md#53-browser-storage-persistence) and [extensibility.md §8](extensibility.md).
+
+Undo returns its own `done|empty|failed` outcome, with the failure message attached, rather than leaving a mutable last-error string for a later reader. Restore consumes the same result internally; undo journals and project records are unchanged.
+
 Lifecycle contracts use `@caotang/machine`, a dependency-free leaf package. A machine has a `kind`-keyed state union, a `type`-keyed event union, a pure step and a transition table exported as data. The table is the shared vocabulary for code, tests, documentation and agents, not an actor runtime. The kit owns no clock, timer, storage, effects or subscriptions.
 
 ## Contract and API
