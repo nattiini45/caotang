@@ -379,6 +379,20 @@ describe('coherence.setSceneMeta dialogueContainer (coherence.md §5.1 medium.sp
 });
 
 describe('coherence.setFindingStatus (coherence.md §6.3, §7.1)', () => {
+  it.each([undefined, OPENED.toISOString()])('undo restores touchedAt %s and run-discard eligibility', (touchedAt) => {
+    const state = fixture();
+    const finding = state.coherence!.findings[0]!;
+    Object.assign(finding, { createdByRunId: 'run-1', ...(touchedAt === undefined ? {} : { touchedAt }) });
+    state.coherence!.runs.push({ id: 'run-1', at: OPENED.toISOString(), kind: 'scan', checkIds: [], scope: { docIds: [] }, findingsUpserted: [FINDING], status: 'complete' });
+    const h = harness(state);
+    const before = snapshotOf(state);
+    const outcome = expectOk(h.send('coherence.setFindingStatus', { findingId: FINDING, status: 'fixed', note: 'Changed.' }));
+    expect(h.undo.undo(outcome.undoGroupId!).ok).toBe(true);
+    expect(snapshotOf(state)).toBe(before);
+    expectOk(h.send('coherence.discardRun', { runId: 'run-1' }));
+    expect(state.coherence!.findings).toHaveLength(touchedAt === undefined ? 0 : 1);
+  });
+
   it('dismisses with a reason, and undo restores the open finding with no stale reason', () => {
     const h = harness();
     const outcome = expectOk(
@@ -395,6 +409,16 @@ describe('coherence.setFindingStatus (coherence.md §6.3, §7.1)', () => {
     expect(restored?.status).toBe('open');
     expect(restored?.dismissedReason).toBeUndefined();
     expect(restored?.note).toBeUndefined();
+  });
+
+  it('undoes reopening a fixed finding without retaining a later note', () => {
+    const h = harness();
+    const finding = h.state.coherence!.findings[0]!;
+    finding.status = 'fixed';
+    const before = snapshotOf(h.state);
+    const outcome = expectOk(h.send('coherence.setFindingStatus', { findingId: FINDING, status: 'open', note: 'Look again.' }));
+    expect(h.undo.undo(outcome.undoGroupId!).ok).toBe(true);
+    expect(snapshotOf(h.state)).toBe(before);
   });
 
   it('refuses a dismissal with no reason, and a reason that is not on the picker', () => {

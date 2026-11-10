@@ -6,6 +6,63 @@ Regenerate with `UPDATE_STATE_MACHINES=1 pnpm exec vitest run test/state-machine
 The convention and owning specs are in [state-machines.md](state-machines.md).
 Unlisted events return the same state. Listed self-transitions may update payloads.
 
+## asset.removal-hold
+
+Initial: `clear`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `clear` | `acquire` | `held` |
+| `held` | `acquire` | `held` |
+| `held` | `release` | `clear`, `held` |
+
+## asset.staging
+
+Initial: `staged`. Final: `removed`, `removed-cancelled`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `removed` | — | — |
+| `removed-cancelled` | — | — |
+| `reserved` | `cancel` | `reserved-cancelled` |
+| `reserved` | `commit` | `removed`, `reserved` |
+| `reserved` | `discard` | `removed` |
+| `reserved` | `release` | `reserved`, `staged` |
+| `reserved-cancelled` | `cancel` | `reserved-cancelled` |
+| `reserved-cancelled` | `commit` | `removed-cancelled`, `reserved-cancelled` |
+| `reserved-cancelled` | `discard` | `removed-cancelled` |
+| `reserved-cancelled` | `release` | `reserved-cancelled`, `staged` |
+| `staged` | `cancel` | `staged-cancelled` |
+| `staged` | `discard` | `removed` |
+| `staged` | `reserve` | `reserved` |
+| `staged` | `take` | `removed` |
+| `staged-cancelled` | `cancel` | `staged-cancelled` |
+| `staged-cancelled` | `discard` | `removed-cancelled` |
+| `staged-cancelled` | `reserve` | `reserved-cancelled` |
+| `staged-cancelled` | `take` | `removed-cancelled` |
+
+## bus.call-id
+
+Initial: `unseen`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `in-flight` | `end-turn` | `unseen` |
+| `in-flight` | `settle` | `recorded` |
+| `recorded` | `end-turn` | `unseen` |
+| `unseen` | `apply` | `in-flight`, `recorded` |
+
+## coherence.finding
+
+Initial: `open`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `dismissed` | `open` | `open` |
+| `fixed` | `open` | `open` |
+| `open` | `dismissed` | `dismissed` |
+| `open` | `fixed` | `fixed` |
+
 ## folder.save
 
 Initial: `idle`. Final: none.
@@ -114,6 +171,23 @@ Initial: `idle`. Final: none.
 | `running` | `reset` | `idle` |
 | `running` | `stop` | `finished` |
 | `running` | `tick` | `finished`, `running` |
+
+## store.connection
+
+Initial: `opening`. Final: `blocked`, `closed`, `failed`, `newer`, `stale`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `blocked` | — | — |
+| `closed` | — | — |
+| `failed` | — | — |
+| `newer` | — | — |
+| `open` | `close` | `closed` |
+| `open` | `versionchange` | `stale` |
+| `opening` | `blocked` | `blocked` |
+| `opening` | `error` | `failed`, `newer` |
+| `opening` | `opened` | `open` |
+| `stale` | — | — |
 
 ## task.status
 

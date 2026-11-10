@@ -23,7 +23,7 @@
  * commands refuse that case in `validate` rather than creating a file as a side effect.
  */
 
-import type { KnowledgeFactRecord, SceneMetaRecord } from '@caotang/bus';
+import type { CoherenceStatusName, KnowledgeFactRecord, SceneMetaRecord } from '@caotang/bus';
 import type { MessageRef } from '@caotang/i18n';
 
 /**
@@ -33,7 +33,7 @@ import type { MessageRef } from '@caotang/i18n';
  */
 export interface CoherenceFindingState {
   readonly id: string;
-  status: string;
+  status: CoherenceStatusName;
   dismissedReason?: string;
   note?: string;
   updatedAt: string;

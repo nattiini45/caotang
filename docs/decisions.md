@@ -14,6 +14,12 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- A blocked runtime-store open refuses with guidance to close the other tabs and reload, and closes any late successful connection. Why: an older tab holding IndexedDB must not leave project startup waiting forever; the runtime schema and stale/newer errors remain unchanged (#539). [delegated 2026-11-09]
+
+- Undoing a finding status change restores its prior curation timestamps, including an absent `touchedAt`, so Discard run still removes a finding whose first touch was undone. Its note and verdict are restored with the timestamps through the existing session-only inverse restore table; command keys and `coherence.json` statuses do not change. Why: Undo must not silently curate a finding the writer chose to leave untouched (#532). [delegated 2026-11-09]
+
+- Concurrent async dispatches sharing a turn-scoped `callId` await one apply and one answer; an unexpected post-admission rejection settles as a cached internal failure, and a late completion cannot recreate the cache after turn end. Why: the existing replay guarantee must prevent double effects while a call is in flight or after its effect may have committed, without changing the key scheme or caching admission refusals (#533). [delegated 2026-11-09]
+
 - During a compile, Escape and Cancel both keep the Export dialog open until the compile settles; failed readiness can be retried in place. Folder saves show “Saving to the folder…” and accept only one picker or write at a time. Import commits expose a retryable failure and cannot be dismissed while committing; replacing a preview settles its original request once, while an in-flight write still reports its outcome without disturbing the replacement. A stale AI encoding answer never overwrites a newer manual choice. Why: writers, tests and agents read one named in-memory flow without changing stored projects or files. Caspar: “All new visible states approved as a set.” [owner 2026-11-09]
 
 - Lifecycle state is a `kind`-keyed union with a pure step and a transition table exported as data from `@caotang/machine`; each converted machine is listed with its generated table in docs/architecture/state-machines.md and a repo-level test fails when step and table disagree. No state-machine library. Why: the writer-visible states, the tests and the agents all read one definition, and the kit adds well under 1 kB gzip where XState's smallest use measured 13.0 kB gzip. Caspar: “All three (recommended)”. [owner 2026-11-09]

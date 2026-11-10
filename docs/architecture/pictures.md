@@ -239,6 +239,8 @@ The app's decoder is `apps/desktop/src/app/picture-decoder.ts` (`createImageBitm
 
 #### 6.4.2 Import reservation and retention ports (P1 and P8)
 
+The staging lifecycle is `asset.staging` in [state-machines.md](state-machines.md): staged/reserved states have explicit cancelled variants, and only a reserved state carries a reservation id. All batch ids are validated before reserving any; commit and release act only for that reservation. Release resets cancellation for a retry, while removed variants preserve the cancellation observation of an existing reservation handle. The legacy single-use `take` still returns cancelled unreserved bytes. State and tokens remain memory-only, with no saved-record or file-format change. Asset-removal holds use `asset.removal-hold`: each removal owns one holder token, only its release can remove it, and a new reference is refused until every overlapping holder releases. Repeated or stale releases cannot free a later hold.
+
 Today's `AssetStaging` in `packages/store/src/commands-project.ts` **consumes the bytes on `take`**, and `ProjectAssetPort` only writes. That is enough for one cover, and not enough for a retry or a sweep, so two ports are specified before the registry lands:
 
 ```ts
