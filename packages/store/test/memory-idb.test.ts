@@ -21,6 +21,36 @@ import { DOCUMENT_STORE, PROJECT_STORE, SESSION_STORE, openRuntimeStore } from '
 const DB = 'caotang-binding-test';
 
 describe('open requests release their queue and respect closing transactions', () => {
+  it.each([false, true])('continues a queued open after a versionchange handler throws (closes first: %s)', async (closesFirst) => {
+    const factory = new MemoryIndexedDb();
+    const initial = factory.open(DB, 1);
+    await new Promise<void>((resolve) => { initial.onsuccess = () => resolve(); });
+    const db = initial.result;
+    const boom = new Error('The versionchange handler failed');
+    db.onversionchange = () => {
+      if (closesFirst) db.close();
+      throw boom;
+    };
+    const upgrade = factory.open(DB, 2);
+    const outcome = new Promise<'blocked' | 'opened'>((resolve) => {
+      upgrade.onblocked = () => resolve('blocked');
+      upgrade.addEventListener('success', () => resolve('opened'));
+    });
+    const upgraded = new Promise<void>((resolve, reject) => {
+      upgrade.onsuccess = () => { upgrade.result.close(); resolve(); };
+      upgrade.onerror = () => reject(upgrade.error);
+    });
+    const retry = factory.open(DB, 2);
+    const retried = new Promise<void>((resolve, reject) => {
+      retry.onsuccess = () => { retry.result.close(); resolve(); };
+      retry.onerror = () => reject(retry.error);
+    });
+    expect(await outcome).toBe(closesFirst ? 'opened' : 'blocked');
+    db.close();
+    await Promise.all([upgraded, retried]);
+    expect(factory.handlerErrors()).toEqual([boom]);
+  });
+
   it.each(['throw', 'abort'] as const)('rolls back a failed %s upgrade and lets the next queued open finish', async (failure) => {
     const factory = new MemoryIndexedDb();
     const initial = factory.open(DB, 1);

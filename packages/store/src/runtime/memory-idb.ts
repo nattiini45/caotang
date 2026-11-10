@@ -935,7 +935,11 @@ class FakeDatabase extends EventTarget implements IDBDatabase {
   notifyVersionChange(newVersion: number): void {
     const event = versionChangeEvent('versionchange', this.version, newVersion);
     this.dispatchEvent(event);
-    this.onversionchange?.call(this, event);
+    try {
+      this.onversionchange?.call(this, event);
+    } catch (error) {
+      this.factory.recordHandlerError(error);
+    }
   }
 }
 
