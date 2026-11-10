@@ -651,16 +651,15 @@ describe('§4 — a failed write keeps the newest body, not the one that failed'
     expect(failed?.outcome).toBe('conflict');
     expect(autosave.status(DOC).lastError).toBe(conflict);
     // The mid-flight `c` is still there, and a flush is scheduled for it.
-    expect(autosave.status(DOC)).toMatchObject({ state: 'pending', dirty: true });
+    expect(autosave.status(DOC)).toMatchObject({ state: 'conflict', dirty: true });
 
     const [again] = await autosave.flush(DOC);
     expect(again?.outcome).toBe('conflict');
     expect(writer.calls.map((call) => call.body)).toEqual(['b', 'c']);
     expect(writer.calls.map((call) => call.expectedRevision)).toEqual([0, 0]);
-    // Unretried by the conflict, unsaved by the refusal to lose it. And 'error'
-    // again, because nothing was typed under *this* write either.
+    // Unretried by the conflict and unsaved by the refusal to lose it.
     expect(autosave.status(DOC).dirty).toBe(true);
-    expect(autosave.status(DOC).state).toBe('error');
+    expect(autosave.status(DOC).state).toBe('conflict');
   });
 
   it('restores the failed body when nothing newer arrived, and arms nothing', async () => {

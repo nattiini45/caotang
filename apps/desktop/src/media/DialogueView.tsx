@@ -368,7 +368,7 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
               onChange={onSourceChange}
               onKeyDown={onInkKeyDown}
             />
-            <p className="counter" role="status">
+            <p className="counter" role="status" data-testid="document-save-state" data-state={save.state}>
               {saveLineOf(save)}
             </p>
           </section>

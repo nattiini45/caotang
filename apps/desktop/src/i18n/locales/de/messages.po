@@ -9718,6 +9718,10 @@ msgstr "Neu, nicht geprüft"
 msgid "New:"
 msgstr "Neu:"
 
+#: apps/desktop/src/app/save-conflict.ts
+msgid "Newer text is already saved for this document. Your words are kept in this tab. Export a backup before reloading."
+msgstr "Für dieses Dokument ist bereits neuerer Text gespeichert. Deine Wörter bleiben in diesem Tab. Exportiere vor dem Neuladen eine Sicherung."
+
 #. The transcription review dialog. Interpolated values: file is a stored file name; current and total are the page position; second is the second read's word.
 #: apps/desktop/src/media/TranscriptionReviewDialog.tsx
 msgid "Next page"

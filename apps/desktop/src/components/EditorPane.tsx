@@ -31,6 +31,7 @@ import { useLingui } from '@lingui/react';
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
 import { t } from '@lingui/core/macro';
 import { isModern } from '../app/interface.js';
+import { saveConflictWords } from '../app/save-conflict.js';
 import { keyboardLayoutStore, shortcutLabel } from '../app/keymap.js';
 import {
   createTiptapEditorApi,
@@ -615,8 +616,10 @@ function DocumentEditor({
             </button>
           ) : null}
           <TargetQuickSet progress={target} onSetTarget={onSetTarget} />
-          <span className="editor-save" aria-live="polite">
-            {save.lastError !== null
+          <span className="editor-save" aria-live="polite" data-testid="document-save-state" data-state={save.state}>
+            {save.state === 'conflict'
+              ? saveConflictWords()
+              : save.lastError !== null
               ? t`Not saved yet. Your words are in this tab; they will be written again on the next change.`
               : save.dirty
                 ? t`Saving…`

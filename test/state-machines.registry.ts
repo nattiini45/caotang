@@ -11,10 +11,11 @@ import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
 import { assetStagingTable } from '../packages/store/src/asset-staging.js';
 import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
+import { autosaveTable } from '../packages/store/src/runtime/autosave-machine.js';
 
 export const machineTables = [
   sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
-  assetStagingTable, assetRemovalHoldTable,
+  assetStagingTable, assetRemovalHoldTable, autosaveTable,
 ] as const;

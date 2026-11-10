@@ -8,6 +8,7 @@
 
 import { t } from '@lingui/core/macro';
 import type { AutosaveStatus, FlushReport } from '@caotang/store';
+import { saveConflictWords } from '../app/save-conflict.js';
 
 import {
   characterCueNames,
@@ -132,6 +133,7 @@ export function sceneOffset(model: ScreenplayModel, index: number): number | nul
  * scene and a prose document say the same thing about whether their words are stored.
  */
 export function saveLineOf(status: AutosaveStatus): string {
+  if (status.state === 'conflict') return saveConflictWords();
   if (status.lastError !== null) return t`Not saved yet. Your words are in this tab; they will be written again on the next change.`;
   return status.dirty ? t`Saving…` : 'Saved';
 }
