@@ -19,7 +19,8 @@
  *    overtakes anything, so a fast undo-then-compile cannot leave a file behind.
  * 2. **A failed job is recorded, not swallowed.** The digest has already said where
  *    the artifact will be, so a job that fails writes a note into the compile log
- *    (which is itself the honest record) and lands in {@link Emitter.failures}.
+ *    (which is itself the honest record) and settles as a failed {@link ExportJob}.
+ *    {@link Emitter.failures} remains the cumulative diagnostic view.
  *
  * ## Names
  *
@@ -34,6 +35,7 @@
 import { ArtifactNotFoundError, EXPORTS_DIR, type ArtifactFs } from '@caotang/store';
 import { ExportNotReadyError } from './errors.js';
 import { suffixName } from './template.js';
+import { exportJobMachine, type ExportJob, type ExportJobEvent } from './export-job.js';
 import type { CompileLogEntry, ExportFormat } from './types.js';
 
 /** `exports/compile-log.json`, the append-only record of every compile (§2 stage 4). */
@@ -116,9 +118,11 @@ export interface Emitter {
    */
   reserveGroup<T extends { readonly name: string }>(files: readonly T[]): (T & { readonly path: string })[];
   /** Queues a compile: render, write the artifact, append its log row. */
-  publish(job: PublishJob): void;
+  publish(job: PublishJob): ExportJob;
   /** Queues a compile of several artifacts: render them all, write them all, or write none. */
-  publishFiles(job: PublishFilesJob): void;
+  publishFiles(job: PublishFilesJob): ExportJob;
+  job(id: string): ExportJob | undefined;
+  settled(id: string): Promise<ExportJob>;
   /** Frees a path's reservation and queues the removal of what was written there. */
   restore(path: string): void;
   /** Frees each path's reservation and queues the removal of what was written there. */
@@ -138,6 +142,8 @@ export function createEmitter(options: EmitterOptions): Emitter {
   const { artifacts, bytes } = options;
   const reserved = new Set<string>();
   const failed: EmitFailure[] = [];
+  const jobs = new Map<string, { current: ExportJob; settled: Promise<ExportJob> }>();
+  let nextJob = 0;
   let primed = false;
 
   const listing = (async () => {
@@ -172,9 +178,18 @@ export function createEmitter(options: EmitterOptions): Emitter {
    * renderer that fails leaves nothing behind. A write that fails takes the files written before it
    * with it, so a compile is never left half on disk, and its log row says it was not written.
    */
-  function publishFiles(job: PublishFilesJob): void {
+  function publishFiles(job: PublishFilesJob): ExportJob {
     const first = job.files[0]?.path ?? COMPILE_LOG_PATH;
+    const initial: ExportJob = { id: `export-${++nextJob}`, paths: job.files.map((file) => file.path), state: { kind: 'queued' } };
+    let finish!: (job: ExportJob) => void;
+    const held = { current: initial, settled: new Promise<ExportJob>((resolve) => { finish = resolve; }) };
+    jobs.set(initial.id, held);
+    const move = (event: ExportJobEvent): void => {
+      held.current = { ...held.current, state: exportJobMachine.step(held.current.state, event) };
+    };
     queue(first, async () => {
+      move({ type: 'render' });
+      const failures: EmitFailure[] = [];
       const notes = [...job.entry.notes];
       const written: string[] = [];
       try {
@@ -190,6 +205,7 @@ export function createEmitter(options: EmitterOptions): Emitter {
           notes.push(...out.notes);
           rendered.push({ file, contents: out.contents });
         }
+        move({ type: 'write' });
         for (const { file, contents } of rendered) {
           await writeArtifact(file.path, file.format, contents);
           written.push(file.path);
@@ -200,11 +216,11 @@ export function createEmitter(options: EmitterOptions): Emitter {
           try {
             await removeArtifact(path);
           } catch (cleanup) {
-            failed.push({ path, message: messageOf(cleanup) });
+            failures.push({ path, message: messageOf(cleanup) });
           }
         }
         notes.push(`artifact not written: ${reason}`);
-        failed.push({ path: first, message: reason });
+        failures.push({ path: first, message: reason });
       }
       try {
         await appendLog({
@@ -214,9 +230,13 @@ export function createEmitter(options: EmitterOptions): Emitter {
           notes,
         });
       } catch (error) {
-        failed.push({ path: COMPILE_LOG_PATH, message: messageOf(error) });
+        failures.push({ path: COMPILE_LOG_PATH, message: messageOf(error) });
       }
+      failed.push(...failures);
+      move(failures.length > 0 ? { type: 'failed', failures } : { type: 'written', outputs: [...written] });
+      finish(held.current);
     });
+    return initial;
   }
 
   function restoreAll(paths: readonly string[]): void {
@@ -254,10 +274,16 @@ export function createEmitter(options: EmitterOptions): Emitter {
     },
 
     publish(job) {
-      publishFiles({ files: [{ path: job.path, format: job.format, render: job.render }], entry: job.entry });
+      return publishFiles({ files: [{ path: job.path, format: job.format, render: job.render }], entry: job.entry });
     },
 
     publishFiles,
+    job: (id) => jobs.get(id)?.current,
+    settled(id) {
+      const held = jobs.get(id);
+      if (held === undefined) return Promise.reject(new Error(`Unknown export job: ${id}`));
+      return held.settled;
+    },
 
     restore(path) {
       restoreAll([path]);

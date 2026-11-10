@@ -69,6 +69,12 @@ Owner: `packages/store/src/runtime/autosave-machine.ts`; contracts: [project-for
 
 The five status kinds are reusable, not final: edits, explicit flushes and reseats remain possible. `status()` and `subscribe()` are the typed inspection API, and the editor save lines publish `data-state`. Nothing is logged or persisted by the machine; stored documents, journals, bus parameters and the editor adapter API stay compatible. The exhaustive sample matrix and existing autosave/rebase scenarios cover producer re-entry, newest-body retention, timing and concurrent reseats.
 
+### `export.job`
+
+Owner: `packages/exporter/src/export-job.ts`, interpreted by the serial emitter in `emit.ts`. Product contract: [exporter.md §2](exporter.md#2-pipeline-4-stages-all-inspectable). Events are `render`, `write`, `written` and `failed`. Jobs start queued, render every file, then write and append the log; only a successful append reaches written. Render, artifact-write, rollback and log-append failures reach failed. Both outcomes are terminal; retry creates a new job. Written carries actual output paths; failed carries the job's failures. Comic raster aborts during rendering follow the failed path without a partial file.
+
+`job(id)` publishes the current snapshot and `settled(id)` returns its terminal snapshot. The synchronous digest identifies a queued job, not a written file. The Export dialog, SDK final report and MCP confirmed result use that job instead of cumulative failures or queue idleness. The dialog retains its existing running/failed states and Compile retry action. No state or identity is persisted; artifact bytes, compile-log rows and undo ordering are unchanged. Exhaustive model tests, held render/write/log promises, rollback and retry scenarios, comic cancellation tests and browser/host regressions cover the protocol.
+
 ### `mcp.confirmation-round`
 
 Owner: `packages/mcp-server/src/confirm.ts`, used by `tools.ts`; product contract: [extensibility.md §9](extensibility.md#9-caotang-as-an-mcp-server). A round starts `unasked`; `ask` binds its existing sealed payload in `asked`. An elicitation `answer` becomes `accepted` only for an accept with boolean `confirmed: true`; decline, cancel and other elicitation answers become `declined`, `cancelled` and `not-confirmed`. Missing answers and non-elicitation responses leave it `asked`. The four final decisions absorb every event. Changed arguments bind no prior round and require a fresh question.

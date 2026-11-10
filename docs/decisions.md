@@ -2,6 +2,8 @@
 
 - [owner 2026-11-09] Autosave revision refusals have a separate `conflict` state beside storage errors, visible in the prose, screenplay and Ink save lines in English and German. The message keeps the writer's words in this tab and directs them to copy the unsaved text somewhere safe before reloading; it does not claim a stale retry will save. Debounce timing, retry opportunities, document records and the save protocol stay compatible. Why: a moved revision needs different recovery from a full disk (state-machines B7a, Caspar's answer 5).
 
+- [delegated 2026-11-10] A bus compile accepts a queued in-memory export job, not a written file. The Export dialog, SDK final report and MCP confirmed result use its terminal written/failed outcome, including compile-log failures; retry creates a new job. Exported bytes, compile-log rows and undo ordering remain unchanged. Why: accepting a command before its asynchronous file write must not claim that a failed export succeeded (state-machines B8, #549).
+
 - [owner 2026-11-09] The stopped-tab notice wins, and the dialog input is kept underneath. Why: a tab that cannot save must not let a later dialog hide its recovery actions; the other dialog remains mounted so its draft is not lost.
 
 - [delegated 2026-11-09] Save as command is offered for reusable request text, not the synthetic labels of MCP prompt or macro turns; those already have their own invocation and must not create an unrelated saved skill (#61, PR #524 F9).

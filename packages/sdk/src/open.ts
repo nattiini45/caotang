@@ -242,7 +242,6 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
           turn.emit = (event) => {
             if (event.type !== 'report') return queue.push(event);
             reported = amend(event.report);
-            queue.push({ ...event, report: reported });
           };
           current = turn;
           try {
@@ -254,8 +253,28 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
             };
             const result = await (runOptions.plan === undefined ? agent.submit(intent, turnOptions) : agent.submitPlan(intent, runOptions.plan, turnOptions));
             if (turn.policyError !== undefined) throw turn.policyError;
+            let settled = reported ?? amend(result);
+            const failures: string[] = [];
+            const steps = await Promise.all(settled.steps.map(async (step) => {
+              if (step.tool !== 'export.compile' || step.status !== 'done') return step;
+              const digest = step.data?.['result'] as { readonly jobId: string };
+              const job = await folder.exporter.settled(digest.jobId);
+              const data = { ...step.data, job };
+              if (job.state.kind !== 'failed') return { ...step, data };
+              const error = job.state.failures.map((failure) => failure.message).join('; ');
+              failures.push(error);
+              return { ...step, data, status: 'failed' as const, error };
+            }));
+            if (failures.length > 0) {
+              const reason = `The export failed: ${failures.join('; ')}`;
+              settled = { ...settled, steps, status: settled.status === 'cancelled' ? 'cancelled' : 'failed', summary: reason,
+                askBack: settled.askBack ?? { code: 'needs_input', reason, options: ['Check the export folder and compile again.', 'Choose another export format.'] } };
+            } else {
+              settled = { ...settled, steps };
+            }
             await saveIfWriting();
-            return reported ?? amend(result);
+            queue.push({ type: 'report', turnId: settled.turnId, report: settled });
+            return settled;
           } finally {
             current = undefined;
           }

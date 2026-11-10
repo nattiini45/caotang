@@ -130,6 +130,20 @@ Initial: `clean`. Final: none.
 | `saving` | `write-failed` | `conflict`, `error`, `pending` |
 | `saving` | `written` | `clean`, `pending` |
 
+## export.job
+
+Initial: `queued`. Final: `failed`, `written`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | — | — |
+| `queued` | `render` | `rendering` |
+| `rendering` | `failed` | `failed` |
+| `rendering` | `write` | `writing` |
+| `writing` | `failed` | `failed` |
+| `writing` | `written` | `written` |
+| `written` | — | — |
+
 ## folder.save
 
 Initial: `idle`. Final: none.
