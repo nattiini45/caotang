@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from './endpoint.js';
-import { bodyOf, idOf, waitForSaved } from './support.js';
+import { bodyOf, idOf, selectionOf, waitForSaved } from './support.js';
 
 /**
  * The narrow layout (ui-modules §0.6, §1), below 960 px: one centre column, the binder rail as a drawer, the inspector as a bottom
@@ -650,6 +650,41 @@ test.describe('review marks', () => {
     ],
   };
 
+  test('typing waits for a late first-run agent panel to settle', async ({ page }) => {
+    let release = (): void => undefined;
+    let requested = (): void => undefined;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const intercepted = new Promise<void>((resolve) => { requested = resolve; });
+    await page.route('**/src/components/AgentPanel.tsx*', async (route) => {
+      requested();
+      await held;
+      await route.continue();
+    });
+    await page.setViewportSize(PHONE);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+    await intercepted;
+    const panel = page.getByTestId('agent-panel');
+    await expect(panel).toHaveCount(0);
+    const settled = expect(panel).toHaveAttribute('data-state', 'idle');
+    release();
+    await settled;
+
+    await openDrawer(page);
+    await tree(page).locator('.row-title', { hasText: 'The Friend' }).tap();
+    await expect(tree(page)).toBeHidden();
+    const friend = await idOf(page, 'The Friend');
+    const surface = page.locator(`[data-doc-id="${friend}"]`).getByRole('textbox', { name: 'Document text' });
+    await surface.tap();
+    await expect(surface).toBeFocused();
+    await page.keyboard.type(BEFORE);
+    await expect(surface).toHaveText(BEFORE);
+    await waitForSaved(page);
+    await expect.poll(() => bodyOf(page, friend)).toBe(`${BEFORE}\n`);
+    await page.keyboard.press('Control+A');
+    await expect.poll(() => selectionOf(page)).toEqual({ docId: friend, from: 0, to: BEFORE.length });
+  });
+
   test('an applied rewrite is marked, and the review bar’s buttons are on the page, 44 px, and keyboard operable', async ({ page }) => {
     await page.setViewportSize(PHONE);
     await fakeEndpoint(page, planThenAnswer(PLAN, 'Reworded.', REWRITE));
@@ -664,15 +699,20 @@ test.describe('review marks', () => {
     await settings.getByRole('button', { name: 'Close' }).click();
 
     await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
-    await expect(toggle(page, 'Binder')).toBeVisible();
+    await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
     await openDrawer(page);
     await tree(page).locator('.row-title', { hasText: 'The Friend' }).tap();
     await expect(tree(page)).toBeHidden();
-    await page.getByRole('textbox', { name: 'Document text' }).tap();
-    await page.keyboard.type(BEFORE);
-    await waitForSaved(page);
-    await page.keyboard.press('Control+A');
     const friend = await idOf(page, 'The Friend');
+    const surface = page.locator(`[data-doc-id="${friend}"]`).getByRole('textbox', { name: 'Document text' });
+    await surface.tap();
+    await expect(surface).toBeFocused();
+    await page.keyboard.type(BEFORE);
+    await expect(surface).toHaveText(BEFORE);
+    await waitForSaved(page);
+    await expect.poll(() => bodyOf(page, friend)).toBe(`${BEFORE}\n`);
+    await page.keyboard.press('Control+A');
+    await expect.poll(() => selectionOf(page)).toEqual({ docId: friend, from: 0, to: BEFORE.length });
 
     const field = page.getByRole('combobox', { name: 'Intent' });
     await expect(field).toBeEnabled();
@@ -684,7 +724,6 @@ test.describe('review marks', () => {
 
     const bar = page.getByTestId('review-bar');
     await expect(bar).toContainText('2 suggestions pending review');
-    const surface = page.getByRole('textbox', { name: 'Document text' });
     await expect(surface.locator('del')).toContainText(['quiet', 'slow']);
     await expect(surface.locator('ins')).toContainText(['silent', 'late']);
     expect(await sidewaysOverflow(page)).toBeLessThanOrEqual(0);

@@ -31,3 +31,15 @@ test('the committed shell waits for Modern’s code before Settings closes and s
   await page.keyboard.press('ControlOrMeta+k');
   await expect(page.getByRole('dialog', { name: 'Search and commands' })).toBeVisible();
 });
+
+test('a failed initial agent download settles instead of staying in starting', async ({ page }) => {
+  await page.route('**/src/app/lazy-harness.ts*', (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/javascript',
+    body: 'throw new Error("fixture harness is unavailable");',
+  }));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect(page.getByRole('alert').filter({ hasText: 'The turn stopped unexpectedly:' })).toContainText('fixture harness is unavailable');
+  await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
+});
