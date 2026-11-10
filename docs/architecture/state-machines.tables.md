@@ -221,6 +221,41 @@ Initial: `closed`. Final: none.
 | `pinned` | `pin` | `opened-press`, `pinned` |
 | `pinned` | `press` | `pinned` |
 
+## pending.entry
+
+Initial: `empty`. Final: `cleared-for-stop`, `pruned`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `cleared-for-stop` | — | — |
+| `empty` | `hold` | `held` |
+| `held` | `drop` | `pruned` |
+| `held` | `hold` | `held` |
+| `held` | `prune` | `held`, `pruned` |
+| `held` | `stop` | `cleared-for-stop`, `held` |
+| `held` | `write` | `written` |
+| `pruned` | — | — |
+| `written` | `drop` | `pruned` |
+| `written` | `hold` | `held` |
+| `written` | `prune` | `pruned`, `written` |
+| `written` | `stop` | `cleared-for-stop`, `written` |
+| `written` | `write` | `written` |
+
+## persistence.status
+
+Initial: `idle`. Final: `conflict`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `conflict` | — | — |
+| `failed` | `saved` | `idle` |
+| `failed` | `write` | `writing` |
+| `idle` | `saved` | `idle` |
+| `idle` | `write` | `writing` |
+| `writing` | `fail` | `failed` |
+| `writing` | `saved` | `idle` |
+| `writing` | `stop` | `conflict` |
+
 ## sprint.timer
 
 Initial: `idle`. Final: none.
@@ -255,6 +290,15 @@ Initial: `opening`. Final: `blocked`, `closed`, `failed`, `newer`, `stale`.
 | `opening` | `error` | `failed`, `newer` |
 | `opening` | `opened` | `open` |
 | `stale` | — | — |
+
+## tab.stop
+
+Initial: `running`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `running` | `stop` | `stopped` |
+| `stopped` | `keep` | `stopped` |
 
 ## task.status
 
