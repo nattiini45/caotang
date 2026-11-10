@@ -356,8 +356,17 @@ describe('a role-routed call is reserved on the route it is sent through (agent-
 
     // Unbounded first: the planner goes to the pinned generic profile, the prompt-pack's drafting call to DeepSeek.
     const open = await routedEndpoints(['drafting'], [plan, sseJson(draft)]);
+    await open.gateway.profiles.update(open.generic.id, { pricePer1k: { prompt: 1, completion: 2 } });
+    await open.gateway.profiles.update(open.deepseek.id, { pricePer1k: { prompt: 3, completion: 4 } });
     const unbounded = createAgentSession(boardSession(open.gateway, open.generic.id));
-    await unbounded.submit('Draft the prompt for the lamp shot.', { preload: ['prompt.draft'] });
+    const report = await unbounded.submit('Draft the prompt for the lamp shot.', { preload: ['prompt.draft'] });
+    expect(report.status).toBe('applied');
+    expect(report.usage?.map((row) => [row.profileId, row.role, row.costUsd])).toEqual([
+      [open.generic.id, 'chat', 0.02], [open.deepseek.id, 'drafting', 0.05],
+    ]);
+    expect(report.costUsd).toBeCloseTo(0.07);
+    await open.gateway.profiles.update(open.generic.id, { pricePer1k: { prompt: 100, completion: 100 } });
+    expect(open.gateway.ledger.turnTotals(report.turnId).costUsd).toBe(report.costUsd);
     expect(open.calls[0]?.url).toBe('https://llm.example/v1/chat/completions');
     expect(transmittedOf(open.calls)).toBe(4_096);
     expect(open.requests[1]?.role).toBe('drafting');

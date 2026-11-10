@@ -610,10 +610,8 @@ export async function* streamChat(
           return;
         }
 
-        if (state.sawDelta) {
-          stats.usage = estimated();
-          stats.usageSource = 'estimate';
-        }
+        stats.usage = estimated();
+        stats.usageSource = 'estimate';
         const wait =
           err instanceof ProviderError && !state.sawDelta ? retryWait(deps, err, retries, maxRetries, totalAt) : undefined;
 

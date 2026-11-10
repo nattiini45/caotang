@@ -17,6 +17,7 @@
 
 import { select, t } from '@lingui/core/macro';
 import { isolate } from '@caotang/i18n';
+import { newId } from '@caotang/ids';
 import {
   decodeStrict,
   detectEncoding,
@@ -226,6 +227,7 @@ export function encodingAskerFor(providers: EncodingAskerSource): EncodingAsker 
     profileName,
     async ask({ excerpt, candidates }) {
       const reply = await gateway.completeOnce({
+        turnId: `encoding-review-${newId('cmd')}`,
         role: 'background',
         profileId,
         model,

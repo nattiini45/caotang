@@ -17,6 +17,7 @@ import {
 import { detect, selectCandidates } from '@caotang/codex';
 import { contentTokens, textOf, type ProfileView, type ProviderGateway, type ThinkingLevel } from '@caotang/gateway';
 import { getBody, type ProjectState, type TreeNode } from '@caotang/store';
+import { newId } from '@caotang/ids';
 import { appendLanguageLine, type LanguagePolicy } from './agent/context.js';
 
 /** The manuscript's documents in binder order, the order the story-so-far layer reads them in. */
@@ -93,12 +94,15 @@ export function gatewayCoherenceModel(
   profile: ProfileView,
   defaults?: { readonly model?: string; readonly thinking?: ThinkingLevel; readonly languages?: LanguagePolicy },
 ): CoherenceModel {
+  const reviewId = `review-${newId('cmd')}`;
   return {
     model: defaults?.model ?? profile.defaultModel,
     async complete(request: ModelRequest): Promise<ModelReply> {
       const message = await gateway.completeOnce(
         {
           profileId: profile.id,
+          turnId: request.turnId ?? reviewId,
+          ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
           // The review is a 'chat'-role task (provider-gateway §6): the role rides the ledger row, while the
           // profile stays pinned to the one the caller resolved.
           role: 'chat',

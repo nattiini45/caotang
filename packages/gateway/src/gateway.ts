@@ -60,6 +60,7 @@ import type {
   RoleResolver,
   TaskRole,
   ThinkingLevel,
+  TokenPrice,
   Usage,
   UsageAttribution,
 } from './types.js';
@@ -468,6 +469,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const imageProblem = checkRequestImages(sent.messages, caps ?? {}, route?.adapter.id, model);
     if (imageProblem !== undefined) throw new EgressDeniedError(imageProblem);
     const startedAt = clock.now();
+    const price = callPrice(profile.id, model, sent.thinking, sent);
     const stats: StreamStats = { attempts: 0, usage: undefined };
     const trace = observer === undefined ? undefined : startTrace(observer, sent, profile, model);
 
@@ -510,8 +512,8 @@ export function createGateway(options: GatewayOptions): Gateway {
       trace?.end(stats, signal);
       if (stats.attempts > 0) {
         ledger.record(
-          { profileId: profile.id, model, turnId: req.turnId, agentPath: req.agentPath, role: req.role, at: startedAt },
-          stats.usage ?? ZERO,
+          { profileId: profile.id, model, turnId: req.turnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, at: startedAt, pricePer1k: price },
+          { ...(stats.usage ?? ZERO), source: profile.kind === 'mock' ? 'provider' : stats.usageSource ?? 'estimate' },
           stats.attempts,
         );
       }
@@ -609,7 +611,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const { cap, effective: settled } = settleOutput(profile, spec, thinking, request ?? {});
     const thinkingTokens = settled.maxTokens > cap ? settled.maxTokens - cap : undefined;
     // The forecast's cache terms (§3, "Prompt caching"): only when this profile caches and the row says how a read is priced.
-    const policy = policyOf(undefined, profile.promptCache);
+    const policy = policyOf(request?.cache, profile.promptCache);
     const caching =
       policy.mode === 'auto' && (spec.caps.cache === 'explicit' || spec.caps.cache === 'automatic') ? spec.caps : undefined;
     // Anthropic's hour-long lifetime writes at twice the prompt price, not the row's 1.25.
@@ -688,9 +690,21 @@ export function createGateway(options: GatewayOptions): Gateway {
     return routeOf(profile, model ?? profile.defaultModel).ctx.caps;
   }
 
+  function callPrice(profileId: string, model: string, thinking?: ThinkingLevel, request?: ModelLimitsRequest): TokenPrice | undefined {
+    const limits = modelLimits(profileId, model, thinking, request);
+    if (limits.pricePer1k === undefined) return undefined;
+    return {
+      ...limits.pricePer1k,
+      ...(limits.cache === undefined ? {} : {
+        cachedPrompt: limits.pricePer1k.prompt * limits.cache.readMultiplier,
+        cacheWritePrompt: limits.pricePer1k.prompt * (limits.cache.writeMultiplier ?? 1),
+      }),
+    };
+  }
+
   function accountTokens(usage: Usage, by: UsageAttribution): void {
     ledger.record(
-      { profileId: by.profileId, model: by.model, turnId: by.turnId, agentPath: by.agentPath, role: by.role, at: by.at ?? clock.now() },
+      { ...by, pricePer1k: by.pricePer1k ?? callPrice(by.profileId, by.model), at: by.at ?? clock.now() },
       usage,
       1,
     );

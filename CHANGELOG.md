@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Durable usage accounting.** The local ledger keeps versioned day and turn rows beyond the old 200-row cap and across reloads. It records cost at the profile and model that served each call, cache and reasoning counts, estimated usage and unpriced requests. Older saved day totals remain readable without inventing a historical cost. Coherence and encoding reviews now have turn attribution. The session total, Usage details/CSV and turn-price display follow in the next usage batch.
+
 - **Named agent lifecycle.** The header distinguishes loading, approval processing and stopping, while the composer and Stop remain available. The panel publishes the controller state for reliable command readiness, including queued turns and background choices.
 
 - **MCP connection health.** Settings shows **Connecting** while checking a server and **Failed** when it cannot connect, with one translated alert and **Connect** to retry. These states are translated into German and survive closing and reopening Settings without changing saved server settings.

@@ -84,6 +84,8 @@ Deterministic steps per layer in the fixed order; every inclusion/drop records a
 
 ## 5. Prompt preview (the trust mechanic)
 
+The pre-approval estimate and recorded call accounting share the gateway's profile → provider listing → preset price chain (provider-gateway §6). An estimate is still a forecast at current limits; the recorded cost uses the price captured when each actual call began, even when a turn uses more than one profile. The ledger never reprices a previous call when the writer changes a profile.
+
 Every confirm-class tool's plan card renders the **assembled context**, not just the instruction (Novelcrafter's own troubleshooting relies on prompt preview as THE debugging tool; assembly is never silent):
 
 - Codex section: each included entry with its reason (`always` / `matched "Elena" ×3 in tail` / `attached to Chapter 2`) and each dropped entry with its drop reason.

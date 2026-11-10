@@ -167,7 +167,10 @@ function usageOf(raw: unknown): Usage | undefined {
   const promptDetails = recordOf(record.prompt_tokens_details) ?? recordOf(record.input_tokens_details);
   const completionDetails = recordOf(record.completion_tokens_details) ?? recordOf(record.output_tokens_details);
   return withBreakdown(
-    { promptTokens: prompt, completionTokens: completion },
+    {
+      promptTokens: prompt, completionTokens: completion,
+      ...(typeof record.cost === 'number' && Number.isFinite(record.cost) && record.cost >= 0 ? { providerCostUsd: record.cost } : {}),
+    },
     {
       cached: promptDetails?.cached_tokens ?? record.prompt_cache_hit_tokens,
       written: promptDetails?.cache_write_tokens,

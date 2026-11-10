@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { estimateTokens, localDayKey, MAX_TURN_ROWS, RequestLog, REQUEST_LOG_CAP } from '../src/index.js';
+import { costOf, estimateTokens, localDayKey, UsageLedger, RequestLog, REQUEST_LOG_CAP } from '../src/index.js';
 import { addEndpoint, collect, delta, finish, flush, harness, openSse, ScriptedFetch, sseResponse, START, userMessage } from './helpers.js';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -14,6 +14,8 @@ function jsonResponse(status: number, body: unknown): Response {
     headers: { 'content-type': 'application/json' },
   });
 }
+
+const DETAIL = { cachedPromptTokens: 0, cacheWritePromptTokens: 0, reasoningTokens: 0, estimatedRequests: 0, unpricedRequests: 1, providerCostRequests: 0 };
 
 describe('usage ledger — day rows (§6)', () => {
   it('records a mock request in the day row for its local date, with its tokens and one request', async () => {
@@ -24,6 +26,7 @@ describe('usage ledger — day rows (§6)', () => {
 
     expect(h.gateway.ledger.dayRows()).toEqual([
       {
+        version: 1, ...DETAIL,
         date: localDayKey(START),
         profileId: mock.id,
         model: 'mock/echo-1',
@@ -68,12 +71,12 @@ describe('usage ledger — day rows (§6)', () => {
     expect(row).toMatchObject({ promptTokens: 9, completionTokens: 3, requests: 2 });
   });
 
-  it('counts a request that failed with no usage as a request with zero tokens', async () => {
+  it('counts a request that failed with no usage using a labelled prompt estimate', async () => {
     const h = harness({ net: new ScriptedFetch().push(() => jsonResponse(401, 'no')) });
     await addEndpoint(h);
 
     await collect(h.gateway.complete(userMessage('x')));
-    expect(h.gateway.ledger.dayRows()[0]).toMatchObject({ promptTokens: 0, completionTokens: 0, requests: 1 });
+    expect(h.gateway.ledger.dayRows()[0]).toMatchObject({ promptTokens: 1, completionTokens: 0, requests: 1, estimatedRequests: 1 });
   });
 
   it('counts the delivered part of a stream the consumer abandons, as an estimate', async () => {
@@ -95,7 +98,7 @@ describe('usage ledger — day rows (§6)', () => {
     const h = harness();
     h.gateway.accountTokens({ promptTokens: 10, completionTokens: 5 }, { profileId: 'p', model: 'm' });
     expect(h.gateway.ledger.dayRows()).toEqual([
-      { date: localDayKey(START), profileId: 'p', model: 'm', role: 'chat', promptTokens: 10, completionTokens: 5, requests: 1 },
+      { version: 1, ...DETAIL, date: localDayKey(START), profileId: 'p', model: 'm', role: 'chat', promptTokens: 10, completionTokens: 5, requests: 1 },
     ]);
   });
 });
@@ -111,6 +114,7 @@ describe('usage ledger — turn rows (§6)', () => {
 
     expect(h.gateway.ledger.turnRows()).toEqual([
       {
+        version: 1, ...DETAIL, unpricedRequests: 2,
         turnId: 'turn-7',
         profileId: mock.id,
         model: 'mock/echo-1',
@@ -143,19 +147,93 @@ describe('usage ledger — turn rows (§6)', () => {
     expect(h.gateway.ledger.dayRows()).toHaveLength(1);
   });
 
-  it('keeps only the most recent turns, so a long session cannot grow the ledger without bound', () => {
+  it('keeps every turn beyond the old 200-row cap, including after a snapshot reload', () => {
     const h = harness();
-    for (let i = 0; i < MAX_TURN_ROWS + 5; i += 1) {
+    for (let i = 0; i < 205; i += 1) {
       h.gateway.accountTokens({ promptTokens: 1, completionTokens: 1 }, { profileId: 'p', model: 'm', turnId: `t${i}` });
     }
     const turns = h.gateway.ledger.turnRows();
-    expect(turns).toHaveLength(MAX_TURN_ROWS);
-    expect(turns[0]?.turnId).toBe('t5');
-    expect(turns.at(-1)?.turnId).toBe(`t${MAX_TURN_ROWS + 4}`);
+    expect(turns).toHaveLength(205);
+    expect(turns[0]?.turnId).toBe('t0');
+    expect(turns.at(-1)?.turnId).toBe('t204');
+    const restored = new UsageLedger();
+    restored.restore(JSON.parse(JSON.stringify(h.gateway.ledger.snapshot())));
+    expect(restored.turnRows()).toEqual(turns);
   });
 });
 
 describe('usage ledger — the snapshot', () => {
+  it('migrates a bare day array without repricing, changing its day or losing its role', () => {
+    const ledger = new UsageLedger();
+    ledger.restore([{ date: '2020-01-01', profileId: 'p', model: 'm', role: 'background', promptTokens: 20, completionTokens: 3, requests: 2 }]);
+    expect(ledger.dayRows()).toEqual([{ version: 1, ...DETAIL, unpricedRequests: 2, date: '2020-01-01', profileId: 'p', model: 'm', role: 'background', promptTokens: 20, completionTokens: 3, requests: 2 }]);
+    expect(ledger.snapshot().version).toBe(1);
+  });
+
+  it('validates atomically and refuses unknown versions without changing existing rows', () => {
+    const ledger = new UsageLedger();
+    ledger.record({ profileId: 'p', model: 'm' }, { promptTokens: 1, completionTokens: 2 });
+    const before = ledger.snapshot();
+    expect(() => ledger.restore({ version: 2, days: [], turns: [] })).toThrow('version');
+    expect(() => ledger.restore({ version: 1, days: before.days, turns: [null] })).toThrow();
+    expect(ledger.snapshot()).toEqual(before);
+  });
+
+  it('sums recorded prices and breakdowns across profiles, models, roles and sessions', () => {
+    const ledger = new UsageLedger();
+    ledger.record({ profileId: 'p', model: 'a', turnId: 't', sessionId: 's', pricePer1k: { prompt: 1, completion: 2 } }, { promptTokens: 1000, completionTokens: 100, reasoningTokens: 50 });
+    ledger.record({ profileId: 'q', model: 'b', role: 'drafting', turnId: 't', sessionId: 's', pricePer1k: { prompt: 2, completion: 4, cachedPrompt: 0.2, cacheWritePrompt: 2.5 } }, { promptTokens: 1000, completionTokens: 100, cachedPromptTokens: 500, cacheWritePromptTokens: 100, source: 'estimate' });
+    ledger.record({ profileId: 'q', model: 'b', turnId: 'u', sessionId: 'other' }, { promptTokens: 10, completionTokens: 5 });
+    expect(ledger.turnTotals('t')).toEqual({ promptTokens: 2000, completionTokens: 200, requests: 2, cachedPromptTokens: 500, cacheWritePromptTokens: 100, reasoningTokens: 50, estimatedRequests: 1, unpricedRequests: 0, providerCostRequests: 0, costUsd: 2.75 });
+    expect(ledger.sessionTotals('s')).toEqual(ledger.turnTotals('t'));
+    expect(ledger.sessionTotals('other').unpricedRequests).toBe(1);
+    expect(ledger.turnRowsOf('t')).toHaveLength(2);
+  });
+
+  it('prefers an explicit provider cost, including zero, and does not call an unknown price free', () => {
+    expect(costOf({ promptTokens: 100, completionTokens: 50, providerCostUsd: 0 }, { prompt: 1, completion: 1 })).toBe(0);
+    expect(costOf({ promptTokens: 100, completionTokens: 50 }, undefined)).toBeUndefined();
+  });
+
+  it('captures prices before a request starts and does not reprice old calls', async () => {
+    const h = harness();
+    const p = await h.profiles.create({ name: 'Priced', kind: 'mock', pricePer1k: { prompt: 1, completion: 2 } });
+    await collect(h.gateway.complete({ ...userMessage('abcd'), turnId: 't' }));
+    const before = h.gateway.ledger.turnTotals('t');
+    await h.profiles.update(p.id, { pricePer1k: { prompt: 9, completion: 9 } });
+    expect(h.gateway.ledger.turnTotals('t')).toEqual(before);
+    expect(before.costUsd).toBe(0.003);
+    expect(before.estimatedRequests).toBe(0);
+  });
+
+  it('keeps the price from the start of a call when a profile changes before the response', async () => {
+    const body = openSse();
+    const h = harness({ net: new ScriptedFetch().push(() => body.response) });
+    const p = await addEndpoint(h, { pricePer1k: { prompt: 1, completion: 2 } });
+    const run = collect(h.gateway.complete({ ...userMessage('abcd'), turnId: 't' }));
+    await flush();
+    await h.profiles.update(p.id, { pricePer1k: { prompt: 9, completion: 9 } });
+    body.event(finish('stop', { prompt_tokens: 1000, completion_tokens: 100 }));
+    body.event('[DONE]');
+    body.close();
+    await run;
+    expect(h.gateway.ledger.turnTotals('t').costUsd).toBe(1.2);
+  });
+
+  it('uses the same provider-listing price as modelLimits when the profile has no price', async () => {
+    const net = new ScriptedFetch().push(
+      () => jsonResponse(200, { data: [{ id: 'model-x', pricing: { prompt: '0.000001', completion: '0.000002' } }] }),
+      () => sseResponse([finish('stop', { prompt_tokens: 1000, completion_tokens: 100 }), '[DONE]']),
+    );
+    const h = harness({ net });
+    const p = await addEndpoint(h);
+    await h.gateway.listModels(p.id);
+    const price = h.gateway.modelLimits(p.id).pricePer1k;
+    await collect(h.gateway.complete({ ...userMessage('x'), turnId: 't' }));
+    expect(price).toEqual({ prompt: 0.001, completion: 0.002 });
+    expect(h.gateway.ledger.turnTotals('t').costUsd).toBe(costOf({ promptTokens: 1000, completionTokens: 100 }, price));
+  });
+
   it('serialises to plain JSON that round-trips unchanged', async () => {
     const h = harness();
     await h.profiles.create({ name: 'Offline', kind: 'mock' });

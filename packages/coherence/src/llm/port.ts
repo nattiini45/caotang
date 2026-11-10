@@ -15,6 +15,8 @@ export interface ModelUsage {
 
 export interface ModelRequest {
   readonly system: string;
+  readonly turnId?: string;
+  readonly sessionId?: string;
   readonly user: string;
   /** A JSON Schema shape the reply must follow. The gateway probes whether the provider enforces it. */
   readonly jsonSchemaHint: Readonly<Record<string, unknown>>;

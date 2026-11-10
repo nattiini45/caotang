@@ -219,6 +219,7 @@ function reviewModelOf(gateway: Gateway): CoherenceModel {
     async complete(request: ModelRequest): Promise<ModelReply> {
       const message = await gateway.completeOnce(
         {
+          ...(request.turnId === undefined ? {} : { turnId: request.turnId }),
           messages: [
             { role: 'system', content: request.system },
             { role: 'user', content: request.user },

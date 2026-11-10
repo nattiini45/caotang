@@ -102,7 +102,7 @@ describe('a model call that carries an image', () => {
     const gateway = await visionGateway(mock);
     await expect(complete({ gateway, turnId: 'turn-1' }, PICTURE_MESSAGES, 'text')).rejects.toThrow(/does not accept images/);
     expect(mock.calls).toHaveLength(0);
-    expect(gateway.ledger.turnTotals('turn-1')).toEqual({ promptTokens: 0, completionTokens: 0, requests: 0 });
+    expect(gateway.ledger.turnTotals('turn-1')).toEqual({ promptTokens: 0, completionTokens: 0, requests: 0, cachedPromptTokens: 0, cacheWritePromptTokens: 0, reasoningTokens: 0, estimatedRequests: 0, unpricedRequests: 0, providerCostRequests: 0 });
   });
 });
 

@@ -437,7 +437,8 @@ describe('token accounting, per turn (provider-gateway §6)', () => {
     expect(first.tokens.promptTokens).toBeGreaterThan(0);
     // The second turn is not the running total: its tokens are its own single request, as the ledger's row for that turn says.
     expect(second.tokens.requests).toBe(1);
-    expect(gateway.ledger.turnTotals(second.turnId)).toEqual({ promptTokens: second.tokens.promptTokens, completionTokens: second.tokens.completionTokens, requests: 1 });
+    expect(gateway.ledger.turnTotals(second.turnId)).toEqual({ promptTokens: second.tokens.promptTokens, completionTokens: second.tokens.completionTokens, requests: 1, cachedPromptTokens: 0, cacheWritePromptTokens: 0, reasoningTokens: 0, estimatedRequests: 0, unpricedRequests: 1, providerCostRequests: 0 });
+    expect(second.usage).toEqual(gateway.ledger.turnRowsOf(second.turnId));
     expect(gateway.ledger.turnTotals(first.turnId).requests).toBe(first.tokens.requests);
   });
 

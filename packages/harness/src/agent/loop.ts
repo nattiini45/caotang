@@ -4052,7 +4052,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // An unflushed view (a cancelled or failed turn) must not retain its bytes after the turn is over.
     options.pictureOutbox?.take(turn.id);
     const totals = gateway.ledger.turnTotals(turn.id);
-    const report = reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests });
+    const report: TurnReport = {
+      ...reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests }),
+      usage: gateway.ledger.turnRowsOf(turn.id),
+      ...(totals.costUsd === undefined ? {} : { costUsd: totals.costUsd }),
+    };
     finished.push(report);
     sessionUse = addUse(sessionUse, report.budgetUse);
     await closeRun(turn, report);

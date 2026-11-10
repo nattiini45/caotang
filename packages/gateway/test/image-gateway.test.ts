@@ -57,7 +57,7 @@ describe('the vision gate', () => {
     expect(reveal).not.toHaveBeenCalled();
     // A refused request is not a request: nothing is logged and nothing is counted.
     expect(h.gateway.requestLog.entries()).toEqual([]);
-    expect(h.gateway.ledger.snapshot()).toEqual({ days: [], turns: [] });
+    expect(h.gateway.ledger.snapshot()).toEqual({ version: 1, days: [], turns: [] });
   });
 
   it('shows the writer neither the key, the bytes, nor their base64 form in the refusal', async () => {
@@ -259,7 +259,7 @@ describe('the mock provider and an image', () => {
     expect((error as Error).message).toContain('does not accept images');
     expect(chunks).toEqual([]);
     expect(mock.calls).toHaveLength(0);
-    expect(h.gateway.ledger.snapshot()).toEqual({ days: [], turns: [] });
+    expect(h.gateway.ledger.snapshot()).toEqual({ version: 1, days: [], turns: [] });
   });
 
   it('reports vision only when asked to, through the gateway’s own capability read', async () => {

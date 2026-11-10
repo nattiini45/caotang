@@ -585,6 +585,7 @@ test('the ask sends a capped excerpt and the candidate names, no path, and the r
   expect(user).not.toContain('.md');
   // The request runs under the background role's own profile and model.
   expect(chatBody?.model).toBe('test-model');
+  expect(service.ledger.turnRows().at(-1)).toMatchObject({ turnId: expect.stringMatching(/^encoding-review-/), role: 'background', profileId: saved.view.id });
 });
 
 test('the reply parser names a candidate by name or alias, case-insensitively', () => {

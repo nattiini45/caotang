@@ -9,8 +9,8 @@
  *   the same ids: a profile id is a function of ten random bytes, so the bytes the stored id was minted from are handed
  *   back to the generator. The key is revealed from the vault and sealed again under that id, because the vault binds
  *   each key to its profile id.
- * - **Usage** (the ledger's day rows) and the **request log** (its last 50 entries) are kept in the app database. Turn
- *   rows are not: they belong to a session. An agent turn's run log is kept in the runtime database, not here (agent-harness §5.1).
+ * - **Usage** (the versioned ledger's day and turn rows) and the **request log** (its last 50 entries) are kept in the app database.
+ *   An agent turn's run log is kept in the runtime database, not here (agent-harness §5.1).
  *
  * ## The probes
  *
@@ -31,7 +31,6 @@ import {
   createMemoryVaultPort,
   createProfileStore,
   type Clock,
-  type DayUsageRow,
   type FetchLike,
   type Gateway,
   type KeyStore,
@@ -53,6 +52,7 @@ import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotan
 import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
+import { SaveChannel } from './save-channel.js';
 
 /* lingui-set comment="Interpolated values: error, name" */
 
@@ -80,12 +80,6 @@ type PersistedProfile = Omit<ProfileView, 'kind'> & { kind: ProfileView['kind'] 
 function bytesForId(id: string): Uint8Array<ArrayBuffer> | null {
   if (!PROFILE_ID_PATTERN.test(id)) return null;
   return Uint8Array.from([...id.slice(4)].map((char) => CROCKFORD.indexOf(char)));
-}
-
-/** A day row's local noon, so the ledger files a restored row under the same local day it was recorded on. */
-function noonOf(day: string): number {
-  const [year, month, date] = day.split('-').map(Number);
-  return new Date(year ?? 1970, (month ?? 1) - 1, date ?? 1, 12).getTime();
 }
 
 export interface SaveOutcome {
@@ -153,6 +147,8 @@ export class ProviderService {
    * hears one has every role following.
    */
   private readonly roleState: { current: RoleSettings | undefined };
+  readonly saves = new SaveChannel('settings');
+  private usageReadFailure: string | null = null;
 
   private constructor(parts: {
     profiles: ProfileStore;
@@ -294,6 +290,7 @@ export class ProviderService {
       await profiles.create({ name: DEMO_PROFILE_NAME, kind: 'mock', isActive: true });
       await service.persist();
     }
+    ledger.subscribe(() => { void service.persist(); });
     return { service, notices };
   }
 
@@ -348,17 +345,11 @@ export class ProviderService {
     }
 
     try {
-      const usage = (await db.get<DayUsageRow[]>(APP_KEYS.usage)) ?? [];
-      for (const row of usage) {
-        this.ledger.record(
-          { profileId: row.profileId, model: row.model, at: noonOf(row.date) },
-          { promptTokens: row.promptTokens, completionTokens: row.completionTokens },
-          row.requests,
-        );
-      }
+      this.ledger.restore((await db.get<unknown>(APP_KEYS.usage)) ?? []);
     } catch (error) {
       const reason = messageOf(error);
-      notices.push(t`The usage totals could not be read: ${{ error: reason }}`);
+      this.usageReadFailure = t`The usage totals could not be read: ${{ error: reason }}`;
+      notices.push(this.usageReadFailure);
     }
 
     try {
@@ -397,13 +388,17 @@ export class ProviderService {
   }
 
   /** Stores what the services hold, so the next open finds it (profiles, usage and the request log). Never throws. */
-  async persist(): Promise<string | null> {
+  persist(): Promise<string | null> {
+    return this.saves.enqueue(() => this.write());
+  }
+
+  private async write(): Promise<string | null> {
     if (this.db === null) return null;
     try {
       await this.db.put(APP_KEYS.profiles, this.profiles.list());
-      await this.db.put(APP_KEYS.usage, this.ledger.dayRows());
+      if (this.usageReadFailure === null) await this.db.put(APP_KEYS.usage, this.ledger.snapshot());
       await this.db.put(APP_KEYS.requests, this.requests.entries().slice(-REQUEST_LOG_KEEP));
-      return null;
+      return this.usageReadFailure;
     } catch (error) {
       const reason = messageOf(error);
       return t`Your provider settings could not be saved in this browser: ${{ error: reason }}`;
