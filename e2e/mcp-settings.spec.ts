@@ -109,6 +109,36 @@ test('MCP & tools starts switched off, and a server is contacted only when a per
   await expect(local.getByTestId('mcp-state')).toHaveText('Configured');
 });
 
+test('refused settings writes stay visible without adding servers or losing the import text', async ({ page }) => {
+  const settings = await openMcp(page);
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey): IDBRequest<IDBValidKey> {
+      if (this.transaction.db.name === 'caotang-app' && (value as { key?: string }).key === 'settings') {
+        throw new Error('Fixture settings refusal.');
+      }
+      return key === undefined ? put.call(this, value) : put.call(this, value, key);
+    };
+  });
+  await settings.getByTestId('mcp-master').click();
+  await expect(settings.getByRole('alert')).toContainText('Fixture settings refusal.');
+  await expect(settings.getByTestId('mcp-master')).not.toBeChecked();
+  const form = settings.getByRole('form', { name: 'Add a server' });
+  await form.getByLabel('Name').fill('Refused');
+  await form.getByLabel('Server address (https://…, or http://localhost…)').fill(FIXTURE_URL);
+  await form.getByRole('button', { name: 'Add server' }).click();
+  await expect(form.getByRole('alert')).toContainText('Fixture settings refusal.');
+  await expect(form.getByLabel('Name')).toHaveValue('Refused');
+  await expect(card(settings, 'Refused')).toHaveCount(0);
+  const text = JSON.stringify({ servers: [{ name: 'Off', url: FIXTURE_URL, enabled: false }] });
+  await settings.getByRole('textbox', { name: 'Server list to import' }).fill(text);
+  await settings.getByRole('button', { name: 'Import', exact: true }).click();
+  await expect(settings.getByTestId('mcp-import-result')).toContainText('No server was added.');
+  await expect(settings.getByTestId('mcp-import-result')).toContainText('Fixture settings refusal.');
+  await expect(settings.getByRole('textbox', { name: 'Server list to import' })).toHaveValue(text);
+  await expect(card(settings, 'Off')).toHaveCount(0);
+});
+
 test('a connected server offers its tools for review, and trusts reads only after the review is approved', async ({ page }) => {
   await fixtureServer(page);
   const settings = await openMcp(page);

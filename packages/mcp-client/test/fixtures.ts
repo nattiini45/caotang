@@ -101,17 +101,17 @@ export async function openClient(options: {
     settings: { enabled: options.enabled ?? true, servers },
     wire: createMockWireFactory(options.scripts ?? fixtureScripts()),
     now: () => FIXED_NOW,
-    onChange: (settings) => saved.push(settings),
+    onChange: (settings) => { saved.push(settings); },
   });
   const connect = options.connect ?? servers.map((server) => server.key);
   for (const key of connect) await client.connect(key);
   for (const key of options.approve ?? []) {
     const fingerprint = client.review(key)?.fingerprint ?? '';
-    const approved = client.approveReview(key, fingerprint);
+    const approved = await client.approveReview(key, fingerprint);
     if (!approved.ok) throw new Error(`fixture approval failed: ${approved.error}`);
   }
   for (const key of options.trust ?? []) {
-    const trusted = client.setTrustReads(key, true);
+    const trusted = await client.setTrustReads(key, true);
     if (!trusted.ok) throw new Error(`fixture trust failed: ${trusted.error}`);
   }
   return { client, loaded: createLoadedTools(), saved };

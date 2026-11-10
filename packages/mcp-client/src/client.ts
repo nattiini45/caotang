@@ -235,7 +235,7 @@ export interface McpClientOptions {
   /** The wall-clock cap of a call, which progress does not extend. Defaults to {@link CALL_MAX_TOTAL_MS}. */
   readonly callMaxTotalMs?: number;
   /** Called with the whole slice after every change to it, so the app can persist it. */
-  readonly onChange?: (settings: McpSettings) => void;
+  readonly onChange?: (settings: McpSettings) => void | Promise<string | null>;
   /**
    * Called with the reference of a bearer token that a change dropped, so the vault can take it
    * out. A token that nothing names any more is a token that is kept for ever, so the reference
@@ -274,10 +274,10 @@ export interface McpClient {
    */
   refreshCatalog(key: string): Promise<void>;
   review(key: string): ReviewCard | undefined;
-  approveReview(key: string, fingerprint: string): Result<McpServerHealth, string>;
-  setTrustReads(key: string, value: boolean): Result<McpServerConfig, string>;
-  setToolEnabled(key: string, toolName: string, enabled: boolean): Result<McpServerConfig, string>;
-  addServer(input: AddServerInput): Result<McpServerConfig, string>;
+  approveReview(key: string, fingerprint: string): Promise<Result<McpServerHealth, string>>;
+  setTrustReads(key: string, value: boolean): Promise<Result<McpServerConfig, string>>;
+  setToolEnabled(key: string, toolName: string, enabled: boolean): Promise<Result<McpServerConfig, string>>;
+  addServer(input: AddServerInput): Promise<Result<McpServerConfig, string>>;
   updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>>;
   removeServer(key: string): Promise<void>;
 }
@@ -291,6 +291,7 @@ export interface AddServerInput {
   readonly url: string;
   readonly auth: McpAuth;
   readonly enabledTools?: readonly string[];
+  readonly enabled?: boolean;
 }
 
 /** The fields an edit may change. Every field is optional; an absent one is left as it is. */
@@ -395,7 +396,8 @@ class McpClientImpl implements McpClient {
   private readonly listTimeoutMs: number;
   private readonly callTimeoutMs: number;
   private readonly callMaxTotalMs: number;
-  private readonly onChange: ((settings: McpSettings) => void) | undefined;
+  private readonly onChange: McpClientOptions['onChange'];
+  private changes: Promise<unknown> = Promise.resolve();
   private readonly onTokenDropped: (tokenRef: string) => void | Promise<void>;
   /** The hand-back of a reference that is under way, so one reference is handed back once. */
   private readonly drops = new Map<string, Promise<void>>();
@@ -446,14 +448,23 @@ class McpClientImpl implements McpClient {
   }
 
   async setMasterEnabled(on: boolean): Promise<void> {
-    if (this.config.enabled === on) return;
-    this.config = { ...this.config, enabled: on };
-    if (!on) {
-      for (const server of this.config.servers) {
-        await this.demote(server.key, 'MCP & tools is off — turn it on in Settings › MCP & tools');
+    const result = await this.change(async (draft) => {
+      await this.setMasterEnabledNow(draft, on);
+      return ok(undefined);
+    });
+    if (!result.ok) throw new Error(result.error);
+  }
+
+  private async setMasterEnabledNow(draft: McpSettings, on: boolean): Promise<void> {
+    if (draft.enabled === on) return;
+    draft.enabled = on;
+    await this.persist(draft, async () => {
+      if (!on) {
+        for (const server of draft.servers) {
+          await this.demote(server.key, 'MCP & tools is off — turn it on in Settings › MCP & tools');
+        }
       }
-    }
-    this.persist();
+    });
   }
 
   async connect(key: string): Promise<McpServerHealth> {
@@ -680,8 +691,12 @@ class McpClientImpl implements McpClient {
     };
   }
 
-  approveReview(key: string, fingerprint: string): Result<McpServerHealth, string> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  approveReview(key: string, fingerprint: string): Promise<Result<McpServerHealth, string>> {
+    return this.change((draft) => this.approveReviewNow(draft, key, fingerprint));
+  }
+
+  private async approveReviewNow(draft: McpSettings, key: string, fingerprint: string): Promise<Result<McpServerHealth, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
     const rt = this.runtime(key);
     if (rt.listing === undefined) return err('connect the server first — there is no tool list to review yet');
@@ -693,19 +708,30 @@ class McpClientImpl implements McpClient {
     if (rt.listing.fingerprint !== fingerprint) {
       return err('the server changed again after this review — review its new tool list before approving it');
     }
+    const generation = rt.generation;
     const listed = rt.listing.tools.map((tool) => ({ qualifiedName: tool.qualifiedName, hash: tool.candidateHash, toolName: tool.toolName }));
     const pins = pinsAfterReview(server.pinnedTools, listed, this.clock());
     server.pinnedTools = pins;
     this.pinCatalog(server, rt.catalog);
+    await this.persist(draft);
+    if (rt.generation !== generation || rt.listing === undefined || rt.wire === undefined) {
+      return err('the server is not connected, so its tool list cannot be approved — connect it first');
+    }
+    if (rt.listing.fingerprint !== fingerprint) {
+      return err('the server changed again after this review — review its new tool list before approving it');
+    }
     const delta = diffPins(pins, listed);
     rt.listing = { ...rt.listing, delta, removed: [] };
     this.setHealth(key, 'healthy', healthDetailOf(rt.listing), { toolsDiscovered: rt.listing.tools.length, pendingReview: false });
-    this.persist();
     return ok(rt.health);
   }
 
-  setTrustReads(key: string, value: boolean): Result<McpServerConfig, string> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  setTrustReads(key: string, value: boolean): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.setTrustReadsNow(draft, key, value));
+  }
+
+  private async setTrustReadsNow(draft: McpSettings, key: string, value: boolean): Promise<Result<McpServerConfig, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
     if (value) {
       const rt = this.runtime(key);
@@ -714,12 +740,16 @@ class McpClientImpl implements McpClient {
       if (!reviewed) return err('review the tool list before trusting reads — trust is granted only after a review');
     }
     server.trustReads = value;
-    this.persist();
+    await this.persist(draft);
     return ok(cloneServer(server));
   }
 
-  setToolEnabled(key: string, toolName: string, enabled: boolean): Result<McpServerConfig, string> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  setToolEnabled(key: string, toolName: string, enabled: boolean): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.setToolEnabledNow(draft, key, toolName, enabled));
+  }
+
+  private async setToolEnabledNow(draft: McpSettings, key: string, toolName: string, enabled: boolean): Promise<Result<McpServerConfig, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
     if (toolName === '' || toolName.length > MCP_TOOL_NAME_MAX) return err(`a tool name is 1 to ${MCP_TOOL_NAME_MAX} characters`);
     const rt = this.runtime(key);
@@ -740,40 +770,44 @@ class McpClientImpl implements McpClient {
     const current = server.enabledTools ?? [...(known ?? [])];
     const next = enabled ? [...new Set([...current, toolName])] : current.filter((name) => name !== toolName);
     server.enabledTools = next.sort();
-    this.persist();
+    await this.persist(draft);
     return ok(cloneServer(server));
   }
 
-  addServer(input: AddServerInput): Result<McpServerConfig, string> {
-    if (this.config.servers.length >= MCP_SERVER_LIMIT) {
+  addServer(input: AddServerInput): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.addServerNow(draft, input));
+  }
+
+  private async addServerNow(draft: McpSettings, input: AddServerInput): Promise<Result<McpServerConfig, string>> {
+    if (draft.servers.length >= MCP_SERVER_LIMIT) {
       return err(`at most ${MCP_SERVER_LIMIT} MCP servers — remove one before adding another`);
     }
     const name = input.name.trim();
     if (name === '' || name.length > MCP_NAME_MAX) return err(`the name must be 1 to ${MCP_NAME_MAX} characters`);
     const url = checkServerUrl(input.url);
     if (!url.ok) return err(url.reason);
-    if (this.config.servers.some((server) => server.url === url.url)) return err('a server with this URL is already connected');
+    if (draft.servers.some((server) => server.url === url.url)) return err('a server with this URL is already connected');
     const authProblem = bearerProblem(input.auth);
     if (authProblem !== undefined) return err(authProblem);
     const selection = input.enabledTools === undefined ? undefined : toolNameList(input.enabledTools);
     if (selection === 'invalid') return err('the tool selection must be a list of tool names');
-    const key = this.newKey(new Set(this.config.servers.map((server) => server.key)));
+    const key = this.newKey(new Set(draft.servers.map((server) => server.key)));
     const server: McpServerConfig = {
       key,
       name,
       transport: 'http',
       url: url.url,
       auth: { ...input.auth },
-      enabled: true,
+      enabled: input.enabled ?? true,
       trustReads: false,
       pinnedTools: {},
       addedAt: this.clock(),
     };
     if (selection !== undefined) server.enabledTools = selection;
     if (input.auth.kind === 'bearer') this.drops.delete(input.auth.tokenRef);
-    this.config = { ...this.config, servers: [...this.config.servers, server] };
+    draft.servers.push(server);
+    await this.persist(draft);
     this.runtimes.set(key, freshRuntime(key, 'not connected this session'));
-    this.persist();
     return ok(cloneServer(server));
   }
 
@@ -785,8 +819,12 @@ class McpClientImpl implements McpClient {
    * caller is told about a sealed token that nothing names any more, instead of being told that
    * the change did not happen — it did happen, and the record says so.
    */
-  async updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
-    const server = this.config.servers.find((candidate) => candidate.key === key);
+  updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.updateServerNow(draft, key, patch));
+  }
+
+  private async updateServerNow(draft: McpSettings, key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
     // Every field is checked before any is changed, so a refused edit leaves the server as it was. A
     // server that was saved with a bearer reference the loader cannot read is dropped on the next start.
@@ -801,7 +839,7 @@ class McpClientImpl implements McpClient {
       const url = checkServerUrl(patch.url);
       if (!url.ok) return err(url.reason);
       if (url.url !== server.url) {
-        if (this.config.servers.some((other) => other.key !== key && other.url === url.url)) {
+        if (draft.servers.some((other) => other.key !== key && other.url === url.url)) {
           return err('a server with this URL is already connected');
         }
         address = url.url;
@@ -842,10 +880,9 @@ class McpClientImpl implements McpClient {
     }
     // A selection narrows what is searched and called; it never changes a pin or a trust grant, so it demotes nothing.
     if (selection !== undefined) server.enabledTools = selection;
-    if (reason !== undefined) await this.demote(key, reason);
     // The record is written before the credential is handed back: a record that still named a
     // token that is gone would leave the server without the credential its own settings name.
-    this.persist();
+    await this.persist(draft, reason === undefined ? undefined : () => this.demote(key, reason));
     // A credential the change dropped is handed back, so the vault does not keep a sealed token
     // that nothing names any more. A reference another server still names is not handed back:
     // the settings do not make a reference unique, and that server would lose a credential its
@@ -863,14 +900,20 @@ class McpClientImpl implements McpClient {
    * with nothing left to name it.
    */
   async removeServer(key: string): Promise<void> {
-    const closed = this.dropConnection(key);
-    const server = this.config.servers.find((candidate) => candidate.key === key);
-    this.config = { ...this.config, servers: this.config.servers.filter((candidate) => candidate.key !== key) };
-    this.runtimes.delete(key);
+    const result = await this.change(async (draft) => {
+      await this.removeServerNow(draft, key);
+      return ok(undefined);
+    });
+    if (!result.ok) throw new Error(result.error);
+  }
+
+  private async removeServerNow(draft: McpSettings, key: string): Promise<void> {
+    const server = draft.servers.find((candidate) => candidate.key === key);
+    draft.servers = draft.servers.filter((candidate) => candidate.key !== key);
     // The record is written before the credential is handed back, so a record that still named
     // a token that is gone is never left behind.
-    this.persist();
-    await closed;
+    await this.persist(draft, () => this.demote(key, 'disconnected'));
+    this.runtimes.delete(key);
     // The server is gone, so nothing names its token any more: the reference is handed back, so
     // the vault does not keep a sealed token for ever. A reference another server still names is
     // not handed back.
@@ -1280,8 +1323,29 @@ class McpClientImpl implements McpClient {
     return { resolveBearer: this.resolveToken, fetch: this.fetchImpl, probe: this.probe };
   }
 
-  private persist(): void {
-    this.onChange?.(this.settings());
+  private change<T>(action: (draft: McpSettings) => Promise<Result<T, string>>): Promise<Result<T, string>> {
+    const pending = this.changes.then(async () => {
+      try {
+        return await action(this.settings());
+      } catch (error) {
+        if (!(error instanceof SettingsRefusal)) throw error;
+        return err(error.message);
+      }
+    });
+    this.changes = pending.catch(() => undefined);
+    return pending;
+  }
+
+  private async persist(next: McpSettings, beforePublish?: () => Promise<unknown>): Promise<void> {
+    let refusal: string | null | void;
+    try {
+      refusal = await this.onChange?.({ enabled: next.enabled, servers: next.servers.map(cloneServer) });
+    } catch (error) {
+      throw new SettingsRefusal(error instanceof Error ? error.message : String(error));
+    }
+    if (refusal !== undefined && refusal !== null) throw new SettingsRefusal(refusal);
+    await beforePublish?.();
+    this.config = next;
   }
 
   /**
@@ -1527,3 +1591,5 @@ function asWireError(error: unknown): WireError {
   if (error instanceof WireError) return error;
   return new WireError('protocol', error instanceof Error ? error.message : String(error));
 }
+
+class SettingsRefusal extends Error {}

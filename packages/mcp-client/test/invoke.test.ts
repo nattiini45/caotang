@@ -137,7 +137,7 @@ describe('validate: the refusals, in the order they are checked', () => {
 
   it('refuses a disabled tool and asks for it to be enabled', async () => {
     const { client } = await openClient({ approve: [STORY_KEY] });
-    client.setToolEnabled(STORY_KEY, 'lore_update', false);
+    await client.setToolEnabled(STORY_KEY, 'lore_update', false);
     const loaded = loadedWith(qualified(STORY_KEY, 'lore_update'));
     const result = prepareInvoke({ client, loaded }, { serverKey: STORY_KEY, toolName: 'lore_update', args: { entry: 'a', text: 'b' } });
     if (result.ok) throw new Error('expected a refusal');
@@ -469,7 +469,7 @@ describe('apply: a call is checked against what the person was shown, not only a
     // The person reviews a new description and approves it. The pin now verifies under a new hash, which the call was not validated against.
     script.listTools = storyTools().map((tool) => (tool.name === 'lore_lookup' ? { ...tool, description: 'Look up a lore entry, aliases included, now.' } : tool));
     await client.refresh(STORY_KEY);
-    client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
+    await client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
     expect(client.describe(STORY_KEY, 'lore_lookup')).toMatchObject({ pinState: 'verified', effectiveRisk: 'read-auto' });
     expect(client.describe(STORY_KEY, 'lore_lookup')?.candidateHash).not.toBe(prepared.value.hash);
 
@@ -581,8 +581,8 @@ describe('the search-then-invoke path over the real SDK wire', () => {
       callTimeoutMs: 2_000,
     });
     await client.connect(STORY_KEY);
-    client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
-    client.setTrustReads(STORY_KEY, true);
+    await client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
+    await client.setTrustReads(STORY_KEY, true);
 
     const loaded = createLoadedTools();
     loaded.beginTurn('turn-wire');

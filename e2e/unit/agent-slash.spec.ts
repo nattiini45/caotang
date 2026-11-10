@@ -176,10 +176,10 @@ test('stopping a prompt read starts no turn and preserves queued text for explic
   const wire = createMockWire({ listTools: [], prompts: [{ name: 'recap' }], respond: () => ({ content: [] }) });
   wire.getPrompt = () => answer;
   const client = createMcpClient({ settings: { enabled: true, servers: [] }, wire: () => wire });
-  const added = client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
+  const added = await client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
   if (!added.ok) throw new Error(added.error);
   await client.connect(added.value.key);
-  client.approveReview(added.value.key, client.review(added.value.key)!.fingerprint);
+  await client.approveReview(added.value.key, client.review(added.value.key)!.fingerprint);
   const { controller, session, requests } = await rig([{ match: isPlannerCall, respond: () => ({ content: JSON.stringify({ reply: 'Done.' }) }) }], undefined, client);
   controller.sendLine(`/${controller.commands()[0]!.name}`);
   expect(controller.snapshot().busy).toBe(true);
@@ -240,10 +240,10 @@ test('inline MCP arguments preserve names outside the slash identifier grammar a
   const wire = createMockWire({ listTools: [], prompts: [{ name: 'recap', arguments: [{ name: 'chapter title', required: true }, { name: 'audience=group', required: true }] }], respond: () => ({ content: [] }) });
   wire.getPrompt = async (_name, args) => { received = args; return { messages: [{ role: 'user', content: { type: 'text', text: 'A recap.' } }] }; };
   const client = createMcpClient({ settings: { enabled: true, servers: [] }, wire: () => wire });
-  const added = client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
+  const added = await client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
   if (!added.ok) throw new Error(added.error);
   await client.connect(added.value.key);
-  client.approveReview(added.value.key, client.review(added.value.key)!.fingerprint);
+  await client.approveReview(added.value.key, client.review(added.value.key)!.fingerprint);
   const { controller, session } = await rig([{ match: isPlannerCall, respond: () => ({ content: JSON.stringify({ reply: 'Done.' }) }) }], undefined, client);
   const line = `/${controller.commands()[0]!.name}`;
   expect(controller.sendLine(line)).toEqual({ kind: 'kept' });
@@ -266,11 +266,11 @@ for (const change of ['definition', 'replacement', 'reconnect'] as const) {
       original.getPrompt = replacement.getPrompt = async () => { reads += 1; return { messages: [{ role: 'user', content: { type: 'text', text: 'Answer' } }] }; };
       let wire = original;
       const client = createMcpClient({ settings: { enabled: true, servers: [] }, wire: () => wire });
-      const added = client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
+      const added = await client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
       if (!added.ok) throw new Error(added.error);
       const key = added.value.key;
       await client.connect(key);
-      client.approveReview(key, client.review(key)!.fingerprint);
+      await client.approveReview(key, client.review(key)!.fingerprint);
       const { controller, session, requests } = await rig([{ match: isPlannerCall, respond: () => ({ content: JSON.stringify({ reply: 'Done.' }) }) }], undefined, client);
       const line = `/${controller.commands()[0]!.name}`;
       controller.sendLine(line);
@@ -289,7 +289,7 @@ for (const change of ['definition', 'replacement', 'reconnect'] as const) {
         } else await client.disconnect(key);
         await client.connect(key);
       }
-      client.approveReview(key, client.review(key)!.fingerprint);
+      await client.approveReview(key, client.review(key)!.fingerprint);
       expect(controller.sendLine(line, { ...pending.values, [pending.name]: 'Private pending value' }, pending.promptSelection)).toEqual({ kind: 'kept' });
       await settled(controller);
       expect(controller.snapshot().command?.title).toContain('The prompt was not run.');
@@ -310,11 +310,11 @@ for (const unavailable of ['disconnected', 'disabled', 'master-off', 'removed', 
     let reads = 0;
     wire.getPrompt = async () => { reads += 1; return { messages: [] }; };
     const client = createMcpClient({ settings: { enabled: true, servers: [] }, wire: () => wire });
-    const added = client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
+    const added = await client.addServer({ name: 'Story', url: 'https://story.example/mcp', auth: { kind: 'none' } });
     if (!added.ok) throw new Error(added.error);
     const key = added.value.key;
     await client.connect(key);
-    client.approveReview(key, client.review(key)!.fingerprint);
+    await client.approveReview(key, client.review(key)!.fingerprint);
     const { controller, session, requests } = await rig([], undefined, client);
     const line = `/${controller.commands()[0]!.name} chapter="Private intended only for the server"`;
     if (unavailable === 'disconnected') await client.disconnect(key);

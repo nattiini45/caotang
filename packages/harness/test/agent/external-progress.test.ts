@@ -76,8 +76,8 @@ async function connectedClient(options: Options): Promise<McpClient> {
   });
   await client.connect(KEY);
   const card = client.review(KEY);
-  if (card !== undefined) client.approveReview(KEY, card.fingerprint);
-  client.setTrustReads(KEY, true);
+  if (card !== undefined) await client.approveReview(KEY, card.fingerprint);
+  await client.setTrustReads(KEY, true);
   return client;
 }
 

@@ -95,8 +95,8 @@ async function connected(calls: string[], answerText = INJECTED, errorText?: str
   for (const key of [BIBLE, WIKI]) {
     await client.connect(key);
     const card = client.review(key);
-    if (card !== undefined) client.approveReview(key, card.fingerprint);
-    client.setTrustReads(key, true);
+    if (card !== undefined) await client.approveReview(key, card.fingerprint);
+    await client.setTrustReads(key, true);
   }
   return client;
 }

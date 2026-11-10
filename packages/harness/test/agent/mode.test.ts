@@ -404,7 +404,7 @@ describe('what no mode takes from the writer or the bus', () => {
     });
     await client.connect(KEY);
     const card = client.review(KEY);
-    if (card !== undefined) client.approveReview(KEY, card.fingerprint);
+    if (card !== undefined) await client.approveReview(KEY, card.fingerprint);
     return client;
   }
 
