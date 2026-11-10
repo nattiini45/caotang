@@ -2074,7 +2074,6 @@ export class ProjectSession {
     if (this.closing !== null) return this.closing;
     this.closing = (async () => {
       try {
-        // The lifecycle signals are let go first, so nothing this session does after its close begins can start a findings save.
         this.detachCoherenceFlush();
         this.detachPendingKeep();
         if (this.pendingTimer !== null) clearTimeout(this.pendingTimer);
