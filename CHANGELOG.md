@@ -15,6 +15,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Fixed
 
 - **Findings review progress.** An approved model review stays visible in the workspace when you leave Findings, and its progress returns with the tab. Start cannot launch two reviews at once. Stop keeps partial findings and shows a stopped outcome instead of an error. Settings also names a failed interface load beside its choice, with a retry.
+- **Stopped-tab recovery.** The notice stays above other dialogs, including ones that arrive later, while their input stays underneath. Its cause and kept-copy status now belong to one session state; saved projects and kept-word formats are unchanged.
+
 - **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.
 
 - **Opening browser storage.** If another tab blocks an upgrade, opening now asks you to close the other Caotang tabs and reload instead of waiting indefinitely.

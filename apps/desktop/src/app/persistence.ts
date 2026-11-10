@@ -50,18 +50,17 @@ import {
 } from '@caotang/store';
 
 import { planPersistence, type DocumentShadow, type PersistPlan, type Shadow } from './persistence-plan.js';
-import { noteStopCause } from './integrity-model.js';
+import { TabStop } from './tab-stop.js';
+import { stepPersistence, type PersistenceState, type PersistenceEvent } from './persistence-model.js';
 import {
   browserStorage,
   newStopId,
-  noteStop,
-  noteStopKept,
   unsentDocuments,
   writeUnsentEntry,
   type UnsentStorage,
 } from './unsent-copy.js';
 
-export type PersistenceStatus = 'idle' | 'writing' | 'failed' | 'conflict';
+export type PersistenceStatus = PersistenceState['kind'];
 
 /**
  * Whether a store refusal means another writer has moved a row this session holds (see the note above). A store another tab has upgraded
@@ -79,20 +78,15 @@ export class Persistence {
    * shadow so the next pass restates everything), because the store still holds what it held: the pending journal reads it (pending-journal.ts).
    */
   private stored: ReadonlyMap<string, DocumentShadow> | null;
-  private status: PersistenceStatus = 'idle';
-  private lastError: unknown = null;
+  private status: PersistenceState = { kind: 'idle' };
   private again = false;
-  /**
-   * Set by a stale write. Nothing is written from this session after it: not the store (see the note above), and not the
-   * findings file either (session.ts `queueCoherenceSave`).
-   */
-  private stopped = false;
   private current: Promise<void> | null = null;
   private readonly listeners = new Set<() => void>();
   /** The browser's storage for the unsent copy (unsent-copy.ts), or `undefined` where there is none. */
   private readonly storage: UnsentStorage | undefined = browserStorage();
   /** This session's entry in the unsent copy (unsent-copy.ts). Only a stopped session writes it, and no other stop's entry is touched. */
   private readonly stopId: string = newStopId();
+  readonly tabStop: TabStop;
   /** The entry as last written, so a stopped session that makes no change writes nothing. */
   private keptText = '';
 
@@ -104,6 +98,7 @@ export class Persistence {
   ) {
     this.shadow = shadow;
     this.stored = shadow?.docs ?? null;
+    this.tabStop = new TabStop(projectId, this.stopId);
   }
 
   /** What the store holds for a document, as far as this session knows, or `undefined` for a document it has not stored. */
@@ -113,7 +108,7 @@ export class Persistence {
 
   /** Ask for the store to be brought up to date. Coalesces: at most one pass is ever queued behind a running one. */
   schedule(): void {
-    if (this.stopped) {
+    if (this.isStopped()) {
       // A stopped session writes nothing to the store, but its words are still changing: they are kept here (unsent-copy.ts).
       this.keepUnsent();
       return;
@@ -134,16 +129,16 @@ export class Persistence {
   }
 
   getStatus(): PersistenceStatus {
-    return this.status;
+    return this.status.kind;
   }
 
   getError(): unknown {
-    return this.lastError;
+    return this.status.kind === 'failed' || this.status.kind === 'conflict' ? this.status.error : null;
   }
 
   /** Whether a stale write has stopped this session, after which nothing is written from it (see the note above). */
   isStopped(): boolean {
-    return this.stopped;
+    return this.status.kind === 'conflict';
   }
 
   subscribe(listener: () => void): () => void {
@@ -161,32 +156,31 @@ export class Persistence {
   }
 
   private async step(): Promise<void> {
-    if (this.stopped) return;
+    if (this.isStopped()) return;
     const plan = planPersistence(this.shadow, this.read());
     if (plan.kind === 'none') {
-      this.setStatus('idle', null);
+      this.setStatus({ type: 'saved' });
       return;
     }
-    this.setStatus('writing', null);
+    this.setStatus({ type: 'write' });
     try {
       await this.execute(plan);
       this.shadow = plan.next;
       this.stored = plan.next.docs;
-      this.setStatus('idle', null);
+      this.setStatus({ type: 'saved' });
     } catch (error) {
       if (isStaleWrite(error)) {
         // Another writer moved a row this session holds. Restating would overwrite its text, so this session stops, and the
         // words it holds are kept in this browser so a reload does not take them. An upgraded store is said as that cause.
-        this.stopped = true;
-        noteStopCause(error instanceof RuntimeStoreStaleError ? 'updated' : 'newer-text');
-        noteStop(this.projectId, this.stopId);
+        this.status = stepPersistence(this.status, { type: 'stop', error });
+        this.tabStop.send({ type: 'stop', cause: error instanceof RuntimeStoreStaleError ? 'updated' : 'newer-text' });
         this.keepUnsent();
-        this.setStatus('conflict', error);
+        this.notify();
         return;
       }
       // The shadow no longer describes the store, so the next pass restates everything.
       this.shadow = null;
-      this.setStatus('failed', error);
+      this.setStatus({ type: 'fail', error });
     }
   }
 
@@ -236,12 +230,15 @@ export class Persistence {
     if (text === this.keptText) return;
     const landed = writeUnsentEntry(this.storage, this.projectId, this.stopId, documents);
     if (landed) this.keptText = text;
-    noteStopKept(this.stopId, landed);
+    this.tabStop.send({ type: 'keep', landed });
   }
 
-  private setStatus(status: PersistenceStatus, error: unknown): void {
-    this.status = status;
-    this.lastError = error;
+  private setStatus(event: PersistenceEvent): void {
+    this.status = stepPersistence(this.status, event);
+    this.notify();
+  }
+
+  private notify(): void {
     for (const listener of this.listeners) listener();
   }
 }

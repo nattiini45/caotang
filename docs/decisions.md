@@ -1,5 +1,7 @@
 # Decisions
 
+- [owner 2026-11-09] The stopped-tab notice wins, and the dialog input is kept underneath. Why: a tab that cannot save must not let a later dialog hide its recovery actions; the other dialog remains mounted so its draft is not lost.
+
 - [delegated 2026-11-09] Save as command is offered for reusable request text, not the synthetic labels of MCP prompt or macro turns; those already have their own invocation and must not create an unrelated saved skill (#61, PR #524 F9).
 
 - [delegated 2026-11-09] An unavailable `mcp-` command is refused locally rather than treated as an ordinary model request; only the existing explicit `//` escape sends that literal slash text to the provider. A reissued form starts empty when its prompt selection changes (#61, PR #524 F7/F8).
