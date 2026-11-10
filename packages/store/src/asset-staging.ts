@@ -15,6 +15,7 @@
  */
 
 import { newId } from '@caotang/ids';
+import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
 
 /** Image bytes the host has chosen and is holding until the command that imports them runs. */
 export interface AssetStaging {
@@ -68,11 +69,86 @@ export function isRetryable(staging: AssetStaging): staging is RetryableAssetSta
   return typeof (staging as Partial<RetryableAssetStaging>).reserve === 'function';
 }
 
+export type AssetStagingState =
+  | { readonly kind: 'staged' }
+  | { readonly kind: 'staged-cancelled' }
+  | { readonly kind: 'reserved'; readonly reservationId: string }
+  | { readonly kind: 'reserved-cancelled'; readonly reservationId: string }
+  | { readonly kind: 'removed' }
+  | { readonly kind: 'removed-cancelled' };
+
+export type AssetStagingEvent =
+  | { readonly type: 'reserve'; readonly reservationId: string }
+  | { readonly type: 'commit'; readonly reservationId: string }
+  | { readonly type: 'release'; readonly reservationId: string }
+  | { readonly type: 'take' }
+  | { readonly type: 'discard' }
+  | { readonly type: 'cancel' };
+
+export const assetStagingTable: MachineTable<AssetStagingState, AssetStagingEvent> = {
+  id: 'asset.staging',
+  initial: 'staged',
+  final: ['removed', 'removed-cancelled'],
+  on: {
+    staged: { reserve: ['reserved'], take: ['removed'], discard: ['removed'], cancel: ['staged-cancelled'] },
+    'staged-cancelled': { reserve: ['reserved-cancelled'], take: ['removed-cancelled'], discard: ['removed-cancelled'], cancel: ['staged-cancelled'] },
+    reserved: { commit: ['reserved', 'removed'], release: ['reserved', 'staged'], discard: ['removed'], cancel: ['reserved-cancelled'] },
+    'reserved-cancelled': { commit: ['reserved-cancelled', 'removed-cancelled'], release: ['reserved-cancelled', 'staged'], discard: ['removed-cancelled'], cancel: ['reserved-cancelled'] },
+    removed: {},
+    'removed-cancelled': {},
+  },
+};
+
+function isCancelled(state: AssetStagingState): boolean {
+  return state.kind === 'staged-cancelled' || state.kind === 'reserved-cancelled' || state.kind === 'removed-cancelled';
+}
+
+export function stepAssetStaging(state: AssetStagingState, event: AssetStagingEvent): AssetStagingState {
+  switch (state.kind) {
+    case 'staged':
+    case 'staged-cancelled':
+      switch (event.type) {
+        case 'reserve': return { kind: isCancelled(state) ? 'reserved-cancelled' : 'reserved', reservationId: event.reservationId };
+        case 'cancel': return { kind: 'staged-cancelled' };
+        case 'take':
+        case 'discard': return { kind: isCancelled(state) ? 'removed-cancelled' : 'removed' };
+        case 'commit':
+        case 'release': return state;
+        default: return assertNever(event);
+      }
+    case 'reserved':
+    case 'reserved-cancelled':
+      switch (event.type) {
+        case 'commit':
+          return event.reservationId === state.reservationId ? { kind: isCancelled(state) ? 'removed-cancelled' : 'removed' } : state;
+        case 'release': return event.reservationId === state.reservationId ? { kind: 'staged' } : state;
+        case 'cancel': return { kind: 'reserved-cancelled', reservationId: state.reservationId };
+        case 'discard': return { kind: isCancelled(state) ? 'removed-cancelled' : 'removed' };
+        case 'reserve':
+        case 'take': return state;
+        default: return assertNever(event);
+      }
+    case 'removed':
+    case 'removed-cancelled':
+      switch (event.type) {
+        case 'reserve':
+        case 'commit':
+        case 'release':
+        case 'take':
+        case 'discard':
+        case 'cancel': return state;
+        default: return assertNever(event);
+      }
+    default: return assertNever(state);
+  }
+}
+
+export const assetStagingMachine = defineMachine(assetStagingTable, stepAssetStaging);
+
 interface Held {
   readonly bytes: Uint8Array;
   readonly scope: string | undefined;
-  reservation: string | undefined;
-  cancelled: boolean;
+  state: AssetStagingState;
 }
 
 /** An in-memory staging area. The host keeps one for the life of the project it has open, naming the project so its tokens stay its own. */
@@ -83,12 +159,13 @@ export function createAssetStaging(scope?: string): RetryableAssetStaging {
   return {
     stage(bytes) {
       const token = `stg_${newId('c').slice(2)}`;
-      held.set(token, { bytes: bytes.slice(), scope, reservation: undefined, cancelled: false });
+      held.set(token, { bytes: bytes.slice(), scope, state: { kind: 'staged' } });
       return token;
     },
     take(token) {
       const entry = held.get(token);
-      if (entry === undefined || entry.reservation !== undefined) return undefined;
+      if (entry === undefined || (entry.state.kind !== 'staged' && entry.state.kind !== 'staged-cancelled')) return undefined;
+      entry.state = assetStagingMachine.step(entry.state, { type: 'take' });
       held.delete(token);
       return entry.bytes;
     },
@@ -97,42 +174,46 @@ export function createAssetStaging(scope?: string): RetryableAssetStaging {
       for (const id of ids) {
         const entry = held.get(id);
         if (entry === undefined) throw new StagingError('unknown', id);
-        if (entry.reservation !== undefined || entries.some((other) => other.id === id)) throw new StagingError('reserved', id);
+        if ((entry.state.kind !== 'staged' && entry.state.kind !== 'staged-cancelled') || entries.some((other) => other.id === id)) throw new StagingError('reserved', id);
         if (asking !== undefined && entry.scope !== undefined && entry.scope !== asking) throw new StagingError('scope', id);
         entries.push({ id, entry });
       }
       const reservationId = `rsv_${newId('c').slice(2)}`;
-      for (const { entry } of entries) entry.reservation = reservationId;
+      for (const { entry } of entries) entry.state = assetStagingMachine.step(entry.state, { type: 'reserve', reservationId });
       reservations.set(reservationId, [...ids]);
       return {
         id: reservationId,
         items: entries.map(({ id, entry }) => ({ stagingId: id, bytes: entry.bytes })),
-        isCancelled: () => entries.some(({ entry }) => entry.cancelled),
+        isCancelled: () => entries.some(({ entry }) => isCancelled(entry.state)),
       };
     },
     commit(reservationId) {
       for (const id of reservations.get(reservationId) ?? []) {
-        if (held.get(id)?.reservation === reservationId) held.delete(id);
+        const entry = held.get(id);
+        if (entry === undefined) continue;
+        entry.state = assetStagingMachine.step(entry.state, { type: 'commit', reservationId });
+        if (entry.state.kind === 'removed' || entry.state.kind === 'removed-cancelled') held.delete(id);
       }
       reservations.delete(reservationId);
     },
     release(reservationId) {
       for (const id of reservations.get(reservationId) ?? []) {
         const entry = held.get(id);
-        if (entry?.reservation === reservationId) {
-          entry.reservation = undefined;
-          entry.cancelled = false;
-        }
+        if (entry !== undefined) entry.state = assetStagingMachine.step(entry.state, { type: 'release', reservationId });
       }
       reservations.delete(reservationId);
     },
     discard(ids) {
-      for (const id of ids) held.delete(id);
+      for (const id of ids) {
+        const entry = held.get(id);
+        if (entry !== undefined) entry.state = assetStagingMachine.step(entry.state, { type: 'discard' });
+        held.delete(id);
+      }
     },
     cancel(ids) {
       for (const id of ids) {
         const entry = held.get(id);
-        if (entry !== undefined) entry.cancelled = true;
+        if (entry !== undefined) entry.state = assetStagingMachine.step(entry.state, { type: 'cancel' });
       }
     },
   };

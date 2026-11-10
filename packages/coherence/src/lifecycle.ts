@@ -13,7 +13,7 @@
  * Each function returns a new file and never mutates its input.
  */
 
-import { findingsDiscardedWith } from '@caotang/bus';
+import { findingsDiscardedWith, findingTransition } from '@caotang/bus';
 import { getBody, type ProjectState } from '@caotang/store';
 
 import { validateDismissal } from './dismissal.js';
@@ -41,7 +41,7 @@ export function dismissFinding(
   if (!verdict.ok) throw new CoherenceError('dismissal-invalid', verdict.error);
   const next = structuredClone(file);
   const finding = findingOrThrow(next, id);
-  if (finding.status !== 'open') {
+  if (!findingTransition(finding.status, 'dismissed').ok) {
     throw new CoherenceError('finding-not-open', `finding ${id} is ${finding.status}; re-open it before dismissing`);
   }
   finding.status = 'dismissed';
@@ -58,7 +58,7 @@ export function dismissFinding(
 export function reopenFinding(file: CoherenceFile, id: string, now: Date): CoherenceFile {
   const next = structuredClone(file);
   const finding = findingOrThrow(next, id);
-  if (finding.status === 'open') throw new CoherenceError('finding-already-open', `finding ${id} is already open`);
+  if (!findingTransition(finding.status, 'open').ok) throw new CoherenceError('finding-already-open', `finding ${id} is already open`);
   finding.status = 'open';
   delete finding.dismissedReason;
   delete finding.note;
@@ -74,7 +74,7 @@ export function markFindingFixed(file: CoherenceFile, id: string, note: string |
   const trimmed = trimNote(note);
   const next = structuredClone(file);
   const finding = findingOrThrow(next, id);
-  if (finding.status !== 'open') throw new CoherenceError('finding-not-open', `finding ${id} is ${finding.status}`);
+  if (!findingTransition(finding.status, 'fixed').ok) throw new CoherenceError('finding-not-open', `finding ${id} is ${finding.status}`);
   finding.status = 'fixed';
   if (trimmed !== undefined) finding.note = trimmed;
   finding.updatedAt = now.toISOString();
@@ -189,7 +189,7 @@ export function setFindingStatusForAgent(
     };
   }
   if (found.status === 'fixed') return { ok: true, file, finding: found, alreadyFixed: true };
-  if (found.status === 'dismissed') {
+  if (!findingTransition(found.status, 'fixed').ok) {
     return { ok: false, refusal: 'finding-dismissed', message: "the finding is dismissed; re-opening it is the writer's call" };
   }
 

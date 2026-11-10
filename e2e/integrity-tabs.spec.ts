@@ -99,6 +99,24 @@ test('the stopped-tab notice keeps focus above existing and late dialogs without
   await expect(page.locator('#underlying-dialog input')).toHaveValue('A draft that must stay');
 });
 
+test('a tab blocking a storage upgrade is named, and closing it lets a reload open projects', async ({ page }) => {
+  await page.route('**/blocked-fixture', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Older tab</title>' }));
+  await page.goto('/blocked-fixture');
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open('caotang', 3);
+    request.onsuccess = () => {
+      Object.assign(globalThis, { olderConnection: request.result });
+      resolve();
+    };
+    request.onerror = () => reject(request.error);
+  }));
+  const other = await secondTab(page);
+  await expect(other.getByRole('alert')).toContainText('Close the other Caotang tabs, then reload this tab');
+  await page.close();
+  await other.reload();
+  await expect(other.getByRole('heading', { name: 'Projects in this browser' })).toBeVisible();
+});
+
 test('a project another tab has open is refused, the first tab keeps its words, and the second opens it once the first lets go', async ({
   page,
 }) => {

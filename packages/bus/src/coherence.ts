@@ -14,6 +14,8 @@
  * reads a clock or touches a store: each function is a pure function of its arguments.
  */
 
+import { canMove, defineMachine, type MachineTable } from '@caotang/machine';
+
 /** §5.2.1's `timelineMode` enum. Absent is `linear`, which is stored as absence. */
 export const TIMELINE_MODES = [
   'linear',
@@ -63,6 +65,24 @@ export type DismissalReasonName = (typeof DISMISSAL_REASON_IDS)[number];
 export const COHERENCE_STATUSES = ['open', 'dismissed', 'fixed'] as const;
 
 export type CoherenceStatusName = (typeof COHERENCE_STATUSES)[number];
+
+export type FindingLifecycleState = { readonly kind: 'open' } | { readonly kind: 'dismissed' } | { readonly kind: 'fixed' };
+export type FindingLifecycleEvent = { readonly type: CoherenceStatusName };
+
+export const findingStatusTable: MachineTable<FindingLifecycleState, FindingLifecycleEvent> = {
+  id: 'coherence.finding',
+  initial: 'open',
+  final: [],
+  on: {
+    open: { dismissed: ['dismissed'], fixed: ['fixed'] },
+    dismissed: { open: ['open'] },
+    fixed: { open: ['open'] },
+  },
+};
+
+export const findingStatusMachine = defineMachine(findingStatusTable, (state, event) =>
+  canMove(findingStatusTable, state.kind, event.type) ? { kind: event.type } : state,
+);
 
 /** codex-level note limit (coherence.md §7): counted in code points, the unit `maxLength` counts. */
 export const COHERENCE_NOTE_LIMIT = 500;
@@ -546,16 +566,13 @@ export function coherenceNoteProblem(note: string | undefined): string | undefin
  * A finding already in the target status is not a transition, and says so.
  */
 export function findingTransition(from: string, to: CoherenceStatusName): { readonly ok: true } | { readonly ok: false; readonly message: string } {
+  if (COHERENCE_STATUSES.includes(from as CoherenceStatusName) && canMove(findingStatusTable, from as CoherenceStatusName, to)) {
+    return { ok: true };
+  }
   if (from === to) {
     return { ok: false, message: `the finding is already ${to}; there is nothing to change` };
   }
-  if (to === 'dismissed' || to === 'fixed') {
-    if (from !== 'open') {
-      return { ok: false, message: `the finding is ${from}; re-open it before it can be marked ${to}` };
-    }
-    return { ok: true };
-  }
-  return { ok: true };
+  return { ok: false, message: `the finding is ${from}; re-open it before it can be marked ${to}` };
 }
 
 /* ------------------------------------------------------------------ *
