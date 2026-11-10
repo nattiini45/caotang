@@ -171,3 +171,33 @@ it('names an approval already saving typing and never reparks it after its deadl
     await f.session.close();
   }
 });
+
+it('keeps an image-listing failure after Stop factual instead of offering approval of a retired card', async () => {
+  const f = await fixture();
+  const listing = deferred();
+  const fail = deferred();
+  try {
+    vi.spyOn(f.session, 'exportsReady').mockImplementation(async () => {
+      listing.resolve();
+      await fail.promise;
+      throw new Error('the listing failed');
+    });
+    const shown = cardShown(f.controller);
+    const running = f.controller.submitPlan('Compile the manuscript.', { steps: [{
+      tool: 'export.compile', params: { selection: { root: 'manuscript' }, format: 'md' }, expect: 'The manuscript is compiled',
+    }] });
+    await shown;
+    f.controller.answer({ action: 'approve' });
+    await listing.promise;
+    f.controller.stop();
+    fail.resolve();
+    expect((await running)?.status).toBe('cancelled');
+    expect(f.controller.snapshot().message).toBe('The project’s images could not be listed again (the listing failed). The turn was stopped, so nothing was exported.');
+    expect(f.controller.snapshot().pending).toBeNull();
+    expect(f.controller.snapshot().stoppable).toBe(false);
+    expect(f.session.harness.log.entries().some((entry) => entry.command.startsWith('export.'))).toBe(false);
+  } finally {
+    fail.resolve();
+    await f.session.close();
+  }
+});

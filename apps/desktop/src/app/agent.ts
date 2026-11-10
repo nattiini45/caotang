@@ -1385,7 +1385,9 @@ export class AgentController {
               return;
             }
             const reason = error instanceof Error ? error.message : String(error);
-            this.message = t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
+            this.message = abort?.signal.aborted
+              ? t`The project’s images could not be listed again (${reason}). The turn was stopped, so nothing was exported.`
+              : t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
             if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
               this.pending = parked;
               this.resolveDecision = resolve;

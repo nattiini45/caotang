@@ -16264,6 +16264,11 @@ msgstr "The project’s images could not be listed again ({reason}), so the expo
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The project’s images could not be listed again ({reason}). The turn was stopped, so nothing was exported."
+msgstr "The project’s images could not be listed again ({reason}). The turn was stopped, so nothing was exported."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again."
 msgstr "The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again."
 
