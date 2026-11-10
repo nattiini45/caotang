@@ -528,7 +528,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
       </div>
 
       <footer className="editor-status" aria-label={t`Scene status`}>
-        <span className="editor-save" aria-live="polite" data-testid="document-save-state" data-state={documentSaveState(save)}>
+        <span className={`editor-save${documentSaveState(save) === 'conflict' ? ' load-banner' : ''}`} aria-live="polite" data-testid="document-save-state" data-state={documentSaveState(save)}>
           {saveLineOf(save)}
         </span>
       </footer>

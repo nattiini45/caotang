@@ -49,9 +49,10 @@ export async function showAutosaveConflict(page: Page, shell: 'classic' | 'moder
   const status = page.getByTestId('document-save-state');
   await expect(status).toHaveAttribute('data-state', 'conflict');
   await expect(status).toHaveText(locale === 'de'
-    ? 'Für dieses Dokument ist bereits neuerer Text gespeichert. Deine Wörter bleiben in diesem Tab. Kopiere sie vor dem Neuladen an einen sicheren Ort.'
+    ? 'Für dieses Dokument ist bereits neuerer Text gespeichert. Ihre Wörter bleiben in diesem Tab. Kopieren Sie sie vor dem Neuladen an einen sicheren Ort.'
     : 'Newer text is already saved for this document. Your words are kept in this tab. Copy them somewhere safe before reloading.');
   await expect(status).toHaveAttribute('aria-live', 'polite');
+  await expect(status).toHaveCSS('border-inline-start-width', '3px');
   await expect(page.getByTestId('stale-tab-notice')).toHaveCount(0);
   await expect(surface).toContainText('My newest words are still here.');
 }

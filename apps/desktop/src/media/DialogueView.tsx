@@ -369,7 +369,7 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
               onChange={onSourceChange}
               onKeyDown={onInkKeyDown}
             />
-            <p className="counter" role="status" data-testid="document-save-state" data-state={documentSaveState(save)}>
+            <p className={`counter editor-save${documentSaveState(save) === 'conflict' ? ' load-banner' : ''}`} role="status" data-testid="document-save-state" data-state={documentSaveState(save)}>
               {saveLineOf(save)}
             </p>
           </section>

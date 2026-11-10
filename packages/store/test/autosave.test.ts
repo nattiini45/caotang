@@ -779,6 +779,31 @@ describe('§9 — the revision the flush carries', () => {
     expect(() => autosave.noteEdit('n_not_open', 'x')).toThrow(/never opened/);
   });
 
+  it.each(['write', 'reseat', 'open'] as const)('publishes the retained revision conflict until %s clears it', async (resolution) => {
+    const conflict = new RevisionConflictError(DOC, 3, 9);
+    const { autosave } = harness([{ kind: 'fail', error: conflict }, { kind: 'ok', revision: 10 }]);
+    const causes: unknown[] = [];
+    autosave.subscribe((event) => { causes.push(event.status.lastError); });
+    autosave.open(DOC, { body: 'a', revision: 3 });
+    autosave.noteEdit(DOC, 'b');
+    await autosave.flush(DOC);
+    expect(autosave.status(DOC)).toMatchObject({ state: 'conflict', lastError: conflict });
+    autosave.noteEdit(DOC, 'a');
+    expect(autosave.status(DOC)).toMatchObject({ state: 'pending', lastError: conflict });
+    expect(causes.at(-1)).toBe(conflict);
+    expect((await autosave.flush(DOC))[0]?.outcome).toBe('unchanged');
+    expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, lastError: conflict });
+    expect(autosave.status(DOC).lastError).toBeInstanceOf(RevisionConflictError);
+    expect(causes.at(-1)).toBe(conflict);
+    if (resolution === 'write') {
+      autosave.noteEdit(DOC, 'resolved');
+      await autosave.flush(DOC);
+    } else if (resolution === 'reseat') await autosave.reseat(DOC, { body: 'resolved', revision: 9 });
+    else autosave.open(DOC, { body: 'resolved', revision: 9 });
+    expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, lastError: null });
+    expect(causes.at(-1)).toBe(null);
+  });
+
   it('reports a conflict as a conflict, keeps the body, and retries nothing', async () => {
     // A conflict cannot be retried into success: the stored revision has moved
     // to somebody else's write, so re-sending the same expectedRevision can only

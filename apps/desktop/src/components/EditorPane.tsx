@@ -616,7 +616,7 @@ function DocumentEditor({
             </button>
           ) : null}
           <TargetQuickSet progress={target} onSetTarget={onSetTarget} />
-          <span className="editor-save" aria-live="polite" data-testid="document-save-state" data-state={documentSaveState(save)}>
+          <span className={`editor-save${documentSaveState(save) === 'conflict' ? ' load-banner' : ''}`} aria-live="polite" data-testid="document-save-state" data-state={documentSaveState(save)}>
             {documentSaveState(save) === 'conflict'
               ? saveConflictWords()
               : save.lastError !== null

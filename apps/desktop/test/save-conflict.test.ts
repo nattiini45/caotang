@@ -13,7 +13,7 @@ it('names the revision conflict and recovery in English and German', async () =>
     expect(words).toBe(saveConflictWords());
     expect(words).toBe(locale === 'en'
       ? 'Newer text is already saved for this document. Your words are kept in this tab. Copy them somewhere safe before reloading.'
-      : 'Für dieses Dokument ist bereits neuerer Text gespeichert. Deine Wörter bleiben in diesem Tab. Kopiere sie vor dem Neuladen an einen sicheren Ort.');
+      : 'Für dieses Dokument ist bereits neuerer Text gespeichert. Ihre Wörter bleiben in diesem Tab. Kopieren Sie sie vor dem Neuladen an einen sicheren Ort.');
   }
 });
 
