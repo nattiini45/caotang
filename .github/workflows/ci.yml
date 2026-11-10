@@ -2,10 +2,10 @@
 #
 # What runs, and on which Node:
 #   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
-#     on Node 22.19.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium E2E,
-#     and the called Firefox/WebKit workflow; it passes only when all three gates succeed.
-#   - `e2e (chromium)` runs on Node 24 in parallel with the matrix and Firefox/WebKit's shards, beside `e2e (chromium, Modern gate)`,
-#     which runs the Modern reachability walk and accessibility gate (#313) on their own. The cross-browser workflow merges the
+#     on Node 22.19.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium's shard summary and Modern gate,
+#     and the called Firefox/WebKit workflow; it passes only when every acceptance gate succeeds.
+#   - `e2e (chromium)` summarizes two duration-balanced Node 24 shard jobs and their merged report, beside `e2e (chromium, Modern gate)`,
+#     which runs the Modern reachability walk and accessibility gate (#313) in parallel. The cross-browser workflow merges the
 #     sharded reports and also runs nightly/on demand.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
@@ -122,39 +122,46 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 1
-    needs: [verify_matrix, e2e, e2e_browsers, visual]
+    needs: [verify_matrix, e2e, e2e_modern, e2e_browsers, visual]
     if: always()
     steps:
       - name: Require Node matrix and all browser runs
         env:
           MATRIX_RESULT: ${{ needs.verify_matrix.result }}
           CHROMIUM_RESULT: ${{ needs.e2e.result }}
+          MODERN_RESULT: ${{ needs.e2e_modern.result }}
           CROSS_BROWSER_RESULT: ${{ needs.e2e_browsers.result }}
           VISUAL_RESULT: ${{ needs.visual.result }}
         run: |
           test "$MATRIX_RESULT" = success
           test "$CHROMIUM_RESULT" = success
+          test "$MODERN_RESULT" = success
           test "$CROSS_BROWSER_RESULT" = success
           test "$VISUAL_RESULT" = success
 
   e2e:
-    name: ${{ matrix.name }}
+    name: e2e (chromium)
+    needs: [e2e_shards, e2e_reports]
+    if: always()
     runs-on: ubuntu-latest
-    # Two legs, both read by `verify` through needs.e2e.result. `e2e (chromium)`: about 2,000 tests on two workers take close to
-    # 35 minutes on their own (the timeline, pictures and comic specs), so the limit leaves room for retries instead of cancelling a
-    # run that is still passing. `e2e (chromium, Modern gate)`: the Modern reachability walk and accessibility gate (M12, #313), left
-    # out of the first leg by CAOTANG_E2E_MODERN_GATE=skip so neither leg runs near its limit.
-    timeout-minutes: ${{ matrix.timeout }}
+    timeout-minutes: 1
+    steps:
+      - name: Require both Chromium shards and their merged report
+        env:
+          SHARDS_RESULT: ${{ needs.e2e_shards.result }}
+          REPORTS_RESULT: ${{ needs.e2e_reports.result }}
+        run: |
+          test "$SHARDS_RESULT" = success
+          test "$REPORTS_RESULT" = success
+
+  e2e_shards:
+    name: e2e (chromium shard ${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: e2e (chromium)
-            leg: suite
-            timeout: 45
-          - name: e2e (chromium, Modern gate)
-            leg: modern-gate
-            timeout: 30
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -174,15 +181,82 @@ jobs:
           bash tools/ci/apt-install.sh
           pnpm exec playwright install --with-deps chromium
 
-      - name: End-to-end (dev suite, and the production-preview smoke test)
-        if: ${{ matrix.leg == 'suite' }}
-        run: pnpm test:e2e
+      - name: End-to-end (duration-balanced Chromium shard)
+        run: node tools/ci/chromium-shards.mjs "$SHARD"
         env:
+          SHARD: ${{ matrix.shard }}
           CI: 'true'
           CAOTANG_E2E_MODERN_GATE: skip
 
+      - name: Upload the Chromium blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: chromium-blob-report-${{ matrix.shard }}
+          path: blob-report/
+          if-no-files-found: error
+          retention-days: 7
+
+  e2e_reports:
+    name: merge Chromium reports
+    needs: e2e_shards
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: all-chromium-blob-reports
+          pattern: chromium-blob-report-*
+          merge-multiple: true
+
+      - name: Merge Chromium shards into one HTML report
+        run: pnpm exec playwright merge-reports --reporter=html ./all-chromium-blob-reports
+
+      - name: Upload the Chromium HTML report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: chromium-playwright-report
+          path: playwright-report/
+          if-no-files-found: error
+          retention-days: 7
+
+  e2e_modern:
+    name: e2e (chromium, Modern gate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        run: |
+          bash tools/ci/apt-install.sh
+          pnpm exec playwright install --with-deps chromium
+
       - name: End-to-end (the Modern reachability walk and accessibility gate)
-        if: ${{ matrix.leg == 'modern-gate' }}
         run: pnpm exec playwright test --project=chromium e2e/modern-reachability.spec.ts e2e/modern-gate.spec.ts
         env:
           CI: 'true'
@@ -191,7 +265,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-${{ matrix.leg }}
+          name: playwright-report-modern-gate
           path: playwright-report/
           retention-days: 7
 
