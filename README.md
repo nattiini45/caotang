@@ -255,6 +255,8 @@ The bundle is not signed, and it has not been tested in a real host yet. [packag
 
 ## Caotang from the command line
 
+Node scripts can use [`@caotang/sdk`](packages/sdk/README.md) to read a turn's events and report separately. Concurrent event reads are delivered in request order, and outstanding reads settle when the iterator ends, fails or is returned.
+
 `caotang agent` runs one turn of the agent on a project folder and exits, for a terminal, a Makefile, a cron job or CI. It is read-only unless you say otherwise: without `--write` nothing in the folder changes, and the files that would change are printed as a diff. Build it with `pnpm --filter @caotang/cli build`, which writes `packages/cli/dist/caotang.mjs` (one file; run it with `node`, and keep its `fonts/` folder beside it).
 
 ```sh

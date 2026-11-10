@@ -22,12 +22,13 @@ publishDocumentLanguage('en');
 const el = document.getElementById('root');
 if (!el) throw new Error('#root not found');
 const root = el;
+const scrollRoot = document.body;
 const scrollSurfaces = new MutationObserver(() => {
-  if (root.querySelector('dialog[open], .rail-panel, .modern-binder, .modern-drawer-panel') === null) return;
+  if (scrollRoot.querySelector('dialog[open], .rail-panel, .modern-binder, .modern-drawer-panel') === null) return;
   scrollSurfaces.disconnect();
-  void import('./app/scroll-edges.js').then(({ installScrollEdges }) => installScrollEdges(root)).catch(() => undefined);
+  void import('./app/scroll-edges.js').then(({ installScrollEdges }) => installScrollEdges(scrollRoot)).catch(() => undefined);
 });
-scrollSurfaces.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
+scrollSurfaces.observe(scrollRoot, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
 
 // The interface (Classic or Modern) is on the page before the first render, and a Modern page waits for its stylesheet, so it never paints as Classic
 // first. A stylesheet that failed to load leaves Modern's tokens out and the page renders anyway. The interface language is the

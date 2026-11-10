@@ -20,6 +20,8 @@ console.log(report.status, report.summary);
 
 - `openProject(options)` opens a folder that holds a Caotang project, takes the folder's single-writer lock (`.caotang-mcp.lock`) and resolves to a `CaotangProject`. A second `openProject` on the same folder is refused with `ProjectLockedError` while the first is open, and so is a folder the desktop app or an MCP server holds.
 - `project.run(intent, { signal })` runs one turn and returns an `AgentRun`: an async iterator of the loop's events (`turn`, `model.delta`, `card`, `plan`, `checkpoint`, `report`, ...) and a `report` promise for the `TurnReport`. The last event is the `report` event, and it equals `await run.report`. You may read only the events, or only the report. Turns run one at a time, in the order they were started.
+
+Concurrent `next()` calls on an event iterator are served in request order. Held events drain before all remaining reads finish or reject with the turn's failure. Returning the iterator finishes its pending reads without cancelling the turn or its report.
 - `project.run(intent, { plan })` runs a plan the caller wrote (`{ steps: [{ tool, params, expect }] }`) with no planner call. The plan is checked as a planner's is, its drafts are staged, and its card is decided by the policy like any other.
 - `project.call(tool, params)` is one registry call, gated exactly as an MCP caller's is: it runs no model and no plan, a read runs, and a tool that needs approval is refused with its reason. A refusal is a result (`{ ok: false, error }`), never a thrown error.
 - `project.diff()` lists what saving would change in the folder, file by file, as plain text (`added`, `changed`, `removed`, with `before` and `after`), before anything is saved.

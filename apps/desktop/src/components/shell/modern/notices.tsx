@@ -19,6 +19,7 @@ export function ModernNotices({ regions }: ModernSlotProps): ReactNode {
   const state = useSyncExternalStore(modalStack.subscribe, modalStack.getSnapshot);
   const ref = useRef<HTMLDivElement>(null);
   const covered = state.kind === 'open';
+  const top = state.entries.at(-1)?.id;
   useEffect(() => {
     const notices = ref.current;
     const dialog = topModal();
@@ -50,7 +51,7 @@ export function ModernNotices({ regions }: ModernSlotProps): ReactNode {
       observer.disconnect();
       for (const { node } of announcements) node.remove();
     };
-  }, [covered, state]);
+  }, [covered, top]);
   return (
     <div ref={ref} className="modern-notices" data-testid="modern-notices" data-state={covered ? 'covered' : 'visible'} inert={covered}>
       {regions.storageBanner === null ? null : (
