@@ -7,10 +7,11 @@ for (const locale of ['en', 'de'] as const) {
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.emulateMedia({ reducedMotion: 'reduce', colorScheme: 'light' });
       const { card, release } = await openHealthCard(page, locale, shell);
-      await expect(card).toHaveScreenshot(`${shell}-mcp-connecting-${locale}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+      const look = shell === 'modern' ? 'modern-light-glass' : 'classic-light';
+      await expect(card).toHaveScreenshot(`${look}-mcp-connecting-${locale}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
       release();
       await expect(card).toHaveAttribute('data-state', 'failed', { timeout: 20_000 });
-      await expect(card).toHaveScreenshot(`${shell}-mcp-failed-${locale}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+      await expect(card).toHaveScreenshot(`${look}-mcp-failed-${locale}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
     });
   }
 }
