@@ -5,6 +5,8 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import type { Result } from '@caotang/bus';
+import { validateArguments } from '@caotang/mcp-client';
 
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, type ChatMessage } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
@@ -23,6 +25,7 @@ import {
   parseTrace,
   traceGateway,
   type TraceInput,
+  type MachineTraceRecord,
   type TraceKind,
   type TraceRecord,
   type TraceStore,
@@ -74,6 +77,103 @@ const bareReport = (over: Record<string, unknown> = {}): TurnReport =>
 
 const kinds = (records: readonly TraceRecord[]): TraceKind[] => records.map((record) => record.kind);
 
+const preMachineV1ReaderAt0c40cf22 = (() => {
+  const TRACE_VERSION = 1;
+  const TRACE_FORMAT = 'caotang.trace/1';
+  type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'text' | 'any';
+  type TraceKind = 'header' | 'turn.start' | 'message' | 'model.request' | 'model.response' | 'context' | 'tool.call' | 'tool.result' | 'tool.progress' | 'card' | 'rule.approved' | 'ladder' | 'hook' | 'turn.end';
+  type TraceRecord = Record<string, unknown>;
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+  const REQUIRED_FIELDS: Readonly<Record<TraceKind, Readonly<Record<string, FieldType>>>> = {
+    header: { format: 'string', app: 'string', project: 'object' },
+    'turn.start': { turnId: 'string', intent: 'text' },
+    message: { id: 'string', message: 'object' },
+    'model.request': { callId: 'number', profileId: 'string', 'gen_ai.request.model': 'string', messages: 'array' },
+    'model.response': {
+      callId: 'number',
+      finishedAt: 'number',
+      attempts: 'number',
+      tries: 'array',
+      'gen_ai.response.finish_reasons': 'array',
+      content: 'text',
+      'gen_ai.usage.input_tokens': 'number',
+      'gen_ai.usage.output_tokens': 'number',
+      usageSource: 'string',
+    },
+    context: { turnId: 'string', callIndex: 'number', layers: 'array', dropped: 'array' },
+    'tool.call': { turnId: 'string', callId: 'string', tool: 'string', risk: 'string', params: 'object' },
+    'tool.result': { turnId: 'string', callId: 'string', outcome: 'string', finishedAt: 'number' },
+    'tool.progress': { turnId: 'string', callId: 'string', progress: 'number' },
+    card: { turnId: 'string', card: 'object' },
+    'rule.approved': { turnId: 'string', callId: 'string', tool: 'string', rule: 'object' },
+    ladder: { turnId: 'string', callId: 'string', attempt: 'number', reason: 'text' },
+    hook: { turnId: 'string', hookId: 'string', name: 'text', event: 'string', tool: 'string', action: 'string', text: 'text', ms: 'number' },
+    'turn.end': { turnId: 'string', report: 'object' },
+  };
+
+  function typeOk(value: unknown, type: FieldType): boolean {
+    switch (type) {
+      case 'string':
+      case 'number':
+      case 'boolean':
+        return typeof value === type;
+      case 'object':
+        return isRecord(value);
+      case 'array':
+        return Array.isArray(value);
+      case 'text':
+        return typeof value === 'string' || (isRecord(value) && isRecord(value['omitted']) && typeof value['omitted']['chars'] === 'number');
+      default:
+        return true;
+    }
+  }
+
+  function parseTrace(jsonl: string): Result<readonly TraceRecord[], string> {
+    const out: TraceRecord[] = [];
+    let line = 0;
+    let begin = 0;
+    while (begin < jsonl.length) {
+      let end = jsonl.indexOf('\n', begin);
+      if (end < 0) end = jsonl.length;
+      const text = jsonl.slice(begin, end).trim();
+      begin = end + 1;
+      line += 1;
+      if (text === '') continue;
+      let value: unknown;
+      try {
+        value = JSON.parse(text);
+      } catch {
+        return { ok: false, error: `line ${line} is not JSON` };
+      }
+      if (!isRecord(value) || typeof value['kind'] !== 'string') return { ok: false, error: `line ${line} is not a trace record` };
+      if (out.length === 0) {
+        if (value['kind'] !== 'header') return { ok: false, error: 'the first line is not a trace header' };
+        if (value['v'] !== TRACE_VERSION || value['format'] !== TRACE_FORMAT) {
+          return { ok: false, error: `this trace is ${String(value['format'])} (record version ${String(value['v'])}), and this build reads ${TRACE_FORMAT}` };
+        }
+      } else if (value['kind'] === 'header') {
+        return { ok: false, error: `line ${line} is a second trace header` };
+      }
+      const kind = value['kind'] as TraceKind;
+      if (!Object.hasOwn(REQUIRED_FIELDS, kind)) continue;
+      if (value['v'] !== TRACE_VERSION) return { ok: false, error: `line ${line} (${kind}) is record version ${String(value['v'])}, and this build reads ${TRACE_VERSION}` };
+      if (typeof value['seq'] !== 'number' || typeof value['at'] !== 'number' || typeof value['sessionId'] !== 'string') {
+        return { ok: false, error: `line ${line} (${kind}) lacks seq, at or sessionId` };
+      }
+      for (const [field, type] of Object.entries(REQUIRED_FIELDS[kind])) {
+        if (!typeOk(value[field], type)) return { ok: false, error: `line ${line} (${kind}) lacks ${field}, or it is not a ${type}` };
+      }
+      out.push(value as unknown as TraceRecord);
+    }
+    if (out.length === 0) return { ok: false, error: 'the trace is empty' };
+    return { ok: true, value: out };
+  }
+
+  return parseTrace;
+})();
+
 function parsed(jsonl: string): readonly TraceRecord[] {
   const result = parseTrace(jsonl);
   if (!result.ok) throw new Error(result.error);
@@ -84,6 +184,7 @@ describe('the record format', () => {
   it('round-trips every kind of record through toJsonl and parseTrace', () => {
     const s = store({ project: () => 'The Lighthouse Keeper' });
     s.write(start('t.turn-1'));
+    s.write({ kind: 'machine', at: 0, turnId: 't.turn-1', machine: 'turn.phase', from: 'idle', event: 'start', to: 'assembling' });
     s.write({ kind: 'context', at: 1, turnId: 't.turn-1', callIndex: 1, layers: [{ id: 'L0', tokens: 40 }], dropped: ['Codex: left out'] });
     s.write(request('t.turn-1', 1, [system, user('hello')]));
     s.write(response('t.turn-1', 1, 'hi'));
@@ -143,6 +244,103 @@ describe('parseTrace', () => {
     const lacking = parseTrace(line(header) + line({ v: 1, seq: 1, at: 0, sessionId: 's', kind: 'turn.start', turnId: 't' }));
     expect(lacking).toEqual({ ok: false, error: expect.stringContaining('intent') });
     expect(parseTrace('')).toEqual({ ok: false, error: 'the trace is empty' });
+  });
+});
+
+describe('machine trace records', () => {
+  const input: TraceInput = { kind: 'machine', at: 2, turnId: 't', machine: 'turn.phase', from: 'assembling', event: 'request', to: 'requesting' };
+  const schema: unknown = JSON.parse(readFileSync(new URL('../../src/agent/trace.schema.json', import.meta.url), 'utf8'));
+
+  it('stores, stamps and exports a schema-valid row without omitting its structural fields', () => {
+    const s = store();
+    s.write(start('t'));
+    s.write(input);
+    s.write(start('other'));
+    const row: MachineTraceRecord = { ...input, v: 1, seq: 2, sessionId: 'test' };
+    expect(s.records('t')).toEqual([{ kind: 'turn.start', at: 0, turnId: 't', intent: 'Write something.', v: 1, seq: 1, sessionId: 'test' }, row]);
+    expect(omitRecord(row)).toEqual(row);
+    for (const omitText of [false, true]) {
+      const records = parsed(s.toJsonl({ turnId: 't', omitText }));
+      expect(kinds(records)).toEqual(['header', 'turn.start', 'machine']);
+      expect(records[2]).toEqual(row);
+      expect(validateArguments(schema, records[2])).toEqual({ ok: true });
+    }
+  });
+
+  it.each(['turnId', 'machine', 'from', 'event', 'to'])('refuses a missing or malformed %s in both the parser and schema', (field) => {
+    const header = { v: 1, seq: 0, at: 0, sessionId: 's', kind: 'header', format: 'caotang.trace/1', app: 'caotang', project: { name: '' } };
+    for (const value of [undefined, null, 3, false, [], {}, { omitted: { chars: 1 } }]) {
+      const row = { ...input, v: 1, seq: 1, sessionId: 's', [field]: value };
+      const jsonl = `${JSON.stringify(header)}\n${JSON.stringify(row)}\n`;
+      expect(parseTrace(jsonl)).toEqual({ ok: false, error: `line 2 (machine) lacks ${field}, or it is not a string` });
+      expect(validateArguments(schema, JSON.parse(JSON.stringify(row))).ok).toBe(false);
+    }
+  });
+
+  it('redacts every machine string before storage and in either export', () => {
+    const s = store();
+    const secret = `Bearer abc.def.ghi-123456 ${KEY}`;
+    s.write({ ...input, turnId: secret, machine: secret, from: secret, event: secret, to: secret });
+    const [row] = s.records();
+    expect(row).toMatchObject({ turnId: 'Bearer [redacted] [redacted]', machine: 'Bearer [redacted] [redacted]', from: 'Bearer [redacted] [redacted]', event: 'Bearer [redacted] [redacted]', to: 'Bearer [redacted] [redacted]' });
+    for (const omitText of [false, true]) {
+      const jsonl = s.toJsonl({ omitText });
+      expect(jsonl).not.toContain(KEY);
+      expect(jsonl).not.toContain('abc.def.ghi');
+      expect(parsed(jsonl)[1]).toEqual(row);
+    }
+  });
+
+  it('drops machine rows with their turn rather than keeping a separate history', () => {
+    const s = store({ maxTurns: 1 });
+    s.write(start('t'));
+    s.write(input);
+    s.write(start('next'));
+    expect(s.records('t')).toEqual([]);
+    expect(kinds(parsed(s.toJsonl()))).toEqual(['header', 'turn.start']);
+  });
+});
+
+describe('trace/1 compatibility with the reader frozen at 0c40cf22', () => {
+  const oldBody = [
+    { kind: 'header', format: 'caotang.trace/1', app: 'caotang', project: { name: 'Old project' } },
+    { kind: 'turn.start', turnId: 't', intent: 'Read the opening.' },
+    { kind: 'message', id: 'm1', message: { role: 'user', content: 'Read the opening.' } },
+    { kind: 'model.request', turnId: 't', callId: 1, profileId: 'p', 'gen_ai.request.model': 'mock', messages: ['m1'] },
+    { kind: 'model.response', turnId: 't', callId: 1, finishedAt: 5, attempts: 1, tries: [], 'gen_ai.response.finish_reasons': ['stop'], content: { omitted: { chars: 2 } }, 'gen_ai.usage.input_tokens': 4, 'gen_ai.usage.output_tokens': 1, usageSource: 'provider' },
+    { kind: 'context', turnId: 't', callIndex: 1, layers: [], dropped: [] },
+    { kind: 'tool.call', turnId: 't', callId: 'c', tool: 'doc.read', risk: 'read', params: {} },
+    { kind: 'tool.result', turnId: 't', callId: 'c', outcome: 'ok', finishedAt: 8 },
+    { kind: 'tool.progress', turnId: 't', callId: 'c', progress: 1 },
+    { kind: 'card', turnId: 't', card: { kind: 'plan', tools: ['doc.read'], decision: 'approved', edits: 0, retries: 0 } },
+    { kind: 'rule.approved', turnId: 't', callId: 'c', tool: 'doc.read', rule: { effect: 'allow', tool: 'doc.read', source: 'app' } },
+    { kind: 'ladder', turnId: 't', callId: 'c', attempt: 1, reason: 'Try again.' },
+    { kind: 'hook', turnId: 't', hookId: 'h', name: 'Check', event: 'tool.before', tool: 'doc.read', action: 'warn', text: 'Check the opening.', ms: 0 },
+    { kind: 'turn.end', turnId: 't', report: { turnId: 't', status: 'replied', summary: '', steps: [], cards: [], trace: [], tokens: { promptTokens: 4, completionTokens: 1, requests: 1 }, dropped: [], modelCalls: 1, mode: 'ask', budgetUse: {} } },
+  ];
+  const oldRecords = oldBody.map((record, index) => ({ v: 1, seq: index * 2, at: index, sessionId: 's', ...record }));
+  const jsonl = (records: readonly unknown[]): string => records.map((record) => `${JSON.stringify(record)}\n`).join('');
+
+  it('reads every old kind and omitted text without changing a field', () => {
+    const text = jsonl(oldRecords);
+    expect(preMachineV1ReaderAt0c40cf22(text)).toEqual({ ok: true, value: oldRecords });
+    expect(parseTrace(text)).toEqual({ ok: true, value: oldRecords });
+  });
+
+  it('lets the actual old parser skip interleaved machine rows without losing any known records', () => {
+    const records = oldRecords.flatMap((record, index) => [
+      record,
+      { v: 1, seq: index * 2 + 1, at: index, sessionId: 's', kind: 'machine', turnId: 't', machine: 'turn.phase', from: 'assembling', event: 'request', to: 'requesting' },
+    ]);
+    expect(preMachineV1ReaderAt0c40cf22(jsonl(records))).toEqual({ ok: true, value: oldRecords });
+    expect(parseTrace(jsonl(records))).toEqual({ ok: true, value: records });
+  });
+
+  it('keeps the old validation algorithm rather than merely filtering unknown kinds', () => {
+    const text = jsonl([oldRecords[0], { v: 1, seq: 1, at: 1, sessionId: 's', kind: 'turn.start', turnId: 't' }]);
+    const error = { ok: false, error: 'line 2 (turn.start) lacks intent, or it is not a text' };
+    expect(preMachineV1ReaderAt0c40cf22(text)).toEqual(error);
+    expect(parseTrace(text)).toEqual(error);
   });
 });
 
