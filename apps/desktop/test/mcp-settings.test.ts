@@ -123,6 +123,40 @@ it('does not revive an old token when the server disappears during the vault wri
   expect(tokens.size).toBe(0);
 });
 
+it.each([
+  { patch: { url: 'https://other.example/mcp' }, queued: false },
+  { patch: { url: 'https://other.example/mcp' }, queued: true },
+  { patch: { auth: { kind: 'none' as const } }, queued: false },
+])('refuses a stale token after configuration changes: %j', async ({ patch, queued }) => {
+  const { app, keys, tokens, save, writes } = fixture();
+  const server = await add(app, 'old-fixture-token');
+  let finishPut!: () => void;
+  const put = keys.put;
+  vi.spyOn(keys, 'put').mockImplementationOnce(async (ref, token) => {
+    await put(ref, token);
+    await new Promise<void>((resolve) => { finishPut = resolve; });
+  });
+  const update = vi.spyOn(app.client, 'updateServer');
+  const replaced = app.setToken(server.key, 'new-fixture-token');
+  await vi.waitFor(() => expect(finishPut).toBeTypeOf('function'));
+  let finishSave!: (refusal: string | null) => void;
+  if (queued) save.mockImplementationOnce(() => new Promise((resolve) => { finishSave = resolve; }));
+  const changed = app.client.updateServer(server.key, patch);
+  if (queued) await vi.waitFor(() => expect(finishSave).toBeTypeOf('function'));
+  else expect((await changed).ok).toBe(true);
+  finishPut();
+  if (queued) {
+    await vi.waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    finishSave(null);
+    expect((await changed).ok).toBe(true);
+  }
+  expect((await replaced).ok).toBe(false);
+  expect(app.client.serverFor(server.key)?.auth).toEqual({ kind: 'none' });
+  expect(app.client.serverFor(server.key)?.url).toBe(patch.url ?? server.url);
+  expect(tokens.size).toBe(0);
+  expect(writes).toHaveLength(2);
+});
+
 it('keeps a later settings mutation after an earlier refusal and exposes only committed changes', async () => {
   const { app, save } = fixture();
   const server = await add(app);

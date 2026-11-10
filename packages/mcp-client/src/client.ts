@@ -278,7 +278,7 @@ export interface McpClient {
   setTrustReads(key: string, value: boolean): Promise<Result<McpServerConfig, string>>;
   setToolEnabled(key: string, toolName: string, enabled: boolean): Promise<Result<McpServerConfig, string>>;
   addServer(input: AddServerInput): Promise<Result<McpServerConfig, string>>;
-  updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>>;
+  updateServer(key: string, patch: UpdateServerPatch, expected?: Pick<McpServerConfig, 'url' | 'auth'>): Promise<Result<McpServerConfig, string>>;
   removeServer(key: string): Promise<void>;
 }
 
@@ -819,13 +819,21 @@ class McpClientImpl implements McpClient {
    * caller is told about a sealed token that nothing names any more, instead of being told that
    * the change did not happen — it did happen, and the record says so.
    */
-  updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
-    return this.change((draft) => this.updateServerNow(draft, key, patch));
+  updateServer(key: string, patch: UpdateServerPatch, expected?: Pick<McpServerConfig, 'url' | 'auth'>): Promise<Result<McpServerConfig, string>> {
+    return this.change((draft) => this.updateServerNow(draft, key, patch, expected));
   }
 
-  private async updateServerNow(draft: McpSettings, key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
+  private async updateServerNow(
+    draft: McpSettings,
+    key: string,
+    patch: UpdateServerPatch,
+    expected?: Pick<McpServerConfig, 'url' | 'auth'>,
+  ): Promise<Result<McpServerConfig, string>> {
     const server = draft.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
+    if (expected !== undefined && (server.url !== expected.url || canonicalJson(server.auth) !== canonicalJson(expected.auth))) {
+      return err('the server address or credentials changed — enter the token again for the current server');
+    }
     // Every field is checked before any is changed, so a refused edit leaves the server as it was. A
     // server that was saved with a bearer reference the loader cannot read is dropped on the next start.
     const name = patch.name === undefined ? undefined : patch.name.trim();

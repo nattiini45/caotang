@@ -146,7 +146,7 @@ export class McpApp {
     let message: string;
     try {
       await this.keys.put(ref, trimmed);
-      const updated = await this.client.updateServer(key, { auth: { kind: 'bearer', tokenRef: ref } });
+      const updated = await this.client.updateServer(key, { auth: { kind: 'bearer', tokenRef: ref } }, { url: server.url, auth: server.auth });
       if (updated.ok) return { ok: true };
       message = updated.error;
     } catch (error) {
