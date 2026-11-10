@@ -140,3 +140,21 @@ Owner: `apps/desktop/src/app/task-store.ts` exports `taskStatusTable`; `task-que
 The runtime adds `starting` while waiting for setup and `cancelling` while a run stops. Cancellation during startup is retained, and a later close cannot overwrite it: `cancelling` accepts only `settle`, leading to `cancelled`. A closing active run may be `interrupted`; cancelling it still goes through `cancelling`. If a resumed task cannot start its agent, its pending items fail, but previously staged drafts still settle from `starting` into reviewable `ready`; a task with no drafts settles into `failed`. `failed`, `cancelled` and `applied` are terminal. Scenario tests own the async cancel/close ordering; the table alone is not evidence that an awaited operation honors cancellation.
 
 Saved statuses remain `queued`, `running`, `ready`, `failed`, `cancelled`, `interrupted` and `applied`. `starting` and `cancelling` exist only in memory, and the snapshot keeps the stored status alongside its runtime phase. Neither phase is written to a task record or accepted by the persisted-status reader. No record migration is needed.
+
+### `turn.phase`
+
+Owner: `packages/harness/src/agent/turn-machine.ts`, interpreted by `loop.ts`; contract: [agent-harness.md §§2, 8](agent-harness.md#2-interaction-loop). An event names the requested phase. The table admits planning, approval, execution and retry boundaries, including repeated active phases, and refuses any exit from `done`, `failed` or `cancelled` or a return to `started`. The owner throws on an illegal move rather than publishing it. A successful turn publishes its report before `done`; failed and cancelled turns retain their existing phase-before-report ordering.
+
+### `card.status`
+
+Owner: `packages/harness/src/agent/cards.ts`, interpreted by `loop.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). An event names the requested status. The existing `StatusCard.status`, timestamps, progress and uncertainty fields remain unchanged. A first snapshot may already be running or refused; subsequent moves obey the table. A rejected move is traced as the requested event with the original state as its target and then throws. Cleanup requests cancellation only for cards that can still be cancelled, rather than silently trying to change finished cards.
+
+### `card.decision`
+
+Owner: `packages/harness/src/agent/card-decision.ts`, with redrafting, storage, policy and user interaction interpreted by `loop.ts`; contract: [agent-harness.md §§2, 8](agent-harness.md#2-interaction-loop). `shown` and `held` own the editable plan, revision, notices and edit/retry/stall counts. `hold` permanently makes that card manual. `retry` and `edit` enter named effect states; `redrafted` commits their result or keeps the last good card and advances the stall count. Five ineffective decisions refuse the card. Approval, cancellation and refusal are final. A cut-text approval remains explicit. The pure step owns no model call, approval grant or write.
+
+The turn, status-card and decision owners emit `machine` trace records with the table ID, turn ID, source, event and target. All three are memory-only; no project, task or run-log event changes. Old trace/1 readers skip the additive kind and the new reader accepts old traces unchanged.
+
+### `budget.meter`
+
+Owner: `packages/harness/src/agent/budget.ts`; contract: [agent-harness.md §7.1](agent-harness.md#71-run-limits). Events are `pause`, `resume`, `stop` and `dispose`. Active and paused states own their timing, including nested pause depth. Stopped and disposed states retain that timing so the existing API still accounts active time, answers reservations and detects limits after disposal. Disposal cancels the current timer; a later pause or resume that actually toggles the clock can rearm it, as before. The first stop reason wins. Counters, reservations and timer effects stay with the meter. No state is final, and no budget state is persisted or traced separately.

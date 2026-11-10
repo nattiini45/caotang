@@ -116,7 +116,7 @@ export type BudgetMeterEvent =
   | { readonly type: 'dispose' };
 
 export const budgetMeterTable: MachineTable<BudgetMeterState, BudgetMeterEvent> = {
-  id: 'budget-meter', initial: 'active', final: [],
+  id: 'budget.meter', initial: 'active', final: [],
   on: {
     active: { pause: ['paused'], stop: ['stopped'], dispose: ['disposed'] },
     paused: { pause: ['paused'], resume: ['active', 'paused'], stop: ['stopped'], dispose: ['disposed'] },

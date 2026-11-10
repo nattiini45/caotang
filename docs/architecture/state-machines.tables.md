@@ -41,6 +41,26 @@ Initial: `staged`. Final: `removed`, `removed-cancelled`.
 | `staged-cancelled` | `reserve` | `reserved-cancelled` |
 | `staged-cancelled` | `take` | `removed-cancelled` |
 
+## budget.meter
+
+Initial: `active`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `active` | `dispose` | `disposed` |
+| `active` | `pause` | `paused` |
+| `active` | `stop` | `stopped` |
+| `disposed` | `pause` | `disposed`, `paused` |
+| `disposed` | `resume` | `active`, `disposed` |
+| `disposed` | `stop` | `disposed` |
+| `paused` | `dispose` | `disposed` |
+| `paused` | `pause` | `paused` |
+| `paused` | `resume` | `active`, `paused` |
+| `paused` | `stop` | `stopped` |
+| `stopped` | `dispose` | `disposed` |
+| `stopped` | `pause` | `stopped` |
+| `stopped` | `resume` | `stopped` |
+
 ## bus.call-id
 
 Initial: `unseen`. Final: none.
@@ -51,6 +71,46 @@ Initial: `unseen`. Final: none.
 | `in-flight` | `settle` | `recorded` |
 | `recorded` | `end-turn` | `unseen` |
 | `unseen` | `apply` | `in-flight`, `recorded` |
+
+## card.decision
+
+Initial: `shown`. Final: `approved`, `cancelled`, `refused`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `approved` | — | — |
+| `cancelled` | — | — |
+| `editing` | `redrafted` | `held`, `refused`, `shown` |
+| `held` | `approve` | `approved`, `held`, `refused` |
+| `held` | `cancel` | `cancelled` |
+| `held` | `edit` | `editing`, `held`, `refused` |
+| `held` | `hold` | `held` |
+| `held` | `refuse` | `refused` |
+| `held` | `retry` | `retrying` |
+| `held` | `show` | `held` |
+| `refused` | — | — |
+| `retrying` | `redrafted` | `held`, `refused`, `shown` |
+| `shown` | `approve` | `approved`, `refused`, `shown` |
+| `shown` | `cancel` | `cancelled` |
+| `shown` | `edit` | `editing`, `refused`, `shown` |
+| `shown` | `hold` | `held` |
+| `shown` | `refuse` | `refused` |
+| `shown` | `retry` | `retrying` |
+| `shown` | `show` | `shown` |
+
+## card.status
+
+Initial: `pending-approval`. Final: `cancelled`, `done`, `failed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `cancelled` | — | — |
+| `done` | — | — |
+| `failed` | — | — |
+| `pending-approval` | `cancelled` | `cancelled` |
+| `pending-approval` | `running` | `running` |
+| `running` | `done` | `done` |
+| `running` | `failed` | `failed` |
 
 ## coherence.finding
 
@@ -217,6 +277,51 @@ Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
 | `starting` | `close` | `interrupted` |
 | `starting` | `fail` | `failed` |
 | `starting` | `ready` | `ready` |
+
+## turn.phase
+
+Initial: `started`. Final: `cancelled`, `done`, `failed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `awaiting-approval` | `awaiting-approval` | `awaiting-approval` |
+| `awaiting-approval` | `cancelled` | `cancelled` |
+| `awaiting-approval` | `done` | `done` |
+| `awaiting-approval` | `failed` | `failed` |
+| `awaiting-approval` | `planning` | `planning` |
+| `awaiting-approval` | `retrying` | `retrying` |
+| `awaiting-approval` | `running` | `running` |
+| `cancelled` | — | — |
+| `done` | — | — |
+| `failed` | — | — |
+| `planning` | `awaiting-approval` | `awaiting-approval` |
+| `planning` | `cancelled` | `cancelled` |
+| `planning` | `done` | `done` |
+| `planning` | `failed` | `failed` |
+| `planning` | `planning` | `planning` |
+| `planning` | `retrying` | `retrying` |
+| `planning` | `running` | `running` |
+| `retrying` | `awaiting-approval` | `awaiting-approval` |
+| `retrying` | `cancelled` | `cancelled` |
+| `retrying` | `done` | `done` |
+| `retrying` | `failed` | `failed` |
+| `retrying` | `planning` | `planning` |
+| `retrying` | `retrying` | `retrying` |
+| `retrying` | `running` | `running` |
+| `running` | `awaiting-approval` | `awaiting-approval` |
+| `running` | `cancelled` | `cancelled` |
+| `running` | `done` | `done` |
+| `running` | `failed` | `failed` |
+| `running` | `planning` | `planning` |
+| `running` | `retrying` | `retrying` |
+| `running` | `running` | `running` |
+| `started` | `awaiting-approval` | `awaiting-approval` |
+| `started` | `cancelled` | `cancelled` |
+| `started` | `done` | `done` |
+| `started` | `failed` | `failed` |
+| `started` | `planning` | `planning` |
+| `started` | `running` | `running` |
+| `started` | `started` | `started` |
 
 ## ui.encoding.panel
 

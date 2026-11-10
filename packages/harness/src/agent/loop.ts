@@ -92,6 +92,9 @@ import { canonicalJson, isRecord } from '../util.js';
 import type { TraceInput, TraceSink } from './trace.js';
 import { isCommandName } from '../commands/slash.js';
 import { isMacroCommand } from '../macro.js';
+import { canMove } from '@caotang/machine';
+import { turnPhaseTable } from './turn-machine.js';
+import { cardDecisionTable, decideCard as stepCardDecision, type CardDecisionEvent, type CardDecisionState } from './card-decision.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
@@ -119,8 +122,8 @@ import {
 import { skillBlock } from '../tools/skills.js';
 import {
   advance,
-  applyEdit,
   canAdvance,
+  cardStatusTable,
   MODEL_BACKED_TOOLS as MODEL_BACKED,
   planCardOf,
   reviewCostAt,
@@ -129,7 +132,6 @@ import {
   type DelegationView,
   type EditableSteps,
   type PlanCardView,
-  type PlanEdit,
   type StatusCard,
   type StatusState,
 } from './cards.js';
@@ -530,7 +532,6 @@ const ADJUSTABLE = new Set<AskBack['code']>(['needs_input']);
  * nothing (an approval the card refuses, an edit that does not apply) is asked again, so a decider that
  * keeps answering the same way is ended rather than looped on.
  */
-const MAX_STALLS = 5;
 
 /** The options a failed provider call offers: the user's own next actions, since the provider is outside the turn. */
 const PROVIDER_OPTIONS = ['check the provider profile and its key in Settings, then send the request again', 'switch to another provider profile in Settings'];
@@ -591,6 +592,8 @@ interface Pins {
   readonly model: string | undefined;
   readonly thinking: ThinkingLevel | undefined;
 }
+
+type SkillFence = { readonly kind: 'unlogged' } | { readonly kind: 'reading' } | { readonly kind: 'committed'; readonly snapshot: string };
 
 interface Turn {
   readonly automaticRules: Map<PlanStep, SourcedRule>;
@@ -675,8 +678,7 @@ interface Turn {
   run?: RunWriter;
   /** How many of `messages` the log already holds. */
   logged: number;
-  loggedSkills?: string;
-  skillReadPending?: boolean;
+  skills: SkillFence;
   /** The documents a step's draft read, with their revisions, taken before the draft was asked for: what a restored card checks. */
   readonly reads: Map<PlanStep, StepRevisions>;
   /** The turn was rebuilt from a log (`resume`): its undo reaches only what it applies, and its ladder does not ask the model. */
@@ -952,19 +954,6 @@ evision-conflict the preflight found for a step whose guards were read when it w
 function staleRefusal(preflight: PlanPreflight): { readonly index: number; readonly askBack: AskBack } | undefined {
   const found = preflight.steps.find((entry) => entry.tool === 'timeline.edit' && entry.status === 'refused' && entry.error?.code === 'revision-conflict');
   return found?.error === undefined ? undefined : { index: found.index, askBack: askBackFor(found.error) };
-}
-
-/** The decision loop gave up: the card was decided too often without a change that could apply. */
-function stuck(editable: EditableSteps, edits: number, retries: number): Decided {
-  return {
-    settled: 'refused',
-    editable,
-    edits,
-    retries,
-    error: refusal('permission-denied', `the card was decided ${MAX_STALLS} times without a change that could be applied, so the turn stopped`, {
-      correctiveHint: 'fix the step the card names, or cancel the card',
-    }),
-  };
 }
 
 /**
@@ -1674,12 +1663,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   async function syncSkills(turn: Turn): Promise<boolean> {
     const run = turn.run;
-    if (run === undefined || turn.skillReadPending === true) return true;
+    if (run === undefined || turn.skills.kind === 'reading') return true;
     const skills = harness.loadedSkills(turn.id);
     const snapshot = canonicalJson(skills);
-    if (snapshot !== turn.loggedSkills) {
+    if (turn.skills.kind !== 'committed' || snapshot !== turn.skills.snapshot) {
       const saved = await run.append({ t: 'skills.loaded', turnId: turn.id, skills });
-      if (saved) turn.loggedSkills = snapshot;
+      if (saved) turn.skills = { kind: 'committed', snapshot };
       return saved;
     }
     return true;
@@ -1688,8 +1677,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function beginSkillAccess(turn: Turn, tool: string, readExchange = false): Promise<void> {
     if ((tool !== 'skill.load' && !(readExchange && tool === 'skill.read')) || turn.run === undefined) return;
     if (!(await turn.run.append({ t: 'skills.loading', turnId: turn.id }))) throw new Error('The skill load could not be recorded, so it was not run. Check the project storage and send the request again.');
-    if (readExchange) turn.skillReadPending = true;
-    delete turn.loggedSkills;
+    turn.skills = { kind: readExchange ? 'reading' : 'unlogged' };
   }
 
   async function finishSkillLoad(turn: Turn, tool: string): Promise<void> {
@@ -1877,7 +1865,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** Moves a card to its next state and reports it. The transition is checked, so a card cannot skip one. */
   const moveCard = (turn: Turn, id: string, to: StatusState, detail: { summary?: string; error?: string; mayHaveActed?: true } = {}): void => {
     const card = turn.statusCards.find((entry) => entry.id === id);
-    if (card === undefined || !canAdvance(card.status, to)) return;
+    if (card === undefined) throw new Error(`status card ${id} does not exist`);
+    trace({ kind: 'machine', at: now(), turnId: turn.id, machine: cardStatusTable.id, from: card.status, event: to, to: canAdvance(card.status, to) ? to : card.status });
     const next = advance(card, to, { ...detail, at: now() });
     turn.statusCards[turn.statusCards.indexOf(card)] = next;
     emit({ type: 'card', turnId: turn.id, card: next });
@@ -2436,10 +2425,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         } else {
           cardFor(turn, id, step.tool, step.params, 'running');
         }
-        const result = turn.skillReadPending === true
+        const result = turn.skills.kind === 'reading'
           ? { tool: step.tool, ok: outcome.ok, body: outcome.ok ? bodyOf(outcome.value) : errorSummary(withLoadHint(step.tool, outcome.error)) }
           : settleRead(turn, index, step, callId, outcome);
-        if (turn.skillReadPending === true) settlements.push((committed) => { settleRead(turn, index, step, callId, committed || !outcome.ok ? outcome : unsaved); });
+        if (turn.skills.kind === 'reading') settlements.push((committed) => { settleRead(turn, index, step, callId, committed || !outcome.ok ? outcome : unsaved); });
         taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
         wireResult(turn, step, { ok: result.ok, body: result.body });
         results.push(result);
@@ -2468,8 +2457,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // sent again in the next request: the same names would reach the model twice (context-assembly §2).
       if (loadedAny) turn.addendumSent = harness.loadedAddendum();
       await syncRun(turn, 0);
-      if (turn.skillReadPending === true) {
-        delete turn.skillReadPending;
+      if (turn.skills.kind === 'reading') {
+        turn.skills = { kind: 'unlogged' };
         if (!(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the load was not reported as successful. Check the project storage and send the request again.');
       }
       committed = true;
@@ -2677,20 +2666,38 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   async function decideLoop(turn: Turn, kind: 'plan' | 'confirm', prefix: string, start: CardStart): Promise<Decided> {
-    let editable = start.editable;
-    let revision = start.revision;
-    let notice = start.notice;
-    let edits = 0;
-    let retries = 0;
-    let stalls = 0;
-    // Why the app would not let the mode apply this card: once it holds the card, the card is the writer's.
-    let held: string | undefined;
+    let state: CardDecisionState = { kind: 'shown', editable: start.editable, revision: start.revision, notice: start.notice, edits: 0, retries: 0, stalls: 0 };
+    const move = (event: CardDecisionEvent): CardDecisionState => {
+      const next = stepCardDecision(state, event);
+      if (next !== state) trace({ kind: 'machine', at: now(), turnId: turn.id, machine: cardDecisionTable.id, from: state.kind, event: event.type, to: next.kind });
+      return next;
+    };
     for (;;) {
+      if (state.kind === 'approved' || state.kind === 'cancelled' || state.kind === 'refused') {
+        const { kind: settled, ...result } = state;
+        return { settled, ...result };
+      }
+      if (state.kind === 'retrying') {
+        const editable = state.previous.editable;
+        const result = await redraft(turn, editable, (index) => !ranAt(editable, index));
+        state = move({ type: 'redrafted', ...result });
+        continue;
+      }
+      if (state.kind === 'editing') {
+        const next = state.next;
+        const result = await redraft(turn, next, (index) => next.stale[index] === true);
+        state = move({ type: 'redrafted', ...result });
+        continue;
+      }
+      const { editable, revision, notice } = state;
       // Before the card is shown, so a stop leaves no pending card behind.
       checkStop(turn);
       const shown = cardOf(turn, editable, start.from, revision, kind, notice);
-      notice = undefined;
-      if ('refused' in shown) return { settled: 'refused', editable, edits, retries, error: shown.refused };
+      state = move({ type: 'show' });
+      if ('refused' in shown) {
+        state = move({ type: 'refuse', error: shown.refused });
+        continue;
+      }
       // The mode answers a card it approves, as shown, without asking. Everything else is the writer's: an external write, a card
       // with a refused, stale or cut step, a card that needs the writer's leave. A budget the card would pass stops the turn first.
       const policy = policyOf(turn);
@@ -2704,7 +2711,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // A rule that asks makes the card the writer's in every mode.
       const auto =
         start.humanOnly !== true &&
-        held === undefined &&
+        state.kind === 'shown' &&
         shown.card.approvable &&
         !remaining.some((step) => asksWriter(step, turn.id)) &&
         policy.approves({ ...facts, allowedTools: rules.map(({ step }) => step.tool) });
@@ -2722,18 +2729,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         const hold = await options.beforeAutoApply?.(shown.card);
         checkStop(turn);
         if (typeof hold === 'string') {
-          held = hold;
-          notice = hold;
+          state = move({ type: 'hold', reason: hold });
           continue;
         }
         if (rules.length > 0) {
           if (rules.some(({ step, rule }) => !automaticRuleValid(turn, step, rule))) {
-            return { settled: 'refused', editable, edits, retries, error: refusal('permission-denied', 'The automatic approval changed while the card was being prepared, so it was not recorded or applied.', { correctiveHint: 'check the current rules and mode, then send the request again' }) };
+            state = move({ type: 'refuse', error: refusal('permission-denied', 'The automatic approval changed while the card was being prepared, so it was not recorded or applied.', { correctiveHint: 'check the current rules and mode, then send the request again' }) });
+            continue;
           }
           try {
             guardRepeats(turn, writes);
           } catch (error) {
-            for (const card of [...turn.statusCards]) moveCard(turn, card.id, 'cancelled');
+            for (const card of [...turn.statusCards]) if (canAdvance(card.status, 'cancelled')) moveCard(turn, card.id, 'cancelled');
             throw error;
           }
           const approvals = rules.map(({ step, rule }) => {
@@ -2744,8 +2751,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           });
           const committed = await turn.run?.append(approvals.map(({ step, rule, auditCallId }) => ({ t: 'rule.approved', turnId: turn.id, callId: auditCallId, tool: step.tool, rule })));
           if (committed !== true) {
-            held = 'The automatic approval could not be recorded. Review this card yourself, or fix project storage and try again.';
-            notice = held;
+            state = move({ type: 'hold', reason: 'The automatic approval could not be recorded. Review this card yourself, or fix project storage and try again.' });
             for (const { step } of rules) turn.automaticRules.delete(step);
             continue;
           }
@@ -2754,72 +2760,29 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             turn.automaticRules.set(step, rule);
           }
         }
-        return { settled: 'approved', editable, edits, retries, auto: true };
+        state = move({ type: 'approve', auto: true, approvable: true, canAcceptCut: false, notice: '' });
+        continue;
       }
       phase(turn, 'awaiting-approval');
       // With nobody to ask, a card the mode did not approve is cancelled.
       const decision: Decision = policy.noHuman ? { action: 'cancel' } : await decideOrStop(turn, { kind, turnId: turn.id, card: shown.card } satisfies PendingCard);
 
-      if (decision.action === 'cancel') return { settled: 'cancelled', editable, edits, retries };
+      if (decision.action === 'cancel') {
+        state = move({ type: 'cancel' });
+        continue;
+      }
       if (decision.action === 'approve') {
         if (shown.card.approvable || (decision.acceptTruncated === true && shown.card.canAcceptCut)) {
           for (const step of editable.steps) turn.automaticRules.delete(step);
-          return {
-            settled: 'approved',
-            editable,
-            edits,
-            retries,
-            ...(decision.acceptTruncated === true && shown.card.canAcceptCut ? { acceptedCut: true } : {}),
-          };
         }
-        notice = noticeFor(shown.card);
-        stalls += 1;
-        if (stalls >= MAX_STALLS) return stuck(editable, edits, retries);
+        state = move({ type: 'approve', approvable: shown.card.approvable, canAcceptCut: shown.card.canAcceptCut, acceptTruncated: decision.acceptTruncated, notice: noticeFor(shown.card) });
         continue;
       }
       if (decision.action === 'retry') {
-        const current = editable;
-        const redrafted = await redraft(turn, current, (index) => !ranAt(current, index));
-        retries += 1;
-        revision += 1;
-        if (redrafted.refusal !== undefined) {
-          notice = redrafted.refusal;
-          stalls += 1;
-          if (stalls >= MAX_STALLS) return stuck(editable, edits, retries);
-        } else {
-          editable = redrafted.editable;
-          stalls = 0;
-        }
+        state = move({ type: 'retry' });
         continue;
       }
-      // edit: applied in order; the first edit that cannot apply stops the batch and says why.
-      let next = editable;
-      let applied = 0;
-      for (const edit of decision.edits as readonly PlanEdit[]) {
-        const result = applyEdit(next, edit);
-        if (!result.ok) {
-          notice = result.error;
-          break;
-        }
-        next = result.value;
-        applied += 1;
-      }
-      if (applied === 0) {
-        stalls += 1;
-        if (stalls >= MAX_STALLS) return stuck(editable, edits, retries);
-        continue;
-      }
-      const redrafted = await redraft(turn, next, (index) => next.stale[index] === true);
-      if (redrafted.refusal !== undefined) {
-        notice = redrafted.refusal;
-        stalls += 1;
-        if (stalls >= MAX_STALLS) return stuck(editable, edits, retries);
-        continue;
-      }
-      edits += applied;
-      editable = redrafted.editable;
-      revision += 1;
-      stalls = 0;
+      state = move({ type: 'edit', edits: decision.edits });
     }
   }
 
@@ -2856,8 +2819,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     proposal: unknown,
   ): Promise<Executed> {
     const write = grant !== 'read';
-    cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
-    moveCard(turn, id, 'running');
+    const card = cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
+    if (card.status !== 'running') moveCard(turn, id, 'running');
     let runProposal = proposal;
     const intentError = write ? await logIntent(turn, id, index, step) : undefined;
     let generationFailure: ToolOutcome | undefined = intentError === undefined ? undefined : err(intentError);
@@ -2929,7 +2892,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
               : { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) },
           ));
     // A call that was sent and did not finish (timed out, or cancelled) may have done part of its work on the server.
-    const unsure = !outcome.ok && mayHaveActedOf(outcome.error);
+    const mayHaveActed = !outcome.ok && mayHaveActedOf(outcome.error) ? true : undefined;
     // These tools write findings or call a server, not documents, and the wait is long: no document is claimed for the step.
     if (write) {
       if (outcome.ok) await logApplied(turn, id, index, step.tool, outcome.value.summary, undefined);
@@ -2938,11 +2901,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (!outcome.ok && turn.signal?.aborted === true) {
       // The wait ended because the writer stopped the turn: the step did not finish, and that is not a refusal to adjust.
       // A call that had been sent says so: the server may already have acted, so it is not reported as not run.
-      const reason = unsure ? STOPPED_CALL : STOPPED_STEP;
-      moveCard(turn, id, 'failed', { error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
-      if (unsure && !outcome.ok) pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
+      const reason = mayHaveActed ? STOPPED_CALL : STOPPED_STEP;
+      moveCard(turn, id, 'failed', { error: reason, mayHaveActed });
+      if (mayHaveActed && !outcome.ok) pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
       else pushRow(turn, { tool: step.tool, callId: id, outcome: 'not-run', params: step.params }, reason);
-      turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled', ...(unsure ? { mayHaveActed: true as const, error: reason } : {}) });
+      turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled', ...(mayHaveActed ? { mayHaveActed, error: reason } : {}) });
       wireResult(turn, step, { ok: false, body: reason });
       return { ok: false, cancelled: true, effect: write, completed: [] };
     }
@@ -2956,8 +2919,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     const reason = errorSummary(outcome.error);
     pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
-    turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
-    moveCard(turn, id, 'failed', { error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
+    turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason, ...(mayHaveActed ? { mayHaveActed } : {}) });
+    moveCard(turn, id, 'failed', { error: reason, mayHaveActed });
     taint(turn, failedSources(step.tool));
     wireResult(turn, step, { ok: false, body: reason });
     // A write that failed may have reached the server or the findings file, so it is never adjusted (`effect`).
@@ -3158,8 +3121,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const step = editable.steps[from] as PlanStep;
       const id = callIdFor(kind, prefix, from);
       const proposal = acceptedCut ? stripCut([editable.proposals[from]])[0] : editable.proposals[from];
-      cardFor(turn, id, step.tool, step.params, grant === 'auto' ? 'running' : 'pending-approval');
-      moveCard(turn, id, 'running');
+      const card = cardFor(turn, id, step.tool, step.params, grant === 'auto' ? 'running' : 'pending-approval');
+      if (card.status !== 'running') moveCard(turn, id, 'running');
       const intentError = await logIntent(turn, id, from, step);
       const before = revisionsNow();
       let outcome: ToolOutcome;
@@ -3448,7 +3411,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   function phase(turn: Turn, to: TurnPhase): void {
+    const from = turn.phase;
+    if (!canMove(turnPhaseTable, from, to)) throw new Error(`turn ${turn.id} cannot move from ${from} to ${to}`);
     turn.phase = to;
+    trace({ kind: 'machine', at: now(), turnId: turn.id, machine: turnPhaseTable.id, from, event: to, to });
     emit({ type: 'turn', turnId: turn.id, phase: to, ...(to === 'started' ? { mode: turn.mode } : {}) });
   }
 
@@ -3776,7 +3742,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (skills !== undefined) turn.messages.push({ role: 'user', content: skills.text });
     if (submitOptions.writerSkill !== undefined) {
       await syncRun(turn, 0);
-      delete turn.skillReadPending;
+      turn.skills = { kind: 'unlogged' };
       if (!(await syncSkills(turn))) throw new Error('The skill snapshot could not be saved, so the command was not run. Check the project storage and send the request again.');
     }
     return converse(turn);
@@ -3923,6 +3889,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       pins,
       languages,
       phase: 'started',
+      skills: { kind: 'unlogged' },
       notes: [],
       deciding: false,
       converses: false,
@@ -4065,7 +4032,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       } else {
         settled = { ...settled, stop: { by: 'user', during: turn.phase } };
       }
-      for (const card of [...turn.statusCards]) moveCard(turn, card.id, 'cancelled');
+      for (const card of [...turn.statusCards]) if (canAdvance(card.status, 'cancelled')) moveCard(turn, card.id, 'cancelled');
     }
     // A call a limit cut short that its tool absorbs (a review reports what it had, with a note) leaves the turn's status as the tool reported it.
     if (limitStop !== undefined && settled.budgetStop === undefined && turnOptions.signal?.aborted !== true) settled = { ...settled, budgetStop: limitStop };
@@ -4102,9 +4069,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         mode: report.mode,
       });
     }
-    phase(turn, settled.status === 'replied' || settled.status === 'applied' ? 'done' : settled.status === 'cancelled' ? 'cancelled' : 'failed');
-    trace({ kind: 'turn.end', at: now(), turnId: turn.id, report });
+    if (settled.status === 'failed' || settled.status === 'cancelled') phase(turn, settled.status);
     emit({ type: 'report', turnId: turn.id, report });
+    if (settled.status === 'replied' || settled.status === 'applied') phase(turn, 'done');
+    trace({ kind: 'turn.end', at: now(), turnId: turn.id, report });
     return report;
   }
 
