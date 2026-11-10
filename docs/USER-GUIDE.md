@@ -623,6 +623,8 @@ This layout has been tried in an emulated browser with touch input at phone and 
 
 ## The Modern interface
 
+A failed-save capsule names the part that was not saved, such as **Not saved: Documents** or **Not saved: Settings**, without crowding the project title, **New** or **More**. Hover for the full recovery instruction, or activate the capsule by keyboard, pointer or touch to open **Scene info › Progress** on that instruction. Screen readers receive the full guidance without opening it. On a narrow screen the failure stays visible on its own row. Progress offers a backup only when it is appropriate; for a document conflict, copy unsaved text somewhere safe before reloading.
+
 Caotang has two interfaces, **Classic** and **Modern**, and both do the same things. A new writer starts in Modern. If you used Caotang in this browser before, it stays Classic until you choose; your projects and settings are the same in either. Choose in **Settings › Appearance › Interface**, and the switch happens at once, with an unsaved scene and a running agent turn kept.
 
 Modern shows the page and a few controls, and brings the rest in when you ask for it. The manuscript is one page of paper floating on a harbour wallpaper (dawn in the light theme, night in the dark), with glass controls on its edges.

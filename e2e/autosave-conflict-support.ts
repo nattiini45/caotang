@@ -63,9 +63,14 @@ export async function showAutosaveConflict(page: Page, shell: 'classic' | 'moder
   await expect(status).toHaveCSS('border-inline-start-width', '3px');
   const capsule = page.getByTestId('save-state');
   await expect(capsule).toHaveAttribute('data-state', 'failed');
-  await expect(capsule).toHaveText(locale === 'de'
+  const fullInstruction = locale === 'de'
     ? 'Nicht gespeichert: Dokumente. Für ein Dokument ist bereits neuerer Text gespeichert. Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.'
-    : 'Not saved: Documents. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading.');
+    : 'Not saved: Documents. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading.';
+  if (shell === 'modern') {
+    await expect(capsule).toHaveText(locale === 'de' ? 'Nicht gespeichert: Dokumente' : 'Not saved: Documents');
+    await expect(capsule).toHaveAccessibleName(fullInstruction);
+    await expect(capsule).toHaveAttribute('title', fullInstruction);
+  } else await expect(capsule).toHaveText(fullInstruction);
   await expect(capsule.getByRole('button', { name: /Export/ })).toHaveCount(0);
   await expect(page.getByTestId('stale-tab-notice')).toHaveCount(0);
   await expect(surface).toContainText('My newest words are still here.');

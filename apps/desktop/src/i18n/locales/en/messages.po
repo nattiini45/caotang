@@ -10414,6 +10414,11 @@ msgstr "Not saved yet. Your words are in this tab; they will be written again on
 
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved: {parts}"
+msgstr "Not saved: {parts}"
+
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
 msgid "Not saved: {parts}. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading."
 msgstr "Not saved: {parts}. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading."
 

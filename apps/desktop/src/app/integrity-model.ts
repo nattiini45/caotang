@@ -25,29 +25,33 @@ export function saveStateWords(
   state: SaveState,
   cause: StopCause = 'newer-text',
   failedChannels: readonly SaveChannelName[] = [],
-): { readonly text: string; readonly offersBackup: boolean } {
+): { readonly text: string; readonly summary?: string; readonly offersBackup: boolean } {
   if (state === 'saved') return { text: t`All changes saved in this browser`, offersBackup: false };
   if (state === 'saving') return { text: t`Saving…`, offersBackup: false };
   if (state === 'conflict' && cause === 'updated') {
     return { text: t`Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab.`, offersBackup: false };
   }
   if (state === 'conflict') return { text: t`Another tab has newer text`, offersBackup: false };
+  const names = { project: t`Project`, documents: t`Documents`, findings: t`Findings`, tasks: t`Tasks`, settings: t`Settings` };
+  const parts = listFormat(formatterLocale()).format((failedChannels.length === 0 ? ['project'] as const : failedChannels).map((channel) => names[channel]));
+  const summary = t`Not saved: ${{ parts }}`;
   if (failedChannels.length > 0 && !(failedChannels.length === 1 && failedChannels[0] === 'project')) {
-    const names = { project: t`Project`, documents: t`Documents`, findings: t`Findings`, tasks: t`Tasks`, settings: t`Settings` };
-    const parts = listFormat(formatterLocale()).format(failedChannels.map((channel) => names[channel]));
     if (failedChannels.includes('documents')) {
       return {
         text: t`Not saved: ${{ parts }}. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading.`,
+        summary,
         offersBackup: false,
       };
     }
     return {
       text: t`Not saved: ${{ parts }}. Your changes are kept in this tab. Try the change again.`,
+      summary,
       offersBackup: failedChannels.some((channel) => channel !== 'settings'),
     };
   }
   return {
     text: t`Not saved to browser storage yet. Your words are safe in this tab and are written again on the next change.`,
+    summary,
     offersBackup: true,
   };
 }

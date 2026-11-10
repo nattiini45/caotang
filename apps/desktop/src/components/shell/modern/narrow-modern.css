@@ -62,17 +62,31 @@
     max-inline-size: none;
   }
 
-  :root[data-shell='modern'] .modern-stage .modern-ornament-state,
+  :root[data-shell='modern'] .modern-stage .modern-ornament-state:not(.is-failed),
   :root[data-shell='modern'] .modern-stage .modern-title-crumb,
   :root[data-shell='modern'] .modern-stage .is-bottom .modern-kbd,
   :root[data-shell='modern'] .modern-stage > .modern-companion-scrim {
     display: none;
   }
 
-  :root[data-shell='modern'] .modern-stage .modern-title {
+  :root[data-shell='modern'] .modern-stage .modern-ornament.is-top .modern-title {
     flex: 1;
     min-inline-size: 0;
     max-inline-size: none;
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(.modern-save-summary) > :is(.modern-page-area, .modern-notices) {
+    --page-top: calc(72px + var(--target-min) + var(--space-2));
+  }
+
+  :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top:has(.modern-save-summary) {
+    flex-wrap: wrap;
+    block-size: auto;
+  }
+
+  :root[data-shell='modern'] .modern-stage .modern-save-summary {
+    order: 1;
+    flex-basis: 100%;
   }
 
 

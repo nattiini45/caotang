@@ -190,7 +190,11 @@
 
 @media (max-width: 959px) {
   :root[data-shell='modern'] .modern-stage:has(.document-mode-outlet > *) > .modern-page-area {
-    inset-block-start: calc(124px + var(--n-top) - var(--page-gutter));
+    inset-block-start: calc(var(--page-top) + 52px + var(--n-top) - var(--page-gutter));
+  }
+
+  :root[data-shell='modern'] .modern-stage:has(.document-mode-outlet > *) > .modern-notices {
+    inset-block-start: calc(var(--page-top) + 52px + var(--n-top));
   }
 
   :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top:has(.document-mode-outlet > *) {
@@ -283,6 +287,27 @@
   position: relative;
   gap: var(--space-3);
   max-inline-size: min(46ch, 52vw);
+}
+
+:root[data-shell='modern'] .modern-ornament:has(.modern-save-summary) .modern-title {
+  min-inline-size: 18ch;
+}
+
+:root[data-shell='modern'] .modern-ornament.is-top > :is(.modern-new, .is-icon) {
+  flex-shrink: 0;
+}
+
+:root[data-shell='modern'] .modern-ornament-state.is-failed {
+  min-inline-size: var(--target-min);
+  font: 500 var(--text-md)/var(--leading-ui) var(--ui);
+  color: var(--danger);
+}
+
+:root[data-shell='modern'] .modern-save-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 :root[data-shell='modern'] .modern-title-name {

@@ -19,7 +19,8 @@ for (const shell of ['classic', 'modern'] as const) {
         const instruction = locale === 'de'
           ? 'Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort.'
           : 'Copy your unsaved text somewhere safe before reloading.';
-        await expect(capsule).toContainText(instruction);
+        if (shell === 'modern') await expect(capsule).toHaveAccessibleName(new RegExp(instruction));
+        else await expect(capsule).toContainText(instruction);
         await expect(page.getByTestId('stale-tab-notice')).toHaveCount(0);
       });
     }

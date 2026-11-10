@@ -88,7 +88,7 @@ it('includes pending and refused settings writes and recovers after a successful
   expect(session.saveState()).toBe('failed');
   expect(session.failedSaveChannels()).toEqual(['settings']);
   expect(saveStateWords(session.saveState(), undefined, session.failedSaveChannels())).toEqual({
-    text: 'Not saved: Settings. Your changes are kept in this tab. Try the change again.', offersBackup: false,
+    text: 'Not saved: Settings. Your changes are kept in this tab. Try the change again.', summary: 'Not saved: Settings', offersBackup: false,
   });
   await settings.persist();
   expect(session.saveState()).toBe('saved');

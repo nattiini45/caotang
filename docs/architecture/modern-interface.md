@@ -369,7 +369,11 @@ Panel states (#379) come from the shared features in both shells (ui-modules §0
 
 ### 8.6 Notices
 
-Classic's status line becomes a toast capsule at the top centre with the same roles (`status`, or `alert` for an error), the same text and link, and the same rule: it stays until dismissed or replaced. A message with an action is never dismissed on a timer (WCAG 2.2.1). A save that failed or conflicts is a persistent toast with **Export a backup**, plus the dot on the title capsule; the stale-tab notice stays a dialog.
+Failed save channels use a short top-bar label, such as **Not saved: Documents**, **Not saved: Tasks** or **Not saved: Settings**, rather than the full recovery sentence. Classic keeps its full status line. The full, cause-specific instruction remains the label's hover text and accessible name, and activating the label by pointer, keyboard or touch opens Scene info on Progress, focused on the save guidance. Progress retains the appropriate backup action; a document conflict never offers a bundle as a copy of unsaved text. The live failure announcement does not depend on opening Progress.
+
+The project title retains room for a recognizable name and New/More never shrink around their contents. A long translated label may ellipsize, but its complete failed-channel names and recovery remain available through the same disclosure. On narrow screens a failed-channel label stays visible on its own row below the title and actions; the page clears this row, including when document-mode controls add another row. Existing Glass 2 materials, target sizes and motion remain unchanged. English, formal German and the pseudo-locale are checked at 1280, 1366 and 1440 px in both schemes, plus the narrow layout; the pinned German 1280 px failure captures cover this contract (#578).
+
+Classic's status line becomes a toast capsule at the top centre with the same roles (`status`, or `alert` for an error), the same text and link, and the same rule: it stays until dismissed or replaced. A message with an action is never dismissed on a timer (WCAG 2.2.1). A failed save stays visible in the top bar, names the failed channels and retains the recovery paths above; the stale-tab notice stays a dialog.
 
 ### 8.7 The review near the text
 
