@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkMachine } from '@caotang/machine/testing';
 import { healthMachine, type ConnectionHealth, type HealthEvent } from '../src/health.js';
-import { createMcpClient, createMockWire, WireError, type McpWire } from '../src/index.js';
+import { createMcpClient, createMcpTransport, createMockWire, WireError, type McpWire } from '../src/index.js';
 import { serverFor } from './support.js';
 
 const KEY = 's_AAAAAAAAAA';
@@ -71,6 +71,18 @@ describe('MCP connection health', () => {
     expect(client.healthOf(KEY)).toMatchObject({ state: 'healthy' });
     expect(client.healthOf(KEY)).not.toHaveProperty('reason');
     expect(transitions).toEqual(['connecting', 'failed', 'connecting', 'healthy']);
+    await client.close();
+  });
+
+  it('does not tell a caller that a failed server is merely configured', async () => {
+    const client = createMcpClient({
+      settings: { enabled: true, servers: [serverFor(KEY)] },
+      wire: () => { throw new WireError('network', 'Unavailable.'); },
+    });
+    await client.connect(KEY);
+    await expect(createMcpTransport(client).callTool(KEY, 'missing', {})).rejects.toMatchObject({
+      error: { message: "server 'Story Bible' unreachable. Check the URL in Settings › MCP & tools, or drop this step" },
+    });
     await client.close();
   });
 
