@@ -14,6 +14,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.
+
 - **Opening browser storage.** If another tab blocks an upgrade, opening now asks you to close the other Caotang tabs and reload instead of waiting indefinitely.
 
 - **Undoing a finding verdict.** Undo restores the finding's prior note and curation timestamps as well as its status. Discard run can then remove a finding whose first change you undid. Concurrent copies of one agent tool call also share one apply instead of applying twice.

@@ -327,6 +327,7 @@ export class AgentController {
   private turns: TurnView[] = [];
   private pending: PendingCard | null = null;
   private resolveDecision: ((decision: Decision) => void) | null = null;
+  private approving: { waitMessage: string | null } | null = null;
   /** A turn is running, from its start until the loop has settled it: an approved card runs under it, so it is not clear at the approval. */
   private busy = false;
   /** The turn that set the per-turn fields below, so only that turn clears them. */
@@ -379,7 +380,7 @@ export class AgentController {
   /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
   private readonly sessionId = newId('cmd').slice('cmd_'.length);
   /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
-  private modeOverride: PermissionMode | null = null;
+  private modeOverride: { readonly mode: PermissionMode } | null = null;
   private readonly heldRun = new Set<string>();
   /** The drafts of the card the loop is showing. Each is a value of its own, so a draft shown for an earlier card is never this one. */
   private ghosts: GhostView[] = [];
@@ -770,7 +771,7 @@ export class AgentController {
   mode(): PermissionMode {
     if (this.runMode !== null) return this.runMode;
     const settings = this.agentSettings();
-    const mode = this.modeOverride ?? settings.defaultMode;
+    const mode = this.modeOverride?.mode ?? settings.defaultMode;
     return mode === 'auto' && settings.lockAuto ? 'ask' : mode;
   }
 
@@ -787,7 +788,7 @@ export class AgentController {
       this.bump();
       return;
     }
-    this.modeOverride = mode;
+    this.modeOverride = { mode };
     const modeKey = mode === 'plan-only' ? 'planOnly' : mode === 'accept-edits' ? 'acceptEdits' : mode;
     this.announcement = t`Mode: ${select(modeKey, {
         planOnly: 'Plan only',
@@ -813,14 +814,24 @@ export class AgentController {
       return null;
     }
     this.heldRun.add(turnId);
-    this.modeOverride = 'ask';
     this.bump();
     // A macro's held plan stays the writer's: the retry is logged under the macro's command, so it is kept from the planner live and, if it is
     // interrupted, when it is resumed from the run log.
     const macro = isMacroCommand(turn.command ?? undefined) ? turn.command : null;
-    return this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) =>
-      agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true }),
-    );
+    const askMode = { mode: 'ask' as const };
+    let previousMode = this.modeOverride;
+    const report = await this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) => {
+      previousMode = this.modeOverride;
+      this.modeOverride = askMode;
+      this.bump();
+      return agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true });
+    });
+    if (report === null) {
+      this.heldRun.delete(turnId);
+      if (this.modeOverride === askMode) this.modeOverride = previousMode;
+      this.bump();
+    }
+    return report;
   }
 
   /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */
@@ -969,6 +980,13 @@ export class AgentController {
       return null;
     } finally {
       // The turn has settled, so the next one may start. Only the turn that set the per-turn fields clears them.
+      const resolve = this.resolveDecision;
+      this.resolveDecision = null;
+      this.pending = null;
+      this.retireApproval(this.approving);
+      this.dropOffer();
+      this.clearGhosts();
+      resolve?.({ action: 'cancel' });
       this.busy = false;
       this.stopping = false;
       this.turnAbort = null;
@@ -1307,7 +1325,10 @@ export class AgentController {
   answer(decision: Decision): void {
     const resolve = this.resolveDecision;
     if (resolve === null) {
-      this.message = t`That card is no longer waiting for a decision, so nothing was sent.`;
+      this.message = this.approving
+        ? t`This approval is already saving your typing. Wait for it to finish.`
+        : t`That card is no longer waiting for a decision, so nothing was sent.`;
+      if (this.approving !== null) this.approving.waitMessage = this.message;
       this.bump();
       return;
     }
@@ -1322,6 +1343,9 @@ export class AgentController {
     // The card the decision answers, read before it leaves the screen: an approved compile needs its images listed again first.
     const parked = this.pending;
     const card = parked?.card ?? null;
+    const abort = this.turnAbort;
+    const approval: { waitMessage: string | null } | null = decision.action === 'approve' ? { waitMessage: null } : null;
+    this.approving = approval;
     this.resolveDecision = null;
     this.pending = null;
     // An approval keeps the drafts on screen until the typing is saved, so a card that has to wait again still has them.
@@ -1333,7 +1357,12 @@ export class AgentController {
       // until the turn settles (turnWith), so the panel shows Working and no second turn starts meanwhile.
       const compiles = card?.steps.some((step) => step.tool.startsWith('export.compile')) ?? false;
       void (async () => {
-        if (!(await this.typingSaved())) {
+        const saved = await this.typingSaved();
+        if (this.turnAbort !== abort) {
+          resolve({ action: 'cancel' });
+          return;
+        }
+        if (!saved) {
           // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
           this.message = t`Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.`;
           if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
@@ -1345,6 +1374,10 @@ export class AgentController {
           this.bump();
           return;
         }
+        if (abort?.signal.aborted) {
+          resolve({ action: 'cancel' });
+          return;
+        }
         this.armDrafts();
         this.clearGhosts();
         // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
@@ -1354,8 +1387,14 @@ export class AgentController {
           try {
             await this.session.exportsReady();
           } catch (error) {
+            if (this.turnAbort !== abort) {
+              resolve({ action: 'cancel' });
+              return;
+            }
             const reason = error instanceof Error ? error.message : String(error);
-            this.message = t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
+            this.message = abort?.signal.aborted
+              ? t`The project’s images could not be listed again (${reason}). The turn was stopped, so nothing was exported.`
+              : t`The project’s images could not be listed again (${reason}), so the export was not applied. Approve it again to try once more.`;
             if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
               this.pending = parked;
               this.resolveDecision = resolve;
@@ -1366,12 +1405,26 @@ export class AgentController {
             return;
           }
         }
+        if (this.turnAbort !== abort || abort?.signal.aborted) {
+          resolve({ action: 'cancel' });
+          return;
+        }
         resolve(decision);
         this.bump();
-      })();
+      })().finally(() => {
+        if (this.retireApproval(approval)) this.bump();
+      });
       return;
     }
     resolve(decision);
+  }
+
+  private retireApproval(approval: { readonly waitMessage: string | null } | null): boolean {
+    if (approval === null || this.approving !== approval) return false;
+    this.approving = null;
+    if (approval.waitMessage === null || this.message !== approval.waitMessage) return false;
+    this.message = null;
+    return true;
   }
 
   /**
