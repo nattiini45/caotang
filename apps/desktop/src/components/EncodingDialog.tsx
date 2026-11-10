@@ -30,6 +30,7 @@ import { accessibleText } from '../i18n/accessible-text.js';
 import { formatterLocale } from '../i18n/format-locale.js';
 import { UserText } from '../i18n/UserText.js';
 import type { PendingEncoding } from '../app/lifecycle.js';
+import { Modal, useModalDialog } from './modal.js';
 import './encoding-dialog.css';
 
 
@@ -215,19 +216,14 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
     panelsRef.current = panelsRef.current.map((panel) => encodingPanelMachine.step(panel, { type: 'close' }));
   };
 
+  useModalDialog(ref, true, 'dialog', cancel);
+
   // Read each file's bytes once, on mount: the previews are pure decodes of them, so the file is
   // never asked for again while the dialog is open.
   useEffect(() => {
     live.current = true;
-    const dialog = ref.current;
-    if (dialog !== null && !dialog.open) {
-      dialog.showModal();
-      // Firefox's showModal() focuses the first control (a radio), not the autoFocus Cancel (#347).
-      cancel.current?.focus();
-    }
     return () => {
       live.current = false;
-      if (dialog !== null && dialog.open) dialog.close();
     };
   }, []);
 
@@ -304,7 +300,7 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
   const count = pending.issues.length;
   const name = isolate(pending.name);
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="confirm encoding-dialog"
       aria-labelledby={titleId}
@@ -352,6 +348,6 @@ export function EncodingDialog({ pending, asker, busy, onDone, onCancel }: Encod
           </button>
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }

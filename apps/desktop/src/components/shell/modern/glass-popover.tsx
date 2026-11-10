@@ -131,6 +131,7 @@ export function GlassPopover({
       dismissRef.current();
     };
     const onKey = (event: KeyboardEvent): void => {
+      if (event.target instanceof Element && event.target.closest('dialog[open]') !== ref.current?.closest('dialog[open]')) return;
       if (event.key === 'Escape' && !event.isComposing) {
         event.preventDefault();
         dismissRef.current();

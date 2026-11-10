@@ -35,6 +35,8 @@ import {
 import { isImeEnter } from '../../../app/keymap.js';
 import { LazyBoundary } from '../../lazy-view.js';
 import { useReport } from '../../shared.js';
+import { modalOpenedFrom } from '../../modal.js';
+import { modalStack } from '../../modal-stack.js';
 import { RailTabButton, keyStep, railTabId } from '../ClassicShell.js';
 import type { RailTab } from '../regions.js';
 import './binder-sidebar.css';
@@ -131,20 +133,9 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
     lastFilterRequest = view.filterRequest;
   }, [view.filterRequest]);
 
-  // A dialog the binder opens (an import's question, the encoding check) is a DOM child of the sidebar, so a closed, inert sidebar
-  // would take it down with it: it could not be answered. A dialog opening inside opens the sidebar; focus in it then keeps it open.
-  useEffect(() => {
-    const nav = navRef.current;
-    if (nav === null || typeof MutationObserver === 'undefined') return;
-    const check = (): void => {
-      if (nav.querySelector('dialog[open]') === null) return;
-      dispatch({ type: 'open' });
-    };
-    const observer = new MutationObserver(check);
-    observer.observe(nav, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
-    check();
-    return () => observer.disconnect();
-  }, []);
+  useEffect(() => modalStack.subscribe(() => {
+    if (modalOpenedFrom(navRef.current)) dispatch({ type: 'open' });
+  }), []);
 
   useEffect(() => {
     if (state.kind === 'closed' && state.intent === 'hover') {
@@ -154,7 +145,7 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
     if (state.kind === 'closing') {
       const timer = setTimeout(() => dispatch({
         type: 'close-elapsed',
-        focusInside: navRef.current?.contains(document.activeElement) === true,
+        focusInside: navRef.current?.contains(document.activeElement) === true || modalOpenedFrom(navRef.current),
         pointerInside: pointerInside.current,
       }), CLOSE_DELAY_MS);
       return () => clearTimeout(timer);

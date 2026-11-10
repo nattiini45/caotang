@@ -17,7 +17,7 @@ import type { ExecutionOutcome, Result, CommandError } from '@caotang/bus';
 
 import { isImeEnter } from '../app/keymap.js';
 import { explain, renameProject, setProjectDetails } from './actions.js';
-import { useReturnFocus } from './dialog-focus.js';
+import { Modal, useModalDialog } from './modal.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { useReport } from './shared.js';
 import type { ProjectSession } from '../app/session.js';
@@ -62,7 +62,6 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
   const report = useReport();
   const dialog = useRef<HTMLDialogElement>(null);
   const picker = useRef<HTMLInputElement>(null);
-  const returnFocus = useReturnFocus();
   const project = session.state.manifest.project;
 
   // Each field starts from what the project holds. The ISBN is shown as its digits, not as the URN it is stored in.
@@ -77,10 +76,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
   // Whether the image the cover names is held. A reload clears a page's images, so a cover can name a file that is gone.
   const [coverHeld, setCoverHeld] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const element = dialog.current;
-    if (element !== null && !element.open) element.showModal();
-  }, []);
+  useModalDialog(dialog);
 
   useEffect(() => {
     let current = true;
@@ -167,7 +163,6 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
 
   /** Closes the panel, and hands focus back to the control it opened from. */
   const close = (): void => {
-    returnFocus();
     closeDialog();
   };
 
@@ -191,7 +186,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
   };
 
   return (
-    <dialog
+    <Modal
       ref={dialog}
       className="project-dialog"
       aria-labelledby="project-dialog-title"
@@ -302,6 +297,6 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
           </button>
         </div>
       </div>
-    </dialog>
+    </Modal>
   );
 }

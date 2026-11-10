@@ -2,6 +2,8 @@
 
 The agent names when it is loading, processing an approval or stopping. Its composer and Stop stay available while the turn starts.
 
+Dialogs keep unfinished input underneath a later dialog; Escape acts on the top one. A stopped-tab notice always takes precedence. In Modern, background notice capsules wait out the dialog visually, while new notices are still announced and current ones return afterward. An error received while covered is kept over later information; a newer error replaces it.
+
 Agent trace exports name turn, tool-card and approval-round state transitions. Traces remain memory-only and compatible with older readers.
 
 An agent turn that ends retires its approval and Stop controls. If a held plan cannot start, **Switch to Ask and run this plan** stays available without changing your mode.
