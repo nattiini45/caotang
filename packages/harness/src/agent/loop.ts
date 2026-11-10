@@ -527,12 +527,6 @@ export interface AgentSession {
  */
 const ADJUSTABLE = new Set<AskBack['code']>(['needs_input']);
 
-/**
- * How many decisions in a row may leave a card unchanged before the turn stops. A decision that changes
- * nothing (an approval the card refuses, an edit that does not apply) is asked again, so a decider that
- * keeps answering the same way is ended rather than looped on.
- */
-
 /** The options a failed provider call offers: the user's own next actions, since the provider is outside the turn. */
 const PROVIDER_OPTIONS = ['check the provider profile and its key in Settings, then send the request again', 'switch to another provider profile in Settings'];
 
