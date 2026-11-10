@@ -866,6 +866,7 @@ export function Workspace({
     showCenter(node?.type === 'document' || node?.type === 'dialogue' ? 'editor' : 'corkboard');
   };
 
+  const review = session.coherenceReview.snapshot();
   const regions: ShellRegions = {
     documentKind: mediaView !== null && mediaNode !== undefined ? mediaKindOf(mediaNode) : activeDoc === null ? null : 'scene',
     create: { target: newTargetNode?.title ?? null, make: makeNew },
@@ -1074,25 +1075,42 @@ export function Workspace({
         {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message !== null || folderSaving ? (
-      <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
-        <span>
-          {message?.text}
-          {message?.link ? (
-            <>
-              <button type="button" className="status-link" onClick={message.link.onClick}>
-                {message.link.label}
-              </button>
-              {message.link.after}
-            </>
-          ) : null}
-          {folderSaving ? <>{message === null ? null : ' '}<Trans>Saving to the folder…</Trans></> : null}
-        </span>
-        {message === null ? null : <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
-          <Trans>Dismiss</Trans>
-        </button>}
-      </div>
-    ) : null,
+    status: message === null && !folderSaving && review.kind !== 'running' ? null : (
+      <>
+        {review.kind === 'running' ? (
+          <div className="status-line" role="status" data-testid="review-status" data-state="running">
+            <span><Trans>The model review is running.</Trans></span>
+            <button type="button" className="button is-quiet" onClick={() => {
+              setFocusMode(false);
+              setRail('findings');
+              setRailRequest((count) => count + 1);
+              if (narrow) setPanel('rail');
+              focusSoon(`#${railTabId('findings')}`);
+            }}><Trans>Show review</Trans></button>
+            <button type="button" className="button is-quiet" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button>
+          </div>
+        ) : null}
+        {message !== null || folderSaving ? (
+          <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
+            <span>
+              {message?.text}
+              {message?.link ? (
+                <>
+                  <button type="button" className="status-link" onClick={message.link.onClick}>
+                    {message.link.label}
+                  </button>
+                  {message.link.after}
+                </>
+              ) : null}
+              {folderSaving ? <>{message === null ? null : ' '}<Trans>Saving to the folder…</Trans></> : null}
+            </span>
+            {message === null ? null : <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
+              <Trans>Dismiss</Trans>
+            </button>}
+          </div>
+        ) : null}
+      </>
+    ),
     saveState: <>
       <SaveIndicator state={saveState} cause={stopCause} onExport={exportNow} />
       <span data-testid="folder-save" data-state={folderSave.state.kind} hidden />

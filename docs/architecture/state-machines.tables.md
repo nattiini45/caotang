@@ -212,6 +212,23 @@ Initial: `queued`. Final: `failed`, `written`.
 | `writing` | `written` | `written` |
 | `written` | — | — |
 
+## findings.review
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `cancelled` | `plan` | `planned` |
+| `failed` | `plan` | `planned` |
+| `idle` | `plan` | `planned` |
+| `partial` | `plan` | `planned` |
+| `planned` | `dismiss` | `idle` |
+| `planned` | `start` | `running` |
+| `running` | `done` | `cancelled`, `idle`, `partial` |
+| `running` | `fail` | `cancelled`, `failed` |
+| `running` | `progress` | `running` |
+| `running` | `stop` | `running` |
+
 ## folder.save
 
 Initial: `idle`. Final: none.
@@ -251,6 +268,18 @@ Initial: `loading`. Final: `closed`.
 | `loading` | `progress` | `loading` |
 | `ready` | `cancel` | `closed` |
 | `ready` | `commit` | `committing` |
+
+## interface.load
+
+Initial: `ready`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `choose` | `loading` |
+| `loading` | `choose` | `loading` |
+| `loading` | `failed` | `failed` |
+| `loading` | `loaded` | `ready` |
+| `ready` | `choose` | `loading` |
 
 ## mcp.confirmation-round
 

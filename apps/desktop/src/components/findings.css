@@ -1,0 +1,92 @@
+.findings-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.findings-head .eyebrow {
+  margin: 0;
+}
+
+.findings-count {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+}
+
+.findings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.findings-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9em;
+}
+
+.findings-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.findings-section.is-error .findings-section-title {
+  color: var(--danger);
+}
+
+.finding {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  padding: 0.6rem 0.7rem;
+  display: grid;
+  gap: 0.35rem;
+  box-shadow: var(--elev-1);
+}
+
+.finding-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.finding-type {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.8em;
+  color: var(--ink-soft);
+}
+
+.finding-expected,
+.finding-source {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88em;
+}
+
+.finding-quotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.finding-quote {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--manuscript);
+  font-style: italic;
+  color: var(--ink);
+  border-inline-start: 2px solid var(--accent);
+  padding-inline-start: 0.5rem;
+  text-align: start;
+}
+
+.finding-quote:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}

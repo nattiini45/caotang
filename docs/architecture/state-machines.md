@@ -63,6 +63,16 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `findings.review`
+
+Owner: `apps/desktop/src/app/coherence-review-state.ts`, held once by `ProjectSession`; product contract: [coherence.md §6.2–6.3](coherence.md#62-run-scoping-bunshos-three-modes-mapped). `plan`, `dismiss`, `start`, `progress`, `stop`, `done` and `fail` drive the pure step. Only `planned` accepts Start, synchronously before model effects. `running` retains the plan, completed-call count and stop request until the effect settles; cancellation wins over either completion or rejection. Complete results return to idle with a retained summary; stopped, partial and failed outcomes remain until the next plan. No state is terminal because a new review can be planned.
+
+The session owns the abort controller and pending promise, applies complete or partial results through its existing findings queue, and stops and settles the review before closing. Findings subscribes through the session and publishes `data-state`; the workspace keeps Show review and Stop visible outside the tab. There is no new persisted field, trace row, or change to the finding-transition table. Exhaustive table tests cover all event pairs; deferred effects and browser tests cover duplicate starts, remounts, progress, cancellation and outcomes.
+
+### `interface.load`
+
+Owner: `apps/desktop/src/app/interface.ts`; product contract: [ui-modules.md §0](ui-modules.md#0-shared-view-rules-apply-to-all-four-modules). `choose` begins loading from any state, while `loaded` and `failed` settle only a loading state. The asynchronous owner publishes only the latest request's completion. `interfaceStatus()` retains chosen and shown interfaces, with a failure detail only in `failed`; Settings subscribes, publishes `data-state` and offers retry. The existing localStorage key, shell-attribute timing and Classic fallback stay unchanged. Exhaustive model and race tests cover stale success/failure; mounted Settings tests cover announcements, retry and focus return.
+
 ### `export.job`
 
 Owner: `packages/exporter/src/export-job.ts`, interpreted by the serial emitter in `emit.ts`. Product contract: [exporter.md §2](exporter.md#2-pipeline-4-stages-all-inspectable). Events are `render`, `write`, `written` and `failed`. Jobs start queued, render every file, then write and append the log; only a successful append reaches written. Render, artifact-write, rollback and log-append failures reach failed. Both outcomes are terminal; retry creates a new job. Written carries actual output paths; failed carries the job's failures. Comic raster aborts during rendering follow the failed path without a partial file.

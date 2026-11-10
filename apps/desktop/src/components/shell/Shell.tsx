@@ -49,14 +49,14 @@ export function Shell({ regions, children }: { regions: ShellRegions; children?:
   if (modern !== null) {
     const { ModernShell } = modern;
     return (
-      <div className="modern-frame">
+      <div className="modern-frame" data-testid="shell" data-state={shell}>
         <ModernShell regions={regions} />
         {children}
       </div>
     );
   }
   return (
-    <div className={classicFrameClass(regions.view.hideRails)}>
+    <div className={classicFrameClass(regions.view.hideRails)} data-testid="shell" data-state={shell}>
       <ClassicLayout regions={regions} />
       {children}
     </div>

@@ -274,7 +274,7 @@ export function ClassicLayout({ regions }: { regions: ShellRegions }): ReactNode
       {openPanel === null ? null : <div className="scrim" data-testid="panel-scrim" aria-hidden="true" onClick={() => setPanel(null)} />}
       {overflow === null ? null : <Menu label={t`More`} anchor={overflow} items={classicMenu(actions)} onClose={view.closeOverflow} />}
 
-      {regions.status}
+      {regions.status === null ? null : <div className="workspace-status">{regions.status}</div>}
     </>
   );
 }
