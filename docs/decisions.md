@@ -16,6 +16,8 @@
 
 The standing decisions behind Caotang, one line each: the rule, the reason, and whose call it was.
 
+- An SDK `AgentRun` event iterator serves concurrent `next()` requests in FIFO order and settles every outstanding read on end, failure or iterator return; return does not cancel the turn or its report (#531, agent-harness.md §11). Why: a second pending read must not replace and strand the first. [delegated 2026-11-09]
+
 - A blocked runtime-store open refuses with guidance to close the other tabs and reload, and closes any late successful connection. Why: an older tab holding IndexedDB must not leave project startup waiting forever; the runtime schema and stale/newer errors remain unchanged (#539). [delegated 2026-11-09]
 
 - Undoing a finding status change restores its prior curation timestamps, including an absent `touchedAt`, so Discard run still removes a finding whose first touch was undone. Its note and verdict are restored with the timestamps through the existing session-only inverse restore table; command keys and `coherence.json` statuses do not change. Why: Undo must not silently curate a finding the writer chose to leave untouched (#532). [delegated 2026-11-09]

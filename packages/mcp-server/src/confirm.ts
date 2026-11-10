@@ -35,7 +35,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 import type { CallToolResult } from '@modelcontextprotocol/server';
-import { createRequestStateCodec, type RequestStateCodec } from '@modelcontextprotocol/server';
+import { createRequestStateCodec, type InputResponseView, type RequestStateCodec } from '@modelcontextprotocol/server';
+import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
 import { countBody, type ProjectState } from '@caotang/store';
 
 import { createTtlMap } from './ttl-map.js';
@@ -55,6 +56,56 @@ export interface RoundState {
   readonly callId: string;
   readonly nonce: string;
 }
+
+export type ConfirmationRoundState =
+  | { readonly kind: 'unasked' }
+  | { readonly kind: 'asked'; readonly round: RoundState }
+  | { readonly kind: 'accepted'; readonly round: RoundState }
+  | { readonly kind: 'declined'; readonly round: RoundState }
+  | { readonly kind: 'cancelled'; readonly round: RoundState }
+  | { readonly kind: 'not-confirmed'; readonly round: RoundState };
+
+export type ConfirmationRoundEvent =
+  | { readonly type: 'ask'; readonly round: RoundState }
+  | { readonly type: 'answer'; readonly reply: InputResponseView };
+
+export const confirmationRoundTable: MachineTable<ConfirmationRoundState, ConfirmationRoundEvent> = {
+  id: 'mcp.confirmation-round',
+  initial: 'unasked',
+  final: ['accepted', 'declined', 'cancelled', 'not-confirmed'],
+  on: {
+    unasked: { ask: ['asked'] },
+    asked: { answer: ['asked', 'accepted', 'declined', 'cancelled', 'not-confirmed'] },
+    accepted: {},
+    declined: {},
+    cancelled: {},
+    'not-confirmed': {},
+  },
+};
+
+export function stepConfirmationRound(state: ConfirmationRoundState, event: ConfirmationRoundEvent): ConfirmationRoundState {
+  switch (state.kind) {
+    case 'unasked':
+      return event.type === 'ask' ? { kind: 'asked', round: event.round } : state;
+    case 'asked': {
+      if (event.type !== 'answer' || event.reply.kind !== 'elicit') return state;
+      const reply = event.reply;
+      if (reply.action === 'accept' && reply.content?.['confirmed'] === true) return { kind: 'accepted', round: state.round };
+      if (reply.action === 'decline') return { kind: 'declined', round: state.round };
+      if (reply.action === 'cancel') return { kind: 'cancelled', round: state.round };
+      return { kind: 'not-confirmed', round: state.round };
+    }
+    case 'accepted':
+    case 'declined':
+    case 'cancelled':
+    case 'not-confirmed':
+      return state;
+    default:
+      return assertNever(state);
+  }
+}
+
+export const confirmationRoundMachine = defineMachine(confirmationRoundTable, stepConfirmationRound);
 
 /** A canonical JSON text: object keys sorted at every depth, so one value has one spelling. */
 export function stableJson(value: unknown): string {
