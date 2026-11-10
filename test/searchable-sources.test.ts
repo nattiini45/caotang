@@ -298,6 +298,8 @@ describe('no source file is invisible to search', () => {
     const expected = [...classic, ...(modernCommitted ? modern : []), ...[
       'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de', 'background-task-cancelling', 'background-task-cancelling-de',
       'classic-light-folder-saving-en', 'classic-light-folder-saving-de', 'modern-light-glass-folder-saving-en', 'modern-light-glass-folder-saving-de',
+      'classic-light-mcp-connecting-en', 'classic-light-mcp-connecting-de', 'classic-light-mcp-failed-en', 'classic-light-mcp-failed-de',
+      'modern-light-glass-mcp-connecting-en', 'modern-light-glass-mcp-connecting-de', 'modern-light-glass-mcp-failed-en', 'modern-light-glass-mcp-failed-de',
       'modal-skills-light-desktop', 'modal-skills-light-narrow', 'modal-skills-dark-desktop', 'modal-skills-dark-narrow',
     ].map((name) => `e2e/visual/__snapshots__/${name}.png`)].sort();
     expect(baselines).toEqual(expected);

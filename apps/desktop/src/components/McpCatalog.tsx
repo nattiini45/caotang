@@ -56,7 +56,7 @@ export function CatalogReview({ review }: { review: ReviewCard }): ReactNode {
             {review.prompts.map((prompt) => (
               <li key={prompt.name} data-prompt-review={prompt.name}>
                 <p>
-                  <code>{prompt.name}</code> <span className={`mcp-pin is-${prompt.status}`}>{toolStatusLabel(prompt.status)}</span>
+                  <code>{prompt.name}</code> <span className={`mcp-pin is-${prompt.status}`}>{toolStatusLabel(prompt.status, true)}</span>
                 </p>
                 <Described label={accessibleText(t`Full description of prompt ${{ name: isolate(prompt.name) }}`)} text={prompt.description} />
                 <Arguments items={prompt.arguments} label={accessibleText(t`Arguments of ${{ name: isolate(prompt.name) }}`)} />
@@ -72,7 +72,7 @@ export function CatalogReview({ review }: { review: ReviewCard }): ReactNode {
             {review.resourceTemplates.map((template) => (
               <li key={template.uriTemplate} data-template-review={template.uriTemplate}>
                 <p>
-                  <code>{template.uriTemplate}</code> <span className={`mcp-pin is-${template.status}`}>{toolStatusLabel(template.status)}</span>
+                  <code>{template.uriTemplate}</code> <span className={`mcp-pin is-${template.status}`}>{toolStatusLabel(template.status, true)}</span>
                 </p>
                 <Described label={accessibleText(t`Full description of template ${{ name: isolate(template.uriTemplate) }}`)} text={template.description} />
               </li>

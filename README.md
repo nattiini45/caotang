@@ -52,6 +52,8 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists it with the rest, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
 
+MCP server cards in **Settings › MCP & tools** show **Connecting** while a connection is checked and **Failed** with one translated alert when it cannot connect. Choose **Connect** to retry; saved server settings are unchanged.
+
 ## Requirements
 
 - **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.19 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests the 22.19.0 floor and Node 24; Node 26 is allowed but not covered.

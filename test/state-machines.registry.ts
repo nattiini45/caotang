@@ -19,6 +19,7 @@ import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
 import { assetStagingTable } from '../packages/store/src/asset-staging.js';
 import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
+import { healthTable } from '../packages/mcp-client/src/health.js';
 import { turnPhaseTable } from '../packages/harness/src/agent/turn-machine.js';
 import { cardStatusTable } from '../packages/harness/src/agent/cards.js';
 import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.js';
@@ -31,6 +32,6 @@ export const machineTables = [
   assetStagingTable, assetRemovalHoldTable, turnPhaseTable, cardStatusTable,
   cardDecisionTable, budgetMeterTable,
   exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
-  tabStopTable, persistenceTable, pendingEntryTable,
+  tabStopTable, persistenceTable, pendingEntryTable, healthTable,
   modalMachine.table,
 ] as const;
