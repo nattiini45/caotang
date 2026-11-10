@@ -20,6 +20,7 @@ import type { McpApp } from '../app/mcp.js';
 import { mcpServerView, reviewHeading, reviewSummary, stateLabel, toolStatusLabel } from '../app/mcp-model.js';
 import { CatalogReview, CatalogRows } from './McpCatalog.js';
 import { useComposingEnter } from './shared.js';
+import './mcp.css';
 
 
 /* lingui-set comment="MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number." */
@@ -99,7 +100,8 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
   const health: McpServerHealth = client.healthOf(server.key) ?? { key: server.key, state: 'configured' };
   const view = mcpServerView(server, health, client.review(server.key));
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [actionBusy, setBusy] = useState(false);
+  const busy = actionBusy || health.state === 'connecting';
 
   const run = async (action: () => Promise<unknown> | unknown, done?: string): Promise<void> => {
     setBusy(true);
@@ -117,7 +119,7 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
   };
 
   return (
-    <li className="mcp-server" data-server={server.name} data-state={health.state}>
+    <li className="mcp-server" data-server={server.name} data-state={health.state} data-reason={health.state === 'failed' ? health.reason : undefined} aria-busy={health.state === 'connecting'}>
       <header className="mcp-server-head">
         <div>
           <h4 className="mcp-server-name">{server.name}</h4>
@@ -136,7 +138,7 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
       <AuthLine mcp={mcp} server={server} />
 
       <div className="mcp-actions">
-        {health.state === 'configured' ? (
+        {health.state === 'configured' || health.state === 'failed' || health.state === 'connecting' ? (
           <>
             <button type="button" className="button is-primary" disabled={busy || !server.enabled} onClick={() => void run(() => mcp.connect(server.key), 'Connected.')}>
               <Trans>Connect</Trans>
@@ -226,7 +228,7 @@ function ReviewPanel({
         {review.tools.map((tool) => (
           <li key={tool.qualifiedName} data-tool-review={tool.toolName}>
             <p>
-              <code>{tool.toolName}</code> <span className={`mcp-pin is-${tool.status}`}>{toolStatusLabel(tool.status)}</span>
+              <code>{tool.toolName}</code> <span className={`mcp-pin is-${tool.status}`}>{toolStatusLabel(tool.status, true)}</span>
             </p>
             <pre className="mcp-description" aria-label={accessibleText(t`Full description of ${{ name: isolate(tool.toolName) }}`)}>
               {tool.description === '' ? t`(no description from the server)` : tool.description}
@@ -496,10 +498,10 @@ function isHealth(outcome: unknown): outcome is McpServerHealth {
 
 /**
  * What a card says after an action. A refused action says why. A connection that did not come up is a failure as well: its
- * health is `configured` with the reason, and the card shows that reason, never "Connected." (extensibility §3.2).
+ * health is `failed` with the reason, and the card shows that reason, never "Connected." (extensibility §3.2).
  */
 function outcomeMessage(outcome: unknown, done: string | undefined): { text: string; tone: 'info' | 'error' } | null {
   if (isFailure(outcome)) return { text: outcome.error, tone: 'error' };
-  if (isHealth(outcome) && outcome.state === 'configured') return { text: outcome.detail ?? t`The server is not connected.`, tone: 'error' };
+  if (isHealth(outcome) && (outcome.state === 'configured' || outcome.state === 'failed')) return { text: outcome.detail ?? t`The server is not connected.`, tone: 'error' };
   return done === undefined ? null : { text: done, tone: 'info' };
 }

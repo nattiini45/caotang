@@ -106,7 +106,7 @@ test('MCP & tools starts switched off, and a server is contacted only when a per
   await expect(local.getByTestId('mcp-detail')).toContainText('server unreachable', { timeout: 20_000 });
   await expect(local.getByRole('alert')).toContainText('server unreachable');
   await expect(local.getByRole('alert')).not.toContainText('Connected.');
-  await expect(local.getByTestId('mcp-state')).toHaveText('Configured');
+  await expect(local.getByTestId('mcp-state')).toHaveText('Failed');
 });
 
 test('a connected server offers its tools for review, and trusts reads only after the review is approved', async ({ page }) => {

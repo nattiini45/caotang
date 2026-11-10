@@ -5294,9 +5294,19 @@ msgstr ""
 msgid "Connected. Its tools are waiting for a review."
 msgstr ""
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connecting"
+msgstr ""
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Connecting contacts this address. Its tools stay confirm-only until you review them."
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connecting to the server and checking its tool list…"
 msgstr ""
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
@@ -6895,7 +6905,9 @@ msgid "Facts you want to track through the cast. Declare who learns each one, an
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #. Interpolated values: done, limit, total, used
+#: apps/desktop/src/app/mcp-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/TaskChecklist.tsx
 msgid "Failed"
@@ -15592,6 +15604,11 @@ msgstr ""
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "The complete script written from “<0/>”, shown before approval"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The connection failed. Connect again to retry, or check the server address and token."
 msgstr ""
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.

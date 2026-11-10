@@ -5,13 +5,15 @@
 
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, plural, t } from '@lingui/core/macro';
-import type { HealthState, McpServerConfig, McpServerHealth, ReviewCard } from '@caotang/mcp-client';
+import type { HealthState, McpServerConfig, McpServerHealth, PinState, ReviewCard } from '@caotang/mcp-client';
 
 /* lingui-set comment="Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged" */
 
-/** §3.2's three states, as the card names them. A connection and a usable tool list are different signals. */
+/** §3.2's runtime states, as the card names them. A connection and a usable tool list are different signals. */
 const STATE_LABELS: Readonly<Record<HealthState, MessageDescriptor>> = {
   configured: msg`Configured`,
+  connecting: msg`Connecting`,
+  failed: msg`Failed`,
   connected: msg`Connected`,
   healthy: msg`Healthy`,
 };
@@ -22,16 +24,14 @@ export function stateLabel(state: HealthState): string {
 }
 
 /** The words for a tool's status in a review or a row. A changed or new tool is never called "verified". */
-export function toolStatusLabel(status: 'new' | 'changed' | 'unchanged' | 'verified'): string {
+export function toolStatusLabel(status: PinState, review = false): string {
   switch (status) {
     case 'new':
       return t`New, not reviewed`;
     case 'changed':
       return t`Changed since review`;
-    case 'unchanged':
-      return t`Unchanged`;
     case 'verified':
-      return t`Verified`;
+      return review ? t`Unchanged` : t`Verified`;
   }
 }
 
@@ -60,6 +60,10 @@ function detailOf(health: McpServerHealth): string {
   switch (health.state) {
     case 'configured':
       return t`Not connected this session. Connect it to list its tools; nothing is searchable until then.`;
+    case 'connecting':
+      return t`Connecting to the server and checking its tool list…`;
+    case 'failed':
+      return t`The connection failed. Connect again to retry, or check the server address and token.`;
     case 'connected':
       return t`Connected. Its tools are waiting for a review.`;
     case 'healthy': {
@@ -71,7 +75,7 @@ function detailOf(health: McpServerHealth): string {
 
 /** Whether the tools of a review have anything to approve: a new or changed tool, or one that is gone. */
 function toolsPending(review: ReviewCard): boolean {
-  return review.tools.some((tool) => tool.status !== 'unchanged') || review.removed.length > 0;
+  return review.tools.some((tool) => tool.status !== 'verified') || review.removed.length > 0;
 }
 
 /**
@@ -95,10 +99,10 @@ export function reviewHeading(review: ReviewCard): { readonly title: string; rea
 
 /** The one-line count a review opens with. */
 export function reviewSummary(review: ReviewCard): string {
-  const count = (status: 'new' | 'changed' | 'unchanged'): number => review.tools.filter((tool) => tool.status === status).length;
+  const count = (status: PinState): number => review.tools.filter((tool) => tool.status === status).length;
   const added = count('new');
   const changed = count('changed');
-  const unchanged = count('unchanged');
+  const unchanged = count('verified');
   const removed = review.removed.length;
   const summary =
     removed > 0

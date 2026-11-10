@@ -17,11 +17,12 @@ import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
 import { assetStagingTable } from '../packages/store/src/asset-staging.js';
 import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
+import { healthTable } from '../packages/mcp-client/src/health.js';
 
 export const machineTables = [
   sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
   assetStagingTable, assetRemovalHoldTable, eventQueueTable, writerStopTable, confirmationRoundTable,
-  tabStopTable, persistenceTable, pendingEntryTable,
+  tabStopTable, persistenceTable, pendingEntryTable, healthTable,
 ] as const;
