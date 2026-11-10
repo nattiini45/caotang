@@ -6,6 +6,7 @@ import { encodingPanelMachine } from '../apps/desktop/src/app/encoding-dialog-mo
 import { sidebarTable } from '../apps/desktop/src/components/shell/modern/sidebar-model.js';
 import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-model.js';
 import { sprintTable } from '../packages/furniture/src/sprint.js';
+import { exportJobMachine } from '../packages/exporter/src/export-job.js';
 
 export const machineTables = [sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
-  exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table, sidebarTable, menuTable] as const;
+  exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table, sidebarTable, menuTable, exportJobMachine.table] as const;

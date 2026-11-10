@@ -6,6 +6,20 @@ Regenerate with `UPDATE_STATE_MACHINES=1 pnpm exec vitest run test/state-machine
 The convention and owning specs are in [state-machines.md](state-machines.md).
 Unlisted events return the same state. Listed self-transitions may update payloads.
 
+## export.job
+
+Initial: `queued`. Final: `failed`, `written`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | — | — |
+| `queued` | `render` | `rendering` |
+| `rendering` | `failed` | `failed` |
+| `rendering` | `write` | `writing` |
+| `writing` | `failed` | `failed` |
+| `writing` | `written` | `written` |
+| `written` | — | — |
+
 ## folder.save
 
 Initial: `idle`. Final: none.

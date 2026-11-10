@@ -63,6 +63,12 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `export.job`
+
+Owner: `packages/exporter/src/export-job.ts`, interpreted by the serial emitter in `emit.ts`. Product contract: [exporter.md §2](exporter.md#2-pipeline-4-stages-all-inspectable). Events are `render`, `write`, `written` and `failed`. Jobs start queued, render every file, then write and append the log; only a successful append reaches written. Render, artifact-write, rollback and log-append failures reach failed. Both outcomes are terminal; retry creates a new job. Written carries actual output paths; failed carries the job's failures. Comic raster aborts during rendering follow the failed path without a partial file.
+
+`job(id)` publishes the current snapshot and `settled(id)` returns its terminal snapshot. The synchronous digest identifies a queued job, not a written file. The Export dialog, SDK final report and MCP confirmed result use that job instead of cumulative failures or queue idleness. The dialog retains its existing running/failed states and Compile retry action. No state or identity is persisted; artifact bytes, compile-log rows and undo ordering are unchanged. Exhaustive model tests, held render/write/log promises, rollback and retry scenarios, comic cancellation tests and browser/host regressions cover the protocol.
+
 ### `ui.export.compile` and `ui.export.readiness`
 
 Owner: `apps/desktop/src/app/export-dialog-model.ts`; `components/ExportDialog.tsx` interprets readiness, compile and download effects. Product contracts: [ui-modules.md §1](ui-modules.md#1-component-topology-v01-layout) and [exporter.md](exporter.md). Compile events are `start`, `reset`, `succeeded` and `failed`; phases are `idle`, `running` and `failed`. A failure carries its text and optional hook-request key. Recipe notices are separate from compile failures, and changing a choice can reset an old failure. A synchronous current-state guard blocks duplicate compiles and both Escape and Cancel while running, including before React renders the disabled button.

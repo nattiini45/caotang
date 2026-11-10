@@ -378,11 +378,21 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         await folder.refreshAssets();
         const turn = externalTurn(turnId);
         const before = harness.log.length;
-        const outcome = window.within('mcp', () =>
+        let outcome = window.within('mcp', () =>
           harness.call({ name, callId, params }, { turnId: turn, permission: { confirmed: true } }),
         );
         harness.endTurn(turn);
         await exporter.idle();
+        if (name === 'export.compile' && outcome.ok) {
+          const digest = outcome.value.data['result'] as { readonly jobId: string };
+          const job = await exporter.settled(digest.jobId);
+          if (job.state.kind === 'failed') {
+            outcome = { ok: false, error: { code: 'internal', message: job.state.failures.map((failure) => failure.message).join('; '),
+              target: name, correctiveHint: 'Check the export folder and compile again.', details: { job } } };
+          } else {
+            outcome = { ...outcome, value: { ...outcome.value, data: { ...outcome.value.data, job } } };
+          }
+        }
         if (harness.log.length !== before || outcome.ok) await saved(before, () => folder.persist());
         await folder.persistCoherence();
         return outcome;
