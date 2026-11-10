@@ -14,7 +14,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
-- **Dialog stacking.** A dialog arriving over another keeps its input underneath and returns focus when it closes. The stopped-tab notice always wins. Modern hides background notice capsules while a dialog is open, announces new notices inside it, and restores current notices afterward, so Skills review has a clean edge without changing its glass.
+- **Dialog stacking.** A dialog arriving over another keeps its input underneath and returns focus when it closes. The stopped-tab notice always wins. Modern hides background notice capsules while a dialog is open, announces new notices inside it, and keeps new errors over later information until visible, so Skills review has a clean edge without hiding a failure or changing its glass.
 
 - **Reading agent events from a script (#531).** Concurrent reads of an `AgentRun` now receive events in request order instead of leaving the first reader waiting forever. Finishing, failing or returning the iterator settles every outstanding read; the turn's report remains available separately.
 

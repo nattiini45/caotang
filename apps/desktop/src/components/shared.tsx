@@ -79,6 +79,27 @@ export interface StatusMessage {
 
 export type Report = (message: StatusMessage) => void;
 
+export class ReportChannel {
+  private held: StatusMessage | null = null;
+  reveal(): void { this.held = null; }
+  next(message: StatusMessage, covered: boolean): StatusMessage | null {
+    if (!covered) {
+      this.reveal();
+      return message;
+    }
+    if (message.tone === 'error') {
+      this.held = message;
+      return message;
+    }
+    if (this.held?.tone === 'error') return null;
+    if (message.link !== undefined) {
+      this.held = message;
+      return message;
+    }
+    return this.held === null ? message : null;
+  }
+}
+
 export const ReportContext = createContext<Report>(() => {});
 
 export function useReport(): Report {

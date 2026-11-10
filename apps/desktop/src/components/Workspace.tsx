@@ -76,6 +76,8 @@ import { openFindingCount, openFindingsOfScene } from '../app/findings-model.js'
 import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ModalStackState, useModalValue } from './modal.js';
+import { modalStack } from './modal-stack.js';
+import { currentInterface } from '../app/interface.js';
 import { ProjectPanel } from './ProjectPanel.js';
 import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
@@ -95,7 +97,7 @@ import {
   selectNode,
   setExpanded,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, ReportChannel, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
@@ -298,7 +300,14 @@ export function Workspace({
   const storageSentence = durabilitySentence(durability);
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
 
-  const report = useCallback((next: StatusMessage) => setMessage(next), []);
+  const reportChannel = useMemo(() => new ReportChannel(), []);
+  const report = useCallback((message: StatusMessage) => {
+    const next = reportChannel.next(message, currentInterface() === 'modern' && modalStack.getSnapshot().kind === 'open');
+    if (next !== null) setMessage(next);
+  }, [reportChannel]);
+  useEffect(() => modalStack.subscribe(() => {
+    if (modalStack.getSnapshot().kind === 'empty') reportChannel.reveal();
+  }), [reportChannel]);
   // The typing not yet saved cannot be kept in this browser's storage (pending-journal.ts): said once each time it starts, so the writer knows
   // that only the autosave and the leave prompt stand between a reload and the last words.
   useEffect(() => {
@@ -1122,7 +1131,6 @@ export function Workspace({
   return (
     <ReportContext.Provider value={report}>
       <ModalStackState />
-      {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have, in either shell. */}
       <Shell regions={regions}>
         <ConfirmDialog
           open={doomed !== undefined}

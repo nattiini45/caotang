@@ -2,8 +2,26 @@ import { checkMachine } from '@caotang/machine/testing';
 import { describe, expect, it } from 'vitest';
 
 import { ModalStack, modalMachine, type ModalEvent, type ModalState } from '../src/components/modal-stack.js';
+import { ReportChannel, type StatusMessage } from '../src/components/shared.js';
 
 describe('the modal stack', () => {
+  it('holds one unseen error or action-needed report against info, but keeps normal replacement outside a modal', () => {
+    const error: StatusMessage = { tone: 'error', text: 'The save failed.' };
+    const newer: StatusMessage = { tone: 'error', text: 'The settings save failed.' };
+    const info: StatusMessage = { tone: 'info', text: 'The skill was imported.' };
+    const action: StatusMessage = { tone: 'info', text: 'Change the writing setting.', link: { label: 'Settings › Writing', after: '.', onClick: () => undefined } };
+    const channel = new ReportChannel();
+    expect(channel.next(error, true)).toBe(error);
+    expect(channel.next(info, true)).toBeNull();
+    expect(channel.next(newer, true)).toBe(newer);
+    expect(channel.next(action, true)).toBeNull();
+    channel.reveal();
+    expect(channel.next(action, true)).toBe(action);
+    expect(channel.next(info, true)).toBeNull();
+    expect(channel.next(error, true)).toBe(error);
+    expect(channel.next(info, false)).toBe(info);
+    expect(channel.next(info, true)).toBe(info);
+  });
   it('agrees with its exhaustive transition table', () => {
     const states: ModalState[] = [{ kind: 'empty', entries: [] }, { kind: 'open', entries: [{ id: 1, priority: 'dialog' }] }];
     const events: ModalEvent[] = [

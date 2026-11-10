@@ -4,6 +4,12 @@ import { ZIP_ENGINE } from '../packages/store/src/index.js';
 export async function openSkillsReview(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Skills', exact: true }).click();
+  await importSkillFixture(page);
+  await page.getByRole('button', { name: 'Read and approve… close-third' }).click();
+  await expect(page.getByRole('heading', { name: /Read.*close-third/ })).toBeVisible();
+}
+
+export async function importSkillFixture(page: Page): Promise<void> {
   const { zipSync } = await ZIP_ENGINE.load();
   const text = new TextEncoder();
   const bytes = zipSync({
@@ -12,6 +18,5 @@ export async function openSkillsReview(page: Page): Promise<void> {
     'close-third/scripts/check.sh': text.encode('echo "not run by Caotang"\n'),
   });
   await page.locator('input[aria-label="Skill zip"]').setInputFiles({ name: 'close-third.zip', mimeType: 'application/zip', buffer: Buffer.from(bytes) });
-  await page.getByRole('button', { name: 'Read and approve… close-third' }).click();
-  await expect(page.getByRole('heading', { name: /Read.*close-third/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Read and approve… close-third' })).toBeVisible();
 }

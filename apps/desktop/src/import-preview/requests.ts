@@ -1,7 +1,7 @@
 /**
  * The open import preview, as a small store (the `dialog-requests.ts` pattern): an import action anywhere in the workspace hands
  * its source here, and the workspace's `ImportPreviewHost` loads the dialog's code on first use and shows it. One preview is open at
- * a time, as one modal is; opening another replaces it, since the writer asked for the newer one.
+ * a time in this request family; opening another replaces it, since the writer asked for the newer one. Other dialog families stay in the shared stack.
  *
  * This module is small and in the first load; the dialog and its model are the lazy chunk (import-preview.md §6).
  */

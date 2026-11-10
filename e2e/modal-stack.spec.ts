@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import type * as ModalModule from '../apps/desktop/src/components/modal-stack.js';
 
 import { createProject } from './support.js';
+import { importSkillFixture } from './modal-support.js';
 
 for (const shell of ['classic', 'modern'] as const) {
   test(`${shell}: narrow modal portals retain shared touch targets and directional scroll cues`, async ({ page }) => {
@@ -92,6 +93,9 @@ test('Modern notices stay current while covered, announce a new import failure i
   await expect(announcement.locator('xpath=ancestor::dialog')).toHaveAttribute('data-modal-state', 'top');
   const status = notices.locator('[role="alert"]');
   const message = await status.textContent();
+  await importSkillFixture(page);
+  await expect(status).toHaveText(message ?? '');
+  await expect(announcement).toContainText('That file is not a zip that can be opened.');
   await page.keyboard.press('Escape');
   await expect(notices).toHaveAttribute('data-state', 'visible');
   await expect(notices).not.toHaveAttribute('inert', '');
