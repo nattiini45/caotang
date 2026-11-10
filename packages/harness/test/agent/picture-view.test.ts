@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ok } from '@caotang/bus';
+import { err, ok } from '@caotang/bus';
 import {
   createGateway,
   createKeyStore,
@@ -19,6 +19,7 @@ import {
 import { createMockProvider, userTextOf, type MockScript } from '@caotang/gateway/mock';
 
 import { createAgentSession, createPictureOutbox, type AsyncToolPort, type PictureOutbox } from '../../src/index.js';
+import { refusal } from '../../src/errors.js';
 import { makeHarness } from '../fixtures.js';
 import { answer, steps, transcript } from './scripts.js';
 
@@ -188,6 +189,27 @@ describe('pictures.view in the agent loop', () => {
     expect(report.status).toBe('cancelled');
     expect(calls).toBe(1);
     expect(outbox.take(report.turnId)).toEqual([]);
+  });
+
+  it('keeps a stopped async read cancelled when its unsuccessful result has no status card', async () => {
+    const intent = 'Stop while reading a picture.';
+    const abort = new AbortController();
+    const harness = makeHarness({ asyncPorts: { 'pictures.view': async () => {
+      await Promise.resolve();
+      abort.abort();
+      return err(refusal('internal', 'The picture read was stopped.'));
+    } } });
+    const gateway = await pictureGateway([
+      transcript(intent, [steps({ tool: 'pictures.view', params: { assetIds: ['a_0000000001'] }, expect: 'the picture' })]),
+    ], false);
+    const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'cancel' }), sessionId: 'picture-read-stop' });
+
+    const report = await session.submit(intent, { signal: abort.signal });
+    expect(report.status).toBe('cancelled');
+    expect(report.stop?.by).toBe('user');
+    expect(report.askBack).toBeUndefined();
+    expect(report.summary).toBe('Stopped by you. Nothing was written.');
+    expect(report.modelCalls).toBe(1);
   });
 
   it('lets an external caller use the async read but refuses its async write before the port runs', async () => {

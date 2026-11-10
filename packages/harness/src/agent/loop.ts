@@ -2380,7 +2380,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             : await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
         // A read the stop cut short is not a refusal the model should hear about. Its card, if progress made one, is ended with it.
         if (!first.ok && turn.signal?.aborted === true) {
-          moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+          if (turn.statusCards.some((card) => card.id === id)) moveCard(turn, id, 'failed', { error: STOPPED_STEP });
           throw new TurnStopped();
         }
         let callId = id;

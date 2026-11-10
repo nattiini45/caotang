@@ -163,6 +163,8 @@ Owner: `packages/harness/src/agent/turn-machine.ts`, interpreted by `loop.ts`; c
 
 Owner: `packages/harness/src/agent/cards.ts`, interpreted by `loop.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). An event names the requested status. The existing `StatusCard.status`, timestamps, progress and uncertainty fields remain unchanged. A first snapshot may already be running or refused; subsequent moves obey the table. A rejected move is traced as the requested event with the original state as its target and then throws. Cleanup requests cancellation only for cards that can still be cancelled, rather than silently trying to change finished cards.
 
+A read stopped before any progress card exists ends as stopped without a card transition. If progress already created its running card, Stop ends that card as well. An absent optional progress card is not an illegal lifecycle move.
+
 ### `card.decision`
 
 Owner: `packages/harness/src/agent/card-decision.ts`, with redrafting, storage, policy and user interaction interpreted by `loop.ts`; contract: [agent-harness.md §§2, 8](agent-harness.md#2-interaction-loop). `shown` and `held` own the editable plan, revision, notices and edit/retry/stall counts. `hold` permanently makes that card manual. `retry` and `edit` enter named effect states; `redrafted` commits their result or keeps the last good card and advances the stall count. Five ineffective decisions refuse the card. Approval, cancellation and refusal are final. A cut-text approval remains explicit. The pure step owns no model call, approval grant or write.
