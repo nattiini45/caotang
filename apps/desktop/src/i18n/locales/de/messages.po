@@ -5295,10 +5295,20 @@ msgstr "Verbunden"
 msgid "Connected. Its tools are waiting for a review."
 msgstr "Verbunden. Seine Werkzeuge warten auf eine Überprüfung."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connecting"
+msgstr "Wird verbunden"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Connecting contacts this address. Its tools stay confirm-only until you review them."
 msgstr "Beim Verbinden wird diese Adresse kontaktiert. Ihre Werkzeuge bleiben nur bestätigungspflichtig, bis Sie sie überprüfen."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connecting to the server and checking its tool list…"
+msgstr "Die Verbindung zum Server wird hergestellt und seine Werkzeugliste geprüft…"
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
@@ -6896,7 +6906,9 @@ msgid "Facts you want to track through the cast. Declare who learns each one, an
 msgstr "Fakten, die Sie durch die Besetzung verfolgen möchten. Deklarieren Sie im Inspektor einer Szene, wer jeden einzelnen lernt und wem gezeigt wird, dass er ihn kennt; der Scan meldet eine Figur, die einen Fakt kennt, bevor sie ihn lernt."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #. Interpolated values: done, limit, total, used
+#: apps/desktop/src/app/mcp-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/TaskChecklist.tsx
 msgid "Failed"
@@ -13957,6 +13969,11 @@ msgstr "Serveradresse (auf diesem Computer, endend auf /v1)"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
+msgid "Server details"
+msgstr "Serverdetails"
+
+#. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#: apps/desktop/src/components/McpSection.tsx
 msgid "Server list"
 msgstr "Serverliste"
 
@@ -15446,6 +15463,11 @@ msgstr "Die App-Einstellungen konnten hier nicht geöffnet werden, daher werden 
 msgid "the aspect ratio is one of the ratios in the list"
 msgstr "das Seitenverhältnis ist eines der Verhältnisse in der Liste"
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The bearer token is missing. Enter it on this card, save it, then choose Connect again."
+msgstr "Das Bearer-Token fehlt. Geben Sie es auf dieser Karte ein, speichern Sie es und wählen Sie dann erneut Verbinden."
+
 #. Modern interface: the stage and the page.
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
 msgid "the binder"
@@ -15605,6 +15627,11 @@ msgstr "Das Kompilieren schreibt {fileName}."
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "The complete script written from “<0/>”, shown before approval"
 msgstr "Das vollständige Skript, das aus „<0/>“ geschrieben wurde, vor der Genehmigung angezeigt"
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The connection was cancelled. Choose Connect to try again."
+msgstr "Die Verbindung wurde abgebrochen. Wählen Sie Verbinden, um es erneut zu versuchen."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -16022,6 +16049,11 @@ msgstr "Die Liste enthält Namen, Adressen und aktivierte Tools. Sie enthält ni
 #: apps/desktop/src/components/Binder.tsx
 msgid "The manuscript is empty"
 msgstr "Das Manuskript ist leer"
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The MCP connector could not be loaded. Check your internet connection, then choose Connect again."
+msgstr "Die MCP-Verbindungskomponente konnte nicht geladen werden. Prüfen Sie Ihre Internetverbindung und wählen Sie dann erneut Verbinden."
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -16564,10 +16596,50 @@ msgstr "die Auswahl ist länger als die 2000 Zeichen, die eine Abdeckung halten 
 msgid "The server also lists {prompts} {prompts, plural, one {prompt} other {prompts}} and {templates} {templates, plural, one {resource template} other {resource templates}}, shown in full below. They are pinned when you approve, and a changed one is shown again."
 msgstr "Der Server listet außerdem {prompts} {prompts, plural, one {Prompt} other {Prompts}} und {templates} {templates, plural, one {Ressourcen-Vorlage} other {Ressourcen-Vorlagen}}, vollständig unten angezeigt. Sie werden beim Genehmigen gepinnt, und eine geänderte wird erneut angezeigt."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server asked for more input to connect. Caotang cannot provide it here. Check the server’s sign-in requirements, then choose Connect again."
+msgstr "Der Server verlangt weitere Angaben für die Verbindung. Caotang kann sie hier nicht übermitteln. Prüfen Sie die Anmeldeanforderungen des Servers und wählen Sie dann erneut Verbinden."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server did not answer. Check the address above, then choose Connect to try again."
+msgstr "Der Server hat nicht geantwortet. Prüfen Sie die Adresse oben und wählen Sie dann Verbinden, um es erneut zu versuchen."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server has no tool list at this address. Check the address above, then choose Connect again."
+msgstr "Unter dieser Adresse bietet der Server keine Werkzeugliste an. Prüfen Sie die Adresse oben und wählen Sie dann erneut Verbinden."
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "The server is not connected."
 msgstr "Der Server ist nicht verbunden."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server rejected the sign-in. Check the token for this server, then choose Connect again."
+msgstr "Der Server hat die Anmeldung abgelehnt. Prüfen Sie das Token für diesen Server und wählen Sie dann erneut Verbinden."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server returned an error Caotang could not classify. Check the server details, then choose Connect again."
+msgstr "Der Server hat einen Fehler gemeldet, den Caotang nicht einordnen konnte. Prüfen Sie die Serverdetails und wählen Sie dann erneut Verbinden."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server returned an HTTP error. Check the address above, then choose Connect again."
+msgstr "Der Server hat einen HTTP-Fehler gemeldet. Prüfen Sie die Adresse oben und wählen Sie dann erneut Verbinden."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server sent a tool list Caotang could not read. Ask its administrator to check the tool list, then choose Connect again."
+msgstr "Der Server hat eine Werkzeugliste gesendet, die Caotang nicht lesen konnte. Bitten Sie den Betreiber, die Werkzeugliste zu prüfen, und wählen Sie dann erneut Verbinden."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server took too long to answer. Choose Connect to try again."
+msgstr "Der Server hat zu lange für eine Antwort gebraucht. Wählen Sie Verbinden, um es erneut zu versuchen."
 
 #. Interpolated values: error
 #: apps/desktop/src/app/services.ts
@@ -17360,10 +17432,20 @@ msgstr "Dieser Umfang liegt über der 20-Dokumente-Grenze. Das Genehmigen des Pl
 msgid "This scope is over the document guard, so approve it only if you mean the whole of it."
 msgstr "Dieser Umfang liegt über der Dokumentengrenze, genehmigen Sie ihn daher nur, wenn Sie wirklich das Ganze meinen."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "This server does not allow connections from a browser. Ask its administrator to allow this app, then choose Connect again."
+msgstr "Dieser Server lässt keine Verbindungen aus einem Browser zu. Bitten Sie den Betreiber, Verbindungen von dieser App zu erlauben, und wählen Sie dann erneut Verbinden."
+
 #. The MCP catalog. Interpolated values: name and names are text a server supplied; reason is a failure message the server gave; the count is a number.
 #: apps/desktop/src/components/McpCatalog.tsx
 msgid "This server lists more than Caotang keeps. Only the first part of each list is shown."
 msgstr "Dieser Server listet mehr, als Caotang behält. Es wird nur der erste Teil jeder Liste angezeigt."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "This server uses an MCP version Caotang cannot use. Ask its maker for an update, then choose Connect again."
+msgstr "Dieser Server verwendet eine MCP-Version, die Caotang nicht unterstützt. Bitten Sie den Hersteller um eine Aktualisierung und wählen Sie dann erneut Verbinden."
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
