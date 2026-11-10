@@ -27,6 +27,7 @@ import {
   projectRules,
   type FolderChangedError,
   type NodeArtifactFs,
+  type StopReason,
   type TimelineApplied,
   type TimelineReadOptions,
   type TimelineWriteResult,
@@ -301,10 +302,11 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
     const window = sourceWindow(harness.log);
     const changes = createChangeFeed();
     // The folder changing under the server stops its writes for good, so it is announced once: a host that is subscribed reads again.
-    let driftSaid = false;
+    let announcedStop: StopReason | undefined;
     const sayDrift = (): void => {
-      if (!folder.changed || driftSaid) return;
-      driftSaid = true;
+      const reason = folder.stopReason;
+      if (reason === undefined || announcedStop !== undefined) return;
+      announcedStop = reason;
       changes.emit({ updated: [], listChanged: true, drift: true });
     };
     // A save that went through announces what the log rows since `before` changed. One that failed announces nothing but a drift.
@@ -320,9 +322,6 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       if (change.updated.length > 0 || change.listChanged) changes.emit(change);
     };
 
-    // A timeline batch is two saves, so one can land and the other not. When that happens the folder and this copy are out of step,
-    // and no later write may paper over it: the whole session stops writing until it is restarted (timeline.md §9.2).
-    let writtenPartway: string | undefined;
     // `check` runs before the host shows its confirmation. Keep each round's values read there, keyed by the round's call id, so two
     // open questions (even for identical arguments) cannot replace one another, and an accept cannot silently re-base over an edit
     // made while it waited. An entry leaves when its round is accepted, refused, declined or cancelled; a round whose host never
@@ -356,7 +355,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       window,
       changes,
       get writtenPartway() {
-        return writtenPartway;
+        return folder.stopReason?.recovery;
       },
 
       async callDirect(name, callId, params, turnId) {
@@ -418,7 +417,6 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
           const change = changeOf(state, rows);
           if (change.updated.length > 0 || change.listChanged) changes.emit(change);
         }
-        if (result.status === 'partial') writtenPartway = result.recovery;
         return result;
       },
 
