@@ -327,7 +327,8 @@ class OpenRequest extends OpenRequestBase {
   }
 
   private finishOpen(current: number, target: number): void {
-    const data = this.factory.dataFor(this.name) ?? this.factory.createData(this.name, target);
+    const existing = this.factory.dataFor(this.name);
+    const data = existing ?? this.factory.createData(this.name, target);
     data.version = target;
     this.result = new FakeDatabase(this.factory, this.name, data);
 
@@ -337,10 +338,37 @@ class OpenRequest extends OpenRequestBase {
       const tx = this.upgrade();
       this.transaction = tx;
       const event = versionChangeEvent('upgradeneeded', current, target);
-      tx.runActive(() => {
-        this.dispatchEvent(event);
-        this.onupgradeneeded?.call(this, event);
-      });
+      const stores = new Map(data.stores);
+      const indexes = new Map([...stores.values()].map((store) => [store, new Map(store.indexes)]));
+      try {
+        tx.runActive(() => {
+          this.dispatchEvent(event);
+          this.onupgradeneeded?.call(this, event);
+        });
+      } catch (error) {
+        tx.recordHandlerError(error);
+        tx.abortWith(domError('AbortError', 'the upgrade handler failed'));
+      }
+      if (tx.finished) {
+        data.version = current;
+        data.stores = stores;
+        for (const [store, previous] of indexes) {
+          store.indexes.clear();
+          for (const [name, path] of previous) store.indexes.set(name, path);
+        }
+        if (existing === undefined) this.factory.dropData(this.name);
+        this.result.close();
+        queueMicrotask(() => {
+          this.error = domError('AbortError', 'the version upgrade was aborted') as DOMException;
+          this.setDone();
+          try {
+            this.onerror?.call(this, this.fire('error'));
+          } finally {
+            this.factory.finishOpen(this.name);
+          }
+        });
+        return;
+      }
       tx.finishVersionChange();
     }
 
@@ -778,6 +806,7 @@ class FakeTransaction extends EventTarget implements IDBTransaction {
   finishVersionChange(): void {
     this.active = false;
     this.finished = true;
+    this.db.detachUpgradeTransaction(this);
   }
 
   abortWith(error: Error | null): void {
@@ -972,7 +1001,7 @@ export class MemoryIndexedDb implements IDBFactory {
   waitForConnections(name: string, newVersion: number, blocked: () => void, ready: () => void): void {
     const connections = [...this.connections].filter((db) => db.name === name);
     for (const db of connections) db.notifyVersionChange(newVersion);
-    const hasConnections = (): boolean => [...this.connections].some((db) => db.name === name);
+    const hasConnections = (): boolean => [...this.connections].some((db) => db.name === name) || this.running.some((tx) => tx.db.name === name);
     if (!hasConnections()) {
       ready();
       return;
@@ -1007,6 +1036,9 @@ export class MemoryIndexedDb implements IDBFactory {
   unregister(tx: FakeTransaction): void {
     const at = this.running.indexOf(tx);
     if (at >= 0) this.running.splice(at, 1);
+    queueMicrotask(() => {
+      for (const resume of this.waiting) resume();
+    });
   }
 
   /**

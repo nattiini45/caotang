@@ -20,6 +20,102 @@ import { DOCUMENT_STORE, PROJECT_STORE, SESSION_STORE, openRuntimeStore } from '
 
 const DB = 'caotang-binding-test';
 
+describe('open requests release their queue and respect closing transactions', () => {
+  it.each(['throw', 'abort'] as const)('rolls back a failed %s upgrade and lets the next queued open finish', async (failure) => {
+    const factory = new MemoryIndexedDb();
+    const initial = factory.open(DB, 1);
+    initial.onupgradeneeded = () => initial.result.createObjectStore('kept', { keyPath: 'id' });
+    await new Promise<void>((resolve) => { initial.onsuccess = () => resolve(); });
+    initial.result.close();
+    const boom = new Error('The upgrade handler failed');
+    const order: string[] = [];
+    const bad = factory.open(DB, 2);
+    bad.onupgradeneeded = () => {
+      bad.transaction!.onabort = () => { order.push('abort'); };
+      bad.result.deleteObjectStore('kept');
+      bad.result.createObjectStore('partial', { keyPath: 'id' });
+      if (failure === 'throw') throw boom;
+      bad.transaction!.abort();
+    };
+    const failed = new Promise<void>((resolve, reject) => {
+      bad.onerror = () => { order.push('error'); resolve(); };
+      bad.onsuccess = () => reject(new Error('An aborted upgrade must not succeed'));
+    });
+    const next = factory.open(DB, 1);
+    const resumed = new Promise<IDBDatabase>((resolve, reject) => {
+      next.onsuccess = () => { order.push('next'); resolve(next.result); };
+      next.onerror = () => reject(next.error);
+    });
+    await failed;
+    const db = await resumed;
+    expect(bad.error?.name).toBe('AbortError');
+    expect(order).toEqual(['abort', 'error', 'next']);
+    expect(db.version).toBe(1);
+    expect(db.objectStoreNames.contains('kept')).toBe(true);
+    expect(db.objectStoreNames.contains('partial')).toBe(false);
+    expect(factory.handlerErrors()).toEqual(failure === 'throw' ? [boom] : []);
+    db.close();
+  });
+
+  it('removes a newly created database when its upgrade aborts', async () => {
+    const factory = new MemoryIndexedDb();
+    const bad = factory.open(DB, 1);
+    bad.onupgradeneeded = () => {
+      bad.result.createObjectStore('partial', { keyPath: 'id' });
+      bad.transaction!.abort();
+    };
+    await new Promise<void>((resolve, reject) => {
+      bad.onerror = () => resolve();
+      bad.onsuccess = () => reject(new Error('The upgrade must abort'));
+    });
+    expect(await factory.databases()).toEqual([]);
+    const retry = factory.open(DB, 1);
+    let oldVersion = -1;
+    retry.onupgradeneeded = (event) => { oldVersion = event.oldVersion; };
+    await new Promise<void>((resolve, reject) => {
+      retry.onsuccess = () => resolve();
+      retry.onerror = () => reject(retry.error);
+    });
+    expect(oldVersion).toBe(0);
+    expect(retry.result.objectStoreNames.length).toBe(0);
+    retry.result.close();
+  });
+
+  for (const mode of ['readonly', 'readwrite'] as const) {
+    for (const ending of ['complete', 'abort'] as const) {
+      it(`waits for a closing connection's ${mode} transaction to ${ending} before upgrading`, async () => {
+        const factory = new MemoryIndexedDb();
+        const initial = factory.open(DB, 1);
+        initial.onupgradeneeded = () => initial.result.createObjectStore('items', { keyPath: 'id' });
+        await new Promise<void>((resolve) => { initial.onsuccess = () => resolve(); });
+        const db = initial.result;
+        const tx = db.transaction('items', mode);
+        const order: string[] = [];
+        const request = mode === 'readwrite' ? tx.objectStore('items').put({ id: 'one' }) : tx.objectStore('items').get('one');
+        request.onsuccess = () => {
+          order.push('request');
+          if (ending === 'abort') tx.abort();
+        };
+        const ended = new Promise<void>((resolve) => {
+          tx.oncomplete = () => { order.push('complete'); resolve(); };
+          tx.onabort = () => { order.push('abort'); resolve(); };
+        });
+        db.onversionchange = () => db.close();
+        const upgrade = factory.open(DB, 2);
+        let observed: string[] = [];
+        upgrade.onupgradeneeded = () => { observed = [...order]; };
+        const upgraded = new Promise<void>((resolve, reject) => {
+          upgrade.onsuccess = () => { upgrade.result.close(); resolve(); };
+          upgrade.onerror = () => reject(upgrade.error);
+        });
+        await Promise.all([ended, upgraded]);
+        expect(observed).toEqual(['request', ending]);
+        expect(() => db.transaction('items')).toThrow(expect.objectContaining({ name: 'InvalidStateError' }));
+      });
+    }
+  }
+});
+
 async function opened(): Promise<{ factory: MemoryIndexedDb; store: Awaited<ReturnType<typeof openRuntimeStore>> }> {
   const factory = new MemoryIndexedDb();
   const store = await openRuntimeStore(factory, DB);
