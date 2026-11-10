@@ -747,6 +747,8 @@ The server runs on your computer and opens no network port. Uninstalling it leav
 
 ## Scripting Caotang
 
+A script can read progress events while it waits for the final report. Multiple pending reads receive events in order; ending or returning the event reader leaves no read waiting. Returning the reader does not stop the agent turn.
+
 A developer can run the agent against a project folder from a Node script, a command line or CI, with the `@caotang/sdk` package. There are no cards to click there, so the script chooses a policy that answers them: refuse every change (the default), approve every card, or its own function. Nothing is saved unless the script asks for it, and it can read the diff first. Its README is [packages/sdk/README.md](../packages/sdk/README.md). Keep the app and a script off the same folder at once: the script leaves the same lock file the MCP server does, and the app asks before it saves over it.
 
 ## When something seems wrong

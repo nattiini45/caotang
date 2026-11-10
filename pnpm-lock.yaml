@@ -932,6 +932,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
@@ -1078,6 +1081,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts

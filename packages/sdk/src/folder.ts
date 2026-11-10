@@ -89,6 +89,7 @@ import {
   type TimelineWriteResult,
 } from './timeline-persistence.js';
 import type { FolderVoice } from './voice.js';
+import { writerStopMachine, type StopReason, type WriterState } from './writer-stop.js';
 
 /** The folder holds no project, and the host did not ask for one to be made. */
 export class NoProjectError extends Error {
@@ -303,6 +304,7 @@ export interface OpenFolder {
   readonly notices: LoadNotice[];
   /** Whether the folder changed under this copy, so every write is refused. */
   readonly changed: boolean;
+  readonly stopReason: StopReason | undefined;
   /** The refusal a write gets once the folder changed. `applied` is whether the change was already made in memory. */
   stoppedError(applied: boolean): FolderChangedError;
   /** Lists the stored images again, for the exporter, which reads them synchronously. */
@@ -426,23 +428,21 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
 
     const registry = createProjectCommandRegistry({ exporter: exporter.commandPort() });
 
-    // The manifest text this host last loaded or saved: the folder must still hold it before the next save. Once a check has found
-    // a change, `changed` is set and `stoppedBy` says what it found, so every later refusal says the same thing.
     let saved: string = manifestText;
-    let changed = false;
-    let stoppedBy: string | undefined;
-    let stoppedSaved = false;
-    let stoppedPartway: string | undefined;
+    let writer: WriterState = { kind: 'open' };
     let queue: Promise<void> = Promise.resolve();
 
-    const errorOf = (applied: boolean, cause: string | undefined, wasSaved: boolean): FolderChangedError =>
-      new FolderChangedError(root, state.manifest.project.name, applied, cause, wasSaved, voice, stoppedPartway);
+    const errorOf = (applied: boolean): FolderChangedError =>
+      new FolderChangedError(
+        root, state.manifest.project.name, applied,
+        writer.kind === 'drift' || writer.kind === 'saved-drift' ? writer.cause : writer.kind === 'partial' ? 'left a timeline batch half written' : undefined,
+        applied && writer.kind === 'saved-drift', voice,
+        writer.kind === 'partial' ? 'caotang.json and coherence.json were not both written, or the folder does not hold what was written' : undefined,
+      );
 
     /** Stops the writes: every later one is refused, until the host reads the folder again. */
     const markChanged = (cause: string, wasSaved = false): void => {
-      changed = true;
-      stoppedBy = cause;
-      stoppedSaved = wasSaved;
+      writer = writerStopMachine.step(writer, { type: 'drift', cause, saved: wasSaved });
     };
 
     /**
@@ -450,16 +450,13 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
      * over it. A stop already recorded (another program's change) keeps its own words.
      */
     const stopPartway = <T>(result: Extract<TimelineWriteResult<T>, { status: 'partial' }>): TimelineWriteResult<T> => {
-      if (!changed) {
-        markChanged('left a timeline batch half written');
-        stoppedPartway = 'caotang.json and coherence.json were not both written, or the folder does not hold what was written';
-      }
+      writer = writerStopMachine.step(writer, { type: 'partial', recovery: result.recovery });
       return result;
     };
 
     const stopWith = (cause: string, wasSaved = false): never => {
       markChanged(cause, wasSaved);
-      throw errorOf(true, cause, wasSaved);
+      throw errorOf(true);
     };
 
     /**
@@ -475,7 +472,7 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
     // `into` is the report of a caller that has more than one file to write: a save that stops part way leaves it holding what it
     // did write, which is what a two-file write reports as `partial` (timeline-persistence.ts).
     const saveProjectOnce = async (into?: WriteReport): Promise<WriteReport> => {
-      if (changed) throw errorOf(true, stoppedBy, stoppedSaved);
+      if (writer.kind !== 'open') throw errorOf(true);
       // A change is refused before anything is written.
       const cause = await driftCause();
       if (cause !== undefined) stopWith(cause);
@@ -563,8 +560,8 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
      */
     const applyTimeline = <T>(applied: () => TimelineApplied<T>): Promise<TimelineWriteResult<T>> =>
       enqueue(async (): Promise<TimelineWriteResult<T>> => {
-        if (changed) {
-          const stopped = errorOf(true, stoppedBy, stoppedSaved);
+        if (writer.kind !== 'open') {
+          const stopped = errorOf(true);
           return conflictOf<T>({ code: 'io-error', message: `${stopped.message} Nothing was written.`, correctiveHint: voice.reload, target: 'ops' });
         }
         const cause = await driftCause();
@@ -705,9 +702,12 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       created,
       notices,
       get changed() {
-        return changed;
+        return writer.kind !== 'open';
       },
-      stoppedError: (applied) => errorOf(applied, stoppedBy, applied ? stoppedSaved : false),
+      get stopReason() {
+        return writer.kind === 'open' ? undefined : writer;
+      },
+      stoppedError: errorOf,
       async refreshAssets() {
         assetRecords = await heldAssetsOf(fs);
       },
@@ -725,7 +725,7 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       // is still writing, and a change it finds stops the writes exactly as a save's check would.
       verifyFolder: () =>
         enqueue(async () => {
-          if (changed) return;
+          if (writer.kind !== 'open') return;
           const cause = await driftCause();
           if (cause !== undefined) markChanged(cause);
         }),
