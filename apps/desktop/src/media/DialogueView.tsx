@@ -36,6 +36,7 @@ import { SourceField } from './SourceField.js';
 import { inkSegments } from './source-decor.js';
 import { caretAfterEdit, isOwnWrite } from './rebase-model.js';
 import { saveLineOf, unwrittenFlushOf } from './screenplay-model.js';
+import { documentSaveState } from '../app/save-conflict.js';
 
 
 /* lingui-set comment="The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers." */
@@ -368,7 +369,7 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
               onChange={onSourceChange}
               onKeyDown={onInkKeyDown}
             />
-            <p className="counter" role="status">
+            <p className={`counter editor-save${documentSaveState(save) === 'conflict' ? ' load-banner' : ''}`} role="status" data-testid="document-save-state" data-state={documentSaveState(save)}>
               {saveLineOf(save)}
             </p>
           </section>

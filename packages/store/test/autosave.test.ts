@@ -352,6 +352,30 @@ describe('§4 — a mid-flight edit waits out its own window', () => {
     expect(writer.calls).toHaveLength(2);
     expect(writer.calls[1]?.body).toBe('c');
   });
+
+  it('keeps the full window of an edit made by a settle subscriber', async () => {
+    const { autosave, clock, writer } = harness([{ kind: 'hold' }, { kind: 'ok' }]);
+    autosave.open(DOC, { body: 'a', revision: 0 });
+    autosave.noteEdit(DOC, 'b');
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+    autosave.noteEdit(DOC, 'c');
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+    let edited = false;
+    autosave.subscribe((event) => {
+      if (!edited && event.status.state === 'pending' && event.status.revision === 1) {
+        edited = true;
+        autosave.noteEdit(DOC, 'd');
+      }
+    });
+    writer.settleHeld(0, { revision: 1, changed: true });
+    await clock.advance(0);
+    expect(writer.calls).toHaveLength(1);
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS - 1);
+    expect(writer.calls).toHaveLength(1);
+    await clock.advance(1);
+    expect(writer.calls.map((call) => call.body)).toEqual(['b', 'd']);
+    expect(writer.calls[1]?.expectedRevision).toBe(1);
+  });
 });
 
 describe('§4 — a saved write is a document write for the session tracker', () => {
@@ -651,16 +675,15 @@ describe('§4 — a failed write keeps the newest body, not the one that failed'
     expect(failed?.outcome).toBe('conflict');
     expect(autosave.status(DOC).lastError).toBe(conflict);
     // The mid-flight `c` is still there, and a flush is scheduled for it.
-    expect(autosave.status(DOC)).toMatchObject({ state: 'pending', dirty: true });
+    expect(autosave.status(DOC)).toMatchObject({ state: 'conflict', dirty: true });
 
     const [again] = await autosave.flush(DOC);
     expect(again?.outcome).toBe('conflict');
     expect(writer.calls.map((call) => call.body)).toEqual(['b', 'c']);
     expect(writer.calls.map((call) => call.expectedRevision)).toEqual([0, 0]);
-    // Unretried by the conflict, unsaved by the refusal to lose it. And 'error'
-    // again, because nothing was typed under *this* write either.
+    // Unretried by the conflict and unsaved by the refusal to lose it.
     expect(autosave.status(DOC).dirty).toBe(true);
-    expect(autosave.status(DOC).state).toBe('error');
+    expect(autosave.status(DOC).state).toBe('conflict');
   });
 
   it('restores the failed body when nothing newer arrived, and arms nothing', async () => {
@@ -754,6 +777,31 @@ describe('§9 — the revision the flush carries', () => {
     // no revision to be based on.
     const { autosave } = harness();
     expect(() => autosave.noteEdit('n_not_open', 'x')).toThrow(/never opened/);
+  });
+
+  it.each(['write', 'reseat', 'open'] as const)('publishes the retained revision conflict until %s clears it', async (resolution) => {
+    const conflict = new RevisionConflictError(DOC, 3, 9);
+    const { autosave } = harness([{ kind: 'fail', error: conflict }, { kind: 'ok', revision: 10 }]);
+    const causes: unknown[] = [];
+    autosave.subscribe((event) => { causes.push(event.status.lastError); });
+    autosave.open(DOC, { body: 'a', revision: 3 });
+    autosave.noteEdit(DOC, 'b');
+    await autosave.flush(DOC);
+    expect(autosave.status(DOC)).toMatchObject({ state: 'conflict', lastError: conflict });
+    autosave.noteEdit(DOC, 'a');
+    expect(autosave.status(DOC)).toMatchObject({ state: 'pending', lastError: conflict });
+    expect(causes.at(-1)).toBe(conflict);
+    expect((await autosave.flush(DOC))[0]?.outcome).toBe('unchanged');
+    expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, lastError: conflict });
+    expect(autosave.status(DOC).lastError).toBeInstanceOf(RevisionConflictError);
+    expect(causes.at(-1)).toBe(conflict);
+    if (resolution === 'write') {
+      autosave.noteEdit(DOC, 'resolved');
+      await autosave.flush(DOC);
+    } else if (resolution === 'reseat') await autosave.reseat(DOC, { body: 'resolved', revision: 9 });
+    else autosave.open(DOC, { body: 'resolved', revision: 9 });
+    expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, lastError: null });
+    expect(causes.at(-1)).toBe(null);
   });
 
   it('reports a conflict as a conflict, keeps the body, and retries nothing', async () => {

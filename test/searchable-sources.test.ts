@@ -298,6 +298,7 @@ describe('no source file is invisible to search', () => {
     const expected = [...classic, ...(modernCommitted ? modern : []), ...[
       'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de', 'background-task-cancelling', 'background-task-cancelling-de', 'findings-review-stopped', 'findings-review-stopped-de',
       'classic-light-folder-saving-en', 'classic-light-folder-saving-de', 'modern-light-glass-folder-saving-en', 'modern-light-glass-folder-saving-de',
+      'classic-light-autosave-conflict-en', 'classic-light-autosave-conflict-de', 'modern-light-glass-autosave-conflict-en', 'modern-light-glass-autosave-conflict-de',
       'save-tasks-classic', 'save-settings-classic', 'save-tasks-modern', 'save-settings-modern',
       'classic-light-mcp-connecting-en', 'classic-light-mcp-connecting-de', 'classic-light-mcp-failed-en', 'classic-light-mcp-failed-de',
       'modern-light-glass-mcp-connecting-en', 'modern-light-glass-mcp-connecting-de', 'modern-light-glass-mcp-failed-en', 'modern-light-glass-mcp-failed-de',
