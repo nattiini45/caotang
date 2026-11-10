@@ -161,7 +161,7 @@ Owner: `packages/harness/src/agent/turn-machine.ts`, interpreted by `loop.ts`; c
 
 ### `card.status`
 
-Owner: `packages/harness/src/agent/cards.ts`, interpreted by `loop.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). An event names the requested status. The existing `StatusCard.status`, timestamps, progress and uncertainty fields remain unchanged. A first snapshot may already be running or refused; subsequent moves obey the table. A rejected move is traced as the requested event with the original state as its target and then throws. Cleanup requests cancellation only for cards that can still be cancelled, rather than silently trying to change finished cards.
+Owner: `packages/harness/src/agent/cards.ts`, interpreted by `loop.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). An event names the requested status. The existing `StatusCard.status`, timestamps, progress and uncertainty fields remain unchanged. A first snapshot may already be running; a step refused before execution appears as a running card that transitions to failed. Subsequent moves obey the table. A rejected move is traced as the requested event with the original state as its target and then throws. Cleanup requests cancellation only for cards that can still be cancelled, rather than silently trying to change finished cards.
 
 A read stopped before any progress card exists ends as stopped without a card transition. If progress already created its running card, Stop ends that card as well. An absent optional progress card is not an illegal lifecycle move.
 
