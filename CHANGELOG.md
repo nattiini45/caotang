@@ -16,6 +16,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Document save conflicts.** A revision conflict now has its own save state instead of looking like a storage failure. The prose, screenplay and Ink save lines say in English and German that newer text is already stored, keep your words in this tab and direct you to copy the unsaved text somewhere safe before reloading. Autosave timing and saved project formats are unchanged.
 
+- **Reading agent events from a script (#531).** Concurrent reads of an `AgentRun` now receive events in request order instead of leaving the first reader waiting forever. Finishing, failing or returning the iterator settles every outstanding read; the turn's report remains available separately.
+
 - **Stopped-tab recovery.** The notice stays above other dialogs, including ones that arrive later, while their input stays underneath. Its cause and kept-copy status now belong to one session state; saved projects and kept-word formats are unchanged.
 
 - **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.
