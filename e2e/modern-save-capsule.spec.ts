@@ -19,14 +19,17 @@ async function fits(page: Page, width: number): Promise<void> {
   const controls = [page.getByTestId('modern-title-capsule'), page.getByTestId('save-state'), bar.locator('.modern-new'), page.getByTestId('modern-more')];
   await expect.poll(async () => {
     const bounds = await bar.boundingBox();
-    const boxes = await Promise.all(controls.map((control) => control.boundingBox()));
-    if (bounds === null || boxes.some((box) => box === null)) return false;
-    return boxes.every((box) => box !== null && box.width >= 44 && box.height >= 44
+    const boxes = await Promise.all(controls.map((control) => control.evaluate((element) => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    })));
+    if (bounds === null) return false;
+    return boxes.every((box) => box.width >= 44 && box.height >= 44
       && box.x >= bounds.x - 1 && box.x + box.width <= bounds.x + bounds.width + 1
       && box.y >= bounds.y - 1 && box.y + box.height <= bounds.y + bounds.height + 1)
-      && boxes.every((box, i) => boxes.slice(i + 1).every((other) => box !== null && other !== null
-        && (box.x + box.width <= other.x + 1 || other.x + other.width <= box.x + 1
-          || box.y + box.height <= other.y + 1 || other.y + other.height <= box.y + 1)));
+      && boxes.every((box, i) => boxes.slice(i + 1).every((other) =>
+        box.x + box.width <= other.x + 1 || other.x + other.width <= box.x + 1
+          || box.y + box.height <= other.y + 1 || other.y + other.height <= box.y + 1));
   }).toBe(true);
   expect((await page.locator('.modern-title-name').boundingBox())?.width).toBeGreaterThanOrEqual(80);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
