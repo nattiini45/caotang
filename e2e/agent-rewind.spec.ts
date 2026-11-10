@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from './endpoint.js';
+import { waitForShell } from './support.js';
 
 /**
  * The two axes of a turn's checkpoint in the agent panel (agent-harness §5): the project is restored, the conversation is rewound,
@@ -180,6 +181,7 @@ for (const locale of ['de', 'en-XA']) {
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="appearance"]').click();
     await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: /^Modern/ }).check();
+    await waitForShell(page, 'modern');
     await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
     await expect(page.locator('html')).toHaveAttribute('lang', locale);
     await settings.getByRole('banner').getByRole('button').click();
