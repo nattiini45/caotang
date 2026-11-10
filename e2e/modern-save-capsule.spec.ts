@@ -31,9 +31,11 @@ async function fits(page: Page, width: number): Promise<void> {
   expect((await page.locator('.modern-title-name').boundingBox())?.width).toBeGreaterThanOrEqual(80);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   if (width < 960) {
-    const bounds = await bar.boundingBox();
-    const area = await page.locator('.modern-page-area').boundingBox();
-    expect(area!.y).toBeGreaterThanOrEqual(bounds!.y + bounds!.height);
+    await expect.poll(async () => {
+      const bounds = await bar.boundingBox();
+      const area = await page.locator('.modern-page-area').boundingBox();
+      return bounds === null || area === null ? -1 : area.y - bounds.y - bounds.height;
+    }).toBeGreaterThanOrEqual(0);
   }
 }
 

@@ -44,7 +44,7 @@
 
   /* ---- The page: full-bleed with the small margin, between the two bars. ---- */
   :root[data-shell='modern'] .modern-stage > .modern-page-area {
-    inset-block: calc(var(--page-top) + var(--n-top) - var(--page-gutter)) calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
+    inset-block: calc(var(--page-top) + var(--document-mode-row, 0px) + var(--n-top) - var(--page-gutter)) calc(var(--page-bottom) + var(--n-bottom) - var(--page-gutter));
     inset-inline: var(--safe-side);
   }
 
@@ -57,7 +57,9 @@
   :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top {
     inset-block-start: var(--n-top);
     inset-inline: calc(var(--n-side) + var(--page-gutter));
-    block-size: var(--narrow-top-bar);
+    min-block-size: var(--narrow-top-bar);
+    block-size: auto;
+    flex-wrap: wrap;
     inline-size: auto;
     max-inline-size: none;
   }
@@ -77,11 +79,6 @@
 
   :root[data-shell='modern'] .modern-stage:has(.modern-save-summary) > :is(.modern-page-area, .modern-notices) {
     --page-top: calc(72px + var(--target-min) + var(--space-2));
-  }
-
-  :root[data-shell='modern'] .modern-stage > .modern-ornament.is-top:has(.modern-save-summary) {
-    flex-wrap: wrap;
-    block-size: auto;
   }
 
   :root[data-shell='modern'] .modern-stage .modern-save-summary {
@@ -144,7 +141,7 @@
 
   /* ---- Notices sit below the top bar, over the page. ---- */
   :root[data-shell='modern'] .modern-stage > .modern-notices {
-    inset-block-start: calc(var(--page-top) + var(--n-top));
+    inset-block-start: calc(var(--page-top) + var(--document-mode-row, 0px) + var(--n-top));
   }
 
   /* ---- The binder drawer, from the inline-start edge, sliding out of it (mirrored in a right-to-left interface). ---- */

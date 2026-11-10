@@ -1,5 +1,7 @@
 # Decisions
 
+- [owner 2026-11-10] Apply the standing 2026-11-08 optimize-before-raising rule to save recovery (#580/#578): Modern's CSS ceiling is 96,600 B raw for 95,592 B measured, and its first-load premium is 36,500 B gzip for 36,133 B measured, each about 1% above the optimized build. Shared row offsets, unconditional narrow wrapping, shared truncation and existing control rules remove about 0.5 kB of CSS; the disclosure reuses Scene info and adds no dependency. The remaining control, live guidance and focus handoff must be available on the first failure, not delayed behind another import. Classic's entry and the 70 kB Modern JS ceiling do not move; no requested recovery feature is cut.
+
 - [delegated 2026-11-10] Autosave publishes `revisionConflict` separately from `lastError`, and the footer and Documents save channel read it. Later producer/read/write failures keep the conflict until a successful write, completed reseat or accepted quiet reopen; retry budgets and saved formats stay unchanged. Why: a new diagnostic must not erase the unresolved revision refusal or its safe-copy instruction (#580; Captain Patrick's follow-up decision).
 
 - [delegated 2026-11-10] Document save lines keep their conflict signal and safe-copy instruction while a revision-conflict failure is retained, including during later typing and retries. The underlying autosave phase, 800 ms window and existing flush opportunities do not change. Why: another edit cannot resolve a moved revision, so it must not hide recovery guidance (PawCommit F2, #568).
