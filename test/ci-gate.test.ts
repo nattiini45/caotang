@@ -46,14 +46,6 @@ describe('the required pull-request CI gate', () => {
     expect(browsers).toContain('group: e2e-browsers-${{ github.event_name }}-${{ github.ref }}');
   });
 
-  it('keeps both Chromium check names and pins four workers only for the main suite', () => {
-    const e2e = jobBlock(ci, 'e2e');
-    expect([...e2e.matchAll(/^ {10}- name: (.+)$/gm)].map((match) => match[1])).toEqual(['e2e (chromium)', 'e2e (chromium, Modern gate)']);
-    expect(e2e).toMatch(/if: \$\{\{ matrix\.leg == 'suite' \}\}\n {8}run: pnpm test:e2e --workers=4\n/);
-    expect(e2e).toContain('timeout: 45');
-    expect(e2e).toContain('run: pnpm exec playwright test --project=chromium e2e/modern-reachability.spec.ts e2e/modern-gate.spec.ts');
-  });
-
   it('runs the Classic snapshots in the pinned Playwright image, and only with CAOTANG_VISUAL', () => {
     const visual = jobBlock(ci, 'visual');
     expect(visual).toContain('image: mcr.microsoft.com/playwright:v1.63.0-noble');

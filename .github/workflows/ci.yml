@@ -140,9 +140,9 @@ jobs:
   e2e:
     name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    # Two legs, both read by `verify` through needs.e2e.result. `e2e (chromium)` uses four workers on the public four-CPU runner;
-    # ten completed two-worker jobs had a 35.9-minute median, too close to the unchanged 45-minute limit. Check names stay unchanged.
-    # `e2e (chromium, Modern gate)`: the Modern reachability walk and accessibility gate (M12, #313), left
+    # Two legs, both read by `verify` through needs.e2e.result. `e2e (chromium)`: about 2,000 tests on two workers take close to
+    # 35 minutes on their own (the timeline, pictures and comic specs), so the limit leaves room for retries instead of cancelling a
+    # run that is still passing. `e2e (chromium, Modern gate)`: the Modern reachability walk and accessibility gate (M12, #313), left
     # out of the first leg by CAOTANG_E2E_MODERN_GATE=skip so neither leg runs near its limit.
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
@@ -176,7 +176,7 @@ jobs:
 
       - name: End-to-end (dev suite, and the production-preview smoke test)
         if: ${{ matrix.leg == 'suite' }}
-        run: pnpm test:e2e --workers=4
+        run: pnpm test:e2e
         env:
           CI: 'true'
           CAOTANG_E2E_MODERN_GATE: skip
