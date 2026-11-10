@@ -97,7 +97,7 @@ describe('MCP connection health', () => {
       }),
     });
     await client.connect(KEY);
-    client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
+    await client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
     expect(client.listResources(KEY)).toHaveLength(1);
     await expect(createMcpTransport(client).callTool(KEY, 'known_tool', {})).rejects.toBeDefined();
     expect(client.healthOf(KEY)).toMatchObject({ state: 'failed', reason });

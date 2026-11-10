@@ -92,7 +92,7 @@ export function App(): ReactNode {
         const coherence = { checks: () => opened.settings.current().coherence.enabledChecks, providers: opened.providers };
         // The writer's own agent rules are read at each agent call, so an edit in Settings applies to the turn in flight at its next call.
         const appRules = () => opened.settings.current().agent.rules;
-        setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: opened.mcp.client }, coherence, appRules });
+        setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: opened.mcp.client }, coherence, appRules, saveChannels: [opened.settings.saveChannel] });
       };
       apply();
       opened.settings.subscribe(apply);

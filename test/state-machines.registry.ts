@@ -14,6 +14,7 @@ import { eventQueueTable } from '../packages/sdk/src/run.js';
 import { writerStopTable } from '../packages/sdk/src/writer-stop.js';
 import { confirmationRoundTable } from '../packages/mcp-server/src/confirm.js';
 import { tabStopTable } from '../apps/desktop/src/app/tab-stop.js';
+import { saveChannelTable } from '../apps/desktop/src/app/save-channel.js';
 import { persistenceTable } from '../apps/desktop/src/app/persistence-model.js';
 import { pendingEntryTable } from '../apps/desktop/src/app/pending-entry.js';
 import { modalMachine } from '../apps/desktop/src/components/modal-stack.js';
@@ -37,5 +38,6 @@ export const machineTables = [
   cardDecisionTable, budgetMeterTable,
   exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
   tabStopTable, persistenceTable, pendingEntryTable, healthTable,
+  saveChannelTable,
   modalMachine.table,
 ] as const;

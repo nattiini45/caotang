@@ -305,7 +305,7 @@ test.describe('a drop of several pictures in a session: one command, one undo st
     expect((await session.assets.listPaths()).length).toBe(2);
     expect(session.newestUndoGroupId()).not.toBeNull();
 
-    expect(await session.undoLast()).toBe(true);
+    expect(await session.undoLast()).toEqual({ kind: 'done' });
     expect(imageOf(state, FERRY)).toBeUndefined();
     expect(imageOf(state, SHOT)).toBeUndefined();
     // Two pictures were one group: the one Undo left none.

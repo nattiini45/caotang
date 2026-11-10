@@ -33,8 +33,8 @@ describe('eval 1 — pin lifecycle', () => {
     const { client } = await openClient({ connect: [STORY_KEY] });
     expect(client.healthOf(STORY_KEY)).toMatchObject({ state: 'connected', pendingReview: true });
     expect(client.describe(STORY_KEY, 'lore_lookup')).toMatchObject({ pinState: 'new', effectiveRisk: 'write-confirm' });
-    expect(client.setTrustReads(STORY_KEY, true).ok).toBe(false);
-    client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
+    expect((await client.setTrustReads(STORY_KEY, true)).ok).toBe(false);
+    await client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
     expect(client.healthOf(STORY_KEY)).toMatchObject({ state: 'healthy', pendingReview: false });
   });
 
@@ -130,7 +130,7 @@ describe('eval 5 — a mid-session delta demotes, and nothing is adopted without
     expect(after.ok && after.value.risk).toBe('write-confirm');
 
     const card = client.review(STORY_KEY);
-    expect(client.approveReview(STORY_KEY, card?.fingerprint ?? '').ok).toBe(true);
+    expect((await client.approveReview(STORY_KEY, card?.fingerprint ?? '')).ok).toBe(true);
     expect(client.healthOf(STORY_KEY)).toMatchObject({ state: 'healthy', pendingReview: false });
     expect(saved.length).toBeGreaterThan(0);
   });

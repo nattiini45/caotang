@@ -403,6 +403,17 @@ Initial: `idle`. Final: `conflict`.
 | `writing` | `saved` | `idle` |
 | `writing` | `stop` | `conflict` |
 
+## save.channel
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `enqueue` | `writing` |
+| `idle` | `enqueue` | `writing` |
+| `writing` | `enqueue` | `writing` |
+| `writing` | `settle` | `failed`, `idle`, `writing` |
+
 ## sdk.events
 
 Initial: `open`. Final: none.

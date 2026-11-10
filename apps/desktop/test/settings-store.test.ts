@@ -73,3 +73,13 @@ it('serializes writes around a durable dismissal without losing a concurrent pre
   expect(values[1]).toMatchObject({ firstRun: { dismissed: true }, editor: { autosaveDebounceMs: 1200 } });
   expect(store.current()).toEqual(values[1]);
 });
+
+it('keeps the versionless settings record free of queue state', async () => {
+  const put = vi.fn<AppDb['put']>().mockResolvedValue(undefined);
+  const store = new SettingsStore(database(put), DEFAULT_SETTINGS);
+  await store.update({ editor: { autosaveDebounceMs: 1200 } });
+  const record = put.mock.calls[0]![1] as AppSettings;
+  expect(record).toEqual({ ...DEFAULT_SETTINGS, editor: { ...DEFAULT_SETTINGS.editor, autosaveDebounceMs: 1200 } });
+  expect(Object.keys(record)).toEqual(Object.keys(DEFAULT_SETTINGS));
+  expect(store.saveChannel.getSnapshot()).toEqual({ kind: 'idle', failure: null });
+});

@@ -65,8 +65,8 @@ async function invocation(tool: 'lore_lookup' | 'lore_update', slow: NonNullable
     ...limits,
   });
   await client.connect(STORY_KEY);
-  client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
-  client.setTrustReads(STORY_KEY, true);
+  await client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
+  await client.setTrustReads(STORY_KEY, true);
   const loaded = createLoadedTools();
   loaded.beginTurn('turn-1');
   loaded.load([qualified(STORY_KEY, tool)]);

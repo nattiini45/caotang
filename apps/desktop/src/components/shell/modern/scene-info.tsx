@@ -37,7 +37,6 @@ import { flushSync } from 'react-dom';
 
 import './scene-info.css';
 
-import { saveStateWords } from '../../../app/integrity-model.js';
 import { onInspectorRequest } from '../../../app/inspector-request.js';
 import type { InspectorGrouping } from '../../Inspector.js';
 import { TargetQuickSet } from '../../TargetQuickSet.js';
@@ -219,7 +218,7 @@ function SceneInfoPanel({
     ? cloneElement(regions.inspector, { grouping })
     : regions.inspector;
   const { progress } = regions;
-  const save = saveStateWords(progress.saveState, progress.stopCause);
+  const save = progress.saveWords;
   // The project's line (§7.1): its name, which opens Project details, as the title capsule's project name does.
   const details = regions.actions.find((action) => action.id === 'details');
 
@@ -281,7 +280,7 @@ function SceneInfoPanel({
               <Trans>Progress</Trans>
             </h3>
             <TargetQuickSet progress={progress.target} onSetTarget={progress.setTarget} />
-            <p className="scene-info-save" data-testid="scene-info-save-state" data-state={progress.saveState}>
+            <p className="scene-info-save" role="status" data-testid="scene-info-save-state" data-state={progress.saveState}>
               {save.text}
               {save.offersBackup ? (
                 <>

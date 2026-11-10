@@ -156,15 +156,12 @@ import { hostRetentionRoots } from './picture-retention-host.js';
 import { PendingJournal, type PendingFailure } from './pending-journal.js';
 import { browserStorage } from './unsent-copy.js';
 import type { TabStop } from './tab-stop.js';
+import { aggregateSaveState, channelSource, SaveChannel, type SaveChannelName, type SaveSource, type SaveState } from './save-channel.js';
+export type { SaveState } from './save-channel.js';
+
+export type SessionUndoOutcome = { readonly kind: 'done' } | { readonly kind: 'empty' } | { readonly kind: 'failed'; readonly message: string };
 
 /* lingui-set comment="Interpolated values: error, reason, title" */
-
-/**
- * Whether every change has reached the store (`saved`), is on its way (`saving`), failed (`failed`: retried by the next
- * change), or was refused because another tab stored newer text (`conflict`: this session never writes again, see
- * persistence.ts).
- */
-export type SaveState = 'saved' | 'saving' | 'failed' | 'conflict';
 
 /** A dispatch that returned an error: the command, who issued it, and the error's code. */
 export interface RejectedDispatch {
@@ -253,6 +250,7 @@ export interface CoherenceStatus {
 }
 
 export interface SessionOptions {
+  readonly saveChannels?: readonly SaveChannel[];
   readonly store: RuntimeStore;
   readonly projectId: string;
   readonly state: ProjectState;
@@ -420,8 +418,6 @@ export class ProjectSession {
   private maintenanceFailure: unknown = null;
   private closing: Promise<void> | null = null;
   private version = 0;
-  /** Why the last undo did not fully succeed, or was refused, for the status line. */
-  private lastUndoMessage: string | null = null;
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
   private coherencePort: CoherencePort | null = null;
@@ -431,8 +427,6 @@ export class ProjectSession {
   private detachTasks: (() => void) | null = null;
   private coherenceWritable = false;
   private coherenceNotices: readonly string[] = [];
-  /** Why the last findings save to this browser failed. The save indicator reads failed while it is set. */
-  private coherenceFailure: string | null = null;
   /**
    * Why the last write of the findings into a folder the project was saved to failed. The browser's copy is unaffected, so this
    * is shown on the findings tab but does not make the save indicator read failed.
@@ -440,10 +434,9 @@ export class ProjectSession {
   private coherenceFolderFailure: string | null = null;
   /** The file as it was last queued for saving, as text: a save is queued only when the file has changed from it. */
   private coherenceQueued: string | null = null;
-  /** Saves run one after another, so two writes never race on the rotation of the snapshots. */
-  private coherenceQueue: Promise<void> = Promise.resolve();
-  /** The findings writes queued or running. The save indicator reads saving while any is, since the store does not hold them until they land. */
-  private coherenceInFlight = 0;
+  private readonly coherenceSaves = new SaveChannel('findings');
+  private readonly appSaveChannels: readonly SaveChannel[];
+  private readonly detachSaveChannels: (() => void)[];
   /** Lets go of the lifecycle signals the pending journal is written on (see the constructor). */
   private detachPendingKeep: () => void = () => undefined;
   /** Lets go of the lifecycle signals the findings file is flushed on (see the constructor). */
@@ -465,6 +458,8 @@ export class ProjectSession {
   private readonly appRules: () => readonly PermissionRule[];
 
   constructor(options: SessionOptions) {
+    this.appSaveChannels = options.saveChannels ?? [];
+    this.detachSaveChannels = [this.coherenceSaves, ...this.appSaveChannels].map((channel) => channel.subscribe(() => this.bump()));
     this.appRules = options.appRules ?? (() => []);
     this.projectId = options.projectId;
     this.state = options.state;
@@ -1488,11 +1483,10 @@ export class ProjectSession {
    * Undo the most recent group. Pending typing is saved first, so it becomes a group of its own and is undone in its turn
    * rather than being silently discarded.
    */
-  async undoLast(): Promise<boolean> {
+  async undoLast(): Promise<SessionUndoOutcome> {
     await this.autosave.flush();
-    this.lastUndoMessage = null;
     const newest = this.newestUndoGroupId();
-    if (newest === null) return false;
+    if (newest === null) return { kind: 'empty' };
     return this.undoNow(newest);
   }
 
@@ -1503,16 +1497,13 @@ export class ProjectSession {
    * Pending typing is saved first, as for `undoLast`, and that save can itself be the newest group. A group that has already
    * been undone is not there to undo. A turn's checkpoint is not undone here: `restoreBefore` takes it back.
    */
-  async undoGroup(id: string): Promise<boolean> {
+  async undoGroup(id: string): Promise<SessionUndoOutcome> {
     await this.autosave.flush();
-    this.lastUndoMessage = null;
     if (this.undo.group(id) === undefined) {
-      this.lastUndoMessage = alreadyUndone();
-      return false;
+      return { kind: 'failed', message: alreadyUndone() };
     }
     if (this.newestUndoGroupId() !== id) {
-      this.lastUndoMessage = laterChangesFirst();
-      return false;
+      return { kind: 'failed', message: laterChangesFirst() };
     }
     return this.undoNow(id);
   }
@@ -1530,7 +1521,6 @@ export class ProjectSession {
    */
   async restoreBefore(id: string, step?: () => Result<UndoOutcome, CommandError>): Promise<RestoreResult> {
     await this.autosave.flush();
-    this.lastUndoMessage = null;
     const groups = this.undo.groups();
     const at = groups.findIndex((group) => group.id === id);
     if (at === -1) return { ok: false, message: alreadyUndone(), undone: [] };
@@ -1538,8 +1528,8 @@ export class ProjectSession {
     for (const group of groups.slice(at).reverse()) {
       const held = this.undo.group(group.id)?.entries.length ?? 0;
       const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
-      if (!taken) {
-        const reason = this.lastUndoMessage ?? t`a change could not be taken back`;
+      if (taken.kind !== 'done') {
+        const reason = taken.kind === 'failed' ? taken.message : t`a change could not be taken back`;
         const own = step !== undefined && group.id === id;
         // A group that fails keeps only what failed, so one that lost entries had part of it taken back, whatever `undone` holds.
         const partly = (this.undo.group(group.id)?.entries.length ?? 0) < held;
@@ -1594,7 +1584,6 @@ export class ProjectSession {
    */
   async restoreExact(id: string, fromCallId?: string): Promise<RestoreResult & { readonly kept: number }> {
     await this.autosave.flush();
-    this.lastUndoMessage = null;
     const plan = this.planNow(id, fromCallId);
     if (plan.kind !== 'exact') {
       const unsaved = this.autosave.dirtyDocIds().length > 0;
@@ -1610,8 +1599,8 @@ export class ProjectSession {
     // Counted here, after the flush has saved any pending typing as a group of its own and before a whole-turn restore takes the group off the stack.
     const kept = this.laterChangesAfter(id).length;
     const taken = fromCallId === undefined ? this.undoNow(id) : this.settleUndo(this.undo.undoFrom(id, fromCallId));
-    if (!taken) {
-      const reason = this.lastUndoMessage ?? 'a change could not be taken back';
+    if (taken.kind !== 'done') {
+      const reason = taken.kind === 'failed' ? taken.message : 'a change could not be taken back';
       return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [], kept: 0 };
     }
     return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [], kept };
@@ -1664,29 +1653,22 @@ export class ProjectSession {
     this.setAgentRules(this.agentRules().filter((_, at) => at !== index));
   }
 
-  private undoNow(id: string): boolean {
+  private undoNow(id: string): SessionUndoOutcome {
     return this.settleUndo(this.undo.undo(id));
   }
 
   /** What follows an undo of any kind: stored text moved, so the session's own-write record is cleared, and the change is saved. */
-  private settleUndo(outcome: Result<UndoOutcome, CommandError>): boolean {
+  private settleUndo(outcome: Result<UndoOutcome, CommandError>): SessionUndoOutcome {
     // An undo moves stored text without going through `writeDocument`, so no write this session made describes the
     // stored body any more. The editor's own-write test must not match one of them against the undone text (EditorPane).
     this.written.clear();
     this.persistence.schedule();
     this.bump();
     if (!outcome.ok) {
-      this.lastUndoMessage = outcome.error.message;
-      return false;
+      return { kind: 'failed', message: outcome.error.message };
     }
     const failed = outcome.value.failures[0];
-    this.lastUndoMessage = failed ? failed.message : null;
-    return outcome.value.failures.length === 0;
-  }
-
-  /** Why the last undo did not fully succeed, or was refused; `null` when it did, or none has run. */
-  undoErrorMessage(): string | null {
-    return this.lastUndoMessage;
+    return failed === undefined ? { kind: 'done' } : { kind: 'failed', message: failed.message };
   }
 
   /* ------------------------------------------------------------------ *
@@ -1741,8 +1723,8 @@ export class ProjectSession {
       attached: this.state.coherence !== undefined,
       writable: this.coherenceWritable,
       notices: this.coherenceNotices,
-      saveFailure: this.coherenceFailure ?? this.coherenceFolderFailure,
-      canRetrySave: this.coherenceFailure !== null && !this.persistence.isStopped(),
+      saveFailure: this.coherenceSaves.getSnapshot().failure ?? this.coherenceFolderFailure,
+      canRetrySave: this.coherenceSaves.getSnapshot().failure !== null && !this.persistence.isStopped(),
     };
   }
 
@@ -1759,45 +1741,25 @@ export class ProjectSession {
     const signature = JSON.stringify(this.state.coherence);
     if (signature === this.coherenceQueued) return;
     this.coherenceQueued = signature;
-    void this.chainCoherenceWrite(async () => {
+    void this.coherenceSaves.enqueue(async () => {
       const file = this.coherenceFile();
-      if (file === undefined) return;
+      if (file === undefined) return null;
       try {
         await port.save(file);
-        this.coherenceFailure = null;
+        return null;
       } catch (error) {
         if (error instanceof CoherenceFolderError) {
           // The browser's copy was saved; the folder's was not, and the findings tab says why.
-          this.coherenceFailure = null;
           this.coherenceFolderFailure = t`Your findings could not be saved to the folder: ${{ error: error.message }}`;
           if (this.coherenceQueued === signature) this.coherenceQueued = null;
-          return;
+          return null;
         }
         const message = error instanceof Error ? error.message : String(error);
-        this.coherenceFailure = t`Your findings could not be saved in this browser: ${{ error: message }}`;
         // Unless a newer file has been queued behind this one, the next change queues this file again.
         if (this.coherenceQueued === signature) this.coherenceQueued = null;
+        return t`Your findings could not be saved in this browser: ${{ error: message }}`;
       }
     });
-  }
-
-  /**
-   * Chains one findings write behind the writes before it. The write counts as in flight until it has settled, and the save
-   * indicator reads saving meanwhile: the indicator is the store's, and a findings write is not in the store until it lands, so
-   * a reload begun when the indicator read saved could lose it. `write` never throws; a failure is kept in `coherenceFailure`.
-   */
-  private chainCoherenceWrite(write: () => Promise<void>): Promise<void> {
-    this.coherenceInFlight += 1;
-    const next = this.coherenceQueue.then(async () => {
-      try {
-        await write();
-      } finally {
-        this.coherenceInFlight -= 1;
-        this.bump();
-      }
-    });
-    this.coherenceQueue = next;
-    return next;
   }
 
   /**
@@ -1866,9 +1828,9 @@ export class ProjectSession {
     if (this.persistence.isStopped()) return;
     const port = this.coherencePort;
     if (port === null || this.state.coherence === undefined || !this.coherenceWritable) return;
-    const attached = this.chainCoherenceWrite(async () => {
+    const attached = this.coherenceSaves.enqueue(async () => {
       const file = this.coherenceFile();
-      if (file === undefined) return;
+      if (file === undefined) return null;
       try {
         await port.attachFolder(root, file);
         this.coherenceFolderFailure = null;
@@ -1876,6 +1838,7 @@ export class ProjectSession {
         const message = error instanceof Error ? error.message : String(error);
         this.coherenceFolderFailure = t`Your findings could not be saved to the folder: ${{ error: message }}`;
       }
+      return this.coherenceSaves.getSnapshot().failure;
     });
     await attached;
   }
@@ -1886,14 +1849,21 @@ export class ProjectSession {
 
   /** Whether every change has reached the store, is on its way, failed, or was refused for newer text in another tab. */
   saveState(): SaveState {
-    if (this.persistence.getStatus() === 'conflict') return 'conflict';
-    if (this.persistence.getStatus() === 'failed') return 'failed';
-    if (this.coherenceFailure !== null) return 'failed';
-    if (this.persistence.getStatus() === 'writing') return 'saving';
-    if (this.autosave.dirtyDocIds().length > 0) return 'saving';
-    if (this.coherenceInFlight > 0) return 'saving';
-    if (this.tasksHome_?.pending() === true) return 'saving';
-    return 'saved';
+    return aggregateSaveState(this.saveSources());
+  }
+
+  failedSaveChannels(): readonly SaveChannelName[] {
+    return this.saveSources().flatMap((source) => source.state === 'failed' && source.channel !== undefined ? [source.channel] : []);
+  }
+
+  private saveSources(): readonly SaveSource[] {
+    const status = this.persistence.getStatus();
+    const documentConflict = [...this.state.documents.keys()].some((id) => this.autosave.status(id).lastError instanceof RevisionConflictError);
+    return [
+      { state: status === 'idle' ? 'saved' : status === 'writing' ? 'saving' : status, channel: 'project' },
+      { state: documentConflict ? 'failed' : this.autosave.dirtyDocIds().length > 0 ? 'saving' : 'saved', channel: 'documents' },
+      ...[this.coherenceSaves, ...(this.tasksHome_ === null ? [] : [this.tasksHome_.saveChannel]), ...this.appSaveChannels].map(channelSource),
+    ];
   }
 
   /** The runtime store this project lives in: the agent's run log is kept beside it (agent-harness §5.1). */
@@ -1908,6 +1878,9 @@ export class ProjectSession {
   async saved(): Promise<void> {
     await this.autosave.flush();
     await this.persistence.settle();
+    await this.coherenceSaves.settled();
+    await this.tasksHome_?.settled();
+    await Promise.all(this.appSaveChannels.map((channel) => channel.settled()));
     const state = this.saveState();
     if (state === 'failed' || state === 'conflict') throw new Error('the project could not be saved');
   }
@@ -1919,8 +1892,9 @@ export class ProjectSession {
     await this.checkImageReferences();
     await this.autosave.flush();
     await this.persistence.settle();
-    await this.coherenceQueue;
+    await this.coherenceSaves.settled();
     await this.tasksHome_?.settled();
+    await Promise.all(this.appSaveChannels.map((channel) => channel.settled()));
   }
 
   /**
@@ -2087,8 +2061,9 @@ export class ProjectSession {
         this.harnessRuntime?.imageStager.releaseAll();
         await this.autosave.flush();
         await this.persistence.settle();
-        await this.coherenceQueue;
+        await this.coherenceSaves.settled();
         await this.tasksHome_?.settled();
+        for (const detach of this.detachSaveChannels) detach();
         this.detachTasks?.();
         this.detachTasks = null;
         this.pending.prune();

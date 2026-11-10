@@ -75,7 +75,7 @@ test('two tasks saves in a row read saving until the second has landed', async (
   await session.close();
 });
 
-test('a tasks save that cannot be made leaves the indicator reading saved', async () => {
+test('a tasks save that cannot be made leaves the indicator reading failed', async () => {
   const state = project();
   const store = await openRuntimeStore(new MemoryIndexedDb());
   await writeProjectState(store, state);
@@ -87,5 +87,6 @@ test('a tasks save that cannot be made leaves the indicator reading saved', asyn
   const failure = await home.save({ formatVersion: 1, tasks: [TASK] });
   expect(failure).not.toBeNull();
   expect(home.pending()).toBe(false);
+  expect(session.saveState()).toBe('failed');
   await session.close().catch(() => undefined);
 });

@@ -13,7 +13,7 @@ async function setup(answer: () => Promise<WirePromptResult> = async () => ANSWE
   wire.getPrompt = answer;
   const client = createMcpClient({ settings: { enabled: true, servers: [serverFor(STORY_KEY, 'Story Bible')] }, wire: () => wire });
   await client.connect(STORY_KEY);
-  if (approve) client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
+  if (approve) await client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
   return { client, script, wire, transport: createMcpTransport(client) };
 }
 
@@ -39,7 +39,7 @@ async function sdkSetup() {
   };
   const client = createMcpClient({ settings: { enabled: true, servers: [serverFor(STORY_KEY)] }, fetch, probe: async () => false });
   await client.connect(STORY_KEY);
-  expect(client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '').ok).toBe(true);
+  expect((await client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '')).ok).toBe(true);
   return { client, state, methods, transport: createMcpTransport(client) };
 }
 
@@ -164,7 +164,7 @@ describe('reviewed prompt transport', () => {
     let current = original;
     const client = createMcpClient({ settings: { enabled: true, servers: [serverFor(STORY_KEY)] }, wire: () => current });
     await client.connect(STORY_KEY);
-    expect(client.approveReview(STORY_KEY, client.review(STORY_KEY)!.fingerprint).ok).toBe(true);
+    expect((await client.approveReview(STORY_KEY, client.review(STORY_KEY)!.fingerprint)).ok).toBe(true);
     let started!: () => void;
     const listingStarted = new Promise<void>((resolve) => { started = resolve; });
     let release!: () => void;
@@ -194,7 +194,7 @@ describe('reviewed prompt transport', () => {
       } else await client.disconnect(STORY_KEY);
       await client.connect(STORY_KEY);
     }
-    expect(client.approveReview(STORY_KEY, client.review(STORY_KEY)!.fingerprint).ok).toBe(true);
+    expect((await client.approveReview(STORY_KEY, client.review(STORY_KEY)!.fingerprint)).ok).toBe(true);
     const refused = expect(read).rejects.toMatchObject({ error: { code: 'pin_mismatch' } });
     release();
     await refused;
@@ -272,7 +272,7 @@ describe('reviewed prompt transport', () => {
     if (change === 'review') {
       script.prompts = [{ ...PROMPT, description: 'changed' }];
       await client.refreshCatalog(STORY_KEY);
-      client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
+      await client.approveReview(STORY_KEY, client.review(STORY_KEY)?.fingerprint ?? '');
     } else if (change === 'disabled') {
       await client.setMasterEnabled(false);
     } else if (change === 'server-disabled') await client.updateServer(STORY_KEY, { enabled: false });

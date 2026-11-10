@@ -62,7 +62,7 @@ async function opened(respond: FixtureState['respond'], revisions?: readonly str
     now: () => FIXED_NOW,
   });
   await client.connect(KEY);
-  client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
+  await client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
   vi.useFakeTimers();
   return { client, server };
 }

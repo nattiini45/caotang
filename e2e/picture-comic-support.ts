@@ -59,5 +59,6 @@ export async function germanComic(page: Page): Promise<void> {
   await expect(page.locator('html')).toHaveAttribute('lang', 'de');
   await page.keyboard.press('Escape');
   await expect(settings).toBeHidden();
+  await waitForSaved(page);
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 }
