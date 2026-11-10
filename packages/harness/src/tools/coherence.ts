@@ -323,7 +323,7 @@ export function coherenceAsyncPorts(clock: () => number, source: CoherenceSource
       state: context.state,
       file: heldFile(context.state),
       now: new Date(clock()),
-      model,
+      model: { model: model.model, complete: (request) => model.complete({ ...request, turnId: context.turnId }) },
       ...(source.review === undefined ? {} : { review: source.review(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld)) }),
       ...(excludedBy(context.withheld) === undefined ? {} : { isExcluded: excludedBy(context.withheld) }),
       currentFile: () => heldFile(context.state),

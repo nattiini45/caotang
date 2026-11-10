@@ -163,6 +163,40 @@ test('a reload restores the profiles under the same ids, the active one, its pro
   expect(second.service.requests.entries()).toEqual(requests);
 });
 
+test('turn accounting is saved after each call and survives reload beyond the former cap', async () => {
+  const db = memoryDb();
+  const { service } = await ProviderService.open({ db, vault: null });
+  for (let i = 0; i < 205; i += 1) service.gateway.accountTokens(
+    { promptTokens: 10, completionTokens: 5 },
+    { profileId: service.active()!.id, model: 'mock/echo-1', turnId: `turn-${i}`, sessionId: 'session', role: 'drafting', pricePer1k: { prompt: 1, completion: 2 } },
+  );
+  await service.saves.settled();
+  const reopened = await ProviderService.open({ db, vault: null });
+  expect(reopened.notices).toEqual([]);
+  expect(reopened.service.ledger.snapshot()).toEqual(service.ledger.snapshot());
+  expect(reopened.service.ledger.turnRows()).toHaveLength(205);
+  expect(reopened.service.ledger.sessionTotals('session').costUsd).toBeCloseTo(4.1);
+});
+
+test('old day arrays keep their role and historical local date without repricing', async () => {
+  const db = memoryDb();
+  db.rows.set(APP_KEYS.usage, [{ date: '2020-01-01', profileId: 'old', model: 'm', role: 'background', requests: 3, promptTokens: 20, completionTokens: 4 }]);
+  const { service, notices } = await ProviderService.open({ db, vault: null });
+  expect(notices).toEqual([]);
+  expect(service.ledger.dayRows()[0]).toMatchObject({ version: 1, date: '2020-01-01', role: 'background', requests: 3, unpricedRequests: 3 });
+  expect(service.ledger.dayRows()[0]?.costUsd).toBeUndefined();
+});
+
+test('a future ledger is refused with a notice and never overwritten by provider saves', async () => {
+  const db = memoryDb();
+  const future = { version: 999, days: [{ future: 'data' }], turns: [] };
+  db.rows.set(APP_KEYS.usage, future);
+  const { service, notices } = await ProviderService.open({ db, vault: null });
+  expect(notices.some((notice) => notice.includes('Unsupported usage ledger version'))).toBe(true);
+  expect(await service.persist()).not.toBeNull();
+  expect(db.rows.get(APP_KEYS.usage)).toEqual(future);
+});
+
 test('a key that is no longer in the vault is named, and its profile is not restored with a broken key', async () => {
   const db = memoryDb();
   const remote = 'https://api.example.test/v1';

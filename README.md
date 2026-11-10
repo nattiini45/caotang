@@ -174,6 +174,8 @@ On phones, Home shows existing projects first visually and Settings' sections sc
 
 ## Your key and your privacy
 
+Usage accounting is stored in this browser, including day and turn detail across reloads. It records token counts and costs at each call's prices, not prompts or replies, and clearing the app's browser data removes it. It is separate from the project's files and the in-memory agent Trace.
+
 - **Bring your own key.** Add a provider in **Settings › Providers**: pick a preset (its address and authentication are filled in) or a generic endpoint of your own, choose a model, and paste the key. When you save, Caotang lists the provider's models to check it works.
 - **Your key stays in this browser.** It is sealed with a key the page cannot export, and it is never written into a project file. Sealing keeps a stored key from being read out of storage. It does not protect against code running in the page while Caotang is open.
 - **Requests go to the provider you chose.** The agent sends requests only to the endpoint of the profile each task role resolves to. A local model preset (Ollama, LM Studio, llama.cpp) talks to a server on your own computer, over plain http at a loopback address only, so the text stays on the machine; every other provider needs https. The built-in demo provider makes no network request at all.

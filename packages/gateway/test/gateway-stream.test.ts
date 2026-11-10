@@ -96,6 +96,70 @@ describe('complete() — the happy path', () => {
     });
   });
 
+  it('includes streamed reasoning in fallback output counts and the recorded cost without double-counting it', async () => {
+    const reasoning = { choices: [{ delta: { reasoning_content: 'abcdefgh' } }] };
+    const h = harness({ net: new ScriptedFetch().push(() => sseResponse([reasoning, delta('ijkl'), finish('stop'), '[DONE]'])) });
+    await addEndpoint(h, { pricePer1k: { prompt: 1, completion: 2 } });
+    const { chunks } = await collect(h.gateway.complete({ ...userMessage('x'), turnId: 't' }));
+    expect(chunks.at(-1)?.usage).toEqual({ promptTokens: 1, completionTokens: 3, reasoningTokens: 2 });
+    expect(h.gateway.ledger.turnTotals('t')).toMatchObject({ completionTokens: 3, reasoningTokens: 2, estimatedRequests: 1, costUsd: 0.007 });
+  });
+
+  it('keeps reported usage authoritative when the stream also contains reasoning', async () => {
+    const reasoning = { choices: [{ delta: { reasoning_content: 'abcdefgh' } }] };
+    const h = harness({ net: new ScriptedFetch().push(() => sseResponse([
+      reasoning, delta('ijkl'), {
+        choices: [{ delta: {}, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, completion_tokens_details: { reasoning_tokens: 3 } },
+      }, '[DONE]',
+    ])) });
+    await addEndpoint(h);
+    await collect(h.gateway.complete({ ...userMessage('x'), turnId: 't' }));
+    expect(h.gateway.ledger.turnTotals('t')).toMatchObject({ promptTokens: 10, completionTokens: 5, reasoningTokens: 3, estimatedRequests: 0 });
+  });
+
+  for (const ending of ['cancelled', 'failed', 'abandoned'] as const) {
+    it(`counts reasoning-only output when the consumer is ${ending} before visible text arrives`, async () => {
+      const body = openSse();
+      const h = harness({ net: new ScriptedFetch().push(() => body.response) });
+      await addEndpoint(h, { pricePer1k: { prompt: 1, completion: 2 } });
+      const controller = new AbortController();
+      const iterator = h.gateway.complete({ ...userMessage('x'), turnId: 't' }, controller.signal)[Symbol.asyncIterator]();
+      const first = iterator.next();
+      await flush();
+      body.event({ choices: [{ delta: { reasoning_content: 'abcdefgh' } }] });
+      expect((await first).value).toEqual({ reasoningDelta: 'abcdefgh' });
+      if (ending === 'cancelled') {
+        controller.abort();
+        expect((await iterator.next()).value?.usage).toEqual({ promptTokens: 1, completionTokens: 2, reasoningTokens: 2 });
+        await iterator.next();
+      } else if (ending === 'failed') {
+        body.fail(new Error('connection lost'));
+        await expect(iterator.next()).rejects.toThrow();
+      } else {
+        await iterator.return?.(undefined);
+      }
+      expect(h.net.calls).toHaveLength(1);
+      expect(h.gateway.ledger.turnTotals('t')).toMatchObject({ completionTokens: 2, reasoningTokens: 2, estimatedRequests: 1, costUsd: 0.005 });
+    });
+  }
+
+  it('refreshes estimated output when the consumer abandons reasoning after an earlier retry', async () => {
+    const body = openSse();
+    const h = harness({ net: new ScriptedFetch().push(() => new Response('retry', { status: 500 }), () => body.response) });
+    await addEndpoint(h, { pricePer1k: { prompt: 1, completion: 2 } });
+    const iterator = h.gateway.complete({ ...userMessage('x'), turnId: 't' })[Symbol.asyncIterator]();
+    const first = iterator.next();
+    await flush();
+    h.clock.advance(1_000);
+    await flush();
+    body.event({ choices: [{ delta: { reasoning_content: 'abcdefgh' } }] });
+    expect((await first).value).toEqual({ reasoningDelta: 'abcdefgh' });
+    await iterator.return?.(undefined);
+    expect(h.net.calls).toHaveLength(2);
+    expect(h.gateway.ledger.turnTotals('t')).toMatchObject({ completionTokens: 2, reasoningTokens: 2, requests: 2, estimatedRequests: 1, unpricedRequests: 1, costUsd: 0.005 });
+  });
+
   it('treats [DONE] without a finish reason as a normal stop', async () => {
     const h = harness({ net: new ScriptedFetch().push(() => sseResponse([delta('ok'), '[DONE]'])) });
     await addEndpoint(h);

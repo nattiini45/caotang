@@ -531,7 +531,9 @@ Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen be
 - **Zurück zu Klassisch.** **Klassische Oberfläche verwenden** unter **⋯ › Darstellung**, **Zur klassischen Oberfläche wechseln** in der Suche oder **Klassisch** unter Einstellungen › Erscheinungsbild › Oberfläche wechselt sofort zurück, und Caotang merkt sich die Wahl in diesem Browser. Der Code von Modern wird nur geladen, solange Modern an ist; Klassisch lädt nichts zusätzlich.
 
 ## Einstellungen
-<!-- source: e542298f -->
+<!-- source: ceaccf06 -->
+
+Die Nutzungsdaten der Anbieter bleiben lokal in diesem Browser erhalten, einschließlich Tages- und Durchlaufdetails über ein Neuladen hinweg. Wenn Sie die Browserdaten der App löschen, wird auch dieser Verlauf gelöscht; er gehört nicht zum Projektpaket. Aufgezeichnete Aufrufkosten ändern sich nicht, wenn Sie einen Anbieterpreis bearbeiten. Es sind Schätzwerte zur Information, nicht die Rechnung des Anbieters.
 
 Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat zehn Abschnitte: Anbieter, Kontext, Agent, Makros, Hooks, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
 

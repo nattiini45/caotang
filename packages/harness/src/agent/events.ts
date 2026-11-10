@@ -9,6 +9,7 @@
 import type { CommandError } from '@caotang/bus';
 
 import type { LayerReport } from '@caotang/context';
+import type { TurnUsageRow } from '@caotang/gateway';
 
 import type { HookRun } from '../hooks.js';
 import type { AskBack, PlanStep } from '../plan.js';
@@ -88,6 +89,8 @@ export interface TurnReport {
   readonly askBack?: AskBack;
   /** Tokens this turn spent, read from the gateway's per-turn ledger rows (provider-gateway §6). */
   readonly tokens: { readonly promptTokens: number; readonly completionTokens: number; readonly requests: number };
+  readonly usage?: readonly Readonly<TurnUsageRow>[];
+  readonly costUsd?: number;
   /** What the context assembly left out of the prompt, and why (context-assembly §5). */
   readonly dropped: readonly string[];
   /** The model calls the turn made, in order, including retries. */

@@ -295,7 +295,7 @@ describe('the mock provider keeps its own ledger (accountTokens hook)', () => {
     const mock = createMockProvider();
     mock.accountTokens({ promptTokens: 4, completionTokens: 2 }, { profileId: 'mock', model: 'mock/echo-1' });
     expect(mock.ledger.dayRows()).toEqual([
-      { date: localDayKey(0), profileId: 'mock', model: 'mock/echo-1', role: 'chat', promptTokens: 4, completionTokens: 2, requests: 1 },
+      { version: 1, date: localDayKey(0), profileId: 'mock', model: 'mock/echo-1', role: 'chat', promptTokens: 4, completionTokens: 2, requests: 1, cachedPromptTokens: 0, cacheWritePromptTokens: 0, reasoningTokens: 0, estimatedRequests: 0, unpricedRequests: 1, providerCostRequests: 0 },
     ]);
   });
 });

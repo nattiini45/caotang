@@ -655,6 +655,8 @@ The title starts with the open document's type icon. A screenplay's **Script · 
 
 ## Settings
 
+Provider usage accounting is kept locally in this browser, including day and turn detail across reloads. Clearing the app's browser data removes that history; it is not part of a project bundle. Recorded call costs do not change when you edit a provider price, and they are display estimates, not the provider's bill.
+
 Choose **Settings** on the projects screen or in the toolbar. It has ten sections: Providers, Context, Agent, Macros, Hooks, Writing, Coherence, MCP & tools, Appearance and Data.
 
 Numbers, dates and times follow the interface language (see **Appearance**), with your system's region where it fits: in an English interface on a British system a goal's date reads "31 Oct 2026", on an American one "Oct 31, 2026", and an English interface on a system set to another language gets US English. Codex names, characters and keywords are listed in the order of the project's language (Project details), ignoring capitals and accents and reading numbers by value, so "Chapter 9" comes before "Chapter 10" and a Swedish project lists Å after Z.

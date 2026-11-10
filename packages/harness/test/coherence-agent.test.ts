@@ -153,6 +153,7 @@ describe('coherence.review as an async port (coherence.md §5.3, §7 tool 16)', 
     if (!outcome.ok) return;
     expect(outcome.value.summary).toMatch(/^Review /);
     expect(calls).toHaveLength(1);
+    expect(calls[0]?.turnId).toBe(APPROVED.turnId);
     expect(harness.state.coherence?.runs).toHaveLength(1);
     expect(harness.log.entries().some((entry) => entry.command === 'coherence.review')).toBe(true);
   });

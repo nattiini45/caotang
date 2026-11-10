@@ -351,6 +351,17 @@ describe('openai-chat stream parsing', () => {
     expect(pieces).toEqual([{ usage: { promptTokens: 7, completionTokens: 3 } }]);
   });
 
+  it('keeps a finite provider-reported cost, including zero, without accepting invalid cost values', () => {
+    for (const cost of [0, 0.0123]) {
+      expect(parseStream(frame({ choices: [], usage: { prompt_tokens: 7, completion_tokens: 3, cost } })).pieces).toEqual([
+        { usage: { promptTokens: 7, completionTokens: 3, providerCostUsd: cost } },
+      ]);
+    }
+    expect(parseStream(frame({ choices: [], usage: { prompt_tokens: 7, completion_tokens: 3, cost: -1 } })).pieces).toEqual([
+      { usage: { promptTokens: 7, completionTokens: 3 } },
+    ]);
+  });
+
   it('treats a negative or infinite usage figure as no usage', () => {
     expect(parseStream(frame({ choices: [], usage: { prompt_tokens: -1, completion_tokens: 3 } })).pieces).toEqual([]);
     // JSON.parse turns 1e999 into Infinity.

@@ -148,6 +148,7 @@ test('a review made outside a turn lands in the reviews group, beside the turns'
   expect((reviews[0] as { turnId?: string }).turnId).toBeUndefined();
   expect(reviews[1]).toMatchObject({ 'gen_ai.response.finish_reasons': ['error'], error: { kind: expect.any(String) } });
   expect(turnTimeline(providers.trace.store, TRACE_REVIEWS).reviews).toBe(true);
+  expect(providers.ledger.turnRows().filter((row) => row.turnId.startsWith('review-'))).toHaveLength(1);
   await session.close();
 });
 

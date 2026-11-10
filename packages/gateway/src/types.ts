@@ -268,6 +268,15 @@ export interface Usage {
   cacheWritePromptTokens?: number;
   /** The part of `completionTokens` spent on reasoning. */
   reasoningTokens?: number;
+  source?: 'provider' | 'estimate';
+  providerCostUsd?: number;
+}
+
+export interface TokenPrice {
+  readonly prompt: number;
+  readonly completion: number;
+  readonly cachedPrompt?: number;
+  readonly cacheWritePrompt?: number;
 }
 
 /**
@@ -348,7 +357,7 @@ export interface ModelLimits {
  * reserving a real request passes the same fields the request will send, so `thinkingTokens` is the excess that
  * request's transmitted cap carries on the route it is sent through.
  */
-export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role'>;
+export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasoningBudget' | 'role' | 'cache'>;
 
 export interface ChatRequest {
   messages: ChatMessage[];
@@ -379,6 +388,8 @@ export interface ChatRequest {
   cache?: CachePolicy;
   /** the agent turn this request belongs to; keys the per-turn ledger row (§6) */
   turnId?: string;
+  usageTurnId?: string;
+  sessionId?: string;
   /** the task role this request runs under; recorded on the ledger row (§6) */
   role?: TaskRole;
   /**
@@ -451,6 +462,8 @@ export interface UsageAttribution {
   profileId: string;
   model: string;
   turnId?: string;
+  sessionId?: string;
+  pricePer1k?: TokenPrice;
   /** the delegated agent inside the turn that made the request, when one did (§6) */
   agentPath?: string;
   /** the task role the usage ran under, for per-role accounting (§6) */

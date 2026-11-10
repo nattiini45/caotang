@@ -35,6 +35,7 @@ export type {
   ModelCaps,
   RequestParams,
   Usage,
+  TokenPrice,
   ModelInfo,
   ModelLimits,
   ModelLimitsRequest,
@@ -133,7 +134,8 @@ export type {
 export {
   UsageLedger,
   localDayKey,
-  MAX_TURN_ROWS,
+  USAGE_LEDGER_VERSION,
+  costOf,
   type DayUsageRow,
   type TurnUsageRow,
   type UsageTotals,
