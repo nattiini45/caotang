@@ -11,10 +11,6 @@
           "hash": "f1aa6a0d",
           "anchor": "projekte"
         },
-        "the-binder": {
-          "hash": "dc935607",
-          "anchor": "der-binder"
-        },
         "filter-the-binder": {
           "hash": "6cf0e455",
           "anchor": "den-binder-filtern"
@@ -98,10 +94,6 @@
         "macros": {
           "hash": "ab9a11a2",
           "anchor": "makros"
-        },
-        "export": {
-          "hash": "8803ecec",
-          "anchor": "export"
         },
         "using-caotang-on-a-phone-or-tablet": {
           "hash": "34b31ae7",

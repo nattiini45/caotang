@@ -22,6 +22,8 @@ Classic's toolbar grows with its action rows whenever translated labels need to 
 
 ## 1. Component topology (v0.1 layout)
 
+The Export dialog publishes its compile phase as `data-state` (`idle`, `running`, `failed`) and its readiness phase as `data-preview-state` (`waiting`, `ready`, `failed`). Escape and Cancel use the same running guard: neither dismisses a compile in progress. A refusal or write failure stays inside the dialog beside Compile, and the next compile retries readiness instead of retaining a failed preview. Readiness answers are numbered so an earlier check cannot replace a newer result. These phases are in memory only; the recipes, compile commands and exported file formats do not change. The tables and reducer tests are registered in [state-machines.md](state-machines.md).
+
 The shared Confirm and Choice dialogs use the same action order in Classic and Modern: **Cancel** first, then the offered actions in their given order, aligned to the trailing edge. Cancel receives initial focus and Escape cancels. The first non-danger Choice answer is the single primary; destructive answers retain their danger styling (#384, C2).
 
 ```
