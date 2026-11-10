@@ -804,11 +804,12 @@ test('usage shows recorded costs and uncertainty, reveals token subsets and expo
   const priced = usage.getByRole('row').filter({ hasText: '@SUM(A1)' });
   await expect(priced.getByTestId('usage-estimated')).toHaveText('1 request used estimated token counts.');
   await expect(usage.getByRole('row').filter({ hasText: 'unpriced' })).toContainText('No recorded cost.');
-  await expect(usage.getByRole('columnheader', { name: 'Cache reads', exact: true })).toHaveCount(0);
+  await expect(usage.locator('.usage-token-detail')).toHaveCount(0);
   await usage.getByRole('checkbox', { name: 'Show token detail' }).check();
-  await expect(usage.getByRole('columnheader', { name: 'Cache reads', exact: true })).toBeVisible();
-  await expect(priced.getByRole('cell').nth(8)).toHaveText('400');
-  await expect(priced.getByRole('cell').nth(10)).toHaveText('50');
+  const detail = usage.locator('tbody').filter({ hasText: '@SUM(A1)' }).locator('.usage-token-detail');
+  await expect(detail).toBeVisible();
+  await expect(detail.locator('div').filter({ hasText: 'Cache reads' }).getByRole('definition')).toHaveText('400');
+  await expect(detail.locator('div').filter({ hasText: 'Reasoning' }).getByRole('definition')).toHaveText('50');
   const downloadPromise = page.waitForEvent('download');
   await usage.getByRole('button', { name: 'Export usage (CSV)' }).click();
   const download = await downloadPromise;
@@ -879,7 +880,7 @@ test('the session total equals two real demo turns and a reload starts a fresh v
 });
 
 for (const locale of ['de', 'en-XA', 'ar-XB']) {
-  test(`usage stays readable in Modern at 390 px with ${locale} labels and keyboard-scrolling token detail`, async ({ page }) => {
+  test(`usage exposes every labelled value in Modern at 390 px with ${locale} and no horizontal scrolling`, async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('caotang.interface', 'modern');
       localStorage.setItem('caotang.pseudo', '1');
@@ -897,21 +898,76 @@ for (const locale of ['de', 'en-XA', 'ar-XB']) {
       await expect(checkbox).toHaveAccessibleName('Token-Details anzeigen');
       await expect(usage.getByRole('button')).toHaveText('Nutzung exportieren (CSV)');
       await expect(usage).toContainText('Bei 1 Anfrage wurden die Tokenzahlen geschätzt.');
-      await expect(usage.getByRole('cell', { name: 'Entwürfe', exact: true })).toHaveCount(1);
+      await expect(usage.getByRole('heading', { name: 'demo · Entwürfe', exact: true })).toBeVisible();
+      await expect(usage).toContainText(/0,0840\s*\$/);
     } else await expect(usage.getByRole('button')).toContainText('⟦');
-    await checkbox.check();
-    const region = usage.getByRole('region');
-    await region.focus();
-    await expect(region).toBeFocused();
-    const before = await region.evaluate((element) => element.scrollLeft);
-    await page.keyboard.press(locale === 'ar-XB' ? 'ArrowLeft' : 'ArrowRight');
-    await expect.poll(() => region.evaluate((element) => element.scrollLeft)).not.toBe(before);
-    expect(await region.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await checkbox.focus();
+    await expect(checkbox).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(checkbox).toBeChecked();
+    await expect(usage.getByRole('table')).toHaveCount(0);
+    await expect(usage.locator('.usage-records li')).toHaveCount(2);
+    for (const record of await usage.locator('.usage-records li').all()) {
+      await expect(record.locator('.usage-record-values dt')).toHaveCount(6);
+      await expect(record.locator('.usage-record-values dd').nth(2)).toHaveText('1');
+      await expect(record.locator('.usage-record-values dd').nth(3)).toHaveText('1,000'.replace(',', locale === 'de' ? '.' : ','));
+      await expect(record.locator('.usage-record-values dd').nth(4)).toHaveText('200');
+      const geometry = await record.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        return [...element.querySelectorAll('h5, dt, dd')].map((cell) => {
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          return { fits: cell.scrollWidth <= cell.clientWidth, textFits: [...range.getClientRects()].every((rect) => rect.left >= bounds.left && rect.right <= bounds.right) };
+        });
+      });
+      expect(geometry.every((cell) => cell.fits && cell.textFits), JSON.stringify(geometry)).toBe(true);
+    }
+    if (locale === 'de') {
+      const downloadPromise = page.waitForEvent('download');
+      await usage.getByRole('button').click();
+      const download = await downloadPromise;
+      const csv = readFileSync((await download.path())!, 'utf8');
+      expect(csv.split('\r\n')[1]).toMatch(/,0\.042$/);
+      expect(csv).not.toContain('0,0420');
+    }
+    expect(await usage.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     for (const button of await usage.getByRole('button').all()) {
       expect(await button.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
       const box = await button.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
     }
+  });
+}
+
+for (const locale of ['en', 'de', 'en-XA', 'ar-XB']) {
+  test(`desktop usage fits every cost and coverage note at 1280 px in ${locale}`, async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('caotang.interface', 'modern');
+      localStorage.setItem('caotang.pseudo', '1');
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedUsage(page, [usageDay({ estimatedRequests: 1, unpricedRequests: 1, requests: 2, model: 'a-very-long-model-identifier-for-wrapping-without-page-overflow' })]);
+    const settings = await openSettings(page);
+    if (locale !== 'en') {
+      await settings.locator('[data-section="appearance"]').click();
+      await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
+      await expect(page.locator('html')).toHaveAttribute('lang', locale);
+      await settings.locator('[data-section="providers"]').click();
+    }
+    const usage = page.locator('.usage');
+    await usage.getByRole('checkbox').check();
+    const table = usage.getByRole('table');
+    await table.scrollIntoViewIfNeeded();
+    const geometry = await table.evaluate((element) => {
+      const table = element.getBoundingClientRect();
+      const cost = element.querySelector('tbody tr:first-child td:nth-child(8)')!;
+      const bounds = cost.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(cost);
+      return { tableFits: element.scrollWidth <= element.clientWidth, costFits: cost.scrollWidth <= cost.clientWidth, costInside: bounds.left >= table.left && bounds.right <= table.right, textInside: [...range.getClientRects()].every((rect) => rect.left >= bounds.left && rect.right <= bounds.right) };
+    });
+    expect(geometry).toEqual({ tableFits: true, costFits: true, costInside: true, textInside: true });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }

@@ -5,8 +5,9 @@ import { groupUsage } from '../src/app/usage-model.js';
 import { usageCsv } from '../src/app/usage-export.js';
 import { activityMarkdown } from '../src/app/activity-model.js';
 import { newTurnView } from '../src/app/agent-model.js';
-import { activateEnglish } from '../src/i18n/runtime.js';
+import { activateCatalogue, activateEnglish } from '../src/i18n/runtime.js';
 import type { TurnReport } from '@caotang/harness';
+import { formatUsd } from '../src/app/plan-preview.js';
 
 const row: DayUsageRow = {
   ...sumUsage([]), version: 1, date: '2026-11-10', profileId: 'profile', model: 'model', role: 'chat',
@@ -14,6 +15,23 @@ const row: DayUsageRow = {
 };
 
 describe('the usage readers', () => {
+  it('formats USD with the interface locale while keeping four/two decimal places and the small-cost floor', () => {
+    activateEnglish();
+    expect(formatUsd(0.067, 'en-US')).toBe('$0.0670');
+    expect(formatUsd(1.5, 'en-US')).toBe('$1.50');
+    expect(formatUsd(0.00001, 'en-US')).toBe('under $0.0001');
+    expect(formatUsd(0.067, 'de-DE')).toBe('0,0670\u00a0$');
+    expect(formatUsd(1.5, 'de-DE')).toBe('1,50\u00a0$');
+    expect(formatUsd(0.00001, 'de-DE')).toBe('under 0,0001\u00a0$');
+  });
+  it('translates the small-cost floor without pinning the USD amount to English punctuation', async () => {
+    await activateCatalogue('de');
+    try {
+      expect(formatUsd(0.00001, 'de-DE')).toBe('unter 0,0001\u00a0$');
+    } finally {
+      activateEnglish();
+    }
+  });
   it('keeps recorded cost and incomplete/estimated coverage in the Activity Markdown export', () => {
     activateEnglish();
     const report: TurnReport = {

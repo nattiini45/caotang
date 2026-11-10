@@ -532,11 +532,11 @@ Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen be
 - **Zurück zu Klassisch.** **Klassische Oberfläche verwenden** unter **⋯ › Darstellung**, **Zur klassischen Oberfläche wechseln** in der Suche oder **Klassisch** unter Einstellungen › Erscheinungsbild › Oberfläche wechselt sofort zurück, und Caotang merkt sich die Wahl in diesem Browser. Der Code von Modern wird nur geladen, solange Modern an ist; Klassisch lädt nichts zusätzlich.
 
 ## Einstellungen
-<!-- source: 0165732f -->
+<!-- source: 34e8e12f -->
 
 Die Nutzungsdaten der Anbieter bleiben lokal in diesem Browser erhalten, einschließlich Tages- und Durchlaufdetails über ein Neuladen hinweg. Wenn Sie die Browserdaten der App löschen, wird auch dieser Verlauf gelöscht; er gehört nicht zum Projektpaket. Aufgezeichnete Aufrufkosten ändern sich nicht, wenn Sie einen Anbieterpreis bearbeiten. Es sind Schätzwerte zur Information, nicht die Rechnung des Anbieters.
 
-**Nutzung auf diesem Gerät** zeigt neben Anfragen und Token auch die täglichen Kosten. Geschätzte Tokenzahlen und Anfragen ohne erfasste Kosten werden genannt; eine unvollständige Kostensumme ist keine vollständige Rechnung. **Token-Details anzeigen** blendet Cache-Lese-, Cache-Schreib- und Denktoken ein, die bereits in den Eingabe- und Ausgabesummen enthalten sind. **Nutzung exportieren (CSV)** lädt alle Tageszeilen mit diesen Zählwerten und rohen USD-Kosten herunter, ohne Prompts, Antworten oder Schlüssel. Sie können die Tabelle seitlich scrollen, ohne die Seite zu verschieben.
+**Nutzung auf diesem Gerät** zeigt neben Anfragen und Token auch die täglichen Kosten. Geschätzte Tokenzahlen und Anfragen ohne erfasste Kosten werden genannt; eine unvollständige Kostensumme ist keine vollständige Rechnung. **Token-Details anzeigen** blendet Cache-Lese-, Cache-Schreib- und Denktoken ein, die bereits in den Eingabe- und Ausgabesummen enthalten sind. **Nutzung exportieren (CSV)** lädt alle Tageszeilen mit diesen Zählwerten und rohen USD-Kosten herunter, ohne Prompts, Antworten oder Schlüssel. Auf einem Smartphone zeigt jede Zeile Anfragen, Eingabe- und Ausgabetoken sowie Kosten ohne seitliches Scrollen. Geldbeträge folgen der Oberflächensprache; CSV-Werte bleiben maschinenlesbar.
 
 Wählen Sie **Einstellungen** auf dem Projektbildschirm oder in der Symbolleiste. Es hat zehn Abschnitte: Anbieter, Kontext, Agent, Makros, Hooks, Schreiben, Kohärenz, MCP & Werkzeuge, Erscheinungsbild und Daten.
 

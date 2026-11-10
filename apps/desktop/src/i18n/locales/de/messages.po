@@ -384,7 +384,7 @@ msgstr "(neu, {words} Wörter): <0/>"
 msgid "(no description from the server)"
 msgstr "(keine Beschreibung vom Server)"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "(none)"
 msgstr "(keine)"
@@ -1883,7 +1883,7 @@ msgstr "{title} wurde nach {other} in {parent} verschoben"
 msgid "{title} moved to the start of {parent}"
 msgstr "{title} wurde an den Anfang von {parent} verschoben"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "{title}, in {parent}"
 msgstr "{title}, in {parent}"
@@ -2398,7 +2398,7 @@ msgid "a document that is gone"
 msgstr "ein Dokument, das nicht mehr da ist"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/findings-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "a document that is no longer in the project"
@@ -2554,7 +2554,7 @@ msgstr "Ein Bild konnte nicht gelesen werden."
 msgid "A picture may have at most {max} tags."
 msgstr "Ein Bild darf höchstens {max} Tags haben."
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "a picture that is no longer in the project"
 msgstr "ein Bild, das nicht mehr im Projekt ist"
@@ -2758,6 +2758,7 @@ msgstr "Über"
 msgid "About {about}."
 msgstr "Über {about}."
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "About {cost}"
@@ -3281,7 +3282,7 @@ msgstr "Erlaubte Status (durch Kommas getrennt)"
 msgid "Allowed tools:"
 msgstr "Erlaubte Werkzeuge:"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Also known as"
 msgstr "Auch bekannt als"
@@ -3315,12 +3316,12 @@ msgstr "Der Alternativtext beschreibt das Bild für einen Leser, der es nicht se
 msgid "Always"
 msgstr "Immer"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Always included: this entry goes into every drafting call"
 msgstr "Immer einbezogen: Dieser Eintrag geht in jeden Entwurfsaufruf ein"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Always, in every drafting call"
 msgstr "Immer, in jedem Entwurfsaufruf"
@@ -4208,6 +4209,11 @@ msgstr "Bundle-Erinnerung"
 #: apps/desktop/src/components/InspectorGoals.tsx
 msgid "By (optional)"
 msgstr "Von (optional)"
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Cache and reasoning counts are already included in the input and output totals."
+msgstr "Cache- und Denktoken sind bereits in den Eingabe- und Ausgabesummen enthalten."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
@@ -5475,6 +5481,7 @@ msgid "Corkboard scope changed"
 msgstr "Pinnwand-Bereich geändert"
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Cost"
 msgstr "Kosten"
@@ -5556,7 +5563,7 @@ msgstr "Erstellen Sie oben eines oder bringen Sie ein Bundle ein, das Sie zuvor 
 msgid "Create project"
 msgstr "Projekt erstellen"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Created"
 msgstr "Erstellt"
@@ -5664,6 +5671,7 @@ msgstr "innerhalb der Haupthandlung datiert"
 
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -5914,7 +5922,7 @@ msgstr "Comicseiten werden aus dem Skript abgeleitet"
 msgid "harness.progress.shotsDerive.active"
 msgstr "Einstellungen werden abgeleitet"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
@@ -7778,7 +7786,7 @@ msgstr "Wenn Sie alles anwenden"
 msgid "If you apply only the checked changes"
 msgstr "Wenn Sie nur die markierten Änderungen anwenden"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Ignore matches in"
 msgstr "Treffer ignorieren in"
@@ -8103,7 +8111,7 @@ msgstr "Änderung {n} einbeziehen: {plain}"
 msgid "Include this page"
 msgstr "Diese Seite einbeziehen"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Included in drafting"
 msgstr "In den Entwurf einbezogen"
@@ -9148,7 +9156,7 @@ msgstr "Als behoben markiert"
 msgid "marked, the arrow keys propose a new day"
 msgstr "markiert, schlagen die Pfeiltasten einen neuen Tag vor"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -9572,13 +9580,13 @@ msgid "Move up"
 msgstr "Nach oben verschieben"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/activity-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Moved"
 msgstr "Verschoben"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Moved and renamed"
 msgstr "Verschoben und umbenannt"
@@ -9610,7 +9618,7 @@ msgstr "Mythisch"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -9676,7 +9684,7 @@ msgstr "Benötigt Ihre Eingabe"
 msgid "Negative prompt"
 msgstr "Negativer Prompt"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/codex-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Never"
@@ -9885,7 +9893,7 @@ msgstr "Nächste Seite"
 msgid "Next steps"
 msgstr "Nächste Schritte"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "No"
 msgstr "Nein"
@@ -10204,6 +10212,7 @@ msgid "No recipes saved"
 msgstr "Keine Exportprofile gespeichert"
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
 #: apps/desktop/src/components/UsageBreakdown.tsx
 #: apps/desktop/src/components/UsagePanel.tsx
@@ -10492,7 +10501,7 @@ msgstr "Nicht von einer Einstellung abgedeckt"
 msgid "not grouped"
 msgstr "nicht gruppiert"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Not in the project yet"
 msgstr "Noch nicht im Projekt"
@@ -10856,7 +10865,7 @@ msgstr "Nur das Drehbuch hat diesen Sprecher"
 msgid "Only what you declare here is checked. Nothing is inferred from the text."
 msgstr "Nur was Sie hier deklarieren, wird geprüft. Nichts wird aus dem Text abgeleitet."
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Only when attached to the scene"
 msgstr "Nur wenn an die Szene angehängt"
@@ -11756,6 +11765,7 @@ msgid "Prices are dollars per 1,000 tokens, written as a number of zero or more.
 msgstr "Preise sind Dollar pro 1.000 Token, als Zahl ab 0 angegeben."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/UsagePanel.tsx
@@ -12765,6 +12775,7 @@ msgid "Removed “{profile}”, and its key from this browser."
 msgstr "“{profile}” und dessen Schlüssel wurden aus diesem Browser entfernt."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
 #: apps/desktop/src/components/UsageBreakdown.tsx
 #: apps/desktop/src/components/UsagePanel.tsx
@@ -12835,7 +12846,7 @@ msgid "Rename {title}"
 msgstr "{title} umbenennen"
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/activity-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Renamed"
@@ -12892,6 +12903,7 @@ msgstr "Bericht"
 msgid "Request log"
 msgstr "Anfrageprotokoll"
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Requests"
@@ -13927,11 +13939,6 @@ msgstr "Skripttext"
 #: apps/desktop/src/media/ShotCoverage.tsx
 msgid "Script to cover from"
 msgstr "Skript, das abgedeckt werden soll"
-
-#. Interpolated values: cost, prompt, completion, requestsTotal
-#: apps/desktop/src/components/UsagePanel.tsx
-msgid "Scroll the table to see all columns. Cache and reasoning counts are already included in the input and output totals."
-msgstr "Scrollen Sie in der Tabelle, um alle Spalten zu sehen. Cache- und Denktoken sind bereits in den Eingabe- und Ausgabesummen enthalten."
 
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
@@ -17960,10 +17967,12 @@ msgid "Token saved. Check the connection again to confirm it."
 msgstr "Token gespeichert. Prüfen Sie die Verbindung erneut, um dies zu bestätigen."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Tokens in"
 msgstr "Tokens eingehend"
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Tokens out"
@@ -18190,7 +18199,7 @@ msgstr "Zwei über einer Ebene"
 msgid "Two tiers"
 msgstr "Zwei Ebenen"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -18217,10 +18226,10 @@ msgstr "Unverändert"
 msgid "undated"
 msgstr "undatiert"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
-msgid "under $0.0001"
-msgstr "unter 0,0001 $"
+msgid "under {amount}"
+msgstr "unter {amount}"
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/rtf-source.ts
@@ -18667,7 +18676,7 @@ msgstr "Ansichten und Werkzeuge"
 msgid "Views are in the bar below"
 msgstr "Die Ansichten sind in der Leiste unten"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
@@ -18844,7 +18853,7 @@ msgstr "Was kompiliert wird"
 msgid "when {condition}"
 msgstr "wenn {condition}"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "When its name or an alias appears in the text"
 msgstr "Wenn sein Name oder ein Alias im Text vorkommt"
@@ -19163,7 +19172,7 @@ msgstr "Fadentafel (CSV)"
 msgid "Year {n}"
 msgstr "Jahr {n}"
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Yes"
 msgstr "Ja"

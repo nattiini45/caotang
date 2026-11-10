@@ -6,7 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
-- **Session totals and usage details.** The agent shows requests, tokens and known cost for the current project visit across roles and tasks, with a profile/model/role breakdown. Settings › Providers shows daily recorded cost, estimated and unpriced counts, optional cache/reasoning detail and a guarded local CSV export. The usage table scrolls within Settings on narrow screens, with English and German controls.
+- **Session totals and usage details.** The agent shows requests, tokens and known cost for the current project visit across roles and tasks, with a profile/model/role breakdown. Settings › Providers shows daily recorded cost, estimated and unpriced counts, optional cache/reasoning detail and a guarded local CSV export. Desktop cost notes wrap within the table; narrow screens show labelled rows with tokens and cost without sideways scrolling. USD follows the interface locale, with English and German controls; CSV stays machine-readable.
 
 - **Durable usage accounting.** The local ledger keeps versioned day and turn rows beyond the old 200-row cap and across reloads. It records cost at the profile and model that served each call, cache and reasoning counts, estimated usage and unpriced requests. Older saved day totals remain readable without inventing a historical cost. Coherence and encoding reviews now have turn attribution.
 
