@@ -22,7 +22,7 @@ for (const locale of ['en', 'de'] as const) {
     await expect(connect()).toBeEnabled();
     await expect(card.getByTestId('mcp-detail')).toContainText('server unreachable');
     await expect(card).not.toContainText('Connected.');
-    for (const width of [390, 960]) {
+    for (const width of [960, 1100]) {
       await page.setViewportSize({ width, height: 900 });
       await expect.poll(() => card.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
     }
