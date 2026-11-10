@@ -1,4 +1,4 @@
-import { canMove, defineMachine, type MachineTable } from '@caotang/machine';
+import { canMove, type Machine, type MachineTable } from '@caotang/machine';
 import type { TurnPhase } from './events.js';
 
 export type TurnPhaseState = { [K in TurnPhase]: { readonly kind: K } }[TurnPhase];
@@ -35,6 +35,7 @@ export const turnPhaseTable: MachineTable<TurnPhaseState, TurnPhaseEvent> = {
   },
 };
 
-export const turnPhaseMachine = defineMachine(turnPhaseTable, (state, event) =>
-  canMove(turnPhaseTable, state.kind, event.type) ? { kind: event.type } : state,
-);
+export const turnPhaseMachine: Machine<TurnPhaseState, TurnPhaseEvent> = {
+  table: turnPhaseTable,
+  step: (state, event) => canMove(turnPhaseTable, state.kind, event.type) ? { kind: event.type } : state,
+};
