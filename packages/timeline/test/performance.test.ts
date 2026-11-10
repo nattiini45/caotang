@@ -1,8 +1,13 @@
 import { addDocument, addFolder, createEmptyManifest, createProjectState, type ProjectState } from '@caotang/store';
 import type { CoherenceFile, SceneMeta } from '@caotang/coherence';
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-import { buildTimeline, projectTimeline, type LaneKey, type TimelineAxis } from '../src/index.js';
+import { bundleWorkSource } from '../../../test/support/bundle-work.js';
+import { measureWork, type WorkCall, type WorkResult } from '../../../test/support/measure-work.js';
+
+import { buildTimeline, projectTimeline, type LaneKey, type TimelineAxis, type TimelineGeometry, type TimelineModel } from '../src/index.js';
 
 import { NOW, coherence, entry } from './fixtures.js';
 
@@ -10,8 +15,29 @@ const SCENES = 2000;
 const LANES = 12;
 const SAMPLES = 30;
 const WARM_UP = 8;
-/** The spec's target is 30 ms on the declared CI runner; this ceiling only catches a real regression without flaking under load. */
-const CEILING_MS = 300;
+const BUILD_WORK_PER_SCENE = 200;
+const PROJECT_WORK_PER_SCENE = 10;
+const WORK_GROWTH = 8;
+const ENTRY = new URL('../src/index.ts', import.meta.url);
+const source = bundleWorkSource(ENTRY, ['buildTimeline']);
+const projectionSource = bundleWorkSource(ENTRY, ['projectTimeline']);
+const buildWrapper = `
+  export function measuredBuild(manifest, documents, file, options) {
+    return exports.buildTimeline({ manifest, documents: new Map(documents) }, file, options);
+  }
+`;
+
+function buildCall({ state, file }: ReturnType<typeof fixture>, axis: TimelineAxis, groupBy: LaneKey): WorkCall {
+  return { name: 'measuredBuild', args: [state.manifest, [...state.documents], file, { axis, groupBy }] };
+}
+
+function expectBudget(small: WorkResult<unknown>, large: WorkResult<unknown>, perScene: number): void {
+  expect(large.steps + large.scanned + large.backtracks).toBeLessThan(SCENES * perScene);
+  expect(small.steps).toBeGreaterThan(0);
+  for (const metric of ['steps', 'scanned', 'backtracks'] as const) {
+    expect(large[metric] / Math.max(small[metric], 1), metric).toBeLessThan(WORK_GROWTH);
+  }
+}
 
 /** A small deterministic generator, so the fixture is the same on every machine. */
 function lcg(seed: number): () => number {
@@ -22,7 +48,7 @@ function lcg(seed: number): () => number {
   };
 }
 
-function fixture(): { state: ProjectState; file: CoherenceFile } {
+function fixture(scenes = SCENES): { state: ProjectState; file: CoherenceFile } {
   const random = lcg(176);
   const manifest = createEmptyManifest('Series', NOW);
   manifest.codex = Array.from({ length: LANES }, (_, i) => entry(`c${i}`, `Character ${i}`));
@@ -31,7 +57,7 @@ function fixture(): { state: ProjectState; file: CoherenceFile } {
 
   const prologue = 40;
   const epilogue = 40;
-  const mainCount = SCENES - prologue - epilogue;
+  const mainCount = scenes - prologue - epilogue;
   const chapters = 40;
   addFolder(state, { id: 'pro', parentId: 'manuscript', title: 'Prologue', now: NOW });
   meta.pro = { storyPart: 'prologue' };
@@ -52,7 +78,7 @@ function fixture(): { state: ProjectState; file: CoherenceFile } {
       if (at % 9 === 0) entry.durationDays = 1 + Math.floor(random() * 4);
     }
     if (at % 25 === 0 && at > 0) entry.after = [`s${at - 1}`];
-    if (at % 40 === 0) entry.threads = [{ id: `t${at % 5}`, payoff: `s${Math.min(SCENES - 1, at + 30)}` }];
+    if (at % 40 === 0) entry.threads = [{ id: `t${at % 5}`, payoff: `s${Math.min(scenes - 1, at + 30)}` }];
     meta[id] = entry;
   };
 
@@ -83,14 +109,21 @@ function measure(run: () => unknown): { median: number; p95: number; max: number
   return { median: percentile(samples, 0.5), p95: percentile(samples, 0.95), max: samples[samples.length - 1] as number };
 }
 
-describe('the 2,000-scene, 12-lane fixture', () => {
-  const { state, file } = fixture();
+describe('the 2,000-scene, 12-lane fixture', { timeout: 120_000 }, () => {
+  const large = fixture();
+  const small = fixture(500);
+  const { state, file } = large;
   const cases: [TimelineAxis, LaneKey][] = [
     ['story', 'character'],
     ['story', 'pov'],
     ['narrative', 'character'],
     ['braid', 'pov'],
   ];
+  let builds: WorkResult<TimelineModel>[];
+
+  beforeAll(async () => {
+    builds = measureWork<TimelineModel>(await source + buildWrapper, cases.flatMap(([axis, groupBy]) => [small, large].map((input) => buildCall(input, axis, groupBy))));
+  }, 120_000);
 
   it('is the fixture the budget names', () => {
     const model = buildTimeline(state, file, { axis: 'story', groupBy: 'pov' });
@@ -102,17 +135,56 @@ describe('the 2,000-scene, 12-lane fixture', () => {
     expect(model.connectors.length).toBeGreaterThan(0);
   });
 
-  it.each(cases)('builds the %s axis grouped by %s within the ceiling', (axis, groupBy) => {
+  it.each(cases)('builds the %s axis grouped by %s within the work budget', (axis, groupBy) => {
+    const at = cases.findIndex(([a, g]) => a === axis && g === groupBy) * 2;
+    const measured = builds.slice(at, at + 2);
+    for (const [i, input] of [small, large].entries()) {
+      expect(measured[i]!.result).toEqual(buildTimeline(input.state, input.file, { axis, groupBy }));
+    }
+    expectBudget(measured[0]!, measured[1]!, BUILD_WORK_PER_SCENE);
+    process.stdout.write(`timeline work ${axis}/${groupBy}: ${JSON.stringify(measured.map(({ steps, scanned, backtracks }) => ({ steps, scanned, backtracks })))}\n`);
     const stats = measure(() => buildTimeline(state, file, { axis, groupBy }));
     process.stdout.write(`timeline build ${axis}/${groupBy}: median ${stats.median.toFixed(1)} ms, p95 ${stats.p95.toFixed(1)} ms, max ${stats.max.toFixed(1)} ms (${SAMPLES} samples after ${WARM_UP} warm-up runs, ${SCENES} scenes)\n`);
-    expect(stats.p95).toBeLessThan(CEILING_MS);
   });
 
-  it('projects the finished model to coordinates within the ceiling too', () => {
-    const model = buildTimeline(state, file, { axis: 'story', groupBy: 'character' });
+  it('projects the finished model to coordinates within the work budget too', async () => {
+    const models = [small, large].map(({ state, file }) => buildTimeline(state, file, { axis: 'story', groupBy: 'character' }));
+    const measured = measureWork<TimelineGeometry>(await projectionSource, models.map((model) => ({ name: 'projectTimeline', args: [model] })));
+    for (const [i, model] of models.entries()) expect(measured[i]!.result).toEqual(projectTimeline(model));
+    expectBudget(measured[0]!, measured[1]!, PROJECT_WORK_PER_SCENE);
+    process.stdout.write(`timeline projection work: ${JSON.stringify(measured.map(({ steps, scanned, backtracks }) => ({ steps, scanned, backtracks })))}\n`);
+    const model = models[1]!;
     const stats = measure(() => projectTimeline(model));
     process.stdout.write(`timeline projection story/character: median ${stats.median.toFixed(1)} ms, p95 ${stats.p95.toFixed(1)} ms\n`);
-    expect(stats.p95).toBeLessThan(CEILING_MS);
+  });
+
+  it('rejects replacing the part index with a repeated scene search', async () => {
+    const file = new URL('../src/build.ts', import.meta.url);
+    const original = readFileSync(file, 'utf8');
+    const quadratic = original.replace('parts.get(node.id)', 'Array.from(parts).find(([id]) => id === node.id)?.[1]');
+    expect(quadratic).not.toBe(original);
+    const mutant = await bundleWorkSource(ENTRY, ['buildTimeline'], { [fileURLToPath(file)]: quadratic });
+    const measured = measureWork<TimelineModel>(mutant + buildWrapper, [small, large].map((input) => buildCall(input, 'story', 'character')));
+    for (const [i, input] of [small, large].entries()) {
+      expect(measured[i]!.result).toEqual(buildTimeline(input.state, input.file, { axis: 'story', groupBy: 'character' }));
+    }
+    expect(() => expectBudget(measured[0]!, measured[1]!, BUILD_WORK_PER_SCENE)).toThrow();
+    expect(measured[1]!.steps / measured[0]!.steps).toBeGreaterThan(WORK_GROWTH);
+    process.stdout.write(`timeline repeated-search mutant steps: ${measured.map(({ steps }) => steps).join(' -> ')}\n`);
+  });
+
+  it('rejects recomputing every slot prefix during projection', async () => {
+    const file = new URL('../src/axis.ts', import.meta.url);
+    const original = readFileSync(file, 'utf8');
+    const quadratic = original.replace('slotX[i] = i * slotPx;', 'slotX[i] = measures.slice(0, i).reduce((sum) => sum + slotPx, 0);');
+    expect(quadratic).not.toBe(original);
+    const mutant = await bundleWorkSource(ENTRY, ['projectTimeline'], { [fileURLToPath(file)]: quadratic });
+    const models = [small, large].map(({ state, file }) => buildTimeline(state, file, { axis: 'story', groupBy: 'character' }));
+    const measured = measureWork<TimelineGeometry>(mutant, models.map((model) => ({ name: 'projectTimeline', args: [model] })));
+    for (const [i, model] of models.entries()) expect(measured[i]!.result).toEqual(projectTimeline(model));
+    expect(() => expectBudget(measured[0]!, measured[1]!, PROJECT_WORK_PER_SCENE)).toThrow();
+    expect(measured[1]!.steps / measured[0]!.steps).toBeGreaterThan(WORK_GROWTH);
+    process.stdout.write(`timeline repeated-prefix mutant steps: ${measured.map(({ steps }) => steps).join(' -> ')}\n`);
   });
 
   it('is deterministic: two builds of the same input are equal', () => {

@@ -33,9 +33,9 @@ export class McpFailure extends Error {
   }
 }
 
-/** §6: *"unreachable → server '<name>' unreachable (health: configured). Check the URL in Settings › MCP & tools, or drop this step"*. */
+/** §6: *"unreachable → server '<name>' unreachable. Check the URL in Settings › MCP & tools, or drop this step"*. */
 export function unreachableText(serverName: string): string {
-  return `server '${serverName}' unreachable (health: configured). Check the URL in Settings › MCP & tools, or drop this step`;
+  return `server '${serverName}' unreachable. Check the URL in Settings › MCP & tools, or drop this step`;
 }
 
 /** §6: *"pin mismatch → server changed since review — re-approve in Settings"*. */

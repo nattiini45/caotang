@@ -37,7 +37,6 @@ import { flushSync } from 'react-dom';
 
 import './scene-info.css';
 
-import { saveStateWords } from '../../../app/integrity-model.js';
 import { onInspectorRequest } from '../../../app/inspector-request.js';
 import type { InspectorGrouping } from '../../Inspector.js';
 import { TargetQuickSet } from '../../TargetQuickSet.js';
@@ -219,7 +218,7 @@ function SceneInfoPanel({
     ? cloneElement(regions.inspector, { grouping })
     : regions.inspector;
   const { progress } = regions;
-  const save = saveStateWords(progress.saveState, progress.stopCause, progress.failedSaveChannels);
+  const save = progress.saveWords;
   // The project's line (§7.1): its name, which opens Project details, as the title capsule's project name does.
   const details = regions.actions.find((action) => action.id === 'details');
 

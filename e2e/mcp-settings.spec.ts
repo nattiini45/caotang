@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loose } from './support.js';
+import { installSaveRefusals, refuseSave } from './save-channel-fixture.js';
 
 /**
  * Settings › MCP & tools (extensibility §3–§4, §8): the master switch, a server added and connected by a person, the review of
@@ -103,10 +104,11 @@ test('MCP & tools starts switched off, and a server is contacted only when a per
   await settings.getByTestId('mcp-master').check();
   await expect(settings.getByText('On. The servers below may be connected.')).toBeVisible();
   await local.getByRole('button', { name: 'Connect', exact: true }).click();
-  await expect(local.getByTestId('mcp-detail')).toContainText('server unreachable', { timeout: 20_000 });
-  await expect(local.getByRole('alert')).toContainText('server unreachable');
+  await expect(local.getByRole('alert')).toHaveText('The server did not answer. Check the address above, then choose Connect to try again.', { timeout: 20_000 });
+  await expect(local.getByTestId('mcp-detail')).toHaveCount(0);
+  await expect(local.getByRole('alert')).toHaveCount(1);
   await expect(local.getByRole('alert')).not.toContainText('Connected.');
-  await expect(local.getByTestId('mcp-state')).toHaveText('Configured');
+  await expect(local.getByTestId('mcp-state')).toHaveText('Failed');
 });
 
 test('refused settings writes stay visible without adding servers or losing the import text', async ({ page }) => {
@@ -180,6 +182,36 @@ test('a connected server offers its tools for review, and trusts reads only afte
   await expect(kept.getByRole('checkbox', { name: 'Enable delete_scene' })).not.toBeChecked();
   await expect(kept.getByRole('checkbox', { name: 'Enable search_lore' })).toBeChecked();
 });
+
+for (const shell of ['classic', 'modern'] as const) {
+  test(`${shell}: healthy MCP cards retain committed controls and show settings refusals`, async ({ page }) => {
+    await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
+    await installSaveRefusals(page);
+    await fixtureServer(page);
+    const settings = await openMcp(page);
+    await settings.getByTestId('mcp-master').check();
+    await addServer(settings, 'Story bible', FIXTURE_URL);
+    const bible = card(settings, 'Story bible');
+    await bible.getByRole('button', { name: 'Connect', exact: true }).click();
+    await bible.getByTestId('mcp-review').getByRole('button', { name: 'Approve this tool list' }).click();
+    await expect(bible).toHaveAttribute('data-state', 'healthy');
+    const stored = await storedRecord(page, 'settings');
+    await refuseSave(page, 'settings', true);
+    const trust = bible.getByRole('checkbox', { name: 'Trusted for reads: Story bible' });
+    await trust.click();
+    await expect(bible.getByRole('alert')).toContainText('The settings could not be saved');
+    await expect(trust).not.toBeChecked();
+    await bible.getByRole('button', { name: 'Disable', exact: true }).click();
+    await expect(bible.getByRole('alert')).toContainText('The settings could not be saved');
+    await expect(bible).toHaveAttribute('data-state', 'healthy');
+    await expect(bible.getByRole('button', { name: 'Disable', exact: true })).toBeEnabled();
+    expect(await storedRecord(page, 'settings')).toBe(stored);
+    await refuseSave(page, 'settings', false);
+    await trust.check();
+    await expect.poll(() => storedRecord(page, 'settings')).toContain('"trustReads":true');
+    await expect(trust).toBeChecked();
+  });
+}
 
 test('an import names the entry it refuses, and adds the rest without a trust grant', async ({ page }) => {
   const settings = await openMcp(page);

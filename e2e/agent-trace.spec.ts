@@ -122,8 +122,10 @@ test('an export without manuscript text keeps the named turn and tool-card trans
   expect(parsed.ok).toBe(true);
   if (!parsed.ok) throw new Error(parsed.error);
   const rows = parsed.value.filter((record) => record.kind === 'machine');
-  expect(rows.map((row) => row.machine)).toEqual(expect.arrayContaining(['turn.phase', 'card.status']));
-  expect(rows.at(-1)).toMatchObject({ machine: 'turn.phase', event: 'done', to: 'done' });
+  expect(rows.map((row) => row.machine)).toEqual(expect.arrayContaining(['turn.phase', 'card.status', 'agent.controller']));
+  expect(rows.filter((row) => row.machine === 'turn.phase').at(-1)).toMatchObject({ event: 'done', to: 'done' });
+  expect(rows.at(-1)).toMatchObject({ machine: 'agent.controller', event: 'finish', to: 'idle' });
+  expect(parsed.value.at(-1)?.kind).toBe('turn.end');
   for (const row of rows) {
     expect(row.turnId).toBeTruthy();
     expect(typeof row.from).toBe('string');

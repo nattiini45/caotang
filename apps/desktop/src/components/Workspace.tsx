@@ -36,7 +36,7 @@ import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, type DirectoryHandleLike } from '../app/fs-access.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey } from '../app/keymap.js';
 import { shellActions } from '../app/shell-actions.js';
-import { narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
+import { NARROW_QUERY, narrowMediaFeature, type NarrowPanel } from '../app/narrow-model.js';
 import {
   exportBundle,
   noteLeaveSuggestion,
@@ -54,8 +54,7 @@ import { dismissBannerForVisit, durabilitySentence, isBannerDismissedForVisit } 
 import { evictionVariantApplies, type EvictionFacts } from '../app/picture-notices.js';
 import { ExportSweepOffer, sweepBeforeExport, sweepOfferBeforeExport } from '../media/PictureStorage.js';
 import { PictureNotices } from './PictureNotices.js';
-import { saveStateWords, type StopCause } from '../app/integrity-model.js';
-import type { SaveChannelName } from '../app/save-channel.js';
+import { saveStateWords } from '../app/integrity-model.js';
 import { requestInspector } from '../app/inspector-request.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
@@ -76,6 +75,9 @@ import { whenAgent } from '../app/agent-registry.js';
 import { openFindingCount, openFindingsOfScene } from '../app/findings-model.js';
 import type { ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
+import { ModalStackState, useModalValue } from './modal.js';
+import { modalStack } from './modal-stack.js';
+import { currentInterface } from '../app/interface.js';
 import { ProjectPanel } from './ProjectPanel.js';
 import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
@@ -95,7 +97,7 @@ import {
   selectNode,
   setExpanded,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, ReportChannel, ReportContext, useSession, type MenuAnchor, type StatusMessage } from './shared.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { railTabId } from './shell/ClassicShell.js';
 import { minimapDots } from './shell/minimap.js';
@@ -154,14 +156,14 @@ export function Workspace({
   const [rail, setRail] = useState<RailTab>('binder');
   const [center, setCenterNow] = useState<CenterMode>('editor');
   /** Where the writer asked to go while proposed timeline changes were waiting, until they have answered the question that asks. */
-  const [leaving, setLeaving] = useState<CenterMode | 'home' | null>(null);
+  const [leaving, setLeaving] = useModalValue<CenterMode | 'home'>('leaving');
   // Reads `center` itself (not a ref), so the setter can be passed to a view built during render (react-hooks/refs).
   const setCenter = useCallback(
     (next: CenterMode): void => {
       if (center === 'timeline' && next !== 'timeline' && pendingRows(session.projectId) > 0) setLeaving(next);
       else setCenterNow(next);
     },
-    [session, center],
+    [session, center, setLeaving],
   );
   const [timelineFocus, setTimelineFocus] = useState<TimelineFocusRequest | null>(null);
   const [pictureFocus, setPictureFocus] = useState<PictureFocusRequest | null>(null);
@@ -172,10 +174,16 @@ export function Workspace({
   const narrow = useNarrow();
   const [panel, setPanel] = useState<NarrowPanel | null>(null);
   const [overflow, setOverflow] = useState<MenuAnchor | null>(null);
-  if (!narrow && (panel !== null || overflow !== null)) {
-    setPanel(null);
-    setOverflow(null);
-  }
+  useEffect(() => {
+    const query = window.matchMedia(NARROW_QUERY);
+    const reset = (): void => {
+      if (query.matches) return;
+      setPanel(null);
+      setOverflow(null);
+    };
+    query.addEventListener('change', reset);
+    return () => query.removeEventListener('change', reset);
+  }, []);
   const [focusMode, setFocusMode] = useState(false);
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
@@ -185,10 +193,10 @@ export function Workspace({
   const [railRequest, setRailRequest] = useState(0);
   const [zoom, setZoom] = useState<ZoomLevel>('M');
   const [renaming, setRenaming] = useState<Renaming | null>(null);
-  const [askingDelete, setAskingDelete] = useState<string | null>(null);
+  const [askingDelete, setAskingDelete] = useModalValue<string>('delete');
   /** Where focus goes once the asked delete is confirmed (see `askDelete`). Read only from the handlers, never rendered. */
   const deletePlace = useRef<DeletePlace | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useModalValue<boolean>('export');
   const [focusDocId, setFocusDocId] = useState<string | null>(null);
   const [reveal, setReveal] = useState<RevealRequest | null>(null);
   const [codexFocus, setCodexFocus] = useState<{ readonly entryId: string; readonly serial: number } | null>(null);
@@ -199,11 +207,11 @@ export function Workspace({
   const [agentOpen, setAgentOpen] = useState(startIntent !== null);
   /** Text the palette put in the agent's Intent box, unsent (modern-interface.md §8.9); the serial makes a repeat count. */
   const [agentDraft, setAgentDraft] = useState<{ readonly text: string; readonly serial: number } | null>(null);
-  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
+  const [settingsSection, setSettingsSection] = useModalValue<SettingsSection>('settings');
   const [bannerDismissed, setBannerDismissed] = useState(() => isBannerDismissedForVisit());
   const [explainStorage, setExplainStorage] = useState(false);
   /** The unused picture files a sweep would remove, offered before an export, until the writer has answered. */
-  const [sweepOffer, setSweepOffer] = useState<readonly SweepCandidate[] | null>(null);
+  const [sweepOffer, setSweepOffer] = useModalValue<readonly SweepCandidate[]>('sweep');
   const [storedToday, setStoredToday] = useState(0);
   // One agent controller per open project: its turns, its pending decision and its ghost belong to this session.
   // The budgets are read at each turn, so a change in Settings › Context applies to the next one (context-assembly §3).
@@ -292,7 +300,14 @@ export function Workspace({
   const storageSentence = durabilitySentence(durability);
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
 
-  const report = useCallback((next: StatusMessage) => setMessage(next), []);
+  const reportChannel = useMemo(() => new ReportChannel(), []);
+  const report = useCallback((message: StatusMessage) => {
+    const next = reportChannel.next(message, currentInterface() === 'modern' && modalStack.getSnapshot().kind === 'open');
+    if (next !== null) setMessage(next);
+  }, [reportChannel]);
+  useEffect(() => modalStack.subscribe(() => {
+    if (modalStack.getSnapshot().kind === 'empty') reportChannel.reveal();
+  }), [reportChannel]);
   // The typing not yet saved cannot be kept in this browser's storage (pending-journal.ts): said once each time it starts, so the writer knows
   // that only the autosave and the leave prompt stand between a reload and the last words.
   useEffect(() => {
@@ -455,6 +470,7 @@ export function Workspace({
   const failedSaveChannels = session.failedSaveChannels();
   const stopped = session.tabStop().getSnapshot();
   const stopCause = stopped.kind === 'stopped' ? stopped.cause : undefined;
+  const saveWords = saveStateWords(saveState, stopCause, failedSaveChannels);
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
   const exportSelection: ExportSelection | null =
     selectedNode === undefined || selectedNode.id === 'manuscript' || selectedNode.id === 'research' || selectedNode.id === 'root'
@@ -852,6 +868,7 @@ export function Workspace({
     showCenter(node?.type === 'document' || node?.type === 'dialogue' ? 'editor' : 'corkboard');
   };
 
+  const review = session.coherenceReview.snapshot();
   const regions: ShellRegions = {
     documentKind: mediaView !== null && mediaNode !== undefined ? mediaKindOf(mediaNode) : activeDoc === null ? null : 'scene',
     create: { target: newTargetNode?.title ?? null, make: makeNew },
@@ -1060,30 +1077,47 @@ export function Workspace({
         {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message !== null || folderSaving ? (
-      <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
-        <span>
-          {message?.text}
-          {message?.link ? (
-            <>
-              <button type="button" className="status-link" onClick={message.link.onClick}>
-                {message.link.label}
-              </button>
-              {message.link.after}
-            </>
-          ) : null}
-          {folderSaving ? <>{message === null ? null : ' '}<Trans>Saving to the folder…</Trans></> : null}
-        </span>
-        {message === null ? null : <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
-          <Trans>Dismiss</Trans>
-        </button>}
-      </div>
-    ) : null,
+    status: message === null && !folderSaving && review.kind !== 'running' ? null : (
+      <>
+        {review.kind === 'running' ? (
+          <div className="status-line" role="status" data-testid="review-status" data-state="running">
+            <span><Trans>The model review is running.</Trans></span>
+            <button type="button" className="button is-quiet" onClick={() => {
+              setFocusMode(false);
+              setRail('findings');
+              setRailRequest((count) => count + 1);
+              if (narrow) setPanel('rail');
+              focusSoon(`#${railTabId('findings')}`);
+            }}><Trans>Show review</Trans></button>
+            <button type="button" className="button is-quiet" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button>
+          </div>
+        ) : null}
+        {message !== null || folderSaving ? (
+          <div className={`status-line is-${message?.tone ?? 'info'}`} role={message?.tone === 'error' ? 'alert' : 'status'} data-state={folderSaving ? 'saving' : undefined}>
+            <span>
+              {message?.text}
+              {message?.link ? (
+                <>
+                  <button type="button" className="status-link" onClick={message.link.onClick}>
+                    {message.link.label}
+                  </button>
+                  {message.link.after}
+                </>
+              ) : null}
+              {folderSaving ? <>{message === null ? null : ' '}<Trans>Saving to the folder…</Trans></> : null}
+            </span>
+            {message === null ? null : <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
+              <Trans>Dismiss</Trans>
+            </button>}
+          </div>
+        ) : null}
+      </>
+    ),
     saveState: <>
-      <SaveIndicator state={saveState} cause={stopCause} failedChannels={failedSaveChannels} onExport={exportNow} />
+      <SaveIndicator state={saveState} words={saveWords} onExport={exportNow} />
       <span data-testid="folder-save" data-state={folderSave.state.kind} hidden />
     </>,
-    progress: { target, setTarget: saveTarget, saveState, stopCause, failedSaveChannels, exportBackup: exportNow },
+    progress: { target, setTarget: saveTarget, saveState, saveWords, exportBackup: exportNow },
     search: {
       state,
       activeDocId: view.activeDocId,
@@ -1116,7 +1150,7 @@ export function Workspace({
 
   return (
     <ReportContext.Provider value={report}>
-      {/* The dialogs are the shell's children, so they sit at the end of the workspace as they always have, in either shell. */}
+      <ModalStackState />
       <Shell regions={regions}>
         <ConfirmDialog
           open={doomed !== undefined}
@@ -1225,8 +1259,7 @@ function DeleteSummary({ descendants, documents, words }: { descendants: number;
  * The save state in the toolbar. A failure says what is safe right now and the one thing to do about it (ui-modules §5.3, rule 4):
  * the words are in this tab and are written again on the next change, and a backup is the copy that does not depend on the browser.
  */
-function SaveIndicator({ state, cause, failedChannels, onExport }: { state: SaveState; cause: StopCause | undefined; failedChannels: readonly SaveChannelName[]; onExport: () => void }): ReactNode {
-  const words = saveStateWords(state, cause, failedChannels);
+function SaveIndicator({ state, words, onExport }: { state: SaveState; words: ReturnType<typeof saveStateWords>; onExport: () => void }): ReactNode {
   return (
     <span className={`save-state is-${state}`} role="status" data-testid="save-state" data-state={state}>
       {words.text}
@@ -1531,5 +1564,6 @@ function errorText(error: unknown): string {
 function activityOf(agent: AgentController | null): AgentActivity {
   if (agent === null) return 'idle';
   const snapshot = agent.snapshot();
-  return snapshot.busy ? 'working' : snapshot.pending !== null ? 'waiting' : 'idle';
+  if (snapshot.phase === 'parked-on-card' || snapshot.phase === 'parked-on-offer') return 'waiting';
+  return snapshot.busy ? 'working' : 'idle';
 }

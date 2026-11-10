@@ -430,6 +430,16 @@ msgstr "{action, select, creating {Creating the project} openingProject {Opening
 msgid "{action}: {detail}"
 msgstr "{action}: {detail}"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{added, plural, one {# finding} other {# findings}} kept."
+msgstr "{added, plural, one {# finding} other {# findings}} kept."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{added, plural, one {# finding} other {# findings}} kept. Start another review when you are ready."
+msgstr "{added, plural, one {# finding} other {# findings}} kept. Start another review when you are ready."
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{added, plural, one {New: # finding} other {New: # findings}}"
@@ -539,6 +549,11 @@ msgstr "{commandCount, plural, one {# command} other {# commands}}"
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "{comments, plural, one {# comment.} other {# comments.}}"
 msgstr "{comments, plural, one {# comment.} other {# comments.}}"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{completedCalls, plural, one {# model call completed.} other {# model calls completed.}}"
+msgstr "{completedCalls, plural, one {# model call completed.} other {# model calls completed.}}"
 
 #. Live USD spend against its USD limit; values include the currency sign.
 #: apps/desktop/src/app/agent-model.ts
@@ -4652,6 +4667,8 @@ msgid "Check run discarded"
 msgstr "Check run discarded"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Check stopped"
 msgstr "Check stopped"
@@ -4881,6 +4898,11 @@ msgstr "Circular"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Classic"
 msgstr "Classic"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Classic could not finish loading. Try again."
+msgstr "Classic could not finish loading. Try again."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -5294,10 +5316,20 @@ msgstr "Connected"
 msgid "Connected. Its tools are waiting for a review."
 msgstr "Connected. Its tools are waiting for a review."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connecting"
+msgstr "Connecting"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "Connecting contacts this address. Its tools stay confirm-only until you review them."
 msgstr "Connecting contacts this address. Its tools stay confirm-only until you review them."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connecting to the server and checking its tool list…"
+msgstr "Connecting to the server and checking its tool list…"
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
@@ -6900,7 +6932,9 @@ msgid "Facts you want to track through the cast. Declare who learns each one, an
 msgstr "Facts you want to track through the cast. Declare who learns each one, and who is shown knowing it, in a scene’s Inspector; the scan reports a character who knows a fact before they learn it."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #. Interpolated values: done, limit, total, used
+#: apps/desktop/src/app/mcp-model.ts
 #: apps/desktop/src/components/AgentPanel.tsx
 #: apps/desktop/src/components/TaskChecklist.tsx
 msgid "Failed"
@@ -8769,6 +8803,11 @@ msgstr "Loading picture…"
 msgid "Loading the Ink compiler…"
 msgstr "Loading the Ink compiler…"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Loading the interface…"
+msgstr "Loading the interface…"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -9298,6 +9337,11 @@ msgstr "Models listed by {profile}"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Modern"
 msgstr "Modern"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Modern could not load. The current interface is still in use. Try again or choose Classic."
+msgstr "Modern could not load. The current interface is still in use. Try again or choose Classic."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -13025,6 +13069,8 @@ msgid "RTF file"
 msgstr "RTF file"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Run a scan or start another review to try again. Any findings already recorded are kept below."
 msgstr "Run a scan or start another review to try again. Any findings already recorded are kept below."
@@ -13102,6 +13148,7 @@ msgstr "Run test"
 msgid "Run the queue"
 msgstr "Run the queue"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Run the selected connected-server prompt."
@@ -13974,6 +14021,11 @@ msgstr "Server address (on this computer, ending in /v1)"
 
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
+msgid "Server details"
+msgstr "Server details"
+
+#. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
+#: apps/desktop/src/components/McpSection.tsx
 msgid "Server list"
 msgstr "Server list"
 
@@ -14259,6 +14311,11 @@ msgstr "Show older ({count} more)"
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Show on timeline"
 msgstr "Show on timeline"
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Show review"
+msgstr "Show review"
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
@@ -14707,7 +14764,9 @@ msgid "Stop following {title}"
 msgstr "Stop following {title}"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/FindingsPanel.tsx
+#: apps/desktop/src/components/Workspace.tsx
 msgid "Stop the review"
 msgstr "Stop the review"
 
@@ -15386,10 +15445,20 @@ msgstr "The agent has not run yet"
 msgid "The agent is busy with another turn. Let it finish, then fix the finding."
 msgstr "The agent is busy with another turn. Let it finish, then fix the finding."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The agent is loading."
+msgstr "The agent is loading."
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "The agent is not ready for this project yet. Open the agent panel, then try again."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The agent is stopping."
+msgstr "The agent is stopping."
 
 #. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
@@ -15459,6 +15528,11 @@ msgstr "The app settings could not be opened here, so they will not be kept: {er
 #: apps/desktop/src/media/prompt-edit-model.ts
 msgid "the aspect ratio is one of the ratios in the list"
 msgstr "the aspect ratio is one of the ratios in the list"
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The bearer token is missing. Enter it on this card, save it, then choose Connect again."
+msgstr "The bearer token is missing. Enter it on this card, save it, then choose Connect again."
 
 #. Modern interface: the stage and the page.
 #: apps/desktop/src/components/shell/modern/modern-shell.tsx
@@ -15619,6 +15693,11 @@ msgstr "The compile will write {fileName}."
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "The complete script written from “<0/>”, shown before approval"
 msgstr "The complete script written from “<0/>”, shown before approval"
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The connection was cancelled. Choose Connect to try again."
+msgstr "The connection was cancelled. Choose Connect to try again."
 
 #. Project settings. Interpolated values: message and reason are refusal or failure messages; field names the setting that was not saved.
 #: apps/desktop/src/components/ProjectPanel.tsx
@@ -16037,6 +16116,11 @@ msgstr "The list holds names, addresses and enabled tools. It never holds a toke
 msgid "The manuscript is empty"
 msgstr "The manuscript is empty"
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The MCP connector could not be loaded. Check your internet connection, then choose Connect again."
+msgstr "The MCP connector could not be loaded. Check your internet connection, then choose Connect again."
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "The mode decides who answers the agent’s cards. Ask is the default: cards wait for you unless an eligible Settings allow rule approves them. The agent panel can pick another mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project."
@@ -16074,6 +16158,16 @@ msgstr "The model review is complete: {added, plural, one {# finding} other {# f
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The model review is partial."
+msgstr "The model review is partial."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "The model review is running."
+msgstr "The model review is running."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The model review needs a provider. Connect one in Settings to read the story for plot and character problems."
 msgstr "The model review needs a provider. Connect one in Settings to read the story for plot and character problems."
 
@@ -16084,8 +16178,8 @@ msgstr "The model review plan"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
-msgid "The model review stopped early, so it is partial: {added, plural, one {# finding} other {# findings}} kept. {note}"
-msgstr "The model review stopped early, so it is partial: {added, plural, one {# finding} other {# findings}} kept. {note}"
+msgid "The model review was stopped."
+msgstr "The model review was stopped."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -16578,10 +16672,50 @@ msgstr "the selection is longer than the 2000 characters a coverage can hold, so
 msgid "The server also lists {prompts} {prompts, plural, one {prompt} other {prompts}} and {templates} {templates, plural, one {resource template} other {resource templates}}, shown in full below. They are pinned when you approve, and a changed one is shown again."
 msgstr "The server also lists {prompts} {prompts, plural, one {prompt} other {prompts}} and {templates} {templates, plural, one {resource template} other {resource templates}}, shown in full below. They are pinned when you approve, and a changed one is shown again."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server asked for more input to connect. Caotang cannot provide it here. Check the server’s sign-in requirements, then choose Connect again."
+msgstr "The server asked for more input to connect. Caotang cannot provide it here. Check the server’s sign-in requirements, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server did not answer. Check the address above, then choose Connect to try again."
+msgstr "The server did not answer. Check the address above, then choose Connect to try again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server has no tool list at this address. Check the address above, then choose Connect again."
+msgstr "The server has no tool list at this address. Check the address above, then choose Connect again."
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "The server is not connected."
 msgstr "The server is not connected."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server rejected the sign-in. Check the token for this server, then choose Connect again."
+msgstr "The server rejected the sign-in. Check the token for this server, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server returned an error Caotang could not classify. Check the server details, then choose Connect again."
+msgstr "The server returned an error Caotang could not classify. Check the server details, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server returned an HTTP error. Check the address above, then choose Connect again."
+msgstr "The server returned an HTTP error. Check the address above, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server sent a tool list Caotang could not read. Ask its administrator to check the tool list, then choose Connect again."
+msgstr "The server sent a tool list Caotang could not read. Ask its administrator to check the tool list, then choose Connect again."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server took too long to answer. Choose Connect to try again."
+msgstr "The server took too long to answer. Choose Connect to try again."
 
 #. Interpolated values: error
 #: apps/desktop/src/app/services.ts
@@ -17374,10 +17508,20 @@ msgstr "This scope is over the 20-document guard. Approving the plan approves re
 msgid "This scope is over the document guard, so approve it only if you mean the whole of it."
 msgstr "This scope is over the document guard, so approve it only if you mean the whole of it."
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "This server does not allow connections from a browser. Ask its administrator to allow this app, then choose Connect again."
+msgstr "This server does not allow connections from a browser. Ask its administrator to allow this app, then choose Connect again."
+
 #. The MCP catalog. Interpolated values: name and names are text a server supplied; reason is a failure message the server gave; the count is a number.
 #: apps/desktop/src/components/McpCatalog.tsx
 msgid "This server lists more than Caotang keeps. Only the first part of each list is shown."
 msgstr "This server lists more than Caotang keeps. Only the first part of each list is shown."
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "This server uses an MCP version Caotang cannot use. Ask its maker for an update, then choose Connect again."
+msgstr "This server uses an MCP version Caotang cannot use. Ask its maker for an update, then choose Connect again."
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
@@ -17791,6 +17935,7 @@ msgstr "Trusted for reads. Lets read-only tools run without asking, and only too
 msgid "Trusted for reads. Lets read-only tools run without asking, and only tools the server marks read-only. Review the tool list first; the switch opens after the review."
 msgstr "Trusted for reads. Lets read-only tools run without asking, and only tools the server marks read-only. Review the tool list first; the switch opens after the review."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx
@@ -18866,6 +19011,11 @@ msgstr "You deleted the marker of footnote {label} (“{text}”). Its note is s
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
 msgstr "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Your approval is being processed."
+msgstr "Your approval is being processed."
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts

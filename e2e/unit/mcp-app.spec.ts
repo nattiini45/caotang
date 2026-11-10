@@ -284,7 +284,7 @@ test.describe('the MCP panel model (extensibility §3.2, §3.4)', () => {
       serverName: 'Good',
       kind: 'changed' as const,
       fingerprint: 'f',
-      tools: [{ qualifiedName: 'a', toolName: 'a', status: 'unchanged' as const, description: '', inputSchema: {}, candidateHash: 'h', enabled: true }],
+      tools: [{ qualifiedName: 'a', toolName: 'a', status: 'verified' as const, description: '', inputSchema: {}, candidateHash: 'h', enabled: true }],
       removed: [],
       prompts: [{ name: 'recap', status: 'changed' as const, description: 'Recap.', arguments: [] }],
       resourceTemplates: [{ uriTemplate: 'wiki://{page}', name: 'Page', status: 'new' as const, description: '' }],

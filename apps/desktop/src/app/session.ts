@@ -136,6 +136,7 @@ import type { runPictureTranscription } from '../media/picture-transcription.js'
 import type * as LazyExporter from './lazy-exporter.js';
 import type { AssetRecords } from './lazy-exporter.js';
 import type { ReviewProviders } from './coherence-review.js';
+import { CoherenceReviewSession } from './coherence-review-state.js';
 import type { HarnessRuntime } from './lazy-harness.js';
 import { TranscriptionReviewBroker } from './transcription-review.js';
 import { CodexMentions } from './codex-model.js';
@@ -420,6 +421,7 @@ export class ProjectSession {
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
   private coherencePort: CoherencePort | null = null;
+  readonly coherenceReview = new CoherenceReviewSession(() => this.bump(), (result) => this.applyCoherenceFile(result.file));
   /** The project's recurring tasks and where they are saved (tasks-io.ts). Null until the lifecycle has loaded them. */
   private tasksHome_: TasksHome | null = null;
   private detachTasks: (() => void) | null = null;
@@ -2046,7 +2048,6 @@ export class ProjectSession {
     if (this.closing !== null) return this.closing;
     this.closing = (async () => {
       try {
-        // The lifecycle signals are let go first, so nothing this session does after its close begins can start a findings save.
         this.detachCoherenceFlush();
         this.detachPendingKeep();
         if (this.pendingTimer !== null) clearTimeout(this.pendingTimer);
@@ -2054,6 +2055,9 @@ export class ProjectSession {
         // The tab's focus signals are let go too, so a closed session does not list the project's images any more.
         this.detachAssetRefresh();
         this.transcriptionReviews.cancel();
+        this.coherenceReview.dismiss();
+        this.coherenceReview.stop();
+        await this.coherenceReview.settled();
         this.harnessRuntime?.imageStager.releaseAll();
         await this.autosave.flush();
         await this.persistence.settle();

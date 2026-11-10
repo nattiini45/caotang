@@ -383,6 +383,7 @@ test('the More menu is glass with 44 px rows, and each dialog it opens is glass,
 });
 
 test('a Confirm dialog is glass and grows out of the row; the status line that follows is a glass toast at the top centre', async ({ page }) => {
+  await page.clock.install();
   await start(page);
   await projectWithScene(page, 'Harbour Book');
   // Where storage is not persisted (WebKit), the storage notice is a toast of its own above the status line; it is dismissed so the
@@ -420,7 +421,8 @@ test('a Confirm dialog is glass and grows out of the row; the status line that f
   expect(box?.y ?? 999).toBeLessThan((sheet?.y ?? 0) + 120);
   expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - ((sheet?.x ?? 0) + (sheet?.width ?? 0) / 2))).toBeLessThan(4);
   // It stays until dismissed: no timer takes it away.
-  await page.waitForTimeout(1500);
+  await page.clock.fastForward(1500);
+  await expect(page.getByTestId('modern-notices')).toHaveAttribute('data-state', 'visible');
   await expect(toast).toBeVisible();
   await toast.getByRole('button', { name: 'Dismiss' }).click();
   await expect(toast).toHaveCount(0);

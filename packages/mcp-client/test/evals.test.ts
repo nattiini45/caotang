@@ -219,7 +219,8 @@ describe('eval 10 — a reachable server that refuses the browser is named as CO
     };
     const { client } = await openClient({ scripts, connect: [STORY_KEY] });
     expect(client.healthOf(STORY_KEY)).toMatchObject({
-      state: 'configured',
+      state: 'failed',
+      reason: 'cors',
       detail: 'server reachable but refuses browser connections (CORS). The desktop app on the roadmap connects without this restriction.',
     });
   });

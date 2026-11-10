@@ -87,6 +87,8 @@ Settings › Appearance › **Interface**: a radio group, **Classic** and **Mode
 
 Every existing e2e spec was written against Classic and keeps running against Classic: the suite's default `storageState` sets `caotang.interface` to `'classic'` (`e2e/classic-pin.ts`, M1). Only Modern specs, and `e2e/interface.spec.ts`, which checks the default, start without it; since #313 a spec without the pin that builds its project in Classic chooses Classic first, because a fresh profile starts in Modern.
 
+The workspace frame publishes its committed shell as `data-testid="shell"` and `data-state="classic|modern"`. Unlike `<html data-shell>`, which records the choice before the lazy code and styles finish loading, this state describes the layout actually mounted. A live-switch fixture waits for that state before closing Settings or using the new shell's editor and shortcuts. This inspection signal changes no preference, focus, layout or saved data.
+
 ## 4. One component tree
 
 ### 4.1 What a shell is
@@ -338,6 +340,8 @@ An ornament is a glass capsule that floats half over the page's edge. The top on
 Scene info, **⋯** and the agent's profile line are popovers: one at a time, anchored to their opener, flipped and clamped into the viewport by script (CSSOM positions, §11; CSS anchor positioning is not yet in every engine the suite runs). Scene info is a non-modal `role="dialog"` that takes focus on its first field; **⋯** is a `role="menu"` with Classic's menu keys. A click outside, Escape, or the opener closes it, and focus returns to the opener (decisions.md, "Panels return focus to their opener"). Escape in a field first commits the field, as Classic's Escape does.
 
 ### 8.3 Morph
+
+Modal ownership is shared with Classic through `ui.modal-stack` ([ui-modules.md §0.4](ui-modules.md#04-modal-ownership-and-focus)). Dialogs escape inert sidebars; equal-priority arrivals stack, confirmations precede feature dialogs, and the stopped-tab notice wins without unmounting the input underneath. Nonmodal notice capsules become visually hidden and inert while a modal owns focus (`data-state="covered"`); current notices return as `visible` on close, without restarting their lifetime. One held report keeps a newly arriving error or action-needed report from being replaced by later info until visible; newer errors replace older ones, and the normal last-message-wins rule resumes outside the modal. Notice updates retain their announcement urgency inside the top modal. Skills review no longer shares its edge with readable background toast text (#513); sheet, veil and morph tokens do not change.
 
 A popover, sheet or window grows out of the control that opened it and shrinks back into it: a FLIP animation through the Web Animations API from the opener's rectangle to the target's, `--dur-3` with `--ease-spring` to open and `--dur-2` to close, the content fading in after the first third. Focus moves when the animation starts, not when it ends, and the target is interactive at once. A view change morphs the page: its position and size transition through custom properties set by the layout function, the old view fades and scales out, the new one fades in; the editor stays mounted (§4.1). Under reduced motion nothing moves: a popover appears with a 120 ms fade and a view changes at once. The View Transitions API may replace the page morph later; nothing depends on it.
 

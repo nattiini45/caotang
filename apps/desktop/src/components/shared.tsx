@@ -18,9 +18,11 @@ import {
 } from 'react';
 
 import { currentInterface } from '../app/interface.js';
+import { panelState, type PanelState } from '../app/panel-state.js';
 import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { accessibleText } from '../i18n/accessible-text.js';
+import { Modal, useModalDialog } from './modal.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
 export function useSession(session: ProjectSession): number {
@@ -77,6 +79,27 @@ export interface StatusMessage {
 }
 
 export type Report = (message: StatusMessage) => void;
+
+export class ReportChannel {
+  private held: StatusMessage | null = null;
+  reveal(): void { this.held = null; }
+  next(message: StatusMessage, covered: boolean): StatusMessage | null {
+    if (!covered) {
+      this.reveal();
+      return message;
+    }
+    if (message.tone === 'error') {
+      this.held = message;
+      return message;
+    }
+    if (this.held?.tone === 'error') return null;
+    if (message.link !== undefined) {
+      this.held = message;
+      return message;
+    }
+    return this.held === null ? message : null;
+  }
+}
 
 export const ReportContext = createContext<Report>(() => {});
 
@@ -228,6 +251,7 @@ export function Menu({
     else menu.focus();
     // Escape closes the menu wherever focus is, including on the control that opened it.
     const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest('dialog[open]') !== menu.closest('dialog[open]')) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         closeRef.current();
@@ -362,15 +386,10 @@ export function ConfirmDialog({
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
+  useModalDialog(ref, open, 'confirm');
 
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="confirm"
       // The visible title may isolate writer text; the accessible name is the same words without the
@@ -398,7 +417,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }
 
@@ -429,19 +448,10 @@ export function ChoiceDialog({
   const ref = useRef<HTMLDialogElement>(null);
   const cancel = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      // Firefox's showModal() focuses the first answer, not the autoFocus Cancel (#347): Cancel takes it here, in every engine.
-      cancel.current?.focus();
-    }
-    if (!open && dialog.open) dialog.close();
-  }, [open]);
+  useModalDialog(ref, open, 'confirm', cancel);
 
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="confirm"
       aria-label={accessibleText(title)}
@@ -470,7 +480,7 @@ export function ChoiceDialog({
           ))}
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }
 
@@ -617,10 +627,10 @@ export function EmptyState({
   children?: ReactNode;
   actions?: ReactNode;
   glyph?: ReactNode;
-  state?: 'empty' | 'error' | 'off';
+  state?: PanelState;
 }): ReactNode {
   return (
-    <section className="empty-state" aria-label={accessibleText(title)} data-panel-state={state}>
+    <section className="empty-state" aria-label={accessibleText(title)} {...panelState(state)}>
       {glyph}
       <h2>{title}</h2>
       {children ? <div className="empty-text">{children}</div> : null}

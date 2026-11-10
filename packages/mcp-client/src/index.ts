@@ -24,6 +24,8 @@ export {
 
 export { CATALOG_LIMIT } from './catalog.js';
 
+export { healthMachine, healthTable, type ConnectionHealth, type HealthEvent, type HealthFailureReason } from './health.js';
+
 export {
   EMPTY_MCP_SETTINGS,
   MCP_KEY_PATTERN,

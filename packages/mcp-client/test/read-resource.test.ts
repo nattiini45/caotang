@@ -242,7 +242,7 @@ describe('apply: what comes back, and what is refused', () => {
     const outcome = await applyMcpReadResource(depsOf(client), params, capture().context);
     if (outcome.ok) throw new Error('expected a refusal');
     expect(outcome.error.message).toBe(unreachableText('Story Bible'));
-    expect(client.healthOf(STORY_KEY)?.state).toBe('configured');
+    expect(client.healthOf(STORY_KEY)).toMatchObject({ state: 'failed', reason: 'network' });
   });
 
   it('checks again after listing again: a template that changed after the writer clicked is refused, and nothing is read', async () => {
