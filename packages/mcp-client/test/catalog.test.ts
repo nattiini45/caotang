@@ -270,7 +270,7 @@ describe('prompts and resource templates are pinned under their own kinds', () =
     expect(card?.resourceTemplates[0]?.status).toBe('changed');
     // The tools are untouched by it: still healthy, still trusted, nothing to review among them.
     expect(client.healthOf(KEY)).toMatchObject({ state: 'healthy', pendingReview: false });
-    expect(card?.tools.every((tool) => tool.status === 'unchanged')).toBe(true);
+    expect(card?.tools.every((tool) => tool.status === 'verified')).toBe(true);
 
     expect(client.approveReview(KEY, card?.fingerprint ?? '').ok).toBe(true);
     expect(client.listPrompts(KEY)[0]?.pinState).toBe('verified');
@@ -377,7 +377,7 @@ describe('a server saved before prompts and templates were pinned loads and veri
     expect(await client.connect(KEY)).toMatchObject({ state: 'healthy', pendingReview: false });
     expect(client.listPrompts(KEY)[0]?.pinState).toBe('new');
     expect(client.review(KEY)?.kind).toBe('changed');
-    expect(client.review(KEY)?.tools.every((tool) => tool.status === 'unchanged')).toBe(true);
+    expect(client.review(KEY)?.tools.every((tool) => tool.status === 'verified')).toBe(true);
     // The tool pins the saved file holds are the ones that still verify.
     expect(client.describe(KEY, 'search_lore')?.pinState).toBe('verified');
     expect(client.serverFor(KEY)?.pinnedTools[`mcp__${KEY}__search_lore`]).toMatchObject({ hash: LORE_HASH, firstSeen: '2026-10-01T09:00:00.000Z' });

@@ -219,6 +219,29 @@ Initial: `unasked`. Final: `accepted`, `cancelled`, `declined`, `not-confirmed`.
 | `not-confirmed` | — | — |
 | `unasked` | `ask` | `asked` |
 
+## mcp.health
+
+Initial: `configured`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `configured` | `connect` | `connecting` |
+| `configured` | `reset` | `configured` |
+| `connected` | `approve` | `healthy` |
+| `connected` | `connect` | `connecting` |
+| `connected` | `fail` | `failed` |
+| `connected` | `reset` | `configured` |
+| `connecting` | `fail` | `failed` |
+| `connecting` | `listed` | `connected`, `healthy` |
+| `connecting` | `reset` | `configured` |
+| `failed` | `connect` | `connecting` |
+| `failed` | `fail` | `failed` |
+| `failed` | `reset` | `configured` |
+| `healthy` | `approve` | `healthy` |
+| `healthy` | `connect` | `connecting` |
+| `healthy` | `fail` | `failed` |
+| `healthy` | `reset` | `configured` |
+
 ## modern.menu
 
 Initial: `closed`. Final: none.
@@ -490,3 +513,13 @@ Initial: `waiting`. Final: none.
 | `waiting` | `check` | `waiting` |
 | `waiting` | `failed` | `failed`, `waiting` |
 | `waiting` | `ready` | `ready`, `waiting` |
+
+## ui.modal-stack
+
+Initial: `empty`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `empty` | `open` | `open` |
+| `open` | `close` | `empty`, `open` |
+| `open` | `open` | `open` |

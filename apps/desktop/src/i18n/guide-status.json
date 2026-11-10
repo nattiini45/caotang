@@ -3,10 +3,6 @@
   "locales": {
     "de": {
       "sections": {
-        "caotang-user-guide": {
-          "hash": "633bef70",
-          "anchor": "caotang-benutzerhandbuch"
-        },
         "projects": {
           "hash": "f1aa6a0d",
           "anchor": "projekte"
@@ -92,7 +88,7 @@
           "anchor": "caotang-auf-einem-telefon-oder-tablet-verwenden"
         },
         "settings": {
-          "hash": "cc0c43ef",
+          "hash": "e542298f",
           "anchor": "einstellungen"
         },
         "keyboard": {

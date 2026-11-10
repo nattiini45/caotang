@@ -19,7 +19,7 @@ import { INITIALISE_INTENT, agentInstructionsView, tokensLabel, type AgentInstru
 import type { AppServices } from '../app/services.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
-import { useReturnFocus } from './dialog-focus.js';
+import { Modal, useModalDialog } from './modal.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { ConfirmDialog, useReport, useSession } from './shared.js';
 import './skills-dialog.css';
@@ -52,20 +52,15 @@ type Edit = { readonly kind: 'none' } | { readonly kind: 'note'; readonly slug: 
 function AgentInstructionsDialog({ session, services, onAgentIntent }: AgentInstructionsProps): ReactNode {
   useSession(session);
   const dialog = useRef<HTMLDialogElement>(null);
-  const returnFocus = useReturnFocus();
   const report = useReport();
   const [edit, setEdit] = useState<Edit>({ kind: 'none' });
   const [forgetting, setForgetting] = useState<{ readonly slug: string; readonly title: string } | null>(null);
   const budget = services.settings.current().context.layerBudgets.LI;
   const view = agentInstructionsView(session.state, budget);
 
-  useEffect(() => {
-    const element = dialog.current;
-    if (element !== null && !element.open) element.showModal();
-  }, []);
+  useModalDialog(dialog);
 
   const close = (): void => {
-    returnFocus();
     closeDialog();
   };
 
@@ -84,7 +79,7 @@ function AgentInstructionsDialog({ session, services, onAgentIntent }: AgentInst
 
   return (
     <>
-    <dialog
+    <Modal
       ref={dialog}
       className="project-dialog skills-dialog"
       aria-labelledby="agent-instructions-title"
@@ -116,7 +111,7 @@ function AgentInstructionsDialog({ session, services, onAgentIntent }: AgentInst
           </>
         )}
       </div>
-    </dialog>
+    </Modal>
     <ConfirmDialog
       open={forgetting !== null}
       title={forgetting === null ? 'Forget this note?' : `Forget “${forgetting.title}”?`}

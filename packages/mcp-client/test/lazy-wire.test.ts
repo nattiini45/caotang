@@ -128,7 +128,7 @@ describe('the lazy wire', () => {
       wire: () => createLazyWire(SERVER, DEPS, async () => { throw new TypeError('chunk 404'); }),
     });
     const health = await client.connect(SERVER.key);
-    expect(health.state).toBe('configured');
+    expect(health).toMatchObject({ state: 'failed', reason: 'connector-load' });
     expect(health.detail).toContain('could not be loaded');
     expect(health.detail).not.toContain('check the URL');
   });

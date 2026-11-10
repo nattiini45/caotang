@@ -20,6 +20,7 @@ import { chordKey, keyFacts } from '../app/keymap.js';
 import { formatCount } from '../i18n/locale.js';
 import { explain } from '../components/actions.js';
 import { InlineText, useReport, useSession } from '../components/shared.js';
+import { Modal, useModalDialog } from '../components/modal.js';
 import {
   FIELD_TARGETS,
   NO_EDITS,
@@ -109,10 +110,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const [scrollTo, setScrollTo] = useState<{ readonly block: number; readonly seq: number } | null>(null);
   const abort = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog !== null && !dialog.open) dialog.showModal();
-  }, []);
+  useModalDialog(ref);
 
   // The reader runs once, with a progress line and a cancel; the dialog opens on its result.
   useEffect(() => {
@@ -237,7 +235,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
   const sourceReport = plan === null ? [] : (source.report?.(plan) ?? []);
 
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="confirm import-preview"
       data-state={phase.kind}
@@ -539,7 +537,7 @@ export default function ImportPreviewDialog({ session, request, helpers }: { ses
           </button>
         </div>
       </div>
-    </dialog>
+    </Modal>
   );
 }
 

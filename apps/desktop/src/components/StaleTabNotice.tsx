@@ -9,11 +9,12 @@
  * only the second one reloads. Nothing here writes to the project.
  */
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Trans } from '@lingui/react/macro';
 
 import type { TabStop } from '../app/tab-stop.js';
 import { browserStorage } from '../app/unsent-copy.js';
+import { Modal, useModalDialog } from './modal.js';
 
 export interface StaleTabNoticeProps {
   readonly stop: TabStop;
@@ -34,32 +35,16 @@ export function StaleTabNotice({ stop, onExport, onReload }: StaleTabNoticeProps
   const kept = stop.keptInBrowser(browserStorage());
   const updated = state.kind === 'stopped' && state.cause === 'updated';
 
-  // Shown as a modal from the start, so the page underneath cannot be used while the words are unsaved.
-  useEffect(() => {
-    const dialog = ref.current;
-    if (!dialog || dialog.open) return;
-    dialog.showModal();
-    safeAction.current?.focus();
-    const observer = new MutationObserver((records) => {
-      if (!records.some((record) => record.target !== dialog && record.target instanceof HTMLDialogElement && record.target.open)) return;
-      dialog.close();
-      dialog.showModal();
-      safeAction.current?.focus();
-    });
-    observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
-    return () => {
-      observer.disconnect();
-      if (dialog.open) dialog.close();
-    };
-  }, []);
+  useModalDialog(ref, true, 'notice', safeAction);
 
   return (
-    <dialog
+    <Modal
       ref={ref}
       className="confirm"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-state={state.kind}
+      data-modal-priority="notice"
       data-testid="stale-tab-notice"
       data-kept={kept ? 'browser' : 'memory'}
       onCancel={(event) => {
@@ -168,6 +153,6 @@ export function StaleTabNotice({ stop, onExport, onReload }: StaleTabNoticeProps
           )}
         </div>
       </form>
-    </dialog>
+    </Modal>
   );
 }

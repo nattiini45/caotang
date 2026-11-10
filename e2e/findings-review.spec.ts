@@ -71,6 +71,47 @@ test('Modern keeps review controls visible with the sidebar closed, including in
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+for (const width of [1280, 390]) {
+  test(`Modern covers a running review during a modal and restores its controls at ${width}px`, async ({ page }) => {
+    await startHeldReview(page);
+    await expect.poll(() => page.evaluate(() => (window as unknown as ReviewWindow).reviewCalls)).toBe(1);
+    await page.getByTestId('open-settings').click();
+    const settings = page.getByTestId('settings');
+    await settings.locator('[data-section="appearance"]').click();
+    await settings.locator('input[name="shell"]').nth(1).check();
+    await expect(settings.getByTestId('interface-choice')).toHaveAttribute('data-state', 'ready');
+    await page.keyboard.press('Escape');
+    await page.setViewportSize({ width, height: 844 });
+    const notices = page.getByTestId('modern-notices');
+    const review = page.getByTestId('review-status');
+    await expect(notices).toHaveAttribute('data-state', 'visible');
+    await expect(review).toHaveAttribute('data-state', 'running');
+    await page.getByRole('toolbar', { name: 'Scene' }).getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Settings', exact: true }).click();
+    await expect(settings).toHaveAttribute('data-modal-state', 'top');
+    await expect(notices).toHaveAttribute('data-state', 'covered');
+    await expect(notices).toHaveAttribute('inert', '');
+    await expect(notices).toHaveCSS('opacity', '0');
+    const announcement = settings.getByTestId('modal-notice-status');
+    await expect(announcement).toContainText('The model review is running.');
+    await expect(announcement).not.toContainText('Show review');
+    await expect(announcement).not.toContainText('Stop the review');
+    await page.evaluate(() => (window as unknown as ReviewWindow).releaseReviewCall());
+    await expect.poll(() => page.evaluate(() => (window as unknown as ReviewWindow).reviewCalls)).toBe(2);
+    await expect(review).toHaveAttribute('data-state', 'running');
+    await page.keyboard.press('Escape');
+    await expect(notices).toHaveAttribute('data-state', 'visible');
+    await expect(notices).not.toHaveAttribute('inert', '');
+    await expect(notices).toHaveCSS('opacity', '1');
+    await review.getByRole('button', { name: 'Show review' }).click();
+    await expect(page.getByTestId('review-running')).toContainText('1 model call completed.');
+    await page.getByTestId('review-running').getByRole('button', { name: 'Stop the review' }).click();
+    await expect(page.getByTestId('findings-panel')).toHaveAttribute('data-state', 'cancelled');
+    await expect(review).toHaveCount(0);
+    await expect(page.getByTestId('review-outcome')).toContainText('The model review was stopped.');
+  });
+}
+
 for (const { shell, rtl } of [{ shell: 'Classic', rtl: false }, { shell: 'Modern', rtl: false }, { shell: 'Classic', rtl: true }] as const) {
   for (const width of [1280, 390]) {
     test(`${shell}${rtl ? ' in RTL' : ''} keeps a running review and folder save separate inside a ${width}px viewport`, async ({ page, browserName }) => {
