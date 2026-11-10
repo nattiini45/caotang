@@ -19,12 +19,18 @@ import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
 import { assetStagingTable } from '../packages/store/src/asset-staging.js';
 import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
+import { turnPhaseTable } from '../packages/harness/src/agent/turn-machine.js';
+import { cardStatusTable } from '../packages/harness/src/agent/cards.js';
+import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.js';
+import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
 
 export const machineTables = [
   sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
-  assetStagingTable, assetRemovalHoldTable, exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
+  assetStagingTable, assetRemovalHoldTable, turnPhaseTable, cardStatusTable,
+  cardDecisionTable, budgetMeterTable,
+  exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
   tabStopTable, persistenceTable, pendingEntryTable,
   modalMachine.table,
 ] as const;
