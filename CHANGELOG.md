@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Named agent lifecycle.** The header distinguishes loading, approval processing and stopping, while the composer and Stop remain available. The panel publishes the controller state for reliable command readiness, including queued turns and background choices.
+
 - **MCP connection health.** Settings shows **Connecting** while checking a server and **Failed** when it cannot connect, with one translated alert and **Connect** to retry. These states are translated into German and survive closing and reopening Settings without changing saved server settings.
 
 - **Machine transitions in agent traces.** Exported traces now name the turn, tool-card and approval-round state transitions. They stay in the open tab's memory, and older trace readers skip the additive rows. A successful turn publishes its report before Done.

@@ -195,6 +195,10 @@ The runtime adds `starting` while waiting for setup and `cancelling` while a run
 
 Saved statuses remain `queued`, `running`, `ready`, `failed`, `cancelled`, `interrupted` and `applied`. `starting` and `cancelling` exist only in memory, and the snapshot keeps the stored status alongside its runtime phase. Neither phase is written to a task record or accepted by the persisted-status reader. No record migration is needed.
 
+### `agent.controller`
+
+Owner: `apps/desktop/src/app/agent-state.ts`, interpreted by `agent.ts`; contract: [agent-harness.md §8](agent-harness.md#8-streaming--ui-integration). The foreground has eight named states: idle, starting, running, parked-on-card, approving, parked-on-offer, stopping and detached. Only a card state owns a parked decision and only an offer state owns a background choice. An approval retains its original decision until its awaited save/listing settles; stale owners cannot re-park or clear a newer turn. Queue and note events update their sub-state without changing the foreground phase. Interrupted-run reads remain latest-wins. A detached state retains the foreground resources needed for re-attachment but owns no parked choice. There is no final state because the controller can attach again. Every transition is in memory, exposed by the snapshot/panel and the trace sink; no saved format changes.
+
 ### `mcp.health`
 
 `mcp.health` owns the in-memory configured, connecting, failed, connected and healthy states (extensibility.md §3.2–§3.4). Connect starts before credentials resolve. Listed and approve events separate a successful connection from a reviewed tool list; fail carries a typed reason beside corrective prose. Disconnect, disable and credential/address edits reset the state and invalidate in-flight work with the existing generation fence. Retry clears the old failure. Settings publishes the same state as `data-state` and the failure code as `data-reason`; nothing new is persisted.

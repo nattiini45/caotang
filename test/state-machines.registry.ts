@@ -1,4 +1,5 @@
 import { taskStatusTable } from '../apps/desktop/src/app/task-store.js';
+import { agentControllerTable } from '../apps/desktop/src/app/agent-state.js';
 import { folderSaveTable } from '../apps/desktop/src/app/folder-save-model.js';
 import { importPreviewTable } from '../apps/desktop/src/import-preview/phase.js';
 import { exportCompileMachine, exportReadinessMachine } from '../apps/desktop/src/app/export-dialog-model.js';
@@ -28,7 +29,7 @@ import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.j
 import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
 
 export const machineTables = [
-  sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
+  sprintTable, taskStatusTable, agentControllerTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
   assetStagingTable, assetRemovalHoldTable, reviewTable, interfaceTable,

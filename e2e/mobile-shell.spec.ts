@@ -666,7 +666,10 @@ test.describe('review marks', () => {
     await intercepted;
     const panel = page.getByTestId('agent-panel');
     await expect(panel).toHaveCount(0);
-    const settled = expect(panel).toHaveAttribute('data-state', 'idle');
+    const settled = (async () => {
+      await expect(panel.locator('.agent-turn')).toHaveCount(1);
+      await expect(panel).toHaveAttribute('data-state', 'idle');
+    })();
     release();
     await settled;
 
@@ -699,6 +702,7 @@ test.describe('review marks', () => {
     await settings.getByRole('button', { name: 'Close' }).click();
 
     await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+    await expect(page.getByTestId('agent-panel').locator('.agent-turn')).toHaveCount(1);
     await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
     await openDrawer(page);
     await tree(page).locator('.row-title', { hasText: 'The Friend' }).tap();

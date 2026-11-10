@@ -13130,6 +13130,7 @@ msgid "Run the queue"
 msgstr "Run the queue"
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Run the selected connected-server prompt."
 msgstr "Run the selected connected-server prompt."
@@ -15418,10 +15419,20 @@ msgstr "The agent has not run yet"
 msgid "The agent is busy with another turn. Let it finish, then fix the finding."
 msgstr "The agent is busy with another turn. Let it finish, then fix the finding."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The agent is loading."
+msgstr "The agent is loading."
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The agent is not ready for this project yet. Open the agent panel, then try again."
 msgstr "The agent is not ready for this project yet. Open the agent panel, then try again."
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "The agent is stopping."
+msgstr "The agent is stopping."
 
 #. Modern interface, the bottom ornament: the Write, Board, Timeline, Codex and Pictures views, Ask (the agent) and Search.
 #: apps/desktop/src/components/shell/modern/bottom-ornament.tsx
@@ -18974,6 +18985,11 @@ msgstr "You deleted the marker of footnote {label} (“{text}”). Its note is s
 #: apps/desktop/src/components/EditorPane.tsx
 msgid "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
 msgstr "You deleted the marker of footnote {label}. Its note is still at the end of the scene. Delete the note too?"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Your approval is being processed."
+msgstr "Your approval is being processed."
 
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts

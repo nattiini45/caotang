@@ -1563,5 +1563,6 @@ function errorText(error: unknown): string {
 function activityOf(agent: AgentController | null): AgentActivity {
   if (agent === null) return 'idle';
   const snapshot = agent.snapshot();
-  return snapshot.busy ? 'working' : snapshot.pending !== null ? 'waiting' : 'idle';
+  if (snapshot.phase === 'parked-on-card' || snapshot.phase === 'parked-on-offer') return 'waiting';
+  return snapshot.busy ? 'working' : 'idle';
 }
