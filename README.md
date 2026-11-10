@@ -16,6 +16,8 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 ## What works today
 
+- **Stopped-tab recovery.** If a tab cannot save, its backup and reload notice stays above other dialogs without losing their input.
+
 - **Background cancellation.** Cancel works even while a task is starting. Its row shows **Cancelling…** until it stops, and closing the project does not make a cancelled task resumable.
 
 - **Writer-authored approvals.** Settings › Agent can allow automatic approval of eligible native tool cards in Ask. Deny and ask rules take precedence; Plan only, read-only access and safety refusals still hold. Each allowed call is recorded with its rule. Project files cannot grant approval.
