@@ -2729,6 +2729,98 @@ dialog.confirm:has(.folder-file-preview) {
   margin-top: var(--space-3);
 }
 
+.usage-table-scroll {
+  max-inline-size: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.usage-table-scroll .usage-table {
+  min-inline-size: 46rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-table-scroll th,
+.usage-table-scroll td:first-child {
+  white-space: nowrap;
+}
+
+.usage-table-scroll td:nth-child(8) {
+  min-inline-size: 12rem;
+}
+
+.usage-table-scroll td:nth-child(2) {
+  min-inline-size: 8rem;
+}
+
+.usage-table-scroll td:nth-child(3) {
+  min-inline-size: 12rem;
+}
+
+.usage-table-scroll bdi,
+.usage-breakdown bdi {
+  overflow-wrap: anywhere;
+}
+
+.usage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin-block: var(--space-4);
+}
+
+.usage-actions label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.usage-notes {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.usage-breakdown {
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+}
+
+.usage-breakdown li + li {
+  margin-block-start: var(--space-5);
+}
+
+.usage-breakdown p {
+  margin-block: var(--space-1);
+}
+
+.usage-token-detail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-block: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.usage-token-detail dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-session-usage {
+  margin-block: var(--space-3);
+  padding-block: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.agent-session-usage summary > span:not(:first-child) {
+  display: block;
+  margin-inline-start: var(--space-4);
+}
+
 .usage-table th,
 .usage-table td,
 .request-table th,

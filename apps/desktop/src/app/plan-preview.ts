@@ -618,18 +618,6 @@ export function costLineOf(
   return ref === undefined ? undefined : renderRef(ref);
 }
 
-/**
- * What a turn's tokens cost at the profile it ran on: prompt tokens at the prompt price and reply tokens at the reply price, per
- * 1,000 tokens (provider-gateway §2). Undefined when the profile has no price, so an unpriced turn shows no cost.
- */
-export function turnCostOf(
-  tokens: { readonly promptTokens: number; readonly completionTokens: number },
-  price: { readonly prompt: number; readonly completion: number } | null,
-): number | undefined {
-  if (price === null) return undefined;
-  return (tokens.promptTokens * price.prompt + tokens.completionTokens * price.completion) / 1000;
-}
-
 /** The whole plan's estimate: the sum of the steps that carry a price, or undefined when none of them does. */
 export function planCostOf(costs: readonly (number | undefined)[]): number | undefined {
   const priced = costs.filter((value): value is number => value !== undefined);

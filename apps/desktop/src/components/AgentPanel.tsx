@@ -29,7 +29,9 @@ import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
 import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, progressViewOf, promptCacheLines, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
-import { formatUsd, turnCostOf } from '../app/plan-preview.js';
+import { formatUsd } from '../app/plan-preview.js';
+import { sumUsage } from '@caotang/gateway';
+import { groupUsage } from '../app/usage-model.js';
 import { isImeEnter, keyFacts, keyboardLayoutStore, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import { UNRESOLVED_NOTICE } from '../app/review-text.js';
@@ -59,6 +61,7 @@ import { RestoreResult } from './RestoreResult.js';
 
 import { TurnMenu } from './TurnMenu.js';
 import { SaveCommand } from './SaveCommand.js';
+import { SessionUsage, UsageBreakdown, UsageNotes } from './UsageBreakdown.js';
 
 /** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
 const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
@@ -470,6 +473,7 @@ export function AgentPanel({
 
       {open ? (
         <div id="agent-body" className="agent-body">
+          <SessionUsage usage={snapshot.sessionUsage} names={new Map(snapshot.usageProfiles.map((profile) => [profile.id, profile.name]))} />
           {inWindow ? null : intentForm}
 
           {oldInstruction !== null ? (
@@ -920,7 +924,7 @@ function TurnBlock({
         </p>
       ) : null}
 
-      {turn.report !== null ? <ReportLine report={turn.report} price={turn.price}
+      {turn.report !== null ? <ReportLine report={turn.report} profiles={snapshot.usageProfiles}
         restoration={turn.restoredAt === null ? null : turn.restoredFromStep === null ? 'whole' : 'partial'} /> : null}
     </li>
   );
@@ -1195,20 +1199,26 @@ function HeldPlan({ report, disabled, onRun }: { report: TurnReport; disabled: b
   );
 }
 
-function ReportLine({ report, price, restoration }: { report: TurnReport; price: TurnView['price']; restoration: 'whole' | 'partial' | null }): ReactNode {
+function ReportLine({ report, profiles, restoration }: { report: TurnReport; profiles: AgentSnapshot['usageProfiles']; restoration: 'whole' | 'partial' | null }): ReactNode {
   const tokens = report.tokens;
   const calls = report.modelCalls;
   const prompt = tokens.promptTokens;
   const completion = tokens.completionTokens;
-  // The cost is shown only when the profile the turn ran on has a price (provider-gateway §6): an unpriced turn shows its tokens alone.
-  const cost = turnCostOf(tokens, price);
+  const totals = sumUsage(report.usage ?? []);
+  if (report.usage === undefined && report.costUsd === undefined) totals.unpricedRequests = report.tokens.requests;
+  const cost = report.costUsd;
   return (
-    <div className="agent-report" aria-label={t`Report`}>
+    <div className="agent-report" aria-label={t`Report`} data-input-tokens={prompt} data-output-tokens={completion} data-cost-usd={cost}>
       <p className="agent-report-text">{restoration === null ? report.summary : <RestoreResult summary={report.summary} restoration={restoration} />}</p>
       <p className="muted agent-report-meta">
         {plural(calls, { one: `# model call · about ${prompt} tokens in, ${completion} out`, other: `# model calls · about ${prompt} tokens in, ${completion} out` })}
       </p>
-      {cost !== undefined ? <p className="muted agent-report-meta">{t`About ${{ cost: formatUsd(cost) }} for this turn, at this profile’s prices.`}</p> : null}
+      {cost !== undefined ? <p className="muted agent-report-meta" data-testid="agent-turn-cost">{t`About ${{ cost: formatUsd(cost) }} for this turn, using recorded call costs.`}</p> : null}
+      <UsageNotes totals={totals} />
+      {report.usage === undefined || report.usage.length === 0 ? null : <details className="agent-context">
+        <summary><Trans>Usage by profile, model and role</Trans></summary>
+        <UsageBreakdown rows={groupUsage(report.usage)} names={new Map(profiles.map((profile) => [profile.id, profile.name]))} />
+      </details>}
       {promptCacheLines(report).map((line) => (
         <p key={line} className="muted agent-report-meta" data-testid="agent-report-cache">
           {line}

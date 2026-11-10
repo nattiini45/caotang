@@ -40,7 +40,7 @@ function stagedPlan(harness: Harness, docIds: readonly string[]) {
 }
 
 /** The approval a plan's card gives, as the loop passes it to the harness. */
-const APPROVED = { turnId: 'turn-review', permission: { approvedPlan: true as const } };
+const APPROVED = { turnId: 'turn-review', sessionId: 'visit', permission: { approvedPlan: true as const } };
 
 describe('coherence.scan and the writer’s Coherence settings (coherence.md §5.1, Settings › Coherence)', () => {
   it('runs every check and says nothing about settings when the app gives none, as a bare harness always has', () => {
@@ -154,6 +154,7 @@ describe('coherence.review as an async port (coherence.md §5.3, §7 tool 16)', 
     expect(outcome.value.summary).toMatch(/^Review /);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.turnId).toBe(APPROVED.turnId);
+    expect(calls[0]?.sessionId).toBe(APPROVED.sessionId);
     expect(harness.state.coherence?.runs).toHaveLength(1);
     expect(harness.log.entries().some((entry) => entry.command === 'coherence.review')).toBe(true);
   });

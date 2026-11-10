@@ -8,6 +8,24 @@ import { describe, expect, it } from 'vitest';
 import { costOf, estimateTokens, localDayKey, UsageLedger, RequestLog, REQUEST_LOG_CAP } from '../src/index.js';
 import { addEndpoint, collect, delta, finish, flush, harness, openSse, ScriptedFetch, sseResponse, START, userMessage } from './helpers.js';
 
+it('publishes a stable revision for records and atomic restores, without keeping detached readers', () => {
+  const ledger = new UsageLedger();
+  const revisions: number[] = [];
+  const unsubscribe = ledger.subscribe(() => revisions.push(ledger.revision));
+  expect(ledger.revision).toBe(0);
+  ledger.record({ profileId: 'p', model: 'm' }, { promptTokens: 1, completionTokens: 2 });
+  expect(ledger.revision).toBe(1);
+  const saved = ledger.snapshot();
+  ledger.restore(saved);
+  expect(ledger.revision).toBe(2);
+  expect(() => ledger.restore({ version: 99 })).toThrow();
+  expect(ledger.revision).toBe(2);
+  expect(ledger.snapshot()).toEqual(saved);
+  unsubscribe();
+  ledger.record({ profileId: 'p', model: 'm' }, { promptTokens: 1, completionTokens: 2 });
+  expect(revisions).toEqual([1, 2]);
+});
+
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(typeof body === 'string' ? body : JSON.stringify(body), {
     status,

@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import { sumUsage, type DayUsageRow } from '../packages/gateway/src/index.js';
 
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { bodyOf, idOf, savedMessage } from './support.js';
+import { bodyOf, createProject, idOf, savedMessage } from './support.js';
 
 /**
  * The provider settings the preset registry drives (provider-gateway §2, §9; ui-modules §5.2): the preset picker and its
@@ -67,6 +69,39 @@ async function seedProfiles(page: Page, records: readonly Record<string, unknown
     });
     db.close();
   }, records);
+}
+
+async function seedUsage(page: Page, rows: readonly DayUsageRow[], price?: { prompt: number; completion: number }): Promise<void> {
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
+  await expect.poll(async () => (await storedProfiles(page)).some((profile) => profile['kind'] === 'mock')).toBe(true);
+  await page.evaluate(async ({ rows, price }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('caotang-app');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const profiles = await new Promise<Record<string, unknown>[]>((resolve, reject) => {
+      const request = db.transaction('kv').objectStore('kv').get('profiles') as IDBRequest<{ value: Record<string, unknown>[] }>;
+      request.onsuccess = () => resolve(request.result.value);
+      request.onerror = () => reject(request.error);
+    });
+    const profileId = profiles.find((profile) => profile['kind'] === 'mock')?.['id'];
+    if (typeof profileId !== 'string') throw new Error('The demo fixture has no profile.');
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put({ key: 'usage', value: { version: 1, days: rows.map((row) => ({ ...row, profileId })), turns: [] } });
+      if (price !== undefined) tx.objectStore('kv').put({ key: 'profiles', value: profiles.map((profile) => profile['id'] === profileId ? { ...profile, pricePer1k: price } : profile) });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  }, { rows, price });
+  await page.reload();
+}
+
+function usageDay(overrides: Partial<DayUsageRow> = {}): DayUsageRow {
+  return { ...sumUsage([]), version: 1, date: '2026-11-10', profileId: 'fixture', model: '@SUM(A1)', role: 'chat', requests: 1, promptTokens: 1000, completionTokens: 200, cachedPromptTokens: 400, reasoningTokens: 50, costUsd: 0.042, ...overrides };
 }
 
 /**
@@ -759,3 +794,124 @@ test('prompt caching is a per-profile switch, on by default, with a lifetime cho
   await page.getByTestId('settings').locator('[data-profile="No cache"]').getByRole('button', { name: 'Edit' }).click();
   await expect(page.getByRole('form', { name: 'Edit provider' }).getByRole('group', { name: 'Prompt caching' }).getByRole('checkbox')).not.toBeChecked();
 });
+
+test('usage shows recorded costs and uncertainty, reveals token subsets and exports guarded daily CSV', async ({ page }) => {
+  await seedUsage(page, [usageDay({ estimatedRequests: 1 }), usageDay({ model: 'unpriced', role: 'background', costUsd: undefined, unpricedRequests: 1 })]);
+  await openSettings(page);
+  const usage = page.locator('.usage');
+  await expect(usage).toContainText('About $0.0420 in recorded costs.');
+  await expect(usage).toContainText('Partial cost total: 1 request has no recorded cost.');
+  const priced = usage.getByRole('row').filter({ hasText: '@SUM(A1)' });
+  await expect(priced.getByTestId('usage-estimated')).toHaveText('1 request used estimated token counts.');
+  await expect(usage.getByRole('row').filter({ hasText: 'unpriced' })).toContainText('No recorded cost.');
+  await expect(usage.getByRole('columnheader', { name: 'Cache reads', exact: true })).toHaveCount(0);
+  await usage.getByRole('checkbox', { name: 'Show token detail' }).check();
+  await expect(usage.getByRole('columnheader', { name: 'Cache reads', exact: true })).toBeVisible();
+  await expect(priced.getByRole('cell').nth(8)).toHaveText('400');
+  await expect(priced.getByRole('cell').nth(10)).toHaveText('50');
+  const downloadPromise = page.waitForEvent('download');
+  await usage.getByRole('button', { name: 'Export usage (CSV)' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('caotang-usage.csv');
+  const csv = readFileSync((await download.path())!, 'utf8');
+  expect(csv.split('\r\n')[0]).toBe('day,profile_id,profile,model,role,requests,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,reasoning_tokens,estimated_requests,unpriced_requests,provider_cost_requests,cost_usd');
+  expect(csv).toContain(",'@SUM(A1),");
+  expect(csv).toContain('0.042');
+  expect(csv).not.toContain('$');
+});
+
+test('a refused usage download says how to retry and keeps the export usable', async ({ page }) => {
+  await seedUsage(page, [usageDay()]);
+  await openSettings(page);
+  await page.evaluate(() => {
+    const original = URL.createObjectURL;
+    URL.createObjectURL = () => { URL.createObjectURL = original; throw new Error('Download fixture refusal'); };
+  });
+  const usage = page.locator('.usage');
+  const button = usage.getByRole('button', { name: 'Export usage (CSV)' });
+  await button.click();
+  await expect(usage.getByRole('alert')).toHaveText('The usage file could not be downloaded. Try exporting it again.');
+  await expect(button).toBeEnabled();
+  const downloadPromise = page.waitForEvent('download');
+  await button.click();
+  await downloadPromise;
+  await expect(usage.getByRole('alert')).toHaveCount(0);
+});
+
+test('the session total equals two real demo turns and a reload starts a fresh visit without losing device history', async ({ page }) => {
+  await seedUsage(page, [], { prompt: 0.001, completion: 0.002 });
+  await createProject(page, 'Usage session');
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  const session = page.getByTestId('agent-session-usage');
+  const send = page.getByRole('button', { name: 'Send', exact: true });
+  for (let turn = 1; turn <= 2; turn += 1) {
+    await page.getByRole('combobox', { name: 'Intent' }).fill(`Explain this usage test ${turn}.`);
+    await send.click();
+    await expect(page.locator('.agent-report')).toHaveCount(turn);
+    await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
+    await expect(session).toHaveAttribute('data-requests', String(turn));
+  }
+  const amounts = await page.locator('.agent-report').evaluateAll((reports) => reports.map((report) => ({
+    input: Number(report.getAttribute('data-input-tokens')),
+    output: Number(report.getAttribute('data-output-tokens')),
+    cost: Number(report.getAttribute('data-cost-usd')),
+  })));
+  expect(amounts.every((turn) => turn.cost > 0)).toBe(true);
+  await expect(session).toHaveAttribute('data-cost-usd', /\d/);
+  await expect(session).toHaveAttribute('data-input-tokens', String(amounts.reduce((total, turn) => total + turn.input, 0)));
+  await expect(session).toHaveAttribute('data-output-tokens', String(amounts.reduce((total, turn) => total + turn.output, 0)));
+  expect(Number(await session.getAttribute('data-cost-usd'))).toBeCloseTo(amounts.reduce((total, turn) => total + turn.cost, 0), 10);
+  await session.locator('summary').click();
+  await expect(session).toContainText('Demo (no key)');
+  await expect(session).toContainText('Chat');
+  await expect(page.getByTestId('agent-turn-cost')).toHaveCount(2);
+  await page.reload();
+  await page.getByRole('listitem').filter({ hasText: 'Usage session' }).getByRole('button', { name: 'Open', exact: true }).click();
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await expect(session).toHaveCount(0);
+  await page.getByRole('combobox', { name: 'Intent' }).fill('Explain another visit.');
+  await send.click();
+  await expect(page.locator('.agent-report')).toHaveCount(1);
+  await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
+  await expect(session).toHaveAttribute('data-requests', '1');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.locator('.usage')).toContainText('3 requests');
+});
+
+for (const locale of ['de', 'en-XA', 'ar-XB']) {
+  test(`usage stays readable in Modern at 390 px with ${locale} labels and keyboard-scrolling token detail`, async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('caotang.interface', 'modern');
+      localStorage.setItem('caotang.pseudo', '1');
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedUsage(page, [usageDay({ estimatedRequests: 1, model: 'a-very-long-model-identifier-for-wrapping-without-page-overflow' }), usageDay({ role: 'drafting', model: 'demo' })]);
+    const settings = await openSettings(page);
+    await settings.locator('[data-section="appearance"]').click();
+    await settings.locator(`input[name="interface-language"][value="${locale}"]`).click();
+    await expect(page.locator('html')).toHaveAttribute('lang', locale);
+    await settings.locator('[data-section="providers"]').click();
+    const usage = page.locator('.usage');
+    const checkbox = usage.getByRole('checkbox');
+    if (locale === 'de') {
+      await expect(checkbox).toHaveAccessibleName('Token-Details anzeigen');
+      await expect(usage.getByRole('button')).toHaveText('Nutzung exportieren (CSV)');
+      await expect(usage).toContainText('Bei 1 Anfrage wurden die Tokenzahlen geschätzt.');
+      await expect(usage.getByRole('cell', { name: 'Entwürfe', exact: true })).toHaveCount(1);
+    } else await expect(usage.getByRole('button')).toContainText('⟦');
+    await checkbox.check();
+    const region = usage.getByRole('region');
+    await region.focus();
+    await expect(region).toBeFocused();
+    const before = await region.evaluate((element) => element.scrollLeft);
+    await page.keyboard.press(locale === 'ar-XB' ? 'ArrowLeft' : 'ArrowRight');
+    await expect.poll(() => region.evaluate((element) => element.scrollLeft)).not.toBe(before);
+    expect(await region.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    for (const button of await usage.getByRole('button').all()) {
+      expect(await button.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      const box = await button.boundingBox();
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+    }
+  });
+}
