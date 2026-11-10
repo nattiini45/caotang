@@ -90,6 +90,14 @@ export interface TurnStartRecord extends Base {
   readonly turnId: string;
   readonly intent: Text;
 }
+export interface MachineTraceRecord extends Base {
+  readonly kind: 'machine';
+  readonly turnId: string;
+  readonly machine: string;
+  readonly from: string;
+  readonly event: string;
+  readonly to: string;
+}
 export interface MessageRecord extends Base {
   readonly kind: 'message';
   readonly id: string;
@@ -222,6 +230,7 @@ export interface TurnEndRecord extends Base {
 export type TraceRecord =
   | HeaderRecord
   | TurnStartRecord
+  | MachineTraceRecord
   | MessageRecord
   | ModelRequestRecord
   | ModelResponseRecord
@@ -439,6 +448,8 @@ export function omitRecord(record: TraceRecord): TraceRecord {
       return { ...record, project: { name: omitText(record.project.name) } };
     case 'turn.start':
       return { ...record, intent: omitText(record.intent) };
+    case 'machine':
+      return record;
     case 'message':
       return { ...record, message: omitMessage(record.message) };
     case 'model.response':
@@ -797,6 +808,7 @@ type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'text' |
 export const REQUIRED_FIELDS: Readonly<Record<TraceKind, Readonly<Record<string, FieldType>>>> = {
   header: { format: 'string', app: 'string', project: 'object' },
   'turn.start': { turnId: 'string', intent: 'text' },
+  machine: { turnId: 'string', machine: 'string', from: 'string', event: 'string', to: 'string' },
   message: { id: 'string', message: 'object' },
   'model.request': { callId: 'number', profileId: 'string', 'gen_ai.request.model': 'string', messages: 'array' },
   'model.response': {

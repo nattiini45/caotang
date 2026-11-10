@@ -1,5 +1,7 @@
 # Caotang
 
+Agent trace exports name turn, tool-card and approval-round state transitions. Traces remain memory-only and compatible with older readers.
+
 An agent turn that ends retires its approval and Stop controls. If a held plan cannot start, **Switch to Ask and run this plan** stays available without changing your mode.
 
 The agent's `/` menu includes project skills, saved prompts, `/macro-<slug>` plan templates and reviewed connected-server prompts. **Save as command…** on a finished request creates a user-only SKILL.md, not another prompt store. Read and approve it in Skills before running it; missing arguments are asked for inline, and every permission and approval still applies.

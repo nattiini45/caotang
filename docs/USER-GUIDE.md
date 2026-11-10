@@ -409,6 +409,8 @@ A command that would start a turn, or restore one, waits while a turn is running
 
 Reading the agent's work:
 
+Trace exports include the named states a turn, tool card and approval round moved through. These structural records are kept only in the open tab, like the rest of the trace, and do not go into your project or run log. A successful turn reaches Done only after its report is available.
+
 If a turn ends while a card waits, its approval and Stop controls retire with it. Choosing **Approve** again while your typing is being saved tells you to wait. If **Switch to Ask and run this plan** cannot start, the button stays available and your mode does not change; add or select a provider, then try it again.
 
 - **Progress.** While the agent works, the header of the agent panel says where it is: "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps" when a card needs you. It shows with the panel open or closed. At the top of the turn, a checklist lists the steps with one in progress, each marked in words as Queued, Waiting for you, In progress, Done, Skipped or Failed (a failed step gives its reason). A step you drop from the card is Skipped, and so is a step that did not run after a failure or a cancel. The checklist folds when the turn ends and stays in the turn. Under it, **Model calls: 3 of 8** counts the requests the turn has made to the model; at 7 and 8 it turns to a warning, and at 8 the turn stops and asks you how to go on. The list is built from the agent's plan and its calls, not by asking the model, so it never shows a step as done that did not run.
