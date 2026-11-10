@@ -9,7 +9,8 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.clock.install({ time: new Date('2026-06-01T09:00:00Z') });
     await showAutosaveConflict(page, 'modern', 'de');
     const banner = page.getByTestId('storage-banner');
-    if (await banner.isVisible()) await banner.getByRole('button').click();
+    if (await banner.isVisible()) await banner.getByRole('button', { name: 'Zurückweisen', exact: true }).click();
+    await expect(banner).toBeHidden();
     await page.mouse.move(700, 450);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await expect(page).toHaveScreenshot(`modern-${scheme}-glass-save-conflict-de-1280.png`, {
