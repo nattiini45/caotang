@@ -693,6 +693,9 @@ importers:
       '@caotang/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
