@@ -2857,6 +2857,13 @@ label.settings-check {
   padding: var(--space-2) var(--space-6) var(--space-6);
 }
 
+.agent-body .button {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .agent-intent {
   display: flex;
   gap: var(--space-4);
