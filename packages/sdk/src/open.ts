@@ -272,11 +272,10 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
             } else {
               settled = { ...settled, steps };
             }
-            reported = settled;
             await saveIfWriting();
+            queue.push({ type: 'report', turnId: settled.turnId, report: settled });
             return settled;
           } finally {
-            if (reported !== undefined) queue.push({ type: 'report', turnId: reported.turnId, report: reported });
             current = undefined;
           }
         });
