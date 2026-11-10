@@ -1344,7 +1344,7 @@ class McpClientImpl implements McpClient {
     return pending;
   }
 
-  private async persist(next: McpSettings, beforePublish?: () => Promise<unknown>): Promise<void> {
+  private async persist(next: McpSettings, afterSave?: () => Promise<unknown>): Promise<void> {
     let refusal: string | null | void;
     try {
       refusal = await this.onChange?.({ enabled: next.enabled, servers: next.servers.map(cloneServer) });
@@ -1352,8 +1352,8 @@ class McpClientImpl implements McpClient {
       throw new SettingsRefusal(error instanceof Error ? error.message : String(error));
     }
     if (refusal !== undefined && refusal !== null) throw new SettingsRefusal(refusal);
-    await beforePublish?.();
     this.config = next;
+    await afterSave?.();
   }
 
   /**

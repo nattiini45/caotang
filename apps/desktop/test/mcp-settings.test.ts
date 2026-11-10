@@ -5,7 +5,7 @@ import { activateEnglish } from '../src/i18n/runtime.js';
 
 beforeEach(activateEnglish);
 
-function fixture() {
+function fixture(close?: () => Promise<void>) {
   let value = EMPTY_MCP_SETTINGS;
   const writes: McpSettings[] = [];
   const save = vi.fn<() => Promise<string | null>>().mockResolvedValue(null);
@@ -25,8 +25,13 @@ function fixture() {
     has: async (ref) => tokens.has(ref),
     remove: async (ref) => { tokens.delete(ref); },
   };
-  const app = new McpApp({ settings, keys, wire: () => createMockWire({ listTools: [{ name: 'search', description: '', inputSchema: {} }], respond: () => ({ content: [] }) }) });
-  return { app, save, writes, tokens, keys, settings };
+  const wire = vi.fn(() => {
+    const value = createMockWire({ listTools: [{ name: 'search', description: '', inputSchema: {} }], respond: () => ({ content: [] }) });
+    if (close !== undefined) value.close = close;
+    return value;
+  });
+  const app = new McpApp({ settings, keys, wire });
+  return { app, save, writes, tokens, keys, settings, wire };
 }
 
 async function add(app: McpApp, token?: string) {
@@ -232,4 +237,29 @@ it('keeps the live connection when a disruptive settings change is refused', asy
   expect(app.client.settings()).toEqual(before);
   expect(app.client.healthOf(server.key)?.state).toBe('healthy');
   expect(app.client.listTools(server.key)).toHaveLength(1);
+});
+
+it.each(['master-off', 'remove', 'disable'])('publishes the committed %s before waiting for the old connection to close', async (action) => {
+  let finishClose!: () => void;
+  const gate = new Promise<void>((resolve) => { finishClose = resolve; });
+  const close = vi.fn(() => gate);
+  const { app, wire, settings } = fixture(close);
+  const server = await add(app);
+  await app.client.setMasterEnabled(true);
+  await app.connect(server.key);
+  const changed = action === 'master-off'
+    ? app.client.setMasterEnabled(false)
+    : action === 'remove'
+      ? app.removeServer(server.key)
+      : app.client.updateServer(server.key, { enabled: false });
+  await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+  try {
+    await app.connect(server.key);
+    expect(wire).toHaveBeenCalledOnce();
+    expect(app.client.settings()).toEqual(settings.current());
+  } finally {
+    finishClose();
+    await changed;
+  }
+  expect(app.client.listTools(server.key)).toEqual([]);
 });
