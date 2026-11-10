@@ -19,6 +19,7 @@ import { plural, t } from '@lingui/core/macro';
 import { getRevision, type ProjectState } from '@caotang/store';
 
 import type { ProjectSession } from './session.js';
+import { stepPendingEntry, type PendingEntryState, type PendingEntryEvent } from './pending-entry.js';
 
 /* lingui-set comment="Interpolated values: count" */
 import {
@@ -112,7 +113,7 @@ export type PendingFailure = 'too-large' | 'refused';
  * entries the store now holds, and writes without asking the autosave for any body (so it costs no rendering while the writer types).
  */
 export class PendingJournal {
-  private readonly held = new Map<string, PendingEntry>();
+  private readonly held = new Map<string, Extract<PendingEntryState, { readonly entry: PendingEntry }>>();
   /** The JSON last written (or found absent), so an unchanged journal writes nothing. */
   private written = '[]';
   private failureNow: PendingFailure | null = null;
@@ -147,9 +148,9 @@ export class PendingJournal {
   /** Takes out the entries the store now holds, and writes. */
   prune(): void {
     if (this.source.stopped()) return;
-    for (const [docId, entry] of this.held) {
+    for (const docId of this.held.keys()) {
       const stored = this.source.stored(docId);
-      if (stored !== undefined && stored.body === entry.body) this.held.delete(docId);
+      this.move(docId, { type: 'prune', body: stored?.body });
     }
     this.write();
   }
@@ -168,18 +169,18 @@ export class PendingJournal {
       // A body the autosave holds but could not read is not in the session yet, so what is held for it stays.
       if (pending === null && dirty.has(docId) && body === stored.body) continue;
       if (body === stored.body) {
-        this.held.delete(docId);
+        this.move(docId, { type: 'drop' });
         continue;
       }
-      const before = this.held.get(docId);
+      const before = this.held.get(docId)?.entry;
       if (before?.body === body && before.baseRevision === stored.revision) continue;
-      this.held.set(docId, { docId, body, baseRevision: stored.revision, at: this.now() });
+      this.move(docId, { type: 'hold', entry: { docId, body, baseRevision: stored.revision, at: this.now() } });
     }
-    for (const docId of this.held.keys()) if (!seen.has(docId)) this.held.delete(docId);
+    for (const docId of this.held.keys()) if (!seen.has(docId)) this.move(docId, { type: 'drop' });
   }
 
   private write(): void {
-    const entries = [...this.held.values()];
+    const entries = [...this.held.values()].map((slot) => slot.entry);
     const text = JSON.stringify(entries);
     if (text === this.written) return;
     if (this.storage === undefined) {
@@ -198,6 +199,7 @@ export class PendingJournal {
       return;
     }
     this.written = text;
+    for (const docId of this.held.keys()) this.move(docId, { type: 'write' });
     if (this.failureNow !== null) {
       this.failureNow = null;
       this.notify();
@@ -214,13 +216,19 @@ export class PendingJournal {
     for (const listener of this.listeners) listener();
   }
 
+  private move(docId: string, event: PendingEntryEvent): void {
+    const next = stepPendingEntry(this.held.get(docId) ?? { kind: 'empty' }, event);
+    if ('entry' in next) this.held.set(docId, next);
+    else this.held.delete(docId);
+  }
+
   /**
    * A stopped session keeps its words in the unsent copy (persistence.ts), so the journal's key is cleared once that copy landed. Until then
    * it stays: it is the only copy there is.
    */
   clearForStop(copyLanded: boolean): void {
     if (!copyLanded) return;
-    this.held.clear();
+    for (const docId of this.held.keys()) this.move(docId, { type: 'stop', copyLanded });
     if (clearPending(this.storage, this.projectId)) this.written = '[]';
   }
 }

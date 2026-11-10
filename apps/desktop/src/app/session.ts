@@ -153,7 +153,8 @@ import { activeAppDb } from './app-db.js';
 import { dropHistoryOf } from './history-store.js';
 import { hostRetentionRoots } from './picture-retention-host.js';
 import { PendingJournal, type PendingFailure } from './pending-journal.js';
-import { browserStorage, stopKeptInBrowser } from './unsent-copy.js';
+import { browserStorage } from './unsent-copy.js';
+import type { TabStop } from './tab-stop.js';
 
 /* lingui-set comment="Interpolated values: error, reason, title" */
 
@@ -755,8 +756,12 @@ export class ProjectSession {
 
   /** A persistence pass has settled or failed: the journal drops what the store holds, or yields to the unsent copy if the session stopped. */
   private afterPersistence(): void {
-    if (this.persistence.isStopped()) this.pending.clearForStop(stopKeptInBrowser(browserStorage()));
+    if (this.persistence.isStopped()) this.pending.clearForStop(this.tabStop().keptInBrowser(browserStorage()));
     else this.pending.prune();
+  }
+
+  tabStop(): TabStop {
+    return this.persistence.tabStop;
   }
 
   /** Why the typing not yet saved could not be kept in this browser, or `null`. The shell says it in the status line. */

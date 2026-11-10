@@ -11,38 +11,8 @@ import { formatterLocale } from '../i18n/format-locale.js';
 import { renderRef, titleValues } from '../i18n/render-ref.js';
 import type { SaveState, WrittenBody } from './session.js';
 
-/**
- * Why this tab's session stopped saving (persistence.ts): another tab stored newer text for the project (`newer-text`), or another tab
- * upgraded Caotang's browser storage, which this tab must reload to use again (`updated`). The stopped-tab notice (StaleTabNotice.tsx)
- * and the save indicator (`saveStateWords`) say which, and the cause is read from here, so neither needs the session.
- *
- * It is page state, as the browser's storage is: one page holds one tab, so one stop is current at a time. It is the one piece of state
- * in this module, kept beside the words that read it.
- */
-export type StopCause = 'newer-text' | 'updated';
-
-let cause: StopCause = 'newer-text';
-const causeListeners = new Set<() => void>();
-
-/** Records why the session stopped. Listeners are told only when the cause changes. */
-export function noteStopCause(next: StopCause): void {
-  if (next === cause) return;
-  cause = next;
-  for (const listener of causeListeners) listener();
-}
-
-/** The cause the current stop has, or `newer-text` when nothing has stopped. */
-export function stopCause(): StopCause {
-  return cause;
-}
-
-/** Calls `listener` when the cause changes, for a component that reads it with `useSyncExternalStore`. */
-export function subscribeStopCause(listener: () => void): () => void {
-  causeListeners.add(listener);
-  return () => {
-    causeListeners.delete(listener);
-  };
-}
+import type { StopCause } from './tab-stop.js';
+export type { StopCause } from './tab-stop.js';
 
 /**
  * The save indicator's words for each save state (ui-modules §5.3, rule 4). A failure says what is safe right now and the one thing
@@ -52,7 +22,7 @@ export function subscribeStopCause(listener: () => void): () => void {
  */
 export function saveStateWords(
   state: SaveState,
-  cause: StopCause = stopCause(),
+  cause: StopCause = 'newer-text',
 ): { readonly text: string; readonly offersBackup: boolean } {
   if (state === 'saved') return { text: t`All changes saved in this browser`, offersBackup: false };
   if (state === 'saving') return { text: t`Saving…`, offersBackup: false };

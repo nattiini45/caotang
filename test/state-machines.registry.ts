@@ -9,6 +9,9 @@ import { sprintTable } from '../packages/furniture/src/sprint.js';
 import { eventQueueTable } from '../packages/sdk/src/run.js';
 import { writerStopTable } from '../packages/sdk/src/writer-stop.js';
 import { confirmationRoundTable } from '../packages/mcp-server/src/confirm.js';
+import { tabStopTable } from '../apps/desktop/src/app/tab-stop.js';
+import { persistenceTable } from '../apps/desktop/src/app/persistence-model.js';
+import { pendingEntryTable } from '../apps/desktop/src/app/pending-entry.js';
 import { findingStatusTable } from '../packages/bus/src/coherence.js';
 import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
@@ -20,4 +23,5 @@ export const machineTables = [
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
   assetStagingTable, assetRemovalHoldTable, eventQueueTable, writerStopTable, confirmationRoundTable,
+  tabStopTable, persistenceTable, pendingEntryTable,
 ] as const;
