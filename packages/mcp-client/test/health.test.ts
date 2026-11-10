@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkMachine } from '@caotang/machine/testing';
 import { healthMachine, type ConnectionHealth, type HealthEvent } from '../src/health.js';
-import { createMcpClient, createMcpTransport, createMockWire, WireError, type McpWire } from '../src/index.js';
+import { createLoadedTools, createMcpClient, createMcpTransport, createMockWire, prepareInvoke, prepareReadResource, unreachableText, WireError, type McpWire } from '../src/index.js';
 import { serverFor } from './support.js';
 
 const KEY = 's_AAAAAAAAAA';
@@ -83,6 +83,50 @@ describe('MCP connection health', () => {
     await expect(createMcpTransport(client).callTool(KEY, 'missing', {})).rejects.toMatchObject({
       error: { message: "server 'Story Bible' unreachable. Check the URL in Settings › MCP & tools, or drop this step" },
     });
+    await client.close();
+  });
+
+  it.each(['network', 'auth', 'cors'] as const)('reports a %s connection failure before looking up a previously listed tool or resource', async (reason) => {
+    const client = createMcpClient({
+      settings: { enabled: true, servers: [serverFor(KEY)] },
+      wire: () => createMockWire({
+        listTools: [{ name: 'known_tool', inputSchema: { type: 'object' } }],
+        resources: [{ uri: 'test://known-resource', name: 'Known resource' }],
+        readResource: () => [], respond: () => ({ content: [] }),
+        fail: (phase) => { if (phase === 'call') throw new WireError(reason, 'Unavailable.'); },
+      }),
+    });
+    await client.connect(KEY);
+    client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
+    expect(client.listResources(KEY)).toHaveLength(1);
+    await expect(createMcpTransport(client).callTool(KEY, 'known_tool', {})).rejects.toBeDefined();
+    expect(client.healthOf(KEY)).toMatchObject({ state: 'failed', reason });
+    const loaded = createLoadedTools();
+    loaded.beginTurn('turn-1');
+    loaded.load([`mcp__${KEY}__known_tool`]);
+    const refused = { ok: false, error: { code: 'io-error', message: unreachableText('Story Bible') } };
+    expect([
+      prepareInvoke({ client, loaded }, { serverKey: KEY, toolName: 'known_tool', args: {} }),
+      prepareReadResource({ client }, { serverKey: KEY, uri: 'test://known-resource', pickedBy: 'writer' }),
+    ]).toMatchObject([refused, refused]);
+    await client.close();
+  });
+
+  it('reports an unfinished connection before looking up tools or resources', async () => {
+    const listing = deferred<Awaited<ReturnType<McpWire['listTools']>>>();
+    const client = createMcpClient({
+      settings: { enabled: true, servers: [serverFor(KEY)] },
+      wire: () => ({ ...createMockWire({ listTools: [], respond: () => ({ content: [] }) }), listTools: () => listing.promise }),
+    });
+    const pending = client.connect(KEY);
+    const loaded = createLoadedTools();
+    const refused = { ok: false, error: { code: 'io-error', message: unreachableText('Story Bible') } };
+    expect([
+      prepareInvoke({ client, loaded }, { serverKey: KEY, toolName: 'known_tool', args: {} }),
+      prepareReadResource({ client }, { serverKey: KEY, uri: 'test://known-resource', pickedBy: 'writer' }),
+    ]).toMatchObject([refused, refused]);
+    listing.resolve([]);
+    await pending;
     await client.close();
   });
 
