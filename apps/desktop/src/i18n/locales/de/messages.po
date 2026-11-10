@@ -10363,7 +10363,7 @@ msgstr "Noch nicht gespeichert. Ihre Wörter sind in diesem Tab; sie werden bei 
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Not saved: {parts}. Your changes are kept in this tab. Try the change again."
-msgstr "Nicht gespeichert: {parts}. Deine Änderungen bleiben in diesem Tab. Versuche die Änderung erneut."
+msgstr "Nicht gespeichert: {parts}. Ihre Änderungen bleiben in diesem Tab. Versuchen Sie die Änderung erneut."
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
