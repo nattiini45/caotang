@@ -32,7 +32,7 @@ Three obligations, each already satisfied or trivially additive:
 
 ### 3.1 Config storage — app settings, never project files
 
-MCP settings mutations serialize private drafts, await the app's `onChange` save callback and publish only committed settings. A returned refusal or rejected save preserves the previous configuration and live connection. Result-bearing mutation methods return an awaited refusal; void methods reject with its message. Credentials dropped by a change are removed only after its settings commit. The settings record remains unchanged.
+MCP settings mutations serialize private drafts, await the app's `onChange` save callback and publish only committed settings. Once saving succeeds, the committed slice is published before asynchronous connection teardown is awaited, so a disabled or removed server cannot reconnect during teardown. A returned refusal or rejected save preserves the previous configuration and live connection. Result-bearing mutation methods return an awaited refusal; void methods reject with its message. Credentials dropped by a change are removed only after its settings commit. The settings record remains unchanged.
 
 ```ts
 // AppSettings gains (ui-modules.md §5.1):
