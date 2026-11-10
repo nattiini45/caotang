@@ -15,7 +15,7 @@ import { isolate } from '@caotang/i18n';
 import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react';
 import {
   COLOUR_EMOJI_HINT,
   COLOUR_EMOJI_LABEL,
@@ -33,6 +33,7 @@ import { loadZipEngine } from '@caotang/store';
 import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
+import { exportCompileMachine, exportReadinessMachine, type CompileEvent, type CompileState } from '../app/export-dialog-model.js';
 import {
   pictureControlsShownFor,
   pictureOptionsOf,
@@ -322,10 +323,20 @@ export function ExportDialog({
   // The whole manuscript unless the writer chooses a part: a selection is a choice to make, not a default.
   const [scope, setScope] = useState<'manuscript' | 'selection'>('manuscript');
   const [newName, setNewName] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [compileState, setCompileState] = useState<CompileState>({ kind: 'idle' });
+  const compileRef = useRef(compileState);
+  const moveCompile = (event: CompileEvent): void => {
+    compileRef.current = exportCompileMachine.step(compileRef.current, event);
+    setCompileState(compileRef.current);
+  };
+  const busy = compileState.kind === 'running';
   // What the dialog says about its own work: a refusal, a failed save, or a recipe saved. It is shown inside the dialog, beside Compile,
   // because the status line sits under the dialog and the writer is reading the dialog. A finished compile is said on the status line.
-  const [notice, setNotice] = useState<(StatusMessage & { readonly hookRequest?: string }) | null>(null);
+  const [notice, storeNotice] = useState<(StatusMessage & { readonly hookRequest?: string }) | null>(null);
+  const setNotice = (next: (StatusMessage & { readonly hookRequest?: string }) | null): void => {
+    if (compileRef.current.kind !== 'running') moveCompile({ type: 'reset' });
+    storeNotice(next);
+  };
   const shown = shownOptionsOf(recipe);
   // A comic compile takes one book, so the format is offered while a comic or one of its pages is the selected item.
   const comicSelected = selection !== null && comicBookOf(session.state.manifest.tree, selection.id) !== undefined;
@@ -337,32 +348,38 @@ export function ExportDialog({
   const templateId = pack && vendor !== '' ? vendor : undefined;
   const recipeFor = pack && vendor === '' ? undefined : recipe?.name;
   const requestKey = JSON.stringify({ format, scope, selection: selection?.id, recipe, vendor });
-  const currentNotice = notice?.hookRequest === undefined || notice.hookRequest === requestKey ? notice : null;
+  const activeNotice = compileState.kind === 'failed' ? { ...compileState.failure, tone: 'error' as const } : notice;
+  const currentNotice = activeNotice?.hookRequest === undefined || activeNotice.hookRequest === requestKey ? activeNotice : null;
 
   // The Preview waits for the same readiness a compile does (the Ink compiler, the image listing), so a media format's gates are the compile's.
-  const [ready, setReady] = useState(false);
-  const [readyFailure, setReadyFailure] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    session.exportsReady().then(
-      () => {
-        if (live) setReady(true);
-      },
-      (error: unknown) => {
-        if (live) setReadyFailure(error instanceof Error ? error.message : String(error));
-      },
-    );
-    return () => {
-      live = false;
-    };
+  const [readiness, moveReadiness] = useReducer(exportReadinessMachine.step, { kind: 'waiting', request: 0 });
+  const readinessRequest = useRef(0);
+  const live = useRef(true);
+  const ensureReady = useCallback(async (): Promise<void> => {
+    const request = ++readinessRequest.current;
+    moveReadiness({ type: 'check', request });
+    try {
+      await session.exportsReady();
+      if (live.current) moveReadiness({ type: 'ready', request });
+    } catch (error) {
+      if (live.current) moveReadiness({ type: 'failed', request, message: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
   }, [session]);
+  useEffect(() => {
+    live.current = true;
+    void ensureReady().catch(() => {});
+    return () => {
+      live.current = false;
+    };
+  }, [ensureReady]);
   // A recipe saved, a format, scope or vendor chosen, or any change to the project, makes another Draft. Making one is a read of the project.
   const version = useSession(session);
   const preview = useMemo((): PreviewState => {
     // The project is the session's, read in place, so the Draft is made again whenever the session has committed something.
     void version;
-    if (readyFailure !== null) return { kind: 'failed', message: readyFailure };
-    if (!ready) return { kind: 'waiting' };
+    if (readiness.kind === 'failed') return { kind: 'failed', message: readiness.message };
+    if (readiness.kind === 'waiting') return { kind: 'waiting' };
     if (pack && vendor === '') return { kind: 'needs-vendor' };
     try {
       return {
@@ -377,7 +394,7 @@ export function ExportDialog({
     } catch (error) {
       return { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
     }
-  }, [session, ready, readyFailure, version, format, pack, vendor, recipeFor, templateId, partId]);
+  }, [session, readiness, version, format, pack, vendor, recipeFor, templateId, partId]);
   // The same request, for the Proof, which is made in its own view (ExportProofView) when the writer asks for it.
   const proofRequest: ExportPreviewRequest = {
     selection: partId === null ? { kind: 'manuscript' } : { kind: 'nodes', includeRootIds: [partId] },
@@ -472,11 +489,13 @@ export function ExportDialog({
   };
 
   const compile = async (compileAnyway = false): Promise<void> => {
-    const override = compileAnyway && notice?.hookRequest === requestKey;
-    setBusy(true);
+    if (compileRef.current.kind === 'running') return;
+    const override = compileAnyway && currentNotice?.hookRequest === requestKey;
+    moveCompile({ type: 'start' });
     setNotice(null);
     try {
-      await session.exportsReady();
+      await ensureReady();
+      if (!live.current) return;
       // Failures are cumulative for the life of the exporter, and a path a later compile re-used may carry an older
       // failure. Only the entries this compile adds are matched, so a path that wrote successfully now is not reported
       // as failed because an earlier compile of the same name failed.
@@ -488,26 +507,28 @@ export function ExportDialog({
         : compileManuscript(session, format, recipeFor, templateId, override);
       if (!outcome.ok) {
         // A refusal keeps the dialog open, so the reason is said here, next to Compile, and not on the status line under the dialog.
-        setNotice({ text: explain(outcome.error), tone: 'error', ...(outcome.error.details?.['hookBlocked'] === true ? { hookRequest: requestKey } : {}) });
+        moveCompile({ type: 'failed', failure: { text: explain(outcome.error), ...(outcome.error.details?.['hookBlocked'] === true ? { hookRequest: requestKey } : {}) } });
         return;
       }
       const digest = outcome.value.result as ExportCommandDigest;
       // The files are written by the exporter's queue, after the command has returned. Wait for them, then download.
       await session.exportsIdle();
+      if (!live.current) return;
       const paths = digest.outputs ?? [digest.output];
       const thisCompile = session.exportFailures().slice(priorFailures);
       for (const path of paths) {
         const failure = thisCompile.find((candidate) => candidate.path === path);
         if (failure !== undefined) {
-          setNotice({ text: t`The ${format} file could not be made: ${{ reason: failure.message }}`, tone: 'error' });
+          moveCompile({ type: 'failed', failure: { text: t`The ${format} file could not be made: ${{ reason: failure.message }}` } });
           return;
         }
       }
       const files: { name: string; bytes: Uint8Array }[] = [];
       for (const path of paths) {
         const bytes = await session.readExport(path);
+        if (!live.current) return;
         if (bytes === null) {
-          setNotice({ text: t`The ${format} file was not found after it was made.`, tone: 'error' });
+          moveCompile({ type: 'failed', failure: { text: t`The ${format} file was not found after it was made.` } });
           return;
         }
         files.push({ name: fileName(path), bytes });
@@ -516,14 +537,15 @@ export function ExportDialog({
         const [only] = files;
         if (only !== undefined) downloadBytes(only.bytes, only.name, EXPORT_MIME[format]);
       } else {
-        downloadBytes(await zipFiles(files), `${zipStem(recipe?.name ?? session.state.manifest.project.name)}.zip`, 'application/zip');
+        const bytes = await zipFiles(files);
+        if (!live.current) return;
+        downloadBytes(bytes, `${zipStem(recipe?.name ?? session.state.manifest.project.name)}.zip`, 'application/zip');
       }
       report({ text: exportedSentence(digest, session.exportsToFolder(), comicPanels), tone: 'info' });
+      moveCompile({ type: 'succeeded' });
       onClose();
     } catch (error) {
-      setNotice({ text: t`The export could not be made: ${{ reason: error instanceof Error ? error.message : String(error) }}`, tone: 'error' });
-    } finally {
-      setBusy(false);
+      if (live.current) moveCompile({ type: 'failed', failure: { text: t`The export could not be made: ${{ reason: error instanceof Error ? error.message : String(error) }}` } });
     }
   };
 
@@ -539,14 +561,19 @@ export function ExportDialog({
     : offered;
 
   const selectionLabel = selection === null ? t`The selected item (select one in the binder)` : t`Only “${{ title: isolate(selection.title) }}”`;
+  const close = (): void => {
+    if (compileRef.current.kind !== 'running') onClose();
+  };
   return (
     <dialog
       ref={dialog}
       className="export-dialog"
       aria-labelledby="export-title"
+      data-state={compileState.kind}
+      data-preview-state={readiness.kind}
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        close();
       }}
     >
       <div className="export-body">
@@ -881,7 +908,7 @@ export function ExportDialog({
                 <Trans>Compile anyway</Trans>
               </button>
             ) : null}
-            <button type="button" className="button" onClick={onClose} disabled={busy}>
+            <button type="button" className="button" onClick={close} disabled={busy}>
               <Trans>Cancel</Trans>
             </button>
             <button type="button" className="button is-primary" onClick={() => void compile()} disabled={busy}>

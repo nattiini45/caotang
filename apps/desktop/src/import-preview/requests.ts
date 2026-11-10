@@ -29,15 +29,17 @@ function announce(): void {
 
 /** Opens the preview over this source. Nothing is written until the writer presses Import in it. */
 export function openImportPreview(request: ImportPreviewRequest): void {
+  const replaced = current;
   opened += 1;
   current = { ...request, id: opened };
   announce();
+  replaced?.onClose?.(false);
 }
 
 /** Closes the open preview, if any. */
-export function closeImportPreview(committed = false): void {
+export function closeImportPreview(committed = false, expectedId?: number): void {
   const closing = current;
-  if (closing === null) return;
+  if (closing === null || (expectedId !== undefined && closing.id !== expectedId)) return;
   current = null;
   announce();
   closing.onClose?.(committed);
