@@ -314,15 +314,18 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           <p>{t`${plural(added, { one: '# finding', other: '# findings' })} kept. Start another review when you are ready.`}</p>
         </section>
       ) : review.kind === 'partial' ? (
-        <section className="findings-plan" role="status" data-testid="review-outcome" {...panelState('partial')}>
+        <section className="form-message is-error" role="alert" data-testid="review-outcome" {...panelState('partial')}>
+          <Icon name="error" label={t`Check stopped`} />
           <h3 className="findings-section-title"><Trans>The model review is partial.</Trans></h3>
-          <p>{t`${plural(added, { one: '# finding', other: '# findings' })} kept. Start another review to try again.`}</p>
+          <p>{t`${plural(added, { one: '# finding', other: '# findings' })} kept.`}</p>
           {review.outcome.notes.map((note, index) => <p key={index} className="field-note"><UserText value={note} /></p>)}
+          <p><Trans>Run a scan or start another review to try again. Any findings already recorded are kept below.</Trans></p>
         </section>
       ) : review.kind === 'failed' ? (
         <div className="form-message is-error" role="alert" data-testid="review-outcome" {...panelState('error')}>
+          <Icon name="error" label={t`Check stopped`} />
           <p>{t`The model review did not run: ${{ error: review.message }}`}</p>
-          <p><Trans>Start another review to try again. Any findings already recorded are kept below.</Trans></p>
+          <p><Trans>Run a scan or start another review to try again. Any findings already recorded are kept below.</Trans></p>
         </div>
       ) : review.kind === 'idle' && outcome !== undefined ? (
         <p role="status" data-testid="review-outcome">{t`The model review is complete: ${plural(added, { one: '# finding', other: '# findings' })} added or updated.`}</p>
@@ -347,7 +350,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           <p><Trans>Run a scan or start another review to try again. Any findings already recorded are kept below.</Trans></p>
         </div>
       ) : null}
-      {sections.length === 0 && !running && failure === null && status.saveFailure === null ? (
+      {sections.length === 0 && (review.kind === 'idle' || review.kind === 'planned') && failure === null && status.saveFailure === null ? (
         <EmptyState
           title={file === undefined || file.findings.length === 0 ? (runs.length === 0 ? t`No findings yet` : t`No findings recorded`) : select(filter, { open: 'No open findings', dismissed: 'No dismissed findings', fixed: 'No marked fixed findings', all: 'No all findings', other: 'No findings' })}
           glyph={<Icon name={noOpenFindings ? 'check' : 'findings'} label={noOpenFindings ? t`No open findings` : t`No findings to show`} />}

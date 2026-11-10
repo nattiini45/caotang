@@ -432,8 +432,8 @@ msgstr "{action}: {detail}"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
-msgid "{added, plural, one {# finding} other {# findings}} kept. Start another review to try again."
-msgstr "{added, plural, one {# finding} other {# findings}} kept. Start another review to try again."
+msgid "{added, plural, one {# finding} other {# findings}} kept."
+msgstr "{added, plural, one {# finding} other {# findings}} kept."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -4666,6 +4666,8 @@ msgstr "Check for continuity problems"
 msgid "Check run discarded"
 msgstr "Check run discarded"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Check stopped"
@@ -13036,6 +13038,8 @@ msgid "RTF file"
 msgstr "RTF file"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Run a scan or start another review to try again. Any findings already recorded are kept below."
 msgstr "Run a scan or start another review to try again. Any findings already recorded are kept below."
@@ -14554,11 +14558,6 @@ msgstr "Sprint length in minutes"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Sprint timer"
 msgstr "Sprint timer"
-
-#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
-#: apps/desktop/src/components/FindingsPanel.tsx
-msgid "Start another review to try again. Any findings already recorded are kept below."
-msgstr "Start another review to try again. Any findings already recorded are kept below."
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
