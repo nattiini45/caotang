@@ -11,6 +11,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@caotang/machine": "workspace:*",
     "@caotang/comic": "workspace:*",
     "@caotang/i18n": "workspace:*",
     "@caotang/pictures": "workspace:*",

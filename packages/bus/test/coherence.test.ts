@@ -4,6 +4,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { checkMachine } from '@caotang/machine/testing';
+import { findingStatusMachine } from '../src/coherence.js';
 
 import {
   COHERENCE_NOTE_LIMIT,
@@ -331,6 +333,12 @@ describe('inverseScenePatch (undo, command-bus §5)', () => {
 });
 
 describe('finding transitions (coherence.md §6.3, the lifecycle)', () => {
+  it('agrees with every state and event in its exported table', () => {
+    expect(checkMachine(findingStatusMachine, {
+      states: [{ kind: 'open' }, { kind: 'dismissed' }, { kind: 'fixed' }],
+      events: [{ type: 'open' }, { type: 'dismissed' }, { type: 'fixed' }],
+    })).toEqual([]);
+  });
   it('lets a dismissal, a fix and a re-open through from the states the lifecycle allows', () => {
     expect(findingTransition('open', 'dismissed')).toEqual({ ok: true });
     expect(findingTransition('open', 'fixed')).toEqual({ ok: true });

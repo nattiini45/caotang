@@ -8,6 +8,15 @@ import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-mode
 import { sprintTable } from '../packages/furniture/src/sprint.js';
 import { reviewTable } from '../apps/desktop/src/app/coherence-review-state.js';
 import { interfaceTable } from '../apps/desktop/src/app/interface.js';
+import { findingStatusTable } from '../packages/bus/src/coherence.js';
+import { callIdTable } from '../packages/bus/src/idempotency.js';
+import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
+import { assetStagingTable } from '../packages/store/src/asset-staging.js';
+import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
 
-export const machineTables = [sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
-  exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table, sidebarTable, menuTable, reviewTable, interfaceTable] as const;
+export const machineTables = [
+  sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
+  exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
+  sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
+  assetStagingTable, assetRemovalHoldTable, reviewTable, interfaceTable,
+] as const;

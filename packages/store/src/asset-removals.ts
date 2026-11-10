@@ -6,6 +6,7 @@
  * that newly names a held file. Kept apart from picture-retention.ts so state.ts can read it without an import cycle.
  */
 import { ApplyRefusal } from '@caotang/bus';
+import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
 
 /** An `assets/a_XXXXXXXXXX.png` spelling anywhere in a text (the inline form, with or without `../`). */
 const ASSET_PATH_IN_TEXT = /assets\/(a_[0-9A-HJKMNP-TV-Z]{10})\.(?:png|jpg|webp)\b/g;
@@ -20,8 +21,49 @@ export function assetIdsInText(text: string): string[] {
   return [...ids];
 }
 
-/** Per project state, each held asset id and how many removals hold it. */
-const held = new WeakMap<object, Map<string, number>>();
+export type AssetRemovalHoldState =
+  | { readonly kind: 'clear' }
+  | { readonly kind: 'held'; readonly holders: readonly object[] };
+
+export type AssetRemovalHoldEvent =
+  | { readonly type: 'acquire'; readonly holder: object }
+  | { readonly type: 'release'; readonly holder: object };
+
+export const assetRemovalHoldTable: MachineTable<AssetRemovalHoldState, AssetRemovalHoldEvent> = {
+  id: 'asset.removal-hold',
+  initial: 'clear',
+  final: [],
+  on: {
+    clear: { acquire: ['held'] },
+    held: { acquire: ['held'], release: ['held', 'clear'] },
+  },
+};
+
+export function stepAssetRemovalHold(state: AssetRemovalHoldState, event: AssetRemovalHoldEvent): AssetRemovalHoldState {
+  switch (state.kind) {
+    case 'clear':
+      switch (event.type) {
+        case 'acquire': return { kind: 'held', holders: [event.holder] };
+        case 'release': return state;
+        default: return assertNever(event);
+      }
+    case 'held':
+      switch (event.type) {
+        case 'acquire': return state.holders.includes(event.holder) ? state : { kind: 'held', holders: [...state.holders, event.holder] };
+        case 'release': {
+          if (!state.holders.includes(event.holder)) return state;
+          const holders = state.holders.filter((holder) => holder !== event.holder);
+          return holders.length === 0 ? { kind: 'clear' } : { kind: 'held', holders };
+        }
+        default: return assertNever(event);
+      }
+    default: return assertNever(state);
+  }
+}
+
+export const assetRemovalHoldMachine = defineMachine(assetRemovalHoldTable, stepAssetRemovalHold);
+
+const held = new WeakMap<object, Map<string, AssetRemovalHoldState>>();
 
 /**
  * Holds `assetId` against new references in `state` until the returned release runs. Call it in the same synchronous step as the
@@ -33,22 +75,21 @@ export function holdAssetRemoval(state: object, assetId: string): () => void {
     ids = new Map();
     held.set(state, ids);
   }
-  ids.set(assetId, (ids.get(assetId) ?? 0) + 1);
-  let released = false;
+  const holder = {};
+  ids.set(assetId, assetRemovalHoldMachine.step(ids.get(assetId) ?? { kind: 'clear' }, { type: 'acquire', holder }));
   return () => {
-    if (released) return;
-    released = true;
     const current = held.get(state);
-    const count = current?.get(assetId) ?? 0;
-    if (current === undefined) return;
-    if (count <= 1) current.delete(assetId);
-    else current.set(assetId, count - 1);
+    const active = current?.get(assetId);
+    if (current === undefined || active === undefined) return;
+    const next = assetRemovalHoldMachine.step(active, { type: 'release', holder });
+    if (next.kind === 'clear') current.delete(assetId);
+    else current.set(assetId, next);
   };
 }
 
 /** Whether a sweep is removing `assetId`'s file in `state` right now. */
 export function assetRemovalHeld(state: object, assetId: string): boolean {
-  return (held.get(state)?.get(assetId) ?? 0) > 0;
+  return held.get(state)?.get(assetId)?.kind === 'held';
 }
 
 /**

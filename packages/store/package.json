@@ -12,6 +12,7 @@
     "./encoding": "./src/encoding.ts"
   },
   "dependencies": {
+    "@caotang/machine": "workspace:*",
     "@caotang/bus": "workspace:*",
     "@caotang/comic": "workspace:*",
     "@caotang/i18n": "workspace:*",
