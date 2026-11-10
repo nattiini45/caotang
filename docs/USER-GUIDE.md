@@ -461,6 +461,8 @@ If you change or reconnect the server while filling in a prompt's arguments, sta
 
 An unavailable `/mcp-…` command stays in the composer and is not sent to your model provider. Start the command again after reconnecting; its fields start empty. Use `//mcp-…` only when you deliberately want to send that literal text as an ordinary model request.
 
+After a project restore, the turn says whether all or some of its project changes were taken back. Its earlier report stays unchanged under **Original result**; it is history, not a claim that those changes are still in the project. A restore confirmation keeps that original result separate from the warning about which edits will be taken back. Rewinding the conversation alone does not say project changes were undone.
+
 ## Agent instructions and memory
 
 Some things you would otherwise say in every request: "British spelling. Past tense, close third person on Mara. No semicolons in dialogue." Write them once in **CAOTANG.md**, and the agent reads them with every request. Choose **Instructions** in the toolbar to open the panel.

@@ -20,6 +20,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Restore result wording.** English and German confirmations keep the original result separate from their scope warning, without adding punctuation to the supplied summary. Restored turns name the whole or partial project changes taken back and retain the unchanged earlier report as **Original result**; conversation-only rewind makes no undo claim.
+
 - **Recurring task admission.** A task claims its agent turn before publishing that it is running, so another turn cannot turn it into a false failed history row. Newly due offers remain visible while a scan runs, and a task keeps its run slot until history recording finishes. Restore/rewind badges and conversation context now read the same in-memory marker state; saved task and run-log formats are unchanged.
 
 - **Save channels.** Failed task or app-settings writes now turn the save indicator red and name the failed part. An unresolved document conflict stays red as Documents even after an unchanged flush; copy unsaved text somewhere safe before reloading. Findings, tasks and settings share one ordered save queue. Undo returns its own result, so a later undo cannot overwrite its explanation.
