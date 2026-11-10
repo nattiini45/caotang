@@ -1,5 +1,7 @@
 # Caotang user guide
 
+If a dialog opens while another is open, your input stays underneath. Escape acts on the top dialog and returns focus to the one below. A stopped-tab notice always takes precedence and cannot be dismissed. Modern hides background notice capsules while a dialog is open, still announces new notices, and shows current notices again when you close the dialog. An error received while covered is kept over later information; a newer error replaces it.
+
 This guide is for writers. It says what you see in Caotang and what each control does. For setup and the technical side, see the [README](../README.md). The last section lists what is not in this build yet.
 
 ## Your work and where it lives
