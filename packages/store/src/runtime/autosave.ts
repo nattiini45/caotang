@@ -578,7 +578,9 @@ export function createAutosave(options: AutosaveOptions): Autosave {
           }, debounceMs);
           break;
         case 'notify': emit(slot); break;
-        case 'drain': void runFlush(slot.id); break;
+        case 'drain':
+          if (slot.current.pending !== null && !slot.current.scheduled) void runFlush(slot.id);
+          break;
         case 'write': break;
         default: assertNever(effect);
       }

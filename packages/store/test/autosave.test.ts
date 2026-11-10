@@ -352,6 +352,30 @@ describe('§4 — a mid-flight edit waits out its own window', () => {
     expect(writer.calls).toHaveLength(2);
     expect(writer.calls[1]?.body).toBe('c');
   });
+
+  it('keeps the full window of an edit made by a settle subscriber', async () => {
+    const { autosave, clock, writer } = harness([{ kind: 'hold' }, { kind: 'ok' }]);
+    autosave.open(DOC, { body: 'a', revision: 0 });
+    autosave.noteEdit(DOC, 'b');
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+    autosave.noteEdit(DOC, 'c');
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+    let edited = false;
+    autosave.subscribe((event) => {
+      if (!edited && event.status.state === 'pending' && event.status.revision === 1) {
+        edited = true;
+        autosave.noteEdit(DOC, 'd');
+      }
+    });
+    writer.settleHeld(0, { revision: 1, changed: true });
+    await clock.advance(0);
+    expect(writer.calls).toHaveLength(1);
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS - 1);
+    expect(writer.calls).toHaveLength(1);
+    await clock.advance(1);
+    expect(writer.calls.map((call) => call.body)).toEqual(['b', 'd']);
+    expect(writer.calls[1]?.expectedRevision).toBe(1);
+  });
 });
 
 describe('§4 — a saved write is a document write for the session tracker', () => {
