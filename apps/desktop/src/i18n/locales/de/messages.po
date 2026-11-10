@@ -434,12 +434,12 @@ msgstr "{action}: {detail}"
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "{added, plural, one {# finding} other {# findings}} kept. Start another review to try again."
-msgstr "{added, plural, one {# Befund bleibt erhalten.} other {# Befunde bleiben erhalten.}} Starte eine weitere Prüfung, um es erneut zu versuchen."
+msgstr "{added, plural, one {# Feststellung bleibt erhalten.} other {# Feststellungen bleiben erhalten.}} Starte eine weitere Prüfung, um es erneut zu versuchen."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "{added, plural, one {# finding} other {# findings}} kept. Start another review when you are ready."
-msgstr "{added, plural, one {# Befund bleibt erhalten.} other {# Befunde bleiben erhalten.}} Starte eine weitere Prüfung, wenn du bereit bist."
+msgstr "{added, plural, one {# Feststellung bleibt erhalten.} other {# Feststellungen bleiben erhalten.}} Starte eine weitere Prüfung, wenn du bereit bist."
 
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
@@ -14544,7 +14544,7 @@ msgstr "Sprint-Timer"
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Start another review to try again. Any findings already recorded are kept below."
-msgstr "Starte eine weitere Prüfung, um es erneut zu versuchen. Bereits erfasste Befunde bleiben unten erhalten."
+msgstr "Starte eine weitere Prüfung, um es erneut zu versuchen. Bereits erfasste Feststellungen bleiben unten erhalten."
 
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx

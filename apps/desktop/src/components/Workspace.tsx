@@ -1160,35 +1160,37 @@ export function Workspace({
     ),
     status: message === null && review.kind !== 'running' ? null : (
       <>
-      {review.kind === 'running' ? (
-        <div className="status-line" role="status" data-testid="review-status" data-state="running">
-          <span><Trans>The model review is running.</Trans></span>
-          <button type="button" className="button is-quiet" onClick={() => {
-            setRail('findings');
-            setRailRequest((count) => count + 1);
-            if (narrow) setPanel('rail');
-          }}><Trans>Show review</Trans></button>
-          <button type="button" className="button is-quiet" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button>
-        </div>
-      ) : null}
-      {message ? (
-      <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
-        <span>
-          {message.text}
-          {message.link ? (
-            <>
-              <button type="button" className="status-link" onClick={message.link.onClick}>
-                {message.link.label}
-              </button>
-              {message.link.after}
-            </>
-          ) : null}
-        </span>
-        <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
-          <Trans>Dismiss</Trans>
-        </button>
-      </div>
-      ) : null}
+        {review.kind === 'running' ? (
+          <div className="status-line" role="status" data-testid="review-status" data-state="running">
+            <span><Trans>The model review is running.</Trans></span>
+            <button type="button" className="button is-quiet" onClick={() => {
+              setFocusMode(false);
+              setRail('findings');
+              setRailRequest((count) => count + 1);
+              if (narrow) setPanel('rail');
+              focusSoon(`#${railTabId('findings')}`);
+            }}><Trans>Show review</Trans></button>
+            <button type="button" className="button is-quiet" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button>
+          </div>
+        ) : null}
+        {message ? (
+          <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
+            <span>
+              {message.text}
+              {message.link ? (
+                <>
+                  <button type="button" className="status-link" onClick={message.link.onClick}>
+                    {message.link.label}
+                  </button>
+                  {message.link.after}
+                </>
+              ) : null}
+            </span>
+            <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
+              <Trans>Dismiss</Trans>
+            </button>
+          </div>
+        ) : null}
       </>
     ),
     saveState: <SaveIndicator state={saveState} onExport={exportNow} />,

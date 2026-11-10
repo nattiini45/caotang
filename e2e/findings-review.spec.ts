@@ -19,11 +19,13 @@ test('the review keeps its progress after leaving Findings, stays visible, and s
   await expect(page.getByTestId('review-status')).toHaveAttribute('data-state', 'running');
   await page.getByTestId('review-status').getByRole('button', { name: 'Show review' }).click();
   await expect(page.getByTestId('findings-panel')).toHaveAttribute('data-state', 'running');
+  await expect(page.getByTestId('review-running')).toBeInViewport();
   await expect(page.getByTestId('review-running')).toContainText('1 model call completed.');
   await page.getByTestId('review-running').getByRole('button', { name: 'Stop the review' }).click();
   await expect(page.getByTestId('findings-panel')).toHaveAttribute('data-state', 'cancelled');
   await expect(page.getByTestId('review-status')).toHaveCount(0);
   await expect(page.getByTestId('review-outcome')).toContainText('The model review was stopped.');
+  await expect(page.getByTestId('review-outcome')).toBeInViewport();
   await expect(page.getByTestId('review-outcome')).toHaveAttribute('data-panel-state', 'partial');
   await expect(page.getByTestId('review-outcome')).not.toHaveAttribute('role', 'alert');
   await expect(page.getByTestId('run-history').locator('[data-run]')).toHaveCount(1);
@@ -55,6 +57,7 @@ test('Modern keeps review controls visible with the sidebar closed, including in
   await page.keyboard.press('Escape');
   await page.getByTestId('review-status').getByRole('button', { name: 'Show review' }).click();
   await expect(page.getByTestId('findings-panel')).toHaveAttribute('data-state', 'running');
+  await expect(page.getByTestId('modern-sidebar').getByRole('tab', { name: 'Findings' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('modern-sidebar')).toHaveAttribute('data-panel-state', 'closed');
   await expect(page.getByTestId('review-status')).toBeVisible();
