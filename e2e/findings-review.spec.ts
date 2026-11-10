@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { planHeldReview, startHeldReview, stopHeldReview, type ReviewWindow } from './findings-review.js';
+import { holdFolderSave, releaseFolderPicker, releaseFolderWrite } from './folder-save-support.js';
+import { FOLDER_ACCESS_ONLY } from './support.js';
 
 test('two synchronous Start clicks start only one model review', async ({ page }) => {
   await planHeldReview(page);
@@ -68,3 +70,50 @@ test('Modern keeps review controls visible with the sidebar closed, including in
   await expect(page.getByTestId('findings-panel')).toHaveAttribute('data-state', 'cancelled');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+for (const shell of ['Classic', 'Modern'] as const) {
+  for (const width of [1280, 390]) {
+    test(`${shell} keeps a running review and folder save separate inside a ${width}px viewport`, async ({ page, browserName }) => {
+      test.skip(browserName !== 'chromium', FOLDER_ACCESS_ONLY);
+      await holdFolderSave(page);
+      await startHeldReview(page);
+      await page.getByRole('tab', { name: 'Binder', exact: true }).click();
+      await expect(page.getByTestId('findings-panel')).toHaveCount(0);
+      if (shell === 'Modern') {
+        await page.getByTestId('open-settings').click();
+        const settings = page.getByTestId('settings');
+        await settings.locator('[data-section="appearance"]').click();
+        await settings.locator('input[name="shell"]').nth(1).check();
+        await expect(settings.getByTestId('interface-choice')).toHaveAttribute('data-state', 'ready');
+        await page.keyboard.press('Escape');
+        await page.getByRole('toolbar', { name: 'Scene' }).getByRole('button', { name: 'More', exact: true }).click();
+        await page.getByRole('menuitem', { name: 'Save to folder', exact: true }).click();
+      } else {
+        await page.getByRole('button', { name: 'Save to folder', exact: true }).click();
+      }
+      await releaseFolderPicker(page);
+      await expect(page.getByTestId('folder-save')).toHaveAttribute('data-state', 'saving');
+      await page.setViewportSize({ width, height: 844 });
+      const review = page.getByTestId('review-status');
+      const saving = page.locator('[role="status"][data-state="saving"]');
+      await expect(review).toHaveAttribute('data-state', 'running');
+      await expect(saving).toContainText('Saving to the folder…');
+      await expect.poll(async () => {
+        const [reviewBox, savingBox] = await Promise.all([review.boundingBox(), saving.boundingBox()]);
+        if (reviewBox === null || savingBox === null) return { reviewBox, savingBox };
+        const fits = (box: typeof reviewBox) => box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= 844;
+        return {
+          reviewBox,
+          savingBox,
+          reviewInside: fits(reviewBox),
+          savingInside: fits(savingBox),
+          separate: reviewBox.x + reviewBox.width <= savingBox.x || savingBox.x + savingBox.width <= reviewBox.x
+            || reviewBox.y + reviewBox.height <= savingBox.y || savingBox.y + savingBox.height <= reviewBox.y,
+        };
+      }, { message: 'The running review and folder-save notices fit the viewport without overlapping.' }).toMatchObject({ reviewInside: true, savingInside: true, separate: true });
+      await review.getByRole('button', { name: 'Stop the review' }).click();
+      await releaseFolderWrite(page);
+      await expect(page.getByTestId('folder-save')).toHaveAttribute('data-state', 'saved');
+    });
+  }
+}
