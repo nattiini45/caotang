@@ -104,6 +104,15 @@ describe('usage ledger — day rows (§6)', () => {
 });
 
 describe('usage ledger — turn rows (§6)', () => {
+  it('uses a standalone accounting id without turning the request into an agent turn, and a real turn takes precedence', async () => {
+    const h = harness();
+    await h.profiles.create({ name: 'Offline', kind: 'mock' });
+    await collect(h.gateway.complete({ ...userMessage('review'), usageTurnId: 'review-1' }));
+    await collect(h.gateway.complete({ ...userMessage('agent review'), turnId: 'parent', usageTurnId: 'ignored' }));
+    expect(h.gateway.ledger.turnRows().map((row) => row.turnId)).toEqual(['review-1', 'parent']);
+    expect(h.gateway.ledger.turnTotals('review-1').requests).toBe(1);
+  });
+
   it('attributes each request to its turn and totals the turn across requests', async () => {
     const h = harness();
     const mock = await h.profiles.create({ name: 'Offline', kind: 'mock' });

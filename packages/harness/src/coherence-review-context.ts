@@ -101,7 +101,7 @@ export function gatewayCoherenceModel(
       const message = await gateway.completeOnce(
         {
           profileId: profile.id,
-          turnId: request.turnId ?? reviewId,
+          ...(request.turnId === undefined ? { usageTurnId: reviewId } : { turnId: request.turnId }),
           ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
           // The review is a 'chat'-role task (provider-gateway §6): the role rides the ledger row, while the
           // profile stays pinned to the one the caller resolved.

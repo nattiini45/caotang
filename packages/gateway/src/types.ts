@@ -361,7 +361,6 @@ export type ModelLimitsRequest = Pick<ChatRequest, 'maxOutputTokens' | 'reasonin
 
 export interface ChatRequest {
   messages: ChatMessage[];
-  sessionId?: string;
   /** overrides profile.defaultModel */
   model?: string;
   temperature?: number;
@@ -389,6 +388,8 @@ export interface ChatRequest {
   cache?: CachePolicy;
   /** the agent turn this request belongs to; keys the per-turn ledger row (§6) */
   turnId?: string;
+  usageTurnId?: string;
+  sessionId?: string;
   /** the task role this request runs under; recorded on the ledger row (§6) */
   role?: TaskRole;
   /**

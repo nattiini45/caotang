@@ -19,6 +19,7 @@
  * text the caller already holds.
  */
 
+import { tokensForChars } from '@caotang/codex';
 import type { Clock } from './clock.js';
 import { abortError, EgressDeniedError, ProviderError, providerMessages } from './errors.js';
 import { backoffMs, isRetryable, parseRetryAfter, type RetryPolicy, type TransportTimeouts } from './retry.js';
@@ -27,7 +28,6 @@ import { redact } from './redact.js';
 import { createSseParser, type SseEvent } from './sse.js';
 import { CallerCancelled, DeadlineReached, guard, sleep } from './timing.js';
 import { classifyLocalFailure, loopbackPermission, supportsTargetAddressSpace, type LocalHint } from './local.js';
-import { estimateTokens } from './tokens.js';
 import type { StreamParser } from './adapters/types.js';
 import type { ChatChunk, FinishReason, ReasoningBlock, ToolCall, Usage } from './types.js';
 
@@ -109,6 +109,7 @@ export interface StreamStats {
  */
 interface StreamState {
   delivered: string;
+  reasoningChars: number;
   sawDelta: boolean;
 }
 
@@ -459,6 +460,7 @@ function* chunksOf(
         yield { delta: piece.text };
       }
       if (piece.reasoning !== undefined && piece.reasoning !== '') {
+        state.reasoningChars += piece.reasoning.length;
         // Reasoning is delivered too: a retry after it would duplicate the Thinking block.
         state.sawDelta = true;
         yield { reasoningDelta: piece.reasoning };
@@ -576,8 +578,12 @@ export async function* streamChat(
   const { clock } = deps;
   const maxRetries = spec.maxRetries ?? deps.retry.maxRetries;
   const totalAt = clock.now() + deps.timeouts.totalMs;
-  const state: StreamState = { delivered: '', sawDelta: false };
-  const estimated = (): Usage => ({ promptTokens: spec.promptTokens, completionTokens: estimateTokens(state.delivered) });
+  const state: StreamState = { delivered: '', reasoningChars: 0, sawDelta: false };
+  const estimated = (): Usage => ({
+    promptTokens: spec.promptTokens,
+    completionTokens: tokensForChars(state.delivered.length + state.reasoningChars),
+    ...(state.reasoningChars === 0 ? {} : { reasoningTokens: tokensForChars(state.reasoningChars) }),
+  });
   let retries = 0;
 
   // The controller of the attempt in flight. Aborting it on the way out means a fetch never
@@ -640,7 +646,7 @@ export async function* streamChat(
     // A consumer that stops reading part-way (`return()` on the iterator) skips every
     // branch above. The provider still generated the deltas that were delivered, so they
     // are counted, as an estimate, rather than dropped from the ledger.
-    if (stats.usage === undefined && state.sawDelta) {
+    if (stats.usageSource !== 'provider' && state.sawDelta) {
       stats.usage = estimated();
       stats.usageSource = 'estimate';
     }

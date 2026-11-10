@@ -512,7 +512,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       trace?.end(stats, signal);
       if (stats.attempts > 0) {
         ledger.record(
-          { profileId: profile.id, model, turnId: req.turnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, at: startedAt, pricePer1k: price },
+          { profileId: profile.id, model, turnId: req.turnId ?? req.usageTurnId, sessionId: req.sessionId, agentPath: req.agentPath, role: req.role, at: startedAt, pricePer1k: price },
           { ...(stats.usage ?? ZERO), source: profile.kind === 'mock' ? 'provider' : stats.usageSource ?? 'estimate' },
           stats.attempts,
         );

@@ -40,7 +40,8 @@ test.describe('the model review adapter and its two steps (coherence.md ยง5.3, ย
     const reply = await model.complete({ system: 'Find spans.', user: 'Scene text.', jsonSchemaHint: { type: 'object' } });
     expect(reply.content).toBe('{"spans":[]}');
     expect(reply.usage?.promptTokens).toBeGreaterThan(0);
-    expect(requests[0]?.turnId).toMatch(/^review-/);
+    expect(requests[0]?.usageTurnId).toMatch(/^review-/);
+    expect(requests[0]?.turnId).toBeUndefined();
     expect(requests[0]).toMatchObject({
       profileId: PROFILE.id,
       responseFormat: { jsonSchemaHint: { type: 'object' } },
@@ -60,8 +61,9 @@ test.describe('the model review adapter and its two steps (coherence.md ยง5.3, ย
     await model.complete(request);
     await gatewayCoherenceModel(gateway, PROFILE).complete(request);
     expect(requests[0]).toMatchObject({ turnId: 'parent', sessionId: 'session' });
-    expect(requests[1]?.turnId).toBe(requests[2]?.turnId);
-    expect(requests[3]?.turnId).not.toBe(requests[1]?.turnId);
+    expect(requests[0]?.usageTurnId).toBeUndefined();
+    expect(requests[1]?.usageTurnId).toBe(requests[2]?.usageTurnId);
+    expect(requests[3]?.usageTurnId).not.toBe(requests[1]?.usageTurnId);
   });
 
   test('a plan names the documents it reads and the calls it expects, and reads nothing until it is approved', () => {
@@ -88,7 +90,7 @@ test.describe('the model review adapter and its two steps (coherence.md ยง5.3, ย
       now: new Date('2026-10-08T09:00:00.000Z'),
     });
     expect(requests).toHaveLength(plan.scopeDocIds.length);
-    expect(new Set(requests.map((request) => request.turnId)).size).toBe(1);
+    expect(new Set(requests.map((request) => request.usageTurnId)).size).toBe(1);
     expect(result.status).toBe('complete');
     expect(result.run).toMatchObject({ kind: 'llm', status: 'complete', model: 'test-model' });
     expect(result.run.scope.docIds).toEqual([...plan.scopeDocIds].sort());

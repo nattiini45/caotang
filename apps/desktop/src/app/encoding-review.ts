@@ -227,7 +227,7 @@ export function encodingAskerFor(providers: EncodingAskerSource): EncodingAsker 
     profileName,
     async ask({ excerpt, candidates }) {
       const reply = await gateway.completeOnce({
-        turnId: `encoding-review-${newId('cmd')}`,
+        usageTurnId: `encoding-review-${newId('cmd')}`,
         role: 'background',
         profileId,
         model,
