@@ -91,7 +91,7 @@ async function connectedScripted(calls: string[]): Promise<{ readonly client: Mc
   });
   await client.connect(KEY);
   const card = client.review(KEY);
-  if (card !== undefined) client.approveReview(KEY, card.fingerprint);
+  if (card !== undefined) await client.approveReview(KEY, card.fingerprint);
   return { client, script };
 }
 
@@ -105,7 +105,7 @@ describe('tool.search — the Tier-2 gateway (extensibility §5)', () => {
   it('lets an external caller search without changing the loads of the native turn, which share one loaded set', async () => {
     const calls: string[] = [];
     const client = await connectedClient(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ mcp: { client } });
     run(harness, 'tool.search', { query: 'lore' }, { turnId: 'turn-native' });
     // An external search for the write tool loads it for the external turn, and that load is put back when the call returns.
@@ -133,7 +133,7 @@ describe('mcp.invoke — an external call through the bus (extensibility §6)', 
   it('runs a loaded read the user trusts, and writes its one row from the mcp source', async () => {
     const calls: string[] = [];
     const client = await connectedClient(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ mcp: { client } });
     run(harness, 'tool.search', { query: 'lore' }, { turnId: 'turn-read' });
     const outcome = await harness.callExternal({ name: SEARCH, callId: 'call-read', params: { query: 'Hanne' } }, { turnId: 'turn-read' });
@@ -194,7 +194,7 @@ describe('mcp.invoke — an external call through the bus (extensibility §6)', 
   it('answers a replayed callId from its record, and does not call the server a second time', async () => {
     const calls: string[] = [];
     const client = await connectedClient(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ mcp: { client } });
     run(harness, 'tool.search', { query: 'lore' }, { turnId: 'turn-replay' });
     const first = await harness.callExternal({ name: SEARCH, callId: 'call-once', params: { query: 'a' } }, { turnId: 'turn-replay' });
@@ -221,7 +221,7 @@ describe('a loaded tool is bound to the definition the turn saw (extensibility �
   it('refuses a call once the server changed the tool and the writer re-approved the change, because the turn read the old definition', async () => {
     const calls: string[] = [];
     const { client, script } = await connectedScripted(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ mcp: { client } });
     // The search loads the tool under the hash it shows: the definition this turn reads.
     run(harness, 'tool.search', { query: 'lore' }, { turnId: 'turn-drift' });
@@ -230,7 +230,7 @@ describe('a loaded tool is bound to the definition the turn saw (extensibility �
     script.listTools = TOOLS.map((tool) => (tool.name === 'search_lore' ? { ...tool, description: 'Search the story bible, and its new appendix.' } : tool));
     await client.refresh(KEY);
     const card = client.review(KEY);
-    if (card !== undefined) client.approveReview(KEY, card.fingerprint);
+    if (card !== undefined) await client.approveReview(KEY, card.fingerprint);
     const outcome = await harness.callExternal({ name: SEARCH, callId: 'call-drift', params: { query: 'x' } }, { turnId: 'turn-drift' });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
@@ -297,7 +297,7 @@ describe('an app-built registry is completed with the external call too (finding
   it('runs an external read through the app’s registry, since the harness adds mcp.invoke to a registry that lacks it', async () => {
     const calls: string[] = [];
     const client = await connectedClient(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ registry: appRegistry(), mcp: { client } });
     run(harness, 'tool.search', { query: 'lore' }, { turnId: 'turn-app-mcp' });
     const outcome = await harness.callExternal({ name: SEARCH, callId: 'call-app-mcp', params: { query: 'x' } }, { turnId: 'turn-app-mcp' });
@@ -334,7 +334,7 @@ describe('the agent loop and a loaded external tool, end to end (extensibility �
   it('puts a loaded tool’s name, description and schema in front of the planner after its search, and runs a read of it through the bus', async () => {
     const calls: string[] = [];
     const { client } = await connectedScripted(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ mcp: { client } });
     const intent = 'Look Hanne up in the story bible.';
     const { report, requests } = await turnWith(harness, intent, [
@@ -405,7 +405,7 @@ describe('a mixed turn names its external side effects on its checkpoint row (ex
   it('a turn that reads an external tool and then changes Caotang carries the scope note on its checkpoint', async () => {
     const calls: string[] = [];
     const { client } = await connectedScripted(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ mcp: { client } });
     const intent = 'Look Hanne up, then label The Friend act-2.';
     const events: AgentEvent[] = [];
@@ -437,7 +437,7 @@ describe('an unloaded external tool is still refused, whatever a deferred native
   it('refuses the qualified name before any search, tells the model to call tool.search first, and reaches no server', async () => {
     const calls: string[] = [];
     const { client } = await connectedScripted(calls);
-    client.setTrustReads(KEY, true);
+    await client.setTrustReads(KEY, true);
     const harness = makeHarness({ mcp: { client } });
     const { report, requests } = await turnWith(harness, 'Look Hanne up in the story bible.', [
       steps({ tool: SEARCH, params: { query: 'Hanne' }, expect: 'the entry about Hanne' }),

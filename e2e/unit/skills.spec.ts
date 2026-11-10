@@ -297,7 +297,7 @@ test.describe('the session: the agent is told of a skill only after the writer h
       await session.approveSkill('close-third');
       expect(session.harness.skillCatalog()).toBeDefined();
       // Undo of that change puts back bytes the writer approved before it, but the approval is of the bytes it read last.
-      expect(await session.undoLast()).toBe(true);
+      expect(await session.undoLast()).toEqual({ kind: 'done' });
       expect(session.skills().rows[0]?.review).toBe('changed');
     } finally {
       await session.close();

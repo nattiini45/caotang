@@ -72,18 +72,16 @@ test('an older change cannot be undone while a later one stands, and the later t
     expect(session.newestUndoGroupId()).toBe(newer);
 
     // Taking back the first write would restore the body from before it, and so delete the second write's text.
-    expect(await session.undoGroup(older)).toBe(false);
+    expect(await session.undoGroup(older)).toEqual({ kind: 'failed', message: expect.stringContaining('Undo the later changes first') });
     expect(getBody(session.state, IDS.sceneA)).toBe('one two');
-    expect(session.undoErrorMessage()).toContain('Undo the later changes first');
 
-    expect(await session.undoGroup(newer)).toBe(true);
+    expect(await session.undoGroup(newer)).toEqual({ kind: 'done' });
     expect(getBody(session.state, IDS.sceneA)).toBe('one');
-    expect(await session.undoGroup(older)).toBe(true);
+    expect(await session.undoGroup(older)).toEqual({ kind: 'done' });
     expect(getBody(session.state, IDS.sceneA)).toBe('Four little words here');
 
     // A group taken back is gone from the store, and asking for it again says so rather than failing quietly.
-    expect(await session.undoGroup(older)).toBe(false);
-    expect(session.undoErrorMessage()).toContain('already been undone');
+    expect(await session.undoGroup(older)).toEqual({ kind: 'failed', message: expect.stringContaining('already been undone') });
   } finally {
     session.close();
   }
@@ -100,7 +98,7 @@ test('an undo followed by new text is counted from the new text, at a revision t
     const counted = session.mentions.countsIn(session.state, IDS.sceneA, session.mentions.entriesOf(session.state));
     expect(counted.get(elena.id)).toBe(1);
 
-    expect(await session.undoLast()).toBe(true);
+    expect(await session.undoLast()).toEqual({ kind: 'done' });
     // The undo is a write, so the revision is one above the count's and the text is the earlier one again.
     expect(getRevision(session.state, IDS.sceneA)).toBe(written + 1);
 
@@ -131,7 +129,7 @@ test('restoring to before a change takes back every later change, newest first, 
 
     // The change before the turn is still on the stack, and it is the newest now, so it can be taken back in its turn.
     expect(session.newestUndoGroupId()).toBe(older);
-    expect(await session.undoLast()).toBe(true);
+    expect(await session.undoLast()).toEqual({ kind: 'done' });
     expect(getBody(session.state, IDS.sceneA)).toBe('Four little words here');
 
     // A turn taken back is gone from the stack, and asking again says so rather than changing anything.

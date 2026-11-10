@@ -33,6 +33,7 @@ import {
 } from '@caotang/store';
 
 import { StoreArtifactFs } from './coherence-io.js';
+import { SaveChannel } from './save-channel.js';
 import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
 
 /** What the Tasks panel says about the file: whether it can be saved, what the load noticed, and why the last save did not land. */
@@ -85,11 +86,8 @@ async function saveToFolder(copy: FolderCopy, file: TasksFile): Promise<void> {
 /** A project's tasks file as the open session holds it, with the places it is saved to. */
 export class TasksHome {
   private file: TasksFile;
-  private chain: Promise<void> = Promise.resolve();
-  /** The saves that were asked for and have not settled: the save indicator reads saving while there is one (`pending`). */
-  private inFlight = 0;
-  private readonly listeners = new Set<() => void>();
-  private failure: string | null = null;
+  readonly saveChannel = new SaveChannel('tasks');
+  private browserFailure: string | null = null;
   private folderFailure: string | null = null;
 
   constructor(
@@ -108,7 +106,7 @@ export class TasksHome {
   }
 
   status(): TasksStatus {
-    return { writable: this.writable && this.mirror.readable, notices: this.notices, saveFailure: this.failure ?? this.folderFailure };
+    return { writable: this.writable && this.mirror.readable, notices: this.notices, saveFailure: this.saveChannel.getSnapshot().failure ?? this.folderFailure };
   }
 
   /**
@@ -116,15 +114,12 @@ export class TasksHome {
    * lands, so the session's save indicator reads saving meanwhile, and a reload begun when it read saved cannot lose the writer's task.
    */
   pending(): boolean {
-    return this.inFlight > 0;
+    return this.saveChannel.getSnapshot().kind === 'writing';
   }
 
   /** Calls `listener` when a save is asked for and when every save so far has settled. */
   subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return this.saveChannel.subscribe(listener);
   }
 
   /** The file as it is written, for a bundle; `undefined` when the project has no task, so a bundle carries none. */
@@ -138,16 +133,16 @@ export class TasksHome {
    */
   save(next: TasksFile): Promise<string | null> {
     if (!this.writable || !this.mirror.readable) {
-      return Promise.resolve('tasks.json cannot be saved here: it was written by a newer Caotang, is not a Caotang tasks file, or could not be read when the project opened.');
+      return this.saveChannel.enqueue(async () => 'tasks.json cannot be saved here: it was written by a newer Caotang, is not a Caotang tasks file, or could not be read when the project opened.');
     }
     this.file = next;
-    return this.enqueue(async () => {
+    return this.saveChannel.enqueue(async () => {
       try {
         await saveTasks(this.mirror.fs, this.mirror.load, next);
-        this.failure = null;
+        this.browserFailure = null;
       } catch (error) {
-        this.failure = `Your tasks could not be saved in this browser: ${messageOf(error)}`;
-        return this.failure;
+        this.browserFailure = `Your tasks could not be saved in this browser: ${messageOf(error)}`;
+        return this.browserFailure;
       }
       if (this.folder !== null) {
         try {
@@ -168,7 +163,7 @@ export class TasksHome {
    */
   attachFolder(root: DirectoryHandleLike): Promise<void> {
     if (!this.writable || !this.mirror.readable) return Promise.resolve();
-    return this.enqueue(async () => {
+    return this.saveChannel.enqueue(async () => {
       try {
         if (this.folder !== null && (await isSameFolder(this.folder.root, root))) {
           if (this.file.tasks.length > 0) await saveToFolder(this.folder, this.file);
@@ -182,31 +177,13 @@ export class TasksHome {
       } catch (error) {
         this.folderFailure = `Your tasks could not be saved to the folder: ${messageOf(error)}`;
       }
-      return null;
+      return this.browserFailure ?? this.folderFailure;
     }).then(() => undefined);
-  }
-
-  private announce(): void {
-    for (const listener of this.listeners) listener();
   }
 
   /** Resolves when every save made so far has settled. */
   settled(): Promise<void> {
-    return this.chain.then(() => undefined);
-  }
-
-  private enqueue(work: () => Promise<string | null>): Promise<string | null> {
-    this.inFlight += 1;
-    this.announce();
-    const run = this.chain.then(work).finally(() => {
-      this.inFlight -= 1;
-      this.announce();
-    });
-    this.chain = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    return run;
+    return this.saveChannel.settled();
   }
 }
 

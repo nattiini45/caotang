@@ -96,6 +96,7 @@ import {
 } from '@caotang/store';
 import { newId } from '@caotang/ids';
 import type { McpClient } from '@caotang/mcp-client';
+import type { SaveChannel } from './save-channel.js';
 
 import { formatterLocale } from '../i18n/format-locale.js';
 import { attachCoherence } from './coherence-io.js';
@@ -148,6 +149,7 @@ import { ProjectAssets, coverFileHeld, folderPictures, forgetBrowserAssets } fro
  * after it. The defaults are the spec's, so a session made before any setting exists behaves as it did.
  */
 export interface SessionDefaults {
+  readonly saveChannels?: readonly SaveChannel[];
   readonly debounceMs?: number;
   readonly retention?: RetentionConfig;
   /** The app's MCP client, so the agent's `tool.search` and `mcp.invoke` reach the servers the writer connected (extensibility §5). */
@@ -234,6 +236,7 @@ async function sessionFor(
       projectId: state.manifest.project.id,
       state,
       shadow,
+      saveChannels: defaults.saveChannels,
       // The writer's reviews of this project's skills are kept in the app database, and never in the project (skill-reviews.ts).
       skillReviews: await SkillReviews.open(state.manifest.project.id),
       assets: assetsFor(state.manifest.project.id),

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { holdFolderSave, releaseFolderPicker } from '../folder-save-support.js';
-import { createProject } from '../support.js';
+import { createProject, waitForSaved } from '../support.js';
 
 for (const locale of ['en', 'de'] as const) {
   for (const shell of ['classic', 'modern'] as const) {
@@ -27,6 +27,7 @@ for (const locale of ['en', 'de'] as const) {
         await expect(page.locator('html')).toHaveAttribute('lang', 'de');
         await page.keyboard.press('Escape');
         await expect(settings).toBeHidden();
+        await waitForSaved(page);
       }
       if (shell === 'modern') {
         await page.getByRole('toolbar', { name: locale === 'de' ? 'Szene' : 'Scene' }).getByRole('button', { name: locale === 'de' ? 'Mehr' : 'More', exact: true }).click();

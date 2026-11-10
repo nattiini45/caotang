@@ -133,7 +133,7 @@ async function connect(respond: FixtureState['respond']): Promise<Connected> {
     callTimeoutMs: 2_000,
   });
   await client.connect(KEY);
-  client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
+  await client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
   return { client, server };
 }
 

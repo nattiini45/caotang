@@ -136,9 +136,9 @@ test.describe('the session’s commands', () => {
 
     expect(session.writeMemoryNote({ slug: 'a-note', type: 'preference', title: 'A note', body: 'Body.' }).ok).toBe(true);
     expect(session.state.agentFiles.memory[0]?.origin).toBe('writer');
-    expect(await session.undoLast()).toBe(true);
+    expect(await session.undoLast()).toEqual({ kind: 'done' });
     expect(session.state.agentFiles.memory).toEqual([]);
-    expect(await session.undoLast()).toBe(true);
+    expect(await session.undoLast()).toEqual({ kind: 'done' });
     expect(session.state.agentFiles.instructions).toBeUndefined();
   });
 
@@ -147,7 +147,7 @@ test.describe('the session’s commands', () => {
     session.writeMemoryNote({ slug: 'a-note', type: 'preference', title: 'A note', body: 'Body.' });
     expect(session.forgetMemoryNote('a-note').ok).toBe(true);
     expect(session.state.agentFiles.memory).toEqual([]);
-    expect(await session.undoLast()).toBe(true);
+    expect(await session.undoLast()).toEqual({ kind: 'done' });
     expect(session.state.agentFiles.memory.map((note) => note.slug)).toEqual(['a-note']);
     expect(session.forgetMemoryNote('nope').ok).toBe(false);
   });

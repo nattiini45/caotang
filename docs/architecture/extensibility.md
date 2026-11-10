@@ -32,6 +32,8 @@ Three obligations, each already satisfied or trivially additive:
 
 ### 3.1 Config storage — app settings, never project files
 
+MCP settings mutations serialize private drafts, await the app's `onChange` save callback and publish only committed settings. Once saving succeeds, the committed slice is published before asynchronous connection teardown is awaited, so a disabled or removed server cannot reconnect during teardown. A returned refusal or rejected save preserves the previous configuration and live connection. Result-bearing mutation methods return an awaited refusal; void methods reject with its message. Credentials dropped by a change are removed only after its settings commit. The settings record remains unchanged.
+
 ```ts
 // AppSettings gains (ui-modules.md §5.1):
 mcp: {
@@ -123,6 +125,8 @@ connect(key):
 
 ### 3.5 Module API
 
+`addServer`, `approveReview`, `setTrustReads`, `setToolEnabled` and `updateServer` return `Promise<Result<…, string>>`. `setMasterEnabled` and `removeServer` return `Promise<void>` and reject a failed settings save. `McpClientOptions.onChange` accepts `void | Promise<string | null>`; `null` (or no callback) accepts the proposed slice. `AddServerInput.enabled?` lets an import save the final disabled state in one write. Review approval validation and commit serialize per server with connection detachment and tool/catalog publication. An overlapping lifecycle change either precedes validation, which can refuse without writing, or publishes after the approval save settles. A successful approval acknowledges the saved reviewed definitions; a refused approval never leaves new saved pins. Listings finishing after an approval recalculate their pin deltas against the committed settings. Network requests and transport-close completion do not hold this critical section.
+
 ```ts
 interface McpClient {
   connect(key: string): Promise<McpServerHealth>;       // §3.4 flow; idempotent within a session
@@ -185,6 +189,8 @@ Client scope is **tools, plus resources the writer attaches and prompts the writ
 **2026-07-28 reconciliation note (client half):** for a 2026-07-28 server the connect flow above includes no `initialize` handshake and no `Mcp-Session-Id` header — the stateless-first revision removed both from the core. A 2025-era server is connected through its `initialize` handshake, and it keeps the session header only if it issues one (§3.3, §12 D17). Health-state triggers change accordingly (`configured` = idle configuration, `connecting` = listing in flight, `failed` = a typed connection failure; `connected` survives as the demotion state for pin deltas; `healthy` = list + pin verification). The 2026-07-28 deterministic-order/cache-hint list rules make the §3.4 pin diff compare against a catalog servers promise stable across reconnects. Elicitation is a **server→client direction only** — a client-side `elicitInput` handler throws on 2026-07-28 connections; Caotang's v0.2 client never issues elicitation (user input for external calls comes from the plan/confirm cards, §4). See §12 D17.
 
 ### 3.6 Auth
+
+A failed token mutation restores the previous token or removes its newly created reference. Concurrent replacements serialize. Token replacement commits only if the server URL and auth still match its pre-vault snapshot when the serialized mutation executes; `updateServer` takes that optional `expected` guard. Otherwise it refuses and rolls back the vault mutation. Rollback never restores a token that no configured server names. Existing settings and token-reference records remain compatible.
 
 v0.2 ships `none` + `bearer` (many local/remote servers take static tokens; bearer tokens stored AES-GCM in the provider-key store, provider-gateway §7 shape — same vault, never in the project artifact).
 
@@ -280,6 +286,8 @@ A row marked `externalOnly` (agent-harness §3) is mapped like any other and is 
 | hint absent or `false` | `true` | `write-confirm` | missing hint = no promotion |
 
 ## 8. Config UX — panel-first
+
+Imports complete only after accepted entries have been saved, once each, with their final enabled state and tool selection. Each failed save is a named entry refusal, and only committed servers count as added. The submitted JSON stays available when entries are refused. Settings controls await mutation results, prevent repeat actions while saving and show persistence refusals beside the affected control or form.
 
 Caotang's users are writers, not developers; raw JSON as the primary config path is a *differentiator against* the code tools, not a compromise (every surveyed product lands on JSON-file or settings-panel; Claude Desktop's most-used path is URL-based connectors).
 

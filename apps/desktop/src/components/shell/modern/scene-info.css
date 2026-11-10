@@ -128,6 +128,10 @@
   margin-block: var(--space-3) 0;
 }
 
+:root[data-shell='modern'] .scene-info-save[data-state='failed'] {
+  color: var(--danger);
+}
+
 /* ---- Docked (Keep open): a companion panel at the page's inline-end edge, the page moved over for it (§6, §8.4). ---- */
 /* The page's room and the panel's place both come from #306's modernLayout through the stage's geometry: --area-end moves the page
    over (from 1,280 px down the panel overlaps it as a sheet instead), and --info-end stacks the panel beside an open agent window. */

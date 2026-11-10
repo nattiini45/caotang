@@ -212,7 +212,7 @@ describe('over the SDK’s own wire', () => {
       onChange: () => undefined,
     });
     await client.connect(KEY);
-    const approved = client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
+    const approved = await client.approveReview(KEY, client.review(KEY)?.fingerprint ?? '');
     if (!approved.ok) throw new Error(approved.error);
     const loaded = createLoadedTools();
     loaded.beginTurn('turn-1');
