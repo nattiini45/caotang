@@ -53,6 +53,7 @@
  * is what makes `await writeDocumentBody(…)` mean *committed*, not *issued*.
  */
 
+import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
 import { agentFileTexts, hasAgentFiles, parseAgentFiles, type AgentFiles } from '../agent-files.js';
 import type { Manifest } from '../manifest.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from '../state.js';
@@ -291,8 +292,67 @@ export class RuntimeStoreStaleError extends Error {
   }
 }
 
-/** The connections another tab's version change closed (see `openRuntimeStore`), so each later use can say why it is closed. */
-const upgradedConnections = new WeakSet<IDBDatabase>();
+export type ConnectionState =
+  | { readonly kind: 'opening' }
+  | { readonly kind: 'open'; readonly db: IDBDatabase }
+  | { readonly kind: 'stale' }
+  | { readonly kind: 'closed' }
+  | { readonly kind: 'blocked' }
+  | { readonly kind: 'newer' }
+  | { readonly kind: 'failed'; readonly error: Error };
+
+export type ConnectionEvent =
+  | { readonly type: 'opened'; readonly db: IDBDatabase }
+  | { readonly type: 'blocked' }
+  | { readonly type: 'error'; readonly error: Error }
+  | { readonly type: 'versionchange' }
+  | { readonly type: 'close' };
+
+export const runtimeConnectionTable: MachineTable<ConnectionState, ConnectionEvent> = {
+  id: 'store.connection',
+  initial: 'opening',
+  final: ['stale', 'closed', 'blocked', 'newer', 'failed'],
+  on: {
+    opening: { opened: ['open'], blocked: ['blocked'], error: ['newer', 'failed'] },
+    open: { versionchange: ['stale'], close: ['closed'] },
+    stale: {},
+    closed: {},
+    blocked: {},
+    newer: {},
+    failed: {},
+  },
+};
+
+export const runtimeConnectionMachine = defineMachine<ConnectionState, ConnectionEvent>(runtimeConnectionTable, (state, event) => {
+  switch (state.kind) {
+    case 'opening':
+      switch (event.type) {
+        case 'opened': return { kind: 'open', db: event.db };
+        case 'blocked': return { kind: 'blocked' };
+        case 'error': return event.error.name === 'VersionError' ? { kind: 'newer' } : { kind: 'failed', error: event.error };
+        case 'versionchange':
+        case 'close': return state;
+        default: return assertNever(event);
+      }
+    case 'open':
+      switch (event.type) {
+        case 'versionchange': return { kind: 'stale' };
+        case 'close': return { kind: 'closed' };
+        case 'opened':
+        case 'blocked':
+        case 'error': return state;
+        default: return assertNever(event);
+      }
+    case 'stale':
+    case 'closed':
+    case 'blocked':
+    case 'newer':
+    case 'failed': return state;
+    default: return assertNever(state);
+  }
+});
+
+const connectionStates = new WeakMap<IDBDatabase, { state: ConnectionState }>();
 
 /**
  * The store another tab upgraded, and this build is older than: the browser refuses this build's open of it (`VersionError`). A reload
@@ -312,7 +372,7 @@ export class RuntimeStoreNewerError extends Error {
  * store outside this file's own transactions calls it first, so its refusal names the cause rather than the browser's `InvalidStateError`.
  */
 export function requireLiveConnection(store: RuntimeStore): void {
-  if (upgradedConnections.has(store.db)) throw new RuntimeStoreStaleError();
+  if (connectionStates.get(store.db)?.state.kind === 'stale') throw new RuntimeStoreStaleError();
 }
 
 /**
@@ -391,7 +451,7 @@ export function transact<T>(
     let cause: unknown;
     let caused = false;
 
-    if (upgradedConnections.has(db)) {
+    if (connectionStates.get(db)?.state.kind === 'stale') {
       reject(new RuntimeStoreStaleError());
       return;
     }
@@ -399,7 +459,7 @@ export function transact<T>(
     try {
       tx = db.transaction(storeNames, mode);
     } catch (error) {
-      reject(upgradedConnections.has(db) ? new RuntimeStoreStaleError() : error);
+      reject(connectionStates.get(db)?.state.kind === 'stale' ? new RuntimeStoreStaleError() : error);
       return;
     }
 
@@ -478,6 +538,7 @@ export function openRuntimeStore(
   name: string = RUNTIME_DB_NAME,
 ): Promise<RuntimeStore> {
   return new Promise<RuntimeStore>((resolve, reject) => {
+    const connection: { state: ConnectionState } = { state: { kind: 'opening' } };
     const request = factory.open(name, RUNTIME_DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -524,20 +585,43 @@ export function openRuntimeStore(
       }
     };
     request.onsuccess = () => {
-      const db = request.result;
+      connection.state = runtimeConnectionMachine.step(connection.state, { type: 'opened', db: request.result });
+      if (connection.state.kind !== 'open') {
+        request.result.close();
+        return;
+      }
+      const db = connection.state.db;
+      connectionStates.set(db, connection);
       // Another tab asking for a newer version must not be blocked by this
       // connection holding the old one open forever, so the cooperative half of
       // the version-change handshake lives here. The connection is marked first, so
       // a later write says it was closed by an upgrade (RuntimeStoreStaleError).
       db.onversionchange = () => {
-        upgradedConnections.add(db);
+        connection.state = runtimeConnectionMachine.step(connection.state, { type: 'versionchange' });
         db.close();
       };
-      resolve({ db, name, close: () => db.close() });
+      resolve({
+        db,
+        name,
+        close: () => {
+          connection.state = runtimeConnectionMachine.step(connection.state, { type: 'close' });
+          db.close();
+        },
+      });
+    };
+    request.onblocked = () => {
+      connection.state = runtimeConnectionMachine.step(connection.state, { type: 'blocked' });
+      if (connection.state.kind === 'blocked') {
+        reject(new Error('Another Caotang tab is blocking browser storage. Close the other Caotang tabs, then reload this tab to open your projects.'));
+      }
     };
     request.onerror = () => {
-      if (request.error?.name === 'VersionError') reject(new RuntimeStoreNewerError());
-      else reject(request.error ?? new Error(`could not open the runtime store "${name}"`));
+      connection.state = runtimeConnectionMachine.step(connection.state, {
+        type: 'error',
+        error: request.error ?? new Error(`could not open the runtime store "${name}"`),
+      });
+      if (connection.state.kind === 'newer') reject(new RuntimeStoreNewerError());
+      else if (connection.state.kind === 'failed') reject(connection.state.error);
     };
   });
 }

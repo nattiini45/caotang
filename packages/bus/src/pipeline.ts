@@ -430,8 +430,7 @@ export function execute<K extends CommandName>(
 /**
  * `executeAsync()` — the same pipeline, awaiting an apply that returns a promise (extensibility
  * §6). The apply is the only async boundary, so everything before it is decided synchronously, exactly as in
- * {@link execute}. A caller that dispatches the same `callId` again while the first dispatch is still running
- * gets the first one's answer only once that answer is recorded: the in-flight case is not deduplicated.
+ * {@link execute}. Concurrent copies of one turn-scoped call share the first apply's promise.
  */
 export async function executeAsync<K extends CommandName>(
   command: Command,
@@ -439,16 +438,14 @@ export async function executeAsync<K extends CommandName>(
   registry: CommandRegistry = COMMAND_REGISTRY,
   source: ActivitySource = 'native',
 ): Promise<Result<ExecutionOutcome, CommandError>> {
-  const replay = bus.idempotency.lookup(command);
+  const replay = bus.idempotency.lookupAsync(command);
   if (replay !== undefined) return replay;
 
   const admission = admit(command, bus, registry, source);
   if ('refused' in admission) return admission.refused;
 
   const { resolved, params, grant, target, rowSource } = admission.admitted;
-  const result = await dispatchAsync(command, resolved, params, grant, target, bus, rowSource);
-  bus.idempotency.record(command, result);
-  return result;
+  return bus.idempotency.runAsync(command, () => dispatchAsync(command, resolved, params, grant, target, bus, rowSource));
 }
 
 /** §3's steps 3–7 for a synchronous apply, and nothing else (see the module header). */
