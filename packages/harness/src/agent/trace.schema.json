@@ -10,12 +10,13 @@
     "seq": { "type": "integer", "minimum": 0, "description": "Increases down the file." },
     "at": { "type": "number", "description": "Milliseconds on the clock the session was given." },
     "sessionId": { "type": "string" },
-    "kind": { "enum": ["header", "turn.start", "message", "model.request", "model.response", "context", "tool.call", "tool.result", "tool.progress", "card", "rule.approved", "ladder", "hook", "turn.end"] },
+    "kind": { "enum": ["header", "turn.start", "machine", "message", "model.request", "model.response", "context", "tool.call", "tool.result", "tool.progress", "card", "rule.approved", "ladder", "hook", "turn.end"] },
     "truncated": { "type": "object", "required": ["chars"], "properties": { "chars": { "type": "integer", "minimum": 1 } }, "description": "Present when the record was cut to the 64 KB record cap: the characters left out." }
   },
   "oneOf": [
     { "$ref": "#/$defs/header" },
     { "$ref": "#/$defs/turn.start" },
+    { "$ref": "#/$defs/machine" },
     { "$ref": "#/$defs/message" },
     { "$ref": "#/$defs/model.request" },
     { "$ref": "#/$defs/model.response" },
@@ -44,6 +45,17 @@
     "turn.start": {
       "properties": { "kind": { "const": "turn.start" }, "turnId": { "type": "string" }, "intent": { "$ref": "#/$defs/text" } },
       "required": ["turnId", "intent"]
+    },
+    "machine": {
+      "properties": {
+        "kind": { "const": "machine" },
+        "turnId": { "type": "string" },
+        "machine": { "type": "string", "description": "The transition table's id." },
+        "from": { "type": "string" },
+        "event": { "type": "string" },
+        "to": { "type": "string" }
+      },
+      "required": ["turnId", "machine", "from", "event", "to"]
     },
     "message": {
       "description": "A message kept once per trace; a model.request lists the ids it was sent. Ordinal ids (m1, m2) follow the order the messages were first seen.",
