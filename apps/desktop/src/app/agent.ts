@@ -327,7 +327,7 @@ export class AgentController {
   private turns: TurnView[] = [];
   private pending: PendingCard | null = null;
   private resolveDecision: ((decision: Decision) => void) | null = null;
-  private approving: ((decision: Decision) => void) | null = null;
+  private approving: { waitMessage: string | null } | null = null;
   /** A turn is running, from its start until the loop has settled it: an approved card runs under it, so it is not clear at the approval. */
   private busy = false;
   /** The turn that set the per-turn fields below, so only that turn clears them. */
@@ -983,7 +983,7 @@ export class AgentController {
       const resolve = this.resolveDecision;
       this.resolveDecision = null;
       this.pending = null;
-      this.approving = null;
+      this.retireApproval(this.approving);
       this.dropOffer();
       this.clearGhosts();
       resolve?.({ action: 'cancel' });
@@ -1328,6 +1328,7 @@ export class AgentController {
       this.message = this.approving
         ? t`This approval is already saving your typing. Wait for it to finish.`
         : t`That card is no longer waiting for a decision, so nothing was sent.`;
+      if (this.approving !== null) this.approving.waitMessage = this.message;
       this.bump();
       return;
     }
@@ -1343,7 +1344,8 @@ export class AgentController {
     const parked = this.pending;
     const card = parked?.card ?? null;
     const abort = this.turnAbort;
-    this.approving = decision.action === 'approve' ? resolve : null;
+    const approval: { waitMessage: string | null } | null = decision.action === 'approve' ? { waitMessage: null } : null;
+    this.approving = approval;
     this.resolveDecision = null;
     this.pending = null;
     // An approval keeps the drafts on screen until the typing is saved, so a card that has to wait again still has them.
@@ -1410,11 +1412,19 @@ export class AgentController {
         resolve(decision);
         this.bump();
       })().finally(() => {
-        if (this.approving === resolve) this.approving = null;
+        if (this.retireApproval(approval)) this.bump();
       });
       return;
     }
     resolve(decision);
+  }
+
+  private retireApproval(approval: { readonly waitMessage: string | null } | null): boolean {
+    if (approval === null || this.approving !== approval) return false;
+    this.approving = null;
+    if (approval.waitMessage === null || this.message !== approval.waitMessage) return false;
+    this.message = null;
+    return true;
   }
 
   /**

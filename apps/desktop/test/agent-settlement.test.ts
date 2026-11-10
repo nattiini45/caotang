@@ -223,6 +223,7 @@ it('names an approval already saving typing and never reparks it after its deadl
     expect(f.controller.snapshot().message).toBe('This approval is already saving your typing. Wait for it to finish.');
     clock.current.advance(60_000);
     await running;
+    expect(f.controller.snapshot().message).toBeNull();
     save.resolve();
     await flush.mock.results[0]!.value.catch(() => undefined);
     await Promise.resolve();
@@ -230,6 +231,44 @@ it('names an approval already saving typing and never reparks it after its deadl
     expect(f.controller.snapshot().stoppable).toBe(false);
   } finally {
     save.resolve();
+    vi.restoreAllMocks();
+    await f.session.close();
+  }
+});
+
+it.each([true, false])('retires the wait notice but preserves a newer save failure (%s)', async (saved) => {
+  const f = await fixture();
+  const saving = deferred();
+  const release = deferred();
+  try {
+    const shown = cardShown(f.controller);
+    const running = f.controller.submitPlan('Tag the storm.', { steps: f.steps }, { forcePlan: true });
+    await shown;
+    vi.spyOn(f.session.autosave, 'flush').mockImplementation(async () => {
+      saving.resolve();
+      await release.promise;
+      if (!saved) throw new Error('Save failed.');
+      return [];
+    });
+    f.controller.answer({ action: 'approve' });
+    await saving.promise;
+    f.controller.answer({ action: 'approve' });
+    expect(f.controller.snapshot().message).toBe('This approval is already saving your typing. Wait for it to finish.');
+    const parked = saved ? Promise.resolve() : cardShown(f.controller);
+    release.resolve();
+    await parked;
+    if (!saved) {
+      await Promise.resolve();
+      expect(f.controller.snapshot().message).toBe('Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.');
+      f.controller.answer({ action: 'cancel' });
+    }
+    await running;
+    expect(f.controller.snapshot().message).toBeNull();
+    expect(f.controller.snapshot().pending).toBeNull();
+    expect(f.controller.snapshot().stoppable).toBe(false);
+  } finally {
+    release.resolve();
+    f.controller.stop();
     vi.restoreAllMocks();
     await f.session.close();
   }
