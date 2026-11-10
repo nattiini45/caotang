@@ -6076,6 +6076,11 @@ msgstr "Dokumentstatus"
 msgid "Document text"
 msgstr "Dokumenttext"
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Documents"
+msgstr "Dokumente"
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Documents touched per turn"
@@ -10359,6 +10364,11 @@ msgstr "Noch nicht im Browser-Speicher gespeichert. Ihre Wörter sind in diesem 
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Not saved yet. Your words are in this tab; they will be written again on the next change."
 msgstr "Noch nicht gespeichert. Ihre Wörter sind in diesem Tab; sie werden bei der nächsten Änderung erneut geschrieben."
+
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved: {parts}. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading."
+msgstr "Nicht gespeichert: {parts}. Für ein Dokument ist bereits neuerer Text gespeichert. Kopieren Sie Ihren ungespeicherten Text vor dem Neuladen an einen sicheren Ort."
 
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts

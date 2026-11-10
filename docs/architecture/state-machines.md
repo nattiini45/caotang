@@ -8,6 +8,8 @@ The session joins the channels with project persistence and pending editor text,
 
 Undo returns its own `done|empty|failed` outcome, with the failure message attached, rather than leaving a mutable last-error string for a later reader. Restore consumes the same result internally; undo journals and project records are unchanged.
 
+A document's retained `RevisionConflictError` makes the Documents source failed even while a newer edit is pending or an unchanged-body flush has made it clean. This reads `lastError`, not the lifecycle or dirty flag, and clears only when autosave clears that error. Both shells name Documents and direct the writer to copy unsaved text somewhere safe before reloading; they offer no bundle backup for this failure because a bundle may omit conflict-held text. This does not stop the tab or change the autosave scheduler.
+
 Lifecycle contracts use `@caotang/machine`, a dependency-free leaf package. A machine has a `kind`-keyed state union, a `type`-keyed event union, a pure step and a transition table exported as data. The table is the shared vocabulary for code, tests, documentation and agents, not an actor runtime. The kit owns no clock, timer, storage, effects or subscriptions.
 
 ## Contract and API

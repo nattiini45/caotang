@@ -32,7 +32,7 @@ export function stepSaveChannel(state: SaveChannelState, event: SaveChannelEvent
 }
 
 export const saveChannelMachine = defineMachine(saveChannelTable, stepSaveChannel);
-export type SaveChannelName = 'project' | 'findings' | 'tasks' | 'settings';
+export type SaveChannelName = 'project' | 'documents' | 'findings' | 'tasks' | 'settings';
 
 export class SaveChannel {
   private state: SaveChannelState = { kind: 'idle', failure: null };

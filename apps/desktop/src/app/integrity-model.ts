@@ -33,8 +33,14 @@ export function saveStateWords(
   }
   if (state === 'conflict') return { text: t`Another tab has newer text`, offersBackup: false };
   if (failedChannels.length > 0 && !(failedChannels.length === 1 && failedChannels[0] === 'project')) {
-    const names = { project: t`Project`, findings: t`Findings`, tasks: t`Tasks`, settings: t`Settings` };
+    const names = { project: t`Project`, documents: t`Documents`, findings: t`Findings`, tasks: t`Tasks`, settings: t`Settings` };
     const parts = listFormat(formatterLocale()).format(failedChannels.map((channel) => names[channel]));
+    if (failedChannels.includes('documents')) {
+      return {
+        text: t`Not saved: ${{ parts }}. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading.`,
+        offersBackup: false,
+      };
+    }
     return {
       text: t`Not saved: ${{ parts }}. Your changes are kept in this tab. Try the change again.`,
       offersBackup: failedChannels.some((channel) => channel !== 'settings'),

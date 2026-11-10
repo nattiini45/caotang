@@ -6075,6 +6075,11 @@ msgstr ""
 msgid "Document text"
 msgstr ""
 
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Documents"
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Documents touched per turn"
@@ -10357,6 +10362,11 @@ msgstr ""
 #: apps/desktop/src/components/EditorPane.tsx
 #: apps/desktop/src/media/screenplay-model.ts
 msgid "Not saved yet. Your words are in this tab; they will be written again on the next change."
+msgstr ""
+
+#. Interpolated values: fieldCount, fields, name, parts, times, unsaid
+#: apps/desktop/src/app/integrity-model.ts
+msgid "Not saved: {parts}. Newer text is already saved for a document. Copy your unsaved text somewhere safe before reloading."
 msgstr ""
 
 #. Interpolated values: fieldCount, fields, name, parts, times, unsaid

@@ -16,7 +16,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 
 ## What works today
 
-- **Save channels.** The indicator includes findings, tasks and app-settings writes. A failed task or settings save turns it red and names the failed part; try that change again. App settings stay outside project backups.
+- **Save channels.** The indicator includes findings, tasks and app-settings writes. A failed task or settings save turns it red and names the failed part; try that change again. An unresolved document conflict stays red as Documents; copy unsaved text somewhere safe before reloading. App settings stay outside project backups.
 
 - **Stopped-tab recovery.** If a tab cannot save, its backup and reload notice stays above other dialogs without losing their input.
 

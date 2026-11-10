@@ -1,4 +1,36 @@
 import { expect, type Page } from '@playwright/test';
+import type * as SessionModule from '../apps/desktop/src/app/session.js';
+import { waitForSaved } from './support.js';
+
+export async function makeFailingDocument(page: Page): Promise<void> {
+  if (await page.getByTestId('modern-stage').count()) {
+    await page.getByRole('navigation', { name: 'Binder' }).getByRole('button', { name: 'Binder', exact: true }).click();
+    await expect(page.getByTestId('modern-binder')).toHaveAttribute('data-state', 'open');
+  }
+  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+  await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+  await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('The Landing');
+  await page.keyboard.press('Enter');
+  const editor = page.getByRole('textbox', { name: 'Document text' });
+  await editor.fill('Original saved words.');
+  await waitForSaved(page);
+  await page.evaluate(async () => {
+    const path = '/src/app/session.ts';
+    const { ProjectSession } = await import(path) as typeof SessionModule;
+    const dispatch = ProjectSession.prototype.dispatch;
+    ProjectSession.prototype.dispatch = function (name, params, options) {
+      if (name === 'doc.write') {
+        const { docId } = params as { docId: string };
+        Object.assign(window, { documentConflictStatus: () => this.autosave.status(docId) });
+        return { ok: false, error: { code: 'revision-conflict', message: 'The test stored newer text.', details: { actualRevision: 9 } } };
+      }
+      return dispatch.call(this, name, params, options);
+    };
+    Object.assign(window, { releaseDocumentConflict: () => { ProjectSession.prototype.dispatch = dispatch; } });
+  });
+  await editor.fill('My unsaved words.');
+  await expect(page.getByTestId('save-state')).toHaveAttribute('data-state', 'failed');
+}
 
 export async function installSaveRefusals(page: Page): Promise<void> {
   await page.addInitScript(() => {

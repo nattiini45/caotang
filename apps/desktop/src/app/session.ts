@@ -1856,9 +1856,10 @@ export class ProjectSession {
 
   private saveSources(): readonly SaveSource[] {
     const status = this.persistence.getStatus();
+    const documentConflict = [...this.state.documents.keys()].some((id) => this.autosave.status(id).lastError instanceof RevisionConflictError);
     return [
       { state: status === 'idle' ? 'saved' : status === 'writing' ? 'saving' : status, channel: 'project' },
-      { state: this.autosave.dirtyDocIds().length > 0 ? 'saving' : 'saved' },
+      { state: documentConflict ? 'failed' : this.autosave.dirtyDocIds().length > 0 ? 'saving' : 'saved', channel: 'documents' },
       ...[this.coherenceSaves, ...(this.tasksHome_ === null ? [] : [this.tasksHome_.saveChannel]), ...this.appSaveChannels].map(channelSource),
     ];
   }
