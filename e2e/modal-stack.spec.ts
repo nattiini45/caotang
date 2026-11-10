@@ -4,6 +4,23 @@ import type * as ModalModule from '../apps/desktop/src/components/modal-stack.js
 import { createProject } from './support.js';
 
 for (const shell of ['classic', 'modern'] as const) {
+  test(`${shell}: narrow modal portals retain shared touch targets and directional scroll cues`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const settings = page.getByTestId('settings');
+    await expect(settings.locator('..')).toHaveAttribute('id', 'root');
+    const close = await settings.getByRole('button', { name: 'Close', exact: true }).boundingBox();
+    expect(close?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(close?.height ?? 0).toBeGreaterThanOrEqual(44);
+    const body = settings.locator('.settings-body');
+    await expect.poll(() => body.evaluate((element) => element.scrollHeight - element.clientHeight)).toBeGreaterThan(2);
+    await body.evaluate((element) => { element.scrollTop = (element.scrollHeight - element.clientHeight) / 2; });
+    await expect(body).toHaveAttribute('data-scroll-edges', 'top bottom');
+  });
+
   test(`${shell}: an arriving Settings dialog covers Skills without losing its input, and Escape returns focus in stack order`, async ({ page }) => {
     await page.addInitScript((chosen) => localStorage.setItem('caotang.interface', chosen), shell);
     await createProject(page, 'Modal drafts');

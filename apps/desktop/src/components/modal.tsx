@@ -138,5 +138,5 @@ export function useModalDialog(ref: RefObject<HTMLDialogElement | null>, open = 
 
 export function Modal(props: ComponentPropsWithRef<'dialog'>): ReactNode {
   const dialog = <dialog {...props} />;
-  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body);
+  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.getElementById('root') ?? document.body);
 }
