@@ -1,5 +1,5 @@
 import type { CommandError } from '@caotang/bus';
-import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
+import { assertNever, type Machine, type MachineTable } from '@caotang/machine';
 
 import { refusal } from '../errors.js';
 import { applyEdit, type EditableSteps, type PlanEdit } from './cards.js';
@@ -130,4 +130,4 @@ export function decideCard(state: CardDecisionState, event: CardDecisionEvent): 
   }
 }
 
-export const cardDecisionMachine = defineMachine(cardDecisionTable, decideCard);
+export const cardDecisionMachine: Machine<CardDecisionState, CardDecisionEvent> = { table: cardDecisionTable, step: decideCard };
