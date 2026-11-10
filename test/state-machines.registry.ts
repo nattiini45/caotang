@@ -7,6 +7,9 @@ import { sidebarTable } from '../apps/desktop/src/components/shell/modern/sideba
 import { menuTable } from '../apps/desktop/src/components/shell/modern/menu-model.js';
 import { sprintTable } from '../packages/furniture/src/sprint.js';
 import { exportJobMachine } from '../packages/exporter/src/export-job.js';
+import { eventQueueTable } from '../packages/sdk/src/run.js';
+import { writerStopTable } from '../packages/sdk/src/writer-stop.js';
+import { confirmationRoundTable } from '../packages/mcp-server/src/confirm.js';
 import { tabStopTable } from '../apps/desktop/src/app/tab-stop.js';
 import { persistenceTable } from '../apps/desktop/src/app/persistence-model.js';
 import { pendingEntryTable } from '../apps/desktop/src/app/pending-entry.js';
@@ -20,6 +23,6 @@ export const machineTables = [
   sprintTable, taskStatusTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
   sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
-  assetStagingTable, assetRemovalHoldTable, exportJobMachine.table,
+  assetStagingTable, assetRemovalHoldTable, exportJobMachine.table, eventQueueTable, writerStopTable, confirmationRoundTable,
   tabStopTable, persistenceTable, pendingEntryTable,
 ] as const;

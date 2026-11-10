@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import type { AgentEvent } from '@caotang/harness';
+import { checkMachine } from '@caotang/machine/testing';
 
-import { createEventQueue } from '../src/run.js';
+import { createEventQueue, eventQueueMachine } from '../src/run.js';
 
 const delta = (n: number): AgentEvent => ({ type: 'model.delta', turnId: 't', delta: String(n) });
 const turn = (n: number): AgentEvent => ({ type: 'turn', turnId: `t${n}`, phase: 'planning' }) as AgentEvent;
@@ -14,6 +15,75 @@ async function drain(iterable: AsyncIterable<AgentEvent>): Promise<AgentEvent[]>
 }
 
 describe('the event queue', () => {
+  it('agrees with its table, including the existing failure-after-end behavior', () => {
+    expect(checkMachine(eventQueueMachine, {
+      states: [{ kind: 'open' }, { kind: 'ended' }, { kind: 'failed', error: 'first' }],
+      events: [{ type: 'end' }, { type: 'fail', error: 'last' }],
+    })).toEqual([]);
+    const queue = createEventQueue();
+    queue.end();
+    queue.fail('last');
+    return expect(queue.iterator().next()).rejects.toBe('last');
+  });
+
+  it('ends every pending request after delivering the buffered events', async () => {
+    const queue = createEventQueue();
+    const iterator = queue.iterator();
+    const reads = [iterator.next(), iterator.next(), iterator.next()];
+    queue.push(delta(1));
+    queue.end();
+    expect(await Promise.all(reads)).toEqual([
+      { value: delta(1), done: false },
+      { value: undefined, done: true },
+      { value: undefined, done: true },
+    ]);
+  });
+
+  it('rejects every pending request after delivering the buffered events', async () => {
+    const queue = createEventQueue();
+    const iterator = queue.iterator();
+    const reads = [iterator.next(), iterator.next(), iterator.next()];
+    queue.push(delta(1));
+    const error = new Error('boom');
+    queue.fail(error);
+    expect(await Promise.allSettled(reads)).toEqual([
+      { status: 'fulfilled', value: { value: delta(1), done: false } },
+      { status: 'rejected', reason: error },
+      { status: 'rejected', reason: error },
+    ]);
+    expect(await iterator.next()).toEqual({ value: undefined, done: true });
+  });
+
+  it('settles outstanding reads when the iterator returns', async () => {
+    const queue = createEventQueue();
+    const iterator = queue.iterator();
+    const reads = [iterator.next(), iterator.next()];
+    await iterator.return?.();
+    expect(await Promise.all(reads)).toEqual([
+      { value: undefined, done: true },
+      { value: undefined, done: true },
+    ]);
+    queue.push(delta(1));
+    expect(await iterator.next()).toEqual({ value: undefined, done: true });
+  });
+
+  it('settles concurrent next calls in request order', async () => {
+    const queue = createEventQueue();
+    const iterator = queue.iterator();
+    const received: unknown[] = [];
+    const first = iterator.next().then((result) => received.push(result));
+    const second = iterator.next().then((result) => received.push(result));
+    queue.push(delta(1));
+    queue.push(delta(2));
+    queue.end();
+    await Promise.resolve();
+    expect(received).toEqual([
+      { value: delta(1), done: false },
+      { value: delta(2), done: false },
+    ]);
+    await Promise.all([first, second]);
+  });
+
   it('holds events until they are read, in order, and ends when the turn does', async () => {
     const queue = createEventQueue();
     queue.push(delta(1));

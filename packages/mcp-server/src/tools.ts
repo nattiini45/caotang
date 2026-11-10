@@ -40,6 +40,7 @@ import {
   confirmationMessage,
   confirmationSummary,
   ROUND_TTL_SECONDS,
+  stepConfirmationRound,
   titleOfNode,
   type ConfirmLedger,
   type RoundState,
@@ -471,9 +472,12 @@ export async function confirmRound(
   const { name, params } = hooks;
   const digest = argsDigest(name, params);
   const round = ctx.mcpReq.requestState<RoundState>();
-  const bound = round !== undefined && round.tool === name && round.digest === digest ? round : undefined;
   const reply = inputResponse(ctx.mcpReq.inputResponses, CONFIRM_KEY);
-  const accepted = bound !== undefined && reply.kind === 'elicit' && reply.action === 'accept' && reply.content?.['confirmed'] === true;
+  const asked = round !== undefined && round.tool === name && round.digest === digest
+    ? stepConfirmationRound({ kind: 'unasked' }, { type: 'ask', round })
+    : { kind: 'unasked' as const };
+  const decision = stepConfirmationRound(asked, { type: 'answer', reply });
+  const bound = decision.kind === 'unasked' ? undefined : decision.round;
 
   // This await comes before the ledger is read, not after it: of two accepts of one round, the second must find the first's answer in
   // the ledger with nothing awaited between that read and the write.
@@ -492,8 +496,8 @@ export async function confirmRound(
   // A replay of an accepted retry is answered first, from the ledger. The first accept has already changed the project, so the same
   // arguments may no longer check against it (a codex create whose name the first accept took), and a refusal here would tell the agent
   // to rename and create again. The replay gets the first answer, and writes nothing.
-  if (bound !== undefined && accepted) {
-    const replay = runtime.ledger.recall(bound.nonce, Date.now());
+  if (decision.kind === 'accepted') {
+    const replay = runtime.ledger.recall(decision.round.nonce, Date.now());
     if (replay !== undefined) {
       release();
       return replay;
@@ -529,18 +533,18 @@ export async function confirmRound(
     });
   }
 
-  if (bound !== undefined && reply.kind === 'elicit') {
-    if (accepted) {
+  if (decision.kind !== 'unasked' && decision.kind !== 'asked') {
+    if (decision.kind === 'accepted') {
       // Nothing awaits between the ledger read above and this write, so of two accepts of one round, the second finds the first's
       // answer, still in flight, and waits for it. The write itself starts inside `apply`, before that function returns
       // its promise.
       const now = Date.now();
-      const answer = hooks.apply(bound);
-      runtime.ledger.remember(bound.nonce, answer, now + ROUND_TTL_SECONDS * 1000, now);
+      const answer = hooks.apply(decision.round);
+      runtime.ledger.remember(decision.round.nonce, answer, now + ROUND_TTL_SECONDS * 1000, now);
       return answer;
     }
     release();
-    const status = reply.action === 'decline' ? 'declined' : reply.action === 'cancel' ? 'cancelled' : 'not confirmed';
+    const status = decision.kind === 'not-confirmed' ? 'not confirmed' : decision.kind;
     return notWritten(name, status);
   }
 

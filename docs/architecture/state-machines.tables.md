@@ -117,6 +117,19 @@ Initial: `loading`. Final: `closed`.
 | `ready` | `cancel` | `closed` |
 | `ready` | `commit` | `committing` |
 
+## mcp.confirmation-round
+
+Initial: `unasked`. Final: `accepted`, `cancelled`, `declined`, `not-confirmed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `accepted` | — | — |
+| `asked` | `answer` | `accepted`, `asked`, `cancelled`, `declined`, `not-confirmed` |
+| `cancelled` | — | — |
+| `declined` | — | — |
+| `not-confirmed` | — | — |
+| `unasked` | `ask` | `asked` |
+
 ## modern.menu
 
 Initial: `closed`. Final: none.
@@ -202,6 +215,29 @@ Initial: `idle`. Final: `conflict`.
 | `writing` | `fail` | `failed` |
 | `writing` | `saved` | `idle` |
 | `writing` | `stop` | `conflict` |
+
+## sdk.events
+
+Initial: `open`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `ended` | `fail` | `failed` |
+| `failed` | `fail` | `failed` |
+| `open` | `end` | `ended` |
+| `open` | `fail` | `failed` |
+
+## sdk.writer
+
+Initial: `open`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `drift` | `partial` | `drift` |
+| `open` | `drift` | `drift`, `saved-drift` |
+| `open` | `partial` | `partial` |
+| `partial` | `partial` | `partial` |
+| `saved-drift` | `partial` | `saved-drift` |
 
 ## sprint.timer
 
