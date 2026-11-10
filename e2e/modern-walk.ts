@@ -4,7 +4,7 @@ import { NO_PIN, classicPin } from './classic-pin.js';
 import { DEMO_INTENTS } from '../packages/gateway/src/mock/index.js';
 
 import { SCENE, type Route, type Setup, type Step, type Target } from './modern-homes.js';
-import { binderTitle, createProject, idOf, projectIdOf, waitForSaved } from './support.js';
+import { binderTitle, createProject, idOf, projectIdOf, waitForSaved, waitForShell } from './support.js';
 
 /**
  * The walker for MODERN_HOMES (e2e/modern-homes.ts) and the surfaces of the Modern gate (e2e/modern-gate.spec.ts): it sets a
@@ -54,6 +54,7 @@ export async function switchToModern(page: Page): Promise<void> {
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
   await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: /^Modern/ }).check();
+  await waitForShell(page, 'modern');
   await settings.getByRole('button', { name: 'Close' }).click();
   await expect(settings).toHaveCount(0);
   await expect(page.getByTestId('modern-stage')).toBeVisible();

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { NO_PIN } from './classic-pin.js';
-import { createProject, waitForSaved } from './support.js';
+import { createProject, waitForSaved, waitForShell } from './support.js';
 
 /**
  * The gaps the Modern accessibility gate (#313) found on surfaces already built, each held here on its own (modern-interface.md §9.1,
@@ -67,6 +67,7 @@ async function switchToModern(page: Page): Promise<void> {
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
   await settings.getByRole('group', { name: 'Interface', exact: true }).getByRole('radio', { name: /^Modern/ }).check();
+  await waitForShell(page, 'modern');
   await settings.getByRole('button', { name: 'Close' }).click();
   await expect(settings).toHaveCount(0);
   await expect(page.locator('html')).toHaveAttribute('data-shell', 'modern');

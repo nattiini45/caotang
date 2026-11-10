@@ -389,6 +389,7 @@ export function AgentPanel({
       className={`agent${open ? ' is-open' : ''}${inWindow ? ' is-window' : ''}`}
       aria-label={inWindow ? undefined : t`Agent`}
       data-testid="agent-panel"
+      data-state={startIntent !== null && snapshot.turns.length === 0 && snapshot.message === null ? 'starting' : snapshot.stoppable ? 'working' : 'idle'}
       onKeyDown={onPanelKey}
     >
       <header className="agent-head">

@@ -87,6 +87,8 @@ Settings › Appearance › **Interface**: a radio group, **Classic** and **Mode
 
 Every existing e2e spec was written against Classic and keeps running against Classic: the suite's default `storageState` sets `caotang.interface` to `'classic'` (`e2e/classic-pin.ts`, M1). Only Modern specs, and `e2e/interface.spec.ts`, which checks the default, start without it; since #313 a spec without the pin that builds its project in Classic chooses Classic first, because a fresh profile starts in Modern.
 
+The workspace frame publishes its committed shell as `data-testid="shell"` and `data-state="classic|modern"`. Unlike `<html data-shell>`, which records the choice before the lazy code and styles finish loading, this state describes the layout actually mounted. A live-switch fixture waits for that state before closing Settings or using the new shell's editor and shortcuts. This inspection signal changes no preference, focus, layout or saved data.
+
 ## 4. One component tree
 
 ### 4.1 What a shell is
