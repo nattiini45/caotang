@@ -949,6 +949,7 @@ export function Workspace({
     showCenter(node?.type === 'document' || node?.type === 'dialogue' ? 'editor' : 'corkboard');
   };
 
+  const review = session.coherenceReview.snapshot();
   const regions: ShellRegions = {
     documentKind: mediaView !== null && mediaNode !== undefined ? mediaKindOf(mediaNode) : activeDoc === null ? null : 'scene',
     create: { target: newTargetNode?.title ?? null, make: makeNew },
@@ -1157,7 +1158,20 @@ export function Workspace({
         {...(folderAccessSupported() ? { onSaveToFolder: saveToFolder } : {})}
       />
     ),
-    status: message ? (
+    status: message === null && review.kind !== 'running' ? null : (
+      <>
+      {review.kind === 'running' ? (
+        <div className="status-line" role="status" data-testid="review-status" data-state="running">
+          <span><Trans>The model review is running.</Trans></span>
+          <button type="button" className="button is-quiet" onClick={() => {
+            setRail('findings');
+            setRailRequest((count) => count + 1);
+            if (narrow) setPanel('rail');
+          }}><Trans>Show review</Trans></button>
+          <button type="button" className="button is-quiet" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button>
+        </div>
+      ) : null}
+      {message ? (
       <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
         <span>
           {message.text}
@@ -1174,7 +1188,9 @@ export function Workspace({
           <Trans>Dismiss</Trans>
         </button>
       </div>
-    ) : null,
+      ) : null}
+      </>
+    ),
     saveState: <SaveIndicator state={saveState} onExport={exportNow} />,
     progress: { target, setTarget: saveTarget, saveState, exportBackup: exportNow },
     search: {

@@ -431,6 +431,16 @@ msgstr "{action, select, creating {Projekt wird erstellt} openingProject {Projek
 msgid "{action}: {detail}"
 msgstr "{action}: {detail}"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{added, plural, one {# finding} other {# findings}} kept. Start another review to try again."
+msgstr "{added, plural, one {# Befund bleibt erhalten.} other {# Befunde bleiben erhalten.}} Starte eine weitere Prüfung, um es erneut zu versuchen."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{added, plural, one {# finding} other {# findings}} kept. Start another review when you are ready."
+msgstr "{added, plural, one {# Befund bleibt erhalten.} other {# Befunde bleiben erhalten.}} Starte eine weitere Prüfung, wenn du bereit bist."
+
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "{added, plural, one {New: # finding} other {New: # findings}}"
@@ -540,6 +550,11 @@ msgstr "{commandCount, plural, one {# Befehl} other {# Befehle}}"
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "{comments, plural, one {# comment.} other {# comments.}}"
 msgstr "{comments, plural, one {# Kommentar.} other {# Kommentare.}}"
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "{completedCalls, plural, one {# model call completed.} other {# model calls completed.}}"
+msgstr "{completedCalls, plural, one {# Modellaufruf abgeschlossen.} other {# Modellaufrufe abgeschlossen.}}"
 
 #. Live USD spend against its USD limit; values include the currency sign.
 #: apps/desktop/src/app/agent-model.ts
@@ -4885,6 +4900,11 @@ msgstr "Klassisch"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
+msgid "Classic could not finish loading. Try again."
+msgstr "Classic konnte nicht vollständig geladen werden. Versuche es erneut."
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
 msgid "Classic is the interface Caotang has had so far. Modern shows the page and a few controls, and brings the rest in when you ask for it. New writers start in Modern; if you used Caotang before, it stays Classic until you choose. The choice is kept in this browser and applies at once."
 msgstr "Klassisch ist die Oberfläche, die Caotang bisher hatte. Modern zeigt die Seite und wenige Bedienelemente und holt den Rest dazu, wenn Sie ihn brauchen. Wer neu beginnt, startet in Modern; haben Sie Caotang schon genutzt, bleibt es bei Klassisch, bis Sie wechseln. Die Wahl wird in diesem Browser gespeichert und gilt sofort."
 
@@ -8753,6 +8773,11 @@ msgstr "Bild wird geladen…"
 msgid "Loading the Ink compiler…"
 msgstr "Der Ink-Compiler wird geladen…"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Loading the interface…"
+msgstr "Die Oberfläche wird geladen…"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 #: apps/desktop/src/media/PictureDetails.tsx
@@ -9282,6 +9307,11 @@ msgstr "Von {profile} aufgelistete Modelle"
 #: apps/desktop/src/components/Settings.tsx
 msgid "Modern"
 msgstr "Modern"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Modern could not load. The current interface is still in use. Try again or choose Classic."
+msgstr "Modern konnte nicht geladen werden. Die aktuelle Oberfläche bleibt aktiv. Versuche es erneut oder wähle Classic."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -14225,6 +14255,11 @@ msgstr "Ältere anzeigen ({count} weitere)"
 msgid "Show on timeline"
 msgstr "Auf der Zeitachse anzeigen"
 
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "Show review"
+msgstr "Prüfung anzeigen"
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Show settings changed"
@@ -14506,6 +14541,11 @@ msgstr "Sprintlänge in Minuten"
 msgid "Sprint timer"
 msgstr "Sprint-Timer"
 
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
+msgid "Start another review to try again. Any findings already recorded are kept below."
+msgstr "Starte eine weitere Prüfung, um es erneut zu versuchen. Bereits erfasste Befunde bleiben unten erhalten."
+
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
 msgid "Start from an example"
@@ -14672,7 +14712,9 @@ msgid "Stop following {title}"
 msgstr "{title} nicht mehr folgen"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/FindingsPanel.tsx
+#: apps/desktop/src/components/Workspace.tsx
 msgid "Stop the review"
 msgstr "Prüfung stoppen"
 
@@ -16031,6 +16073,16 @@ msgstr "Die Modellprüfung ist abgeschlossen: {added, plural, one {# Feststellun
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
+msgid "The model review is partial."
+msgstr "Die Modellprüfung ist unvollständig."
+
+#. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
+#: apps/desktop/src/components/Workspace.tsx
+msgid "The model review is running."
+msgstr "Die Modellprüfung läuft."
+
+#. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
+#: apps/desktop/src/components/FindingsPanel.tsx
 msgid "The model review needs a provider. Connect one in Settings to read the story for plot and character problems."
 msgstr "Die Modellprüfung benötigt einen Anbieter. Verbinden Sie in den Einstellungen einen, um die Geschichte auf Handlungs- oder Figurenprobleme zu prüfen."
 
@@ -16041,8 +16093,8 @@ msgstr "Der Plan der Modellprüfung"
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
-msgid "The model review stopped early, so it is partial: {added, plural, one {# finding} other {# findings}} kept. {note}"
-msgstr "Die Modellprüfung wurde vorzeitig beendet und ist daher unvollständig: {added, plural, one {# Feststellung wurde} other {# Feststellungen wurden}} behalten. {note}"
+msgid "The model review was stopped."
+msgstr "Die Modellprüfung wurde gestoppt."
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -17738,6 +17790,7 @@ msgstr "Für Lesezugriffe vertraut. Lässt Nur-Lese-Tools ohne Nachfrage laufen,
 msgid "Trusted for reads. Lets read-only tools run without asking, and only tools the server marks read-only. Review the tool list first; the switch opens after the review."
 msgstr "Für Lesezugriffe vertraut. Lässt Nur-Lese-Tools ohne Nachfrage laufen, und zwar nur Tools, die der Server als Nur-Lese markiert. Prüfen Sie zuerst die Tool-Liste; der Schalter öffnet sich nach der Prüfung."
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: subject
 #: apps/desktop/src/components/InkGate.tsx

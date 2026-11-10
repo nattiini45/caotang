@@ -12,10 +12,48 @@
  * Caotang key; otherwise the page waits behind "Opening your projects…" until the stores have opened and {@link settleInterface}
  * answers. Either answer is stored at once, so it never flips on a later visit.
  */
+import { assertNever, defineMachine, type MachineTable } from '@caotang/machine';
+
 import { applyModernPreferences } from './modern-preferences.js';
 import { applySkin } from './skin.js';
 
 export type Interface = 'classic' | 'modern';
+
+export type InterfaceStatus =
+  | { readonly kind: 'ready'; readonly chosen: Interface; readonly shown: Interface }
+  | { readonly kind: 'loading'; readonly chosen: Interface; readonly shown: Interface }
+  | { readonly kind: 'failed'; readonly chosen: Interface; readonly shown: Interface; readonly error: unknown };
+
+export type InterfaceEvent =
+  | { readonly type: 'choose'; readonly value: Interface }
+  | { readonly type: 'loaded' }
+  | { readonly type: 'failed'; readonly error: unknown };
+
+export const interfaceTable: MachineTable<InterfaceStatus, InterfaceEvent> = {
+  id: 'interface.load',
+  initial: 'ready',
+  final: [],
+  on: {
+    ready: { choose: ['loading'] },
+    loading: { choose: ['loading'], loaded: ['ready'], failed: ['failed'] },
+    failed: { choose: ['loading'] },
+  },
+};
+
+export const interfaceMachine = defineMachine(interfaceTable, (state, event): InterfaceStatus => {
+  switch (event.type) {
+    case 'choose':
+      return { kind: 'loading', chosen: event.value, shown: state.shown };
+    case 'loaded':
+      return state.kind === 'loading' ? { kind: 'ready', chosen: state.chosen, shown: state.chosen } : state;
+    case 'failed':
+      return state.kind === 'loading'
+        ? { kind: 'failed', chosen: state.chosen, shown: state.chosen === 'classic' ? 'classic' : state.shown, error: event.error }
+        : state;
+    default:
+      return assertNever(event);
+  }
+});
 
 export const INTERFACE_KEY = 'caotang.interface';
 
@@ -89,22 +127,21 @@ export function rememberInterface(value: Interface): void {
  * Puts an interface on the page, with the skin that goes with it (skin.ts: a Classic skin, or none). The promise settles once
  * Modern's stylesheet, or a chosen skin's, is in (at once for Classic with the default skin).
  */
-export function applyInterface(value: Interface): Promise<unknown> {
+export async function applyInterface(value: Interface): Promise<unknown> {
   document.documentElement.dataset['shell'] = value;
   applyModernPreferences();
   const requested = ++requests;
-  return Promise.all([value === 'modern' ? modernLoader() : undefined, applySkin(value)]).then(
-    (loaded) => {
-      // A later choice wins over an earlier one whose chunk arrived late.
-      if (requested === requests) publish(value);
-      return loaded;
-    },
-    (error: unknown) => {
-      // Without Modern's chunk the page keeps the layout it has; the attribute still says what was chosen.
-      if (requested === requests && value === 'classic') publish(value);
-      throw error;
-    },
-  );
+  publish({ type: 'choose', value });
+  try {
+    const loaded = await Promise.all([value === 'modern' ? modernLoader() : undefined, applySkin(value)]);
+    // A later choice wins over an earlier one whose chunk arrived late.
+    if (requested === requests) publish({ type: 'loaded' });
+    return loaded;
+  } catch (error: unknown) {
+    // Without Modern's chunk the page keeps the layout it has; the attribute still says what was chosen.
+    if (requested === requests) publish({ type: 'failed', error });
+    throw error;
+  }
 }
 
 /**
@@ -119,13 +156,19 @@ export function setModernShellLoader(load: () => Promise<unknown>): void {
 }
 
 let requests = 0;
-let shown: Interface = 'classic';
+let status: InterfaceStatus = { kind: 'ready', chosen: 'classic', shown: 'classic' };
 const listeners = new Set<() => void>();
 
-function publish(value: Interface): void {
-  if (shown === value) return;
-  shown = value;
+function publish(event: InterfaceEvent): void {
+  const next = interfaceMachine.step(status, event);
+  if (next === status) return;
+  status = next;
   for (const listener of listeners) listener();
+}
+
+/** The chosen and displayed interfaces, with the latest load's outcome. Stable between subscription notifications. */
+export function interfaceStatus(): InterfaceStatus {
+  return status;
 }
 
 /**
@@ -133,10 +176,10 @@ function publish(value: Interface): void {
  * so a switch never shows a shell without its styles. For `useSyncExternalStore`, with {@link subscribeInterface}.
  */
 export function currentInterface(): Interface {
-  return shown;
+  return status.shown;
 }
 
-/** Calls `listener` whenever {@link currentInterface} changes; returns the unsubscribe. */
+/** Calls `listener` whenever {@link interfaceStatus} changes; returns the unsubscribe. */
 export function subscribeInterface(listener: () => void): () => void {
   listeners.add(listener);
   return () => {

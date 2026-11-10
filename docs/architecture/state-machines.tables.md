@@ -6,6 +6,35 @@ Regenerate with `UPDATE_STATE_MACHINES=1 pnpm exec vitest run test/state-machine
 The convention and owning specs are in [state-machines.md](state-machines.md).
 Unlisted events return the same state. Listed self-transitions may update payloads.
 
+## findings.review
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `cancelled` | `plan` | `planned` |
+| `failed` | `plan` | `planned` |
+| `idle` | `plan` | `planned` |
+| `partial` | `plan` | `planned` |
+| `planned` | `dismiss` | `idle` |
+| `planned` | `start` | `running` |
+| `running` | `done` | `cancelled`, `idle`, `partial` |
+| `running` | `fail` | `cancelled`, `failed` |
+| `running` | `progress` | `running` |
+| `running` | `stop` | `running` |
+
+## interface.load
+
+Initial: `ready`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `choose` | `loading` |
+| `loading` | `choose` | `loading` |
+| `loading` | `failed` | `failed` |
+| `loading` | `loaded` | `ready` |
+| `ready` | `choose` | `loading` |
+
 ## modern.menu
 
 Initial: `closed`. Final: none.

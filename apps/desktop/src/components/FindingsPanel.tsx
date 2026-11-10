@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { plural, select, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
-import { SCAN_DOC_GUARD, validateDismissal, type CoherenceFile, type DeterministicCheckId, type ReviewPlan, type ScopeSpec } from '@caotang/coherence';
+import { SCAN_DOC_GUARD, validateDismissal, type CoherenceFile, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
 import { isolate } from '@caotang/i18n';
 import { agentFor } from '../app/agent-registry.js';
 import type { ProviderService } from '../app/providers.js';
@@ -28,6 +28,7 @@ import {
 } from '../app/findings-model.js';
 import { DEFAULT_COHERENCE_SETTINGS, type CoherenceSettings, type ReviewScope } from '../app/settings.js';
 import { gatewayCoherenceModel, planCoherenceReview, reviewCostDetailFor, runCoherenceReview } from '../app/coherence-review.js';
+import { panelState } from '../app/panel-state.js';
 import { formatUsd } from '../app/plan-preview.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 import { renderRef, titleValues } from '../i18n/render-ref.js';
@@ -62,11 +63,6 @@ function quoteKey(quote: QuoteView): string {
   return `${quote.docId}:${quote.from}:${quote.to}`;
 }
 
-interface ReviewState {
-  readonly plan: ReviewPlan;
-  readonly controller: AbortController | null;
-}
-
 export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_SETTINGS, providers, onOpenAgent, onOpenDocument, focusGroup = null, onGroupFocused, onShowOnTimeline }: FindingsPanelProps): ReactNode {
   useSession(session);
   useLingui();
@@ -75,7 +71,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const [scopeChoice, setScopeChoice] = useState<ReviewScope>(settings.defaultReviewScope);
   const [approvalNeeded, setApprovalNeeded] = useState(false);
   const [dismissing, setDismissing] = useState<FindingView | null>(null);
-  const [review, setReview] = useState<ReviewState | null>(null);
+  const review = session.coherenceReview.snapshot();
   const [stale, setStale] = useState<string | null>(null);
   const [pendingScope, setPendingScope] = useState<ScopeSpec | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -191,10 +187,10 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
       report({ text: t`There is no document in this scope to read. Write something, or choose another scope.`, tone: 'info' });
       return;
     }
-    setReview({ plan, controller: null });
+    session.coherenceReview.plan(plan);
   };
 
-  const startReview = async (plan: ReviewPlan): Promise<void> => {
+  const startReview = (): void => {
     setFailure(null);
     const current = session.coherenceFile();
     const resolved = providers?.resolveForRole?.('chat');
@@ -203,33 +199,19 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
       report({ text: t`Connect a provider in Settings to review the story with a model.`, tone: 'error' });
       return;
     }
-    const controller = new AbortController();
-    setReview({ plan, controller });
-    try {
+    session.coherenceReview.start(async (plan, signal, onProgress) => {
       const model = gatewayCoherenceModel(providers.gateway, profile, { ...resolved, languages: { ui: uiLocale(), project: session.state.manifest.project.language ?? 'en' } });
-      const result = await runCoherenceReview({
+      return runCoherenceReview({
         state: session.state,
         file: current,
         plan,
         model,
         maxFindings: settings.maxFindings,
-        signal: controller.signal,
+        signal,
+        onProgress,
         currentFile: () => session.coherenceFile() ?? current,
       });
-      session.applyCoherenceFile(result.file);
-      const added = result.run.findingsUpserted.length;
-      const summary = result.status === 'complete'
-        ? t`The model review is complete: ${plural(added, { one: '# finding', other: '# findings' })} added or updated.`
-        : t`The model review stopped early, so it is partial: ${plural(added, { one: '# finding', other: '# findings' })} kept. ${{ note: result.notes[0] ?? '' }}`.trim();
-      report({ text: summary, tone: result.status === 'complete' ? 'info' : 'error' });
-      if (result.status !== 'complete') setFailure(summary);
-    } catch (error) {
-      const message = t`The model review did not run: ${{ error: error instanceof Error ? error.message : String(error) }}`;
-      setFailure(message);
-      report({ text: message, tone: 'error' });
-    } finally {
-      setReview(null);
-    }
+    });
   };
 
   const setStatus = (findingId: string, next: 'open' | 'fixed'): void => {
@@ -263,8 +245,11 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
     report({ text: t`The run of ${{ at }} is discarded. Undo puts it back.`, tone: 'info' });
   };
 
-  const running = review !== null && review.controller !== null;
-  const plan = review !== null && !running ? review.plan : null;
+  const running = review.kind === 'running';
+  const plan = review.kind === 'planned' ? review.plan : null;
+  const outcome = 'outcome' in review ? review.outcome : undefined;
+  const added = outcome?.added ?? 0;
+  const completedCalls = review.kind === 'running' ? review.completedCalls : 0;
   const costDetail = plan === null || providers === undefined || chatProfile === undefined
     ? undefined
     : reviewCostDetailFor(plan, providers.gateway, chatProfile.id, chatResolution?.model, chatResolution?.thinking);
@@ -274,7 +259,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const noOpenFindings = filter === 'open' && open === 0 && (runs.length > 0 || (file?.findings.length ?? 0) > 0);
 
   return (
-    <div className="findings" data-testid="findings-panel">
+    <div className="findings" data-testid="findings-panel" data-state={review.kind}>
       <header className="findings-head" ref={headingRef} tabIndex={-1}>
         <p className="eyebrow"><Trans>Findings</Trans></p>
         <span className="findings-count" data-testid="findings-open">{plural(open, { one: '# open', other: '# open' })}</span>
@@ -288,7 +273,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
         </label>
         <button type="button" className="button is-primary" onClick={() => scan(false)} disabled={running}><Trans>Scan the manuscript</Trans></button>
         {approvalNeeded ? <button type="button" className="button" onClick={() => scan(true)}><Trans>Scan it anyway</Trans></button> : null}
-        <button type="button" className="button" onClick={planReviewNow} disabled={mockOnly || review !== null}><Trans>Review with agent</Trans></button>
+        <button type="button" className="button" onClick={planReviewNow} disabled={mockOnly || running || plan !== null}><Trans>Review with agent</Trans></button>
         <label className="findings-filter">
           <span><Trans>Show</Trans></span>
           <select value={filter} onChange={(event) => setFilter(event.target.value as FindingFilter)} aria-label={t`Show findings with status`}>
@@ -315,17 +300,37 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           {plan.overGuard ? <p className="form-message is-error" role="alert"><Trans>This scope is over the 20-document guard. Approving the plan approves reading all of it.</Trans></p> : null}
           <details className="findings-prompt"><summary><Trans>The first prompt the model reads</Trans></summary><pre>{plan.promptPreview}</pre></details>
           <div className="finding-actions">
-            <button type="button" className="button is-quiet" onClick={() => setReview(null)}><Trans>Cancel</Trans></button>
-            <button type="button" className="button is-primary" onClick={() => void startReview(plan)}><Trans>Start the review</Trans></button>
+            <button type="button" className="button is-quiet" onClick={() => session.coherenceReview.dismiss()}><Trans>Cancel</Trans></button>
+            <button type="button" className="button is-primary" onClick={startReview}><Trans>Start the review</Trans></button>
           </div>
         </section>
       ) : null}
-      {running && review !== null ? (
-        <section className="findings-plan" aria-label={t`The model review in progress`} data-testid="review-running" data-panel-state="loading">
+      {review.kind === 'running' ? (
+        <section className="findings-plan" aria-label={t`The model review in progress`} data-testid="review-running" {...panelState('loading')}>
           <Icon name="loading" label={t`Review in progress`} />
           <p className="finding-message" role="status"><Trans>Reviewing with the model. This can take a while, and the findings appear here when it is done.</Trans></p>
-          <div className="finding-actions"><button type="button" className="button" onClick={() => review.controller?.abort()}><Trans>Stop the review</Trans></button></div>
+          <p className="field-note">{plural(completedCalls, { one: '# model call completed.', other: '# model calls completed.' })}</p>
+          <div className="finding-actions"><button type="button" className="button" disabled={review.stopRequested} onClick={() => session.coherenceReview.stop()}><Trans>Stop the review</Trans></button></div>
         </section>
+      ) : null}
+      {review.kind === 'cancelled' ? (
+        <section className="findings-plan" role="status" data-testid="review-outcome" {...panelState('partial')}>
+          <h3 className="findings-section-title"><Trans>The model review was stopped.</Trans></h3>
+          <p>{t`${plural(added, { one: '# finding', other: '# findings' })} kept. Start another review when you are ready.`}</p>
+        </section>
+      ) : review.kind === 'partial' ? (
+        <section className="findings-plan" role="status" data-testid="review-outcome" {...panelState('partial')}>
+          <h3 className="findings-section-title"><Trans>The model review is partial.</Trans></h3>
+          <p>{t`${plural(added, { one: '# finding', other: '# findings' })} kept. Start another review to try again.`}</p>
+          {review.outcome.notes.map((note, index) => <p key={index} className="field-note"><UserText value={note} /></p>)}
+        </section>
+      ) : review.kind === 'failed' ? (
+        <div className="form-message is-error" role="alert" data-testid="review-outcome" {...panelState('error')}>
+          <p>{t`The model review did not run: ${{ error: review.message }}`}</p>
+          <p><Trans>Start another review to try again. Any findings already recorded are kept below.</Trans></p>
+        </div>
+      ) : review.kind === 'idle' && outcome !== undefined ? (
+        <p role="status" data-testid="review-outcome">{t`The model review is complete: ${plural(added, { one: '# finding', other: '# findings' })} added or updated.`}</p>
       ) : null}
       {status.notices.map((notice) => <p key={notice} className="field-note" role="status">{notice}</p>)}
       {status.saveFailure !== null ? (

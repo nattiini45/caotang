@@ -18,6 +18,7 @@ import {
 } from 'react';
 
 import { currentInterface } from '../app/interface.js';
+import { panelState, type PanelState } from '../app/panel-state.js';
 import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { accessibleText } from '../i18n/accessible-text.js';
@@ -617,10 +618,10 @@ export function EmptyState({
   children?: ReactNode;
   actions?: ReactNode;
   glyph?: ReactNode;
-  state?: 'empty' | 'error' | 'off';
+  state?: PanelState;
 }): ReactNode {
   return (
-    <section className="empty-state" aria-label={accessibleText(title)} data-panel-state={state}>
+    <section className="empty-state" aria-label={accessibleText(title)} {...panelState(state)}>
       {glyph}
       <h2>{title}</h2>
       {children ? <div className="empty-text">{children}</div> : null}
