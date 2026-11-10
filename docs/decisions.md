@@ -1,5 +1,7 @@
 # Decisions
 
+- [delegated 2026-11-10] Document save lines keep their conflict signal and safe-copy instruction while a revision-conflict failure is retained, including during later typing and retries. The underlying autosave phase, 800 ms window and existing flush opportunities do not change. Why: another edit cannot resolve a moved revision, so it must not hide recovery guidance (PawCommit F2, #568).
+
 - [owner 2026-11-09] Autosave revision refusals have a separate `conflict` state beside storage errors, visible in the prose, screenplay and Ink save lines in English and German. The message keeps the writer's words in this tab and directs them to copy the unsaved text somewhere safe before reloading; it does not claim a stale retry will save. Debounce timing, retry opportunities, document records and the save protocol stay compatible. Why: a moved revision needs different recovery from a full disk (state-machines B7a, Caspar's answer 5).
 
 - [delegated 2026-11-10] A bus compile accepts a queued in-memory export job, not a written file. The Export dialog, SDK final report and MCP confirmed result use its terminal written/failed outcome, including compile-log failures; retry creates a new job. Exported bytes, compile-log rows and undo ordering remain unchanged. Why: accepting a command before its asynchronous file write must not claim that a failed export succeeded (state-machines B8, #549).
