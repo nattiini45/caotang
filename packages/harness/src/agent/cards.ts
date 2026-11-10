@@ -11,6 +11,7 @@
 import type { CommandError, Result } from '@caotang/bus';
 import { err, ok } from '@caotang/bus';
 import type { MessageRef } from '@caotang/i18n';
+import { canMove, defineMachine, type MachineTable } from '@caotang/machine';
 
 import type { HookRun } from '../hooks.js';
 import type { PlanPreflight, PlanStep } from '../plan.js';
@@ -80,17 +81,25 @@ export interface StatusCard {
   readonly mayHaveActed?: true;
 }
 
-const NEXT: Readonly<Record<StatusState, readonly StatusState[]>> = {
-  'pending-approval': ['running', 'cancelled'],
-  running: ['done', 'failed'],
-  done: [],
-  cancelled: [],
-  failed: [],
+export type CardStatus = { [K in StatusState]: { readonly kind: K } }[StatusState];
+export type CardStatusEvent = { [K in StatusState]: { readonly type: K } }[StatusState];
+
+export const cardStatusTable: MachineTable<CardStatus, CardStatusEvent> = {
+  id: 'card.status', initial: 'pending-approval', final: ['done', 'cancelled', 'failed'],
+  on: {
+    'pending-approval': { running: ['running'], cancelled: ['cancelled'] },
+    running: { done: ['done'], failed: ['failed'] },
+    done: {}, cancelled: {}, failed: {},
+  },
 };
+
+export const cardStatusMachine = defineMachine(cardStatusTable, (state, event) =>
+  canMove(cardStatusTable, state.kind, event.type) ? { kind: event.type } : state,
+);
 
 /** Whether a card may move from one state to another. A card never moves backwards or out of a final state. */
 export function canAdvance(from: StatusState, to: StatusState): boolean {
-  return NEXT[from].includes(to);
+  return canMove(cardStatusTable, from, to);
 }
 
 /** A card in its next state. An illegal move is a defect in the caller, so it throws rather than returning a value. */

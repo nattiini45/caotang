@@ -809,6 +809,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../mcp-client
