@@ -27,7 +27,7 @@ export function ModernNotices({ regions }: ModernSlotProps): ReactNode {
     const announcements = (['status', 'alert'] as const).map((role) => {
       const node = document.createElement('div');
       node.className = 'visually-hidden';
-      node.setAttribute('role', role);
+      if (role === 'alert') node.setAttribute('role', role);
       node.setAttribute('aria-live', role === 'alert' ? 'assertive' : 'polite');
       node.setAttribute('aria-atomic', 'true');
       node.dataset['testid'] = `modal-notice-${role}`;
