@@ -8,16 +8,18 @@
  * hidden here unless asked for, since a writer asking "what changed" is not asking about the
  * selection.
  */
-/* lingui-set comment="Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool" */
+/* lingui-set comment="Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced" */
 
 import { i18n, type MessageDescriptor } from '@lingui/core';
-import { msg, t } from '@lingui/core/macro';
+import { msg, plural, t } from '@lingui/core/macro';
 import type { ActivityEntry, CommandName, UndoGroup } from '@caotang/bus';
 import { CHECKPOINT_LABEL, type TurnReport } from '@caotang/harness';
 import { dateTimeFormat } from '@caotang/i18n';
+import { sumUsage } from '@caotang/gateway';
 
 import { formatterLocale } from '../i18n/format-locale.js';
 import { phaseLabel, promptCacheLines, type TurnView } from './agent-model.js';
+import { formatUsd } from './plan-preview.js';
 
 /**
  * A person's name for each command, as a message descriptor (I5). The descriptor is translated when the
@@ -254,6 +256,11 @@ export function activityMarkdown(input: ActivityMarkdownInput): string {
         lines.push(
           t`- Model calls: ${{ calls: turn.report.modelCalls }}; tokens in ${{ prompt: turn.report.tokens.promptTokens }}, out ${{ completion: turn.report.tokens.completionTokens }}`,
         );
+        if (turn.report.costUsd !== undefined) lines.push(t`- Recorded cost: about ${{ cost: formatUsd(turn.report.costUsd) }}`);
+        const usage = sumUsage(turn.report.usage ?? []);
+        if (usage.estimatedRequests > 0) lines.push(t`- Includes estimated token counts.`);
+        const unpriced = usage.unpricedRequests;
+        if (unpriced > 0) lines.push(plural(unpriced, { one: '- # request has no recorded cost.', other: '- # requests have no recorded cost.' }));
         for (const line of promptCacheLines(turn.report)) lines.push(`- ${line}`);
       }
       if (turn.checkpoint !== null) {
@@ -311,4 +318,3 @@ function endedWord(report: TurnReport): string {
       return t`stopped`;
   }
 }
-

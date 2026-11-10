@@ -68,6 +68,7 @@ import { PictureStorageMeter } from './PictureStorageMeter.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { formatCount, useComposingEnter } from './shared.js';
 import { Modal, useModalDialog } from './modal.js';
+import { UsagePanel } from './UsagePanel.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -1064,90 +1065,6 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
   );
 }
 
-/** A task role as the usage table names it (provider-gateway §6: cost is visible per role). */
-const ROLE_LABELS: Readonly<Record<TaskRole, MessageDescriptor>> = {
-  chat: msg`Chat`,
-  drafting: msg`Drafting`,
-  background: msg`Background`,
-};
-
-function UsagePanel({ services }: { services: AppServices }): ReactNode {
-  // The counts are estimates and a mounted panel must follow a language switch, so they are formatted through
-  // the live formatter rather than a number written when the panel opened (§4.2).
-  const format = useFormat();
-  const rows = services.providers.ledger.dayRows();
-  const names = new Map(services.providers.list().map((profile) => [profile.id, profile.name]));
-  const totals = rows.reduce(
-    (sum, row) => ({
-      prompt: sum.prompt + row.promptTokens,
-      completion: sum.completion + row.completionTokens,
-      requests: sum.requests + row.requests,
-    }),
-    { prompt: 0, completion: 0, requests: 0 },
-  );
-  const requestsTotal = totals.requests;
-  return (
-    <section className="usage" aria-labelledby="settings-usage">
-      <h4 id="settings-usage">
-        <Trans>Usage on this device</Trans>
-      </h4>
-      {rows.length === 0 ? (
-        <p className="muted">
-          <Trans>No requests yet. Usage is counted by day, per profile, model and role, and stays in this browser.</Trans>
-        </p>
-      ) : (
-        <>
-          <p className="muted">
-            {t`${plural(requestsTotal, { one: '# request', other: '# requests' })}, about ${{ prompt: format.number(totals.prompt) }} tokens in and ${{ completion: format.number(totals.completion) }} out.`}
-          </p>
-          <table className="usage-table">
-            <caption className="visually-hidden">
-              <Trans>Usage by day, profile, model and role</Trans>
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">
-                  <Trans>Day</Trans>
-                </th>
-                <th scope="col">
-                  <Trans>Profile</Trans>
-                </th>
-                <th scope="col">
-                  <Trans>Model</Trans>
-                </th>
-                <th scope="col">
-                  <Trans>Role</Trans>
-                </th>
-                <th scope="col">
-                  <Trans>Requests</Trans>
-                </th>
-                <th scope="col">
-                  <Trans>Tokens in</Trans>
-                </th>
-                <th scope="col">
-                  <Trans>Tokens out</Trans>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={`${row.date}:${row.profileId}:${row.model}:${row.role}`}>
-                  <td>{row.date}</td>
-                  <td>{names.get(row.profileId) ?? t`Removed profile`}</td>
-                  <td>{row.model}</td>
-                  <td>{i18n._(ROLE_LABELS[row.role])}</td>
-                  <td>{format.number(row.requests)}</td>
-                  <td>{format.number(row.promptTokens)}</td>
-                  <td>{format.number(row.completionTokens)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-    </section>
-  );
-}
 
 function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
   const entries: RequestLogEntry[] = services.providers.requests.entries().slice().reverse();

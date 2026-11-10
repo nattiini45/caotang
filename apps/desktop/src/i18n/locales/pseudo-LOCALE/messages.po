@@ -7,37 +7,47 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: pseudo-LOCALE\n"
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Call `{tool}`: {status}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Call `{tool}`: {status} — {detail}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Checkpoint: {label} (undo group `{id}`)"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Ended: {ended}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#: apps/desktop/src/app/activity-model.ts
+msgid "- Includes estimated token counts."
+msgstr ""
+
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Model calls: {calls}; tokens in {prompt}, out {completion}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#: apps/desktop/src/app/activity-model.ts
+msgid "- Recorded cost: about {cost}"
+msgstr ""
+
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Summary: {summary}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "- Turn: `{id}`"
 msgstr ""
@@ -373,7 +383,7 @@ msgstr ""
 msgid "(no description from the server)"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "(none)"
 msgstr ""
@@ -1048,6 +1058,11 @@ msgstr ""
 msgid "{error} Findings are kept in this browser."
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "{estimated, plural, one {# request used estimated token counts.} other {# requests used estimated token counts.}}"
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "{field, select, maxModelCalls {Model calls per turn} maxActiveMinutes {Minutes of work per turn} maxTokens {Tokens per turn} maxSteps {Steps per turn} maxWordsChanged {Words changed per turn} maxDocuments {Documents touched per turn} other {This limit}} is a whole number from {min} to {max}, or empty for the default."
@@ -1539,6 +1554,11 @@ msgstr ""
 msgid "{proposedCount, plural, one {# proposed change} other {# proposed changes}}"
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "{provider, plural, one {# request has a provider-reported cost.} other {# requests have a provider-reported cost.}}"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "{provider} — Desktop app or hosted only"
@@ -1584,8 +1604,10 @@ msgstr ""
 msgid "{removed, plural, one {Removed # unused file.} other {Removed # unused files.}}"
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "{requestsTotal, plural, one {# request} other {# requests}}, about {prompt} tokens in and {completion} out."
 msgstr ""
 
@@ -1860,7 +1882,7 @@ msgstr ""
 msgid "{title} moved to the start of {parent}"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "{title}, in {parent}"
 msgstr ""
@@ -1935,6 +1957,21 @@ msgstr ""
 #. Sentences about Ink line ids. Interpolated values: title and titles are container titles the writer wrote; line, minted and the other counts are numbers; lines, where, first and shown are lists of line positions or ids; room is the reason a line could not take an id; rest counts the ids not shown.
 #: apps/desktop/src/media/ink-model.ts
 msgid "{unplaceable, plural, one {# line ({where}) could not take one: {room}} other {# lines ({where}) could not take one: {room}}}"
+msgstr ""
+
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#: apps/desktop/src/app/activity-model.ts
+msgid "{unpriced, plural, one {- # request has no recorded cost.} other {- # requests have no recorded cost.}}"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "{unpriced, plural, one {# request has no recorded cost.} other {# requests have no recorded cost.}}"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "{unpriced, plural, one {Partial cost total: # request has no recorded cost.} other {Partial cost total: # requests have no recorded cost.}}"
 msgstr ""
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
@@ -2027,22 +2064,22 @@ msgstr ""
 msgid "{wpm} wpm"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "# Activity: {title}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "## Agent turns"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "## Changes"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "### {intent}"
 msgstr ""
@@ -2121,7 +2158,7 @@ msgstr ""
 msgid "<0>Turn Auto mode off</0>"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "| # | Time | Command | Summary | Issued by | Source | Undo group |"
 msgstr ""
@@ -2360,7 +2397,7 @@ msgid "a document that is gone"
 msgstr ""
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/findings-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "a document that is no longer in the project"
@@ -2516,7 +2553,7 @@ msgstr ""
 msgid "A picture may have at most {max} tags."
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "a picture that is no longer in the project"
 msgstr ""
@@ -2720,6 +2757,12 @@ msgstr ""
 msgid "About {about}."
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "About {cost}"
+msgstr ""
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -2732,9 +2775,24 @@ msgstr ""
 msgid "About {cost} for the whole plan, including thinking, at this profile’s prices."
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "About {cost} for this session."
+msgstr ""
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
-msgid "About {cost} for this turn, at this profile’s prices."
+msgid "About {cost} for this turn, using recorded call costs."
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "About {cost} in recorded costs."
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "About {cost}."
 msgstr ""
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
@@ -3147,7 +3205,7 @@ msgstr ""
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Modern interface, the top ornament: the project's title capsule and the More (⋯) menu.
@@ -3223,7 +3281,7 @@ msgstr ""
 msgid "Allowed tools:"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Also known as"
 msgstr ""
@@ -3257,12 +3315,12 @@ msgstr ""
 msgid "Always"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Always included: this entry goes into every drafting call"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Always, in every drafting call"
 msgstr ""
@@ -3360,7 +3418,7 @@ msgstr ""
 msgid "Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "answered"
 msgstr ""
@@ -3420,7 +3478,7 @@ msgstr ""
 msgid "Appears in"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "applied"
 msgstr ""
@@ -3824,8 +3882,9 @@ msgid "Back to the editor"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/UsageBreakdown.tsx
 msgid "Background"
 msgstr ""
 
@@ -4150,6 +4209,25 @@ msgstr ""
 msgid "By (optional)"
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Cache and reasoning counts are already included in the input and output totals."
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Cache reads"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Cache writes"
+msgstr ""
+
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
 #. The timeline's calendar dialog. Interpolated values: day is a day number of the story, label is that day written in the project's calendar, detail is the reason a text is not valid JSON, count is a number of problems, field names the part of the calendar a problem is about, message says what is wrong with it.
 #: apps/desktop/src/components/timeline/CalendarDialog.tsx
@@ -4221,7 +4299,7 @@ msgstr ""
 msgid "Cancel imports nothing."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "cancelled"
 msgstr ""
@@ -4636,8 +4714,9 @@ msgid "Characters, places and lore that recur in the prose are kept here. Their 
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/UsageBreakdown.tsx
 msgid "Chat"
 msgstr ""
 
@@ -4661,7 +4740,7 @@ msgstr ""
 msgid "Check for continuity problems"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Check run discarded"
 msgstr ""
@@ -5018,7 +5097,7 @@ msgstr ""
 msgid "Codex"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Codex attachment changed"
 msgstr ""
@@ -5032,7 +5111,7 @@ msgstr ""
 msgid "Codex entries"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Codex entries imported"
 msgstr ""
@@ -5042,7 +5121,7 @@ msgstr ""
 msgid "Codex entries this step writes"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Codex entry saved"
 msgstr ""
@@ -5115,7 +5194,7 @@ msgstr ""
 msgid "Comic"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic balloons lettered from the script"
 msgstr ""
@@ -5130,7 +5209,7 @@ msgstr ""
 msgid "Comic book archive (.cbz)"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic created"
 msgstr ""
@@ -5165,7 +5244,7 @@ msgstr ""
 msgid "Comic page {title}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic page changed"
 msgstr ""
@@ -5175,7 +5254,7 @@ msgstr ""
 msgid "Comic page derivation"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic pages derived from the script"
 msgstr ""
@@ -5190,17 +5269,17 @@ msgstr ""
 msgid "Comic script change"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic script linked"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic script written from the pages"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Comic settings changed"
 msgstr ""
@@ -5395,9 +5474,15 @@ msgstr ""
 msgid "Corkboard scope"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Corkboard scope changed"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Cost"
 msgstr ""
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
@@ -5408,6 +5493,11 @@ msgstr ""
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Cost per turn, in dollars"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Costs use recorded call prices or provider-reported amounts. Your provider’s bill is authoritative."
 msgstr ""
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -5472,7 +5562,7 @@ msgstr ""
 msgid "Create project"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Created"
 msgstr ""
@@ -5580,12 +5670,13 @@ msgstr ""
 
 #. Columns and cells of the timeline's Agenda table. Interpolated values: count is a number of scenes or findings; title, name and part are writer or part words.
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
-#: apps/desktop/src/components/Settings.tsx
 #: apps/desktop/src/components/timeline/Agenda.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Day"
 msgstr ""
 
@@ -5769,7 +5860,7 @@ msgstr ""
 msgid "Delete…"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Deleted"
 msgstr ""
@@ -5830,7 +5921,7 @@ msgstr ""
 msgid "harness.progress.shotsDerive.active"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
@@ -5903,7 +5994,7 @@ msgstr ""
 msgid "Dialogue container"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Dialogue settings changed"
 msgstr ""
@@ -6229,8 +6320,13 @@ msgid "Drafted by the agent"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
+msgid "Drafting"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgctxt "usage role"
 msgid "Drafting"
 msgstr ""
 
@@ -6630,7 +6726,7 @@ msgstr ""
 msgid "Epilogue"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Episode settings changed"
 msgstr ""
@@ -6715,7 +6811,7 @@ msgstr ""
 msgid "Expand {title}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Expanded or collapsed"
 msgstr ""
@@ -6815,12 +6911,12 @@ msgstr ""
 msgid "Export it as JPEG, or use the iPhone photo picker."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Export recipe deleted"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Export recipe saved"
 msgstr ""
@@ -6842,6 +6938,11 @@ msgstr ""
 msgid "Export trace…"
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Export usage (CSV)"
+msgstr ""
+
 #. The picture board's storage actions. count is a number; detail and reason are a sentence a browser or a command wrote; name is a picture's caption or a file name.
 #: apps/desktop/src/media/PictureStorage.tsx
 msgid "Export without removing"
@@ -6852,7 +6953,7 @@ msgstr ""
 msgid "Exported “{title}” as {file}."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Exported {at}."
 msgstr ""
@@ -6893,12 +6994,12 @@ msgstr ""
 msgid "Exports are kept in this browser, not in the folder. {reason}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "External resource read"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "External tool called"
 msgstr ""
@@ -7099,7 +7200,7 @@ msgstr ""
 msgid "Finding"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Finding status changed"
 msgstr ""
@@ -7433,12 +7534,12 @@ msgstr ""
 msgid "Go to the field"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Goal changed"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Goal deleted"
 msgstr ""
@@ -7554,7 +7655,7 @@ msgstr ""
 msgid "harness.progress.agentDelegate.active"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Handwriting transcribed"
 msgstr ""
@@ -7641,12 +7742,12 @@ msgstr ""
 msgid "Hollow Days"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Hook deleted"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Hook saved"
 msgstr ""
@@ -7684,7 +7785,7 @@ msgstr ""
 msgid "If you apply only the checked changes"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Ignore matches in"
 msgstr ""
@@ -7701,12 +7802,12 @@ msgstr ""
 msgid "Image"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Image added to shot"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Image imported"
 msgstr ""
@@ -7736,7 +7837,7 @@ msgstr ""
 msgid "Image to video"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Images added to shots"
 msgstr ""
@@ -7895,7 +7996,7 @@ msgstr ""
 msgid "store.script.importSummaryCodex"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Imported into the binder"
 msgstr ""
@@ -8009,7 +8110,7 @@ msgstr ""
 msgid "Include this page"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Included in drafting"
 msgstr ""
@@ -8074,7 +8175,7 @@ msgstr ""
 msgid "Ink story (.ink.json)"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Ink story imported"
 msgstr ""
@@ -8148,7 +8249,7 @@ msgstr ""
 msgid "Instructions (CAOTANG.md and memory)"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Instructions changed"
 msgstr ""
@@ -8476,17 +8577,17 @@ msgstr ""
 msgid "Knowledge"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Knowledge fact added"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Knowledge fact changed"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Knowledge fact removed"
 msgstr ""
@@ -8909,12 +9010,12 @@ msgstr ""
 msgid "Machine-assisted translation; not reviewed by a native speaker"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Macro deleted"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Macro saved"
 msgstr ""
@@ -9012,7 +9113,7 @@ msgstr ""
 msgid "Manuscript"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Manuscript exported"
 msgstr ""
@@ -9054,7 +9155,7 @@ msgstr ""
 msgid "marked, the arrow keys propose a new day"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -9153,12 +9254,12 @@ msgstr ""
 msgid "Medium thumbnails with the caption"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Memory note forgotten"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Memory note saved"
 msgstr ""
@@ -9254,8 +9355,9 @@ msgid "Mode: {modeKey, select, planOnly {Plan only} ask {Ask} acceptEdits {Accep
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Model"
 msgstr ""
 
@@ -9476,14 +9578,14 @@ msgstr ""
 msgid "Move up"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
-#. Interpolated values: parent, title
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/activity-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Moved"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Moved and renamed"
 msgstr ""
@@ -9515,7 +9617,7 @@ msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -9559,7 +9661,7 @@ msgstr ""
 msgid "Narration-level deception."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Native"
 msgstr ""
@@ -9581,7 +9683,7 @@ msgstr ""
 msgid "Negative prompt"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/codex-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Never"
@@ -9696,7 +9798,7 @@ msgstr ""
 msgid "New hook"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "New item"
 msgstr ""
@@ -9790,7 +9892,7 @@ msgstr ""
 msgid "Next steps"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "No"
 msgstr ""
@@ -10108,6 +10210,14 @@ msgstr ""
 msgid "No recipes saved"
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "No recorded cost."
+msgstr ""
+
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "No recorded turns"
 msgstr ""
@@ -10126,8 +10236,8 @@ msgstr ""
 msgid "No request has been sent yet."
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "No requests yet. Usage is counted by day, per profile, model and role, and stays in this browser."
 msgstr ""
 
@@ -10390,7 +10500,7 @@ msgstr ""
 msgid "not grouped"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Not in the project yet"
 msgstr ""
@@ -10516,12 +10626,12 @@ msgstr ""
 msgid "Notes"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Notes added to"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Notes changed"
 msgstr ""
@@ -10556,7 +10666,7 @@ msgstr ""
 msgid "Nothing found. Enter opens the agent with your words, unsent."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Nothing has changed in this project yet."
 msgstr ""
@@ -10754,7 +10864,7 @@ msgstr ""
 msgid "Only what you declare here is checked. Nothing is inferred from the text."
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Only when attached to the scene"
 msgstr ""
@@ -10928,7 +11038,7 @@ msgstr ""
 msgid "OpenAI-compatible endpoint"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Opened in the editor"
 msgstr ""
@@ -11201,7 +11311,7 @@ msgstr ""
 msgid "Part of that change was taken back too."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Part of the manuscript exported"
 msgstr ""
@@ -11271,12 +11381,12 @@ msgstr ""
 msgid "Picture"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture deleted"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture details changed"
 msgstr ""
@@ -11286,12 +11396,12 @@ msgstr ""
 msgid "Picture file missing"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture file renamed"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture imported"
 msgstr ""
@@ -11301,7 +11411,7 @@ msgstr ""
 msgid "Picture not found: {name}. Add the file back to the project's assets folder, or delete the picture."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture note changed"
 msgstr ""
@@ -11311,17 +11421,17 @@ msgstr ""
 msgid "Picture on the web. It is not loaded, so opening this scene never contacts the network."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture pinned to its paragraph again"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture placed"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture placed on the whole item"
 msgstr ""
@@ -11331,7 +11441,7 @@ msgstr ""
 msgid "Picture settings"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Picture taken off"
 msgstr ""
@@ -11383,7 +11493,7 @@ msgstr ""
 msgid "Pictures dropped on the board"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Pictures imported"
 msgstr ""
@@ -11398,7 +11508,7 @@ msgstr ""
 msgid "Pictures pinned to a day"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Pictures reordered"
 msgstr ""
@@ -11654,8 +11764,10 @@ msgid "Prices are dollars per 1,000 tokens, written as a number of zero or more.
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Profile"
 msgstr ""
 
@@ -11697,7 +11809,7 @@ msgstr ""
 msgid "Project details"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Project details changed"
 msgstr ""
@@ -11737,7 +11849,7 @@ msgstr ""
 msgid "Project panels"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Project renamed"
 msgstr ""
@@ -12350,6 +12462,13 @@ msgstr ""
 msgid "Ready to review: {staged} of {total} drafted, {outdated} out of date"
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Reasoning"
+msgstr ""
+
 #. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Rebuild the project"
@@ -12654,8 +12773,11 @@ msgstr ""
 msgid "Removed “{profile}”, and its key from this browser."
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Removed profile"
 msgstr ""
 
@@ -12722,8 +12844,8 @@ msgstr ""
 msgid "Rename {title}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
-#. Interpolated values: parent, title
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/activity-model.ts
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Renamed"
@@ -12780,8 +12902,9 @@ msgstr ""
 msgid "Request log"
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Requests"
 msgstr ""
 
@@ -13083,8 +13206,8 @@ msgstr ""
 msgid "Risk"
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Role"
 msgstr ""
 
@@ -13422,12 +13545,12 @@ msgstr ""
 msgid "Saved “{profile}”. Use this profile to make it the one the agent calls."
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Saved filter changed"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Saved filter deleted"
 msgstr ""
@@ -13640,7 +13763,7 @@ msgstr ""
 msgid "Scene declarations"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Scene declarations changed"
 msgstr ""
@@ -13786,7 +13909,7 @@ msgstr ""
 msgid "Script file"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Script imported"
 msgstr ""
@@ -13816,7 +13939,7 @@ msgstr ""
 msgid "Script to cover from"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Scrolled"
 msgstr ""
@@ -13967,7 +14090,7 @@ msgstr ""
 msgid "Selected pictures"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Selection changed"
 msgstr ""
@@ -14210,7 +14333,7 @@ msgstr ""
 msgid "Shot {number}: {title}"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Shot added"
 msgstr ""
@@ -14220,7 +14343,7 @@ msgstr ""
 msgid "Shot anchor moved"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Shot details changed"
 msgstr ""
@@ -14342,7 +14465,7 @@ msgstr ""
 msgid "Show review"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Show settings changed"
 msgstr ""
@@ -14360,6 +14483,16 @@ msgstr ""
 #. Modern interface: the binder tab bar and the sidebar beside it.
 #: apps/desktop/src/components/shell/modern/binder-sidebar.tsx
 msgid "show them"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "Show token detail"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "Show usage by profile, model and role."
 msgstr ""
 
 #. Interpolated values: source, summary
@@ -14440,7 +14573,7 @@ msgstr ""
 msgid "Size on disk"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Skill deleted"
 msgstr ""
@@ -14450,17 +14583,17 @@ msgstr ""
 msgid "Skill folder"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Skill imported"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Skill saved"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Skill turned on or off"
 msgstr ""
@@ -14682,17 +14815,17 @@ msgstr ""
 msgid "Status of {title}: {status}. Change status"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Status or label removed"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Status or label saved"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Status, label or keywords changed"
 msgstr ""
@@ -14804,7 +14937,7 @@ msgstr ""
 msgid "Stop the turn ({shortcut} with the Intent box empty)"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "stopped"
 msgstr ""
@@ -14918,7 +15051,7 @@ msgstr ""
 msgid "Storyboard contact sheet (.pdf)"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Storyboard created"
 msgstr ""
@@ -15031,7 +15164,7 @@ msgstr ""
 msgid "Synopsis"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Synopsis changed"
 msgstr ""
@@ -15212,7 +15345,7 @@ msgstr ""
 msgid "Text before chapter 1"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Text inserted"
 msgstr ""
@@ -15231,12 +15364,12 @@ msgstr ""
 msgid "text reads"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Text replaced"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Text saved"
 msgstr ""
@@ -16930,6 +17063,11 @@ msgstr ""
 msgid "The unused files could not be listed, so none was removed: {reason}"
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "The usage file could not be downloaded. Try exporting it again."
+msgstr ""
+
 #. Interpolated values: error, name
 #: apps/desktop/src/app/providers.ts
 msgid "The usage totals could not be read: {error}"
@@ -17317,6 +17455,11 @@ msgstr ""
 msgid "This format is not built from a block list, so there is none to show. Its counts are the compile’s own."
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
+msgid "This history stays in this browser. The CSV contains daily accounting, not prompts, replies or keys."
+msgstr ""
+
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "This is everything in the skill, exactly as it is, as plain text. The agent will read the instructions. Read all of it before you approve it."
@@ -17542,6 +17685,16 @@ msgstr ""
 msgid "This server uses an MCP version Caotang cannot use. Ask its maker for an update, then choose Connect again."
 msgstr ""
 
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "This session is the current project visit in this tab, including its roles and background tasks. Reopening the project starts another session; device history stays in Settings."
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal, estimated, unpriced, provider
+#: apps/desktop/src/components/UsageBreakdown.tsx
+msgid "This session: {requestsTotal, plural, one {# request} other {# requests}}, about {prompt} tokens in and {completion} out."
+msgstr ""
+
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
 #: apps/desktop/src/media/prompt-pack-model.ts
 msgid "This shot"
@@ -17705,12 +17858,12 @@ msgstr ""
 msgid "Timeline axis"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Timeline calendar changed"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Timeline changes applied"
 msgstr ""
@@ -17812,13 +17965,15 @@ msgstr ""
 msgid "Token saved. Check the connection again to confirm it."
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Tokens in"
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Tokens out"
 msgstr ""
 
@@ -18043,7 +18198,7 @@ msgstr ""
 msgid "Two tiers"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -18070,9 +18225,9 @@ msgstr ""
 msgid "undated"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
-msgid "under $0.0001"
+msgid "under {amount}"
 msgstr ""
 
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
@@ -18182,7 +18337,7 @@ msgstr ""
 msgid "Unknown value"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Unneeded picture files removed"
 msgstr ""
@@ -18339,13 +18494,19 @@ msgstr ""
 msgid "US Letter"
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Usage by day, profile, model and role"
 msgstr ""
 
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
+msgid "Usage by profile, model and role"
+msgstr ""
+
+#. Interpolated values: cost, prompt, completion, requestsTotal
+#: apps/desktop/src/components/UsagePanel.tsx
 msgid "Usage on this device"
 msgstr ""
 
@@ -18514,7 +18675,7 @@ msgstr ""
 msgid "Views are in the bar below"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/app/plan-preview.ts
@@ -18691,7 +18852,7 @@ msgstr ""
 msgid "when {condition}"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "When its name or an alias appears in the text"
 msgstr ""
@@ -18829,7 +18990,7 @@ msgstr ""
 msgid "Words or phrases"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "Working copies stored"
 msgstr ""
@@ -19010,12 +19171,12 @@ msgstr ""
 msgid "Year {n}"
 msgstr ""
 
-#. Interpolated values: parent, title
+#. Interpolated values: parent, title, amount
 #: apps/desktop/src/app/plan-preview.ts
 msgid "Yes"
 msgstr ""
 
-#. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "You"
 msgstr ""

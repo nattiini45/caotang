@@ -72,7 +72,7 @@
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { ContextError, type AgentTask, type PromptPreview, type RecentTurn } from '@caotang/context';
-import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { costOf, estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -298,7 +298,7 @@ export interface AgentSessionOptions {
   readonly budget?: Partial<TurnBudget> | (() => Partial<TurnBudget>);
   /** The same limits across every turn of the session, read at each check. */
   readonly sessionBudget?: SessionBudget | (() => SessionBudget);
-  /** The price per 1,000 tokens the cost limit reads (provider-gateway §2). Absent, a turn has no cost to hold to a limit. */
+  /** A legacy price override for budget limits. Recorded usage and turn cost always read the gateway ledger's call-time costs. */
   readonly price?: () => { readonly prompt: number; readonly completion: number } | undefined;
   /**
    * Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. A reason it
@@ -319,6 +319,7 @@ export interface AgentSessionOptions {
    * one so its runs are the same bytes.
    */
   readonly sessionId?: string;
+  readonly usageSessionId?: string;
   /**
    * The clock the status cards are stamped with: when a call starts running and when it finishes, which the panel's elapsed
    * timer reads (agent-harness §8). Display only, so no check reads it. Default `Date.now`.
@@ -1056,6 +1057,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   let maxModelCalls = boundNow();
   const maxRetries = options.maxRetries ?? 2;
   const sessionName = options.sessionId ?? newId('cmd').slice('cmd_'.length);
+  const usageSessionId = options.usageSessionId ?? sessionName;
   const finished: TurnReport[] = [];
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
   const started: RecentTurn[] = [];
@@ -1135,15 +1137,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return { ids, words };
   };
 
-  /** What the turn has used of each budget dimension. The cost is absent while the session has no price to read. */
+  /** What the turn has used of each budget dimension. An explicit legacy budget price overrides the recorded cost for budget checks only. */
   const usageOf = (turn: Turn): BudgetUse => {
     const totals = gateway.ledger.turnTotals(turn.id);
     const price = options.price?.();
+    const costUsd = price === undefined ? totals.costUsd : costOf(totals, price);
     const touched = touchedOf(turn);
     return {
       modelCalls: turn.modelCalls,
       tokens: totals.promptTokens + totals.completionTokens,
-      ...(price === undefined ? {} : { costUsd: (totals.promptTokens * price.prompt + totals.completionTokens * price.completion) / 1000 }),
+      ...(costUsd === undefined ? {} : { costUsd }),
       wordsChanged: touched.words,
       documents: touched.ids.size,
       steps: spentSteps(turn),
@@ -1441,7 +1444,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const hit = hitOf(turn, usageOf(turn), true);
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
-        const asked = role === undefined ? request : { ...request, role };
+        const asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }) };
         const reservation = reserveCall(turn, asked);
         turn.modelCalls += 1;
         turn.calls += 1;
@@ -1475,7 +1478,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       gateway: {
         complete: (request, signal) => {
           if (used >= limit) throw modelCallBound(limit);
-          const asked = options.role === undefined ? request : { ...request, role: options.role };
+          const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
           const reservation = reserveCall(turn, asked);
           used += 1;
           turn.calls += 1;
@@ -2250,7 +2253,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   async function invokeRead(turn: Turn, call: ToolCall, permission?: { readonly confirmed: true }): Promise<ToolOutcome> {
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
-    const granted = permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission };
+    const granted = { turnId: turn.id, sessionId: usageSessionId, ...(permission === undefined ? {} : { permission }) };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
     await beginSkillAccess(turn, call.name, true);
     return harness.call(call, granted);
@@ -2887,10 +2890,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         ? await harness.callAsync(
             call,
             grant === 'plan'
-              ? { turnId: turn.id, permission: { approvedPlan: true }, ...signalOf(turn) }
+              ? { turnId: turn.id, sessionId: usageSessionId, permission: { approvedPlan: true }, ...signalOf(turn) }
               : grant === 'confirmed'
-                ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) }
-                : { turnId: turn.id, ...signalOf(turn) },
+                ? { turnId: turn.id, sessionId: usageSessionId, permission: { confirmed: true }, ...signalOf(turn) }
+                : { turnId: turn.id, sessionId: usageSessionId, ...signalOf(turn) },
           )
         : await harness.callExternal(
             call,

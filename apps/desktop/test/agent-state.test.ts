@@ -6,7 +6,7 @@ import { agentControllerMachine, initialAgentState, stepAgentState, type AgentSt
 
 const owner = new AbortController();
 const other = new AbortController();
-const turn: ControllerTurn = { owner, agent: null, turnId: 'turn-1', meter: null, mode: null, calls: null, intent: 'Write.', command: null, provider: null, price: null };
+const turn: ControllerTurn = { owner, agent: null, turnId: 'turn-1', meter: null, mode: null, calls: null, intent: 'Write.', command: null, provider: null };
 const decision = { pending: { kind: 'plan', turnId: 'turn-1', card: {} } as PendingCard, resolve: () => undefined };
 const offer = { view: {} as OfferView, resolve: () => undefined };
 const token = {};

@@ -130,6 +130,7 @@ export interface PortContext {
   readonly state: ProjectState;
   /** The turn this call belongs to. A port that keeps something for one turn (the skills a turn has loaded) keys it by this. */
   readonly turnId: string;
+  readonly sessionId?: string;
   /** Dispatches one command through the bus, under the same turn and permission as the call. */
   readonly dispatch: (name: CommandName, params: CallParams) => Result<ExecutionOutcome, CommandError>;
   /**
@@ -269,6 +270,7 @@ export type ToolEntry = NativeEntry | PortEntry | ProtocolEntry;
 /** How the caller names a turn: its id, where it came from, and what the user has approved. */
 export interface TurnContext {
   readonly turnId: string;
+  readonly sessionId?: string;
   readonly source?: ActivitySource;
   /** `approvedPlan` or `confirmed` — the flow facts the gate reads (command-bus §4). */
   readonly permission?: PermissionContext;

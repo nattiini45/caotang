@@ -70,8 +70,6 @@ export interface TurnRecord {
   readonly command: string | null;
   /** The name of the provider the turn runs on, or `null` before the turn has started. */
   readonly provider: string | null;
-  /** The price per 1,000 tokens of the profile the turn runs on, when it has one (provider-gateway §2). The report prices its tokens with it. */
-  readonly price: { readonly prompt: number; readonly completion: number } | null;
   /** The latest phase the turn reported (`started`, `planning`, `awaiting-approval`, …). */
   readonly phase: TurnPhase | 'idle';
   /** One status card per tool call, in the order the calls first appeared, each at its latest state. */
@@ -117,7 +115,6 @@ export function newTurnRecord(
   turnId: string,
   intent: string,
   provider: string | null = null,
-  price: { readonly prompt: number; readonly completion: number } | null = null,
   command: string | null = null,
 ): TurnRecord {
   return {
@@ -125,7 +122,6 @@ export function newTurnRecord(
     intent,
     command,
     provider,
-    price,
     phase: 'idle',
     cards: [],
     plan: null,
@@ -147,8 +143,8 @@ export function newTurnRecord(
 }
 
 export function newTurnView(turnId: string, intent: string, provider: string | null = null,
-  price: { readonly prompt: number; readonly completion: number } | null = null, command: string | null = null): TurnView {
-  return { ...newTurnRecord(turnId, intent, provider, price, command), rewound: false, restoredAt: null, restoredFromStep: null };
+  command: string | null = null): TurnView {
+  return { ...newTurnRecord(turnId, intent, provider, command), rewound: false, restoredAt: null, restoredFromStep: null };
 }
 
 /**

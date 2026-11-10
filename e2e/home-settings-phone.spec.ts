@@ -2,6 +2,29 @@ import { expect, test } from '@playwright/test';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
+test('Modern Home wraps unbroken introduction text and demo labels without page overflow', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-shell', 'modern');
+  const home = page.locator('.home');
+  const introduction = home.locator('.first-run > p').first();
+  const demo = home.locator('.first-run-actions button').last();
+  await expect(introduction).toBeVisible();
+  await introduction.evaluate((element) => { element.textContent = 'W'.repeat(80); });
+  await demo.evaluate((element) => { element.textContent = 'W'.repeat(80); });
+  for (const content of [introduction, demo]) {
+    const geometry = await content.evaluate((element) => ({
+      scroll: element.scrollWidth, width: element.clientWidth, wrap: getComputedStyle(element).overflowWrap,
+    }));
+    expect(geometry.scroll <= geometry.width, JSON.stringify(geometry)).toBe(true);
+    const box = await content.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 for (const shell of ['classic', 'modern'] as const) {
   test.describe(`${shell} Home and Settings on a phone`, () => {
     test.beforeEach(async ({ page }) => {

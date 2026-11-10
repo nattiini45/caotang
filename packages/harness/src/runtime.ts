@@ -1079,6 +1079,7 @@ export function createHarness(options: HarnessOptions): Harness {
     return {
       state,
       turnId: turn.turnId,
+      ...(turn.sessionId === undefined ? {} : { sessionId: turn.sessionId }),
       dispatch: (name, command) => run(name, command),
       // A compound tool's own grant, inherited by the primitive it composes (command-bus §4).
       dispatchInherited: (name, command) => run(name, command, 'write-confirm'),

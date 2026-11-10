@@ -8,15 +8,16 @@
 
 import { i18n, type MessageDescriptor } from '@lingui/core';
 import { msg, t } from '@lingui/core/macro';
-import { isolate } from '@caotang/i18n';
+import { isolate, numberFormat } from '@caotang/i18n';
 import { costLineRef, refusalSentence } from '@caotang/harness';
 import type { ComicPreview, StepCost, TimelineCard, TimelineCardRow, TimelineDeltaFinding } from '@caotang/harness';
 import type { MessageRef } from '@caotang/i18n';
 
 import { renderRef } from '../i18n/render-ref.js';
+import { formatterLocale } from '../i18n/format-locale.js';
 import { nodeById, type ProjectState } from '@caotang/store';
 
-/* lingui-set comment="Interpolated values: parent, title" */
+/* lingui-set comment="Interpolated values: parent, title, amount" */
 
 /** One synopsis a batch writes: the document, whether the synopsis is new or replaces one, the text and its word count. */
 export interface SynopsisPreviewRow {
@@ -603,9 +604,10 @@ export function refusalReasonOf(
  * A dollar amount for the card: four decimals under a dollar, where a single step's cost sits, two above it, and a floor word
  * for an amount too small to show.
  */
-export function formatUsd(value: number): string {
-  if (value < 0.0001) return t`under $0.0001`;
-  return value < 1 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+export function formatUsd(value: number, locale = formatterLocale()): string {
+  const digits = value < 1 ? 4 : 2;
+  const amount = numberFormat(locale, { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Math.max(value, 0.0001));
+  return value < 0.0001 ? t`under ${amount}` : amount;
 }
 
 /** The cost estimate of one step, as the card's line, or undefined when the profile has no price (provider-gateway §6). */
@@ -616,18 +618,6 @@ export function costLineOf(
   // English is byte-identical to the sentence this function wrote before the ref existed.
   const ref = costLineRef(cost);
   return ref === undefined ? undefined : renderRef(ref);
-}
-
-/**
- * What a turn's tokens cost at the profile it ran on: prompt tokens at the prompt price and reply tokens at the reply price, per
- * 1,000 tokens (provider-gateway §2). Undefined when the profile has no price, so an unpriced turn shows no cost.
- */
-export function turnCostOf(
-  tokens: { readonly promptTokens: number; readonly completionTokens: number },
-  price: { readonly prompt: number; readonly completion: number } | null,
-): number | undefined {
-  if (price === null) return undefined;
-  return (tokens.promptTokens * price.prompt + tokens.completionTokens * price.completion) / 1000;
 }
 
 /** The whole plan's estimate: the sum of the steps that carry a price, or undefined when none of them does. */

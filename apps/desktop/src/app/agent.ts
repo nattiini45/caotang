@@ -68,7 +68,7 @@
 
 import { plural, select, t } from '@lingui/core/macro';
 import type { GhostPreview } from '@caotang/editor/tiptap';
-import type { ProfileView, TaskRole, ThinkingLevel } from '@caotang/gateway';
+import type { ProfileView, TaskRole, ThinkingLevel, UsageTotals } from '@caotang/gateway';
 import {
   checkMacro,
   docResolverFor,
@@ -129,6 +129,7 @@ import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcom
 import { commandArguments, expandSkillCommand, projectCommands, type ProjectCommand } from './project-commands.js';
 import { currentEditorCaret } from './editor-selection.js';
 import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent } from './agent-state.js';
+import { groupUsage, type UsageGroup } from './usage-model.js';
 
 /** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
 type HarnessModule = typeof LazyHarness;
@@ -243,6 +244,8 @@ export interface BackgroundOptions {
 }
 
 export interface AgentSnapshot {
+  readonly sessionUsage: { readonly totals: UsageTotals; readonly rows: readonly UsageGroup[] };
+  readonly usageProfiles: readonly Pick<ProfileView, 'id' | 'name'>[];
   readonly phase: ReturnType<typeof initialAgentState>['kind'];
   /** Every turn this project has run in this visit, oldest first. */
   readonly turns: readonly TurnView[];
@@ -357,6 +360,8 @@ export class AgentController {
   private readonly limitPins = new Map<TaskRole, LimitPins>();
   /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
   private readonly sessionId = newId('cmd').slice('cmd_'.length);
+  private letGoOfUsage: () => void = () => undefined;
+  private usageCache: { revision: number; value: AgentSnapshot['sessionUsage'] } | null = null;
   /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
   private modeOverride: { readonly mode: PermissionMode } | null = null;
   private readonly heldRun = new Set<string>();
@@ -412,7 +417,6 @@ export class AgentController {
   private get intentForNextTurn() { return this.turn?.intent ?? null; }
   private get commandForNextTurn() { return this.turn?.command ?? null; }
   private get providerForNextTurn() { return this.turn?.provider ?? null; }
-  private get priceForNextTurn() { return this.turn?.price ?? null; }
   private get queue() { return this.state.queue.messages; }
   private get queuePaused() { return this.state.queue.paused; }
   private get pendingNotes() { return this.state.notes.pending; }
@@ -492,7 +496,19 @@ export class AgentController {
   private buildSnapshot(): AgentSnapshot {
     const active = this.providers.active();
     const drafts = this.draftCheck();
+    const ledger = this.providers.gateway.ledger;
+    if (this.usageCache?.revision !== ledger.revision) {
+      this.usageCache = {
+        revision: ledger.revision,
+        value: {
+          totals: ledger.sessionTotals(this.sessionId),
+          rows: groupUsage(ledger.turnRows().filter((row) => row.sessionId === this.sessionId)),
+        },
+      };
+    }
     return {
+      sessionUsage: this.usageCache.value,
+      usageProfiles: this.providers.gateway.profiles.list().map(({ id, name }) => ({ id, name })),
       phase: this.state.kind,
       turns: this.turns.map((turn) => {
         const fields = turnMarkerFields([...this.sessions.values()].map((agent) => agent.turnMarker(turn.turnId)).find((marker) => marker !== undefined) ?? { kind: 'live' });
@@ -939,7 +955,7 @@ export class AgentController {
 
   private begin(intent: string, command: string | null): AbortController {
     const owner = new AbortController();
-    this.move({ type: 'begin', turn: { owner, agent: null, turnId: null, meter: null, mode: null, calls: null, intent, command, provider: null, price: null } });
+    this.move({ type: 'begin', turn: { owner, agent: null, turnId: null, meter: null, mode: null, calls: null, intent, command, provider: null } });
     return owner;
   }
 
@@ -972,7 +988,7 @@ export class AgentController {
       }
       // The dialogue tools compile Ink synchronously, so the compiler is loaded before the turn plans (ink-compiler.ts).
       await requestInkCompilerFor(this.session.state);
-      this.move({ type: 'turn', owner: abort, patch: { provider: profile.name, price: profile.pricePer1k ?? null } });
+      this.move({ type: 'turn', owner: abort, patch: { provider: profile.name } });
       // One agent session per controller keeps `started` RecentTurn list across turns (context-assembly §2, L6).
       // The turn carries its own pins, so a provider switch between turns keeps the session; the per-turn state
       // (call cache, plan cache, undo group, loaded tools) is cleared by `harness.endTurn` after every
@@ -1615,7 +1631,7 @@ export class AgentController {
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
       if (this.turnAbort !== null) this.move({ type: 'turn', owner: this.turnAbort, patch: { turnId: event.turnId } });
-      this.turns = [...this.turns, newTurnRecord(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn, this.commandForNextTurn)];
+      this.turns = [...this.turns, newTurnRecord(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.commandForNextTurn)];
       this.handEarlyNotes(event.turnId);
     }
     // A note has reached the model: it is no longer waiting.
@@ -1924,6 +1940,7 @@ export class AgentController {
       emit: (event) => this.onEvent(event),
       role,
       sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
+      usageSessionId: this.sessionId,
       clock: this.clock,
       trace: () => {
         const sink = this.traceSink();
@@ -1948,7 +1965,6 @@ export class AgentController {
         return this.runCalls === null ? budget : { ...budget, maxModelCalls: Math.min(budget.maxModelCalls ?? Infinity, this.runCalls) };
       },
       meter: () => this.meter ?? undefined,
-      price: () => this.priceForNextTurn ?? undefined,
       beforeAutoApply: (card) => this.beforeAutoApply(card),
       runLog: {
         port: this.runLog,
@@ -1984,6 +2000,7 @@ export class AgentController {
       languages: () => this.languagePolicy(),
       role: 'background',
       sessionId,
+      usageSessionId: this.sessionId,
       maxModelCalls,
       clock: this.clock,
       trace: this.traceSink,
@@ -2052,6 +2069,8 @@ export class AgentController {
 
   /** Ends the controller. A decision still waiting is cancelled, so the turn ends and nothing is left parked. */
   detach(): void {
+    this.letGoOfUsage();
+    this.letGoOfUsage = () => undefined;
     this.letGoOfRetention();
     this.letGoOfRetention = () => undefined;
     const resolve = this.resolveDecision;
@@ -2070,6 +2089,8 @@ export class AgentController {
    * detached and attached again before the first screen is drawn; a detach is therefore not the end of the controller.
    */
   attach(): void {
+    this.letGoOfUsage();
+    this.letGoOfUsage = this.providers.gateway.ledger.subscribe(() => this.bump());
     this.move({ type: 'attach' });
     this.letGoOfRetention();
     this.letGoOfRetention = this.session.addRetentionRoot(

@@ -53,6 +53,12 @@ const ZERO: UsageTotals = {
   estimatedRequests: 0, unpricedRequests: 0, providerCostRequests: 0,
 };
 
+export function sumUsage(rows: readonly UsageTotals[]): UsageTotals {
+  const totals = { ...ZERO };
+  for (const row of rows) add(totals, row);
+  return totals;
+}
+
 export function costOf(usage: Usage, price: TokenPrice | undefined): number | undefined {
   if (usage.providerCostUsd !== undefined && Number.isFinite(usage.providerCostUsd) && usage.providerCostUsd >= 0) return usage.providerCostUsd;
   if (price === undefined) return undefined;
@@ -71,6 +77,9 @@ export class UsageLedger {
   private readonly days = new Map<string, DayUsageRow>();
   private readonly turns = new Map<string, TurnUsageRow>();
   private readonly listeners = new Set<() => void>();
+  private change = 0;
+
+  get revision(): number { return this.change; }
 
   constructor(private readonly clock: Clock = systemClock) {}
 
@@ -109,6 +118,7 @@ export class UsageLedger {
       add(turn, totals);
       this.turns.set(turnKey, turn);
     }
+    this.change += 1;
     for (const listener of this.listeners) listener();
   }
 
@@ -159,6 +169,8 @@ export class UsageLedger {
       if (prior === undefined) this.turns.set(key, row);
       else add(prior, row);
     }
+    this.change += 1;
+    for (const listener of this.listeners) listener();
   }
 }
 

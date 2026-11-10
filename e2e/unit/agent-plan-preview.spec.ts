@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { UsageLedger } from '../../packages/gateway/src/index.js';
 
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
 import { elapsedOf, formatElapsed } from '../../apps/desktop/src/app/agent-model.js';
-import { costLineOf, formatUsd, NEW_ENTRY_FROM, planCostOf, refusalReasonOf, stepPreviewOf, turnCostOf, wordDiff } from '../../apps/desktop/src/app/plan-preview.js';
+import { costLineOf, formatUsd, NEW_ENTRY_FROM, planCostOf, refusalReasonOf, stepPreviewOf, wordDiff } from '../../apps/desktop/src/app/plan-preview.js';
 import { withoutIsolates } from '../support.js';
 
 /**
@@ -425,8 +426,12 @@ test.describe('the cost estimate is dollars, and absent when the profile has no 
   });
 
   test('a turn’s cost prices its prompt and reply tokens per 1,000, and is absent on an unpriced profile', () => {
-    expect(turnCostOf({ promptTokens: 1000, completionTokens: 500 }, { prompt: 0.01, completion: 0.03 })).toBeCloseTo(0.025, 10);
-    expect(turnCostOf({ promptTokens: 1000, completionTokens: 500 }, null)).toBeUndefined();
+    const ledger = new UsageLedger();
+    const tokens = { promptTokens: 1000, completionTokens: 500 };
+    ledger.record({ profileId: 'priced', model: 'model', turnId: 'priced', pricePer1k: { prompt: 0.01, completion: 0.03 } }, tokens);
+    ledger.record({ profileId: 'unpriced', model: 'model', turnId: 'unpriced' }, tokens);
+    expect(ledger.turnTotals('priced').costUsd).toBeCloseTo(0.025, 10);
+    expect(ledger.turnTotals('unpriced').costUsd).toBeUndefined();
   });
 });
 

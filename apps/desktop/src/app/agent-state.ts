@@ -12,7 +12,6 @@ export interface ControllerTurn {
   readonly intent: string;
   readonly command: string | null;
   readonly provider: string | null;
-  readonly price: { readonly prompt: number; readonly completion: number } | null;
 }
 
 export interface ParkedDecision {
@@ -50,7 +49,7 @@ export type AgentState = Common & (
 export type AgentStateEvent =
   | { readonly type: 'begin'; readonly turn: ControllerTurn }
   | { readonly type: 'ready'; readonly turn: ControllerTurn }
-  | { readonly type: 'turn'; readonly owner: AbortController; readonly patch: Partial<Pick<ControllerTurn, 'turnId' | 'intent' | 'command' | 'provider' | 'price'>> }
+  | { readonly type: 'turn'; readonly owner: AbortController; readonly patch: Partial<Pick<ControllerTurn, 'turnId' | 'intent' | 'command' | 'provider'>> }
   | { readonly type: 'card'; readonly decision: ParkedDecision }
   | { readonly type: 'answer'; readonly approval?: object }
   | { readonly type: 'approval-notice'; readonly token: object; readonly message: string }

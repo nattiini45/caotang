@@ -6,7 +6,9 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
-- **Durable usage accounting.** The local ledger keeps versioned day and turn rows beyond the old 200-row cap and across reloads. It records cost at the profile and model that served each call, cache and reasoning counts, estimated usage and unpriced requests. Older saved day totals remain readable without inventing a historical cost. Coherence and encoding reviews now have turn attribution. The session total, Usage details/CSV and turn-price display follow in the next usage batch.
+- **Session totals and usage details.** The agent shows requests, tokens and known cost for the current project visit across roles and tasks, with a profile/model/role breakdown. Settings › Providers shows daily recorded cost, estimated and unpriced counts, optional cache/reasoning detail and a guarded local CSV export. Desktop cost notes wrap within the table; narrow screens show labelled rows with tokens and cost without sideways scrolling. USD follows the interface locale, with English and German controls; CSV stays machine-readable.
+
+- **Durable usage accounting.** The local ledger keeps versioned day and turn rows beyond the old 200-row cap and across reloads. It records cost at the profile and model that served each call, cache and reasoning counts, estimated usage and unpriced requests. Older saved day totals remain readable without inventing a historical cost. Coherence and encoding reviews now have turn attribution.
 
 - **Named agent lifecycle.** The header distinguishes loading, approval processing and stopping, while the composer and Stop remain available. The panel publishes the controller state for reliable command readiness, including queued turns and background choices.
 
@@ -21,6 +23,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
 ### Fixed
+
+- **Expanded onboarding text.** Modern's Projects screen wraps long introduction text and demo labels within the page, including while narrow Settings is open over it.
+
+- **Turn prices follow the calls that served them.** A turn that uses another role or a provider-listed price shows its recorded per-call total instead of multiplying every token by the Chat profile's price. Old costs do not change when a profile's price changes.
 
 - **Retained conflict recovery.** A later producer, read or write failure no longer hides an unresolved document conflict. The editor footer and Documents save channel keep the copy-before-reload guidance until the conflict is resolved.
 

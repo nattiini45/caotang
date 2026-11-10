@@ -136,6 +136,7 @@ export {
   localDayKey,
   USAGE_LEDGER_VERSION,
   costOf,
+  sumUsage,
   type DayUsageRow,
   type TurnUsageRow,
   type UsageTotals,

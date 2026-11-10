@@ -442,6 +442,12 @@
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
+  overflow-wrap: anywhere;
+}
+
+:root[data-shell='modern'] .home .button {
+  max-inline-size: 100%;
+  white-space: normal;
 }
 
 :root[data-shell='modern'] .home > :is(.home-head, .home-section, .storage-banner, .status-line) {

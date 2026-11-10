@@ -2729,6 +2729,125 @@ dialog.confirm:has(.folder-file-preview) {
   margin-top: var(--space-3);
 }
 
+.usage-table {
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-table col:nth-child(1) { inline-size: 10%; }
+.usage-table col:nth-child(2) { inline-size: 11%; }
+.usage-table col:nth-child(3) { inline-size: 18%; }
+.usage-table col:nth-child(4) { inline-size: 11%; }
+.usage-table col:nth-child(5) { inline-size: 8%; }
+.usage-table col:nth-child(6),
+.usage-table col:nth-child(7) { inline-size: 10%; }
+.usage-table col:nth-child(8) { inline-size: 22%; }
+
+.usage-table th,
+.usage-table td,
+.usage-records,
+.usage-breakdown bdi {
+  overflow-wrap: anywhere;
+}
+
+.usage-records {
+  list-style: none;
+  margin: var(--space-4) 0;
+  padding: 0;
+}
+
+.usage-records li + li {
+  margin-block-start: var(--space-5);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--line);
+}
+
+.usage-records h5 {
+  margin-block: 0 var(--space-3);
+  font-size: var(--text-md);
+}
+
+.usage-record-values {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.usage-record-values > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-3);
+  margin-block: var(--space-2);
+}
+
+.usage-record-values dd {
+  min-inline-size: 0;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-detail-row .usage-token-detail {
+  margin-block: var(--space-2);
+}
+
+.usage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin-block: var(--space-4);
+}
+
+.usage-actions label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.usage-notes {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.usage-breakdown {
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+}
+
+.usage-breakdown li + li {
+  margin-block-start: var(--space-5);
+}
+
+.usage-breakdown p {
+  margin-block: var(--space-1);
+}
+
+.usage-token-detail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-block: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.usage-token-detail dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-session-usage {
+  margin-block: var(--space-3);
+  padding-block: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.agent-session-usage summary > span:not(:first-child) {
+  display: block;
+  margin-inline-start: var(--space-4);
+}
+
 .usage-table th,
 .usage-table td,
 .request-table th,
