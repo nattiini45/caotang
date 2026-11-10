@@ -62,6 +62,19 @@ import {
   type ValidationSnapshot,
 } from '../src/index.js';
 import { BODY, REVISION, THE_LANDING, makeSnapshot } from './fixtures.js';
+import { canMove } from '@caotang/machine';
+import { callIdTable } from '../src/idempotency.js';
+
+describe('bus.call-id transition table', () => {
+  it('lists only applying, settling and forgetting a turn-scoped call', () => {
+    const allowed = new Set(['unseen:apply', 'in-flight:settle', 'in-flight:end-turn', 'recorded:end-turn']);
+    for (const kind of ['unseen', 'in-flight', 'recorded'] as const) {
+      for (const type of ['apply', 'settle', 'end-turn'] as const) {
+        expect(canMove(callIdTable, kind, type)).toBe(allowed.has(`${kind}:${type}`));
+      }
+    }
+  });
+});
 
 const TICK = 1_760_000_000_000;
 const TURN = 'turn_01HZX';

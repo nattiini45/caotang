@@ -19,6 +19,8 @@ Caotang asks your browser to keep its storage, but the browser decides. If it ha
 
 A project can be open in one tab at a time. A second tab waits a moment, then says the project is open in another tab. Switch to that tab, or close it, then open the project again. Opening a folder of a project that another tab holds is refused in the same way.
 
+If another tab blocks an upgrade of this browser's storage, Caotang says so instead of waiting indefinitely. Close the other Caotang tabs, then reload this tab to open your projects.
+
 Undo of your typing in a scene survives a reload (redo may not). The toolbar's Undo and the Undo in Activity last while the tab is open, and a checkpoint can still take a turn back after a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own, and a reload clears it. Caotang saves a moment after you stop typing (800 ms by default). If the tab closes or reloads before a save finishes, Caotang keeps the words in this browser and saves them when you open the project again, and says so. If the project has newer text by then, the words are offered in the binder footer instead, to put back as new documents or discard.
 
 ## Projects
@@ -367,7 +369,7 @@ A screenplay scene and a branching dialogue can name the same people in differen
 
 These are notes, not errors: a branch may rightly give a character a line the flat script lacks, so dismiss a note with a reason when the difference is meant. Only speakers are compared, never the lines or what they mean. A scene with no link is not compared, and the run history says how many scenes were compared and how many were not. A link to a container that is archived or gone shows as missing in the Inspector, with a button to clear it. Only screenplay scenes are compared.
 
-The **Run history** lists each run. **Run again** repeats a run with the same scope and the checks you have on now. **Discard run** removes a run, and Undo puts it back. The Export dialog's Review group writes the findings and runs as a coherence report, in Markdown or JSON.
+The **Run history** lists each run. **Run again** repeats a run with the same scope and the checks you have on now. **Discard run** removes a run and the findings it created that you have not changed, and Undo puts them back. Undoing a finding's first status change leaves it untouched again, so Discard run removes it too. The Export dialog's Review group writes the findings and runs as a coherence report, in Markdown or JSON.
 
 ## The agent
 

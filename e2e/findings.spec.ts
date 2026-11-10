@@ -152,6 +152,23 @@ test('a quoted passage the writer has edited since the scan is not revealed, and
   expect(await selectionOf(page)).toBeNull();
 });
 
+test('undoing a finding status change lets Discard run remove the untouched finding', async ({ page }) => {
+  await declaredAndScanned(page);
+  await page.getByRole('combobox', { name: 'Show findings with status' }).selectOption('all');
+  const notes = page.getByRole('region', { name: 'Notes' });
+  const finding = notes.locator('article.finding');
+  await finding.getByRole('button', { name: 'Mark fixed' }).click();
+  await expect(finding).toHaveAttribute('data-status', 'fixed');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(finding).toHaveAttribute('data-status', 'open');
+  await page.getByRole('region', { name: 'Run history' }).getByRole('button', { name: /Discard run from / }).click();
+  await expect(page.locator('.findings article.finding')).toHaveCount(0);
+  await waitForSaved(page);
+  await reopen(page, 'Findings Book');
+  await page.getByRole('tab', { name: 'Findings' }).click();
+  await expect(page.locator('.findings article.finding')).toHaveCount(0);
+});
+
 test('a finding is marked fixed and re-opened from its card, and a fixed finding stays fixed across a reload', async ({ page }) => {
   await declaredAndScanned(page);
   const notes = page.getByRole('region', { name: 'Notes' });
