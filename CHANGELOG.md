@@ -16,6 +16,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Document save conflicts.** A revision conflict now has its own save state instead of looking like a storage failure. The prose, screenplay and Ink save lines say in English and German that newer text is already stored, keep your words in this tab and direct you to copy the unsaved text somewhere safe before reloading. Autosave timing and saved project formats are unchanged.
 
+- **Settled agent cards and held-plan retries.** A deadline retires the turn's approval and Stop controls, including an approval still saving your typing. A held plan that cannot start stays retryable without switching the mode. Repeated approval while saving now says to wait.
+
 - **Opening browser storage.** If another tab blocks an upgrade, opening now asks you to close the other Caotang tabs and reload instead of waiting indefinitely.
 
 - **Undoing a finding verdict.** Undo restores the finding's prior note and curation timestamps as well as its status. Discard run can then remove a finding whose first change you undid. Concurrent copies of one agent tool call also share one apply instead of applying twice.

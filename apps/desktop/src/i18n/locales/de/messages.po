@@ -16269,6 +16269,11 @@ msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden ({reason
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The project’s images could not be listed again ({reason}). The turn was stopped, so nothing was exported."
+msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden ({reason}). Der Durchlauf wurde gestoppt, deshalb wurde nichts exportiert."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again."
 msgstr "Die Bilder des Projekts konnten nicht erneut aufgelistet werden, daher wurde dieser Export nicht automatisch angewendet. Genehmigen Sie ihn, um es erneut zu versuchen."
 
@@ -16962,6 +16967,11 @@ msgstr "Diese Erlaubnisregel für {tool} hat keine Wirkung, weil sie nur Lesezug
 #: apps/desktop/src/app/agent-rules-model.ts
 msgid "This allow rule has no effect because it names a folder or path."
 msgstr "Diese Erlaubnisregel hat keine Wirkung, weil sie einen Ordner oder Pfad nennt."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This approval is already saving your typing. Wait for it to finish."
+msgstr "Diese Freigabe speichert gerade deinen Text. Warte, bis sie abgeschlossen ist."
 
 #: apps/desktop/src/app/picture-transcoder.ts
 msgid "This browser cannot open HEIC photos."

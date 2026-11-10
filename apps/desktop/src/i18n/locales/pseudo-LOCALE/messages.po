@@ -16268,6 +16268,11 @@ msgstr ""
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The project’s images could not be listed again ({reason}). The turn was stopped, so nothing was exported."
+msgstr ""
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again."
 msgstr ""
 
@@ -16960,6 +16965,11 @@ msgstr ""
 #. Interpolated values: tool
 #: apps/desktop/src/app/agent-rules-model.ts
 msgid "This allow rule has no effect because it names a folder or path."
+msgstr ""
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This approval is already saving your typing. Wait for it to finish."
 msgstr ""
 
 #: apps/desktop/src/app/picture-transcoder.ts
