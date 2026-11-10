@@ -121,7 +121,7 @@ connect(key):
 
 ### 3.5 Module API
 
-`addServer`, `approveReview`, `setTrustReads`, `setToolEnabled` and `updateServer` return `Promise<Result<…, string>>`. `setMasterEnabled` and `removeServer` return `Promise<void>` and reject a failed settings save. `McpClientOptions.onChange` accepts `void | Promise<string | null>`; `null` (or no callback) accepts the proposed slice. `AddServerInput.enabled?` lets an import save the final disabled state in one write. Review approval rechecks the live connection and fingerprint after persistence before publishing healthy runtime state.
+`addServer`, `approveReview`, `setTrustReads`, `setToolEnabled` and `updateServer` return `Promise<Result<…, string>>`. `setMasterEnabled` and `removeServer` return `Promise<void>` and reject a failed settings save. `McpClientOptions.onChange` accepts `void | Promise<string | null>`; `null` (or no callback) accepts the proposed slice. `AddServerInput.enabled?` lets an import save the final disabled state in one write. Review approval validation and commit serialize per server with connection detachment and tool/catalog publication. An overlapping lifecycle change either precedes validation, which can refuse without writing, or publishes after the approval save settles. A successful approval acknowledges the saved reviewed definitions; a refused approval never leaves new saved pins. Listings finishing after an approval recalculate their pin deltas against the committed settings. Network requests and transport-close completion do not hold this critical section.
 
 ```ts
 interface McpClient {
