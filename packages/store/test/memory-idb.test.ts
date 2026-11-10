@@ -81,6 +81,29 @@ describe('open requests release their queue and respect closing transactions', (
     retry.result.close();
   });
 
+  it.each(['commit', 'abort'] as const)('delivers a transaction ended by %s in versionchange before the immediate upgrade', async (ending) => {
+    const factory = new MemoryIndexedDb();
+    const initial = factory.open(DB, 1);
+    initial.onupgradeneeded = () => initial.result.createObjectStore('items', { keyPath: 'id' });
+    await new Promise<void>((resolve) => { initial.onsuccess = () => resolve(); });
+    const db = initial.result;
+    const tx = db.transaction('items', 'readwrite');
+    const order: string[] = [];
+    const ended = new Promise<void>((resolve) => {
+      tx.oncomplete = () => { order.push('complete'); resolve(); };
+      tx.onabort = () => { order.push('abort'); resolve(); };
+    });
+    db.onversionchange = () => { tx[ending](); db.close(); };
+    const upgrade = factory.open(DB, 2);
+    upgrade.onupgradeneeded = () => { order.push('upgrade'); };
+    const upgraded = new Promise<void>((resolve, reject) => {
+      upgrade.onsuccess = () => { upgrade.result.close(); resolve(); };
+      upgrade.onerror = () => reject(upgrade.error);
+    });
+    await Promise.all([ended, upgraded]);
+    expect(order).toEqual([ending === 'commit' ? 'complete' : 'abort', 'upgrade']);
+  });
+
   for (const mode of ['readonly', 'readwrite'] as const) {
     for (const ending of ['complete', 'abort'] as const) {
       it(`waits for a closing connection's ${mode} transaction to ${ending} before upgrading`, async () => {

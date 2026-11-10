@@ -1003,7 +1003,7 @@ export class MemoryIndexedDb implements IDBFactory {
     for (const db of connections) db.notifyVersionChange(newVersion);
     const hasConnections = (): boolean => [...this.connections].some((db) => db.name === name) || this.running.some((tx) => tx.db.name === name);
     if (!hasConnections()) {
-      ready();
+      queueMicrotask(ready);
       return;
     }
     const resume = (): void => {
