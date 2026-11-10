@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEMO_INTENTS } from '@caotang/gateway/mock';
 import type { AgentEvent, TurnReport } from '@caotang/harness';
 
-import { LOCK_FILE, ProjectLockedError, openProject, type ApprovalPolicy, type CaotangProject, type DecisionRecord, type OpenOptions } from '../src/index.js';
+import { FolderChangedError, LOCK_FILE, ProjectLockedError, openProject, type ApprovalPolicy, type CaotangProject, type DecisionRecord, type OpenOptions } from '../src/index.js';
 import { DRAFT_THE_FRIEND, TEST_PROFILE, endpoint } from './endpoint.js';
 import { FRIEND, LANDING, folderBytes, seedProject } from './fixture.js';
 import { removeDir, tempDir } from './support.js';
@@ -404,6 +404,38 @@ describe('export job completion', () => {
     expect(retry.status).toBe('applied');
     const firstJob = (report.steps[0]?.data?.['result'] as { jobId: string }).jobId;
     expect((retry.steps[0]?.data?.['result'] as { jobId: string }).jobId).not.toBe(firstJob);
+  });
+});
+
+describe('terminal reports belong to successful runs', () => {
+  it('rejects an event-only consumer without a report when the folder changed before saving', async () => {
+    const outside = 'Words saved by another program.';
+    const path = join(root, 'docs', `${FRIEND}.md`);
+    const project = await open({ approval: 'approve-all', write: true, onDecision: () => writeFileSync(path, outside) });
+    const events: AgentEvent[] = [];
+    const run = project.run(DEMO_INTENTS.draftScene);
+    const drain = async (): Promise<void> => {
+      for await (const event of run) events.push(event);
+    };
+    try {
+      await expect(drain()).rejects.toBeInstanceOf(FolderChangedError);
+      expect(events.filter((event) => event.type === 'report')).toEqual([]);
+      expect(readFileSync(path, 'utf8')).toBe(outside);
+    } finally {
+      await expect(project.close()).rejects.toBeInstanceOf(FolderChangedError);
+    }
+  });
+
+  it('rejects an event-only consumer without a report when its approval policy throws', async () => {
+    const failure = new Error('The approval policy failed.');
+    await using project = await open({ approval: () => { throw failure; } });
+    const events: AgentEvent[] = [];
+    const run = project.run(DEMO_INTENTS.draftScene);
+    const drain = async (): Promise<void> => {
+      for await (const event of run) events.push(event);
+    };
+    await expect(drain()).rejects.toBe(failure);
+    expect(events.filter((event) => event.type === 'report')).toEqual([]);
   });
 });
 
