@@ -57,17 +57,19 @@ async function fixture(scripts: readonly MockScript[] = []) {
   const store = await openRuntimeStore(new MemoryIndexedDb());
   const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
   const keys = createKeyStore(createMemoryVaultPort());
+  const traceClock = createManualClock(0);
   const profiles = createProfileStore({ keys });
   const profile = await profiles.create({ name: 'Mock', kind: 'mock', isActive: true });
   const providers = {
-    gateway: createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: [...scripts] }) }),
+    gateway: createGateway({ profiles, keys, clock: traceClock, mock: createMockProvider({ scripts: [...scripts] }) }),
+    now: () => { const at = traceClock.now(); traceClock.advance(1); return at; },
     active: () => profile,
     persist: async () => undefined,
   } as unknown as ProviderService;
   const controller = new AgentController(session, providers);
   const target = state.manifest.tree.find((node) => node.title === 'The Storm')!.id;
   const steps: PlanStep[] = [{ tool: 'meta.set', params: { targets: [target], keywords_add: ['storm'] }, expect: 'The Storm is tagged' }];
-  return { session, providers, controller, steps, target };
+  return { session, providers, controller, steps, target, traceClock };
 }
 
 function when(controller: AgentController, ready: () => boolean): Promise<void> {
@@ -108,6 +110,7 @@ it('exports the controller phases through idle before the final turn-end record'
   const f = await fixture();
   const trace = createTraceStore({ sessionId: 'controller' });
   Object.assign(f.providers, { trace: { sink: () => trace } });
+  clock.beforeSubmit = async () => { f.traceClock.advance(100); };
   try {
     const shown = cardShown(f.controller);
     const running = f.controller.submitPlan('Tag the storm.', { steps: f.steps }, { forcePlan: true });
@@ -119,7 +122,10 @@ it('exports the controller phases through idle before the final turn-end record'
     const rows = trace.records().filter((record) => record.kind === 'machine' && record.machine === 'agent.controller');
     expect(rows.map((row) => row.to)).toEqual(expect.arrayContaining(['starting', 'running', 'parked-on-card', 'approving', 'idle']));
     expect(rows.at(-1)).toMatchObject({ event: 'finish', to: 'idle' });
+    expect(trace.records()[0]).toMatchObject({ kind: 'turn.start', at: 0 });
     expect(trace.records().at(-1)?.kind).toBe('turn.end');
+    const times = trace.records().filter((record) => record.kind !== 'message').map((record) => record.at);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
   } finally {
     await f.session.close();
   }
