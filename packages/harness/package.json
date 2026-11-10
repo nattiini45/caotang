@@ -22,6 +22,7 @@
     "@caotang/gateway": "workspace:*",
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/machine": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pictures": "workspace:*",
     "@caotang/screenplay": "workspace:*",

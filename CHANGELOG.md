@@ -8,6 +8,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **MCP connection health.** Settings shows **Connecting** while checking a server and **Failed** when it cannot connect, with one translated alert and **Connect** to retry. These states are translated into German and survive closing and reopening Settings without changing saved server settings.
 
+- **Machine transitions in agent traces.** Exported traces now name the turn, tool-card and approval-round state transitions. They stay in the open tab's memory, and older trace readers skip the additive rows. A successful turn publishes its report before Done.
+
 - **Settings-authored allow rules.** You can allow eligible native tool cards to run automatically in Ask. Deny beats ask, and ask beats allow. Project-file and imported rules cannot grant approval; Plan only, read-only access, outside-tool confirmations and safety refusals remain unchanged. Each call approved by a rule is recorded in the run log and Trace with that rule; a failed audit save asks you instead.
 
 - **Hook editor and tests.** Settings › Hooks creates and edits all four check kinds and all seven events. Test an unsaved hook against an explicit document, tool, issuer and sample text without making a change or calling a provider; a disabled or unmatched hook says it did not run. The controls and guidance are translated into German.
