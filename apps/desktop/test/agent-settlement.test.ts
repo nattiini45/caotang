@@ -131,6 +131,31 @@ it('exports the controller phases through idle before the final turn-end record'
   }
 });
 
+it.each(['turn', 'finish', 'turn.end'] as const)('keeps both turns settled when a trace subscriber throws on %s', async (fault) => {
+  const f = await fixture();
+  const trace = createTraceStore({ sessionId: 'throwing-controller' });
+  Object.assign(f.providers, { trace: { sink: () => trace } });
+  let failures = 0;
+  trace.subscribe(() => {
+    const record = trace.records().at(-1);
+    if ((record?.kind === 'machine' && record.machine === 'agent.controller' && record.event === fault)
+      || (fault === 'turn.end' && record?.kind === 'turn.end')) {
+      failures += 1;
+      throw new Error('The trace subscriber failed.');
+    }
+  });
+  try {
+    for (let turn = 0; turn < 2; turn += 1) {
+      expect((await f.controller.submitPlan('Tag the storm.', { steps: f.steps }, { mode: 'accept-edits' }))?.status).toBe('applied');
+      expect(f.controller.snapshot()).toMatchObject({ phase: 'idle', busy: false, stoppable: false });
+    }
+    expect(failures).toBeGreaterThanOrEqual(2);
+    expect(trace.records().at(-1)?.kind).toBe('turn.end');
+  } finally {
+    await f.session.close();
+  }
+});
+
 it('retires the approval and Stop controls when the deadline ends a parked turn', async () => {
   clock.current = createManualClock(1_000_000);
   const f = await fixture();

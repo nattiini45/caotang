@@ -427,9 +427,16 @@ export class AgentController {
       this.startupTrace = this.busy ? [...this.startupTrace, row] : [];
       return;
     }
-    const sink = this.traceSink();
-    for (const pending of [...this.startupTrace, row]) sink?.write({ kind: 'machine', turnId, machine: agentControllerTable.id, ...pending });
+    for (const pending of [...this.startupTrace, row]) this.writeTrace({ kind: 'machine', turnId, machine: agentControllerTable.id, ...pending });
     this.startupTrace = [];
+  }
+
+  private writeTrace(record: TraceInput): void {
+    try {
+      this.traceSink()?.write(record);
+    } catch {
+      return;
+    }
   }
 
   constructor(
@@ -994,7 +1001,7 @@ export class AgentController {
       this.clearGhosts();
       this.meter?.dispose();
       this.move({ type: 'finish', owner: abort });
-      if (this.endTrace !== null) this.traceSink()?.write({ ...this.endTrace, at: this.clock() });
+      if (this.endTrace !== null) this.writeTrace({ ...this.endTrace, at: this.clock() });
       this.endTrace = null;
       resolve?.({ action: 'cancel' });
       // Between turns a role's prompts read what it would resolve to now, so a preview follows a change in Settings › Providers.
@@ -1915,11 +1922,11 @@ export class AgentController {
         return sink === undefined ? undefined : { write: (record) => {
           if (record.kind === 'turn.end') this.endTrace = record;
           else if (record.kind === 'turn.start') {
-            sink.write({ ...record, at: this.startupTrace[0]?.at ?? record.at });
-            for (const pending of this.startupTrace) sink.write({ kind: 'machine', turnId: record.turnId, machine: agentControllerTable.id, ...pending });
+            this.writeTrace({ ...record, at: this.startupTrace[0]?.at ?? record.at });
+            for (const pending of this.startupTrace) this.writeTrace({ kind: 'machine', turnId: record.turnId, machine: agentControllerTable.id, ...pending });
             this.startupTrace = [];
           }
-          else sink.write(record);
+          else this.writeTrace(record);
         } };
       },
       loadEveryTool: this.loadEveryTool,
