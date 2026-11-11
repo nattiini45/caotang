@@ -940,6 +940,15 @@ importers:
 
   packages/import-core: {}
 
+  packages/import-highland:
+    dependencies:
+      '@caotang/import-read':
+        specifier: workspace:*
+        version: link:../import-read
+      '@caotang/screenplay':
+        specifier: workspace:*
+        version: link:../screenplay
+
   packages/import-inklewriter:
     dependencies:
       '@caotang/dialogue':
