@@ -10,6 +10,21 @@ const layer = (prompt: AssembledPrompt, id: LayerId) => prompt.layers.find((item
 const text = (prompt: AssembledPrompt, id: LayerId) => prompt.parts.find((part) => part.layer === id)?.text ?? '';
 
 describe('request-local context choices', () => {
+  it('leaves an excluded prior-document synopsis out of both optional structure and story layers', () => {
+    const app = buildApp();
+    nodeById(app.state, IDS.ch2)!.synopsis = 'PRIVATE EXCLUDED SYNOPSIS';
+    const baseline = assemble(task, app);
+    expect(text(baseline, 'L3')).toContain('PRIVATE EXCLUDED SYNOPSIS');
+    expect(text(baseline, 'L4')).toContain('PRIVATE EXCLUDED SYNOPSIS');
+    const prompt = assemble({ ...task, overrides: { exclude: [doc(IDS.ch2)] } }, app);
+    for (const id of ['L3', 'L4'] as const) {
+      expect(text(prompt, id)).not.toContain('PRIVATE EXCLUDED SYNOPSIS');
+      expect(layer(prompt, id).drops).toContainEqual(expect.objectContaining({ ref: doc(IDS.ch2), reason: { kind: 'writer-excluded' } }));
+    }
+    expect(prompt.messages.map((message) => message.content).join('\n')).not.toContain('PRIVATE EXCLUDED SYNOPSIS');
+    expect(text(prompt, 'L5')).toBe(text(baseline, 'L5'));
+  });
+
   it('excludes an always codex entry even when pinned, and removes eligible synopses before fitting', () => {
     const prompt = assemble({ ...task, overrides: { include: [codex('c_Harbor'), doc(IDS.ch1)], exclude: [codex('c_Harbor'), doc(IDS.ch1)] } }, buildApp());
     expect(text(prompt, 'L2')).not.toContain('A fog-bound port town');

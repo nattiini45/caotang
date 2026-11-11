@@ -1071,7 +1071,7 @@ export function PromptPreview({ context, summary, children, pinned = [], collaps
   const cost = costLineOf(context.cost);
   const pinnedKeys = new Set(pinned.map(contextKey));
   const items = [...new Map(context.layers.flatMap((layer) => (layer.kept ?? []).filter((item) => item.ref !== undefined &&
-    (layer.id === 'L2' || layer.id === 'L4' || (layer.id === 'L5' && (pinnedKeys.has(contextKey(item.ref)) || item.reason === REQUEST_PIN_REASON))))
+    (layer.id === 'L2' || layer.id === 'L3' || layer.id === 'L4' || (layer.id === 'L5' && (pinnedKeys.has(contextKey(item.ref)) || item.reason === REQUEST_PIN_REASON))))
     .map((item) => [contextKey(item.ref!), item] as const))).values()];
   const excluded = [...new Map(context.layers.flatMap((layer) => layer.drops.filter((drop) => drop.reason?.kind === 'writer-excluded' && drop.ref !== undefined)
     .map((drop) => [contextKey(drop.ref!), drop] as const))).values()];

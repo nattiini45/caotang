@@ -9,7 +9,7 @@ export function overrideIds(overrides: ContextOverrides | undefined, choice: 'in
   return new Set(overrides?.[choice]?.filter((ref) => ref.kind === kind).map((ref) => ref.id));
 }
 
-export function excludeStory(block: Block, excluded: ReadonlySet<string>, drops: DropRecord[]): Block {
+export function excludeDocuments(block: Block, excluded: ReadonlySet<string>, drops: DropRecord[]): Block {
   if (excluded.size === 0) return block;
   const positions = new Map<number, number>();
   const items = block.items.filter((item, index) => {

@@ -33,7 +33,7 @@ import { charsAt, cheapestKept, cutOne, fitBlock, fitReserved, protectedCount, r
 import { describeDrop, dropLine, dropRecord } from './drops.js';
 import { withhold } from './withheld.js';
 import { ContextError } from './errors.js';
-import { excludeStory, overrideIds, pinnedDocuments } from './overrides.js';
+import { excludeDocuments, overrideIds, pinnedDocuments } from './overrides.js';
 import { codexBlock, detectCodex } from './layers/codex.js';
 import { beatStoryBlock, speakerHitsOf } from './layers/dialogue.js';
 import { instructionsLayer } from './layers/instructions.js';
@@ -211,7 +211,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   if (active.has('L3')) {
     const budget = baseOf('L3') + carry;
     effective.L3 = budget;
-    structure = structureBlock(tree, focusNode);
+    structure = excludeDocuments(structureBlock(tree, focusNode), docExclusions, drops.L3);
     carry = fitAndMeasure(structure, budget);
   }
 
@@ -225,7 +225,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
         : task.tool === 'dialogue.draft'
           ? beatStoryBlock(focusNode === undefined ? '' : getBody(app.state, focusNode.id))
           : storyBlock(tree, focusNode, { includeForward: task.includeForwardOutline === true });
-    story = excludeStory(plan.block, docExclusions, drops.L4);
+    story = excludeDocuments(plan.block, docExclusions, drops.L4);
     notes.L4.push(...plan.notes);
     drops.L4.push(...plan.drops);
     carry = fitAndMeasure(story, budget);

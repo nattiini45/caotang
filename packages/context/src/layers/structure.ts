@@ -32,6 +32,7 @@ export function structureBlock(tree: TreeIndex, focus: TreeNode | undefined): Bl
     ),
     ...siblings.map(
       (node): BlockItem => ({
+        ...(node.type === 'document' ? { ref: { kind: 'doc' as const, id: node.id } } : {}),
         label: node.title,
         reason: 'earlier sibling',
         body: `## ${node.title} (${node.type})\n${synopsisOf(node)}`,
