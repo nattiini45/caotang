@@ -4,6 +4,8 @@ import type { ContextRef, RequestContextPreview } from '@caotang/harness';
 import { formatCount } from './shared.js';
 import { PromptPreview } from './PlanCard.js';
 
+/* lingui-set comment="Interpolated values: tokens (estimated prompt tokens), budget (configured token budget), window (model context window), reserve (reserved output, thinking and system tokens)" */
+
 export function RequestContext({ request, running = false, pending = false, pinned, onExclude, onRestore }: {
   request: RequestContextPreview;
   running?: boolean;
@@ -26,7 +28,7 @@ export function RequestContext({ request, running = false, pending = false, pinn
       </>}
     </p>
     <span className="context-bar" aria-hidden="true" style={{ visibility: pending ? 'hidden' : undefined }}><span style={{ width: `${capacity === 0 ? meter.promptTokens > 0 ? 100 : 0 : Math.min(100, meter.promptTokens / capacity * 100)}%` }} /></span>
-    <PromptPreview context={preview} summary={running ? t`View the current planner prompt` : t`Preview this request`} pinned={pinned} onExclude={pending ? undefined : onExclude} onRestore={pending ? undefined : onRestore}>
+    <PromptPreview context={preview} summary={running ? t`View the current planner prompt` : t`Preview this request`} collapseAccounting pinned={pending ? undefined : pinned} onExclude={pending ? undefined : onExclude} onRestore={pending ? undefined : onRestore}>
       <p className="muted context-reserve"><Trans>Estimates include conversation messages. Output, thinking and system reserve: {reserve} tokens.</Trans></p>
     </PromptPreview>
   </section>;

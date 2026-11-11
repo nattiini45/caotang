@@ -139,6 +139,7 @@ import { currentEditorCaret } from './editor-selection.js';
 import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent } from './agent-state.js';
 import { groupUsage, type UsageGroup } from './usage-model.js';
 import { contextChoices, copyContext } from './context-choices.js';
+import { formatCount } from '../i18n/locale.js';
 
 /** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
 type HarnessModule = typeof LazyHarness;
@@ -405,6 +406,7 @@ export class AgentController {
   private readonly reviewing = new Map<string, ReviewHold>();
   /** What the last slash command said under the Intent box. View state: never saved, never sent to a model. */
   private commandNote: CommandNote | null = null;
+  private commandGeneration = 0;
   private readonly listeners = new Set<() => void>();
   private snapshotValue: AgentSnapshot;
   /** Lets go of the sweep's root for the drafts this controller holds (`attach` registers it). */
@@ -614,6 +616,7 @@ export class AgentController {
     const choices = copyContext(contextOverrides);
     const line = text.trim();
     if (line === '') return { kind: 'shown' };
+    const commandGeneration = ++this.commandGeneration;
     this.commandNote = null;
     const parsed = parseSlash(line);
     const projectCommand = parsed === undefined ? undefined : this.commands().find((command) => command.name === parsed.name);
@@ -657,7 +660,7 @@ export class AgentController {
         }
         if (resolved.action === 'context') {
           // The preview is the chat session's, which needs the harness's download; the note appears under the box once it has loaded.
-          void this.showContext(choices);
+          void this.showContext(choices, commandGeneration);
           return { kind: 'shown' };
         }
         const target = restoreTarget(
@@ -760,21 +763,36 @@ export class AgentController {
   }
 
   /** `/context`: what the next chat turn would send, as a note under the Intent box (agent-harness §2). */
-  private async showContext(contextOverrides?: ContextOverrides): Promise<void> {
+  private async showContext(contextOverrides: ContextOverrides | undefined, generation: number): Promise<void> {
     const running = this.busy;
-    const request = running ? this.turns.find((turn) => turn.turnId === this.runningTurnId)?.requestContext : await this.previewRequest('', { contextOverrides });
-    if (!running && this.busy) return this.showContext(contextOverrides);
+    if (!running) {
+      this.commandNote = { kind: 'context', title: t`Loading the context preview…`, lines: [] };
+      this.bump();
+    }
+    let request: RequestContextPreview | null | undefined;
+    try {
+      request = running ? this.turns.find((turn) => turn.turnId === this.runningTurnId)?.requestContext : await this.previewRequest('', { contextOverrides });
+    } catch {
+      if (generation !== this.commandGeneration) return;
+      this.commandNote = { kind: 'info', title: t`The context preview could not load.`, lines: [t`Run /context again to retry. No request was sent.`] };
+      this.bump();
+      return;
+    }
+    if (generation !== this.commandGeneration) return;
+    if (!running && this.busy) return this.showContext(contextOverrides, generation);
     if (request === null || request === undefined) {
       if (running) {
         this.commandNote = { kind: 'context', contextRunning: true, title: t`Current request context`, lines: [t`No active planner request is available yet.`] };
-        this.bump();
+      } else {
+        this.commandNote = { kind: 'info', title: t`Context preview is unavailable.`, lines: [t`Choose a provider in Settings, then run /context again. No request was sent.`] };
       }
+      this.bump();
       return;
     }
     this.commandNote = {
       ...contextNote({ promptTokens: request.meter.promptTokens, layers: request.preview.layers,
         dropped: request.preview.layers.flatMap((layer) => layer.drops.map((drop) => `${drop.label}: ${drop.text}`)) }),
-      title: running ? t`Current request context` : t`The next request would send about ${{ tokens: request.meter.promptTokens }} tokens`, requestContext: request, contextRunning: running,
+      title: running ? t`Current request context` : t`The next request would send about ${{ tokens: formatCount(request.meter.promptTokens) }} tokens`, requestContext: request, contextRunning: running,
     };
     this.bump();
   }
@@ -800,6 +818,7 @@ export class AgentController {
 
   /** Clears what the last slash command said under the Intent box. */
   dismissCommandNote(): void {
+    this.commandGeneration++;
     if (this.commandNote === null) return;
     this.commandNote = null;
     this.bump();

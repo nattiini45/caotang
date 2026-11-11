@@ -30,6 +30,7 @@ import {
   type ContextSettings,
 } from '../app/settings.js';
 import { PromptPreview } from './PlanCard.js';
+import { contextLayerLabel as layerLabel } from './context-labels.js';
 import { formatCount, useComposingEnter } from './shared.js';
 
 /** Each layer's default the spec gives it for a scene draft (context-assembly §2). Total over `ContextLayerId`, so a new layer is a compile error here until it has a row. */
@@ -45,26 +46,6 @@ const LAYER_FALLBACK: Readonly<Record<ContextLayerId, number>> = {
 
 /** The layers in the stack's order, as `CONTEXT_LAYERS` lists them. */
 const LAYERS: readonly { readonly id: ContextLayerId; readonly fallback: number }[] = CONTEXT_LAYERS.map((id) => ({ id, fallback: LAYER_FALLBACK[id] }));
-
-/** A layer's name, as a field label. */
-function layerLabel(id: ContextLayerId): string {
-  switch (id) {
-    case 'LI':
-      return t`Instructions (CAOTANG.md and memory)`;
-    case 'L1':
-      return t`Project summary`;
-    case 'L2':
-      return t`Codex entries`;
-    case 'L3':
-      return t`Structure around the focus document`;
-    case 'L4':
-      return t`Story so far, from the synopses`;
-    case 'L5':
-      return t`Focus document text`;
-    case 'L6':
-      return t`Recent turns of the conversation`;
-  }
-}
 
 const WORDS_OF = (value: number): string => formatCount(value);
 

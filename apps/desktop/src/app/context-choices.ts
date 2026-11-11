@@ -1,4 +1,4 @@
-import type { ContextOverrides, ContextRef } from '@caotang/harness';
+import { REQUEST_PIN_REASON, type ContextOverrides, type ContextRef, type PreviewLayer } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
 
 export interface ContextChoice extends ContextRef {
@@ -6,6 +6,14 @@ export interface ContextChoice extends ContextRef {
 }
 
 export const contextKey = (ref: ContextRef): string => `${ref.kind}:${ref.id}`;
+
+export function droppedContextPins(layers: readonly PreviewLayer[], pinned: readonly ContextRef[] = []) {
+  const requested = new Set(pinned.map(contextKey));
+  const kept = new Set(layers.flatMap((layer) => (layer.kept ?? []).filter((item) => item.ref !== undefined && item.reason === REQUEST_PIN_REASON)
+    .map((item) => contextKey(item.ref!))));
+  return [...new Map(layers.flatMap((layer) => layer.drops.filter((drop) => drop.ref !== undefined && requested.has(contextKey(drop.ref)) && !kept.has(contextKey(drop.ref)))
+    .map((drop) => [contextKey(drop.ref!), drop] as const))).values()];
+}
 
 export function copyContext(overrides: ContextOverrides | undefined): ContextOverrides | undefined {
   if (overrides === undefined) return undefined;

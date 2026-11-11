@@ -1,13 +1,29 @@
-import type { ContextOverrides, ContextRef } from '@caotang/harness';
+import { REQUEST_PIN_REASON, type ContextOverrides, type ContextRef, type PreviewLayer } from '@caotang/harness';
 import { describe, expect, it } from 'vitest';
 
-import { chooseContext, contextChoices, copyContext } from '../src/app/context-choices.js';
+import { chooseContext, contextChoices, copyContext, droppedContextPins } from '../src/app/context-choices.js';
 import { sampleProjectState } from '../src/app/demo-sample.js';
 
 const doc = (id: string): ContextRef => ({ kind: 'doc', id });
 const codex = (id: string): ContextRef => ({ kind: 'codex', id });
 
 describe('request-local context choices', () => {
+  it('uses an explicitly kept pin, not a required focus, to distinguish a synopsis drop from a dropped excerpt', () => {
+    const ref = doc('prior');
+    const synopsis = { ref, label: 'Prior scene', text: 'Synopsis cut', reason: { kind: 'budget' as const, layer: 'L4' as const, budget: 0, rank: 1 } };
+    const pin = { ref, label: 'Prior scene', reason: REQUEST_PIN_REASON, tokens: 10 };
+    const layers: PreviewLayer[] = [
+      { id: 'L4', name: 'Story', included: false, tokens: 0, drops: [synopsis], notes: [] },
+      { id: 'L5', name: 'Focus', included: true, tokens: 10, kept: [pin], drops: [], notes: [] },
+    ];
+    const before = structuredClone(layers);
+    expect(droppedContextPins(layers, [ref])).toEqual([]);
+    const excerpt = { ...synopsis, text: 'Pinned excerpt cut', reason: { ...synopsis.reason, layer: 'L5' as const } };
+    const requiredFocus = layers.map((layer) => layer.id !== 'L5' ? layer : { ...layer, kept: [{ ...pin, reason: 'required focus' }], drops: [excerpt] });
+    expect(droppedContextPins(requiredFocus, [ref])).toEqual([excerpt]);
+    expect(layers).toEqual(before);
+  });
+
   it('copies only IDs and kinds into independent snapshots without changing the source', () => {
     const source = {
       include: [{ kind: 'doc' as const, id: 'scene', label: 'A display label', excerpt: 'Unsent text' }],

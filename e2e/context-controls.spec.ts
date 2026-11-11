@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint as addFakeProvider, type FakeRequest } from './endpoint.js';
-import { binderTitle, projectTrace, loose, waitForSaved } from './support.js';
+import { binderTitle, idOf, projectTrace, loose, waitForSaved } from './support.js';
 
 const intent = (page: Page) => page.getByRole('combobox', { name: 'Intent' });
 const choices = (page: Page) => page.getByRole('listbox', { name: 'Context to include' });
@@ -51,7 +51,11 @@ test('the shared combobox pins readable context by keyboard, caps document pins 
   await expect(pins(page).getByRole('button')).toHaveCount(3);
   await expect(page.locator('.composer-context')).toContainText('Foreground only');
   await intent(page).fill('Consider @Landing');
-  await expect(choices(page)).toHaveCount(0);
+  await expect(choices(page).getByRole('option')).toHaveCount(0);
+  await expect(choices(page)).toContainText('Three documents are pinned.');
+  await intent(page).press('Enter');
+  await expect(intent(page)).toHaveValue('Consider @Landing');
+  expect(seen).toHaveLength(0);
   await pins(page).getByRole('button', { name: loose('Remove context choice The Landing') }).click();
   await expect(intent(page)).toBeFocused();
   await expect(pins(page).getByRole('button')).toHaveCount(2);
@@ -81,8 +85,10 @@ test('context completion ignores emails and composing text and does not offer re
   await expect(choices(page)).toBeVisible();
   await binderTitle(page, 'Chapter 1').click({ button: 'right' });
   await page.getByRole('menu', { name: 'Actions for Chapter 1' }).getByRole('menuitemradio', { name: 'Agent: may not read' }).click();
-  await intent(page).fill('Consider @Landing');
-  await expect(choices(page)).toHaveCount(0);
+  await intent(page).fill('Consider @Land');
+  await expect(choices(page).getByRole('option')).toHaveCount(0);
+  await expect(choices(page)).toContainText('No readable context matches.');
+  await expect(choices(page)).not.toContainText('The Landing');
 });
 
 test('context completion uses the binder fold but removes the raw trailing query', async ({ page }) => {
@@ -106,6 +112,7 @@ test('the meter distinguishes configured budget from a known model window and ef
   await expect(context).toContainText('Model window: 6,000 tokens.');
 });
 
+
 test('the shared preview names a document excerpt dropped by its L5 budget', async ({ page }) => {
   const seen: FakeRequest[] = [];
   await sample(page, seen);
@@ -123,12 +130,18 @@ test('the shared preview names a document excerpt dropped by its L5 budget', asy
   await settings.getByRole('button', { name: 'Close', exact: true }).click();
   await pin(page, 'Landing');
   const context = page.getByTestId('request-context');
+  await expect(pins(page)).toContainText('Pinned: The Landing');
+  await expect(pins(page)).toContainText('Not sent in this estimate');
   await context.getByText('Preview this request', { exact: true }).click();
-  await expect(context.getByRole('list', { name: 'Left out' })).toContainText('The Landing: dropped budget (L5, 200 tokens');
+  await expect(context.getByRole('list', { name: 'Pinned context not sent' })).toContainText('The Landing: The L5 budget of 200 tokens is full');
+  await expect(context.getByRole('list', { name: 'Layers' })).toBeHidden();
+  await context.getByText('Token breakdown', { exact: true }).click();
+  await expect(context.getByRole('list', { name: 'Layers' })).toBeVisible();
   await page.getByRole('textbox', { name: 'Document text', exact: true }).fill('Changed excerpt. '.repeat(200));
   await waitForSaved(page);
-  await expect(context.locator('details')).toHaveAttribute('open', '');
-  await expect(context.getByRole('list', { name: 'Left out' })).toContainText('The Landing: dropped budget (L5, 200 tokens');
+  await expect(context.locator('details.context-preview')).toHaveAttribute('open', '');
+  await expect(context.locator('details.context-accounting')).toHaveAttribute('open', '');
+  await expect(context.getByRole('list', { name: 'Pinned context not sent' })).toContainText('The Landing: The L5 budget of 200 tokens is full');
   expect(seen).toHaveLength(0);
 });
 
@@ -145,6 +158,7 @@ test('queued choices are snapshotted and busy meters show the actual request rat
   await intent(page).press('Enter');
   await expect(page.getByTestId('request-context')).toHaveAttribute('data-source', 'running');
   await pin(page, 'Storm', 'Second queued request');
+  await expect(page.locator('.context-submit')).toContainText('For the next request');
   await intent(page).press('Enter');
   await expect(page.getByTestId('agent-queue')).toContainText('Second queued request');
   await pin(page, 'Friend', 'Unsent third request');
@@ -176,8 +190,8 @@ test('leaving optional step context out re-previews its plan before fresh approv
   const card = page.getByTestId('plan-card').last();
   await expect(card).toBeVisible();
   await card.locator('.context-preview summary').click();
-  await card.getByRole('button', { name: loose('Leave out The Landing for this request') }).click();
-  await expect(card).toContainText('Excluded for this request');
+  await card.getByRole('button', { name: loose('Leave out The Landing from optional context for this request') }).click();
+  await expect(card).toContainText('Left out of optional context for this request.');
   await card.locator('.context-preview summary').click();
   await expect(card.getByRole('list', { name: 'Excluded context' })).toContainText('The Landing');
   await expect(card.getByRole('list', { name: 'Included context' })).not.toContainText('The Landing');
@@ -186,12 +200,87 @@ test('leaving optional step context out re-previews its plan before fresh approv
   const drafts = seen.filter((request) => request.system.startsWith('You are drafting prose'));
   expect(drafts.length).toBeGreaterThanOrEqual(2);
   await card.getByRole('button', { name: loose('Clear leave-out for The Landing') }).click();
-  await expect(card).not.toContainText('Excluded for this request');
+  await expect(card).not.toContainText('Left out of optional context for this request.');
   await card.locator('.context-preview summary').click();
   await expect(card.getByRole('list', { name: 'Included context' })).toContainText('The Landing');
   await expect(card).not.toContainText('Pinned for this request');
   const restored = seen.filter((request) => request.system.startsWith('You are drafting prose')).at(-1);
   expect(restored?.user).not.toContain('The Landing (pinned excerpt)');
+});
+
+test('context completion explains truncated and empty matches without sending an unresolved query', async ({ page }, testInfo) => {
+  const seen: FakeRequest[] = [];
+  await sample(page, seen);
+  await binderTitle(page, 'Chapter 2').click();
+  for (const number of ['01', '02', '03', '04', '05', '06']) {
+    await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+    const rename = page.getByRole('textbox', { name: 'Rename Untitled' });
+    await rename.fill(`Extra${number}`);
+    await rename.press('Enter');
+  }
+  await intent(page).fill('Consider @');
+  await expect(choices(page).getByRole('option')).toHaveCount(8);
+  await expect(choices(page)).toContainText('Showing 8 of 10 matches. Type more to narrow the list.');
+  await expect(choices(page)).not.toContainText('The Storm');
+  await pin(page, 'Storm');
+  await intent(page).fill('Keep literal @not-a-title');
+  await expect(choices(page).getByRole('option')).toHaveCount(0);
+  await expect(choices(page)).toContainText('No readable context matches.');
+  await intent(page).press('Enter');
+  await expect(intent(page)).toHaveValue('Keep literal @not-a-title');
+  await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
+  expect(seen).toHaveLength(0);
+  await page.screenshot({ path: testInfo.outputPath('context-empty-picker-classic.png') });
+  await intent(page).press('Escape');
+  await expect(choices(page)).toHaveCount(0);
+  await intent(page).press('Enter');
+  await expect.poll(() => seen.some((request) => request.user.includes('Keep literal @not-a-title'))).toBe(true);
+});
+
+for (const change of ['delete', 'deny'] as const) {
+  test(`an unavailable pin stays removable after ${change} and releases its document slot`, async ({ page }) => {
+    await sample(page);
+    const hiddenId = await idOf(page, 'The Landing');
+    for (const name of ['Landing', 'Storm', 'Friend']) await pin(page, name);
+    await binderTitle(page, 'Chapter 2').click();
+    await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+    await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Fourth');
+    await page.keyboard.press('Enter');
+    if (change === 'delete') {
+      await binderTitle(page, 'The Landing').click();
+      await page.keyboard.press('Delete');
+      await page.getByRole('dialog', { name: 'Delete “The Landing”?' }).getByRole('button', { name: 'Delete', exact: true }).click();
+    } else {
+      await binderTitle(page, 'Chapter 1').click({ button: 'right' });
+      await page.getByRole('menu', { name: 'Actions for Chapter 1' }).getByRole('menuitemradio', { name: 'Agent: may not read' }).click();
+    }
+    const unavailable = pins(page).getByRole('button').filter({ hasText: hiddenId });
+    await expect(unavailable).toContainText('Unavailable context');
+    await expect(unavailable).not.toContainText('The Landing');
+    await intent(page).fill('Consider @Fourth');
+    await expect(choices(page).getByRole('option')).toHaveCount(0);
+    await expect(choices(page)).toContainText('Three documents are pinned.');
+    await unavailable.click();
+    await expect(intent(page)).toBeFocused();
+    await expect(choices(page).getByRole('option')).toHaveCount(1);
+    await intent(page).press('Enter');
+    await expect(intent(page)).toHaveValue('Consider ');
+    await expect(pins(page).getByRole('button')).toHaveCount(3);
+    await expect(pins(page)).toContainText('Fourth');
+    await expect(pins(page)).not.toContainText(hiddenId);
+  });
+}
+
+test('a codex pin remains removable after its policy changes to Never', async ({ page }) => {
+  await sample(page);
+  await pin(page, 'Elena');
+  await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+  await page.getByRole('button', { name: /^Elena/ }).click();
+  await page.getByRole('radio', { name: 'Never', exact: true }).check();
+  const unavailable = pins(page).getByRole('button', { name: /Remove context choice.*Unavailable context/ });
+  await expect(unavailable).not.toContainText('Elena');
+  await unavailable.click();
+  await expect(pins(page)).toHaveCount(0);
 });
 
 test('German narrow Modern context controls wrap and remain keyboard-reachable', async ({ page }, testInfo) => {
@@ -216,7 +305,12 @@ test('German narrow Modern context controls wrap and remain keyboard-reachable',
   const context = page.getByTestId('request-context');
   await expect(context).toContainText('Kontextschätzung');
   await context.getByText('Vorschau dieser Anfrage', { exact: true }).click();
-  await expect(context.getByRole('button', { name: loose('The Storm für diese Anfrage weglassen') })).toBeVisible();
+  const action = context.getByRole('button', { name: loose('The Storm für diese Anfrage aus dem optionalen Kontext weglassen') });
+  await expect(action).toBeVisible();
+  await expect(action).toBeInViewport();
+  await expect(context.getByRole('list', { name: 'Ebenen', exact: true })).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('context-modern-narrow-de.png') });
+  await context.getByText('Tokenaufteilung', { exact: true }).click();
+  await expect(context.getByRole('list', { name: 'Ebenen', exact: true })).toContainText('Dokumenttext fokussieren');
 });

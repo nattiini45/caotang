@@ -9,6 +9,7 @@
  */
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import './request-context.css';
 import { plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
@@ -65,7 +66,7 @@ import { RestoreResult } from './RestoreResult.js';
 import { TurnMenu } from './TurnMenu.js';
 import { SaveCommand } from './SaveCommand.js';
 import { SessionUsage, UsageBreakdown, UsageNotes } from './UsageBreakdown.js';
-import { chooseContext, contextKey } from '../app/context-choices.js';
+import { chooseContext, contextKey, droppedContextPins } from '../app/context-choices.js';
 import { RequestContext } from './RequestContext.js';
 
 /** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
@@ -395,24 +396,27 @@ export function AgentPanel({
   const docCount = new Set((contextOverrides.include ?? []).filter((ref) => ref.kind === 'doc').map((ref) => ref.id)).size;
   const request = snapshot.busy ? running === undefined || isSettled(running) ? undefined : running.requestContext : intent.trim() !== '' && !intent.trimStart().startsWith('/') ? typedContext?.request : undefined;
   const contextPending = !snapshot.busy && typedContext !== null && (typedContext.intent !== intent || typedContext.choices !== contextOverrides || typedContext.source !== snapshot || typedContext.version !== sessionVersion);
+  const droppedPins = new Set(!snapshot.busy && !contextPending && request !== undefined
+    ? droppedContextPins(request.preview.layers, contextOverrides.include).map((drop) => contextKey(drop.ref!)) : []);
   const contextControls = <div className="composer-context">
     {included.size === 0 && (contextOverrides.exclude?.length ?? 0) === 0 ? null : <details className="context-scope">
       <summary><Trans>Foreground only</Trans></summary>
       <p className="muted context-hint"><Trans>Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task.</Trans></p>
+      <p className="muted context-hint"><Trans>Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change.</Trans></p>
     </details>}
     {(contextOverrides.include?.length ?? 0) + (contextOverrides.exclude?.length ?? 0) === 0 ? null : <ul className="context-chips" aria-label={t`Context choices for the next request`}>
       {[...(contextOverrides.include ?? []), ...(contextOverrides.exclude ?? [])].map((ref) => {
         const item = choices.find((choice) => contextKey(choice) === contextKey(ref));
-        if (item === undefined) return null;
+        const label = item?.label ?? t`Unavailable context`;
         const pin = included.has(contextKey(ref));
         return <li key={contextKey(ref)}><button type="button" className="button is-quiet" onClick={() => { choose(ref, 'remove'); intentRef.current?.focus(); }}
-          aria-label={t`Remove context choice ${{ name: isolate(item.label) }} (${{ id: ref.id }})`}>
-          {pin ? t`Included` : t`Left out`}: <UserText value={item.label} /> · <Trans>Remove</Trans>
+          aria-label={t`Remove context choice ${{ name: isolate(label) }} (${{ id: ref.id }})`}>
+          {pin ? t`Pinned` : t`Optional context left out`}: <UserText value={label} />{item === undefined ? <> · <UserText value={ref.id} /></> : null}
+          {pin && droppedPins.has(contextKey(ref)) ? <> · <Trans>Not sent in this estimate</Trans></> : null} · <Trans>Remove</Trans>
         </button></li>;
       })}
     </ul>}
-    {intent.trim() !== '' || included.size > 0 || snapshot.busy ? null : <p className="muted context-hint"><Trans>Type @ to include documents or codex entries for this request. Up to three documents.</Trans></p>}
-    {contextError !== null && !snapshot.busy ? <p role="status">{contextError}</p> : request === undefined ? null : <RequestContext request={request} running={snapshot.busy} pending={contextPending} pinned={contextOverrides.include}
+    {contextError !== null && !snapshot.busy ? <p role="status">{contextError}</p> : request === undefined ? null : <RequestContext request={request} running={snapshot.busy} pending={contextPending} pinned={snapshot.busy ? undefined : contextOverrides.include}
       onExclude={snapshot.busy ? undefined : (ref) => choose(ref, 'exclude')} onRestore={snapshot.busy ? undefined : (ref) => choose(ref, 'remove')} />}
   </div>;
   // The Intent box: at the top of the drawer's body, and in the window's footer under the turns (modern-interface.md §7.4).
@@ -420,6 +424,7 @@ export function AgentPanel({
     <form className="agent-intent" onKeyDown={intentIme.noteKey} onSubmit={submit}>
       <CommandComposer
         contextChoices={choices.filter((choice) => !included.has(contextKey(choice)) && (choice.kind !== 'doc' || docCount < 3))}
+        documentPinLimitReached={docCount >= 3}
         onPin={(choice) => choose(choice, 'pin')}
         commands={agent.commands()}
         inputRef={intentRef}
@@ -433,9 +438,12 @@ export function AgentPanel({
             : t`Ask the agent to draft, fill, or check something, or type / for commands`
         }
       />
-      <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending}>
-        {snapshot.busy ? t`Queue` : t`Send`}
-      </button>
+      <span className="context-submit">
+        <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending}>
+          {snapshot.busy ? t`Queue` : t`Send`}
+        </button>
+        {snapshot.busy ? <small className="muted context-next"><Trans>For the next request</Trans></small> : null}
+      </span>
       {snapshot.busy ? (
         <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending} onClick={steer}>
           <Trans>Steer</Trans>
