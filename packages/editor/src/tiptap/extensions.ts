@@ -79,7 +79,7 @@
  */
 import { Extension } from '@tiptap/core';
 import type { Extensions } from '@tiptap/core';
-import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey, Selection, TextSelection } from '@tiptap/pm/state';
 import Blockquote from '@tiptap/extension-blockquote';
 import Bold from '@tiptap/extension-bold';
 import BulletList from '@tiptap/extension-bullet-list';
@@ -131,6 +131,26 @@ const CaotangPaste = Extension.create({
         props: { transformPastedHTML: plainPasteHtml },
       }),
     ];
+  },
+});
+
+const DocumentBoundaryKeys = Extension.create({
+  name: 'caotangDocumentBoundaryKeys',
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      key: new PluginKey('caotangDocumentBoundaryKeys'),
+      props: {
+        handleKeyDown(view, event) {
+          if (event.isComposing || view.composing || !event.ctrlKey || event.metaKey || event.altKey) return false;
+          if (event.key !== 'Home' && event.key !== 'End') return false;
+          const { state } = view;
+          const boundary = event.key === 'Home' ? Selection.atStart(state.doc) : Selection.atEnd(state.doc);
+          const selection = event.shiftKey ? TextSelection.between(state.selection.$anchor, boundary.$head) : boundary;
+          view.dispatch(state.tr.setSelection(selection).scrollIntoView());
+          return true;
+        },
+      },
+    })];
   },
 });
 
@@ -286,6 +306,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     Placeholder.configure({ placeholder: options.placeholder ?? labels.placeholder }),
     UndoRedo,
     CaotangPaste,
+    DocumentBoundaryKeys,
     ...(pictures === undefined ? [] : [CaotangPictures(pictures, labels)]),
     FootnoteBehaviour.configure({
       onOrphaned: options.onFootnoteOrphaned,

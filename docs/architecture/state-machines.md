@@ -73,6 +73,14 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `editor.store-rebase`
+
+Owner: `apps/desktop/src/app/store-rebase.ts`, interpreted by `components/use-store-rebase.ts`; contract: [editor-engine.md §9](editor-engine.md). Idle, synced, rebasing and failed retain the last successful store mark. Begin owns a generation and target; land and fail accept only that generation. Acknowledge and invalidate supersede pending work, including own writes and teardown. The hook also compares the live store mark before landing, so it does not depend on React effect timing to reject stale results. The three editor views publish readiness through `data-editor-state`; save/conflict state and every saved format remain unchanged.
+
+### `editor.session`
+
+Owner: `packages/editor/src/tiptap/session.ts`, interpreted by the Tiptap adapter; contract: [editor-engine.md §§7–9, 15](editor-engine.md). Ready accepts a user- or agent-lane load; loading owns the generation until it lands or fails, and only that generation can return to ready. A newer load replaces ownership and destroyed is final. Mounted review mode and the local/autosave unsaved source belong to the same session. The editor root publishes `data-state`; no project, history, task, settings, trace or run-log format changes.
+
 ### `document.autosave`
 
 Owner: `packages/store/src/runtime/autosave-machine.ts`; contracts: [project-format.md §4](project-format.md#4-write-path-atomicity--crash-safety) and [editor-engine.md §9](editor-engine.md#9-autosave-revisions--word-counts). `stepAutosave(slot, event)` returns the next slot and effects; `autosaveMachine` exposes the same step's state projection for exhaustive checks. `open` seeds a quiet slot; `edit` replaces pending text and rearms its window; production events cache a producer's answer without executing it in the reducer. `take` either recognizes unchanged text or starts one guarded write. `written` takes the store's revision and drains a newer edit only after that edit's window expired. `write-failed` retains the newest body and distinguishes a revision `conflict` from an ordinary `error`; it arms no retry. `producer-failed` arms one retry, then stands as an error. `reset-budget` is an explicit flush's new opportunity to read a producer. `reseat` and `reseated` surround the wait for an active write, discard obsolete typing and never move the revision backwards. Window events only describe scheduling; the async owner keeps the actual timer and promise handles.

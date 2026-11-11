@@ -180,6 +180,8 @@ The panel on the right shows the selected item:
 
 Select a scene in the binder to write in it.
 
+Ctrl+Home and Ctrl+End go to the beginning and end of the scene, even immediately after you focus it. Hold Shift as well to select from your current position.
+
 **Insert picture** above the text lines up with the manuscript's start edge in either interface. Choose it to add a picture at the caret.
 
 - Scenes are saved as Markdown files, so they stay readable outside Caotang. A screenplay scene and a dialogue container have their own views, described below.

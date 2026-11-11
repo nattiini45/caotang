@@ -17652,7 +17652,11 @@ msgid "The text changed under this draft"
 msgstr "Der Text hat sich unter diesem Entwurf geändert"
 
 #. Interpolated values: reason is a failure message; title is the writer’s own title; words is a word count; label is a footnote’s label (a number or a name); text is the start of the footnote’s note
+#. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
+#. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/components/EditorPane.tsx
+#: apps/desktop/src/media/DialogueView.tsx
+#: apps/desktop/src/media/ScreenplayView.tsx
 msgid "The text could not be brought up to date: {reason}"
 msgstr "Der Text konnte nicht auf den neuesten Stand gebracht werden: {reason}"
 

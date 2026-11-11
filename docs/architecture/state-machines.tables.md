@@ -265,6 +265,43 @@ Initial: `clean`. Final: none.
 | `saving` | `write-failed` | `conflict`, `error`, `pending` |
 | `saving` | `written` | `clean`, `pending` |
 
+## editor.session
+
+Initial: `ready`. Final: `destroyed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `destroyed` | — | — |
+| `loading` | `acknowledged` | `ready` |
+| `loading` | `destroy` | `destroyed` |
+| `loading` | `load` | `loading` |
+| `loading` | `local-edit` | `loading` |
+| `loading` | `settled` | `loading`, `ready` |
+| `ready` | `destroy` | `destroyed` |
+| `ready` | `load` | `loading` |
+| `ready` | `local-edit` | `ready` |
+
+## editor.store-rebase
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `acknowledge` | `synced` |
+| `failed` | `begin` | `rebasing` |
+| `failed` | `invalidate` | `idle` |
+| `idle` | `acknowledge` | `synced` |
+| `idle` | `begin` | `rebasing` |
+| `idle` | `invalidate` | `idle` |
+| `rebasing` | `acknowledge` | `synced` |
+| `rebasing` | `begin` | `rebasing` |
+| `rebasing` | `fail` | `failed`, `rebasing` |
+| `rebasing` | `invalidate` | `idle` |
+| `rebasing` | `land` | `rebasing`, `synced` |
+| `synced` | `acknowledge` | `synced` |
+| `synced` | `begin` | `rebasing` |
+| `synced` | `invalidate` | `idle` |
+
 ## export.job
 
 Initial: `queued`. Final: `failed`, `written`.

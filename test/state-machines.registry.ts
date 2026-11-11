@@ -32,6 +32,8 @@ import { turnPhaseTable } from '../packages/harness/src/agent/turn-machine.js';
 import { cardStatusTable } from '../packages/harness/src/agent/cards.js';
 import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.js';
 import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
+import { editorSessionTable } from '../packages/editor/src/tiptap/session.js';
+import { storeRebaseTable } from '../apps/desktop/src/app/store-rebase.js';
 
 export const machineTables = [
   sprintTable, taskStatusTable, agentControllerTable, recurringRunTable, turnMarkerTable, folderSaveTable, importPreviewTable,
@@ -44,4 +46,6 @@ export const machineTables = [
   tabStopTable, persistenceTable, pendingEntryTable, healthTable,
   saveChannelTable,
   modalMachine.table,
+  editorSessionTable,
+  storeRebaseTable,
 ] as const;

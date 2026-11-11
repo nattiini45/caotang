@@ -29,6 +29,9 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Editor focus and replacement races.** Ctrl+Home no longer jumps back to the old caret immediately after focusing a scene (#569). Superseded editor loads report cancellation instead of successful replacement, while keeping the existing agent-edit API and saved formats.
+- Prose, screenplay and Ink views share one store-rebase lifecycle, so an older asynchronous replacement cannot acknowledge an obsolete revision or report an error after a newer change or teardown. The Modern sidebar waits for editor readiness rather than guessing how many frames loading will take.
+
 - **Context leaves room for the conversation.** Expanded request previews scroll within their own block; Modern retains visible turn content. Completion identifies documents by their folder path and codex entries by type, not storage IDs. Rewind stays on one line, and its opened actions and consequences wrap inside the turn header (#576).
 - Leaving a document out removes its optional synopsis from both structure and story context, rather than letting an L3 copy bypass the L4 exclusion.
 

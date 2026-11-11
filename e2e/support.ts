@@ -8,6 +8,10 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
+export async function waitForEditorReady(page: Page): Promise<void> {
+  await expect(page.locator('.editor-pane:visible[data-editor-state="ready"]')).toBeVisible();
+}
+
 /** Why a spec that opens or saves a project folder skips outside Chromium: Firefox and WebKit have no folder picker, so a writer there uses bundles. */
 export const FOLDER_ACCESS_ONLY = 'File System Access is Chromium-only';
 

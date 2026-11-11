@@ -511,6 +511,9 @@ importers:
 
   packages/editor:
     dependencies:
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
       '@caotang/pictures':
         specifier: workspace:*
         version: link:../pictures

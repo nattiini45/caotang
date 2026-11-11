@@ -9,7 +9,8 @@ import { isolate, listFormat, type MessageRef } from '@caotang/i18n';
 
 import { formatterLocale } from '../i18n/format-locale.js';
 import { renderRef, titleValues } from '../i18n/render-ref.js';
-import type { SaveState, WrittenBody } from './session.js';
+import type { SaveState } from './session.js';
+export { isOwnWrite } from './store-rebase.js';
 import type { SaveChannelName } from './save-channel.js';
 
 import type { StopCause } from './tab-stop.js';
@@ -54,18 +55,6 @@ export function saveStateWords(
     summary,
     offersBackup: true,
   };
-}
-
-/**
- * Whether a store change to a document is this session's own last write, so the editor only needs to learn the revision.
- *
- * Both the revision and the body must match. A revision alone is not enough: a later change (an agent apply) can arrive at
- * the revision of an earlier own write over different text if the revision is ever reused, and matching on the revision
- * alone would leave the editor showing the text an undo removed. The store's revision only rises (an undo is a write too),
- * so this check is a second guard, not the first.
- */
-export function isOwnWrite(own: WrittenBody | null, stored: string, revision: number): boolean {
-  return own !== null && own.revision === revision && own.body === stored;
 }
 
 /** The lock file the Caotang MCP server holds in a project folder while it runs (packages/mcp-server/src/lock.ts). */
