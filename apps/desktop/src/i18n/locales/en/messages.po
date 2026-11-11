@@ -435,6 +435,11 @@ msgstr "(unchanged)"
 msgid "{action, select, creating {Creating the project} openingProject {Opening the project} makingBundle {Making the bundle} renamingProject {Renaming the project} openingFolder {Opening the folder} importingBundle {Importing the bundle} recovering {Recovering the project} removing {Removing the project} other {That action}} did not finish: {error}"
 msgstr "{action, select, creating {Creating the project} openingProject {Opening the project} makingBundle {Making the bundle} renamingProject {Renaming the project} openingFolder {Opening the folder} importingBundle {Importing the bundle} recovering {Recovering the project} removing {Removing the project} other {That action}} did not finish: {error}"
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "{action, select, resume {Reading the run before resuming…} prepare {Saving your edits and checking the restore point…} restore {Restoring and saving the project…} export {Preparing the run log export…} discard {Discarding the local run log…} other {Working with the run log…}}"
+msgstr "{action, select, resume {Reading the run before resuming…} prepare {Saving your edits and checking the restore point…} restore {Restoring and saving the project…} export {Preparing the run log export…} discard {Discarding the local run log…} other {Working with the run log…}}"
+
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
 msgid "{action}: {detail}"
@@ -474,6 +479,11 @@ msgstr "{already, plural, one {# is already a working copy.} other {# are alread
 #: apps/desktop/src/media/PictureBoard.tsx
 msgid "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
 msgstr "{already, plural, one {# picture was already there.} other {# pictures were already there.}}"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "{applied} of {total} {total, plural, one {step} other {steps}} applied"
+msgstr "{applied} of {total} {total, plural, one {step} other {steps}} applied"
 
 #. The workspace shell: its toolbar, panels and centre views. count is a number of open findings.
 #: apps/desktop/src/components/shell/ClassicShell.tsx
@@ -1812,6 +1822,11 @@ msgstr "{spellings} are cued as one character; \"{sceneTitle}\" cues {ownSpellin
 msgid "{steps} of {stepLimit} steps"
 msgstr "{steps} of {stepLimit} steps"
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "{steps}, {spend}."
+msgstr "{steps}, {spend}."
+
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #: apps/desktop/src/components/InspectorSections.tsx
 msgid "{style} (unknown, exported as Normal)"
@@ -2522,6 +2537,10 @@ msgstr "A new comic script is made from the panels and balloons on this book's p
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "a new file “{unit}”"
 msgstr "a new file “{unit}”"
+
+#: apps/desktop/src/app/run-recovery.ts
+msgid "A newer stored project refused the restore. No restore files were written. This tab’s previous content is kept; copy unsaved text before reloading."
+msgstr "A newer stored project refused the restore. No restore files were written. This tab’s previous content is kept; copy unsaved text before reloading."
 
 #. Messages the writer typed while a turn runs. Interpolated values: number is the position in the queue.
 #: apps/desktop/src/components/AgentQueue.tsx
@@ -3242,6 +3261,35 @@ msgstr "Agent note, {date}"
 msgid "Agent preview"
 msgstr "Agent preview"
 
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Agent run {id}"
+msgstr "Agent run {id}"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Agent run cancelled"
+msgstr "Agent run cancelled"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Agent run failed"
+msgstr "Agent run failed"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Agent run finished"
+msgstr "Agent run finished"
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Agent run logs"
+msgstr "Agent run logs"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Agent run stopped"
+msgstr "Agent run stopped"
+
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Aim the tail"
@@ -3270,6 +3318,11 @@ msgstr "All scenes"
 #: apps/desktop/src/components/AgentRulesSettings.tsx
 msgid "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
 msgstr "Allow never overrides Plan, read-only access, a mode’s restrictions or a turn marked as untrusted. External writes and tools that change agent memory or instructions still need your approval. Rules from projects, imports, MCP servers or the agent cannot grant approval."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Allow write access to the project folder, then retry the folder copy."
+msgstr "Allow write access to the project folder, then retry the folder copy."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -3325,6 +3378,15 @@ msgstr "Always included: this entry goes into every drafting call"
 msgid "Always, in every drafting call"
 msgstr "Always, in every drafting call"
 
+#: apps/desktop/src/app/run-baseline.ts
+msgid "An agent run restore point has no project manifest."
+msgstr "An agent run restore point has no project manifest."
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "An agent run was interrupted"
+msgstr "An agent run was interrupted"
+
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "An embedded object was not kept."
@@ -3364,6 +3426,11 @@ msgstr "Annotate shots"
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.shotsAnnotate.active"
 msgstr "Annotating shots"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Another agent action is active. Wait for it to finish, then try again."
+msgstr "Another agent action is active. Wait for it to finish, then try again."
 
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
 #: apps/desktop/src/media/shot-image-model.ts
@@ -3418,6 +3485,11 @@ msgstr "Another tab has newer text"
 msgid "Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen."
 msgstr "Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen."
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Another turn started. Open the restore confirmation again."
+msgstr "Another turn started. Open the restore confirmation again."
+
 #. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
 #: apps/desktop/src/app/activity-model.ts
 msgid "answered"
@@ -3461,6 +3533,11 @@ msgstr "Anywhere"
 #: apps/desktop/src/components/Settings.tsx
 msgid "API key"
 msgstr "API key"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "App settings are unavailable. The folder copy was not enabled."
+msgstr "App settings are unavailable. The folder copy was not enabled."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -4317,6 +4394,11 @@ msgstr "Cancelled"
 msgid "Cancelling…"
 msgstr "Cancelling…"
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Cannot resume: "
+msgstr "Cannot resume: "
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Caotang"
@@ -4735,6 +4817,11 @@ msgstr "Check again"
 #: apps/desktop/src/components/timeline/TimelineTray.tsx
 msgid "Check all suggestions"
 msgstr "Check all suggestions"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Check first: "
+msgstr "Check first: "
 
 #: apps/desktop/src/app/demo.ts
 msgid "Check for continuity problems"
@@ -5454,10 +5541,19 @@ msgstr "Continuity checks"
 msgid "Conversation rewound. The agent no longer sees that turn or the ones after it."
 msgstr "Conversation rewound. The agent no longer sees that turn or the ones after it."
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Conversation, recorded spend, exports, picture files and external side effects stay as they are. You can undo this restore while this tab stays open."
+msgstr "Conversation, recorded spend, exports, picture files and external side effects stay as they are. You can undo this restore while this tab stays open."
+
 #. The encoding dialog. Interpolated values: path, name and profile are the writer's own file or provider names; encoding names a text encoding; size and count are numbers; reason is a failure message.
 #: apps/desktop/src/components/EncodingDialog.tsx
 msgid "Convert it — the file is rewritten as text Caotang can read, and its original bytes are kept at <0/>."
 msgstr "Convert it — the file is rewritten as text Caotang can read, and its original bytes are kept at <0/>."
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Copies contain conversation and manuscript text, not restore points. They are never read to resume a run. Turning this off or discarding a browser log does not delete existing folder copies."
+msgstr "Copies contain conversation and manuscript text, not restore points. They are never read to resume a run. Turning this off or discarding a browser log does not delete existing folder copies."
 
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
@@ -5494,6 +5590,11 @@ msgstr "Cost per turn is an amount in dollars above 0, or empty for no cost limi
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Cost per turn, in dollars"
 msgstr "Cost per turn, in dollars"
+
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Cost: {cost}."
+msgstr "Cost: {cost}."
 
 #. Interpolated values: cost, prompt, completion, requestsTotal
 #: apps/desktop/src/components/UsagePanel.tsx
@@ -6044,6 +6145,18 @@ msgstr "Discard"
 msgid "Discard all"
 msgstr "Discard all"
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Discard log"
+msgstr "Discard log"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Discard log keeps what the run already wrote. Its restore point is deleted."
+msgstr "Discard log keeps what the run already wrote. Its restore point is deleted."
+
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
 msgid "Discard run"
@@ -6063,6 +6176,11 @@ msgstr "Discard the changes and leave"
 #: apps/desktop/src/components/UnsentWords.tsx
 msgid "Discard them"
 msgstr "Discard them"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Discard this run log?"
+msgstr "Discard this run log?"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
@@ -6775,6 +6893,11 @@ msgstr "Estimated input {input} tokens and output {output} tokens across the pla
 msgid "Event"
 msgstr "Event"
 
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Events"
+msgstr "Events"
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/app/agent-model.ts
 #: apps/desktop/src/components/AgentModeSettings.tsx
@@ -6920,6 +7043,16 @@ msgstr "Export recipe deleted"
 #: apps/desktop/src/app/activity-model.ts
 msgid "Export recipe saved"
 msgstr "Export recipe saved"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Export run log as JSONL"
+msgstr "Export run log as JSONL"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Export run log as Markdown"
+msgstr "Export run log as Markdown"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
@@ -8260,6 +8393,8 @@ msgid "Instructions of “{name}”"
 msgstr "Instructions of “{name}”"
 
 #. Interpolated values: commandCount (how many commands match what is typed)
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
 #: apps/desktop/src/components/CommandComposer.tsx
 msgid "Intent"
 msgstr "Intent"
@@ -8281,6 +8416,7 @@ msgstr "Interface"
 msgid "Interface language"
 msgstr "Interface language"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Interrupted agent runs could not be checked: {reason}"
@@ -8436,6 +8572,10 @@ msgstr "Keep a take from my own generation"
 #: apps/desktop/src/components/TracePanel.tsx
 msgid "Keep agent traces for this tab"
 msgstr "Keep agent traces for this tab"
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Keep derived run-log copies in this project’s folder on this device."
+msgstr "Keep derived run-log copies in this project’s folder on this device."
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
 #: apps/desktop/src/components/CodexPanel.tsx
@@ -8904,6 +9044,10 @@ msgstr "Loading {subject}…"
 msgid "Loading picture…"
 msgstr "Loading picture…"
 
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Loading retained agent runs…"
+msgstr "Loading retained agent runs…"
+
 #: apps/desktop/src/components/InkGate.tsx
 msgid "Loading the Ink compiler…"
 msgstr "Loading the Ink compiler…"
@@ -9369,6 +9513,11 @@ msgstr "Model call failed"
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Model calls per turn"
 msgstr "Model calls per turn"
+
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Model calls: {calls}; reserved calls: {reserved}."
+msgstr "Model calls: {calls}; reserved calls: {reserved}."
 
 #. Interpolated values: done, limit, total, used
 #: apps/desktop/src/components/TaskChecklist.tsx
@@ -9985,6 +10134,11 @@ msgstr "No engine hint"
 msgid "No entries match"
 msgstr "No entries match"
 
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "No events recorded."
+msgstr "No events recorded."
+
 #. Knowledge facts. Interpolated values: fact, who, title and about are the writer's own text; declarations is a count.
 #: apps/desktop/src/components/KnowledgeList.tsx
 msgid "No facts yet."
@@ -10180,6 +10334,11 @@ msgstr "No preview"
 msgid "No price is listed for this route."
 msgstr "No price is listed for this route."
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "No project folder is attached. Save or open this project in its folder first."
+msgstr "No project folder is attached. Save or open this project in its folder first."
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "No project goals yet. Select the manuscript or a folder, then add one in the inspector."
@@ -10240,6 +10399,10 @@ msgstr "No request has been sent yet."
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "No requests yet. Usage is counted by day, per profile, model and role, and stays in this browser."
 msgstr "No requests yet. Usage is counted by day, per profile, model and role, and stays in this browser."
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "No retained agent runs in this project."
+msgstr "No retained agent runs in this project."
 
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #: apps/desktop/src/app/coherence-report-words.ts
@@ -10352,6 +10515,11 @@ msgstr "No skill was found there. A skill is a folder with its instructions file
 msgid "No skill was imported."
 msgstr "No skill was imported."
 
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "No spend recorded."
+msgstr "No spend recorded."
+
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "No spoken line in this node."
@@ -10379,6 +10547,16 @@ msgstr "No statuses yet. Add the first one below."
 #: apps/desktop/src/app/task-queue.ts
 msgid "No step of this plan needs a model call."
 msgstr "No step of this plan needs a model call."
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "No steps had been applied yet"
+msgstr "No steps had been applied yet"
+
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "No steps recorded."
+msgstr "No steps recorded."
 
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "No tags yet."
@@ -11113,6 +11291,8 @@ msgid "Out of order in its strand"
 msgstr "Out of order in its strand"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
 #: apps/desktop/src/components/Settings.tsx
 msgid "Outcome"
 msgstr "Outcome"
@@ -11854,6 +12034,11 @@ msgstr "Project panels"
 msgid "Project renamed"
 msgstr "Project renamed"
 
+#. Interpolated values: at, calls, completion, cost, detail, ended, id, intent, label, prompt, status, summary, title, tool, unpriced
+#: apps/desktop/src/app/activity-model.ts
+msgid "Project restored to before an agent run"
+msgstr "Project restored to before an agent run"
+
 #: apps/desktop/src/app/project-commands.ts
 msgid "Project skill"
 msgstr "Project skill"
@@ -11923,6 +12108,11 @@ msgstr "Prompt pack"
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Prompt pack (video)"
 msgstr "Prompt pack (video)"
+
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Prompt tokens: {prompt}; completion tokens: {completion}; estimated tokens: {estimated}."
+msgstr "Prompt tokens: {prompt}; completion tokens: {completion}; estimated tokens: {estimated}."
 
 #. The shot prompt editor. Interpolated values: vendor is a video model's name; duration is a number of seconds; number is the position of a reference.
 #: apps/desktop/src/media/ShotPromptEditor.tsx
@@ -12995,10 +13185,25 @@ msgstr "Restore only this step (keep your later edits)"
 msgid "Restore only this turn (keep your later edits)"
 msgstr "Restore only this turn (keep your later edits)"
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Restore project"
+msgstr "Restore project"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Restore the project and rewind the conversation?"
 msgstr "Restore the project and rewind the conversation?"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Restore to before this run?"
+msgstr "Restore to before this run?"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Restore to before this run…"
+msgstr "Restore to before this run…"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -13057,10 +13262,12 @@ msgstr "Result"
 msgid "Results"
 msgstr "Results"
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
 #. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
+#: apps/desktop/src/components/InterruptedRuns.tsx
 msgid "Resume"
 msgstr "Resume"
 
@@ -13078,6 +13285,18 @@ msgstr "Retry"
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Retry draft"
 msgstr "Retry draft"
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Retry folder copy"
+msgstr "Retry folder copy"
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Retry folder-copy preference"
+msgstr "Retry folder-copy preference"
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Retry run history"
+msgstr "Retry run history"
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -13266,10 +13485,19 @@ msgstr "Run in background drafts one call at a time while you keep writing, up t
 msgid "Run limits"
 msgstr "Run limits"
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "Run log and details"
+msgstr "Run log and details"
+
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "Run log discarded. What the agent wrote stays in the project."
 msgstr "Run log discarded. What the agent wrote stays in the project."
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "Run logs and restore points stay in this browser. Export a log before deleting it if you want to keep it."
+msgstr "Run logs and restore points stay in this browser. Export a log before deleting it if you want to keep it."
 
 #. Interpolated values: calls, cap
 #: apps/desktop/src/components/PlanOfferCard.tsx
@@ -13420,6 +13648,11 @@ msgstr "Save image"
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Save limits"
 msgstr "Save limits"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Save or open this project in a folder and allow write access first."
+msgstr "Save or open this project in a folder and allow write access first."
 
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
@@ -14668,6 +14901,11 @@ msgstr "Soft budget"
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 msgstr "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
+msgstr "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
+
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some documents in this folder changed since Caotang last saved them"
@@ -14739,6 +14977,11 @@ msgstr "Speaker spelled differently"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "Speech"
 msgstr "Speech"
+
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Spend"
+msgstr "Spend"
 
 #. The comic page editor. Interpolated values: title is the page's own title; scriptTitle is the writer's own title of the book's script; revision is the script's revision number; name is a file the writer chose; number and count are page or panel numbers; label is a picture's caption or file name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/media/ComicPageView.tsx
@@ -14870,6 +15113,11 @@ msgstr "Step {number} has no draft to show yet. Retry the draft, or cancel the c
 msgid "Step {number} names “{ref}”, which is not a scene in this project. Edit the step to name a scene, or cancel the card."
 msgstr "Step {number} names “{ref}”, which is not a scene in this project. Edit the step to name a scene, or cancel the card."
 
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Step {number}: {tool} — {status}{detail}"
+msgstr "Step {number}: {tool} — {status}{detail}"
+
 #. Interpolated values: step, total, activeForm
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -14877,7 +15125,9 @@ msgid "harness.progress.header.step"
 msgstr "Step {step} of {total} · {activeForm}"
 
 #. Interpolated values: calls, cap
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/app/run-log-export.ts
 #: apps/desktop/src/components/PlanCard.tsx
 #: apps/desktop/src/components/PlanOfferCard.tsx
 msgid "Steps"
@@ -14892,6 +15142,11 @@ msgstr "Steps {earlierNumber} and {number} both draft “{title}”. Drop one of
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Steps per turn"
 msgstr "Steps per turn"
+
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "Steps: {steps}; active time: {active} ms."
+msgstr "Steps: {steps}; active time: {active} ms."
 
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
@@ -15491,6 +15746,12 @@ msgid "That run can no longer be resumed."
 msgstr "That run can no longer be resumed."
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That run is no longer in this project."
+msgstr "That run is no longer in this project."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "That task is no longer ready to review."
 msgstr "That task is no longer ready to review."
@@ -15651,6 +15912,11 @@ msgstr "The agent may skip approval in Ask mode"
 msgid "the agent panel"
 msgstr "the agent panel"
 
+#. A root of the picture sweep's inventory, named in the sentence that says why a sweep was refused. key is a document's journal key; root is the name of another root; reason is a sentence.
+#: apps/desktop/src/app/picture-retention-host.ts
+msgid "the agent run restore points"
+msgstr "the agent run restore points"
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The agent starts each request with a short list of tools and finds the others with a search when a task needs them. Some models search poorly. Turn this on to give such a model every tool on every request, at the cost of a longer prompt each time."
@@ -15690,6 +15956,11 @@ msgstr "The app settings could not be opened here, so they will not be kept: {er
 #: apps/desktop/src/media/prompt-edit-model.ts
 msgid "the aspect ratio is one of the ratios in the list"
 msgstr "the aspect ratio is one of the ratios in the list"
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The attached project folder changed. Enable copying for the new folder explicitly."
+msgstr "The attached project folder changed. Enable copying for the new folder explicitly."
 
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
 #: apps/desktop/src/app/mcp-model.ts
@@ -16058,6 +16329,11 @@ msgstr "The findings by fact, with their quotes and verdicts, and the run histor
 msgid "The findings file could not be read from this browser: {error}. The findings are shown empty, and nothing is saved over the stored file until the project is opened again."
 msgstr "The findings file could not be read from this browser: {error}. The findings are shown empty, and nothing is saved over the stored file until the project is opened again."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The findings file is read-only. Reopen the project with a readable findings file before restoring a run."
+msgstr "The findings file is read-only. Reopen the project with a readable findings file before restoring a run."
+
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
 #: apps/desktop/src/app/findings-model.ts
 msgid "The Findings tab’s quick scan checks for: {checks}. It does not read the story for plot or character problems; the model review does that."
@@ -16104,6 +16380,11 @@ msgstr "The focused scene"
 msgid "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 msgstr "The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty. Choose another folder, or make an empty one in the folder picker."
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The folder copy could not be written: {reason}. The browser’s run log is safe. Check folder access, then retry."
+msgstr "The folder copy could not be written: {reason}. The browser’s run log is safe. Check folder access, then retry."
+
 #. Interpolated values: folder is the writer's folder name; backup is the local backup path; error is the save failure message
 #: apps/desktop/src/components/use-folder-save.ts
 msgid "The folder could not be saved: {error}"
@@ -16118,6 +16399,10 @@ msgstr "The folder holds a different version"
 #: apps/desktop/src/components/Home.tsx
 msgid "The folder holds a different version of “{name}”"
 msgstr "The folder holds a different version of “{name}”"
+
+#: apps/desktop/src/components/RunHistory.tsx
+msgid "The folder-copy preference could not be read. Reopen Activity to try again."
+msgstr "The folder-copy preference could not be read. Reopen Activity to try again."
 
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
@@ -16273,6 +16558,11 @@ msgstr "The links point into the project folder, so they break if the exported f
 msgid "The list holds names, addresses and enabled tools. It never holds a token, a review or a trust grant."
 msgstr "The list holds names, addresses and enabled tools. It never holds a token, a review or a trust grant."
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "The log can contain manuscript and conversation text. Export it only where you want to share that text."
+msgstr "The log can contain manuscript and conversation text. Export it only where you want to share that text."
+
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "The manuscript is empty"
@@ -16297,6 +16587,11 @@ msgstr "the mode is t2v or i2v"
 #: apps/desktop/src/app/task-queue.ts
 msgid "The model call failed: {error}"
 msgstr "The model call failed: {error}"
+
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "The model call that was in flight when the page closed was lost, and its cost counts as spent. A plan card comes back needing your approval again, and the undo for steps already applied did not survive the reload."
+msgstr "The model call that was in flight when the page closed was lost, and its cost counts as spent. A plan card comes back needing your approval again, and the undo for steps already applied did not survive the reload."
 
 #. Interpolated values: calls, cap, error
 #: apps/desktop/src/app/task-queue.ts
@@ -16514,6 +16809,28 @@ msgstr "The project and its history are deleted from this browser. Export a bund
 msgid "The project calendar below"
 msgstr "The project calendar below"
 
+#: apps/desktop/src/app/run-recovery.ts
+msgid "The project changed after you opened the confirmation. Nothing was restored. Review the restore again."
+msgstr "The project changed after you opened the confirmation. Nothing was restored. Review the restore again."
+
+#: apps/desktop/src/app/run-recovery.ts
+msgid "The project changed while its restore point was being saved. Try the request again."
+msgstr "The project changed while its restore point was being saved. Try the request again."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project changed while restoring. Your newer changes were kept. Review the restore again."
+msgstr "The project changed while restoring. Your newer changes were kept. Review the restore again."
+
+#: apps/desktop/src/app/run-recovery.ts
+msgid "The project changed. Review the restore again."
+msgstr "The project changed. Review the restore again."
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project could not be saved, so nothing was restored. Keep this tab open and retry the failed save before restoring again."
+msgstr "The project could not be saved, so nothing was restored. Keep this tab open and retry the failed save before restoring again."
+
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "The project cover"
@@ -16528,6 +16845,15 @@ msgstr "The project is not open here, so the plan can only run now."
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "The project no longer has this term, so this filter matches nothing."
 msgstr "The project no longer has this term, so this filter matches nothing."
+
+#: apps/desktop/src/app/run-recovery.ts
+msgid "The project was restored in this tab, but it could not be saved. Keep this tab open and retry the failed save."
+msgstr "The project was restored in this tab, but it could not be saved. Keep this tab open and retry the failed save."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The project was restored to before this run. Conversation and recorded spend were kept."
+msgstr "The project was restored to before this run. Conversation and recorded spend were kept."
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
@@ -16642,6 +16968,36 @@ msgstr "The request log could not be read: {error}"
 msgid "the resolution is 720p or 1080p"
 msgstr "the resolution is 720p or 1080p"
 
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The restore could not finish: {reason}. Check the project’s save status before trying again."
+msgstr "The restore could not finish: {reason}. Check the project’s save status before trying again."
+
+#: apps/desktop/src/app/run-baseline.ts
+msgid "The restore point contains an unsupported project path."
+msgstr "The restore point contains an unsupported project path."
+
+#: apps/desktop/src/app/run-baseline.ts
+msgid "The restore point contains unsupported binary data."
+msgstr "The restore point contains unsupported binary data."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The restore point could not be prepared: {reason}. Nothing was restored. Try again after saving the project."
+msgstr "The restore point could not be prepared: {reason}. Nothing was restored. Try again after saving the project."
+
+#: apps/desktop/src/app/run-baseline.ts
+msgid "The restore point does not belong to this project."
+msgstr "The restore point does not belong to this project."
+
+#: apps/desktop/src/app/run-baseline.ts
+msgid "The restore point has unreadable findings."
+msgstr "The restore point has unreadable findings."
+
+#: apps/desktop/src/app/run-baseline.ts
+msgid "The restore point is missing a document revision."
+msgstr "The restore point is missing a document revision."
+
 #. Interpolated values: error, reason, title
 #: apps/desktop/src/app/session.ts
 msgid "The restore stopped part way, because a later change could not be taken back: {reason}.{later}{some} Changes made before that one were not touched."
@@ -16657,6 +17013,11 @@ msgstr "The restore stopped part way, because the step could not be taken back: 
 msgid "The retention is a whole number of days from 1 to {max}."
 msgstr "The retention is a whole number of days from 1 to {max}."
 
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "The run id is not safe for a folder log."
+msgstr "The run id is not safe for a folder log."
+
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "The run log could not be discarded: {reason}"
@@ -16664,8 +17025,18 @@ msgstr "The run log could not be discarded: {reason}"
 
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
+msgid "The run log could not be exported: {reason}. Try again, or keep the log here."
+msgstr "The run log could not be exported: {reason}. Try again, or keep the log here."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
 msgid "The run log could not be read: {readError}. The run was not resumed. Try again, or discard the log."
 msgstr "The run log could not be read: {readError}. The run was not resumed. Try again, or discard the log."
+
+#. Interpolated values: calls, error, mode, readError, reason, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The run log export is ready."
+msgstr "The run log export is ready."
 
 #. Counts describe findings, citations, documents or model calls. Dates are formatted timestamps. Titles, evidence, errors and model notes are supplied values, not translated prose.
 #: apps/desktop/src/components/FindingsPanel.tsx
@@ -17615,6 +17986,20 @@ msgstr "This restores the project to its state before this step of the turn. The
 msgid "This restores the project to its state before this turn. Your edits since then are included in the restore."
 msgstr "This restores the project to its state before this turn. Your edits since then are included in the restore."
 
+#. Interpolated values: applied is the applied step count; total is the planned step count; steps is localized progress; spend is localized recorded usage; action is the pending run-log operation.
+#: apps/desktop/src/components/InterruptedRuns.tsx
+msgid "This restores the project’s content, structure, agent files and findings from before this run. Later edits will be taken back too."
+msgstr "This restores the project’s content, structure, agent files and findings from before this run. Later edits will be taken back too."
+
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "This run cannot be resumed."
+msgstr "This run cannot be resumed."
+
+#: apps/desktop/src/app/run-recovery.ts
+msgid "This run has no restore point."
+msgstr "This run has no restore point."
+
 #. Interpolated values: calls, error, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
 msgid "This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it."
@@ -17746,6 +18131,10 @@ msgstr "This step needs {calls} model {calls, plural, one {call} other {calls}},
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
 msgstr "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
+
+#: apps/desktop/src/app/run-recovery.ts
+msgid "This tab no longer owns the project. Copy unsaved text before reloading."
+msgstr "This tab no longer owns the project. Copy unsaved text before reloading."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #: apps/desktop/src/components/HookSettings.tsx
@@ -18293,6 +18682,11 @@ msgstr "Undo: {summary}"
 msgid "Undoing the change. Wait before undoing another."
 msgstr "Undoing the change. Wait before undoing another."
 
+#. Interpolated values: id is the local run id; number is the step number; tool and status are recorded identifiers; detail is the recorded step detail; calls, reserved, prompt, completion, estimated and steps are counts; cost is recorded USD cost or unknown; active is milliseconds.
+#: apps/desktop/src/app/run-log-export.ts
+msgid "unknown"
+msgstr "unknown"
+
 #. Interpolated values: error, name, reason, refused
 #. The Inspector. Interpolated values: keyword, value and date are the writer's own text or a date; counts are numbers; limit is a character count.
 #. The binder filter bar. Interpolated values: filterName is the saved filter's name, written by the writer; the count is a number.
@@ -18682,6 +19076,10 @@ msgstr "Views are in the bar below"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Visual references"
 msgstr "Visual references"
+
+#: apps/desktop/src/app/persistence.ts
+msgid "Wait for the project to finish saving before restoring it."
+msgstr "Wait for the project to finish saving before restoring it."
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx

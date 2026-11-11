@@ -72,7 +72,7 @@ describe('artifact write path', () => {
     expect(files).toContain(MANIFEST_FILE);
     expect(files).toContain('docs/n_3W8RN2TQ6C.md');
     expect(files).toContain('.gitignore');
-    expect(fs.snapshot()['.gitignore']).toBe('exports/\n');
+    expect(fs.snapshot()['.gitignore']).toBe('exports/\nruns/\n');
     expect(await fs.listDirs('')).toEqual(['codex', 'docs', 'exports']);
   });
 

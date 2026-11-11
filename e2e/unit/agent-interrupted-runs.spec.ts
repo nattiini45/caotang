@@ -119,7 +119,7 @@ test('an interrupted run with a whole log is offered back with the steps it appl
 
   await controller.loadInterrupted();
 
-  expect(controller.snapshot().interrupted).toEqual([{ runId: 'run_GOOD', intent: 'Label the scenes.', applied: 1, total: 2, spend: null, resumable: true, note: null }]);
+  expect(controller.snapshot().interrupted).toEqual([{ runId: 'run_GOOD', createdAt: expect.any(Number), status: 'interrupted', cannotResume: false, restorable: false, feedback: null, intent: 'Label the scenes.', applied: 1, total: 2, spend: null, resumable: true, note: null }]);
   await session.close();
 });
 

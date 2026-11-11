@@ -138,6 +138,7 @@ export const COMMAND_NAMES = [
   // Project export: the project block (epub-metadata.md), the saved export recipes (exporter.md §2), the
   // vocabulary (project-format.md §2) and the cover import. §9 tabulates them.
   'project.rename',
+  'project.restoreRun',
   'project.setMetadata',
   'project.importAsset',
   'vocabulary.upsert',
@@ -694,6 +695,7 @@ export interface CommandParams {
   'shot.create': ShotCreateCommandParams;
   'shot.setMeta': ShotSetMetaCommandParams;
   'project.rename': ProjectRenameParams;
+  'project.restoreRun': ProjectRestoreRunParams;
   'project.setMetadata': ProjectSetMetadataParams;
   'project.importAsset': ProjectImportAssetParams;
   'vocabulary.upsert': VocabularyUpsertParams;
@@ -1067,6 +1069,7 @@ export function isFixedRootId(id: string): boolean {
 
 /** `project.rename`: the project's title. The root node carries the same title, and the apply keeps them equal. */
 export type ProjectRenameParams = { title: string };
+export type ProjectRestoreRunParams = { readonly runId: string };
 
 /**
  * `project.setMetadata`: the EPUB and byline fields (epub-metadata.md). A key left out is left alone; `null` clears

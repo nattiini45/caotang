@@ -683,6 +683,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
       'mcp.invoke',
       'mcp.readResource',
       'project.importAsset',
+      'project.restoreRun',
       'shot.create',
       'shot.importImage',
       'shot.importImages',

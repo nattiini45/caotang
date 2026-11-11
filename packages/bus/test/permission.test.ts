@@ -110,6 +110,11 @@ describe('§4 the hard-deny list is not approvable by any flow', () => {
     expect(error.code).toBe('hard-denied');
   });
 
+  it('refuses a whole-project run restore through every agent flow, including inherited grants', () => {
+    for (const [flow, context] of ALL_FLOWS) expect(refused('project.restoreRun', 'agent', context).code, flow).toBe('hard-denied');
+    expect(granted('project.restoreRun', 'user').requiresUserConfirm).toBe(true);
+  });
+
   it('refuses it under every flow the gate knows about, not just the approved one', () => {
     // **This is the test that pins the ordering.** The mutant is moving hard-deny
     // below the inherited-grant branch, and only the inherited flows reach it —
@@ -162,7 +167,7 @@ describe('§4 issuedBy: \'user\' — a gesture is its own confirmation', () => {
     // the UI cannot tell a destructive command from a rename by looking at it.
     expect(granted('project.deleteNode', 'user').requiresUserConfirm).toBe(true);
     const flagged = COMMAND_NAMES.filter((n) => granted(n, 'user').requiresUserConfirm);
-    expect(flagged).toEqual(['project.deleteNode', 'memory.forget']);
+    expect(flagged).toEqual(['project.deleteNode', 'project.restoreRun', 'memory.forget']);
   });
 
   it('grants every user command via user-gesture, whatever the plan context says', () => {
@@ -384,9 +389,10 @@ describe('the gate\'s own lists are held against the spec, not against themselve
     // network, provider settings are app-level, and codex deletion is not an
     // `action` value yet). A third member therefore cannot be added without this
     // failing and naming it. `memory.forget` is the second: a memory note is the writer's to remove.
-    expect(Object.keys(HARD_DENIED)).toEqual(['project.deleteNode', 'memory.forget']);
+    expect(Object.keys(HARD_DENIED)).toEqual(['project.deleteNode', 'memory.forget', 'project.restoreRun']);
     expect(hardDenyClass('project.deleteNode')).toBe('deletion');
     expect(hardDenyClass('memory.forget')).toBe('deletion');
+    expect(hardDenyClass('project.restoreRun')).toBe('deletion');
     expect(hardDenyClass('binder.rename')).toBeUndefined();
   });
 
@@ -434,6 +440,7 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'editor.replaceRange',
       'project.deleteNode',
       'mcp.readResource',
+      'project.restoreRun',
       'skill.import',
       'skill.write',
       'skill.delete',

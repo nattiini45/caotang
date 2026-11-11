@@ -146,6 +146,8 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('asset.sweep')),
       // @ts-expect-error the calendar and lens are the writer's own display choice
       () => primitiveTool(specFor('project.setCalendar')),
+      // @ts-expect-error a whole-project restore is the writer’s own destructive gesture
+      () => primitiveTool(specFor('project.restoreRun')),
       // @ts-expect-error an external call rides its own gateway
       () => primitiveTool(specFor('mcp.invoke')),
       // @ts-expect-error a resource is read when the writer picks it, never on a tool's behalf

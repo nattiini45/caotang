@@ -118,13 +118,15 @@ async function openMirror(
   db: AppDb | null,
   projectId: string,
   state: ProjectState,
-): Promise<{ fs: StoreArtifactFs; notice: string | null; readable: boolean }> {
+): Promise<{ fs: StoreArtifactFs; notice: string | null; readable: boolean; storedText: () => string | null; restored: (text: string) => Promise<void> }> {
   const files = new MemoryArtifactFs();
   let notice: string | null = null;
   let readable = true;
+  let runtimeText: string | null = null;
   let stored: Record<string, string> = {};
   try {
     stored = await readCoherenceFiles(store, projectId);
+    runtimeText = stored[COHERENCE_FILE] ?? null;
   } catch (error) {
     if (error instanceof ProjectNotFoundError) {
       // A project whose row the store has not written yet (a project made this session) has no set to read. Its state is
@@ -149,9 +151,15 @@ async function openMirror(
     if (typeof text === 'string') await files.writeAtomic(path, text);
   }
   const fs = new StoreArtifactFs(files, async () => {
-    if (readable) await writeCoherenceFiles(store, projectId, files.snapshot());
+    if (!readable) return;
+    const next = files.snapshot();
+    await writeCoherenceFiles(store, projectId, next);
+    runtimeText = next[COHERENCE_FILE] ?? null;
   });
-  return { fs, notice, readable };
+  return { fs, notice, readable, storedText: () => runtimeText, restored: async (text) => {
+    await files.writeAtomic(COHERENCE_FILE, text);
+    runtimeText = text;
+  } };
 }
 
 /** A folder's copy of the findings file, read, and ready to be written. */
@@ -231,6 +239,8 @@ export async function attachCoherence(session: ProjectSession, store: RuntimeSto
   const reconciled = reconcileCoherence(load.file, session.state);
   const messages = [...notices, ...load.notices.map((notice) => notice.message), ...reconciled.notices.map((notice) => notice.message)];
   const port: CoherencePort = {
+    storedText: mirror.storedText,
+    restored: mirror.restored,
     save: async (file: CoherenceFile): Promise<void> => {
       if (!mirror.readable) {
         throw new Error('the findings file could not be read when the project opened, so it is not saved over. Reopen the project to save again.');

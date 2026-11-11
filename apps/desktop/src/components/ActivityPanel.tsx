@@ -26,8 +26,9 @@ import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from './activity-window.js';
 import { EmptyState, useReport, useSession } from './shared.js';
 import { PanelGlyph as Icon } from './panel-glyph.js';
+import { RunHistory } from './RunHistory.js';
 
-export function ActivityPanel({ session, onExport }: { session: ProjectSession; onExport: () => void }): ReactNode {
+export function ActivityPanel({ session, onExport, onResumeRun = () => undefined }: { session: ProjectSession; onExport: () => void; onResumeRun?: () => void }): ReactNode {
   useSession(session);
   const report = useReport();
   const [showViews, setShowViews] = useState(false);
@@ -66,6 +67,7 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
 
   return (
     <div className="activity">
+      <RunHistory session={session} onResume={onResumeRun} />
       <div className="activity-toolbar">
         <label className="check">
           <input type="checkbox" role="switch" className="k-switch" checked={showViews} onChange={(event) => setShowViews(event.target.checked)} />

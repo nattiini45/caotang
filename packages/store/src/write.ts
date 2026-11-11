@@ -463,7 +463,7 @@ export async function writeProject(
   //    customized is the author's file, and silently replacing it is the one
   //    thing this whole module must never do.
   if (!(await fs.exists(GITIGNORE_FILE))) {
-    await fs.writeAtomic(GITIGNORE_FILE, 'exports/\n');
+    await fs.writeAtomic(GITIGNORE_FILE, 'exports/\nruns/\n');
     report.written.push(GITIGNORE_FILE);
   }
 

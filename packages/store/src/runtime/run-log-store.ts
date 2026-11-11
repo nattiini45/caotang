@@ -16,10 +16,54 @@
  * file, never in a bundle, and never in the key vault. Retention is the checkpoints' clock: thirty days, fifty runs (`pruneRuns`).
  */
 
+import { canMove, type Machine, type MachineTable } from '@caotang/machine';
+
 import { guarded, transact, RUN_EVENT_RUN_INDEX, RUN_EVENT_STORE, RUN_PROJECT_INDEX, RUN_STORE, type RuntimeStore } from './store.js';
 
 /** Where a run stands. `interrupted` is a run a reload, a crash or a closed tab left unfinished; only the writer resumes or discards it. */
 export type RunStatus = 'running' | 'awaiting-approval' | 'interrupted' | 'finished' | 'failed';
+
+type RunStatusState = { [K in RunStatus]: { readonly kind: K } }[RunStatus];
+type RunStatusEvent = { [K in RunStatus]: { readonly type: K } }[RunStatus];
+
+export const runStatusTable: MachineTable<RunStatusState, RunStatusEvent> = {
+  id: 'run.status',
+  initial: 'running',
+  final: ['finished', 'failed'],
+  on: {
+    running: {
+      running: ['running'], 'awaiting-approval': ['awaiting-approval'], interrupted: ['interrupted'],
+      finished: ['finished'], failed: ['failed'],
+    },
+    'awaiting-approval': {
+      running: ['running'], 'awaiting-approval': ['awaiting-approval'], interrupted: ['interrupted'],
+      finished: ['finished'], failed: ['failed'],
+    },
+    interrupted: { running: ['running'], interrupted: ['interrupted'], finished: ['finished'], failed: ['failed'] },
+    finished: {},
+    failed: {},
+  },
+};
+
+export const runStatusMachine: Machine<RunStatusState, RunStatusEvent> = {
+  table: runStatusTable,
+  step: (state, event) => canMove(runStatusTable, state.kind, event.type) ? { kind: event.type } : state,
+};
+
+export class RunStatusTransitionError extends Error {
+  constructor(readonly runId: string, readonly from: RunStatus, readonly to: RunStatus) {
+    super(`run "${runId}" cannot change status from ${from} to ${to}`);
+    this.name = 'RunStatusTransitionError';
+  }
+}
+
+/** Accepts same-state writes, including terminal rows, but refuses an illegal lifecycle move. */
+export function assertRunStatusTransition(runId: string, from: RunStatus, to: RunStatus): void {
+  if (runStatusMachine.step({ kind: from }, { type: to }).kind !== to) throw new RunStatusTransitionError(runId, from, to);
+}
+
+/** How the turn ended. Older records can omit this without changing their lifecycle status. */
+export type RunOutcome = 'replied' | 'applied' | 'failed' | 'cancelled' | 'stopped';
 
 /** The statuses of a run that has not settled. */
 export const OPEN_RUN_STATUSES: readonly RunStatus[] = ['running', 'awaiting-approval', 'interrupted'];
@@ -43,6 +87,7 @@ export interface RunRow {
   readonly profileId?: string;
   readonly model?: string;
   readonly status: RunStatus;
+  readonly outcome?: RunOutcome;
   /** A write to the log failed, so the log no longer describes the run and it is not offered for resume. */
   readonly cannotResume?: true;
 }
@@ -50,6 +95,7 @@ export interface RunRow {
 /** What an append may change on the run record. */
 export interface RunPatch {
   readonly status?: RunStatus;
+  readonly outcome?: RunOutcome;
   readonly cannotResume?: true;
   readonly updatedAt?: number;
 }
@@ -105,6 +151,7 @@ export function appendRunEvents(store: RuntimeStore, runId: string, events: read
         fail(new RunNotFoundError(runId));
         return;
       }
+      if (patch.status !== undefined) assertRunStatusTransition(runId, run.status, patch.status);
       for (const event of events) rows.add({ ...event, runId } satisfies RunEventRow);
       if (events.length > 0 || Object.keys(patch).length > 0) runs.put({ ...run, ...patch } satisfies RunRow);
       done();
@@ -190,13 +237,13 @@ export const DEFAULT_RUN_RETENTION: RunRetention = Object.freeze({ days: 30, cou
 const DAY_MS = 86_400_000;
 
 /**
- * Deletes the runs a project no longer keeps and answers how many went. A run that is running or waiting on a card is never evicted:
- * a live run is not stale. Every other run is kept while it is newer than `days` and among the newest `count`.
+ * Deletes the runs a project no longer keeps and answers how many went. An open run, including an interrupted run, is never evicted.
+ * A settled run is kept while it is newer than `days` and among the newest `count`.
  */
 export async function pruneRuns(store: RuntimeStore, projectId: string, now: number = Date.now(), keep: RunRetention = DEFAULT_RUN_RETENTION): Promise<number> {
   const runs = await readRuns(store, projectId);
   const cutoff = now - keep.days * DAY_MS;
-  const settled = runs.filter((run) => !LIVE_RUN_STATUSES.includes(run.status)).sort((a, b) => b.createdAt - a.createdAt);
+  const settled = runs.filter((run) => !OPEN_RUN_STATUSES.includes(run.status)).sort((a, b) => b.createdAt - a.createdAt);
   const evict = settled.filter((run, index) => index >= keep.count || run.updatedAt < cutoff);
   for (const run of evict) await deleteRun(store, run.runId);
   return evict.length;
@@ -211,7 +258,7 @@ export interface RunLogStorePort {
   create(run: RunRow): Promise<void>;
   append(runId: string, events: readonly RunEventInput[], patch?: RunPatch): Promise<void>;
   update(runId: string, patch: RunPatch): Promise<void>;
-  open(projectId: string): Promise<readonly RunRow[]>;
+  open(projectId: string, options?: { readonly includeSettled?: boolean }): Promise<readonly RunRow[]>;
   events(runId: string): Promise<readonly RunEventRow[]>;
   discard(runId: string): Promise<void>;
   prune(projectId: string, keep: RunRetention): Promise<number>;
@@ -222,7 +269,7 @@ export function createRunLogPort(store: RuntimeStore): RunLogStorePort {
     create: (run) => createRun(store, run),
     append: (runId, events, patch) => appendRunEvents(store, runId, events, patch),
     update: (runId, patch) => updateRun(store, runId, patch),
-    open: (projectId) => readOpenRuns(store, projectId),
+    open: (projectId, options) => options?.includeSettled === true ? readRuns(store, projectId) : readOpenRuns(store, projectId),
     events: (runId) => readRunEvents(store, runId),
     discard: (runId) => deleteRun(store, runId),
     prune: (projectId, keep) => pruneRuns(store, projectId, Date.now(), keep),

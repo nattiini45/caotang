@@ -36,11 +36,15 @@
  * never written from that copy; the writer puts it back as new documents (UnsentWords).
  */
 
+import { t } from '@lingui/core/macro';
+import { serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
 import {
   DocumentExistsError,
   RevisionConflictError,
   RuntimeStoreStaleError,
+  ProjectWriteConflictError,
   commitProject,
+  emptyCoherenceState,
   writeDocumentBody,
   writeProjectAgentFiles,
   writeProjectSkills,
@@ -49,7 +53,7 @@ import {
   type RuntimeStore,
 } from '@caotang/store';
 
-import { planPersistence, type DocumentShadow, type PersistPlan, type Shadow } from './persistence-plan.js';
+import { planPersistence, shadowOf, type DocumentShadow, type PersistPlan, type Shadow } from './persistence-plan.js';
 import { TabStop } from './tab-stop.js';
 import { stepPersistence, type PersistenceState, type PersistenceEvent } from './persistence-model.js';
 import {
@@ -68,10 +72,11 @@ export type PersistenceStatus = PersistenceState['kind'];
  * until the tab is reloaded (`RuntimeStoreStaleError`).
  */
 export function isStaleWrite(error: unknown): boolean {
-  return error instanceof RevisionConflictError || error instanceof DocumentExistsError || error instanceof RuntimeStoreStaleError;
+  return error instanceof RevisionConflictError || error instanceof DocumentExistsError || error instanceof RuntimeStoreStaleError || error instanceof ProjectWriteConflictError;
 }
 
 export class Persistence {
+  private atomicRestore: { readonly expected: ProjectState; readonly expectedCoherence: string | null; readonly onSaved: (coherence: string) => Promise<void> } | null = null;
   private shadow: Shadow | null;
   /**
    * The bodies and revisions the store holds, as the last pass that landed left them. Unlike the shadow it survives a failed pass (which drops the
@@ -105,6 +110,14 @@ export class Persistence {
   storedDocument(docId: string): DocumentShadow | undefined {
     return this.stored?.get(docId);
   }
+
+  stageAtomicRestore(expected: ProjectState, expectedCoherence: string | null, onSaved: (coherence: string) => Promise<void>): void {
+    if (this.isStopped()) return;
+    if (this.current !== null || this.shadow === null) throw new Error(t`Wait for the project to finish saving before restoring it.`);
+    this.atomicRestore = { expected: structuredClone(expected), expectedCoherence, onSaved };
+  }
+
+  atomicRestorePending(): boolean { return this.atomicRestore !== null; }
 
   /** Ask for the store to be brought up to date. Coalesces: at most one pass is ever queued behind a running one. */
   schedule(): void {
@@ -158,18 +171,28 @@ export class Persistence {
   private async step(): Promise<void> {
     if (this.isStopped()) return;
     const plan = planPersistence(this.shadow, this.read());
-    if (plan.kind === 'none') {
+    if (plan.kind === 'none' && this.atomicRestore === null) {
       this.setStatus({ type: 'saved' });
       return;
     }
     this.setStatus({ type: 'write' });
     try {
-      await this.execute(plan);
-      this.shadow = plan.next;
-      this.stored = plan.next.docs;
+      if (this.atomicRestore !== null) {
+        const next = structuredClone(this.read());
+        const coherence = serializeCoherenceFile((next.coherence ?? emptyCoherenceState()) as CoherenceFile);
+        await writeProjectState(this.store, next, { ...this.atomicRestore, coherence });
+        await this.atomicRestore.onSaved(coherence);
+        this.atomicRestore = null;
+        this.shadow = shadowOf(next);
+      } else {
+        await this.execute(plan);
+        if (plan.kind !== 'none') this.shadow = plan.next;
+      }
+      this.stored = this.shadow?.docs ?? null;
       this.setStatus({ type: 'saved' });
     } catch (error) {
       if (isStaleWrite(error)) {
+        this.atomicRestore = null;
         // Another writer moved a row this session holds. Restating would overwrite its text, so this session stops, and the
         // words it holds are kept in this browser so a reload does not take them. An upgraded store is said as that cause.
         this.status = stepPersistence(this.status, { type: 'stop', error });
@@ -179,7 +202,7 @@ export class Persistence {
         return;
       }
       // The shadow no longer describes the store, so the next pass restates everything.
-      this.shadow = null;
+      if (this.atomicRestore === null) this.shadow = null;
       this.setStatus({ type: 'fail', error });
     }
   }

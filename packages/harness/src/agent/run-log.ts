@@ -17,15 +17,15 @@
  */
 
 import type { ChatMessage } from '@caotang/gateway';
-import type { RunPatch, RunRow, RunStatus } from '@caotang/store';
-import { parseRules } from '@caotang/store';
+import type { RunOutcome, RunPatch, RunRow, RunStatus } from '@caotang/store';
+import { assertRunStatusTransition, parseRules } from '@caotang/store';
 
 import { isCommandName } from '../commands/slash.js';
 import type { PlanStep } from '../plan.js';
 import { canonicalJson } from '../util.js';
 import type { BudgetSpend } from './budget.js';
 import type { StepRevisions } from './background.js';
-import type { TurnStatus } from './events.js';
+import type { TurnReport, TurnStatus } from './events.js';
 import type { LoadedSkill } from '../tools/skills.js';
 import type { SourcedRule } from '../rules.js';
 
@@ -122,8 +122,8 @@ export interface RunLogPort {
   /** Appends the events and applies `patch` to the record in one transaction. */
   append(runId: string, events: readonly RunEvent[], patch?: RunPatch): Promise<void>;
   update(runId: string, patch: RunPatch): Promise<void>;
-  /** The project's runs that have not settled, oldest first. */
-  open(projectId: string): Promise<readonly RunRecord[]>;
+  /** The project's unfinished runs, or every retained run for Activity, oldest first. */
+  open(projectId: string, options?: { readonly includeSettled?: boolean }): Promise<readonly RunRecord[]>;
   events(runId: string): Promise<readonly unknown[]>;
   /** Deletes the run and its events. The writes it made stay in the project. */
   discard(runId: string): Promise<void>;
@@ -140,6 +140,7 @@ export interface RunLogOptions {
    * resumable. Absent, `applied` is written when the step has run.
    */
   readonly flush?: () => Promise<void>;
+  readonly beforeWrite?: (runId: string) => Promise<void>;
   /** Told once when a write to the log fails: the run goes on, and it can no longer be resumed. */
   readonly onNotice?: (message: string) => void;
   /** Mints a run id. Default `run_` followed by a random Crockford id. */
@@ -259,14 +260,19 @@ export function createMemoryRunLog(): MemoryRunLog {
       const run = runs.get(runId);
       const held = events.get(runId);
       if (run === undefined || held === undefined) throw new Error(`no run ${runId}`);
+      if (patch.status !== undefined) assertRunStatusTransition(runId, run.status, patch.status);
       const taken = new Set(held.map((event) => event.seq));
-      if (batch.some((event) => taken.has(event.seq))) throw new Error('a sequence number is taken');
+      for (const event of batch) {
+        if (taken.has(event.seq)) throw new Error('a sequence number is taken');
+        taken.add(event.seq);
+      }
       held.push(...structuredClone([...batch]));
       runs.set(runId, { ...run, ...patch });
     },
     async update(runId, patch) {
       const run = runs.get(runId);
       if (run === undefined) throw new Error(`no run ${runId}`);
+      if (patch.status !== undefined) assertRunStatusTransition(runId, run.status, patch.status);
       runs.set(runId, { ...run, ...patch });
     },
     async open(projectId) {
@@ -730,4 +736,8 @@ export function summarizeRun(rows: readonly unknown[], revisions: (docId: string
 /** The status a run record takes when its turn ends. A turn the writer cancelled or stopped is finished; one that stopped on a question is failed. */
 export function statusOfTurn(status: TurnStatus): RunStatus {
   return status === 'failed' ? 'failed' : 'finished';
+}
+
+export function outcomeOfTurn(report: Pick<TurnReport, 'status' | 'stop'>): RunOutcome {
+  return report.stop === undefined ? report.status : 'stopped';
 }

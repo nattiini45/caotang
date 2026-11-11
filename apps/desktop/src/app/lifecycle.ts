@@ -71,6 +71,7 @@ import {
   readProjectState,
   readSessions,
   recoverProject,
+  removeDocument,
   serializeManifest,
   writeProject,
   writeSessionsFile,
@@ -1353,7 +1354,7 @@ function applyHeldFiles(state: ProjectState, held: HeldFiles): void {
   for (const node of state.manifest.tree) {
     if (!isBodyType(node.type)) continue;
     if (!bodyNamesOf(node).some((name) => held.declinedDocFiles.includes(name))) continue;
-    state.documents.delete(node.id);
+    removeDocument(state, node.id);
   }
 }
 

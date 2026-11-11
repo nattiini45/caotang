@@ -101,6 +101,8 @@ import {
   createEmptyManifest,
   createProjectCommandRegistry,
   createProjectState,
+  runRestoreSignature,
+  runRestoreRegistrations,
   nodeById,
   validateManifest,
   type ProjectState,
@@ -323,6 +325,7 @@ interface Harness {
 function harness(permission?: BusContext<ProjectState>['permission']): Harness {
   const state = makeState();
   const registry = createProjectCommandRegistry({ clock });
+  Object.assign(registry, runRestoreRegistrations({ read: () => ({ state: structuredClone(state), expected: runRestoreSignature(state) }) }, undefined));
   const notified: ExecutionOutcome[] = [];
   // The dispatcher needs the bus it dispatches into, and the bus needs the undo
   // store that calls it. The closure only reads `bus`, and only at undo time.
@@ -806,6 +809,8 @@ describe('§10 — the permission matrix, over the registry that implements the 
         return { nodeId: FRIEND };
       case 'project.setCalendar':
         return { lens: 'day' };
+      case 'project.restoreRun':
+        return { runId: 'run_GATE' };
       case 'asset.sweep':
         return {};
       // The skill commands (extensibility.md §10) are `never` for an agent and the writer's own. `skill.import` has no apply in this
@@ -858,6 +863,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
       'mcp.readResource',
       'memory.forget',
       'project.deleteNode',
+      'project.restoreRun',
       'project.setCalendar',
       'skill.delete',
       'skill.import',
@@ -906,7 +912,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
       // destructive, the requirement of a dialog.
       expect(result.ok, `${name} must be allowed for a user`).toBe(true);
       if (!result.ok) continue;
-      expect(result.value.grant.requiresUserConfirm).toBe(name === 'project.deleteNode' || name === 'memory.forget');
+      expect(result.value.grant.requiresUserConfirm).toBe(name === 'project.deleteNode' || name === 'project.restoreRun' || name === 'memory.forget');
     }
   });
 });

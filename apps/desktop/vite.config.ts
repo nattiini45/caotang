@@ -28,22 +28,22 @@ function thirdPartyNotices(): Plugin {
 }
 
 /**
- * Gives the German catalogue chunk a URL the runtime can import again with a fresh query. A browser caches a failed module URL
- * for the life of the page, so repeating `import('./locales/de/messages.po')` after a network failure never requests again.
+ * Gives a lazy chunk a URL the runtime can import again with a fresh query. A browser caches a failed module URL
+ * for the life of the page, so repeating the same import after a network failure never requests again.
  * The module is also emitted as an entry, so Rolldown shares one chunk between this URL and the ordinary dynamic import.
  */
-function catalogueChunkUrl(): Plugin {
-  const urlModule = fileURLToPath(new URL('src/i18n/de-catalogue-url.ts', import.meta.url)).replaceAll('\\', '/');
-  const catalogue = fileURLToPath(new URL('src/i18n/locales/de/messages.po', import.meta.url));
+function retryChunkUrl(urlPath: string, sourcePath: string, exportName: string, name: string): Plugin {
+  const urlModule = fileURLToPath(new URL(urlPath, import.meta.url)).replaceAll('\\', '/');
+  const source = fileURLToPath(new URL(sourcePath, import.meta.url));
   return {
-    name: 'caotang-catalogue-chunk-url',
+    name: `caotang-retry-chunk-url-${name}`,
     apply: 'build',
     async transform(_code, id) {
       if (id.replaceAll('\\', '/') !== urlModule) return null;
-      const resolved = await this.resolve(catalogue);
-      if (resolved === null) throw new Error(`The German catalogue ${catalogue} did not resolve.`);
-      const ref = this.emitFile({ type: 'chunk', id: resolved.id, name: 'messages' });
-      return { code: `export const deCatalogueUrl = import.meta.ROLLUP_FILE_URL_${ref};\n`, map: null };
+      const resolved = await this.resolve(source);
+      if (resolved === null) throw new Error(`The retryable module ${source} did not resolve.`);
+      const ref = this.emitFile({ type: 'chunk', id: resolved.id, name });
+      return { code: `export const ${exportName} = import.meta.ROLLUP_FILE_URL_${ref};\n`, map: null };
     },
   };
 }
@@ -119,7 +119,12 @@ export default defineConfig(({ command }) => ({
   // `macroTransform` is Lingui's native transform (no Babel/SWC plugin): it compiles `msg`/`<Trans>` in the
   // app's `.tsx` and turns import of a `.po` file into that locale's compiled message catalogue. The same
   // option is set in vitest.config.ts, so the macro contract is one transform in both pipelines.
-  plugins: [lingui({ macroTransform: true, failOnCompileError: true }), react(), thirdPartyNotices(), catalogueChunkUrl(), devCsp()],
+  plugins: [
+    lingui({ macroTransform: true, failOnCompileError: true }), react(), thirdPartyNotices(),
+    retryChunkUrl('src/i18n/de-catalogue-url.ts', 'src/i18n/locales/de/messages.po', 'deCatalogueUrl', 'messages'),
+    retryChunkUrl('src/app/run-recovery-url.ts', 'src/app/run-recovery.ts', 'runRecoveryUrl', 'run-recovery'),
+    devCsp(),
+  ],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
   server: {
     // Bind the IPv4 loopback explicitly. Vite otherwise binds ::1 (IPv6) only on

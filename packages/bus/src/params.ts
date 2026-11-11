@@ -100,6 +100,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'shot.create': ['id', 'parentId', 'title', 'stored'],
   'shot.setMeta': ['nodeId', 'stored', 'expect'],
   'project.rename': ['title'],
+  'project.restoreRun': ['runId'],
   'project.setMetadata': ['patch'],
   'project.importAsset': ['stagingId', 'target'],
   'vocabulary.upsert': ['kind', 'id', 'name', 'color'],

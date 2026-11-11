@@ -126,6 +126,7 @@ export const FOOTPRINT_CLASS: Readonly<Record<CommandName, 'content' | 'move' | 
   'shot.create': 'global',
   'shot.setMeta': 'global',
   'project.rename': 'global',
+  'project.restoreRun': 'global',
   'project.setMetadata': 'global',
   'project.importAsset': 'global',
   'vocabulary.upsert': 'global',

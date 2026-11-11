@@ -51,6 +51,7 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, MessageDescriptor>> = 
   'coherence.setFindingStatus': msg`Finding status changed`,
   'timeline.apply': msg`Timeline changes applied`,
   'project.setCalendar': msg`Timeline calendar changed`,
+  'project.restoreRun': msg`Project restored to before an agent run`,
   'coherence.discardRun': msg`Check run discarded`,
   'coherence.addKnowledgeFact': msg`Knowledge fact added`,
   'coherence.editKnowledgeFact': msg`Knowledge fact changed`,
