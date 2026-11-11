@@ -3,11 +3,13 @@
  * pure rules that read a turn list and a context preview. The controller runs the command; this file holds what needs no session.
  */
 
-import { BUILTIN_COMMANDS, usageOf, type BuiltinCommand, type ContextPreview, type TurnReport } from '@caotang/harness';
+import { BUILTIN_COMMANDS, usageOf, type BuiltinCommand, type ContextPreview, type RequestContextPreview, type TurnReport } from '@caotang/harness';
 import { formatCount } from '../i18n/locale.js';
 
 /** A result shown under the Intent box until the writer dismisses it or sends the next line. It is view state: never saved, never sent. */
 export interface CommandNote {
+  readonly contextRunning?: boolean;
+  readonly requestContext?: RequestContextPreview;
   readonly argument?: { readonly name: string; readonly line: string; readonly values?: Readonly<Record<string, string>>; readonly promptSelection?: string };
   readonly kind: 'help' | 'ask' | 'context' | 'info';
   readonly title: string;

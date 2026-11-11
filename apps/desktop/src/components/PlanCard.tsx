@@ -25,6 +25,7 @@ import {
   RESOLVE_BADGE,
   refusalSentence,
   type PromptPreview as ContextPreview,
+  type ContextRef,
   type ComicPreview,
   type Decision,
   type TimelineCard,
@@ -52,6 +53,7 @@ import {
 import { formatCount, ModernFold } from './shared.js';
 import { accessibleText } from '../i18n/accessible-text.js';
 import { UserText } from '../i18n/UserText.js';
+import { chooseContext, contextKey } from '../app/context-choices.js';
 
 /* lingui-set comment="Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated." */
 
@@ -147,6 +149,9 @@ export function PlanCard({ card, live, drafts, project, session, transcriptionRo
       </ol>
 
       {caution === undefined ? null : <CautionNotes caution={caution} />}
+      {card.steps.some((step) => (step.contextOverrides?.include?.length ?? 0) + (step.contextOverrides?.exclude?.length ?? 0) > 0)
+        ? <p className="plan-notice"><Trans>Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task.</Trans></p>
+        : null}
       {card.notice !== undefined ? (
         <p className="plan-notice" role="status">
           {card.notice}
@@ -357,7 +362,9 @@ function StepRow({
         </figure>
       ) : null}
 
-      {step.context !== undefined ? <PromptPreview context={step.context} /> : null}
+      {step.context !== undefined ? <PromptPreview context={step.context} pinned={step.contextOverrides?.include}
+        onExclude={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'exclude') }])}
+        onRestore={!live ? undefined : (ref) => onEdit([{ op: 'context', index: step.index, overrides: chooseContext(step.contextOverrides ?? {}, ref, 'remove') }])} /> : null}
     </li>
   );
 }
@@ -1045,19 +1052,33 @@ function useFollowed(value: string): [string, (next: string) => void] {
 }
 
 /** The prompt behind a step (context-assembly §5): each layer against its budget, the codex entries and why, the focus excerpt. */
-export function PromptPreview({ context }: { context: ContextPreview }): ReactNode {
+export function PromptPreview({ context, summary, children, pinned = [], onExclude, onRestore }: {
+  context: ContextPreview;
+  summary?: ReactNode;
+  children?: ReactNode;
+  pinned?: readonly ContextRef[];
+  onExclude?: (ref: ContextRef) => void;
+  onRestore?: (ref: ContextRef) => void;
+}): ReactNode {
   useLingui();
   const promptTokens = context.promptTokens;
   const completionTokens = context.completionTokens;
   const focusSummary = context.focus?.summary ?? '';
   // Shown only when the profile has a price (provider-gateway §6); an unpriced profile shows the tokens and nothing else.
   const cost = costLineOf(context.cost);
+  const pinnedKeys = new Set(pinned.map(contextKey));
+  const items = [...new Map(context.layers.flatMap((layer) => (layer.kept ?? []).filter((item) => item.ref !== undefined &&
+    (layer.id === 'L2' || layer.id === 'L4' || (layer.id === 'L5' && (pinnedKeys.has(contextKey(item.ref)) || item.reason === 'pinned by the writer for this request'))))
+    .map((item) => [contextKey(item.ref!), item] as const))).values()];
+  const excluded = [...new Map(context.layers.flatMap((layer) => layer.drops.filter((drop) => drop.reason.kind === 'writer-excluded' && drop.ref !== undefined)
+    .map((drop) => [contextKey(drop.ref!), drop] as const))).values()];
   return (
     <details className="context-preview">
       <summary>
-        <Trans>Prompt for this step: about {promptTokens} tokens in, {completionTokens} out</Trans>
+        {summary ?? <Trans>Prompt for this step: about {promptTokens} tokens in, {completionTokens} out</Trans>}
       </summary>
       {cost !== undefined ? <p className="context-cost">{cost}</p> : null}
+      {children}
       <ul className="context-layers" aria-label={t`Layers`}>
         {context.layers.map((layer, index) => {
           const budget = layer.budget ?? 0;
@@ -1066,7 +1087,7 @@ export function PromptPreview({ context }: { context: ContextPreview }): ReactNo
           return (
             <li key={`${layer.id}:${index}`}>
               <span className="context-layer-name">
-                {layer.id} {layer.name}
+                {layer.id} {layer.name}{summary === undefined ? '' : ':'}
               </span>
               <span className="context-bar" aria-hidden="true">
                 <span style={{ width: `${share}%` }} />
@@ -1080,7 +1101,13 @@ export function PromptPreview({ context }: { context: ContextPreview }): ReactNo
           );
         })}
       </ul>
-      {context.codex.included.length > 0 ? (
+      {items.length > 0 ? <ul className="context-reasons" aria-label={t`Included context`}>
+        {items.map((item) => <li key={contextKey(item.ref!)}>
+          <strong><UserText value={item.label} /></strong>: {item.reason === 'pinned by the writer for this request' ? t`Pinned for this request` : item.reason}
+          {onExclude === undefined ? null : <button type="button" className="button is-quiet" onClick={() => onExclude(item.ref!)}
+            aria-label={t`Leave out ${{ name: isolate(item.label) }} for this request (${{ id: item.ref!.id }})`}><Trans>Leave out</Trans></button>}
+        </li>)}
+      </ul> : context.codex.included.length > 0 ? (
         <ul className="context-reasons" aria-label={t`Codex included`}>
           {context.codex.included.map((entry, index) => (
             <li key={`${entry.name}:${index}`}>
@@ -1089,6 +1116,13 @@ export function PromptPreview({ context }: { context: ContextPreview }): ReactNo
           ))}
         </ul>
       ) : null}
+      {excluded.length === 0 ? null : <ul className="context-reasons" aria-label={t`Excluded context`}>
+        {excluded.map((item) => <li key={contextKey(item.ref!)}>
+          <UserText value={item.label} />: <Trans>Excluded for this request</Trans>
+          {onRestore === undefined ? null : <button type="button" className="button is-quiet" onClick={() => onRestore(item.ref!)}
+            aria-label={t`Clear leave-out for ${{ name: isolate(item.label) }} (${{ id: item.ref!.id }})`}><Trans>Clear leave-out</Trans></button>}
+        </li>)}
+      </ul>}
       {leftOut(context).length > 0 ? (
         <ul className="context-dropped" aria-label={t`Left out`}>
           {leftOut(context).map((reason, index) => (
@@ -1107,11 +1141,10 @@ export function PromptPreview({ context }: { context: ContextPreview }): ReactNo
 
 /** What the assembly left out, in words: codex entries with their reason, then each layer's own cut notes. */
 function leftOut(context: ContextPreview): string[] {
+  const codex = context.layers.filter((layer) => layer.id === 'L2').flatMap((layer) => layer.drops.map((drop) => `${drop.label}: ${drop.text}`));
   return [
-    ...context.codex.dropped.map((entry) => `${entry.name}: ${entry.reason}`),
+    ...(codex.length > 0 ? codex : context.codex.dropped.map((entry) => `${entry.name}: ${entry.reason}`)),
     ...context.layers.flatMap((layer) => layer.notes.map((note) => `${layer.name}: ${note}`)),
-    // A read rule keeps these from the agent (agent-harness §4): each is named here, to the writer only, so a draft that is thinner than
-    // expected can be traced to the rule.
-    ...context.layers.flatMap((layer) => layer.drops.filter((drop) => drop.reason.kind === 'withheld').map((drop) => `${drop.label}: ${drop.text}`)),
+    ...context.layers.filter((layer) => layer.id !== 'L2').flatMap((layer) => layer.drops.map((drop) => `${drop.label}: ${drop.text}`)),
   ];
 }

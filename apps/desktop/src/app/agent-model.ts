@@ -13,6 +13,7 @@ import {
   type AgentEvent,
   type AskBack,
   type BudgetSpend,
+  type RequestContextPreview,
   type PreviewLayer,
   type Finding,
   type NameOf,
@@ -64,6 +65,7 @@ export interface ContextView {
 }
 
 export interface TurnRecord {
+  readonly requestContext?: RequestContextPreview;
   readonly turnId: string;
   readonly intent: string;
   /** The slash command that started the turn (`draft`), or `null`. It is known when the turn starts; the report names it too. */
@@ -170,6 +172,8 @@ function reduceView(turn: TurnRecord, event: AgentEvent): TurnRecord {
       return { ...turn, reasoning: `${turn.reasoning}${event.delta}` };
     case 'context':
       return { ...turn, context: { layers: event.layers, dropped: event.dropped } };
+    case 'context-meter':
+      return { ...turn, requestContext: { preview: event.preview, meter: event.meter } };
     case 'steer':
       return { ...turn, steering: [...turn.steering, event.note] };
     case 'budget':
@@ -202,7 +206,7 @@ function reduceView(turn: TurnRecord, event: AgentEvent): TurnRecord {
         checkpoint: { undoGroupId: event.undoGroupId, label: event.label, mode: event.mode, ...(event.note === undefined ? {} : { note: event.note }) },
       };
     case 'report':
-      return { ...turn, report: event.report, mode: event.report.mode, ghost: null, plan: turn.plan, streamed: '' };
+      return { ...turn, requestContext: undefined, report: event.report, mode: event.report.mode, ghost: null, plan: turn.plan, streamed: '' };
     default:
       return turn;
   }

@@ -3069,6 +3069,7 @@ label.settings-check {
 .command-description {
   flex-basis: 100%;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 /* What the last slash command said under the box. */
@@ -3726,6 +3727,54 @@ label.settings-check {
   cursor: pointer;
 }
 
+.composer-context {
+  min-inline-size: 0;
+  margin-block: var(--space-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+  margin-block: var(--space-2);
+}
+
+.context-chips .button {
+  max-inline-size: 100%;
+  white-space: normal;
+  text-align: start;
+}
+
+.context-hint,
+.context-meter-line,
+.context-reserve {
+  margin-block: var(--space-2);
+}
+
+.context-scope { margin-block: var(--space-1); }
+.context-scope summary { cursor: pointer; }
+
+.request-context > .context-preview {
+  margin-block-start: var(--space-2);
+  max-block-size: min(40dvh, 24rem);
+  overflow: auto;
+}
+
+.request-context.is-near .context-meter-line { color: var(--warn); }
+.request-context.is-over .context-meter-line { color: var(--danger); }
+.request-context.is-near > .context-bar > span { background: var(--warn); }
+.request-context.is-over > .context-bar > span { background: var(--danger); }
+
+.context-reasons .button {
+  margin-inline-start: var(--space-2);
+  margin-block: var(--space-1);
+  white-space: normal;
+}
+
 .context-layers {
   list-style: none;
   margin: var(--space-3) 0;
@@ -3759,6 +3808,12 @@ label.settings-check {
 .context-dropped {
   margin: var(--space-2) 0;
   padding-inline-start: 18px;
+}
+
+@media (max-width: 600px) {
+  .context-layers li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .context-layers .context-bar { grid-column: 1 / -1; grid-row: 2; }
+  .context-layer-count { text-align: end; overflow-wrap: anywhere; }
 }
 
 .askback {
