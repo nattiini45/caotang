@@ -32,6 +32,7 @@ for (const shell of ['classic', 'modern']) {
     await expect(page.locator('.home > :first-child')).toHaveClass('home-head');
     await expect(page.locator('.home > :nth-child(2)')).toHaveAttribute('aria-labelledby', 'home-projects');
     const snapshot = await page.locator('.home').ariaSnapshot();
+    expect(snapshot).toContain('heading "Caotang" [level=1]');
     expect(snapshot.indexOf('Caotang')).toBeLessThan(snapshot.indexOf('Projects in this browser'));
     expect(snapshot.indexOf('Projects in this browser')).toBeLessThan(snapshot.indexOf('Try the agent with no key'));
     expect(snapshot.indexOf('Projects in this browser')).toBeLessThan(snapshot.indexOf('New project'));
