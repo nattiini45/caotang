@@ -572,6 +572,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       // "Could not reach the host, check your connection" would be false for that route and send the writer to the wrong setting.
       if (error instanceof ProviderError && error.rejected && preset?.cors === 'ok') {
         throw new ProviderError('network', providerMessages.modelListUnreadable(hostOf(profile.baseUrl)), {
+          reason: 'model-list-unreadable',
           ...(error.detail === undefined ? {} : { detail: error.detail }),
           rejected: true,
         });

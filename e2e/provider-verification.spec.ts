@@ -12,6 +12,10 @@ for (const shell of ['classic', 'modern'] as const) {
       await expect(row.getByRole('status')).toHaveText(locale === 'de' ? 'Dieses Profil wird geprüft…' : 'Checking this profile…');
       release();
       await expect(row).toHaveAttribute('data-state', 'failed');
+      const notice = settings.locator('[aria-labelledby="settings-providers"] .form-message');
+      await expect(notice).toContainText(locale === 'de' ? 'ist gespeichert, aber nicht verifiziert: Der Anbieter hat den Schlüssel abgelehnt.' : 'is saved but not verified: The provider rejected the key.');
+      await expect(notice).toContainText(locale === 'de' ? 'Antwort des Anbieters:' : 'Provider reply:');
+      await expect(notice).toContainText('The API key was rejected.');
       await expect(row.getByText(locale === 'de' ? 'Bearbeiten und speichern Sie dieses Profil, um es erneut zu prüfen.' : 'Edit and save this profile to check it again.')).toBeVisible();
       await reopen();
       await expect(row).toHaveAttribute('data-state', 'failed');

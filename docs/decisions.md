@@ -1,5 +1,7 @@
 # Decisions
 
+- [delegated 2026-11-11] Captain Patrick's A5 render review: use one complete English/German saved-but-unverified sentence per cause, including rejected key, missing model list, unreachable provider and timeout; show the provider's own text separately as **Provider reply:** / **Antwort des Anbieters:**. Do not glue save templates together, localize arbitrary provider text, or send a writer already in Settings back to Settings. Existing gateway messages and retry behavior stay compatible; typed cause/reply metadata is additive.
+
 - [owner 2026-11-09] A5's persistent profile mark follows Caspar's answer 5, "Approve all": Settings keeps **Not verified** for unknown or failed verification after reload, with English and German copy. Active selection and response-format capability do not imply verification.
 - [delegated 2026-11-11] State-machines A5: "probe a profile without making it active (pass the profile id to listModels and the probe)". Only the current attempt settles additive model-list verification; old or interrupted records read as unknown, and no error payload enters the field. Configuration changes invalidate the result; format failure keeps the existing prompt fallback. Why: following turns and overlapping probes cannot change the writer's chosen provider (#594).
 

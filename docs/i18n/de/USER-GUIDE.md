@@ -532,9 +532,11 @@ Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen be
 - **Zurück zu Klassisch.** **Klassische Oberfläche verwenden** unter **⋯ › Darstellung**, **Zur klassischen Oberfläche wechseln** in der Suche oder **Klassisch** unter Einstellungen › Erscheinungsbild › Oberfläche wechselt sofort zurück, und Caotang merkt sich die Wahl in diesem Browser. Der Code von Modern wird nur geladen, solange Modern an ist; Klassisch lädt nichts zusätzlich.
 
 ## Einstellungen
-<!-- source: e8afd9db -->
+<!-- source: bade9b1c -->
 
 Das Prüfen oder Speichern eines Anbieters wechselt niemals das aktive Profil. **Nicht verifiziert** neben einem Profil bedeutet, dass seine Modellliste noch nicht erfolgreich geprüft wurde oder für das ältere Profil kein Ergebnis vorliegt. Die Markierung bleibt nach dem Neuladen erhalten; während der Prüfung steht **Dieses Profil wird geprüft…** daneben. Schlägt die Prüfung fehl, bearbeiten und speichern Sie das Profil erneut. Eine erfolgreiche Modellliste garantiert nicht, dass Chat funktioniert, und **Strukturierte Ausgabe akzeptiert** beschreibt eine Fähigkeit, nicht die Erreichbarkeit.
+
+Eine fehlgeschlagene Prüfung nennt ihren Grund, etwa einen abgelehnten Schlüssel oder eine Zeitüberschreitung. Eine **Antwort des Anbieters:** wird getrennt in der Sprache des Anbieters angezeigt, statt in Caotangs Erklärung eingefügt zu werden.
 
 Die Nutzungsdaten der Anbieter bleiben lokal in diesem Browser erhalten, einschließlich Tages- und Durchlaufdetails über ein Neuladen hinweg. Wenn Sie die Browserdaten der App löschen, wird auch dieser Verlauf gelöscht; er gehört nicht zum Projektpaket. Aufgezeichnete Aufrufkosten ändern sich nicht, wenn Sie einen Anbieterpreis bearbeiten. Es sind Schätzwerte zur Information, nicht die Rechnung des Anbieters.
 

@@ -12,6 +12,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await expect(row).toHaveAttribute('data-state', 'failed');
       await expect(panel).toHaveAttribute('data-panel-state', 'idle');
       await expect(row).toHaveScreenshot(`${shell}-provider-failed-de-${width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
+      await expect(panel.locator('.form-message')).toHaveScreenshot(`${shell}-provider-failure-message-de-${width}.png`, { animations: 'disabled', caret: 'hide', maxDiffPixels: 0 });
     });
   }
 }

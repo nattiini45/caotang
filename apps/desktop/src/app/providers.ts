@@ -55,6 +55,7 @@ import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
+import { probeFailureOf, type ProbeFailure } from './provider-probe.js';
 
 /* lingui-set comment="Interpolated values: error, name" */
 
@@ -90,6 +91,7 @@ export interface SaveOutcome {
   readonly models?: ModelInfo[];
   /** Why the probe did not answer, in words the writer can act on. The profile is saved either way. */
   readonly probeError?: string;
+  readonly probeFailure?: ProbeFailure;
 }
 
 /**
@@ -433,12 +435,13 @@ export class ProviderService {
    */
   async addProfile(input: NewProfile): Promise<SaveOutcome> {
     const view = await this.profiles.create(input);
-    const probe = view.kind === 'endpoint' ? await this.probeModels(view.id, true) : { models: undefined, error: undefined };
+    const probe = view.kind === 'endpoint' ? await this.probeModels(view.id, true) : { models: undefined, error: undefined, failure: undefined };
     await this.persist();
     return {
       view: this.profiles.get(view.id) ?? view,
       ...(probe.models === undefined ? {} : { models: probe.models }),
       ...(probe.error === undefined ? {} : { probeError: probe.error }),
+      ...(probe.failure === undefined ? {} : { probeFailure: probe.failure }),
     };
   }
 
@@ -449,12 +452,13 @@ export class ProviderService {
     const probe =
       view.kind === 'endpoint' && before !== undefined && (before.verification?.kind !== 'verified' || before.baseUrl !== view.baseUrl || patch.apiKey !== undefined || patch.customHeaders !== undefined || before.defaultModel !== view.defaultModel)
         ? await this.probeModels(id, true)
-        : { models: undefined, error: undefined };
+        : { models: undefined, error: undefined, failure: undefined };
     await this.persist();
     return {
       view: this.profiles.get(id) ?? view,
       ...(probe.models === undefined ? {} : { models: probe.models }),
       ...(probe.error === undefined ? {} : { probeError: probe.error }),
+      ...(probe.failure === undefined ? {} : { probeFailure: probe.failure }),
     };
   }
 
@@ -518,7 +522,7 @@ export class ProviderService {
   /**
    * Checks the named profile without selecting it. Only the current attempt can settle its verification state.
    */
-  private async probeModels(id: string, checkFormat = false): Promise<{ models?: ModelInfo[]; error?: string }> {
+  private async probeModels(id: string, checkFormat = false): Promise<{ models?: ModelInfo[]; error?: string; failure?: ProbeFailure }> {
     const attempt = ++this.verificationAttempt;
     this.verification(id, { type: 'check', attempt });
     try {
@@ -530,7 +534,7 @@ export class ProviderService {
     } catch (error) {
       this.verification(id, { type: 'failed', attempt, checkedAt: this.clock.now() });
       const reason = messageOf(error);
-      return { error: t`The endpoint did not list its models, so the profile was saved but is not verified: ${{ error: reason }}` };
+      return { error: t`The endpoint did not list its models, so the profile was saved but is not verified: ${{ error: reason }}`, failure: probeFailureOf(error) };
     }
   }
 }

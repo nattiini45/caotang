@@ -121,6 +121,7 @@ describe('verification metadata', () => {
     const { service } = await ProviderService.open({ db, vault: null, clock, fetch: async () => new Response('no access', { status: 401 }) });
     const saved = await service.addProfile(endpoint);
     expect(saved.probeError).toBeDefined();
+    expect(saved.probeFailure).toEqual({ cause: 'auth', providerReply: 'no access' });
     expect(saved.view.verification).toEqual({ kind: 'failed', checkedAt: clock.now() });
     const reopened = await ProviderService.open({ db, vault: null });
     expect(reopened.service.get(saved.view.id)?.verification).toEqual(saved.view.verification);

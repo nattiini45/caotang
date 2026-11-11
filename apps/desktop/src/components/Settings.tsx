@@ -69,6 +69,7 @@ import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { formatCount, useComposingEnter } from './shared.js';
 import { Modal, useModalDialog } from './modal.js';
 import { UsagePanel } from './UsagePanel.js';
+import { probeFailureMessage } from './provider-probe-message.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -80,11 +81,18 @@ function originOf(address: string): string {
 }
 
 /** A message beside a form: inline, next to what it is about, and never a toast alone. */
-function FormMessage({ message }: { message: { readonly text: string; readonly tone: 'info' | 'error' } | null }): ReactNode {
+interface FormFeedback {
+  readonly text: string;
+  readonly tone: 'info' | 'error';
+  readonly detail?: { readonly label: string; readonly text: string };
+}
+
+function FormMessage({ message }: { message: FormFeedback | null }): ReactNode {
   if (message === null) return null;
   return (
     <p className={`form-message is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
       {message.text}
+      {message.detail === undefined ? null : <><br /><strong>{message.detail.label}</strong> <bdi>{message.detail.text}</bdi></>}
     </p>
   );
 }
@@ -345,7 +353,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   useEffect(() => providers.subscribeVerification(refresh), [providers]);
   const [form, setForm] = useState<FormState | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
+  const [message, setMessage] = useState<FormFeedback | null>(null);
   // The last save's model catalogue — `preset` and `baseUrl` resolve whether it is the endpoint's live answer or the
   // registry's table (a first-party host's own preset wins over the profile's, the pin `resolveRoute` applies).
   const [models, setModels] = useState<{ profile: string; preset?: string; baseUrl?: string; list: ModelInfo[] } | null>(null);
@@ -456,7 +464,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 text: t`Saved “${{ profile: isolate(outcome.view.name) }}”. Use this profile to make it the one the agent calls.`,
                 tone: 'info',
               }
-            : { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”, but ${{ problem: outcome.probeError }}`, tone: 'error' },
+            : { ...probeFailureMessage(outcome.view.name, outcome.probeFailure), tone: 'error' },
         );
         return;
       }
@@ -482,7 +490,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       setMessage(
         outcome.probeError === undefined
           ? { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”.`, tone: 'info' }
-          : { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”, but ${{ problem: outcome.probeError }}`, tone: 'error' },
+          : { ...probeFailureMessage(outcome.view.name, outcome.probeFailure), tone: 'error' },
       );
     });
   };

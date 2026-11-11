@@ -12,7 +12,7 @@ export async function openVerification(page: Page, locale: 'en' | 'de', shell: '
     await held;
     await route.fulfill(passing
       ? { json: { data: [{ id: 'writing-model' }] } }
-      : { status: 401, json: { error: { message: 'The model list could not be read.' } } });
+      : { status: 401, json: { error: { message: 'The API key was rejected.' } } });
   });
   await page.addInitScript((chosen) => { localStorage.setItem('caotang.interface', chosen); }, shell);
   await page.goto('/');

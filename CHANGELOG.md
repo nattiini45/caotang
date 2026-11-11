@@ -29,7 +29,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
-- **Provider checks keep your choice.** Saving or checking another provider no longer switches the active profile, even briefly or when checks overlap. Settings keeps **Not verified** after a failed check or a reload, shows which profile is being checked, and names how to retry. Older profiles start with an unknown check result (#594).
+- **Provider checks keep your choice.** Saving or checking another provider no longer switches the active profile, even briefly or when checks overlap. Settings keeps **Not verified** after a failed check or a reload, shows which profile is being checked, and names how to retry. Failure messages identify the cause once in English or German, with the provider's own reply labelled separately. Older profiles start with an unknown check result (#594).
 
 - **Context leaves room for the conversation.** Expanded request previews scroll within their own block; Modern retains visible turn content. Completion identifies documents by their folder path and codex entries by type, not storage IDs. Rewind stays on one line, and its opened actions and consequences wrap inside the turn header (#576).
 - Leaving a document out removes its optional synopsis from both structure and story context, rather than letting an L3 copy bypass the L4 exclusion.
