@@ -4,6 +4,7 @@ import { binderTitle, idOf, projectTrace, loose, waitForSaved } from './support.
 
 const intent = (page: Page) => page.getByRole('combobox', { name: 'Intent' });
 const choices = (page: Page) => page.getByRole('listbox', { name: 'Context to include' });
+const popup = (page: Page) => page.getByTestId('command-menu');
 const pins = (page: Page) => page.getByRole('list', { name: 'Context choices for the next request' });
 
 async function sample(page: Page, seen: FakeRequest[] = [], windowTokens?: number): Promise<void> {
@@ -37,7 +38,7 @@ test('the shared combobox pins readable context by keyboard, caps document pins 
   await expect(lastCommand).toBeInViewport();
   await intent(page).fill('Consider @');
   await expect(choices(page)).toBeVisible();
-  const menuBox = await choices(page).boundingBox();
+  const menuBox = await popup(page).boundingBox();
   expect(menuBox).not.toBeNull();
   expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
   await page.screenshot({ path: testInfo.outputPath('context-menu-classic.png') });
@@ -52,7 +53,7 @@ test('the shared combobox pins readable context by keyboard, caps document pins 
   await expect(page.locator('.composer-context')).toContainText('Foreground only');
   await intent(page).fill('Consider @Landing');
   await expect(choices(page).getByRole('option')).toHaveCount(0);
-  await expect(choices(page)).toContainText('Three documents are pinned.');
+  await expect(popup(page)).toContainText('Three documents are pinned.');
   await intent(page).press('Enter');
   await expect(intent(page)).toHaveValue('Consider @Landing');
   expect(seen).toHaveLength(0);
@@ -87,8 +88,8 @@ test('context completion ignores emails and composing text and does not offer re
   await page.getByRole('menu', { name: 'Actions for Chapter 1' }).getByRole('menuitemradio', { name: 'Agent: may not read' }).click();
   await intent(page).fill('Consider @Land');
   await expect(choices(page).getByRole('option')).toHaveCount(0);
-  await expect(choices(page)).toContainText('No readable context matches.');
-  await expect(choices(page)).not.toContainText('The Landing');
+  await expect(popup(page)).toContainText('No readable context matches.');
+  await expect(popup(page)).not.toContainText('The Landing');
 });
 
 test('context completion uses the binder fold but removes the raw trailing query', async ({ page }) => {
@@ -220,12 +221,12 @@ test('context completion explains truncated and empty matches without sending an
   }
   await intent(page).fill('Consider @');
   await expect(choices(page).getByRole('option')).toHaveCount(8);
-  await expect(choices(page)).toContainText('Showing 8 of 10 matches. Type more to narrow the list.');
-  await expect(choices(page)).not.toContainText('The Storm');
+  await expect(popup(page)).toContainText('Showing 8 of 10 matches. Type more to narrow the list.');
+  await expect(popup(page)).not.toContainText('The Storm');
   await pin(page, 'Storm');
   await intent(page).fill('Keep literal @not-a-title');
   await expect(choices(page).getByRole('option')).toHaveCount(0);
-  await expect(choices(page)).toContainText('No readable context matches.');
+  await expect(popup(page)).toContainText('No readable context matches.');
   await intent(page).press('Enter');
   await expect(intent(page)).toHaveValue('Keep literal @not-a-title');
   await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
@@ -259,7 +260,7 @@ for (const change of ['delete', 'deny'] as const) {
     await expect(unavailable).not.toContainText('The Landing');
     await intent(page).fill('Consider @Fourth');
     await expect(choices(page).getByRole('option')).toHaveCount(0);
-    await expect(choices(page)).toContainText('Three documents are pinned.');
+    await expect(popup(page)).toContainText('Three documents are pinned.');
     await unavailable.click();
     await expect(intent(page)).toBeFocused();
     await expect(choices(page).getByRole('option')).toHaveCount(1);

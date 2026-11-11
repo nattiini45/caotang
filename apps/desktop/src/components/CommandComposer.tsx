@@ -47,7 +47,7 @@ interface Completion {
 
 export function CommandComposer({ value, onChange, onRun, placeholder, disabled, inputRef, commands = [], contextChoices = [], documentPinLimitReached = false, onPin }: CommandComposerProps): ReactNode {
   const listId = useId();
-  const menu = useRef<HTMLUListElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const [composing, setComposing] = useState(false);
   // Escape closes the list for the text it was pressed on; the next keystroke opens it again.
   const [closedFor, setClosedFor] = useState<string | null>(null);
@@ -90,11 +90,12 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
     };
   }, [visible, value, inputRef]);
   useLayoutEffect(() => {
-    const list = menu.current;
+    const list = menu.current?.querySelector<HTMLElement>('[role="listbox"]');
     const picked = list?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!visible || list === null || picked === undefined || picked === null) return;
-    if (picked.offsetTop < list.scrollTop) list.scrollTop = picked.offsetTop;
-    else if (picked.offsetTop + picked.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = picked.offsetTop + picked.offsetHeight - list.clientHeight;
+    if (!visible || list === undefined || list === null || picked === undefined || picked === null) return;
+    const top = picked.offsetTop - list.offsetTop;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (top + picked.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = top + picked.offsetHeight - list.clientHeight;
   }, [visible, activeKey]);
 
   const complete = (choice: Completion): void => {
@@ -157,7 +158,7 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
   const commandCount = matches.length;
   const shown = formatCount(matches.length);
   const total = formatCount(contextMatches.length);
-  const menuProps = { ref: menu, popover: 'manual' as const, id: listId, role: 'listbox', className: 'command-menu', 'data-testid': 'command-menu' };
+  const menuProps = { id: listId, role: 'listbox' };
   const options = <>
     {matches.map((choice) => (
       // Mouse down must not take the focus from the box; the click completes the command.
@@ -183,14 +184,6 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
       </li>
     ))}
 
-      {needle === undefined ? null : <li role="presentation" className="command-guidance">
-        <div role="status">
-          {matches.length === 0 ? <p><Trans>No readable context matches. Refine the name, or press Escape to keep this as text.</Trans></p> : null}
-          {documentPinLimitReached ? <p><Trans>Three documents are pinned. Remove a document pin to choose another document.</Trans></p> : null}
-          {contextMatches.length > matches.length ? <p><Trans>Showing {shown} of {total} matches. Type more to narrow the list.</Trans></p> : null}
-        </div>
-        {matches.length === 0 ? null : <p><Trans>Up and Down choose. Enter or Tab pins. Escape keeps the text.</Trans></p>}
-      </li>}
   </>;
   return (
     <div className="command-composer">
@@ -201,8 +194,8 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
         aria-label={t`Intent`}
         aria-autocomplete="list"
         aria-describedby={onPin === undefined ? undefined : listId + '-cue'}
-        aria-expanded={visible}
-        aria-controls={visible ? listId : undefined}
+        aria-expanded={visible && matches.length > 0}
+        aria-controls={visible && matches.length > 0 ? listId : undefined}
         aria-activedescendant={visible && active !== undefined ? optionId(active) : undefined}
         placeholder={placeholder}
         value={value}
@@ -220,9 +213,17 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
       />
       {onPin === undefined ? null : <small id={listId + '-cue'} className="muted context-cue"><Trans>Type @ to pin context. Up to three documents.</Trans></small>}
       {visible ? (
-        <>
-          {needle === undefined ? <ul {...menuProps} aria-label={t`Commands`}>{options}</ul> : <ul {...menuProps} aria-label={t`Context to include`}>{options}</ul>}
-        </>
+        <div ref={menu} popover="manual" className="command-menu" data-testid="command-menu">
+          {matches.length === 0 ? null : needle === undefined ? <ul {...menuProps} aria-label={t`Commands`}>{options}</ul> : <ul {...menuProps} aria-label={t`Context to include`}>{options}</ul>}
+          {needle === undefined ? null : <div className="command-guidance">
+            <div role="status">
+              {matches.length === 0 ? <p><Trans>No readable context matches. Refine the name, or press Escape to keep this as text.</Trans></p> : null}
+              {documentPinLimitReached ? <p><Trans>Three documents are pinned. Remove a document pin to choose another document.</Trans></p> : null}
+              {contextMatches.length > matches.length ? <p><Trans>Showing {shown} of {total} matches. Type more to narrow the list.</Trans></p> : null}
+            </div>
+            {matches.length === 0 ? null : <p><Trans>Up and Down choose. Enter or Tab pins. Escape keeps the text.</Trans></p>}
+          </div>}
+        </div>
       ) : null}
       {/* The count is announced when the list opens or narrows; the region is always there so a screen reader hears the change. */}
       <span className="visually-hidden" role="status">
