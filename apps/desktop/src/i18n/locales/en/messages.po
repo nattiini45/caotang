@@ -16817,6 +16817,11 @@ msgstr "The project changed after you opened the confirmation. Nothing was resto
 msgid "The project changed while its restore point was being saved. Try the request again."
 msgstr "The project changed while its restore point was being saved. Try the request again."
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project changed while restoring. Your newer changes were kept. Review the restore again."
+msgstr "The project changed while restoring. Your newer changes were kept. Review the restore again."
+
 #: apps/desktop/src/app/run-recovery.ts
 msgid "The project changed. Review the restore again."
 msgstr "The project changed. Review the restore again."

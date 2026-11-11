@@ -195,7 +195,7 @@ describe('Modern: the lazy chunk, the stylesheets and Modern first load (modern-
   it('pins the owner-approved ceilings: all JS 8,000,000 bytes, the entry chunk 1,250,000 and the first load 1,041,000 gzip', () => {
     expect(BUDGET.totalJs).toBe(8_000_000);
     expect(BUDGET.allow.index).toBe(1_250_000);
-    expect(BUDGET.initialGzip).toBe(1_056_000);
+    expect(BUDGET.initialGzip).toBe(1_041_000);
   });
 });
 

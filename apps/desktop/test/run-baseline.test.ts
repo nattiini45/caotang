@@ -5,7 +5,8 @@ import { captureRunBaseline, validateRunBaseline } from '../src/app/run-baseline
 import { sampleProjectState } from '../src/app/demo.js';
 import { ProjectSession } from '../src/app/session.js';
 import { shadowOf } from '../src/app/persistence-plan.js';
-import { attachCoherence } from '../src/app/coherence-io.js';
+import { attachCoherence, legacyCoherenceKey } from '../src/app/coherence-io.js';
+import { setActiveAppDb, type AppDb } from '../src/app/app-db.js';
 
 const sessions: ProjectSession[] = [];
 beforeEach(() => {
@@ -13,6 +14,7 @@ beforeEach(() => {
   vi.stubGlobal('window', new EventTarget());
 });
 afterEach(async () => {
+  setActiveAppDb(null);
   vi.restoreAllMocks();
   for (const session of sessions.splice(0)) await session.close();
   vi.unstubAllGlobals();
@@ -313,4 +315,58 @@ it('reports an initial save failure before taking any restore group back', async
   expect(await session.restoreBefore(target)).toMatchObject({ ok: false, undone: [], message: expect.stringContaining('nothing was restored') });
   expect(session.state.documents.get(doc.id)?.body).toBe('A change to keep.');
   expect(session.undo.group(target)).toBeDefined();
+});
+
+it.each([false, true])('preserves an edit made while checkpoint restoration saves (same group: %s)', async (sameGroup) => {
+  const { session, doc } = await fixture();
+  session.dispatch('doc.write', { docId: doc.id, body: 'First change.' });
+  const target = session.undo.groups().at(-1)!;
+  session.dispatch('doc.write', { docId: doc.id, body: 'Second change.' });
+  const later = session.newestUndoGroupId()!;
+  await session.saved();
+  const saved = session.saved.bind(session);
+  vi.spyOn(session, 'saved').mockImplementationOnce(saved).mockImplementationOnce(async () => {
+    session.dispatch('doc.write', { docId: doc.id, body: 'New work during restore.' });
+    if (sameGroup) {
+      const added = session.undo.groups().at(-1)!;
+      for (const entry of added.entries) session.undo.register({ id: target.id, kind: target.kind, at: target.at, replay: false }, entry);
+      session.undo.forget(added.id);
+    }
+    await saved();
+  });
+  expect(await session.restoreBefore(target.id)).toMatchObject({ ok: false, undone: [later] });
+  expect(session.state.documents.get(doc.id)?.body).toBe('New work during restore.');
+  expect(session.undo.group(target.id)).toBeDefined();
+});
+
+it.each([false, true])('guards legacy findings against the runtime store rather than the loaded fallback (newer runtime: %s)', async (newerRuntime) => {
+  const { session, store, run, doc } = await fixture();
+  await session.saved();
+  const legacy = { ...emptyCoherenceFile(), sceneMeta: { [doc.id]: { dayOffset: 5 } } };
+  const text = serializeCoherenceFile(legacy);
+  setActiveAppDb({
+    get: async <T,>(key: string): Promise<T | undefined> => key === legacyCoherenceKey(session.projectId) ? { 'coherence.json': text } as T : undefined,
+    put: async () => {},
+    close: () => {},
+  } as AppDb);
+  await attachCoherence(session, store);
+  expect(session.coherenceFile()?.sceneMeta[doc.id]?.dayOffset).toBe(5);
+  await session.captureRunBaseline(run.runId);
+  session.dispatch('doc.write', { docId: doc.id, body: 'Words after loading legacy findings.' });
+  const expected = await session.prepareRunRestore(run.runId);
+  expect((await readCoherenceFiles(store, session.projectId))['coherence.json']).toBeUndefined();
+  const newer = serializeCoherenceFile({ ...legacy, sceneMeta: { [doc.id]: { dayOffset: 10 } } });
+  if (newerRuntime) await writeCoherenceFiles(store, session.projectId, { 'coherence.json': newer });
+  const outcome = await session.restoreRun(run.runId, expected);
+  expect(outcome.ok).toBe(!newerRuntime);
+  if (newerRuntime) {
+    expect(session.saveState()).toBe('conflict');
+    expect((await readCoherenceFiles(store, session.projectId))['coherence.json']).toBe(newer);
+    expect(session.state.documents.get(doc.id)?.body).toBe('Words after loading legacy findings.');
+  } else {
+    expect(session.saveState()).toBe('saved');
+    expect(session.runRestoreCoherenceText(null)).toBe((await readCoherenceFiles(store, session.projectId))['coherence.json']);
+    expect(session.coherenceFile()?.sceneMeta[doc.id]?.dayOffset).toBe(5);
+    expect(await session.undoGroup(session.newestUndoGroupId()!)).toEqual({ kind: 'done' });
+  }
 });

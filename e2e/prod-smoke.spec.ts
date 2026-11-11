@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 import { NO_PIN } from './classic-pin.js';
+import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
 import { binderTitle, createProject, firstChapter, waitForSaved, writerText } from './support.js';
 
 /**
@@ -188,6 +189,49 @@ test('a failed production German download changes nothing and choosing Deutsch a
   await expect(german).toBeChecked();
   await expect(settings.locator('h2')).toHaveText('Einstellungen');
   await expect(settings.getByRole('alert')).toHaveCount(0);
+  expect(await violations(page)).toEqual([]);
+});
+
+test('a failed production recovery download can be retried without reloading the project', async ({ page }) => {
+  test.setTimeout(90_000);
+  await watchForProblems(page);
+  await fakeEndpoint(page, planThenAnswer({ steps: [
+    { tool: 'notes.append', params: { doc: 'Opening', text: 'A note after retry.' }, expect: 'The note is added' },
+    { tool: 'notes.append', params: { doc: 'Opening', text: 'A second note after retry.' }, expect: 'The second note is added' },
+  ] }));
+  await useFakeEndpoint(page);
+  await createProject(page, 'Recovery Download Retry');
+  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+  await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
+  await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Opening');
+  await page.keyboard.press('Enter');
+  await waitForSaved(page);
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  const urls: string[] = [];
+  const recoveryRequest = /\/assets\/run-recovery-[\w-]+\.js(?:\?.*)?$/;
+  await page.route(recoveryRequest, (route) => {
+    urls.push(route.request().url());
+    return route.abort('failed');
+  });
+  const intent = page.getByRole('combobox', { name: 'Intent' });
+  const send = page.getByRole('button', { name: 'Send', exact: true });
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await intent.fill('Add a note to Opening.');
+    await send.click();
+    const plan = page.locator('[data-testid="plan-card"].is-live');
+    await plan.getByRole('button', { name: 'Approve plan', exact: true }).click();
+    await expect.poll(() => urls.length).toBe(attempt);
+    await expect(page.getByText(/The run’s restore point could not be saved/).last()).toBeVisible();
+    await expect(page.getByTestId('checkpoint')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+  }
+  expect(new Set(urls).size).toBe(3);
+  await page.unroute(recoveryRequest);
+  await intent.fill('Add a note to Opening.');
+  await send.click();
+  await page.locator('[data-testid="plan-card"].is-live').getByRole('button', { name: 'Approve plan', exact: true }).click();
+  await expect(page.getByTestId('checkpoint')).toBeVisible();
+  await waitForSaved(page);
   expect(await violations(page)).toEqual([]);
 });
 

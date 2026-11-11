@@ -131,7 +131,8 @@ import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
 import { resizePictureInBrowser } from './picture-transcoder.js';
-import type { RunRecovery } from './run-recovery.js';
+import type * as RecoveryModule from './run-recovery.js';
+import { runRecoveryUrl } from './run-recovery-url.js';
 import { withAccess, type AgentAccess } from './agent-rules-model.js';
 import type { runPictureTranscription } from '../media/picture-transcription.js';
 import type * as LazyExporter from './lazy-exporter.js';
@@ -338,8 +339,10 @@ function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: strin
   }
 }
 
+let recoveryFailures = 0;
+
 export class ProjectSession {
-  private recovery: Promise<RunRecovery> | undefined;
+  private recovery: Promise<RecoveryModule.RunRecovery> | undefined;
   readonly projectId: string;
   readonly state: ProjectState;
   readonly view: ViewState = createViewState();
@@ -1538,9 +1541,12 @@ export class ProjectSession {
     const at = groups.findIndex((group) => group.id === id);
     if (at === -1) return { ok: false, message: alreadyUndone(), undone: [] };
     const undone: string[] = [];
-    while (this.undo.group(id) !== undefined) {
-      const group = this.undo.groups().at(-1)!;
-      const held = this.undo.group(group.id)?.entries.length ?? 0;
+    for (const group of groups.slice(at).reverse()) {
+      const live = this.undo.group(group.id);
+      if (this.newestUndoGroupId() !== group.id || live === undefined || live.entries.length !== group.entries.length || live.entries.some((entry, index) => entry !== group.entries[index])) {
+        return { ok: false, message: t`The project changed while restoring. Your newer changes were kept. Review the restore again.`, undone };
+      }
+      const held = live.entries.length;
       const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
       if (taken.kind !== 'done') {
         const reason = taken.kind === 'failed' ? taken.message : t`a change could not be taken back`;
@@ -1563,7 +1569,6 @@ export class ProjectSession {
       catch {
         return { ok: false, message: t`Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again.`, undone };
       }
-      if (group.id === id) break;
     }
     return { ok: true, later: Math.max(0, undone.length - (step === undefined ? 1 : 0)), undone };
   }
@@ -1913,8 +1918,20 @@ export class ProjectSession {
     return (await this.runRecovery()).restore(runId, expected, onRestored);
   }
 
-  private runRecovery(): Promise<RunRecovery> {
-    this.recovery ??= import('./run-recovery.js').then(({ RunRecovery }) => new RunRecovery(this, this.persistence, this.undoRetention, (id) => { this.undoNow(id); }, this.registry));
+  private runRecovery(): Promise<RecoveryModule.RunRecovery> {
+    if (this.recovery !== undefined) return this.recovery;
+    let load: Promise<typeof RecoveryModule>;
+    if (recoveryFailures === 0 || runRecoveryUrl === undefined) load = import('./run-recovery.js');
+    else {
+      const url = new URL(runRecoveryUrl, import.meta.url);
+      url.searchParams.set('retry', String(recoveryFailures));
+      load = import(/* @vite-ignore */ url.href) as Promise<typeof RecoveryModule>;
+    }
+    this.recovery = load.then(({ RunRecovery }) => new RunRecovery(this, this.persistence, this.undoRetention, (id) => { this.undoNow(id); }, this.registry)).catch((error: unknown) => {
+      this.recovery = undefined;
+      recoveryFailures += 1;
+      throw error;
+    });
     return this.recovery;
   }
 
