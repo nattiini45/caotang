@@ -4766,7 +4766,9 @@ msgid "Chapters hold scenes. Start with one, then add scenes to it from the cork
 msgstr ""
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
+#. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
+#: apps/desktop/src/components/CommandComposer.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 #: apps/desktop/src/media/element-menu.ts
 msgid "Character"
@@ -9215,6 +9217,8 @@ msgid "Locale"
 msgstr ""
 
 #. Controls of the story timeline. Interpolated values: scheduled, total are scene counts.
+#. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
+#: apps/desktop/src/components/CommandComposer.tsx
 #: apps/desktop/src/components/timeline/TimelineControls.tsx
 msgid "Location"
 msgstr ""
@@ -9261,6 +9265,11 @@ msgstr ""
 #. The shelf of scenes without a day. Interpolated values: chain, step, steps, after, name, count, part are positions and part words; title is a scene title.
 #: apps/desktop/src/components/timeline/TimelineShelf.tsx
 msgid "Loose scenes, in reading order"
+msgstr ""
+
+#. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
+#: apps/desktop/src/components/CommandComposer.tsx
+msgid "Lore"
 msgstr ""
 
 #. The picture board. Interpolated values: title is a picture's caption or file name, a writer's own text; count and total are numbers.
@@ -11105,6 +11114,11 @@ msgstr ""
 msgid "Numbered"
 msgstr ""
 
+#. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
+#: apps/desktop/src/components/CommandComposer.tsx
+msgid "Object"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: model, provider, values
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -11451,6 +11465,11 @@ msgstr ""
 
 #: apps/desktop/src/components/RestoreResult.tsx
 msgid "Original result: <0/>"
+msgstr ""
+
+#. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
+#: apps/desktop/src/components/CommandComposer.tsx
+msgid "Other"
 msgstr ""
 
 #. The codex. Interpolated values: item, name, title and value are the writer's own text; field names a field; limit and itemLimit are counts; mentions and documents are counts grouped for the formatter locale.
@@ -15606,6 +15625,11 @@ msgstr ""
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Styled headings, and a contents field Word can update."
+msgstr ""
+
+#. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
+#: apps/desktop/src/components/CommandComposer.tsx
+msgid "Subplot"
 msgstr ""
 
 #. The timeline's Proposed changes tray. Interpolated values: title, name, other, parent, from, to, part, day, days, count, total, shown, hidden, delta are scene titles, part words, day labels or counts.

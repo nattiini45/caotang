@@ -12,6 +12,8 @@
   margin-block: var(--space-2);
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
+  max-block-size: min(30dvh, 16rem);
+  overflow-y: auto;
 }
 
 .context-chips {
@@ -59,3 +61,11 @@
 .context-dropped li { overflow-wrap: anywhere; }
 .context-accounting { margin-block: var(--space-2); }
 .context-accounting > summary { cursor: pointer; }
+
+.agent-turn-head { flex-wrap: wrap; align-items: start; }
+.agent-turn-head > .agent-intent-text { flex: 1 1 12rem; min-inline-size: 0; overflow-wrap: anywhere; }
+.agent-turn-head > .turn-menu { flex: none; }
+.agent-body .turn-menu-toggle { white-space: nowrap; overflow-wrap: normal; }
+.agent-turn-head > .turn-menu:has(> .turn-menu-panel) { flex-basis: 100%; }
+.agent-turn-head .turn-menu-panel { position: static; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; }
+.agent-turn-head .turn-menu-item > span { min-inline-size: 0; max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }

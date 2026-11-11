@@ -1,9 +1,10 @@
 import { REQUEST_PIN_REASON, type ContextOverrides, type ContextRef, type PreviewLayer } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
 
-export interface ContextChoice extends ContextRef {
-  readonly label: string;
-}
+export type ContextChoice = ContextRef & { readonly label: string } & (
+  { readonly kind: 'doc'; readonly path: readonly string[] } |
+  { readonly kind: 'codex'; readonly entryType: string }
+);
 
 export const contextKey = (ref: ContextRef): string => `${ref.kind}:${ref.id}`;
 
@@ -24,10 +25,19 @@ export function copyContext(overrides: ContextOverrides | undefined): ContextOve
 }
 
 export function contextChoices(state: ProjectState, hidden: ReadonlySet<string>): ContextChoice[] {
+  const nodes = new Map(state.manifest.tree.map((node) => [node.id, node]));
   return [
-    ...state.manifest.tree.filter((node) => node.type === 'document' && !hidden.has(node.id)).map((node) => ({ kind: 'doc' as const, id: node.id, label: node.title })),
+    ...state.manifest.tree.filter((node) => node.type === 'document' && !hidden.has(node.id)).map((node) => {
+      const path: string[] = [];
+      const seen = new Set([node.id]);
+      for (let parent = nodes.get(node.parentId ?? ''); parent !== undefined && !seen.has(parent.id); parent = nodes.get(parent.parentId ?? '')) {
+        seen.add(parent.id);
+        if (parent.parentId !== null && !hidden.has(parent.id)) path.unshift(parent.title);
+      }
+      return { kind: 'doc' as const, id: node.id, label: node.title, path };
+    }),
     ...(state.manifest.codex ?? []).filter((entry) => entry.includePolicy !== 'never' && !(entry.attachments.length > 0 && entry.attachments.every((id) => hidden.has(id))))
-      .map((entry) => ({ kind: 'codex' as const, id: entry.id, label: entry.name })),
+      .map((entry) => ({ kind: 'codex' as const, id: entry.id, label: entry.name, entryType: entry.type })),
   ].sort((a, b) => a.label < b.label ? -1 : a.label > b.label ? 1 : contextKey(a) < contextKey(b) ? -1 : 1);
 }
 

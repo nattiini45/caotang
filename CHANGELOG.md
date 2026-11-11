@@ -29,6 +29,9 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Context leaves room for the conversation.** Expanded request previews scroll within their own block; Modern retains visible turn content. Completion identifies documents by their folder path and codex entries by type, not storage IDs. Rewind stays on one line, and its opened actions and consequences wrap inside the turn header (#576).
+- Leaving a document out removes its optional synopsis from both structure and story context, rather than letting an L3 copy bypass the L4 exclusion.
+
 - **Expanded onboarding text.** Modern's Projects screen wraps long introduction text and demo labels within the page, including while narrow Settings is open over it.
 
 - **Turn prices follow the calls that served them.** A turn that uses another role or a provider-listed price shows its recorded per-call total instead of multiplying every token by the Chat profile's price. Old costs do not change when a profile's price changes.

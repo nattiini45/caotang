@@ -158,12 +158,16 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
   const commandCount = matches.length;
   const shown = formatCount(matches.length);
   const total = formatCount(contextMatches.length);
+  const codexTypes: Readonly<Record<string, string>> = {
+    character: t`Character`, location: t`Location`, object: t`Object`, lore: t`Lore`, subplot: t`Subplot`, other: t`Other`,
+  };
   const menuProps = { id: listId, role: 'listbox' };
   const options = <>
     {matches.map((choice) => (
       // Mouse down must not take the focus from the box; the click completes the command.
       <li
         key={choice.key}
+        data-context-id={choice.context?.id}
         id={optionId(choice)}
         role="option"
         aria-selected={choice.key === active?.key}
@@ -179,7 +183,7 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
         </>}
         {choice.context === undefined ? null : <>
           <span className="command-name"><bdi>{choice.context.label}</bdi></span>
-          <span className="command-description">{choice.context.kind === 'doc' ? t`Document` : t`Codex`} · <bdi>{choice.context.id}</bdi></span>
+          <span className="command-description">{choice.context.kind === 'doc' ? t`Document` : t`Codex`} · <bdi>{choice.context.kind === 'doc' ? choice.context.path.join(' / ') : codexTypes[choice.context.entryType] ?? choice.context.entryType}</bdi></span>
         </>}
       </li>
     ))}

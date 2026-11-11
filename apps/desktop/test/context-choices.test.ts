@@ -8,6 +8,20 @@ const doc = (id: string): ContextRef => ({ kind: 'doc', id });
 const codex = (id: string): ContextRef => ({ kind: 'codex', id });
 
 describe('request-local context choices', () => {
+  it('describes documents by their ancestry and codex entries by their type without retaining hidden ancestor titles', () => {
+    const state = sampleProjectState();
+    const first = state.manifest.tree.find((node) => node.title === 'The Landing')!;
+    const other = state.manifest.tree.find((node) => node.title === 'The Friend')!;
+    first.title = other.title = 'Same title';
+    const choices = contextChoices(state, new Set());
+    expect(choices.find((choice) => choice.id === first.id)).toMatchObject({ kind: 'doc', path: ['Manuscript', 'Chapter 1'] });
+    expect(choices.find((choice) => choice.id === other.id)).toMatchObject({ kind: 'doc', path: ['Manuscript', 'Chapter 2'] });
+    expect(choices.find((choice) => choice.kind === 'codex')).toMatchObject({ entryType: 'character' });
+    const filtered = contextChoices(state, new Set([first.parentId!]));
+    expect(filtered.find((choice) => choice.id === first.id)).toMatchObject({ path: ['Manuscript'] });
+    expect(copyContext({ include: choices })).toEqual({ include: choices.map(({ kind, id }) => ({ kind, id })) });
+  });
+
   it('uses an explicitly kept pin, not a required focus, to distinguish a synopsis drop from a dropped excerpt', () => {
     const ref = doc('prior');
     const synopsis = { ref, label: 'Prior scene', text: 'Synopsis cut', reason: { kind: 'budget' as const, layer: 'L4' as const, budget: 0, rank: 1 } };
