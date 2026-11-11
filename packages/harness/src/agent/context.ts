@@ -253,6 +253,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
           fraction: undefined,
           drops: [...prior.drops, ...layer.drops],
           notes: [...prior.notes, ...layer.notes],
+          ...(prior.kept === undefined && layer.kept === undefined ? {} : { kept: [...(prior.kept ?? []), ...(layer.kept ?? [])] }),
         });
       }
     }

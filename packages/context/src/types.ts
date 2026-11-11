@@ -320,8 +320,8 @@ export interface PromptPreview {
   readonly completionTokens: number;
   readonly layers: readonly PreviewLayer[];
   readonly codex: {
-    readonly included: readonly { readonly name: string; readonly reason: string; readonly ref?: ContextRef }[];
-    readonly dropped: readonly { readonly name: string; readonly reason: string; readonly ref?: ContextRef }[];
+    readonly included: readonly { readonly name: string; readonly reason: string }[];
+    readonly dropped: readonly { readonly name: string; readonly reason: string }[];
   };
   readonly storySoFar: {
     readonly included: readonly string[];

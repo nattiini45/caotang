@@ -279,7 +279,7 @@ export function scopeBlock(state: ProjectState, scope: readonly TreeNode[]): Sco
   const sent = scope.slice(0, SCOPE_DOCUMENT_LIMIT);
   const drops: DropRecord[] = scope
     .slice(SCOPE_DOCUMENT_LIMIT)
-    .map((node) => dropRecord(node.title, { kind: 'scope-limit', limit: SCOPE_DOCUMENT_LIMIT }, 'scope', { kind: 'doc', id: node.id }));
+    .map((node) => dropRecord(node.title, { kind: 'scope-limit', limit: SCOPE_DOCUMENT_LIMIT }, 'scope'));
 
   const items: BlockItem[] = sent.map((node) => {
     const body = getBody(state, node.id);

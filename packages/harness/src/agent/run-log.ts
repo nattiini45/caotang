@@ -278,8 +278,8 @@ export function createMemoryRunLog(): MemoryRunLog {
       if (patch.status !== undefined) assertRunStatusTransition(runId, run.status, patch.status);
       runs.set(runId, { ...run, ...patch });
     },
-    async open(projectId) {
-      return [...runs.values()].filter((run) => run.projectId === projectId && (run.status === 'running' || run.status === 'awaiting-approval' || run.status === 'interrupted'));
+    async open(projectId, options = {}) {
+      return [...runs.values()].filter((run) => run.projectId === projectId && (options.includeSettled === true || run.status === 'running' || run.status === 'awaiting-approval' || run.status === 'interrupted'));
     },
     async events(runId) {
       return structuredClone([...(events.get(runId) ?? [])].sort((a, b) => a.seq - b.seq));

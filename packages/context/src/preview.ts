@@ -132,8 +132,8 @@ export function buildPreview(assembled: AssembledPrompt): PromptPreview {
     images: contentSummaryOf(sent).images,
     layers,
     codex: {
-      included: codex.kept.map((item) => ({ name: item.label, reason: item.reason, ...(item.ref === undefined ? {} : { ref: item.ref }) })),
-      dropped: codex.drops.map((drop) => ({ name: drop.label, reason: drop.text, ...(drop.ref === undefined ? {} : { ref: drop.ref }) })),
+      included: codex.kept.map((item) => ({ name: item.label, reason: item.reason })),
+      dropped: codex.drops.map((drop) => ({ name: drop.label, reason: drop.text })),
     },
     storySoFar: {
       included: story.kept.map((item) => item.label),

@@ -65,10 +65,10 @@ describe('zero drift between preview and execution (§5)', () => {
 describe('the codex and story sections (§5)', () => {
   it('names each codex entry that was sent, with its reason, and each dropped one with its reason', () => {
     const preview = buildPreview(assemble(CONTINUE, buildApp()));
-    expect(preview.codex.included).toContainEqual({ name: 'Harbor', reason: 'always', ref: { kind: 'codex', id: 'c_Harbor' } });
-    expect(preview.codex.included).toContainEqual({ name: 'Mara', reason: 'attached to Act I', ref: { kind: 'codex', id: 'c_Mara' } });
-    expect(preview.codex.dropped).toContainEqual({ name: 'Wolf', reason: 'disabled by include policy (never)', ref: { kind: 'codex', id: 'c_Wolf' } });
-    expect(preview.codex.dropped).toContainEqual({ name: 'Fog Law', reason: 'empty description', ref: { kind: 'codex', id: 'c_Fog_Law' } });
+    expect(preview.codex.included).toContainEqual({ name: 'Harbor', reason: 'always' });
+    expect(preview.codex.included).toContainEqual({ name: 'Mara', reason: 'attached to Act I' });
+    expect(preview.codex.dropped).toContainEqual({ name: 'Wolf', reason: 'disabled by include policy (never)' });
+    expect(preview.codex.dropped).toContainEqual({ name: 'Fog Law', reason: 'empty description' });
   });
 
   it('lists the earlier scenes that were sent, and counts none omitted when the budget held them', () => {
@@ -144,8 +144,8 @@ describe('the drops and notes of every layer (§5, D8)', () => {
     const focus = preview.layers.find((layer) => layer.id === 'L5');
     expect(focus?.notes).toEqual(['The scope holds 22 documents; the first 20 are sent. Split the scope to cover the rest.']);
     expect(focus?.drops).toEqual([
-      { label: 'Part 21', text: 'beyond the 20-document scope limit; split the scope', reason: { kind: 'scope-limit', limit: 20 }, ref: { kind: 'doc', id: 'n_d21' } },
-      { label: 'Part 22', text: 'beyond the 20-document scope limit; split the scope', reason: { kind: 'scope-limit', limit: 20 }, ref: { kind: 'doc', id: 'n_d22' } },
+      { label: 'Part 21', text: 'beyond the 20-document scope limit; split the scope', reason: { kind: 'scope-limit', limit: 20 } },
+      { label: 'Part 22', text: 'beyond the 20-document scope limit; split the scope', reason: { kind: 'scope-limit', limit: 20 } },
     ]);
   });
 

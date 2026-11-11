@@ -2350,6 +2350,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turnId: turn.id,
       agentPath,
       native: turn.native,
+      ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { contextOverrides: step.contextOverrides ?? turn.contextOverrides }),
       ...(turn.languages === undefined ? {} : { languages: turn.languages }),
       reserve: (calls) => {
         if (callsLeft(turn) < calls + 1) return false;
@@ -3269,7 +3270,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /** The adjusted step the model sends for a refused one. Anything other than one step of the same tool is not an adjustment. */
-  async function adjustStep(turn: Turn, tool: string): Promise<PlanStep | undefined> {
+  async function adjustStep(turn: Turn, previous: PlanStep): Promise<PlanStep | undefined> {
+    const tool = previous.tool;
     await syncRun(turn, 1, 'running');
     const reply = await complete(plannerCall(turn), turn.messages, turn.native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });
     turn.messages.push(assistantOf(reply));
@@ -3281,7 +3283,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (args.error !== undefined) return undefined;
       // The adjustment's call is registered like a plan's: its result is flushed at the next request.
       turn.wireReplies.push({ calls, results: new Map() });
-      const step: PlanStep = { tool, params: args.params ?? {}, expect: expectOf(reply.text) };
+      const step: PlanStep = { tool, params: args.params ?? {}, expect: expectOf(reply.text), ...(previous.contextOverrides === undefined ? {} : { contextOverrides: previous.contextOverrides }) };
       turn.wireSteps.set(step, only);
       return step;
     }
@@ -3290,7 +3292,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const steps = parsed.value.plan.steps;
     const only = steps[0];
     if (steps.length !== 1 || only === undefined || only.tool !== tool) return undefined;
-    return only;
+    return { ...only, ...(previous.contextOverrides === undefined ? {} : { contextOverrides: previous.contextOverrides }) };
   }
 
   /**
@@ -3417,7 +3419,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // corrective text that follows names what to correct, as the JSON wire's retry does.
       flushWire(turn);
       turn.messages.push({ role: 'user', content: retryMessage(failedAt, failed.tool, askBack, turn.native, outsideOf, turn.nonce) });
-      const adjusted = await adjustStep(turn, failed.tool);
+      const adjusted = await adjustStep(turn, failed);
       if (adjusted === undefined) return settle(turn, executed);
 
       const steps = editable.steps.map((step, index) => (index === failedAt ? adjusted : step));
@@ -3479,6 +3481,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const ask = options.beforeStage;
     const calls = estimatedModelCalls(plan.steps);
     if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0 || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
+    if ((turn.contextOverrides?.include?.length ?? 0) + (turn.contextOverrides?.exclude?.length ?? 0) > 0) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
@@ -4245,7 +4248,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     // A resumed macro run stays the writer's: after a reload only the logged command says which turn it was.
-    const resumed: SubmitOptions = { ...resumeOptions, ...(replay.contextOverrides === undefined ? {} : { contextOverrides: replay.contextOverrides }), ...(replay.command === undefined ? {} : { command: replay.command }), ...(replay.hiddenFromPlanner === true || isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}), ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }) };
+    const resumed: SubmitOptions = { ...resumeOptions, contextOverrides: replay.contextOverrides, ...(replay.command === undefined ? {} : { command: replay.command }), ...(replay.hiddenFromPlanner === true || isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}), ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }) };
     return runTurn(intent, resumed, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
@@ -4350,14 +4353,19 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     previewRequest(intent: string, pinned: SubmitOptions = {}): RequestContextPreview {
       const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
-      if (running.size === 0) latestPins = pins;
-      const nonce = turnNonce(`${sessionName}.turn-${turnCounter + 1}`);
-      const { planner, skills } = plannerAssembly(nativeToolsFor(pins) !== undefined, intent, recentTurns(), nonce, pinned.languages ?? options.languages?.(), pinned.contextOverrides);
-      const wanted = new Set<string>([...(pinned.preload ?? []), ...(skills === undefined ? [] : ['skill.load'])]);
-      const rows = loadEvery() ? [] : harness.tools().filter((tool) => wanted.has(tool.name) && tool.load === 'deferred' && tool.callable && tool.wired && tool.externalOnly !== true && tool.name !== 'skill.read');
-      const messages = [...planner.messages, ...plannerAddenda(skills, rows)];
-      const limits = gateway.modelLimits(pins.profileId, pins.model, pins.thinking, options.role === undefined ? {} : { role: options.role });
-      return requestContext(planner.prompt, messages, limits);
+      const previousPins = latestPins;
+      latestPins = pins;
+      try {
+        const nonce = turnNonce(`${sessionName}.turn-${turnCounter + 1}`);
+        const { planner, skills } = plannerAssembly(nativeToolsFor(pins) !== undefined, intent, recentTurns(), nonce, pinned.languages ?? options.languages?.(), pinned.contextOverrides);
+        const wanted = new Set<string>([...(pinned.preload ?? []), ...(skills === undefined ? [] : ['skill.load'])]);
+        const rows = loadEvery() ? [] : harness.tools().filter((tool) => wanted.has(tool.name) && tool.load === 'deferred' && tool.callable && tool.wired && tool.externalOnly !== true && tool.name !== 'skill.read');
+        const messages = [...planner.messages, ...plannerAddenda(skills, rows)];
+        const limits = gateway.modelLimits(pins.profileId, pins.model, pins.thinking, options.role === undefined ? {} : { role: options.role });
+        return requestContext(planner.prompt, messages, limits);
+      } finally {
+        latestPins = previousPins;
+      }
     },
 
     contextPreview(pinned: TurnOptions = {}): ContextPreview {
