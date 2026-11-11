@@ -68,6 +68,35 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it.each(['removed', 'replaced'] as const)('detaches the original asset event targets after the globals are %s while close settles', async (change) => {
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const state = project();
+  const originalWindow = window;
+  const originalDocument = document;
+  const detachWindow = vi.spyOn(originalWindow, 'removeEventListener');
+  const detachDocument = vi.spyOn(originalDocument, 'removeEventListener');
+  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
+  let finish!: () => void;
+  let started!: () => void;
+  const held = new Promise<void>((resolve) => { finish = resolve; });
+  const entered = new Promise<void>((resolve) => { started = resolve; });
+  vi.spyOn(session, 'settle').mockImplementation(() => { started(); return held; });
+  const closing = session.closeSafely();
+  await entered;
+  vi.stubGlobal('window', change === 'removed' ? undefined : new EventTarget());
+  vi.stubGlobal('document', change === 'removed' ? undefined : new EventTarget());
+  try {
+    finish();
+    await expect(closing).resolves.toBeUndefined();
+    expect(detachWindow).toHaveBeenCalledWith('focus', expect.any(Function));
+    expect(detachDocument).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+  } finally {
+    finish();
+    await closing.catch(() => undefined);
+    store.close();
+  }
+});
+
 it('closes a newly created session when its first settle rejects', async () => {
   const store = await openRuntimeStore(new MemoryIndexedDb());
   const failed = new Error('The asset listing failed.');

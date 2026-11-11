@@ -1289,6 +1289,8 @@ export class ProjectSession {
    * the session, and the returned function lets go of it.
    */
   private watchForAssetChanges(): () => void {
+    const page = window;
+    const visibility = document;
     // A hidden tab coming to the front fires the window's focus and the document's visibilitychange for the same moment. One
     // moment asks for one listing, so the first signal of it is taken and the ones that follow are let through to nothing. The
     // platform does not promise to post the two in the same task, so the latch is not cleared on the next macrotask: it re-arms on
@@ -1307,14 +1309,14 @@ export class ProjectSession {
       void this.refreshAssetRecords();
     };
     const whenVisible = (): void => {
-      if (document.visibilityState === 'hidden') return;
+      if (visibility.visibilityState === 'hidden') return;
       listAgain();
     };
-    window.addEventListener('focus', listAgain);
-    document.addEventListener('visibilitychange', whenVisible);
+    page.addEventListener('focus', listAgain);
+    visibility.addEventListener('visibilitychange', whenVisible);
     return () => {
-      window.removeEventListener('focus', listAgain);
-      document.removeEventListener('visibilitychange', whenVisible);
+      page.removeEventListener('focus', listAgain);
+      visibility.removeEventListener('visibilitychange', whenVisible);
       if (latch !== null) clearTimeout(latch);
     };
   }
