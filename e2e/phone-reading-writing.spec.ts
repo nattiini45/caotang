@@ -29,10 +29,14 @@ for (const shell of ['classic', 'modern']) {
     await page.reload();
     const projects = page.locator('[aria-labelledby="home-projects"]');
     await expect(projects.locator('.project-list')).toBeVisible();
-    expect(await page.locator('.home > :first-child').getAttribute('aria-labelledby')).toBe('home-projects');
+    await expect(page.locator('.home > :first-child')).toHaveClass('home-head');
+    await expect(page.locator('.home > :nth-child(2)')).toHaveAttribute('aria-labelledby', 'home-projects');
     const snapshot = await page.locator('.home').ariaSnapshot();
+    expect(snapshot.indexOf('Caotang')).toBeLessThan(snapshot.indexOf('Projects in this browser'));
     expect(snapshot.indexOf('Projects in this browser')).toBeLessThan(snapshot.indexOf('Try the agent with no key'));
     expect(snapshot.indexOf('Projects in this browser')).toBeLessThan(snapshot.indexOf('New project'));
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('open-settings')).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(projects.getByRole('button', { name: 'Open', exact: true })).toBeFocused();
     await projects.getByRole('button', { name: 'Rename The Harbour', exact: true }).click();
@@ -43,7 +47,8 @@ for (const shell of ['classic', 'modern']) {
     await name.evaluate((element) => element.setAttribute('data-original', 'true'));
     for (const width of [599, 600, 1280, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      await expect(page.locator('.home > :first-child')).toHaveAttribute(width < 600 ? 'aria-labelledby' : 'class', width < 600 ? 'home-projects' : 'home-head');
+      await expect(page.locator('.home > :first-child')).toHaveClass('home-head');
+      if (width < 600) await expect(page.locator('.home > :nth-child(2)')).toHaveAttribute('aria-labelledby', 'home-projects');
       await expect(name).toHaveValue('An unfinished new project');
       await expect(name).toHaveAttribute('data-original', 'true');
       await expect(rename).toHaveValue('An unfinished rename');
