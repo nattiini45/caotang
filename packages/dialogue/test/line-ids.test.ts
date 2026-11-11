@@ -133,6 +133,14 @@ describe('ensureLineIds', () => {
     expect(result.body).toBe(body);
   });
 
+  it('keeps an id when words follow it in the tag comment, and never mints beside it (#325)', () => {
+    const body = '-> s\n=== s ===\nHi. # lineId: l_0000000001 and more\n-> END\n';
+    expect(parseInk(body).lines.find((l) => l.text.startsWith('Hi.'))?.lineId).toBe('l_0000000001');
+    const result = ensureLineIds(body, { randomBytes: seeded(31) });
+    expect(result.minted).toEqual([]);
+    expect(result.body).toBe(body);
+  });
+
   it('avoids the ids a caller says are taken elsewhere in the project', () => {
     const first = ensureLineIds(TAVERN, { randomBytes: seeded(12) });
     const taken = new Set(first.minted.map((m) => m.lineId));
