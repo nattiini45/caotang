@@ -51,6 +51,7 @@ import { FirstRun } from './FirstRun.js';
 import { RecoveryDialog } from './RecoveryDialog.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
 import './project-rename.css';
+import './home-opening.css';
 
 /** One lifecycle action, as a token: its busy line and its failure sentence are each one catalogue message. */
 type HomeAction =
@@ -116,10 +117,12 @@ export interface HomeProps {
 export function Home({ store, services, onOpened, onRunDemo, demoOpening = false, notices }: HomeProps): ReactNode {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [name, setName] = useState('');
-  const [busy, setBusy] = useState<HomeAction | null>(null);
+  const [busy, setBusy] = useState<{ readonly action: HomeAction; readonly control: string | null } | null>(null);
   const inFlight = useRef(false);
   const blocked = busy !== null || demoOpening;
-  const busyAction = busy ?? (demoOpening ? 'openingProject' : null);
+  const busyAction = busy?.action ?? (demoOpening ? 'openingProject' : null);
+  const opening = (action: HomeAction, control: string): boolean => busy?.action === action && busy.control === control;
+  const openingAction = busy !== null && busy.control !== null;
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ProjectSummary | null>(null);
@@ -196,10 +199,10 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
   }, [store]);
 
   /** Run one lifecycle action with the busy and error state every button shares. */
-  const run = async (action: HomeAction, work: () => Promise<void>): Promise<void> => {
+  const run = async (action: HomeAction, work: () => Promise<void>, control: string | null = null): Promise<void> => {
     if (inFlight.current || demoOpening) return;
     inFlight.current = true;
-    setBusy(action);
+    setBusy({ action, control });
     setError(null);
     setNotice(null);
     try {
@@ -219,14 +222,14 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
       const session = await createProject(store, name);
       setName('');
       onOpened({ session, notices: [], droppedFields: [], copiedFrom: null });
-    });
+    }, 'create');
   };
 
   const open = (projectId: string): void => {
     void run('openingProject', async () => {
       const session = await openProject(store, projectId);
       onOpened({ session, notices: [...imageDropNotice(session), ...hookNotice(session)], droppedFields: [], copiedFrom: null });
-    });
+    }, projectId);
   };
 
   const exportOne = (projectId: string, title: string): void => {
@@ -289,7 +292,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
    * "Reopen folder": one click opens the folder the project remembers. The browser is asked for permission from the click itself, which is
    * the gesture it needs. When the writer says no, or the folder is gone, the folder picker opens instead, so the writer can find it.
    */
-  const reopenFolder = (remembered: DirectoryHandleLike): void => {
+  const reopenFolder = (projectId: string, remembered: DirectoryHandleLike): void => {
     void run('openingFolder', async () => {
       let folder = await folderWithPermission(remembered);
       if (folder === null) {
@@ -303,7 +306,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
       }
       if (folder === null) return;
       settleOpen(await openFolder(store, folder));
-    });
+    }, projectId);
   };
 
   /** The writer's answer to the question a differing folder asks. */
@@ -320,7 +323,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
     void run('importingBundle', async () => {
       const bytes = new Uint8Array(await file.arrayBuffer());
       settleOpen(await importBundle(store, bytes, file.name));
-    });
+    }, 'import');
   };
 
   const openFolderAction = (): void => {
@@ -328,7 +331,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
       const folder = await pickDirectory('readwrite');
       if (folder === null) return;
       settleOpen(await openFolder(store, folder));
-    });
+    }, 'folder-picker');
   };
 
   /**
@@ -402,10 +405,11 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
       {showFirstRun ? (
         <FirstRun
           busy={blocked || dismissing}
+          openingIntent={busy?.action === 'openingDemo' ? busy.control : null}
           dismissing={dismissing}
           error={dismissError}
           onRun={(intent) => {
-            void run('openingDemo', () => onRunDemo(intent));
+            void run('openingDemo', () => onRunDemo(intent), intent);
           }}
           onDismiss={() => {
             setDismissing(true);
@@ -432,7 +436,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
               onChange={(event) => setName(event.target.value)}
             />
           </label>
-          <button type="submit" className="button is-primary" disabled={blocked}>
+          <button type="submit" className={`button is-primary${opening('creating', 'create') ? ' is-opening' : ''}`} disabled={blocked} aria-busy={opening('creating', 'create') || undefined}>
             <Trans>Create project</Trans>
           </button>
         </form>
@@ -518,18 +522,19 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
                   </span>
                 </div>
                 <div className="project-actions">
-                  <button type="button" className="button is-primary k-tonal" disabled={blocked} onClick={() => open(project.id)}>
+                  <button type="button" className={`button is-primary k-tonal${opening('openingProject', project.id) ? ' is-opening' : ''}`} disabled={blocked} aria-busy={opening('openingProject', project.id) || undefined} onClick={() => open(project.id)}>
                     <Trans>Open</Trans>
                   </button>
                   {folders.get(project.id) !== undefined ? (
                     <button
                       type="button"
-                      className="button k-quiet"
+                      className={`button k-quiet${opening('openingFolder', project.id) ? ' is-opening' : ''}`}
                       disabled={blocked}
+                      aria-busy={opening('openingFolder', project.id) || undefined}
                       aria-label={t`Reopen folder of ${{ name: accessibleText(project.name) }}`}
                       onClick={() => {
                         const remembered = folders.get(project.id);
-                        if (remembered !== undefined) reopenFolder(remembered);
+                        if (remembered !== undefined) reopenFolder(project.id, remembered);
                       }}
                     >
                       <Trans>Reopen folder</Trans>
@@ -572,7 +577,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
   );
 
   return (
-    <div className="home" data-state={pendingOpen.kind} data-demo-state={demoOpening || busy === 'openingDemo' ? 'opening' : 'idle'}>
+    <div className="home" data-state={pendingOpen.kind} data-demo-state={demoOpening || busy?.action === 'openingDemo' ? 'opening' : 'idle'}>
       {phone && projects !== null && projects.length > 0 ? [projectSection, introduction] : [introduction, projectSection]}
 
       <section className="home-section" aria-labelledby="home-bring">
@@ -580,8 +585,9 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
         <div className="bring-row">
           <button
             type="button"
-            className="button"
+            className={`button${opening('importingBundle', 'import') ? ' is-opening' : ''}`}
             disabled={blocked}
+            aria-busy={opening('importingBundle', 'import') || undefined}
             onClick={() => {
               if (inFlight.current || demoOpening) return;
               importInput.current?.click();
@@ -604,7 +610,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
             }}
           />
           {folderSupported ? (
-            <button type="button" className="button" disabled={blocked} onClick={openFolderAction}>
+            <button type="button" className={`button${opening('openingFolder', 'folder-picker') ? ' is-opening' : ''}`} disabled={blocked} aria-busy={opening('openingFolder', 'folder-picker') || undefined} onClick={openFolderAction}>
               <Trans>Open a folder…</Trans>
             </button>
           ) : (
@@ -616,7 +622,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
       </section>
 
       {busyAction ? (
-        <p className="status-line is-info" role="status">
+        <p className={openingAction ? 'visually-hidden' : 'status-line is-info'} role="status" aria-live="polite">
           {busyText(busyAction)}…
         </p>
       ) : null}

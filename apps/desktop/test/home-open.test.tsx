@@ -126,6 +126,8 @@ describe('Home open ownership', () => {
     expect(openProject).not.toHaveBeenCalled();
     expect(pickDirectory).not.toHaveBeenCalled();
     expect(onRunDemo).not.toHaveBeenCalled();
+    expect(button('Create project').getAttribute('aria-busy')).toBe('true');
+    expect(host.querySelectorAll('.is-opening')).toHaveLength(1);
     await act(async () => reject(new Error('Disk unavailable')));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('Creating the project did not finish: Disk unavailable');
     vi.mocked(createProject).mockResolvedValueOnce(opened.session);
@@ -166,8 +168,14 @@ describe('Home open ownership', () => {
     expect(createProject).not.toHaveBeenCalled();
     expect(host.querySelector('.home')?.getAttribute('data-demo-state')).toBe('opening');
     expect(demoButton().disabled).toBe(true);
+    expect(demoButton().getAttribute('aria-busy')).toBe('true');
+    expect(demoButton().classList.contains('is-opening')).toBe(true);
+    expect(host.querySelectorAll('.is-opening')).toHaveLength(1);
+    expect(host.querySelector('[role="status"]')?.classList.contains('visually-hidden')).toBe(true);
+    expect(host.querySelector('[role="status"]')?.getAttribute('aria-live')).toBe('polite');
     await act(async () => finish());
     expect(host.querySelector('.home')?.getAttribute('data-demo-state')).toBe('idle');
+    expect(host.querySelectorAll('[aria-busy="true"]')).toHaveLength(0);
     vi.mocked(createProject).mockResolvedValueOnce(opened.session);
     await act(async () => submit());
     expect(createProject).toHaveBeenCalledOnce();
@@ -183,9 +191,33 @@ describe('Home open ownership', () => {
     await act(async () => submit());
     expect(createProject).toHaveBeenCalledOnce();
   });
+
+  it('marks the pressed project control, preserves its label, and clears progress after failure', async () => {
+    let fail!: (error: Error) => void;
+    vi.mocked(openProject).mockReturnValueOnce(new Promise((_resolve, reject) => { fail = reject; }));
+    await act(async () => button('Open').click());
+    expect(button('Open').getAttribute('aria-busy')).toBe('true');
+    expect(button('Open').classList.contains('is-opening')).toBe(true);
+    expect(host.querySelectorAll('.is-opening')).toHaveLength(1);
+    expect(host.querySelector('[role="status"]')?.classList.contains('visually-hidden')).toBe(true);
+    await act(async () => fail(new Error('Project unavailable')));
+    expect(button('Open').hasAttribute('aria-busy')).toBe(false);
+    expect(button('Open').classList.contains('is-opening')).toBe(false);
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Project unavailable');
+  });
 });
 
 describe('Home pending-open dialogs', () => {
+  it('retains the visible busy sentence when a recovery has no inline Home control', async () => {
+    await offer({ kind: 'recover', recovery });
+    let finish!: () => void;
+    vi.mocked(completeRecovery).mockReturnValueOnce(new Promise((resolve) => { finish = () => resolve({ kind: 'opened', opened }); }));
+    await act(async () => button('Open this copy').click());
+    expect(host.querySelector('[role="status"]')?.classList.contains('visually-hidden')).toBe(false);
+    await act(async () => finish());
+    expect(onOpened).toHaveBeenCalledExactlyOnceWith(opened);
+  });
+
   it('keeps a locked recovery visible, confirms the retry and hands off to encoding alone', async () => {
     await offer({ kind: 'recover', recovery });
     expect(phase()).toBe('recovery');
