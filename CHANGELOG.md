@@ -6,7 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
-- **Run recovery and retained logs.** Activity keeps finished, failed and stopped agent-run cards, with JSONL and Markdown exports. Before its first writing step, a run retains a local restore point independent of the checkpoint cap. **Restore to before this run** confirms that later edits will be taken back, works after a reload and is undoable in the open tab. Optional device-local folder copies stay derived; they are never read for resume or restore.
+- **Run recovery and retained logs.** Activity keeps finished, failed and stopped agent-run cards, with JSONL and Markdown exports. Before its first writing step, a run retains a local restore point independent of the checkpoint cap. **Restore to before this run** confirms that later edits will be taken back, works after a reload and is undoable in the open tab. Retrying a failed restore save keeps later findings edits; a checkpoint restore reports any changes already taken back when saving fails. Optional device-local folder copies stay derived; they are never read for resume or restore.
 
 - **Session totals and usage details.** The agent shows requests, tokens and known cost for the current project visit across roles and tasks, with a profile/model/role breakdown. Settings › Providers shows daily recorded cost, estimated and unpriced counts, optional cache/reasoning detail and a guarded local CSV export. Desktop cost notes wrap within the table; narrow screens show labelled rows with tokens and cost without sideways scrolling. USD follows the interface locale, with English and German controls; CSV stays machine-readable.
 

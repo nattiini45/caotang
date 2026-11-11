@@ -1530,7 +1530,10 @@ export class ProjectSession {
    * stay. The group is then not in `undone`: it is still on the stack, with those steps.
    */
   async restoreBefore(id: string, step?: () => Result<UndoOutcome, CommandError>): Promise<RestoreResult> {
-    await this.saved();
+    try { await this.saved(); }
+    catch {
+      return { ok: false, message: t`The project could not be saved, so nothing was restored. Keep this tab open and retry the failed save before restoring again.`, undone: [] };
+    }
     const groups = this.undo.groups();
     const at = groups.findIndex((group) => group.id === id);
     if (at === -1) return { ok: false, message: alreadyUndone(), undone: [] };
@@ -1556,7 +1559,10 @@ export class ProjectSession {
         };
       }
       if (step === undefined || group.id !== id) undone.push(group.id);
-      await this.saved();
+      try { await this.saved(); }
+      catch {
+        return { ok: false, message: t`Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again.`, undone };
+      }
       if (group.id === id) break;
     }
     return { ok: true, later: Math.max(0, undone.length - (step === undefined ? 1 : 0)), undone };
@@ -1718,6 +1724,7 @@ export class ProjectSession {
 
   async acknowledgeRunRestore(text: string): Promise<void> {
     await this.coherencePort?.restored?.(text);
+    this.coherenceQueued = null;
   }
 
   /** Gives the session its recurring tasks, as the lifecycle loaded them (agent-harness.md §12). They are not project state: no command changes them. */

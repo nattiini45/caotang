@@ -241,3 +241,76 @@ it('cannot persist part of a multi-document restore when the second document wri
   expect(after.documents).toEqual(before.documents);
   expect(after.manifest).toEqual(before.manifest);
 });
+
+it.each([2, 3])('persists the latest findings when a failed restore is retried with scene day %s', async (dayOffset) => {
+  const { store, session, run, doc, factory } = await fixture();
+  await attachCoherence(session, store);
+  expect(session.dispatch('coherence.setSceneMeta', { docId: doc.id, patch: { dayOffset: 1 } }).ok).toBe(true);
+  await session.captureRunBaseline(run.runId);
+  expect(session.dispatch('coherence.setSceneMeta', { docId: doc.id, patch: { dayOffset: 2 } }).ok).toBe(true);
+  const expected = await session.prepareRunRestore(run.runId);
+  const tx = store.db.transaction(DOCUMENT_STORE, 'readonly');
+  const prototype = Object.getPrototypeOf(tx.objectStore(DOCUMENT_STORE)) as IDBObjectStore;
+  const put = prototype.put;
+  let failing = true;
+  vi.spyOn(prototype, 'put').mockImplementation(function(this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+    if (this.name === DOCUMENT_STORE && failing) factory.abortAfterWrites(0);
+    return put.call(this, value, key);
+  });
+  expect(await session.restoreRun(run.runId, expected)).toMatchObject({ ok: false });
+  expect(session.saveState()).toBe('failed');
+  expect(session.coherenceFile()?.sceneMeta[doc.id]?.dayOffset).toBe(1);
+  failing = false;
+  expect(session.dispatch('coherence.setSceneMeta', { docId: doc.id, patch: { dayOffset } }).ok).toBe(true);
+  await session.saved();
+  const text = (await readCoherenceFiles(store, session.projectId))['coherence.json']!;
+  expect(JSON.parse(text).sceneMeta[doc.id].dayOffset).toBe(dayOffset);
+  expect(session.runRestoreCoherenceText(null)).toBe(text);
+  await session.close();
+  const state = await readProjectState(store, session.projectId);
+  const reloaded = new ProjectSession({ store, projectId: session.projectId, state, shadow: shadowOf(state) });
+  sessions.push(reloaded);
+  await attachCoherence(reloaded, store);
+  expect(reloaded.coherenceFile()?.sceneMeta[doc.id]?.dayOffset).toBe(dayOffset);
+});
+
+it.each([false, true])('returns the groups taken back when saving a multi-group restore fails (step: %s)', async (partialStep) => {
+  const { session, doc } = await fixture();
+  session.dispatch('doc.write', { docId: doc.id, body: 'First change.' });
+  const target = session.newestUndoGroupId()!;
+  session.dispatch('doc.write', { docId: doc.id, body: 'Second change.' });
+  const later = session.newestUndoGroupId()!;
+  await session.saved();
+  const saved = vi.spyOn(session, 'saved');
+  saved.mockResolvedValueOnce().mockRejectedValueOnce(new Error('Disk is full.'));
+  const step = vi.fn(() => session.undo.undo(target));
+  const result = await session.restoreBefore(target, partialStep ? step : undefined);
+  expect(result).toMatchObject({ ok: false, undone: [later] });
+  expect(session.state.documents.get(doc.id)?.body).toBe('First change.');
+  expect(session.undo.group(target)).toBeDefined();
+  expect(step).not.toHaveBeenCalled();
+});
+
+it('reports a save failure after the target step was taken back without claiming the whole group', async () => {
+  const { session, doc } = await fixture();
+  session.dispatch('doc.write', { docId: doc.id, body: 'A change to take back.' });
+  const target = session.newestUndoGroupId()!;
+  await session.saved();
+  vi.spyOn(session, 'saved').mockResolvedValueOnce().mockRejectedValueOnce(new Error('Disk is full.'));
+  const step = vi.fn(() => session.undo.undo(target));
+  const result = await session.restoreBefore(target, step);
+  expect(result).toMatchObject({ ok: false, undone: [], message: expect.stringContaining('Some changes were taken back') });
+  expect(step).toHaveBeenCalledOnce();
+  expect(session.undo.group(target)).toBeUndefined();
+});
+
+it('reports an initial save failure before taking any restore group back', async () => {
+  const { session, doc } = await fixture();
+  session.dispatch('doc.write', { docId: doc.id, body: 'A change to keep.' });
+  const target = session.newestUndoGroupId()!;
+  await session.saved();
+  vi.spyOn(session, 'saved').mockRejectedValueOnce(new Error('Disk is full.'));
+  expect(await session.restoreBefore(target)).toMatchObject({ ok: false, undone: [], message: expect.stringContaining('nothing was restored') });
+  expect(session.state.documents.get(doc.id)?.body).toBe('A change to keep.');
+  expect(session.undo.group(target)).toBeDefined();
+});

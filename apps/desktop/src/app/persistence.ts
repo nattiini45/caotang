@@ -37,12 +37,14 @@
  */
 
 import { t } from '@lingui/core/macro';
+import { serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
 import {
   DocumentExistsError,
   RevisionConflictError,
   RuntimeStoreStaleError,
   ProjectWriteConflictError,
   commitProject,
+  emptyCoherenceState,
   writeDocumentBody,
   writeProjectAgentFiles,
   writeProjectSkills,
@@ -74,7 +76,7 @@ export function isStaleWrite(error: unknown): boolean {
 }
 
 export class Persistence {
-  private atomicRestore: { readonly expected: ProjectState; readonly expectedCoherence: string | null; readonly coherence: string; readonly onSaved: () => Promise<void> } | null = null;
+  private atomicRestore: { readonly expected: ProjectState; readonly expectedCoherence: string | null; readonly onSaved: (coherence: string) => Promise<void> } | null = null;
   private shadow: Shadow | null;
   /**
    * The bodies and revisions the store holds, as the last pass that landed left them. Unlike the shadow it survives a failed pass (which drops the
@@ -109,10 +111,10 @@ export class Persistence {
     return this.stored?.get(docId);
   }
 
-  stageAtomicRestore(expected: ProjectState, expectedCoherence: string | null, coherence: string, onSaved: () => Promise<void>): void {
+  stageAtomicRestore(expected: ProjectState, expectedCoherence: string | null, onSaved: (coherence: string) => Promise<void>): void {
     if (this.isStopped()) return;
     if (this.current !== null || this.shadow === null) throw new Error(t`Wait for the project to finish saving before restoring it.`);
-    this.atomicRestore = { expected: structuredClone(expected), expectedCoherence, coherence, onSaved };
+    this.atomicRestore = { expected: structuredClone(expected), expectedCoherence, onSaved };
   }
 
   atomicRestorePending(): boolean { return this.atomicRestore !== null; }
@@ -177,8 +179,9 @@ export class Persistence {
     try {
       if (this.atomicRestore !== null) {
         const next = structuredClone(this.read());
-        await writeProjectState(this.store, next, this.atomicRestore);
-        await this.atomicRestore.onSaved();
+        const coherence = serializeCoherenceFile((next.coherence ?? emptyCoherenceState()) as CoherenceFile);
+        await writeProjectState(this.store, next, { ...this.atomicRestore, coherence });
+        await this.atomicRestore.onSaved(coherence);
         this.atomicRestore = null;
         this.shadow = shadowOf(next);
       } else {

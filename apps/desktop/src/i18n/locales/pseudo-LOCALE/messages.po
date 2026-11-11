@@ -14901,6 +14901,11 @@ msgstr ""
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
 msgstr ""
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Some changes were taken back in this tab, but they could not be saved. Keep this tab open and retry the failed save before restoring again."
+msgstr ""
+
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some documents in this folder changed since Caotang last saved them"
@@ -16814,6 +16819,11 @@ msgstr ""
 
 #: apps/desktop/src/app/run-recovery.ts
 msgid "The project changed. Review the restore again."
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The project could not be saved, so nothing was restored. Keep this tab open and retry the failed save before restoring again."
 msgstr ""
 
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.

@@ -1,7 +1,7 @@
 import { t } from '@lingui/core/macro';
 import type { CommandRegistry } from '@caotang/bus';
 import { serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
-import { emptyCoherenceState, readRunBaseline, runRestoreRegistrations, runRestoreSignature, undoGroupRetention, writeRunBaseline, type StagedRunRestore, type UndoRetentionLedger } from '@caotang/store';
+import { readRunBaseline, runRestoreRegistrations, runRestoreSignature, undoGroupRetention, writeRunBaseline, type StagedRunRestore, type UndoRetentionLedger } from '@caotang/store';
 import type { ProjectSession, RestoreResult } from './session.js';
 import type { Persistence } from './persistence.js';
 import { captureRunBaseline, validateRunBaseline } from './run-baseline.js';
@@ -13,9 +13,8 @@ export class RunRecovery {
   constructor(private readonly session: ProjectSession, private readonly persistence: Persistence, private readonly ledger: UndoRetentionLedger, private readonly rollback: (id: string) => void, registry: CommandRegistry) {
     Object.assign(registry, runRestoreRegistrations({
       read: (runId) => this.staged.get(runId),
-      beforeReplace: (before, next) => {
-        const coherence = serializeCoherenceFile((next.coherence ?? emptyCoherenceState()) as CoherenceFile);
-        persistence.stageAtomicRestore(before, session.runRestoreCoherenceText(before.coherence === undefined ? null : serializeCoherenceFile(before.coherence as CoherenceFile)), coherence, () => session.acknowledgeRunRestore(coherence));
+      beforeReplace: (before) => {
+        persistence.stageAtomicRestore(before, session.runRestoreCoherenceText(before.coherence === undefined ? null : serializeCoherenceFile(before.coherence as CoherenceFile)), (coherence) => session.acknowledgeRunRestore(coherence));
       },
     }, ledger));
   }
