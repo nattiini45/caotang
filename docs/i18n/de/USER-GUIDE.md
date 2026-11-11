@@ -536,7 +536,7 @@ Der Titel beginnt mit dem Symbol des geöffneten Dokumenttyps. Daneben stehen be
 
 Das Prüfen oder Speichern eines Anbieters wechselt niemals das aktive Profil. **Nicht verifiziert** neben einem Profil bedeutet, dass seine Modellliste noch nicht erfolgreich geprüft wurde oder für das ältere Profil kein Ergebnis vorliegt. Die Markierung bleibt nach dem Neuladen erhalten; während der Prüfung steht **Dieses Profil wird geprüft…** daneben. Schlägt die Prüfung fehl, bearbeiten und speichern Sie das Profil erneut. Eine erfolgreiche Modellliste garantiert nicht, dass Chat funktioniert, und **Strukturierte Ausgabe akzeptiert** beschreibt eine Fähigkeit, nicht die Erreichbarkeit.
 
-Eine fehlgeschlagene Prüfung nennt ihren Grund, etwa einen abgelehnten Schlüssel oder eine Zeitüberschreitung. Eine **Antwort des Anbieters:** wird getrennt in der Sprache des Anbieters angezeigt, statt in Caotangs Erklärung eingefügt zu werden.
+Eine fehlgeschlagene Prüfung nennt ihren Grund, etwa einen abgelehnten Schlüssel oder eine Zeitüberschreitung. Unter **Antwort des Anbieters:** steht der Originaltext in der Sprache des Anbieters, getrennt von Caotangs Erklärung.
 
 Die Nutzungsdaten der Anbieter bleiben lokal in diesem Browser erhalten, einschließlich Tages- und Durchlaufdetails über ein Neuladen hinweg. Wenn Sie die Browserdaten der App löschen, wird auch dieser Verlauf gelöscht; er gehört nicht zum Projektpaket. Aufgezeichnete Aufrufkosten ändern sich nicht, wenn Sie einen Anbieterpreis bearbeiten. Es sind Schätzwerte zur Information, nicht die Rechnung des Anbieters.
 
