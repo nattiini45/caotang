@@ -7031,11 +7031,6 @@ msgstr "Ausschlussbegriffe"
 msgid "Excluded context"
 msgstr "Ausgeschlossener Kontext"
 
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#: apps/desktop/src/components/PlanCard.tsx
-#~ msgid "Excluded for this request"
-#~ msgstr "Für diese Anfrage ausgeschlossen"
-
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "Expand {title}"
@@ -8360,11 +8355,6 @@ msgstr "Änderung {n} einbeziehen: {plain}"
 msgid "Include this page"
 msgstr "Diese Seite einbeziehen"
 
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
-#~ msgid "Included"
-#~ msgstr "Einbezogen"
-
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
 msgid "Included context"
@@ -8990,16 +8980,6 @@ msgstr "Lassen Sie es so, wie es ist — die Datei wird nicht geändert."
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Leave it out"
 msgstr "Weglassen"
-
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#: apps/desktop/src/components/PlanCard.tsx
-#~ msgid "Leave out"
-#~ msgstr "Weglassen"
-
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#: apps/desktop/src/components/PlanCard.tsx
-#~ msgid "Leave out {name} for this request ({id})"
-#~ msgstr "{name} für diese Anfrage weglassen ({id})"
 
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #: apps/desktop/src/components/PlanCard.tsx
@@ -15693,11 +15673,6 @@ msgstr "Synopsis geändert"
 msgid "System"
 msgstr "System"
 
-#. Interpolated values: limit (document count), layer (stable context layer ID), budget and total (token budgets), rank (pruning rank), file (instruction file name), sent and tokens (token counts), need (required tokens)
-#: apps/desktop/src/components/context-labels.ts
-#~ msgid "System instructions"
-#~ msgstr "Systemanweisungen"
-
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
 #: apps/desktop/src/import-preview/splitter-source.ts
 msgid "Table of contents"
@@ -18927,11 +18902,6 @@ msgstr "Zwei Ebenen"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "Type"
 msgstr "Typ"
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
-#~ msgid "Type @ to include documents or codex entries for this request. Up to three documents."
-#~ msgstr "Geben Sie @ ein, um Dokumente oder Kodexeinträge für diese Anfrage einzubeziehen. Bis zu drei Dokumente."
 
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #: apps/desktop/src/components/CommandComposer.tsx
