@@ -119,14 +119,13 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
       setClosedFor(value);
       return;
     }
-    if (active === undefined) {
-      if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); }
-      return;
-    }
-    if (event.key === 'Tab' && !event.shiftKey) {
-      event.preventDefault();
-      complete(active);
-    } else if (event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.shiftKey) {
+    if (event.key === 'Enter') {
+      if (active === undefined) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.shiftKey) return;
       if (active.context !== undefined) {
         event.preventDefault();
         complete(active);
@@ -142,6 +141,12 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
         onChange(`/${command.name}`);
         onRun(`/${command.name}`);
       }
+      return;
+    }
+    if (active === undefined) return;
+    if (event.key === 'Tab' && !event.shiftKey) {
+      event.preventDefault();
+      complete(active);
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
       event.preventDefault();
       const next = radioStep(matches.map((choice) => choice.key), active.key, event.key);
