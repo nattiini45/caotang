@@ -58,6 +58,8 @@ for (const variant of [
     await request.locator('details.context-accounting > summary').click();
     await expect(request.locator('details.context-accounting')).toHaveAttribute('open', '');
     await expect(request.locator('.context-layers')).toBeVisible();
+    await request.locator('.context-layers > li').first().scrollIntoViewIfNeeded();
+    await expect(request.locator('.context-layers > li').first()).toBeInViewport();
     if (variant.shell === 'modern') expect(await visibleTurnLines(page)).toBeGreaterThanOrEqual(3);
     const context = panel.locator('.composer-context');
     expect(await context.evaluate((element) => element.clientHeight)).toBeLessThanOrEqual(Math.min(variant.height * 0.3, 256));
