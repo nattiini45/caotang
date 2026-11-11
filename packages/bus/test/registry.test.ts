@@ -322,6 +322,7 @@ const ROW_SAMPLE: Partial<Record<CommandName, Record<string, unknown>>> = {
     label: 'Move the landing before the opening',
   },
   'project.setCalendar': { calendar: { version: 1, id: 'reckoning', name: 'Reckoning' }, lens: 'calendar' },
+  'project.restoreRun': { runId: 'run_TEST' },
   // The eight picture rows (pictures.md §2.4). The records, placements and node they name are in PICTURE_STATE.
   'asset.import': {
     stagingId: 'stg_ABCDEF0123',
@@ -558,8 +559,8 @@ describe('§9 the closed v0.1 registry', () => {
     // 85: the 38 names of the first 36 rows, and the forty-seven rows after them. The count is a
     // claim about the parse, not about the registry — if §9's table loses a row this fails, which is the whole point of asserting
     // it separately.
-    expect(specRows).toHaveLength(85);
-    expect(new Set(specRows.map((r) => r.name)).size).toBe(85);
+    expect(specRows).toHaveLength(86);
+    expect(new Set(specRows.map((r) => r.name)).size).toBe(86);
   });
 
   it('registers exactly the names §9 tabulates, in §9 order, plus the stated exceptions', () => {
@@ -570,7 +571,7 @@ describe('§9 the closed v0.1 registry', () => {
   it('holds the exceptions to exactly the names §9 does not tabulate, which is none', () => {
     const tabulated = new Set(specRows.map((r) => r.name));
     // The arithmetic, stated once: 85 names in COMMAND_NAMES, all of them tabulated, so the exception list is empty.
-    expect(COMMAND_NAMES, '85 names: every one tabulated in §9').toHaveLength(85);
+    expect(COMMAND_NAMES, '86 names: every one tabulated in §9').toHaveLength(86);
     expect(specRows.length + UNTABULATED_NAMES.length).toBe(COMMAND_NAMES.length);
     for (const name of UNTABULATED_NAMES) {
       // A stale exception is a red test, not a silent allowance: once §9 lists the
@@ -619,7 +620,7 @@ describe('§9 the closed v0.1 registry', () => {
     const project = COMMAND_NAMES.filter(
       (name) => !(view as readonly string[]).includes(name) && name !== 'mcp.invoke' && name !== 'mcp.readResource',
     );
-    expect(project, 'the project names: 85 less five view names and the two external names').toHaveLength(78);
+    expect(project, 'the project names: 86 less five view names and the two external names').toHaveLength(79);
     for (const name of project) {
       expect(COMMAND_REGISTRY[name].descriptor.mutates, `${name} mutates`).toBe('project');
     }
@@ -693,8 +694,8 @@ describe("§9's Params column against the code's accepted keys", () => {
     // while guarding nothing at all. That is precisely what the first draft of
     // this guard did during this build; the numbers here are what made it loud.
     // 85 names less the view row's three, which are exempt, leave 82 with a literal (85 - 3 = 82).
-    expect(specRows).toHaveLength(85);
-    expect(withKeys).toHaveLength(82);
+    expect(specRows).toHaveLength(86);
+    expect(withKeys).toHaveLength(83);
     expect(exempt.map((r) => r.name)).toEqual(['view.setSelection', 'view.setActiveDoc', 'view.setScroll']);
     // …and the exemption is earned by the word "various", not by a hardcoded name.
     for (const row of exempt) expect(row.params).toBe('various');
@@ -858,7 +859,7 @@ describe("§9's closed key set, and the refusal that enforces it", () => {
   });
 
   it('declares exactly the keys §9 declares, for the eighty-two rows §9 spells out', () => {
-    expect(withKeys).toHaveLength(82);
+    expect(withKeys).toHaveLength(83);
     for (const row of withKeys) {
       const name = row.name as CommandName;
       // §9 names `kind` on binder.create (command-bus §9 was widened with the media track), so no key is exempt here.
@@ -1160,7 +1161,7 @@ describe('one lookup, and the half-built state', () => {
     const withApply = COMMAND_NAMES.filter((name) => COMMAND_REGISTRY[name].apply !== undefined);
     expect(withApply).toHaveLength(5);
     expect(new Set(withApply)).toEqual(new Set(VIEW_COMMAND_NAMES));
-    expect(COMMAND_NAMES.length - withApply.length, '85 names less the five view applies').toBe(80);
+    expect(COMMAND_NAMES.length - withApply.length, '86 names less the five view applies').toBe(81);
     expect(COMMAND_REGISTRY['export.compile'].apply).toBeUndefined();
   });
 

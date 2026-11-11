@@ -4,6 +4,7 @@
  */
 
 import { afterEach, describe, expect, it } from 'vitest';
+import { checkMachine } from '@caotang/machine/testing';
 
 import { MemoryIndexedDb } from '../src/runtime/memory-idb.js';
 import {
@@ -21,8 +22,10 @@ import {
 import {
   RunExistsError,
   RunNotFoundError,
+  RunStatusTransitionError,
   appendRunEvents,
   createRun,
+  createRunLogPort,
   deleteRun,
   markRunsInterrupted,
   pruneRuns,
@@ -30,14 +33,27 @@ import {
   readRun,
   readRunEvents,
   readRuns,
+  runStatusMachine,
+  runStatusTable,
   updateRun,
+  type RunOutcome,
   type RunRow,
+  type RunStatus,
 } from '../src/runtime/run-log-store.js';
 import { addDocument, createEmptyManifest, createProjectState } from '../src/index.js';
 
 const DB = 'caotang-run-log-test';
 const PROJECT = 'p_9XK2M4Q7RZ';
 const DAY = 86_400_000;
+
+const STATUSES: readonly RunStatus[] = ['running', 'awaiting-approval', 'interrupted', 'finished', 'failed'];
+const TRANSITIONS: Record<RunStatus, readonly RunStatus[]> = {
+  running: STATUSES,
+  'awaiting-approval': STATUSES,
+  interrupted: ['running', 'interrupted', 'finished', 'failed'],
+  finished: ['finished'],
+  failed: ['failed'],
+};
 
 const opened: RuntimeStore[] = [];
 afterEach(() => {
@@ -178,7 +194,114 @@ describe('interrupted runs', () => {
   });
 });
 
+describe('run status transitions', () => {
+  it('names the persisted lifecycle and its two terminal states', () => {
+    expect(runStatusTable.id).toBe('run.status');
+    expect(runStatusTable.initial).toBe('running');
+    expect(runStatusTable.final).toEqual(['finished', 'failed']);
+    expect(Object.keys(runStatusTable.on)).toEqual(STATUSES);
+    expect(checkMachine(runStatusMachine, {
+      states: STATUSES.map((kind) => ({ kind })),
+      events: STATUSES.map((type) => ({ type })),
+    })).toEqual([]);
+  });
+
+  describe.each(['append', 'update'] as const)('%s', (operation) => {
+    it.each(STATUSES.flatMap((from) => STATUSES.map((to) => ({ from, to, legal: TRANSITIONS[from].includes(to) }))))(
+      '$from → $to is legal: $legal',
+      async ({ from, to, legal }) => {
+        const { store } = await freshStore();
+        const original = run('run_A', { status: from });
+        await createRun(store, original);
+        await appendRunEvents(store, original.runId, [{ seq: 0, t: 'turn.start' }]);
+        const before = await readRunEvents(store, original.runId);
+        const patch = { status: to, updatedAt: 99, cannotResume: true, outcome: 'stopped' } as const;
+        const write = operation === 'append'
+          ? appendRunEvents(store, original.runId, [{ seq: 1, t: 'messages' }, { seq: 2, t: 'turn.end' }], patch)
+          : updateRun(store, original.runId, patch);
+        if (legal) {
+          await write;
+          expect(await readRun(store, original.runId)).toEqual({ ...original, ...patch });
+          expect(await readRunEvents(store, original.runId)).toHaveLength(operation === 'append' ? 3 : 1);
+        } else {
+          await expect(write).rejects.toBeInstanceOf(RunStatusTransitionError);
+          await expect(write).rejects.toMatchObject({ runId: original.runId, from, to });
+          expect(await readRun(store, original.runId)).toEqual(original);
+          expect(await readRunEvents(store, original.runId)).toEqual(before);
+        }
+      },
+    );
+  });
+
+  it.each(['finished', 'failed'] as const)('allows metadata and event appends without reopening a %s row', async (status) => {
+    const { store } = await freshStore();
+    await createRun(store, run('run_A', { status }));
+    await appendRunEvents(store, 'run_A', [{ seq: 0, t: 'spend' }], { updatedAt: 2 });
+    await updateRun(store, 'run_A', { cannotResume: true });
+    expect(await readRun(store, 'run_A')).toMatchObject({ status, updatedAt: 2, cannotResume: true });
+    expect(await readRunEvents(store, 'run_A')).toHaveLength(1);
+    expect(await readOpenRuns(store, PROJECT)).toEqual([]);
+  });
+});
+
+describe('run outcomes', () => {
+  it('reads old records without an outcome before and after a status-only patch', async () => {
+    const { store } = await freshStore();
+    const original = run('run_OLD', { schema: 3, status: 'interrupted' });
+    await createRun(store, original);
+    expect(await readRun(store, original.runId)).toEqual(original);
+    expect(await readOpenRuns(store, PROJECT)).toEqual([original]);
+    await updateRun(store, original.runId, { status: 'running' });
+    await updateRun(store, original.runId, { status: 'finished' });
+    const settled = await readRun(store, original.runId);
+    expect(settled).toEqual({ ...original, status: 'finished' });
+    expect(settled).not.toHaveProperty('outcome');
+  });
+
+  it.each<RunOutcome>(['replied', 'applied', 'cancelled', 'stopped', 'failed'])('persists the %s outcome atomically with its closing events', async (outcome) => {
+    const { store } = await freshStore();
+    await createRun(store, run('run_A'));
+    const status = outcome === 'failed' ? 'failed' : 'finished';
+    const events = [{ seq: 0, t: 'turn.end', status: outcome === 'stopped' ? 'cancelled' : outcome }];
+    await appendRunEvents(store, 'run_A', events, { status, outcome });
+    expect(await readRun(store, 'run_A')).toMatchObject({ status, outcome });
+    expect(await readRunEvents(store, 'run_A')).toEqual(events.map((event) => ({ ...event, runId: 'run_A' })));
+    await updateRun(store, 'run_A', { updatedAt: 8 });
+    expect(await readRun(store, 'run_A')).toMatchObject({ status, outcome, updatedAt: 8 });
+  });
+
+  it('keeps a persisted outcome when a later batch rolls back', async () => {
+    const { store } = await freshStore();
+    await createRun(store, run('run_A', { status: 'finished', outcome: 'stopped' }));
+    await appendRunEvents(store, 'run_A', [{ seq: 0, t: 'turn.end' }]);
+    await expect(appendRunEvents(store, 'run_A', [{ seq: 1, t: 'messages' }, { seq: 0, t: 'messages' }], { outcome: 'applied' })).rejects.toBeDefined();
+    expect(await readRun(store, 'run_A')).toMatchObject({ status: 'finished', outcome: 'stopped' });
+    expect((await readRunEvents(store, 'run_A')).map((event) => event.seq)).toEqual([0]);
+  });
+});
+
 describe('retention', () => {
+  it('includes settled history only when the port caller explicitly requests it', async () => {
+    const { store } = await freshStore();
+    await createRun(store, run('run_OPEN', { status: 'interrupted' }));
+    await createRun(store, run('run_SETTLED', { status: 'finished', outcome: 'stopped', createdAt: 2_000 }));
+    const port = createRunLogPort(store);
+    expect((await port.open(PROJECT)).map((row) => row.runId)).toEqual(['run_OPEN']);
+    expect((await port.open(PROJECT, { includeSettled: true })).map((row) => row.runId)).toEqual(['run_OPEN', 'run_SETTLED']);
+  });
+  it('never evicts an open run or its events, even when interrupted, unable to resume, or beyond both limits', async () => {
+    const { store } = await freshStore();
+    const now = 100 * DAY;
+    for (const status of STATUSES) {
+      await createRun(store, run(status, { status, createdAt: 1, updatedAt: 1, cannotResume: true }));
+      await appendRunEvents(store, status, [{ seq: 0, t: 'turn.start' }]);
+    }
+    expect(await pruneRuns(store, PROJECT, now, { days: 0, count: 0 })).toBe(2);
+    expect((await readRuns(store, PROJECT)).map((entry) => entry.status).sort()).toEqual(['awaiting-approval', 'interrupted', 'running']);
+    for (const status of ['running', 'awaiting-approval', 'interrupted']) expect(await readRunEvents(store, status)).toHaveLength(1);
+    for (const status of ['finished', 'failed']) expect(await readRunEvents(store, status)).toEqual([]);
+  });
+
   it('keeps the newest fifty settled runs, drops those older than thirty days, and never evicts a live run', async () => {
     const { store } = await freshStore();
     const now = 100 * DAY;

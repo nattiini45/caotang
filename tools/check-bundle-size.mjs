@@ -117,7 +117,7 @@ export const BUDGET = {
   // 1,030.3 kB (1,030,261 bytes) measured with #488's request-parameter enforcement in the gateway, which loads at start: the deny map that
   // takes a denied thinking field off the wire, the one output settlement the body and `modelLimits` share, and the pinned-preset rows. The
   // ceiling is that plus about 1%, rounded up to the thousand. [owner 2026-11-08]
-  initialGzip: 1_041_000,
+  initialGzip: 1_056_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

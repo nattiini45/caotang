@@ -101,6 +101,8 @@ export {
   snapshotFile,
 } from './paths.js';
 export { agentFileCommandRegistrations } from './commands-agent-files.js';
+export { runRestoreRegistrations, runRestoreSignature, type RunRestorePort, type StagedRunRestore } from './commands-run-restore.js';
+export { readRunBaseline, readRunBaselines, writeRunBaseline, type RunBaseline } from './runtime/run-baseline-store.js';
 export { createSkillStaging, type SkillStaging, type StagedSkill } from './commands-skills.js';
 export { SET_CALENDAR_COMMAND, calendarCommandRegistrations, setCalendarApply, type CalendarClock } from './commands-calendar.js';
 export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
@@ -191,11 +193,13 @@ export {
   documentIds,
   getBody,
   getRevision,
+  getRevisionFloor,
   moveNode,
   nodeById,
   rebuildDerived,
   renormalizeSiblings,
   removeNode,
+  removeDocument,
   type RemovedNode,
   setBody,
   siblingIndex,
@@ -382,6 +386,7 @@ export {
   readBodySnapshots,
   readCoherenceFiles,
   readProjectState,
+  ProjectWriteConflictError,
   readSessions,
   readTaskFiles,
   writeBodySnapshot,
@@ -407,6 +412,8 @@ export {
   OPEN_RUN_STATUSES,
   RunExistsError,
   RunNotFoundError,
+  RunStatusTransitionError,
+  assertRunStatusTransition,
   appendRunEvents,
   createRunLogPort,
   createRun,
@@ -417,10 +424,13 @@ export {
   readRun,
   readRunEvents,
   readRuns,
+  runStatusMachine,
+  runStatusTable,
   updateRun,
   type RunEventInput,
   type RunEventRow,
   type RunPatch,
+  type RunOutcome,
   type RunLogStorePort,
   type RunRetention,
   type RunRow,

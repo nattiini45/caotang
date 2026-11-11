@@ -100,6 +100,7 @@ export const HARD_DENIED: Readonly<Partial<Record<CommandName, HardDenyClass>>> 
   'project.deleteNode': 'deletion',
   // A memory note is the writer's to remove, as a node and a codex entry are (agent-harness §4, context-assembly §2 LI).
   'memory.forget': 'deletion',
+  'project.restoreRun': 'deletion',
 };
 
 /**

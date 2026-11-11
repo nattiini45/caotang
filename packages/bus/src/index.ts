@@ -45,6 +45,7 @@ export type {
   NotesSetParams,
   Postcondition,
   ProjectDeleteNodeParams,
+  ProjectRestoreRunParams,
   UndoKind,
   UndoPayload,
   UndoScope,
@@ -120,6 +121,7 @@ export type { AssetTranscribeInto, AssetTranscribePage, AssetTranscribeParams } 
 export * as commands from './descriptors.js';
 // Project export: the project, recipe, vocabulary and cover-import descriptors, by name. The store reads them here.
 export * as projectCommands from './descriptors-project.js';
+export { projectRestoreRun } from './descriptors-run-restore.js';
 // The skill commands (extensibility.md §10), by name. The store reads them here.
 export * as skillCommands from './descriptors-skills.js';
 // The timeline calendar setting (timeline.md §3.8): the descriptor the store attaches its apply to, and the bound the loader shares.

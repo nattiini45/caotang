@@ -23,6 +23,7 @@ import { modalMachine } from '../apps/desktop/src/components/modal-stack.js';
 import { findingStatusTable } from '../packages/bus/src/coherence.js';
 import { callIdTable } from '../packages/bus/src/idempotency.js';
 import { runtimeConnectionTable } from '../packages/store/src/runtime/store.js';
+import { runStatusTable } from '../packages/store/src/runtime/run-log-store.js';
 import { assetStagingTable } from '../packages/store/src/asset-staging.js';
 import { assetRemovalHoldTable } from '../packages/store/src/asset-removals.js';
 import { autosaveTable } from '../packages/store/src/runtime/autosave-machine.js';
@@ -35,7 +36,7 @@ import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
 export const machineTables = [
   sprintTable, taskStatusTable, agentControllerTable, recurringRunTable, turnMarkerTable, folderSaveTable, importPreviewTable,
   exportCompileMachine.table, exportReadinessMachine.table, encodingPanelMachine.table,
-  sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable,
+  sidebarTable, menuTable, findingStatusTable, callIdTable, runtimeConnectionTable, runStatusTable,
   assetStagingTable, assetRemovalHoldTable, autosaveTable, reviewTable, interfaceTable,
   turnPhaseTable, cardStatusTable,
   cardDecisionTable, budgetMeterTable,

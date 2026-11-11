@@ -131,6 +131,7 @@ import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
 import { resizePictureInBrowser } from './picture-transcoder.js';
+import type { RunRecovery } from './run-recovery.js';
 import { withAccess, type AgentAccess } from './agent-rules-model.js';
 import type { runPictureTranscription } from '../media/picture-transcription.js';
 import type * as LazyExporter from './lazy-exporter.js';
@@ -200,6 +201,8 @@ export class CoherenceFolderError extends Error {
  * attached. `save` receives the file as it is when the save runs, so a save never writes an older state than the latest.
  */
 export interface CoherencePort {
+  storedText?(): string | null;
+  restored?(text: string): Promise<void>;
   /** Saves `file` in the browser and in the attached folder. Throws a `CoherenceFolderError` when only the folder's copy was not written. */
   save(file: CoherenceFile): Promise<void>;
   /**
@@ -336,6 +339,7 @@ function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: strin
 }
 
 export class ProjectSession {
+  private recovery: Promise<RunRecovery> | undefined;
   readonly projectId: string;
   readonly state: ProjectState;
   readonly view: ViewState = createViewState();
@@ -779,9 +783,15 @@ export class ProjectSession {
   private afterCommand(): void {
     // A dialogue container made after the open (a new one, an import, the agent's) starts the compiler's download at once.
     if (inkCompilerStatus() === 'idle') void requestInkCompilerFor(this.state);
-    this.persistence.schedule();
-    this.queueCoherenceSave();
+    this.scheduleSave();
     this.bump();
+  }
+
+  private scheduleSave(): void {
+    const atomic = this.persistence.atomicRestorePending();
+    this.persistence.schedule();
+    if (atomic) void this.persistence.settle().then(() => { if (!this.persistence.isStopped() && this.persistence.getStatus() === 'idle') this.queueCoherenceSave(); });
+    else this.queueCoherenceSave();
   }
 
   /**
@@ -1484,7 +1494,7 @@ export class ProjectSession {
    * rather than being silently discarded.
    */
   async undoLast(): Promise<SessionUndoOutcome> {
-    await this.autosave.flush();
+    await this.saved();
     const newest = this.newestUndoGroupId();
     if (newest === null) return { kind: 'empty' };
     return this.undoNow(newest);
@@ -1498,7 +1508,7 @@ export class ProjectSession {
    * been undone is not there to undo. A turn's checkpoint is not undone here: `restoreBefore` takes it back.
    */
   async undoGroup(id: string): Promise<SessionUndoOutcome> {
-    await this.autosave.flush();
+    await this.saved();
     if (this.undo.group(id) === undefined) {
       return { kind: 'failed', message: alreadyUndone() };
     }
@@ -1520,12 +1530,13 @@ export class ProjectSession {
    * stay. The group is then not in `undone`: it is still on the stack, with those steps.
    */
   async restoreBefore(id: string, step?: () => Result<UndoOutcome, CommandError>): Promise<RestoreResult> {
-    await this.autosave.flush();
+    await this.saved();
     const groups = this.undo.groups();
     const at = groups.findIndex((group) => group.id === id);
     if (at === -1) return { ok: false, message: alreadyUndone(), undone: [] };
     const undone: string[] = [];
-    for (const group of groups.slice(at).reverse()) {
+    while (this.undo.group(id) !== undefined) {
+      const group = this.undo.groups().at(-1)!;
       const held = this.undo.group(group.id)?.entries.length ?? 0;
       const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
       if (taken.kind !== 'done') {
@@ -1545,8 +1556,10 @@ export class ProjectSession {
         };
       }
       if (step === undefined || group.id !== id) undone.push(group.id);
+      await this.saved();
+      if (group.id === id) break;
     }
-    return { ok: true, later: groups.length - 1 - at, undone };
+    return { ok: true, later: Math.max(0, undone.length - (step === undefined ? 1 : 0)), undone };
   }
 
   /**
@@ -1662,7 +1675,7 @@ export class ProjectSession {
     // An undo moves stored text without going through `writeDocument`, so no write this session made describes the
     // stored body any more. The editor's own-write test must not match one of them against the undone text (EditorPane).
     this.written.clear();
-    this.persistence.schedule();
+    this.scheduleSave();
     this.bump();
     if (!outcome.ok) {
       return { kind: 'failed', message: outcome.error.message };
@@ -1695,6 +1708,16 @@ export class ProjectSession {
    */
   coherenceFile(): CoherenceFile | undefined {
     return this.state.coherence as CoherenceFile | undefined;
+  }
+
+  runRestoreCoherenceText(fallback: string | null): string | null {
+    if (this.coherencePort !== null && !this.coherenceWritable) throw new Error(t`The findings file is read-only. Reopen the project with a readable findings file before restoring a run.`);
+    if (this.coherencePort?.storedText !== undefined) return this.coherencePort.storedText();
+    return fallback;
+  }
+
+  async acknowledgeRunRestore(text: string): Promise<void> {
+    await this.coherencePort?.restored?.(text);
   }
 
   /** Gives the session its recurring tasks, as the lifecycle loaded them (agent-harness.md §12). They are not project state: no command changes them. */
@@ -1869,6 +1892,23 @@ export class ProjectSession {
   /** The runtime store this project lives in: the agent's run log is kept beside it (agent-harness §5.1). */
   runtimeStore(): RuntimeStore {
     return this.runtime;
+  }
+
+  async captureRunBaseline(runId: string): Promise<void> {
+    await (await this.runRecovery()).capture(runId);
+  }
+
+  async prepareRunRestore(runId: string): Promise<string> {
+    return (await this.runRecovery()).prepare(runId);
+  }
+
+  async restoreRun(runId: string, expected: string, onRestored?: (groups: readonly string[]) => () => void): Promise<RestoreResult> {
+    return (await this.runRecovery()).restore(runId, expected, onRestored);
+  }
+
+  private runRecovery(): Promise<RunRecovery> {
+    this.recovery ??= import('./run-recovery.js').then(({ RunRecovery }) => new RunRecovery(this, this.persistence, this.undoRetention, (id) => { this.undoNow(id); }, this.registry));
+    return this.recovery;
   }
 
   /**

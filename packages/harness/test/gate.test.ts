@@ -233,7 +233,7 @@ describe('a delegated agent’s calls (agent-harness §2, "Delegate")', () => {
 describe('the hard-deny list the tool names are checked against', () => {
   it('shares no name with the bus’s hard-denied commands, so the tool-level gate never reads a deny it does not own', () => {
     const hardDenied = Object.keys(HARD_DENIED);
-    expect(hardDenied).toEqual(['project.deleteNode', 'memory.forget']);
+    expect(hardDenied).toEqual(['project.deleteNode', 'memory.forget', 'project.restoreRun']);
     expect(TOOL_NAMES.filter((name) => hardDenied.includes(name))).toEqual([]);
     expect(HARD_DENY_CLASSES).toContain('deletion');
   });

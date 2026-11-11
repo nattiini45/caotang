@@ -118,7 +118,7 @@ async function openMirror(
   db: AppDb | null,
   projectId: string,
   state: ProjectState,
-): Promise<{ fs: StoreArtifactFs; notice: string | null; readable: boolean }> {
+): Promise<{ fs: StoreArtifactFs; notice: string | null; readable: boolean; storedText: () => string | null; restored: (text: string) => Promise<void> }> {
   const files = new MemoryArtifactFs();
   let notice: string | null = null;
   let readable = true;
@@ -151,7 +151,7 @@ async function openMirror(
   const fs = new StoreArtifactFs(files, async () => {
     if (readable) await writeCoherenceFiles(store, projectId, files.snapshot());
   });
-  return { fs, notice, readable };
+  return { fs, notice, readable, storedText: () => files.snapshot()[COHERENCE_FILE] ?? null, restored: (text) => files.writeAtomic(COHERENCE_FILE, text) };
 }
 
 /** A folder's copy of the findings file, read, and ready to be written. */
@@ -231,6 +231,8 @@ export async function attachCoherence(session: ProjectSession, store: RuntimeSto
   const reconciled = reconcileCoherence(load.file, session.state);
   const messages = [...notices, ...load.notices.map((notice) => notice.message), ...reconciled.notices.map((notice) => notice.message)];
   const port: CoherencePort = {
+    storedText: mirror.storedText,
+    restored: mirror.restored,
     save: async (file: CoherenceFile): Promise<void> => {
       if (!mirror.readable) {
         throw new Error('the findings file could not be read when the project opened, so it is not saved over. Reopen the project to save again.');

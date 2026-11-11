@@ -5,18 +5,24 @@ export type TurnMarker = { readonly kind: 'live' }
   | ({ readonly kind: 'restored' } & Restoration)
   | { readonly kind: 'rewound'; readonly restored?: Restoration };
 export type TurnMarkerEvent = { readonly type: 'restore'; readonly at: number; readonly fromStep?: number }
-  | { readonly type: 'rewind' };
+  | { readonly type: 'rewind' }
+  | { readonly type: 'undo-restore'; readonly previous: TurnMarker };
 
 export const turnMarkerTable: MachineTable<TurnMarker, TurnMarkerEvent> = {
-  id: 'turn.marker', initial: 'live', final: ['rewound'],
+  id: 'turn.marker', initial: 'live', final: [],
   on: {
-    live: { restore: ['restored'], rewind: ['rewound'] },
-    restored: { restore: ['restored'], rewind: ['rewound'] },
-    rewound: {},
+    live: { restore: ['restored'], rewind: ['rewound'], 'undo-restore': ['live', 'restored', 'rewound'] },
+    restored: { restore: ['restored'], rewind: ['rewound'], 'undo-restore': ['live', 'restored', 'rewound'] },
+    rewound: { 'undo-restore': ['rewound'] },
   },
 };
 
 export function stepTurnMarker(state: TurnMarker, event: TurnMarkerEvent): TurnMarker {
+  if (event.type === 'undo-restore') {
+    if (state.kind !== 'rewound') return event.previous;
+    const previous = event.previous.kind === 'restored' ? event.previous : event.previous.kind === 'rewound' ? event.previous.restored : undefined;
+    return { kind: 'rewound', ...(previous === undefined ? {} : { restored: { at: previous.at, ...(previous.fromStep === undefined ? {} : { fromStep: previous.fromStep }) } }) };
+  }
   if (state.kind === 'rewound') return state;
   switch (event.type) {
     case 'restore':

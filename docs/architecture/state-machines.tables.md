@@ -481,6 +481,29 @@ Initial: `idle`. Final: none.
 | `running` | `finish` | `idle`, `running` |
 | `running` | `record` | `recording`, `running` |
 
+## run.status
+
+Initial: `running`. Final: `failed`, `finished`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `awaiting-approval` | `awaiting-approval` | `awaiting-approval` |
+| `awaiting-approval` | `failed` | `failed` |
+| `awaiting-approval` | `finished` | `finished` |
+| `awaiting-approval` | `interrupted` | `interrupted` |
+| `awaiting-approval` | `running` | `running` |
+| `failed` | — | — |
+| `finished` | — | — |
+| `interrupted` | `failed` | `failed` |
+| `interrupted` | `finished` | `finished` |
+| `interrupted` | `interrupted` | `interrupted` |
+| `interrupted` | `running` | `running` |
+| `running` | `awaiting-approval` | `awaiting-approval` |
+| `running` | `failed` | `failed` |
+| `running` | `finished` | `finished` |
+| `running` | `interrupted` | `interrupted` |
+| `running` | `running` | `running` |
+
 ## save.channel
 
 Initial: `idle`. Final: none.
@@ -590,15 +613,17 @@ Initial: `queued`. Final: `applied`, `cancelled`, `failed`.
 
 ## turn.marker
 
-Initial: `live`. Final: `rewound`.
+Initial: `live`. Final: none.
 
 | State | Event | Targets |
 | --- | --- | --- |
 | `live` | `restore` | `restored` |
 | `live` | `rewind` | `rewound` |
+| `live` | `undo-restore` | `live`, `restored`, `rewound` |
 | `restored` | `restore` | `restored` |
 | `restored` | `rewind` | `rewound` |
-| `rewound` | — | — |
+| `restored` | `undo-restore` | `live`, `restored`, `rewound` |
+| `rewound` | `undo-restore` | `rewound` |
 
 ## turn.phase
 

@@ -1181,7 +1181,7 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // `asset.repin`, `asset.reorderLinks`, `asset.delete`, `asset.sweep`, `asset.relink` and `asset.storeWorkingCopies`: 66 + 11 = 77.
     // The seven comic commands make 84.
     // The import preview's commit adds `binder.importTree`, a descriptor here with its apply in the store: 84 + 1 = 85.
-    expect(COMMAND_NAMES.length).toBe(85);
+    expect(COMMAND_NAMES.length).toBe(86);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {

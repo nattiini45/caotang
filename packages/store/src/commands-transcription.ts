@@ -34,7 +34,7 @@ import {
 import type { ApplyClock } from './commands-project.js';
 import { linksOf, recordsOf, replaceList, undoList } from './picture-registry.js';
 import type { UndoRetentionLedger } from './picture-retention.js';
-import { addDocument, nodeById, type ProjectState } from './state.js';
+import { addDocument, nodeById, removeDocument, type ProjectState } from './state.js';
 
 /** The validated params, re-exported for the direct apply tests and the registry wiring. */
 export type TranscribePage = AssetTranscribePage;
@@ -269,7 +269,7 @@ function applyNewDocument(
     undoList(state, linksUndo);
     undoList(state, recordsUndo);
     state.manifest.tree = treeBefore;
-    state.documents.delete(docId);
+    removeDocument(state, docId);
     if (hadCount && countBefore !== undefined) wordCounts[docId] = countBefore;
     else delete wordCounts[docId];
   });

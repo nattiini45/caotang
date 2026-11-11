@@ -37,6 +37,7 @@ export interface DocumentRecord {
 export interface ProjectState {
   manifest: Manifest;
   readonly documents: Map<string, DocumentRecord>;
+  revisionFloors?: Map<string, number>;
   /**
    * `codex/<id>.md` files **this load saw and declined to import** — front
    * matter that does not parse. Not a list of orphans: `codex/*.md` with no
@@ -149,6 +150,7 @@ export function createProjectState(manifest: Manifest, options: CreateStateOptio
   return {
     manifest,
     documents: new Map(),
+    revisionFloors: new Map(),
     declinedCodexFiles: new Set(),
     declinedDocFiles: new Set(),
     declinedText: new Map(),
@@ -174,6 +176,7 @@ export function cloneProjectState(state: ProjectState): ProjectState {
   for (const [id, record] of state.documents) {
     copy.documents.set(id, { id, body: record.body, revision: record.revision });
   }
+  for (const [id, revision] of state.revisionFloors ?? []) copy.revisionFloors!.set(id, revision);
   for (const name of state.declinedCodexFiles) copy.declinedCodexFiles.add(name);
   for (const name of state.declinedDocFiles) copy.declinedDocFiles.add(name);
   for (const [path, text] of state.declinedText) copy.declinedText.set(path, text);
@@ -276,6 +279,17 @@ export function getRevision(state: ProjectState, id: string): number {
   return state.documents.get(id)?.revision ?? 0;
 }
 
+export function getRevisionFloor(state: ProjectState, id: string): number {
+  return Math.max(state.revisionFloors?.get(id) ?? 0, getRevision(state, id));
+}
+
+export function removeDocument(state: ProjectState, id: string): void {
+  const record = state.documents.get(id);
+  if (record === undefined) return;
+  (state.revisionFloors ??= new Map()).set(id, getRevisionFloor(state, id));
+  state.documents.delete(id);
+}
+
 /**
  * Write a document body and bump its revision. Content-touching by definition.
  *
@@ -307,7 +321,8 @@ export function setBody(
   // A sweep removing a picture file right now holds it against new references (asset-removals.ts).
   refuseReferenceToRemoval(state, record.body, body);
   record.body = body;
-  record.revision += 1;
+  record.revision = getRevisionFloor(state, id) + 1;
+  (state.revisionFloors ??= new Map()).set(id, record.revision);
   recordBodyCount(state, id, body, options.now);
 }
 
@@ -360,7 +375,8 @@ export function addDocument(state: ProjectState, options: AddDocumentOptions): T
   // Checked before the node is added, so a refused document leaves nothing behind (asset-removals.ts).
   refuseReferenceToRemoval(state, '', body);
   state.manifest.tree.push(node);
-  state.documents.set(id, { id, body, revision: 0 });
+  const revision = state.revisionFloors?.has(id) ? getRevisionFloor(state, id) + 1 : 0;
+  state.documents.set(id, { id, body, revision });
   // A document born with a body has a count. Recording it here is what keeps
   // `wordCounts` a map over *the documents the tree holds* rather than a map
   // that fills in as documents happen to be edited — otherwise a newly created
@@ -510,7 +526,7 @@ export function removeNode(state: ProjectState, id: string): RemovedNode[] {
   }
 
   for (const entry of removed) {
-    if (entry.record !== undefined) state.documents.delete(entry.node.id);
+    if (entry.record !== undefined) removeDocument(state, entry.node.id);
     // The count goes with the record it describes — see the header on why this
     // clause reversed the decision the header used to record.
     delete state.manifest.derived.wordCounts[entry.node.id];

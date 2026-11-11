@@ -45,6 +45,7 @@ import * as hookDescriptors from './descriptors-hooks.js';
 import * as codexImportDescriptors from './descriptors-codex-import.js';
 import * as importTreeDescriptors from './descriptors-import.js';
 import * as macroDescriptors from './descriptors-macros.js';
+import { projectRestoreRun } from './descriptors-run-restore.js';
 import {
   viewSetActiveDocApply,
   viewSetCorkboardScopeApply,
@@ -121,6 +122,7 @@ export function buildRegistry(): CommandRegistry {
     // The project block, the saved recipes, the vocabulary and the cover import. Descriptors here; the applies are
     // the store's (`createProjectCommandRegistry`, commands-project.ts), and `project.importAsset` needs its staged bytes.
     'project.rename': { descriptor: projectDescriptors.projectRename },
+    'project.restoreRun': { descriptor: projectRestoreRun },
     'project.setMetadata': { descriptor: projectDescriptors.projectSetMetadata },
     'project.importAsset': { descriptor: projectDescriptors.projectImportAsset },
     'vocabulary.upsert': { descriptor: projectDescriptors.vocabularyUpsert },

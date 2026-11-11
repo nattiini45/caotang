@@ -1,5 +1,7 @@
 # Caotang
 
+Agent runs retain a local restore point before their first writing step. Activity › Agent run logs offers confirmed restoration, JSONL/Markdown export and opt-in derived copies in an attached project folder. Restoring includes later edits; conversation, recorded spend and external side effects are kept. See [the writer’s guide](docs/USER-GUIDE.md) for the recovery limits.
+
 The agent names when it is loading, processing an approval or stopping. Its composer and Stop stay available while the turn starts.
 
 Recurring task offers keep updating while a scan runs. If the agent is busy, a due task stays offered without a failed run; choose **Run now** after the turn ends.

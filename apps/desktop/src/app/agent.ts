@@ -81,6 +81,7 @@ import {
   RUN_LOG_VERSION,
   structureDigest,
   summarizeRun,
+  parseRunEvents,
   withheldAnywhere,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
@@ -100,6 +101,7 @@ import {
   type PlanOffer,
   type RunLimits,
   type RunLogPort,
+  type RunRecord,
   type ToolName,
   type TraceSink,
   type TraceInput,
@@ -109,11 +111,15 @@ import {
 } from '@caotang/harness';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, nodeById, valueRetentionRoot } from '@caotang/store';
+import { createRunLogPort, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
-import { documentIdFor, draftCheckOf, newTurnRecord, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView, type TurnRecord } from './agent-model.js';
+import { downloadBytes } from './download.js';
+import { activeAppDb } from './app-db.js';
+import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
+import { folderWithPermission } from './folder-memory.js';
+import { documentIdFor, draftCheckOf, newTurnRecord, reduceTurn, type DraftCheck, type GhostView, type TurnView, type TurnRecord } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
@@ -194,13 +200,20 @@ export interface SubmitOptions {
 /** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
 export interface InterruptedRunView {
   readonly runId: string;
+  readonly createdAt?: number;
+  readonly feedback?: { readonly tone: 'error' | 'status'; readonly text: string } | null;
+  readonly status?: RunRecord['status'];
+  readonly outcome?: RunRecord['outcome'];
+  readonly restorable?: boolean;
+  readonly pending?: 'resume' | 'prepare' | 'restore' | 'export' | 'discard' | null;
+  readonly cannotResume?: boolean;
   /** What the writer asked for. */
   readonly intent: string;
   /** Steps applied, and the steps of the plan the run was on. */
   readonly applied: number;
   readonly total: number;
-  /** The run's spend in the words the panel's spend line uses, or `null` when the log holds none. */
-  readonly spend: string | null;
+  /** Raw usage for live locale formatting, an older formatted view, or `null` when the log holds none. */
+  readonly spend: string | { readonly spend: BudgetSpend; readonly limits: RunLimits } | null;
   /** Whether Resume is offered. */
   readonly resumable: boolean;
   /** Why it is not, or what to know before resuming, as a sentence. */
@@ -259,6 +272,9 @@ export interface AgentSnapshot {
   readonly stopping: boolean;
   /** The runs this project was left with unfinished, oldest first. */
   readonly interrupted: readonly InterruptedRunView[];
+  readonly runHistory: readonly InterruptedRunView[];
+  readonly runHistoryLoad: { readonly kind: 'loading' | 'ready' } | { readonly kind: 'failed'; readonly message: string };
+  readonly runCopyFailure: string | null;
   /** The messages typed while a turn ran, in the order they will run. */
   readonly queue: readonly QueuedMessage[];
   /** The queue waits instead of running, after a turn that stopped on a question or never ran. */
@@ -339,6 +355,8 @@ export class AgentController {
   private queueSeq = 0;
   private announcement = '';
   private readonly runLog: RunLogPort;
+  private runCopyWork: Promise<void> = Promise.resolve();
+  private runCopyFailure: string | null = null;
   /**
    * The agent session one open panel keeps across turns (context-assembly §2, L6), one for each task role a turn has run under
    * (`SubmitOptions.role`; the chat conversation is the `chat` one): the loop's
@@ -394,6 +412,7 @@ export class AgentController {
   private runLogUnreadableTold = false;
   /** The number of the latest check of the interrupted runs, so a check that finishes after a newer one has started is dropped. */
   private loadSeq = 0;
+  private runHistoryLoad: AgentSnapshot['runHistoryLoad'] = { kind: 'loading' };
   private readonly tasks: TaskQueue;
   /** The status each task had when the panel last heard of it, so only a change is announced. */
   private readonly taskStatus = new Map<string, TaskRecord['status']>();
@@ -401,7 +420,7 @@ export class AgentController {
   private queueWork: Promise<void> = Promise.resolve();
 
   private get turn() { return controllerTurn(this.state); }
-  private get busy() { return this.turn !== null; }
+  private get busy() { return this.turn !== null || this.state.interrupted.some((run) => run.pending !== null && run.pending !== undefined); }
   private get detached() { return this.state.kind === 'detached'; }
   private get stopping() { return this.state.kind === 'stopping' || (this.state.kind === 'detached' && this.state.from === 'stopping'); }
   private get pending() { return this.state.kind === 'parked-on-card' ? this.state.decision.pending : null; }
@@ -421,7 +440,7 @@ export class AgentController {
   private get queuePaused() { return this.state.queue.paused; }
   private get pendingNotes() { return this.state.notes.pending; }
   private get earlyNotes() { return this.state.notes.early; }
-  private get interrupted() { return this.state.interrupted; }
+  private get interrupted() { return this.state.interrupted.filter((run) => (run.status === undefined || run.status === 'interrupted') && run.cannotResume !== true); }
 
   private move(event: AgentStateEvent): void {
     const previous = this.state;
@@ -468,7 +487,14 @@ export class AgentController {
       ...(background.locksAvailable === undefined ? {} : { locksAvailable: background.locksAvailable }),
       ...(background.sleep === undefined ? {} : { sleep: background.sleep }),
     });
-    this.runLog = createRunLogPort(session.runtimeStore());
+    const port = createRunLogPort(session.runtimeStore());
+    this.runLog = { ...port, append: async (runId, events, patch) => {
+      await port.append(runId, events, patch);
+      this.runCopyWork = this.runCopyWork.then(() => this.copyRunLogs(runId)).catch((error: unknown) => {
+        this.runCopyFailure = t`The folder copy could not be written: ${{ reason: error instanceof Error ? error.message : String(error) }}. The browser’s run log is safe. Check folder access, then retry.`;
+        this.bump();
+      });
+    } };
     this.tasks.subscribe(() => this.onTasksChanged());
     this.snapshotValue = this.buildSnapshot();
   }
@@ -516,9 +542,12 @@ export class AgentController {
       }),
       pending: this.pending,
       busy: this.busy,
-      stoppable: this.busy || this.pending !== null,
+      stoppable: this.turn !== null || this.pending !== null,
       stopping: this.stopping,
       interrupted: this.interrupted,
+      runHistory: this.state.interrupted,
+      runHistoryLoad: this.runHistoryLoad,
+      runCopyFailure: this.runCopyFailure,
       queue: this.queue,
       queuePaused: this.queuePaused,
       notes: this.pendingNotes,
@@ -1088,14 +1117,21 @@ export class AgentController {
    */
   async loadInterrupted(): Promise<void> {
     if (this.busy) return;
+    this.runHistoryLoad = { kind: 'loading' };
+    this.bump();
     const turns = this.turnsStarted;
     const seq = (this.loadSeq += 1);
     // A turn that has started since, a newer check, or a panel that has gone: what this check found is no longer the list to show.
     const superseded = (): boolean => this.busy || this.turnsStarted !== turns || this.loadSeq !== seq || this.detached;
     let rows: Awaited<ReturnType<RunLogPort['open']>>;
     try {
-      rows = await this.runLog.open(this.session.projectId);
+      rows = await this.runLog.open(this.session.projectId, { includeSettled: true });
     } catch (error) {
+      if (!superseded()) {
+        const reason = error instanceof Error ? error.message : String(error);
+        this.runHistoryLoad = { kind: 'failed', message: t`Interrupted agent runs could not be checked: ${reason}` };
+        this.bump();
+      }
       // Said once, and never over a message the writer has not read yet, such as a turn's own result, nor over a turn that has begun.
       if (!superseded() && !this.runLogUnreadableTold && this.message === null) {
         this.runLogUnreadableTold = true;
@@ -1108,34 +1144,40 @@ export class AgentController {
     // The log can be read again: a later failure is worth saying again.
     this.runLogUnreadableTold = false;
     const views: InterruptedRunView[] = [];
+    const previous = new Map(this.state.interrupted.map((view) => [view.runId, view]));
     for (const run of rows) {
-      if (run.status !== 'interrupted' || run.cannotResume === true) continue;
+      if (run.status === 'running' || run.status === 'awaiting-approval') continue;
+      let restorable = false;
+      try { restorable = (await readRunBaseline(this.session.runtimeStore(), this.session.projectId, run.runId)) !== undefined; } catch { restorable = false; }
+      const fields = { createdAt: run.createdAt, feedback: previous.get(run.runId)?.feedback ?? null, status: run.status, cannotResume: run.cannotResume === true, ...(run.outcome === undefined ? {} : { outcome: run.outcome }), restorable };
       let summary: ReturnType<typeof summarizeRun>;
       try {
         summary = await this.summarizeLogged(run.runId);
       } catch {
         // A read that failed, or a document the project could not give: the run stays listed, and only the writer discards it.
-        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.` });
+        views.push({ ...fields, runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.` });
         continue;
       }
       if (run.schema !== RUN_LOG_VERSION || summary === undefined) {
-        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.` });
+        views.push({ ...fields, runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: t`This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.` });
         continue;
       }
       views.push({
+        ...fields,
         runId: run.runId,
         intent: summary.intent,
         applied: summary.applied,
         total: summary.total,
-        spend: summary.spend === undefined ? null : (spendLine({ spend: summary.spend, limits: this.runLimits() }) ?? null),
-        resumable: summary.resumable,
-        note: summary.note ?? null,
+        spend: summary.spend === undefined ? null : { spend: summary.spend, limits: this.runLimits() },
+        resumable: run.status === 'interrupted' && run.cannotResume !== true && summary.resumable,
+        note: run.status === 'interrupted' ? summary.note ?? null : null,
       });
     }
     if (superseded()) return;
-    const same = JSON.stringify(views) === JSON.stringify(this.interrupted);
+    this.runHistoryLoad = { kind: 'ready' };
+    const same = JSON.stringify(views) === JSON.stringify(this.state.interrupted);
     this.move({ type: 'interrupted', runs: views });
-    if (!same) this.bump();
+    if (!same || this.snapshotValue.runHistoryLoad.kind !== 'ready') this.bump();
   }
 
   /** A run's log read and checked against the project as it stands. Rejects when the log cannot be read. */
@@ -1145,6 +1187,115 @@ export class AgentController {
       nameOf: (id) => tree.find((node) => node.id === id)?.title ?? id,
       structure: () => structureDigest(this.session.state.manifest),
     });
+  }
+
+  private claimRunAction(runId: string, action: NonNullable<InterruptedRunView['pending']>): boolean {
+    if (this.busy || this.detached || !this.state.interrupted.some((run) => run.runId === runId)) {
+      this.reportRunAction(runId, this.busy ? t`Another agent action is active. Wait for it to finish, then try again.` : t`That run is no longer in this project.`, 'error');
+      return false;
+    }
+    this.message = null;
+    this.move({ type: 'interrupted', runs: this.state.interrupted.map((run) => run.runId === runId ? { ...run, pending: action, feedback: null } : run) });
+    this.bump();
+    return true;
+  }
+
+  private reportRunAction(runId: string, text: string, tone: 'error' | 'status'): void {
+    if (tone === 'error') this.message = text;
+    else this.announcement = text;
+    this.move({ type: 'interrupted', runs: this.state.interrupted.map((run) => run.runId === runId ? { ...run, feedback: { text, tone } } : run) });
+    this.bump();
+  }
+
+  private releaseRunAction(runId: string): void {
+    this.move({ type: 'interrupted', runs: this.state.interrupted.map((run) => run.runId === runId ? { ...run, pending: null } : run) });
+    this.bump();
+    if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
+  }
+
+  async folderCopyEnabled(): Promise<boolean> {
+    const consent = await activeAppDb()?.get<{ readonly folder?: DirectoryHandleLike }>(`run-copy:${this.session.projectId}`);
+    const folder = this.session.folderBaseline()?.folder;
+    return consent?.folder !== undefined && folder !== undefined && await isSameFolder(consent.folder, folder);
+  }
+
+  async setFolderCopy(enabled: boolean): Promise<void> {
+    const db = activeAppDb();
+    if (db === null) throw new Error(t`App settings are unavailable. The folder copy was not enabled.`);
+    const folder = this.session.folderBaseline()?.folder;
+    if (enabled && (folder === undefined || await folderWithPermission(folder) === null)) throw new Error(t`Save or open this project in a folder and allow write access first.`);
+    const work = this.runCopyWork.then(async () => {
+      if (enabled) await db.put(`run-copy:${this.session.projectId}`, { folder });
+      else await db.delete(`run-copy:${this.session.projectId}`);
+      if (enabled) await this.copyRunLogs();
+      this.runCopyFailure = null;
+      this.bump();
+    });
+    this.runCopyWork = work.catch(() => undefined);
+    await work;
+  }
+
+  private async copyRunLogs(runId?: string): Promise<void> {
+    if (!await this.folderCopyEnabled()) return;
+    const folder = this.session.folderBaseline()?.folder;
+    if (folder === undefined) throw new Error(t`No project folder is attached. Save or open this project in its folder first.`);
+    const { writeRunLogMirror } = await import('./run-log-export.js');
+    const rows = runId === undefined ? await readRuns(this.session.runtimeStore(), this.session.projectId) : [await readRun(this.session.runtimeStore(), runId)];
+    for (const run of rows) {
+      if (run === undefined || run.projectId !== this.session.projectId) continue;
+      const parsed = parseRunEvents(await this.runLog.events(run.runId));
+      if (!parsed.ok) throw new Error(parsed.detail);
+      if (this.session.folderBaseline()?.folder !== folder) throw new Error(t`The attached project folder changed. Enable copying for the new folder explicitly.`);
+      await writeRunLogMirror(folderArtifactFs(folder), run, parsed.events);
+    }
+    this.runCopyFailure = null;
+  }
+
+  async retryFolderCopy(): Promise<void> {
+    const folder = this.session.folderBaseline()?.folder;
+    if (folder === undefined || await folderWithPermission(folder) === null) throw new Error(t`Allow write access to the project folder, then retry the folder copy.`);
+    const work = this.runCopyWork.then(() => this.copyRunLogs());
+    this.runCopyWork = work.catch(() => undefined);
+    await work;
+    this.bump();
+  }
+
+  async exportRun(runId: string, format: 'jsonl' | 'markdown'): Promise<void> {
+    if (!this.claimRunAction(runId, 'export')) return;
+    try {
+      const run = await readRun(this.session.runtimeStore(), runId);
+      if (run?.projectId !== this.session.projectId) throw new Error(t`That run is no longer in this project.`);
+      const parsed = parseRunEvents(await this.runLog.events(runId));
+      if (!parsed.ok) throw new Error(parsed.detail);
+      const { exportRunLog } = await import('./run-log-export.js');
+      const output = exportRunLog(run, parsed.events);
+      downloadBytes(new TextEncoder().encode(output[format]), `${runId}.${format === 'markdown' ? 'md' : 'jsonl'}`, format === 'markdown' ? 'text/markdown' : 'application/x-ndjson');
+      this.reportRunAction(runId, t`The run log export is ready.`, 'status');
+    } catch (error) {
+      this.reportRunAction(runId, t`The run log could not be exported: ${{ reason: error instanceof Error ? error.message : String(error) }}. Try again, or keep the log here.`, 'error');
+    } finally { this.releaseRunAction(runId); }
+  }
+
+  async prepareRunRestore(runId: string): Promise<{ readonly expected: string; readonly turns: number } | null> {
+    if (!this.claimRunAction(runId, 'prepare')) return null;
+    try {
+      return { expected: await this.session.prepareRunRestore(runId), turns: this.turnsStarted };
+    } catch (error) {
+      this.reportRunAction(runId, t`The restore point could not be prepared: ${{ reason: error instanceof Error ? error.message : String(error) }}. Nothing was restored. Try again after saving the project.`, 'error');
+      return null;
+    } finally { this.releaseRunAction(runId); }
+  }
+
+  async restoreRun(runId: string, prepared: { readonly expected: string; readonly turns: number }): Promise<void> {
+    if (!this.claimRunAction(runId, 'restore')) return;
+    try {
+      if (prepared.turns !== this.turnsStarted) throw new Error(t`Another turn started. Open the restore confirmation again.`);
+      const outcome = await this.session.restoreRun(runId, prepared.expected, (groups) => this.noteRestored(groups));
+      this.reportRunAction(runId, outcome.ok ? t`The project was restored to before this run. Conversation and recorded spend were kept.` : outcome.message, outcome.ok ? 'status' : 'error');
+    } catch (error) {
+      this.reportRunAction(runId, t`The restore could not finish: ${{ reason: error instanceof Error ? error.message : String(error) }}. Check the project’s save status before trying again.`, 'error');
+    } finally { this.releaseRunAction(runId); }
+    await this.loadInterrupted();
   }
 
   /**
@@ -1163,6 +1314,7 @@ export class AgentController {
       this.bump();
       return null;
     }
+    if (!this.claimRunAction(runId, 'resume')) return null;
     // The resumed meter starts from the logged spend. A log that cannot be read gives no spend to start from, so the run is not resumed.
     let restoredSpend: BudgetSpend | undefined;
     let readError: string | undefined;
@@ -1171,6 +1323,8 @@ export class AgentController {
     } catch (error) {
       readError = error instanceof Error ? error.message : String(error);
     }
+    this.releaseRunAction(runId);
+    if (this.detached) return null;
     if (restoredSpend === undefined) {
       // A read that failed may work next time; a log that was read and cannot be summarized will not.
       this.message =
@@ -1186,13 +1340,16 @@ export class AgentController {
 
   /** "Discard log": deletes the run's log and nothing else. What the run wrote stays in the project. */
   async discardRun(runId: string): Promise<void> {
+    if (!this.claimRunAction(runId, 'discard')) return;
     try {
       await this.runLog.discard(runId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      this.message = t`The run log could not be discarded: ${reason}`;
+      this.reportRunAction(runId, t`The run log could not be discarded: ${reason}`, 'error');
       this.bump();
       return;
+    } finally {
+      this.releaseRunAction(runId);
     }
     this.announcement = t`Run log discarded. What the agent wrote stays in the project.`;
     await this.loadInterrupted();
@@ -1228,7 +1385,7 @@ export class AgentController {
   steer(text: string): SteerResult {
     const note = text.trim();
     if (note === '') return 'refused';
-    if (!this.busy) return 'idle';
+    if (this.turn === null) return this.busy ? 'refused' : 'idle';
     if (this.runningAgent === null || this.runningTurnId === null) return this.holdNote(note);
     if (this.pending !== null) return 'card-waiting';
     return this.sendNote(note);
@@ -1570,15 +1727,17 @@ export class AgentController {
    * Tells each session which of its turns the writer took back, so the next prompt says so. `groups` are the undo groups taken back
    * whole; `partial` is the turn whose steps from `step` (1-based) onward were taken back, and it comes first among the turns of its session.
    */
-  private noteRestored(groups: readonly string[], partial?: { readonly turnId: string; readonly step: number }): void {
+  private noteRestored(groups: readonly string[], partial?: { readonly turnId: string; readonly step: number }): () => void {
     const whole = this.turns.filter((turn) => groups.includes(turn.checkpoint?.undoGroupId ?? turn.report?.undoGroupId ?? ''));
     const taken = partial === undefined ? whole : [...this.turns.filter((turn) => turn.turnId === partial.turnId), ...whole];
-    if (taken.length === 0) return;
+    if (taken.length === 0) return () => undefined;
+    const undo: (() => void)[] = [];
     const at = this.clock();
     for (const agent of this.sessions.values()) {
       const ids = taken.filter((turn) => this.sessionOf(turn.turnId) === agent).map((turn) => turn.turnId);
-      if (ids.length > 0) agent.markRestored(ids, at, partial !== undefined && ids[0] === partial.turnId ? partial.step : undefined);
+      if (ids.length > 0) undo.push(agent.markRestored(ids, at, partial !== undefined && ids[0] === partial.turnId ? partial.step : undefined));
     }
+    return () => { for (const restore of undo) restore(); this.bump(); };
   }
 
   /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */
@@ -1971,6 +2130,7 @@ export class AgentController {
         projectId: this.session.projectId,
         // A step's record is written only once the project holds the step, so "applied" in the log means saved.
         flush: () => this.session.saved(),
+        beforeWrite: (runId) => this.session.captureRunBaseline(runId),
         onNotice: (message) => {
           this.message = message;
           this.bump();

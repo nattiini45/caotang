@@ -218,6 +218,7 @@ import {
   newRunRecord,
   planResume,
   statusOfTurn,
+  outcomeOfTurn,
   structureDigest,
   RUN_LOG_VERSION,
   type Revisions,
@@ -513,7 +514,7 @@ export interface AgentSession {
    * there. `fromStep` (1-based) applies to the first turn only, when the restore began at one of its steps; the others are whole.
    * A turn rewound or unknown is left as it is.
    */
-  markRestored(turnIds: readonly string[], at: number, fromStep?: number): void;
+  markRestored(turnIds: readonly string[], at: number, fromStep?: number): () => void;
   turnMarker(turnId: string): TurnMarker | undefined;
   /**
    * What the next planner request would send now: its layers with their tokens, and what was left out. It assembles the request the way a
@@ -1736,6 +1737,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** Written before a step runs. Awaited, so the record exists before the step can change anything. */
   async function logIntent(turn: Turn, callId: string, index: number, step: PlanStep): Promise<CommandError | undefined> {
     const tool = step.tool;
+    if (turn.run !== undefined && !turn.run.broken && riskOf(tool) !== 'read') {
+      try {
+        await options.runLog?.beforeWrite?.(turn.run.runId);
+      } catch (error) {
+        return refusal('revision-conflict', `The run’s restore point could not be saved, so this step was not run: ${error instanceof Error ? error.message : String(error)}`, { correctiveHint: 'save the project, then try the request again' });
+      }
+    }
     await turn.run?.append({ t: 'step.intent', turnId: turn.id, callId, index, tool, expect: revisionsNow(), structure: structureDigest(harness.state.manifest) });
     const approved = turn.automaticRules.get(step);
     if (approved !== undefined && (turn.run === undefined || turn.run.broken || !automaticRuleValid(turn, step, approved))) {
@@ -3989,7 +3997,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function closeRun(turn: Turn, report: TurnReport): Promise<void> {
     if (turn.run === undefined) return;
     await syncRun(turn, 0);
-    await turn.run.append({ t: 'turn.end', turnId: turn.id, status: report.status, summary: report.summary }, { status: statusOfTurn(report.status) });
+    await turn.run.append({ t: 'turn.end', turnId: turn.id, status: report.status, summary: report.summary }, { status: statusOfTurn(report.status), outcome: outcomeOfTurn(report) });
   }
 
   /** The call id of the first step, from `stepId` on, that still has entries in the turn's undo group: where a restore to before `stepId` begins. */
@@ -4287,10 +4295,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return { intent: started[at]!.intent, rewound: started.slice(at).map((entry) => entry.turnId) };
     },
 
-    markRestored(turnIds: readonly string[], at: number, fromStep?: number): void {
+    markRestored(turnIds: readonly string[], at: number, fromStep?: number): () => void {
+      const previous = turnIds.map((id) => ({ id, marker: markers.get(id) }));
       turnIds.forEach((id, position) => {
         moveMarker(id, { type: 'restore', at, ...(position === 0 && fromStep !== undefined ? { fromStep } : {}) });
       });
+      return () => { for (const { id, marker } of previous) if (marker !== undefined) moveMarker(id, { type: 'undo-restore', previous: marker }); };
     },
 
     turnMarker: (turnId: string) => markers.get(turnId),

@@ -134,6 +134,7 @@ export interface ProjectRow {
   id: string;
   manifest: Manifest;
   storedAt: string;
+  revisionFloors?: Record<string, number>;
   /**
    * `ProjectState.declinedCodexFiles`, flattened for storage: the `codex/*.md`
    * files the load that produced this row read and could not import.
@@ -272,6 +273,13 @@ export class ProjectNotFoundError extends Error {
   constructor(readonly projectId: string) {
     super(`no project "${projectId}" in the runtime store`);
     this.name = 'ProjectNotFoundError';
+  }
+}
+
+export class ProjectWriteConflictError extends Error {
+  constructor() {
+    super('the stored project changed before the restore could be saved; no restore files were written');
+    this.name = 'ProjectWriteConflictError';
   }
 }
 
@@ -672,6 +680,7 @@ export function readProjectState(
         documentsRequest.onsuccess = guarded(fail, () => {
           const rows = documentsRequest.result as DocumentRow[];
           const state = createProjectState(manifest);
+          state.revisionFloors = new Map(Object.entries(row.revisionFloors ?? {}));
           for (const name of row.declinedCodexFiles ?? []) {
             state.declinedCodexFiles.add(name);
           }
@@ -693,6 +702,7 @@ export function readProjectState(
             state.agentFiles = parseAgentFiles(row.agentFiles ?? {}, row.agentFilesUnreadable ?? []).files;
           }
           for (const document of rows) {
+            state.revisionFloors.set(document.id, Math.max(state.revisionFloors.get(document.id) ?? 0, document.revision));
             state.documents.set(document.id, {
               id: document.id,
               body: document.body,
@@ -812,6 +822,8 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
       existingRequest.onsuccess = guarded(fail, () => {
         const previous = existingRequest.result as ProjectRow | undefined;
         const row: ProjectRow = { id: commit.projectId, manifest: commit.manifest, storedAt };
+        const floors = { ...previous?.revisionFloors };
+        row.revisionFloors = floors;
         if (previous?.declinedCodexFiles !== undefined) {
           row.declinedCodexFiles = [...previous.declinedCodexFiles];
         }
@@ -833,7 +845,6 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
         if (previous?.taskFiles !== undefined) {
           row.taskFiles = { ...previous.taskFiles };
         }
-        projects.put(row);
         for (const doc of commit.createDocuments ?? []) {
           // `add`, not `put`. A `put` at a key that is taken overwrites the row, so a
           // `createDocuments` entry naming a document that already exists would
@@ -849,15 +860,18 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
           // inheritance branch instead of inside it.
           //
           // The refusal aborts the transaction, so the manifest swap staged
-          // above, the other rows this commit creates and every id it removes go
+          // here, the other rows this commit creates and every id it removes go
           // with it. That is §4's "one transaction (atomic by construction)"
           // doing the work: a refused create cannot leave a new manifest
           // attached to a half-created document.
+          const floor = floors[doc.id];
+          const revision = floor === undefined ? 0 : floor + 1;
+          floors[doc.id] = revision;
           const create = documents.add({
             projectId: commit.projectId,
             id: doc.id,
             body: doc.body ?? '',
-            revision: 0,
+            revision,
           } satisfies DocumentRow);
           create.onerror = () => {
             // `ConstraintError` is the refusal; the id is the fact the caller
@@ -871,8 +885,17 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
             );
           };
         }
+        projects.put(row);
         for (const id of commit.removeDocumentIds ?? []) {
-          documents.delete(documentKey(commit.projectId, id));
+          const read = documents.get(documentKey(commit.projectId, id));
+          read.onsuccess = guarded(fail, () => {
+            const document = read.result as DocumentRow | undefined;
+            if (document !== undefined) {
+              floors[id] = Math.max(floors[id] ?? 0, document.revision);
+              projects.put(row);
+            }
+            documents.delete(documentKey(commit.projectId, id));
+          });
         }
       });
     },
@@ -900,7 +923,7 @@ export interface WriteDocumentOptions {
 }
 
 export interface WriteDocumentResult {
-  /** The revision after the write: `expected + 1`, or unchanged for a no-op. */
+  /** The revision after the write: above the retained floor, or unchanged for a no-op. */
   revision: number;
   /** False when the body was already exactly this, so no revision was burned. */
   changed: boolean;
@@ -921,7 +944,7 @@ export function writeDocumentBody(
 ): Promise<WriteDocumentResult> {
   return transact<WriteDocumentResult>(
     store.db,
-    [DOCUMENT_STORE],
+    [PROJECT_STORE, DOCUMENT_STORE],
     'readwrite',
     (tx, done, fail) => {
       const documents = tx.objectStore(DOCUMENT_STORE);
@@ -951,13 +974,27 @@ export function writeDocumentBody(
           done({ revision: row.revision, changed: false });
           return;
         }
-        const next: DocumentRow = {
-          ...row,
-          body: options.body,
-          revision: row.revision + 1,
-        };
-        documents.put(next);
-        done({ revision: next.revision, changed: true });
+        const projects = tx.objectStore(PROJECT_STORE);
+        const projectRequest = projects.get(options.projectId);
+        projectRequest.onsuccess = guarded(fail, () => {
+          const project = projectRequest.result as ProjectRow | undefined;
+          if (project === undefined) {
+            fail(new ProjectNotFoundError(options.projectId));
+            return;
+          }
+          const next: DocumentRow = {
+            ...row,
+            body: options.body,
+            revision: Math.max(row.revision, project.revisionFloors?.[options.docId] ?? 0) + 1,
+          };
+          documents.put(next);
+          project.revisionFloors = {
+            ...project.revisionFloors,
+            [options.docId]: Math.max(project.revisionFloors?.[options.docId] ?? 0, next.revision),
+          };
+          projects.put(project);
+          done({ revision: next.revision, changed: true });
+        });
       });
     },
   );
@@ -983,7 +1020,7 @@ export interface WriteProjectStateResult {
 export function writeProjectState(
   store: RuntimeStore,
   state: ProjectState,
-  options: { now?: Date } = {},
+  options: { now?: Date; expected?: ProjectState; expectedCoherence?: string | null; coherence?: string } = {},
 ): Promise<WriteProjectStateResult> {
   const projectId = state.manifest.project.id;
   const storedAt = (options.now ?? new Date()).toISOString();
@@ -1010,32 +1047,59 @@ export function writeProjectState(
       const previousRequest = projects.get(projectId);
       previousRequest.onsuccess = guarded(fail, () => {
         const previous = previousRequest.result as ProjectRow | undefined;
-        if (previous?.coherenceFiles !== undefined) project.coherenceFiles = { ...previous.coherenceFiles };
-        if (previous?.taskFiles !== undefined) project.taskFiles = { ...previous.taskFiles };
-        projects.put(project);
-      });
+        const existingRequest = index.getAll(projectId);
+        existingRequest.onsuccess = guarded(fail, () => {
+          const existing = existingRequest.result as DocumentRow[];
+          const expected = options.expected;
+          if (expected !== undefined) {
+            const expectedAgent = agentFilesRowOf(expected.agentFiles);
+            const expectedFloors = new Map(expected.revisionFloors);
+            for (const doc of expected.documents.values()) expectedFloors.set(doc.id, Math.max(expectedFloors.get(doc.id) ?? 0, doc.revision));
+            const actualFloors = new Map(Object.entries(previous?.revisionFloors ?? {}));
+            for (const doc of existing) actualFloors.set(doc.id, Math.max(actualFloors.get(doc.id) ?? 0, doc.revision));
+            const same = previous !== undefined && JSON.stringify(previous.manifest) === JSON.stringify(expected.manifest)
+              && actualFloors.size === expectedFloors.size && [...actualFloors].every(([id, revision]) => expectedFloors.get(id) === revision)
+              && JSON.stringify(previous.declinedCodexFiles ?? []) === JSON.stringify([...expected.declinedCodexFiles])
+              && JSON.stringify(previous.declinedDocFiles ?? []) === JSON.stringify([...expected.declinedDocFiles])
+              && JSON.stringify(previous.declinedText ?? {}) === JSON.stringify(Object.fromEntries(expected.declinedText))
+              && JSON.stringify(previous.skillFiles ?? {}) === JSON.stringify(skillFilesOf(expected))
+              && JSON.stringify(previous.agentFiles ?? {}) === JSON.stringify(expectedAgent.agentFiles ?? {})
+              && JSON.stringify(previous.agentFilesUnreadable ?? []) === JSON.stringify(expectedAgent.agentFilesUnreadable ?? [])
+              && existing.length === expected.documents.size && existing.every((row) => {
+                const doc = expected.documents.get(row.id);
+                return doc !== undefined && doc.body === row.body && doc.revision === row.revision;
+              })
+              && (options.expectedCoherence === undefined || (previous.coherenceFiles?.['coherence.json'] ?? null) === options.expectedCoherence);
+            if (!same) { fail(new ProjectWriteConflictError()); return; }
+          }
+          if (previous?.coherenceFiles !== undefined) project.coherenceFiles = { ...previous.coherenceFiles };
+          if (previous?.taskFiles !== undefined) project.taskFiles = { ...previous.taskFiles };
+          if (options.coherence !== undefined) project.coherenceFiles = { ...project.coherenceFiles, 'coherence.json': options.coherence };
+          const floors = new Map(Object.entries(previous?.revisionFloors ?? {}));
+          for (const [id, revision] of state.revisionFloors ?? []) floors.set(id, Math.max(floors.get(id) ?? 0, revision));
+          for (const record of [...existing, ...state.documents.values()]) floors.set(record.id, Math.max(floors.get(record.id) ?? 0, record.revision));
+          project.revisionFloors = Object.fromEntries(floors);
+          projects.put(project);
 
-      const records: DocumentRecord[] = [...state.documents.values()];
-      for (const record of records) {
-        documents.put({
-          projectId,
-          id: record.id,
-          body: record.body,
-          revision: record.revision,
-        } satisfies DocumentRow);
-      }
+          const records: DocumentRecord[] = [...state.documents.values()];
+          for (const record of records) {
+            documents.put({
+              projectId,
+              id: record.id,
+              body: record.body,
+              revision: record.revision,
+            } satisfies DocumentRow);
+          }
 
-      const existingRequest = index.getAll(projectId);
-      existingRequest.onsuccess = guarded(fail, () => {
-        const existing = existingRequest.result as DocumentRow[];
-        const wanted = new Set(records.map((r) => r.id));
-        const removed: string[] = [];
-        for (const row of existing) {
-          if (wanted.has(row.id)) continue;
-          removed.push(row.id);
-          documents.delete(documentKey(projectId, row.id));
-        }
-        done({ removedDocumentIds: removed.sort() });
+          const wanted = new Set(records.map((r) => r.id));
+          const removed: string[] = [];
+          for (const row of existing) {
+            if (wanted.has(row.id)) continue;
+            removed.push(row.id);
+            documents.delete(documentKey(projectId, row.id));
+          }
+          done({ removedDocumentIds: removed.sort() });
+        });
       });
     },
   );

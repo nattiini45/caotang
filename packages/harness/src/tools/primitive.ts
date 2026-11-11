@@ -59,6 +59,7 @@ export const NEVER_EXPOSED = [
   'asset.sweep',
   // The calendar and lens are the writer's display choice (timeline.md §3.8); no primitive or tool stands for it.
   'project.setCalendar',
+  'project.restoreRun',
   'mcp.invoke',
   // A resource is read when the writer picks it, so no tool stands for the read (extensibility §4 rule 8).
   'mcp.readResource',

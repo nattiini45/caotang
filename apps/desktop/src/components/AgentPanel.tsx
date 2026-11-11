@@ -356,6 +356,7 @@ export function AgentPanel({
   };
 
   const provider = snapshot.providerName;
+  const runActionPending = snapshot.runHistory.some((run) => run.pending !== null && run.pending !== undefined);
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
@@ -369,18 +370,18 @@ export function AgentPanel({
         value={intent}
         onChange={setIntent}
         onRun={send}
-        disabled={snapshot.providerName === null}
+        disabled={snapshot.providerName === null || runActionPending}
         placeholder={
           snapshot.busy
             ? t`${{ send: shortcutLabel('agent-send', keyboardLayout) }} queues it for the next turn, ${{ steer: shortcutLabel('agent-steer', keyboardLayout) }} sends it to this one`
             : t`Ask the agent to draft, fill, or check something, or type / for commands`
         }
       />
-      <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null}>
+      <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending}>
         {snapshot.busy ? t`Queue` : t`Send`}
       </button>
       {snapshot.busy ? (
-        <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null} onClick={steer}>
+        <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending} onClick={steer}>
           <Trans>Steer</Trans>
         </button>
       ) : null}

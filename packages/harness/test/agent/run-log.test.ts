@@ -5,7 +5,9 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '@caotang/gateway';
-import { rebuildDerived, setBody, type Manifest } from '@caotang/store';
+import { RunStatusTransitionError, rebuildDerived, setBody, type Manifest, type RunStatus } from '@caotang/store';
+
+import { outcomeOfTurn, statusOfTurn } from '../../src/agent/run-log.js';
 
 import {
   createAgentPorts,
@@ -55,6 +57,90 @@ const user: RunEventDraft = { t: 'messages', turnId: 't1', appended: [{ role: 'u
 
 /** Revisions the project holds, by document. */
 const project = (revisions: Record<string, number>) => (id: string) => revisions[id];
+
+describe('turn outcomes', () => {
+  it.each(['replied', 'applied', 'cancelled', 'failed'] as const)('keeps the %s report status when the writer did not stop it', (status) => {
+    expect(outcomeOfTurn({ status })).toBe(status);
+    expect(statusOfTurn(status)).toBe(status === 'failed' ? 'failed' : 'finished');
+  });
+
+  it('distinguishes Stop from a cancelled approval without changing the compatible lifecycle status', () => {
+    expect(outcomeOfTurn({ status: 'cancelled', stop: { by: 'user', during: 'running' } })).toBe('stopped');
+    expect(outcomeOfTurn({ status: 'cancelled' })).toBe('cancelled');
+    expect(statusOfTurn('cancelled')).toBe('finished');
+    expect(RUN_LOG_VERSION).toBe(3);
+  });
+});
+
+describe('the memory run log lifecycle', () => {
+  const statuses: readonly RunStatus[] = ['running', 'awaiting-approval', 'interrupted', 'finished', 'failed'];
+  const transitions: Record<RunStatus, readonly RunStatus[]> = {
+    running: statuses,
+    'awaiting-approval': statuses,
+    interrupted: ['running', 'interrupted', 'finished', 'failed'],
+    finished: ['finished'],
+    failed: ['failed'],
+  };
+
+  describe.each(['append', 'update'] as const)('%s', (operation) => {
+    it.each(statuses.flatMap((from) => statuses.map((to) => ({ from, to, legal: transitions[from].includes(to) }))))(
+      '$from → $to is legal: $legal',
+      async ({ from, to, legal }) => {
+        const port = createMemoryRunLog();
+        const original = { ...newRunRecord('run_A', { projectId: 'p', intent: 'x', now: 1 }), status: from };
+        await port.create(original);
+        const before = log(start);
+        await port.append('run_A', before);
+        const patch = { status: to, updatedAt: 99, cannotResume: true, outcome: 'stopped' } as const;
+        const batch = log(start, user, card).slice(1);
+        const write = operation === 'append' ? port.append('run_A', batch, patch) : port.update('run_A', patch);
+        if (legal) {
+          await write;
+          expect(await port.events('run_A')).toEqual(operation === 'append' ? [...before, ...batch] : before);
+          expect(await port.open('p')).toEqual(to === 'finished' || to === 'failed' ? [] : [{ ...original, ...patch }]);
+        } else {
+          await expect(write).rejects.toBeInstanceOf(RunStatusTransitionError);
+          await expect(write).rejects.toMatchObject({ runId: 'run_A', from, to });
+          expect(await port.events('run_A')).toEqual(before);
+          expect(await port.open('p')).toEqual(from === 'finished' || from === 'failed' ? [] : [original]);
+          await port.append('run_A', batch, { status: from });
+          expect(await port.events('run_A')).toEqual([...before, ...batch]);
+        }
+      },
+    );
+  });
+
+  it('reads old rows without an outcome and preserves an optional outcome on later appends', async () => {
+    const port = createMemoryRunLog();
+    const original = newRunRecord('run_A', { projectId: 'p', intent: 'x', now: 1 });
+    await port.create(original);
+    expect(await port.open('p')).toEqual([original]);
+    expect((await port.open('p'))[0]).not.toHaveProperty('outcome');
+    await port.update('run_A', { status: 'interrupted', outcome: 'stopped' });
+    await port.append('run_A', log(start), { updatedAt: 2 });
+    expect((await port.open('p'))[0]).toMatchObject({ status: 'interrupted', outcome: 'stopped', updatedAt: 2 });
+  });
+
+  it.each(['finished', 'failed'] as const)('allows status-free appends and metadata updates to a terminal %s row', async (status) => {
+    const port = createMemoryRunLog();
+    await port.create({ ...newRunRecord('run_A', { projectId: 'p', intent: 'x', now: 1 }), status });
+    await port.append('run_A', log(start), { updatedAt: 2 });
+    await port.update('run_A', { cannotResume: true });
+    await expect(port.update('run_A', { status: 'running' })).rejects.toBeInstanceOf(RunStatusTransitionError);
+    expect(await port.open('p')).toEqual([]);
+    expect(await port.events('run_A')).toEqual(log(start));
+  });
+
+  it('rejects duplicate sequence numbers within a batch before storing any events or patch', async () => {
+    const port = createMemoryRunLog();
+    const original = newRunRecord('run_A', { projectId: 'p', intent: 'x', now: 1 });
+    await port.create(original);
+    const batch = log(start, user);
+    await expect(port.append('run_A', [...batch, ...batch], { status: 'finished', outcome: 'stopped' })).rejects.toThrow('a sequence number is taken');
+    expect(await port.events('run_A')).toEqual([]);
+    expect(await port.open('p')).toEqual([original]);
+  });
+});
 
 describe('planResume', () => {
   it('reports the nodes a read rule kept from the conversation when its last turn began, none for a log that recorded nothing', () => {

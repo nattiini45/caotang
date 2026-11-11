@@ -371,3 +371,94 @@ it('restores the project but refuses to rewind if another turn starts while rest
   hold.release();
   await running;
 });
+
+it('claims Resume before its first read so a second resume, discard or new turn cannot race it', async () => {
+  const f = await fixture();
+  await seedWaiting(f, 'run_RACE');
+  await f.controller.loadInterrupted();
+  const first = f.controller.resumeRun('run_RACE');
+  expect(f.controller.snapshot().busy).toBe(true);
+  expect(f.controller.snapshot().interrupted[0]?.pending).toBe('resume');
+  expect(await f.controller.resumeRun('run_RACE')).toBeNull();
+  await f.controller.discardRun('run_RACE');
+  expect(await f.controller.submit('A different turn.')).toBeNull();
+  expect(await f.port.events('run_RACE')).not.toEqual([]);
+  await when(f.controller, (snapshot) => snapshot.pending !== null);
+  f.controller.answer({ action: 'cancel' });
+  expect((await first)?.status).toBe('cancelled');
+  expect(f.controller.turnCount()).toBe(1);
+});
+
+it('refuses a writing step before applying it if its durable restore point cannot be saved', async () => {
+  const f = await fixture();
+  const before = JSON.stringify(f.state.manifest);
+  vi.spyOn(f.session, 'captureRunBaseline').mockRejectedValue(new Error('storage refused'));
+  const running = f.controller.submitPlan('Tag the storm.', { steps: f.steps }, { forcePlan: true });
+  await when(f.controller, (snapshot) => snapshot.pending !== null);
+  f.controller.answer({ action: 'approve' });
+  const report = await running;
+  expect(report?.status).toBe('failed');
+  expect(JSON.stringify(f.state.manifest)).toBe(before);
+  expect(f.session.log.entries().filter((entry) => entry.issuedBy === 'agent')).toEqual([]);
+});
+
+it('retains settled and stopped outcomes in Activity without offering them for Resume', async () => {
+  const f = await fixture();
+  await seedWaiting(f, 'run_STOPPED', { status: 'finished', outcome: 'stopped' });
+  await seedWaiting(f, 'run_APPLIED', { status: 'finished', outcome: 'applied' });
+  await f.controller.loadInterrupted();
+  expect(f.controller.snapshot().interrupted).toEqual([]);
+  expect(f.controller.snapshot().runHistory.map((run) => [run.runId, run.outcome, run.resumable])).toEqual([
+    ['run_APPLIED', 'applied', false], ['run_STOPPED', 'stopped', false],
+  ]);
+  expect(await f.controller.resumeRun('run_STOPPED')).toBeNull();
+});
+
+it('distinguishes a failed history read from an empty history, retains known rows, and retries', async () => {
+  const f = await fixture();
+  await seedWaiting(f, 'run_HISTORY');
+  await f.controller.loadInterrupted();
+  expect(f.controller.snapshot().runHistoryLoad).toEqual({ kind: 'ready' });
+  const read = vi.spyOn(f.session.runtimeStore().db, 'transaction').mockImplementationOnce(() => { throw new Error('read refused'); });
+  const loading = f.controller.loadInterrupted();
+  expect(f.controller.snapshot().runHistoryLoad).toEqual({ kind: 'loading' });
+  await loading;
+  expect(f.controller.snapshot().runHistoryLoad).toEqual({ kind: 'failed', message: expect.stringContaining('read refused') });
+  expect(f.controller.snapshot().runHistory.map((run) => run.runId)).toEqual(['run_HISTORY']);
+  read.mockRestore();
+  await f.controller.loadInterrupted();
+  expect(f.controller.snapshot().runHistoryLoad).toEqual({ kind: 'ready' });
+});
+
+it('publishes repeated run-restore preparation failures beside the run after clearing the previous attempt', async () => {
+  const f = await fixture();
+  await seedWaiting(f, 'run_FEEDBACK');
+  await f.controller.loadInterrupted();
+  vi.spyOn(f.session, 'prepareRunRestore').mockRejectedValue(new Error('read refused'));
+  expect(await f.controller.prepareRunRestore('run_FEEDBACK')).toBeNull();
+  const first = f.controller.snapshot().runHistory[0]?.feedback;
+  expect(first).toMatchObject({ tone: 'error', text: expect.stringContaining('read refused') });
+  const retry = f.controller.prepareRunRestore('run_FEEDBACK');
+  expect(f.controller.snapshot().runHistory[0]?.feedback).toBeNull();
+  await retry;
+  expect(f.controller.snapshot().runHistory[0]?.feedback).toEqual(first);
+  expect(f.controller.snapshot().runHistory[0]?.feedback).not.toBe(first);
+});
+
+it('undoes a durable restore with its displaced undo groups and the harness-owned marker', async () => {
+  const f = await fixture();
+  const report = await applyPlan(f, 'Tag the storm.', f.steps);
+  await when(f.controller, (snapshot) => snapshot.runHistory.some((run) => run.restorable));
+  const run = f.controller.snapshot().runHistory.find((entry) => entry.restorable)!;
+  const prepared = await f.controller.prepareRunRestore(run.runId);
+  expect(prepared).not.toBeNull();
+  await f.controller.restoreRun(run.runId, prepared!);
+  expect(f.controller.snapshot().runHistory.find((entry) => entry.runId === run.runId)?.feedback).toMatchObject({ tone: 'status', text: expect.stringContaining('project was restored') });
+  expect(f.node('The Storm').keywords ?? []).not.toContain('storm');
+  expect(f.controller.snapshot().turns.find((turn) => turn.turnId === report.turnId)?.restoredAt).toEqual(expect.any(Number));
+  expect((await f.session.undoGroup(f.session.newestUndoGroupId()!)).kind).toBe('done');
+  await f.session.saved();
+  expect(f.node('The Storm').keywords ?? []).toContain('storm');
+  expect(f.session.undo.group(report.undoGroupId!)).toBeDefined();
+  expect(f.controller.snapshot().turns.find((turn) => turn.turnId === report.turnId)?.restoredAt).toBeNull();
+});

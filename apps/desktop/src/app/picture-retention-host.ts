@@ -59,6 +59,7 @@ export function hostRetentionRoots(parts: HostRetentionParts, extra: () => reado
       list: async () => ({ authoritative: true, ids: undoGroupRetention(parts.undo().groups(), parts.ledger).ids }),
     },
     textsRetentionRoot(t`the checkpoints`, async () => (await readBodySnapshots(parts.store, parts.projectId)).map((row) => row.body)),
+    valueRetentionRoot(t`the agent run restore points`, async () => (await import('./run-baseline.js')).retainedRunBaselineValues(parts.store, parts.projectId)),
     valueRetentionRoot(t`the pending journal`, () => {
       parts.keepPending?.();
       return storedJson(parts.storage, pendingKey(parts.projectId));
