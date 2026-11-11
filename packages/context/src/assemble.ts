@@ -33,6 +33,7 @@ import { charsAt, cheapestKept, cutOne, fitBlock, fitReserved, protectedCount, r
 import { describeDrop, dropLine, dropRecord } from './drops.js';
 import { withhold } from './withheld.js';
 import { ContextError } from './errors.js';
+import { excludeStory, overrideIds, pinnedDocuments } from './overrides.js';
 import { codexBlock, detectCodex } from './layers/codex.js';
 import { beatStoryBlock, speakerHitsOf } from './layers/dialogue.js';
 import { instructionsLayer } from './layers/instructions.js';
@@ -154,7 +155,7 @@ function keptReports(block: Block): LayerItemReport[] {
     if (index >= block.kept) continue;
     const item = block.items[index];
     if (item !== undefined) {
-      out.push({ label: item.label, reason: item.reason, tokens: tokensForChars(item.body.length) });
+      out.push({ label: item.label, reason: item.reason, tokens: tokensForChars(item.body.length), ...(item.ref === undefined ? {} : { ref: item.ref }) });
     }
   }
   return out;
@@ -164,7 +165,16 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   const { task, app, drops: withheldDrops } = withhold(given, snapshot);
   const tree = indexTree(app.state.manifest.tree);
   const entries = app.state.manifest.codex ?? [];
-  const profile = profileFor(task.tool);
+  const codexPins = overrideIds(task.overrides, 'include', 'codex');
+  const codexExclusions = overrideIds(task.overrides, 'exclude', 'codex');
+  const docExclusions = overrideIds(task.overrides, 'exclude', 'doc');
+  const pins = pinnedDocuments(task.overrides, tree, app.state);
+  const originalProfile = profileFor(task.tool);
+  const addedBudgets = {
+    ...(codexPins.size > 0 && originalProfile.budgets.L2 === undefined ? { L2: profileFor('scene.draft').budgets.L2 } : {}),
+    ...(pins.block.items.length > 0 && originalProfile.budgets.L5 === undefined ? { L5: profileFor('scene.draft').budgets.L5 } : {}),
+  };
+  const profile = { ...originalProfile, budgets: { ...originalProfile.budgets, ...addedBudgets } };
   const budgets = effectiveBudgets(profile, config, task.compact === true);
   // LI is in every profile, but a project with no instructions and no memory index has no such layer: its prompt is the one it was before
   // LI existed, and the cap of a layer that is not sent does not raise a tool's total.
@@ -178,9 +188,12 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
 
   // The layers this call is assembled from. The total-budget pass can cut one whole.
   const active = new Set<LayerId>(profile.layers);
+  if (codexPins.size > 0) active.add('L2');
+  if (pins.block.items.length > 0) active.add('L5');
   if (instructions === undefined) active.delete('LI');
   const notes = perLayer<string[]>(() => []);
   const drops = perLayer<DropRecord[]>(() => []);
+  drops.L5.push(...pins.drops);
   // Every layer works on the view without the withheld nodes; the project layer lists them, since every profile has it.
   if (withheldDrops.length > 0) {
     drops.L1.push(...withheldDrops);
@@ -212,7 +225,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
         : task.tool === 'dialogue.draft'
           ? beatStoryBlock(focusNode === undefined ? '' : getBody(app.state, focusNode.id))
           : storyBlock(tree, focusNode, { includeForward: task.includeForwardOutline === true });
-    story = plan.block;
+    story = excludeStory(plan.block, docExclusions, drops.L4);
     notes.L4.push(...plan.notes);
     drops.L4.push(...plan.drops);
     carry = fitAndMeasure(story, budget);
@@ -228,7 +241,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
       drops.L5.push(...scope.drops);
       notes.L5.push(...scope.notes);
       fitBlock(scope.block, budget);
-    } else {
+    } else if (profile.layers.includes('L5')) {
       if (focusNode === undefined) throw new ContextError('missing-focus', `${task.tool} needs a focus ${task.tool === 'dialogue.draft' ? 'container' : 'document'}`);
       // A container's Ink is read as its tail, the part a new beat follows; an empty container stands in as a document does.
       const mode: DraftMode | 'full' =
@@ -245,10 +258,13 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
       });
       notes.L5.push(...focus.notes);
     }
+    const used = scope === undefined ? (focus?.text.length ?? 0) : charsAt(scope.block);
+    fitBlock(pins.block, Math.max(0, budget - tokensForChars(used + (used > 0 ? 2 : 0))));
   }
 
   // Step 3: L2 is detected against the instruction and the focus text, then fitted.
   let codex: Block | undefined;
+  let hasCodexPins = false;
   if (active.has('L2')) {
     const texts: DetectionDoc[] = [{ id: 'instruction', text: task.instruction }, ...(focus?.surfaces ?? [])];
     const bodies = scope?.sent ?? [];
@@ -256,6 +272,8 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
     const focusDocs =
       scope !== undefined ? bodies.map((doc) => doc.id) : focusNode !== undefined ? [focusNode.id] : [];
     const plan = codexBlock({
+      include: codexPins,
+      exclude: codexExclusions,
       entries,
       tree: app.state.manifest.tree,
       focusDocs,
@@ -263,14 +281,15 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
       labelOf: (where) => (SURFACE_LABELS.has(where) ? where : (tree.nodes.get(where)?.title ?? where)),
     });
     codex = plan.block;
+    hasCodexPins = codex.items.some((item) => item.ref !== undefined && codexPins.has(item.ref.id));
     drops.L2.push(...plan.suppressed);
     const budget = baseOf('L2');
     effective.L2 = budget;
     fitReserved(codex, budget);
     if (codex.overflow !== undefined) {
       const { need } = codex.overflow;
-      const reason: DropReason = { kind: 'reserve-overflow', layer: 'L2', need, budget };
-      drops.L2.push(dropRecord('always entries', reason, 'always'));
+      const reason: DropReason = { kind: 'reserve-overflow', layer: 'L2', need, budget, ...(hasCodexPins ? { pinned: true as const } : {}) };
+      drops.L2.push(dropRecord(hasCodexPins ? 'always and pinned entries' : 'always entries', reason, 'always'));
       notes.L2.push(`${describeDrop(reason)}. They are sent whole${codex.cuts.size > 0 ? ', and no other codex entry is' : ''}.`);
     }
   }
@@ -316,6 +335,11 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
     }
   };
   const textOf = (id: LayerId): string => {
+    if (id === 'L5') {
+      const primary = scope === undefined ? (focus?.text ?? '') : renderBlock(scope.block);
+      const excerpts = pins.block.kept > 0 ? renderBlock(pins.block) : '';
+      return [primary, excerpts].filter((text) => text !== '').join('\n\n');
+    }
     const block = blockOf(id);
     if (block !== undefined) return renderBlock(block);
     switch (id) {
@@ -325,8 +349,6 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
         return instructions?.text ?? '';
       case 'L1':
         return project?.text ?? '';
-      case 'L5':
-        return focus?.text ?? '';
       case 'L7':
         return taskBody;
       default:
@@ -334,6 +356,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
     }
   };
   const charsOf = (id: LayerId): number => {
+    if (id === 'L5') return textOf(id).length;
     const block = blockOf(id);
     if (block !== undefined) return charsAt(block);
     // L1's volatile lines are sent in the trailing Status part, one blank line apart, and still count as L1's.
@@ -349,6 +372,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   // Step 4: the total-budget pass. The reachability check is exact: it measures the prompt
   // as it would be with every droppable entry gone, and only then starts removing anything.
   const limit = charsFor(totalBudget);
+  while (promptChars() > limit && pins.block.kept > 0) cutOne(pins.block, totalBudget);
   if (promptChars() > limit) {
     // The codex keeps its always entries, and a block never goes below its floor.
     const codexFloor = codex === undefined ? 0 : Math.min(codex.kept, protectedCount(codex));
@@ -394,7 +418,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   }
   const overBudget = promptChars() > limit;
   if (overBudget && codex?.overflow !== undefined) {
-    notes.L2.push('The prompt is over the total budget: the always entries are never cut to reach it.');
+    notes.L2.push(`The prompt is over the total budget: the ${hasCodexPins ? 'always and pinned' : 'always'} entries are never cut to reach it.`);
   }
 
   // Step 5: the messages, and the report of every layer. The user message is one part per layer, then the Status part with
@@ -424,15 +448,16 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
     if (included && block !== undefined) kept.push(...keptReports(block));
     if (included && id === 'LI' && instructions !== undefined) kept.push(...instructions.kept);
     if (included && id === 'L5' && focus !== undefined) {
-      kept.push({ label: focus.item.label, reason: focus.item.reason, tokens });
+      kept.push({ label: focus.item.label, reason: focus.item.reason, tokens: tokensForChars(focus.text.length), ref: { kind: 'doc', id: focus.report.doc } });
     }
+    if (included && id === 'L5') kept.push(...keptReports(pins.block));
 
     const cuts: DropRecord[] = [];
-    if (block !== undefined) {
-      for (const rank of [...block.cuts.keys()].sort((a, b) => a - b)) {
-        const reason = block.cuts.get(rank);
-        const item = block.items[rank];
-        if (reason !== undefined && item !== undefined) cuts.push(dropRecord(item.label, reason, item.group));
+    for (const cutBlock of [...(block === undefined ? [] : [block]), ...(id === 'L5' ? [pins.block] : [])]) {
+      for (const rank of [...cutBlock.cuts.keys()].sort((a, b) => a - b)) {
+        const reason = cutBlock.cuts.get(rank);
+        const item = cutBlock.items[rank];
+        if (reason !== undefined && item !== undefined) cuts.push(dropRecord(item.label, reason, item.group, item.ref));
       }
     }
     const allDrops = [...drops[id], ...cuts];

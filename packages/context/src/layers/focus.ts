@@ -279,7 +279,7 @@ export function scopeBlock(state: ProjectState, scope: readonly TreeNode[]): Sco
   const sent = scope.slice(0, SCOPE_DOCUMENT_LIMIT);
   const drops: DropRecord[] = scope
     .slice(SCOPE_DOCUMENT_LIMIT)
-    .map((node) => dropRecord(node.title, { kind: 'scope-limit', limit: SCOPE_DOCUMENT_LIMIT }, 'scope'));
+    .map((node) => dropRecord(node.title, { kind: 'scope-limit', limit: SCOPE_DOCUMENT_LIMIT }, 'scope', { kind: 'doc', id: node.id }));
 
   const items: BlockItem[] = sent.map((node) => {
     const body = getBody(state, node.id);
@@ -289,6 +289,7 @@ export function scopeBlock(state: ProjectState, scope: readonly TreeNode[]): Sco
         ? `all ${formatCount(body.length)} characters`
         : `last ${formatCount(tail.length)} of ${formatCount(body.length)} characters`;
     return {
+      ref: { kind: 'doc', id: node.id },
       label: node.title,
       reason: `scope document, ${extent}`,
       body: [`## ${node.title} (${extent})`, tail === '' ? '(the document is empty)' : tail, FOCUS_MARKER].join('\n'),

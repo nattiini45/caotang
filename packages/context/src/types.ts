@@ -46,8 +46,19 @@ export interface SelectionSpan {
   readonly exact: string;
 }
 
+export interface ContextRef {
+  readonly kind: 'doc' | 'codex';
+  readonly id: string;
+}
+
+export interface ContextOverrides {
+  readonly include?: readonly ContextRef[];
+  readonly exclude?: readonly ContextRef[];
+}
+
 /** One model call's task: the tool, its instruction and parameters, and what it is about. */
 export interface AgentTask {
+  readonly overrides?: ContextOverrides;
   readonly tool: AssemblyTool;
   /** L7's instruction. Sent verbatim. */
   readonly instruction: string;
@@ -164,6 +175,8 @@ export interface ContextConfig {
  * (D8 in context-assembly.md §8), so the preview can say which limit was reached.
  */
 export type DropReason =
+  | { readonly kind: 'writer-excluded' }
+  | { readonly kind: 'pin-limit'; readonly limit: number }
   /** The codex entry's policy is `never`. Listed only when the entry was mentioned. */
   | { readonly kind: 'never' }
   /** The entry matched, but its description is blank (codex.md §2). */
@@ -183,9 +196,10 @@ export type DropReason =
   /** LI was over its cap: it sent whole lines up to it, and the first `sentTokens` of `totalTokens` reached the model. */
   | { readonly kind: 'instructions-cap'; readonly file: string; readonly sentTokens: number; readonly totalTokens: number }
   /** The codex's `always` entries alone need more than the layer's budget; they are sent whole. */
-  | { readonly kind: 'reserve-overflow'; readonly layer: LayerId; readonly need: number; readonly budget: number };
+  | { readonly kind: 'reserve-overflow'; readonly layer: LayerId; readonly need: number; readonly budget: number; readonly pinned?: true };
 
 export interface DropRecord {
+  readonly ref?: ContextRef;
   /** The entry's name or the document's title, or a summary label. */
   readonly label: string;
   readonly reason: DropReason;
@@ -197,6 +211,7 @@ export interface DropRecord {
 
 /** One kept entry and why it is in the prompt. */
 export interface LayerItemReport {
+  readonly ref?: ContextRef;
   readonly label: string;
   readonly reason: string;
   readonly tokens: number;
@@ -268,6 +283,7 @@ export interface AssembledPrompt {
 
 /** One item a layer dropped, as the preview shows it: the line, and the reason in structure. */
 export interface PreviewDrop {
+  readonly ref?: ContextRef;
   readonly label: string;
   /** The line from `describeDrop`: it names the budget that dropped the item (D8). */
   readonly text: string;
@@ -275,6 +291,7 @@ export interface PreviewDrop {
 }
 
 export interface PreviewLayer {
+  readonly kept?: readonly LayerItemReport[];
   readonly id: LayerId;
   readonly name: string;
   readonly included: boolean;
@@ -303,8 +320,8 @@ export interface PromptPreview {
   readonly completionTokens: number;
   readonly layers: readonly PreviewLayer[];
   readonly codex: {
-    readonly included: readonly { readonly name: string; readonly reason: string }[];
-    readonly dropped: readonly { readonly name: string; readonly reason: string }[];
+    readonly included: readonly { readonly name: string; readonly reason: string; readonly ref?: ContextRef }[];
+    readonly dropped: readonly { readonly name: string; readonly reason: string; readonly ref?: ContextRef }[];
   };
   readonly storySoFar: {
     readonly included: readonly string[];
@@ -329,4 +346,14 @@ export interface PromptPreview {
     /** Prompt tokens priced at the cache-read rate, because an earlier call of the same batch wrote their prefix. */
     readonly cachedTokens?: number;
   };
+}
+
+export interface ContextMeter {
+  readonly promptTokens: number;
+  readonly budgetTokens: number;
+  readonly windowTokens?: number;
+  readonly reserveTokens: number;
+  readonly byLayer: Readonly<Record<LayerId, number>>;
+  readonly conversationTokens: number;
+  readonly level: 'ok' | 'near' | 'over';
 }

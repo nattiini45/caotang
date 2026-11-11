@@ -39,6 +39,7 @@ const CUT = '(story so far not sent)';
 /** One document's synopsis, as a layer item. */
 function synopsisItem(node: TreeNode, reason: string, group: string): BlockItem {
   return {
+    ref: { kind: 'doc', id: node.id },
     label: node.title,
     reason,
     body: `## ${node.title} (${node.type})\n${synopsisOf(node)}`,

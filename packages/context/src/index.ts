@@ -12,6 +12,7 @@
 export { assemble } from './assemble.js';
 export { toChatMessages } from './messages.js';
 export { buildPreview } from './preview.js';
+export { meterOf } from './meter.js';
 export { describeDrop } from './drops.js';
 export { SYSTEM_PROMPT_VERSION } from './layers/system.js';
 export { FOCUS_MARKER } from './layers/focus.js';
@@ -65,6 +66,9 @@ export {
   type AssembledPrompt,
   type AssemblyTool,
   type ContextConfig,
+  type ContextRef,
+  type ContextOverrides,
+  type ContextMeter,
   type DraftMode,
   type DropReason,
   type DropRecord,

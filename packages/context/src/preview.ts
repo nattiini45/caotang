@@ -72,7 +72,8 @@ export function buildPreview(assembled: AssembledPrompt): PromptPreview {
       tokens: layer.tokens,
       ...(layer.budget === undefined ? {} : { budget: layer.budget }),
       ...(fraction === undefined ? {} : { fraction }),
-      drops: layer.drops.map((drop) => ({ label: drop.label, text: drop.text, reason: drop.reason })),
+      ...(layer.kept.length === 0 ? {} : { kept: layer.kept.map((item) => ({ ...item })) }),
+      drops: layer.drops.map((drop) => ({ label: drop.label, text: drop.text, reason: drop.reason, ...(drop.ref === undefined ? {} : { ref: drop.ref }) })),
       notes: [...layer.notes],
       ...(cache !== undefined && layer.included && cache.layers.has(layer.id) ? { likelyCached: true as const } : {}),
     };
@@ -131,8 +132,8 @@ export function buildPreview(assembled: AssembledPrompt): PromptPreview {
     images: contentSummaryOf(sent).images,
     layers,
     codex: {
-      included: codex.kept.map((item) => ({ name: item.label, reason: item.reason })),
-      dropped: codex.drops.map((drop) => ({ name: drop.label, reason: drop.text })),
+      included: codex.kept.map((item) => ({ name: item.label, reason: item.reason, ...(item.ref === undefined ? {} : { ref: item.ref }) })),
+      dropped: codex.drops.map((drop) => ({ name: drop.label, reason: drop.text, ...(drop.ref === undefined ? {} : { ref: drop.ref }) })),
     },
     storySoFar: {
       included: story.kept.map((item) => item.label),

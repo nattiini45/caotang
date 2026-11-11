@@ -74,8 +74,8 @@ export function withhold(task: AgentTask, app: AppSnapshot): WithheldView {
   const entriesOut = entries.filter((entry) => entryWithheld(entry, hidden));
   const view = withheldState(state, hidden);
   const drops: DropRecord[] = [
-    ...present.map((node) => dropRecord(`${node.title} (${node.type})`, { kind: 'withheld' }, 'withheld')),
-    ...entriesOut.map((entry) => dropRecord(`${entry.name} (codex)`, { kind: 'withheld' }, 'withheld')),
+    ...present.map((node) => dropRecord(`${node.title} (${node.type})`, { kind: 'withheld' }, 'withheld', node.type === 'document' ? { kind: 'doc', id: node.id } : undefined)),
+    ...entriesOut.map((entry) => dropRecord(`${entry.name} (codex)`, { kind: 'withheld' }, 'withheld', { kind: 'codex', id: entry.id })),
   ];
   const scope = task.scope?.filter((id) => !hidden.has(id));
   return {
