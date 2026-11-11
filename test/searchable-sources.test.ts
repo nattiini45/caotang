@@ -195,7 +195,7 @@ const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly 
  * that the set is exactly the surfaces the specs take, so it cannot quietly cover anything else. Modern's are written by CI's visual
  * job the first time it runs them and committed after review, so the set holds either none of them or all of them.
  */
-const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-((glass|solid)-[a-z-]+|settings-scroll-cues|hooks|hook-editor|german-sidebar-(empty|count))|modern-(light|dark)-glass-save-conflict-de-1280|(classic|modern)-picture-start-edge|modern-empty-comic-(en|de)|background-task-cancelling(-de)?|save-(tasks|settings)-(classic|modern)|findings-review-stopped(-de)?|modal-skills-(light|dark)-(desktop|narrow))\.png$/;
+const VISUAL_BASELINE = /^e2e\/visual\/__snapshots__\/(classic-(light|dark)-[a-z-]+|modern-(light|dark)-((glass|solid)-[a-z-]+|settings-scroll-cues|hooks|hook-editor|german-sidebar-(empty|count))|modern-(light|dark)-glass-save-conflict-de-1280|(classic|modern)-picture-start-edge|modern-empty-comic-(en|de)|background-task-cancelling(-de)?|save-(tasks|settings)-(classic|modern)|findings-review-stopped(-de)?|modal-skills-(light|dark)-(desktop|narrow)|(classic|modern)-provider-(checking|failed|failure-message)-de-(1280|390))\.png$/;
 const VISUAL_SURFACES = ['projects', 'workspace', 'corkboard', 'codex', 'findings', 'activity', 'settings-appearance', 'settings-scroll-cues', 'hooks', 'hook-editor', 'export', 'narrow'];
 const MODERN_VISUAL_SURFACES = ['page', 'companion-beside', 'companion-sheet', 'palette', 'palette-query', 'sidebar-open', 'sidebar-pinned', 'narrow'];
 /** Modern surfaces taken on glass only: #306's Board, Codex and ⋯ menu (modern.spec.ts), #311's dialogs (modern-dialogs.spec.ts), #312's narrow panels (modern-narrow.spec.ts). */
@@ -295,7 +295,8 @@ describe('no source file is invisible to search', () => {
       ['light', 'dark'].flatMap((scheme) => ['settings-scroll-cues', 'hooks', 'hook-editor', 'german-sidebar-empty', 'german-sidebar-count'].map((surface) => `e2e/visual/__snapshots__/modern-${scheme}-${surface}.png`)),
     );
     const modernCommitted = baselines.some((rel) => rel.includes('/modern-'));
-    const expected = [...classic, ...(modernCommitted ? modern : []), ...[
+    const provider = ['classic', 'modern'].flatMap((shell) => ['checking', 'failed', 'failure-message'].flatMap((state) => [1280, 390].map((width) => `e2e/visual/__snapshots__/${shell}-provider-${state}-de-${width}.png`)));
+    const expected = [...classic, ...(modernCommitted ? modern : []), ...provider, ...[
       'classic-picture-start-edge', 'modern-picture-start-edge', 'modern-empty-comic-en', 'modern-empty-comic-de', 'background-task-cancelling', 'background-task-cancelling-de', 'findings-review-stopped', 'findings-review-stopped-de',
       'classic-light-folder-saving-en', 'classic-light-folder-saving-de', 'modern-light-glass-folder-saving-en', 'modern-light-glass-folder-saving-de',
       'classic-light-autosave-conflict-en', 'classic-light-autosave-conflict-de', 'modern-light-glass-autosave-conflict-en', 'modern-light-glass-autosave-conflict-de',

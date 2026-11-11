@@ -87,12 +87,19 @@ export interface ResponseFormatProbe {
   probedAt: number;
 }
 
+export type ProfileVerification =
+  | { readonly kind: 'unknown' }
+  | { readonly kind: 'checking'; readonly attempt: number }
+  | { readonly kind: 'verified'; readonly checkedAt: number }
+  | { readonly kind: 'failed'; readonly checkedAt: number };
+
 /** What the settings UI and the activity log may see: a profile without its key. */
 export interface ProfileView extends Omit<ProviderProfile, 'apiKey'> {
   /** whether a key is stored for this profile. The key itself is never on a view. */
   hasKey: boolean;
   /** absent until the probe has run for this endpoint */
   responseFormat?: ResponseFormatProbe;
+  verification?: ProfileVerification;
 }
 
 /** Input to `ProfileStore.create`. Omitted optional fields take the kind's defaults. */

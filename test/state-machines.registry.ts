@@ -34,6 +34,7 @@ import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.j
 import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
 import { editorSessionTable } from '../packages/editor/src/tiptap/session.js';
 import { storeRebaseTable } from '../apps/desktop/src/app/store-rebase.js';
+import { providerVerificationTable } from '../packages/gateway/src/verification.js';
 
 export const machineTables = [
   sprintTable, taskStatusTable, agentControllerTable, recurringRunTable, turnMarkerTable, folderSaveTable, importPreviewTable,
@@ -48,4 +49,5 @@ export const machineTables = [
   modalMachine.table,
   editorSessionTable,
   storeRebaseTable,
+  providerVerificationTable,
 ] as const;

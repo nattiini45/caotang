@@ -178,14 +178,14 @@ function scoped(deps: TransportDeps, spec: CallSpec): TransportDeps {
   return spec.timeouts === undefined ? deps : { ...deps, timeouts: { ...deps.timeouts, ...spec.timeouts } };
 }
 
-function networkError(spec: CallSpec, reason: string, rejected = false): ProviderError {
+function networkError(spec: CallSpec, reason: string, rejected = false, timedOut = false): ProviderError {
   const detail = clean(reason, spec);
-  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail, ...(rejected ? { rejected } : {}) });
+  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail, ...(rejected ? { rejected } : {}), ...(timedOut ? { reason: 'timeout' } : {}) });
 }
 
-function protocolError(spec: CallSpec, raw: string): ProviderError {
+function protocolError(spec: CallSpec, raw: string, fromProvider = false): ProviderError {
   const excerpt = clean(raw, spec);
-  return new ProviderError('protocol', providerMessages.protocol(spec.host, excerpt), { detail: excerpt });
+  return new ProviderError('protocol', providerMessages.protocol(spec.host, excerpt), { detail: excerpt, ...(fromProvider ? { providerReply: excerpt } : {}) });
 }
 
 /**
@@ -341,20 +341,36 @@ async function statusError(deps: TransportDeps, spec: CallSpec, response: Respon
   const raw = await readExcerpt(deps, spec, response);
   const excerpt = clean(raw, spec);
   const status = response.status;
+  let reply = raw;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const payload = parsed as Record<string, unknown>;
+      const error = payload['error'];
+      const message = typeof error === 'object' && error !== null ? (error as Record<string, unknown>)['message'] : undefined;
+      if (typeof error === 'string') reply = error;
+      else if (typeof message === 'string') reply = message;
+      else if (typeof payload['message'] === 'string') reply = payload['message'];
+    }
+  } catch {
+    reply = raw;
+  }
+  const replyExcerpt = clean(reply, spec);
+  const providerReply = replyExcerpt === '' ? {} : { providerReply: replyExcerpt };
 
   if (status === 401 || status === 403) {
-    return new ProviderError('auth', providerMessages.auth(spec.host), { status });
+    return new ProviderError('auth', providerMessages.auth(spec.host), { status, ...providerReply });
   }
   if (status === 404) {
     // A local server answers 404 for a model it has not pulled; "no endpoint at ..." would send the writer to the wrong setting.
     if (spec.local !== undefined && excerpt.toLowerCase().includes('model')) {
-      return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt });
+      return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt, ...providerReply });
     }
-    return new ProviderError('endpoint', providerMessages.endpoint(spec.path, spec.baseUrl), { status, detail: excerpt });
+    return new ProviderError('endpoint', providerMessages.endpoint(spec.path, spec.baseUrl), { status, detail: excerpt, ...providerReply });
   }
   if (status === 429) {
     const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), deps.clock.now());
-    return new ProviderError('rate_limit', providerMessages.rateLimit(spec.host), { status, detail: excerpt, retryAfterMs });
+    return new ProviderError('rate_limit', providerMessages.rateLimit(spec.host), { status, detail: excerpt, retryAfterMs, ...providerReply });
   }
   if (status === 400) {
     const overflow = contextOverflow(raw, spec.promptTokens);
@@ -362,11 +378,11 @@ async function statusError(deps: TransportDeps, spec: CallSpec, response: Respon
       return new ProviderError(
         'context_length',
         providerMessages.contextLength(overflow.prompt, overflow.window ?? 'unknown'),
-        { status, detail: excerpt },
+        { status, detail: excerpt, ...providerReply },
       );
     }
   }
-  return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt });
+  return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt, ...providerReply });
 }
 
 /**
@@ -413,7 +429,7 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
       );
     });
   } catch (err) {
-    if (err instanceof DeadlineReached) throw networkError(spec, limit.reason);
+    if (err instanceof DeadlineReached) throw networkError(spec, limit.reason, false, true);
     if (err instanceof CallerCancelled) throw err;
     throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err), true);
   }
@@ -528,7 +544,7 @@ async function* readStream(
         if (err instanceof DeadlineReached) {
           // The provider finished and then went quiet. The answer is whole, so end it.
           if (acc.finish !== undefined) break;
-          throw networkError(spec, limit.reason);
+          throw networkError(spec, limit.reason, false, true);
         }
         throw networkError(spec, describe(err));
       }
@@ -677,7 +693,7 @@ export async function requestJson(base: TransportDeps, spec: CallSpec): Promise<
       try {
         json = JSON.parse(text);
       } catch {
-        throw protocolError(spec, text);
+        throw protocolError(spec, text, true);
       }
       logAttempt(deps, spec, attempt, 'ok', { status });
       return json;
@@ -730,7 +746,7 @@ async function readWhole(deps: TransportDeps, spec: CallSpec, response: Response
     });
   } catch (err) {
     if (err instanceof CallerCancelled) throw err;
-    if (err instanceof DeadlineReached) throw networkError(spec, limit.reason);
+    if (err instanceof DeadlineReached) throw networkError(spec, limit.reason, false, true);
     throw networkError(spec, describe(err));
   } finally {
     void reader.cancel().catch(() => undefined);

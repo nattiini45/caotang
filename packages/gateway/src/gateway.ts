@@ -572,6 +572,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       // "Could not reach the host, check your connection" would be false for that route and send the writer to the wrong setting.
       if (error instanceof ProviderError && error.rejected && preset?.cors === 'ok') {
         throw new ProviderError('network', providerMessages.modelListUnreadable(hostOf(profile.baseUrl)), {
+          reason: 'model-list-unreadable',
           ...(error.detail === undefined ? {} : { detail: error.detail }),
           rejected: true,
         });
@@ -636,8 +637,9 @@ export function createGateway(options: GatewayOptions): Gateway {
 
   async function probeResponseFormat(profileId?: string): Promise<boolean> {
     const profile = targetOf(profileId);
+    const attempt = profile.verification?.kind === 'checking' ? profile.verification.attempt : undefined;
     if (profile.kind === 'mock') {
-      profiles.recordProbe(profile.id, { supportsJsonObject: true, probedAt: clock.now() });
+      profiles.recordProbe(profile.id, { supportsJsonObject: true, probedAt: clock.now() }, attempt);
       return true;
     }
 
@@ -646,7 +648,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const route = routeOf(profile, profile.defaultModel);
     if (route.adapter.id !== 'openai-chat') {
       const supported = route.ctx.caps.jsonObject === true;
-      profiles.recordProbe(profile.id, { supportsJsonObject: supported, probedAt: clock.now() });
+      profiles.recordProbe(profile.id, { supportsJsonObject: supported, probedAt: clock.now() }, attempt);
       return supported;
     }
 
@@ -677,7 +679,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       promptTokens: usageFor([{ role: 'user', content: PROBE_PROMPT }], '').promptTokens,
       ...localCall(profile),
     });
-    profiles.recordProbe(profile.id, { supportsJsonObject: supported, probedAt: clock.now() });
+    profiles.recordProbe(profile.id, { supportsJsonObject: supported, probedAt: clock.now() }, attempt);
     ledger.record({ profileId: profile.id, model: profile.defaultModel, at: clock.now() }, ZERO, 1);
     return supported;
   }

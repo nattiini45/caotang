@@ -781,6 +781,9 @@ importers:
       '@caotang/codex':
         specifier: workspace:*
         version: link:../codex
+      '@caotang/machine':
+        specifier: workspace:*
+        version: link:../machine
     devDependencies:
       '@caotang/store':
         specifier: workspace:*
