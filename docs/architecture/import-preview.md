@@ -3,8 +3,9 @@
 > Status: **partly built** (#267). Built: the shared preview dialog (`apps/desktop/src/import-preview/`), its source interface, its
 > model (manual edits, the virtualised text pane, the mapping, the codex rows, the report, the commit), the commit command
 > `binder.importTree` (bus `descriptors-import.ts`, store `commands-import.ts`), the Twee import moved onto it, the splitter source
-> for the block list of #266 (`splitter-source.ts`, import-core.md §5.1), and **Import plain text…** and **Import RTF…** through it. Not built: the other format readers that
-> feed it (#268 is the shared readers; each reader is its own issue), the Worker host the readers will run in, the **New project** destination, POV and day as mapping
+> for the block list of #266 (`splitter-source.ts`, import-core.md §5.1), and **Import plain text…**, **Import RTF…** and **Import RTFD…** through it, each reading in
+> the `'self'` Worker host (`reader-host.ts`, `reader.worker.ts`) with a hard timeout and the dialog's Cancel (#390). Not built: the other format readers that
+> feed it (#268 is the shared readers; each reader is its own issue), the **New project** destination, POV and day as mapping
 > targets, and the Final Draft import's move onto the dialog (#265 extended its own dialog; moving it onto this one is a follow-up).
 > Cross-refs: block list and splitter = Imports epic #263 (research notes `doc-formats.md` §10); commands = [command-bus.md](command-bus.md) §9
 > (`binder.importTree`) · codex rows = [codex.md](codex.md) §7.1 · pictures = [pictures.md](pictures.md) D5 (inline spelling) and §6.4
@@ -27,6 +28,9 @@ proposed tree?* A source gives:
 | Part | What it is |
 |---|---|
 | `load(progress, signal)` | Reads the file once, with a progress line the dialog shows and the dialog's Cancel as the abort. Optional. |
+| `prepare(settings, signal)` | Ensures the document for these settings is read, off the main thread where the reader runs in the Worker host (#390). The dialog calls it before planning whenever a reader chip or option changes; a source that caches by its own read key returns at once when the settings are already read. `plan` then reads the cached document synchronously. Optional. |
+| `prepared(settings)` | Whether `prepare` would return at once (the document is already read), so the dialog shows no reading flash for the default settings. Optional. |
+| `dispose()` | Releases the source's reader (its Worker) when the preview closes or a newer import replaces it. Optional. |
 | `chips()` | The rule chips, each a choice: chapters at (Heading n / style "X" / "Chapter N" lines / page breaks / none), scenes at, Parts nest or flatten, front matter to manuscript / Research / skip. The splitter source (`splitter-source.ts`) makes these from #266's `Detected`. |
 | `options()` | Reader toggles: tracked changes, comments → notes, underline → italics, images, snapshots, codex auto-detect (decisions 5 and 6, on by default). An option with `network` (host, count, size) is a network step (decision 10): it starts **off** whatever the source says, and its label names the host, the count and the size. |
 | `plan(settings, overrides)` | The proposed tree (`PreviewNode`: part, chapter, scene, text, front, back), the text pane's blocks, the ✂ markers with the reason for each, the counts, the losses (`LossWarning`s) and the sanity flags, a flag with a one-click fix as overrides. Pure and fast: it is run again on every chip change. |
@@ -101,3 +105,12 @@ imported document by index as `node`), and `pictures`.
 The dialog, its model and its styles are a lazy chunk, loaded the first time an import opens a preview (`ImportPreviewHost`, mounted
 in the workspace, through `openImportPreview`). The first load carries only the host and the request store. A reader's own code is
 its own lazy chunk (#268).
+
+The plain-text and RTF readers run in a `'self'` module Worker (`reader-host.ts` owns it, `reader.worker.ts` is its entry,
+`reader-session.ts` is the DOM-free dispatch), so a large file never blocks typing or scrolling while it parses (#390). The Worker is
+made from a same-origin URL (`new URL('./reader.worker.ts', import.meta.url)`, `type: 'module'`), never a `blob:` URL: the CSP is
+`worker-src 'self'`. The input bytes are sent once on `open` and cached in the Worker; a reader chip or option change re-reads that
+copy through `prepare`, and a read's picture bytes are transferred back so an image-heavy RTF costs the main thread no copy. Every
+request has a hard timeout (a hung reader is terminated) and the dialog's Cancel terminates it too; the splitter stays on the main
+thread, where it re-runs on every rule chip. The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
+main thread (I/O) and unpacks and parses the package in the same Worker through the archive reader (import-rtf.md §4).

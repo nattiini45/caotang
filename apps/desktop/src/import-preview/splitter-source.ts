@@ -74,6 +74,12 @@ export interface SplitterSourceInput {
   readonly readKey: (settings: PreviewSettings) => string;
   /** Reads the file once, with a progress line and a cancel (import-preview.md §2). */
   readonly load?: ImportPreviewSource['load'];
+  /** Reads the document for these settings off the main thread (#390); `read` then returns the cached result. */
+  readonly prepare?: (settings: PreviewSettings, signal: AbortSignal) => Promise<void>;
+  /** Whether the document for these settings is already read. */
+  readonly prepared?: (settings: PreviewSettings) => boolean;
+  /** Releases the reader (its Worker) when the preview closes. */
+  readonly dispose?: () => void;
   /** The id of the reader option that brings the pictures in; off, the pictures leave the bodies and the report says so. */
   readonly picturesOption?: string;
   readonly pictures?: () => readonly PreviewPicture[];
@@ -584,6 +590,9 @@ export function splitterPreviewSource(input: SplitterSourceInput): ImportPreview
     fileName: input.fileName,
     title: t`Import “${{ file: input.fileName }}”`,
     ...(input.load === undefined ? {} : { load: input.load }),
+    ...(input.prepare === undefined ? {} : { prepare: input.prepare }),
+    ...(input.prepared === undefined ? {} : { prepared: input.prepared }),
+    ...(input.dispose === undefined ? {} : { dispose: input.dispose }),
     chips: () => [...(input.readerChips?.() ?? []), ...chipsFromSplit(current().baseline)],
     options: () => input.readerOptions?.() ?? [],
     plan: (settings, overrides) => {

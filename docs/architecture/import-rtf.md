@@ -1,6 +1,6 @@
 # The RTF reader 🧭
 
-> Status: the package `packages/import-rtf` (`@caotang/import-rtf`) is **built** (#274) and tested in Node, on the main thread and in a `'self'` Worker. **Import RTF…** in the binder calls it through the preview's splitter source (#267, import-core.md §5.1), on the main thread; the Scrivener import (#275), not built, will reach it the same way. It emits the block list of import-core.md §2 (#266), whose types it re-exports from `@caotang/import-core` (`src/model.ts`). Epic: #263.
+> Status: the package `packages/import-rtf` (`@caotang/import-rtf`) is **built** (#274) and tested in Node, on the main thread and in a `'self'` Worker. **Import RTF…** and **Import RTFD…** in the binder call it through the preview's splitter source (#267, import-core.md §5.1) in the `'self'` Worker host with a hard timeout and cancel (#390); the Scrivener import (#275), not built, will reach it the same way. It emits the block list of import-core.md §2 (#266), whose types it re-exports from `@caotang/import-core` (`src/model.ts`). Epic: #263.
 
 ## 1. Purpose
 
@@ -60,6 +60,5 @@ The reader depends on nothing, so it does not run `scanImport` (packages/harness
 
 ## 7. Not built
 
-- The Worker host for **Import RTF…**, with a hard timeout (it reads on the main thread today, under the reader's own limits and the preview's Cancel), and `.rtfd` packages from the app (a file picker gives one file, not a package folder).
 - Real files from Scrivener for Mac and from Word for footnotes and comments; the Mac and Word fixtures are written by hand in their shapes.
 - Rasterising EMF and WMF pictures (rtf.js's renderers are the candidate, 56 kB each, if writers ask).

@@ -136,6 +136,11 @@ export default defineConfig(({ command }) => ({
     port: Number(process.env['CAOTANG_E2E_PORT'] ?? 5173),
     strictPort: true,
   },
+  // The import preview's reader Worker (import-preview/reader.worker.ts) is a same-origin module Worker (`worker-src 'self'`, no
+  // `blob:`) and imports each reader on first use, so it needs ES format: 'iife' cannot code-split a worker's dynamic imports.
+  worker: {
+    format: 'es',
+  },
   // `vite preview` serves the built app for the production smoke test (e2e/prod-smoke.spec.ts). The Playwright config sets
   // CAOTANG_E2E_PREVIEW_PORT per checkout, so two runs at once do not share a preview server.
   preview: {

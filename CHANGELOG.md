@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Imports read in the background.** **Import plain text…** and **Import RTF…** read in a same-origin Worker with a hard timeout and the preview's Cancel, so a long file no longer holds the page while it parses; the splitter still re-runs as you change the rules, and a reader option re-reads without sending the file again. **Import RTFD…** reads an `.rtfd` package folder (TextEdit, Scrivener 2) through the same preview, its pictures included, and lists the files the text does not show. The English and German guides describe the new import (#283, #274, #390).
+
 - **Request-local context controls.** The agent composer estimates prompt capacity as you type, previews the planner request without a provider call and shows actual planner meters while running. `@` pins codex entries or up to three bounded document excerpts; shared previews can leave optional items out, with fresh approval after a plan-step context edit. Queued requests retain their own choices. Saved inclusion policies, Never and read-deny rules remain unchanged.
 - Plans with pins or leave-outs stay in the foreground; background choice persistence is deferred to [#592](https://github.com/nattiini45/caotang/issues/592). Existing run logs still contain sent messages and staged proposals, while the new recovery choice metadata contains stable IDs only.
 
