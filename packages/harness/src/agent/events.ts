@@ -8,7 +8,7 @@
 
 import type { CommandError } from '@caotang/bus';
 
-import type { LayerReport } from '@caotang/context';
+import type { ContextMeter, LayerReport, PromptPreview } from '@caotang/context';
 import type { TurnUsageRow } from '@caotang/gateway';
 
 import type { HookRun } from '../hooks.js';
@@ -163,6 +163,7 @@ export type AgentEvent =
    */
   | { readonly type: 'draft.delta'; readonly turnId: string; readonly docTitle: string; readonly delta: string; readonly start?: boolean }
   | { readonly type: 'context'; readonly turnId: string; readonly layers: readonly Pick<LayerReport, 'id' | 'tokens'>[]; readonly dropped: readonly string[] }
+  | { readonly type: 'context-meter'; readonly turnId: string; readonly meter: ContextMeter; readonly preview: PromptPreview }
   | { readonly type: 'card'; readonly turnId: string; readonly card: StatusCard }
   /** `auto` marks a card the mode's policy approved instead of the writer (agent-harness §4): it is shown collapsed, with an auto-approved badge. */
   | { readonly type: 'plan'; readonly turnId: string; readonly card: PlanCardView; readonly auto?: true }

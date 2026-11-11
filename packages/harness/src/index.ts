@@ -119,6 +119,7 @@ export {
   type AgentSession,
   type AgentSessionOptions,
   type ContextPreview,
+  type RequestContextPreview,
   type OfferAnswer,
   type PlanOffer,
   type StageOnlyResult,
@@ -377,7 +378,7 @@ export { CACHE_MISS_CAUSES, CacheWatch, missCause, stableToolOrder, type CacheMi
 export { instructionsReport, scenePromptPreview, type InstructionsReport, type ScenePreviewOptions } from './agent/step-preview.js';
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.
 export { withheldState } from '@caotang/context';
-export type { ContextConfig, PreviewLayer, PromptPreview } from '@caotang/context';
+export type { ContextConfig, ContextMeter, ContextOverrides, ContextRef, PreviewLayer, PromptPreview } from '@caotang/context';
 export { DEFAULT_INSTRUCTIONS_BUDGET } from '@caotang/context';
 export {
   MODEL_BACKED_TOOLS,

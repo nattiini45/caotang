@@ -22,6 +22,8 @@ import { assertRunStatusTransition, parseRules } from '@caotang/store';
 
 import { isCommandName } from '../commands/slash.js';
 import type { PlanStep } from '../plan.js';
+import type { ContextOverrides } from '@caotang/context';
+import { contextOverridesOk } from './context.js';
 import { canonicalJson } from '../util.js';
 import type { BudgetSpend } from './budget.js';
 import type { StepRevisions } from './background.js';
@@ -64,6 +66,7 @@ export type RunEvent =
       readonly command?: string;
       readonly hiddenFromPlanner?: boolean;
       readonly outsidePrompt?: OutsidePrompt;
+      readonly contextOverrides?: ContextOverrides;
     })
   | (Stamp & { readonly t: 'messages'; readonly turnId: string; readonly appended: readonly ChatMessage[] })
   | (Stamp & { readonly t: 'skills.loading'; readonly turnId: string })
@@ -308,7 +311,7 @@ function revisionsOk(value: unknown): value is Revisions {
 }
 
 function stepsOk(value: unknown): value is readonly PlanStep[] {
-  return Array.isArray(value) && value.every((step) => isRecord(step) && isString(step['tool']) && isRecord(step['params']) && isString(step['expect']));
+  return Array.isArray(value) && value.every((step) => isRecord(step) && isString(step['tool']) && isRecord(step['params']) && isString(step['expect']) && (step['contextOverrides'] === undefined || contextOverridesOk(step['contextOverrides'])));
 }
 
 function messagesOk(value: unknown): value is readonly ChatMessage[] {
@@ -340,7 +343,7 @@ function outsidePromptOk(value: unknown): value is OutsidePrompt {
 }
 
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
-  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])) && (e['hiddenFromPlanner'] === undefined || typeof e['hiddenFromPlanner'] === 'boolean') && (e['outsidePrompt'] === undefined || outsidePromptOk(e['outsidePrompt'])),
+  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])) && (e['hiddenFromPlanner'] === undefined || typeof e['hiddenFromPlanner'] === 'boolean') && (e['outsidePrompt'] === undefined || outsidePromptOk(e['outsidePrompt'])) && (e['contextOverrides'] === undefined || contextOverridesOk(e['contextOverrides'])),
   messages: (e) => isString(e['turnId']) && messagesOk(e['appended']),
   'skills.loading': (e) => isString(e['turnId']),
   'skills.loaded': (e) => isString(e['turnId']) && skillsOk(e['skills']),
@@ -401,6 +404,7 @@ export interface ReplayCard {
 
 /** What a log says about its run: the state a resumed turn starts from. */
 export interface RunReplay {
+  readonly contextOverrides?: ContextOverrides;
   readonly turnId: string;
   readonly intent: string;
   readonly wire: 'planner' | 'plan';
@@ -453,6 +457,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
   let command: string | undefined;
   let hiddenFromPlanner = false;
   let outsidePrompt: OutsidePrompt | undefined;
+  let contextOverrides: ContextOverrides | undefined;
   const messages: ChatMessage[] = [];
   let skills: readonly LoadedSkill[] | undefined;
   let skillsPending = false;
@@ -479,6 +484,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
           command = event.command;
           hiddenFromPlanner = event.hiddenFromPlanner === true;
           outsidePrompt = event.outsidePrompt;
+          contextOverrides = event.contextOverrides;
           wire = event.wire;
           started = true;
         }
@@ -545,6 +551,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
     ...(command === undefined ? {} : { command }),
     ...(hiddenFromPlanner ? { hiddenFromPlanner: true } : {}),
     ...(outsidePrompt === undefined ? {} : { outsidePrompt }),
+    ...(contextOverrides === undefined ? {} : { contextOverrides }),
     messages,
     ...(skills === undefined ? {} : { skills }),
     ...(open && card !== undefined ? { card } : {}),
