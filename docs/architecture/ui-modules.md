@@ -216,6 +216,8 @@ MCP controls await their settings mutation, prevent repeated actions while savin
 
 ### 5.3 Browser-storage persistence
 
+The project session owns an in-memory `opening|open|closing|closed` handle. Project switching, returning to Projects and failed opening share one idempotent `closeSafely()`: settlement failure never skips cleanup or leaves the project lease held. Cleanup still detaches subscriptions and disposes autosave if a save or writing-session record fails, and the existing notice reports the failure. The lease is released last. Saved project and writing-session formats do not change.
+
 The stopped-tab notice and save wording read the current session's `TabStop`, which joins its cause (`newer-text|updated`) with its latest kept-copy result. The notice publishes `data-state="stopped"`. It wins over any other open dialog and any dialog that arrives later; those dialogs stay mounted underneath with their input intact. Escape does not dismiss the notice. The existing backup action, two-step reload, kept-versus-memory wording, and named put-back steps (`create|write|done`) are unchanged. See [state-machines.md](state-machines.md) for the persistence, stopped-tab and pending-entry contracts.
 
 The main save indicator aggregates project persistence, pending editor text, findings, tasks and app settings. Conflict takes priority over failure, failure over saving, and saved means no included source is pending or failed. A failed task or settings write turns it red and names the failed channel in the status text, in both shells. A refusal remains visible during a retry until a later write succeeds. Findings folder-copy failures retain their separate Findings-panel notice when the browser copy was saved. Tasks report a failed browser or folder write. Settings-only failures offer no project backup: a project bundle does not contain app settings. `data-state` remains `saved|saving|failed|conflict`; tests wait on that state rather than a delay. Session `saved()` and `settle()` await the included queues.
@@ -232,6 +234,13 @@ Evidence: Dabble's web app carries a constant *"Data may be evicted"* warning: b
 6. **Evals:** Playwright-mocked `navigator.storage` (persist → true/false, estimate fixtures) — banner shows iff `persisted === false`, hides on grant; Settings row reflects both states; no banner when mocked as persisted.
 
 ### 5.4 First-run wizard entry
+
+`useBootPhase()` joins runtime-store and app-services opening, saved-language initialization and interface-default settlement before showing Home. Its states are `opening|settling-interface|ready|failed`; a failure's newer-store cause belongs to that failure, not a separate flag. Loading and failure publish `data-state` without changing their words or layout. The settings-default subscription ends with the boot owner.
+
+A demo start claims its intent before any asynchronous work. While its sample opens, Home disables other lifecycle actions and uses the existing project-opening status. Duplicate demo gestures cannot create two samples or replace the intent in flight; success and failure both release the guard.
+
+Home's pending open is one `idle|recovery|encoding|differs` union; refusal reason/files are carried only by recovery. The existing questions and outcomes are unchanged. Home publishes the union on `data-state` and demo opening on `data-demo-state`. Its common action guard is claimed synchronously; a demo releases it from promise completion even if opening and failure occur before React paints the busy state.
+
 Settings opens pre-populated on the Providers section during the first-run wizard (context-assembly §6): the wizard's "paste your key" step deep-links here; `listModels` failure renders inline (never a toast-only failure).
 
 ### 5.5 The Project panel

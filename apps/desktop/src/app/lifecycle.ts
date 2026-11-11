@@ -227,7 +227,7 @@ async function sessionFor(
   lease: ProjectLease,
   folder: DirectoryHandleLike | null = null,
 ): Promise<ProjectSession> {
-  let session: ProjectSession;
+  let session: ProjectSession | undefined;
   try {
     // The lease allows one live tab per project, so an agent run still marked running or waiting on a card is one whose tab is gone: it is
     // interrupted, and only the writer resumes or discards it (agent-harness §5.1). A store that cannot be written does not stop the open.
@@ -261,12 +261,24 @@ async function sessionFor(
     // The undo kept for a document this project no longer has goes (history-store.ts).
     void dropHistoryOf(state.manifest.project.id, new Set(state.documents.keys()));
   } catch (error) {
-    lease.release();
+    if (session === undefined) lease.release();
+    else await session.closeSafely().catch(() => undefined);
     throw error;
   }
   // The writer has a copy of what was just opened or made, so the export check measures changes from here.
   session.markExported();
   return session;
+}
+
+async function settleForOpen(session: ProjectSession): Promise<ProjectSession> {
+  try {
+    await session.settle();
+    session.handle.opened();
+    return session;
+  } catch (error) {
+    await session.closeSafely().catch(() => undefined);
+    throw error;
+  }
 }
 
 /** The coherence file as the bundle carries it: the session's copy, serialised as the module saves it, or none when there is none. */
@@ -433,8 +445,7 @@ export async function createProject(store: RuntimeStore, name: string): Promise<
   const title = name.trim() === '' ? t`Untitled project` : name.trim();
   const state = createProjectState(createEmptyManifest(title));
   const session = await sessionFor(store, state, null, await leaseFor(state.manifest.project.id));
-  await session.settle();
-  return session;
+  return settleForOpen(session);
 }
 
 /**
@@ -444,8 +455,7 @@ export async function createProject(store: RuntimeStore, name: string): Promise<
 export async function createSampleProject(store: RuntimeStore): Promise<ProjectSession> {
   const state = sampleProjectState();
   const session = await sessionFor(store, state, null, await leaseFor(state.manifest.project.id));
-  await session.settle();
-  return session;
+  return settleForOpen(session);
 }
 
 /**
@@ -478,13 +488,7 @@ export async function openProject(store: RuntimeStore, projectId: string): Promi
   }
   const session = await sessionFor(store, state, shadowOf(state), lease);
   // A session that fails to settle is closed, which gives the lease back: no caller holds it.
-  try {
-    await session.settle();
-  } catch (error) {
-    await session.close().catch(() => undefined);
-    throw error;
-  }
-  return session;
+  return settleForOpen(session);
 }
 
 /** The open's sentence for image references the check dropped (`ProjectSession.imageNotices`), or none. The storyboard names them. */
@@ -719,12 +723,12 @@ async function adopt(
         noticesOut.push(exportsKeptHere(error));
       }
     }
-    await session.settle();
+    await settleForOpen(session);
     noticesOut.push(...imageDropNotice(session), ...hookNotice(session));
     if (copiedFrom !== null) await rememberCopiedFrom(session.projectId, copiedFrom);
     return { session, notices: noticesOut, droppedFields: [...droppedFields], copiedFrom };
   } catch (error) {
-    await session.close().catch(() => undefined);
+    await session.closeSafely().catch(() => undefined);
     throw error;
   }
 }
@@ -945,11 +949,11 @@ async function openStored(
     } catch (error) {
       noticesOut.push(exportsKeptHere(error));
     }
-    await session.settle();
+    await settleForOpen(session);
     noticesOut.push(...imageDropNotice(session), ...hookNotice(session));
     return { session, notices: noticesOut, droppedFields: [...load.droppedFields], copiedFrom: null };
   } catch (error) {
-    await session.close().catch(() => undefined);
+    await session.closeSafely().catch(() => undefined);
     throw error;
   }
 }
@@ -1905,7 +1909,7 @@ export async function openDemoSample(store: RuntimeStore, settings: DemoSettings
   try {
     await settings.update({ sampleProjectIds: [...settings.current().sampleProjectIds, session.projectId] });
   } catch (error) {
-    await session.close().catch(() => undefined);
+    await session.closeSafely().catch(() => undefined);
     throw error;
   }
   return session;

@@ -81,6 +81,19 @@ Initial: `idle`. Final: none.
 | `stopping` | `ready` | `stopping` |
 | `stopping` | `turn` | `stopping` |
 
+## app.boot
+
+Initial: `opening`. Final: `failed`, `ready`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | — | — |
+| `opening` | `failed` | `failed` |
+| `opening` | `opened` | `settling-interface` |
+| `ready` | — | — |
+| `settling-interface` | `failed` | `failed` |
+| `settling-interface` | `ready` | `ready` |
+
 ## asset.removal-hold
 
 Initial: `clear`. Final: none.
@@ -197,6 +210,15 @@ Initial: `open`. Final: none.
 | `fixed` | `open` | `open` |
 | `open` | `dismissed` | `dismissed` |
 | `open` | `fixed` | `fixed` |
+
+## demo.start
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `idle` | `start` | `opening` |
+| `opening` | `settled` | `idle` |
 
 ## document.autosave
 
@@ -316,6 +338,21 @@ Initial: `idle`. Final: none.
 | `saving` | `ask` | `asking` |
 | `saving` | `fail` | `idle` |
 | `saving` | `saved` | `saved` |
+
+## home.pending-open
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `differs` | `cancel` | `idle` |
+| `differs` | `resume` | `idle` |
+| `encoding` | `cancel` | `idle` |
+| `encoding` | `resume` | `idle` |
+| `idle` | `open-result` | `differs`, `encoding`, `idle`, `recovery` |
+| `recovery` | `cancel` | `idle` |
+| `recovery` | `recovery-failed` | `idle` |
+| `recovery` | `recovery-result` | `encoding`, `idle`, `recovery` |
 
 ## import.preview
 
@@ -469,6 +506,18 @@ Initial: `idle`. Final: `conflict`.
 | `writing` | `fail` | `failed` |
 | `writing` | `saved` | `idle` |
 | `writing` | `stop` | `conflict` |
+
+## project.session
+
+Initial: `opening`. Final: `closed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `closed` | — | — |
+| `closing` | `closed` | `closed` |
+| `open` | `close` | `closing` |
+| `opening` | `close` | `closing` |
+| `opening` | `opened` | `open` |
 
 ## recurring.run
 

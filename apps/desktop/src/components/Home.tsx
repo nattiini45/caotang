@@ -7,7 +7,7 @@
 
 import { select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
-import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { isolate } from '@caotang/i18n';
 import type { RuntimeStore } from '@caotang/store';
 
@@ -21,6 +21,7 @@ import { dropHistoryOf } from '../app/history-store.js';
 import { clearPending } from '../app/pending-journal.js';
 import { browserStorage, clearUnsentCopy } from '../app/unsent-copy.js';
 import { encodingAskerFor, type EncodingDecision } from '../app/encoding-review.js';
+import { homeOpenMachine } from '../app/home-open-flow.js';
 import {
   answerFolderDiffers,
   completeEncodingReview,
@@ -37,16 +38,11 @@ import {
   peekLeaveSuggestion,
   removeProject,
   takeLeaveSuggestion,
-  type FolderDiffers,
-  type FolderFileChange,
   type OpenOutcome,
   type Opened,
-  type PendingEncoding,
-  type PendingRecovery,
   type ProjectSummary,
   type RecoveryAnswers,
   type RecoveryOutcome,
-  type RecoveryRefusal,
 } from '../app/lifecycle.js';
 import type { AppServices } from '../app/services.js';
 import { ChoiceDialog, ConfirmDialog, EmptyState, documentsLabel, useComposingEnter, wordsLabel } from './shared.js';
@@ -60,6 +56,7 @@ import './project-rename.css';
 type HomeAction =
   | 'creating'
   | 'openingProject'
+  | 'openingDemo'
   | 'makingBundle'
   | 'renamingProject'
   | 'openingFolder'
@@ -73,6 +70,7 @@ function busyText(action: HomeAction): string {
     case 'creating':
       return t`Creating the project`;
     case 'openingProject':
+    case 'openingDemo':
       return t`Opening the project`;
     case 'makingBundle':
       return t`Making the bundle`;
@@ -90,7 +88,7 @@ function busyText(action: HomeAction): string {
 }
 
 /** What the writer reads when an action fails: the action's own name is inside the sentence, not glued to it. */
-function failedText(action: HomeAction, error: string): string {
+function failedText(action: Exclude<HomeAction, 'openingDemo'>, error: string): string {
   return t`${select(action, {
     creating: 'Creating the project',
     openingProject: 'Opening the project',
@@ -109,15 +107,19 @@ export interface HomeProps {
   readonly services: AppServices;
   readonly onOpened: (opened: Opened) => void;
   /** Starts a demo run: a sample project, with the intent submitted in its agent panel. */
-  readonly onRunDemo: (intent: string) => void;
+  readonly onRunDemo: (intent: string) => Promise<void>;
+  readonly demoOpening?: boolean;
   /** What the start-up or the last action could not do, for the writer to read. */
   readonly notices: readonly string[];
 }
 
-export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProps): ReactNode {
+export function Home({ store, services, onOpened, onRunDemo, demoOpening = false, notices }: HomeProps): ReactNode {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState<HomeAction | null>(null);
+  const inFlight = useRef(false);
+  const blocked = busy !== null || demoOpening;
+  const busyAction = busy ?? (demoOpening ? 'openingProject' : null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ProjectSummary | null>(null);
@@ -136,24 +138,14 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   // Both forms here submit on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from creating or renaming.
   const newProjectIme = useComposingEnter();
   const renameIme = useComposingEnter();
-  // A folder or bundle whose project file will not load, offered its recovery: nothing is written until the writer says yes.
-  const [recovery, setRecovery] = useState<PendingRecovery | null>(null);
-  // Why the writer's last accept of that recovery was refused, with nothing written, and the files named when a file was the reason: the
-  // dialog stays open and says so.
-  const [recoveryRefusal, setRecoveryRefusal] = useState<{ readonly reason: RecoveryRefusal; readonly files: readonly FolderFileChange[] } | null>(
-    null,
-  );
+  const [pendingOpen, sendOpen] = useReducer(homeOpenMachine.step, { kind: 'idle' });
+  const differs = pendingOpen.kind === 'differs' ? pendingOpen.differs : null;
   // A project left with changes the writer has no copy of: suggested once, here, as a bundle (project-format §8). The suggestion is
   // read in the render and taken once it is on screen, so the render itself has no side effect.
   const [suggestion, setSuggestion] = useState(peekLeaveSuggestion);
   useEffect(() => {
     takeLeaveSuggestion();
   }, []);
-  // A folder whose project this browser keeps in another version: the writer chooses which to keep before anything opens.
-  const [differs, setDiffers] = useState<FolderDiffers | null>(null);
-  // A folder, bundle or accepted recovery holding files that are not UTF-8 text: the writer previews and answers for each
-  // before the open finishes (`completeEncodingReview`).
-  const [encoding, setEncoding] = useState<PendingEncoding | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const folderSupported = folderAccessSupported();
   // The folder each project remembers (folder-memory.ts), read with the list, so a reopen asks for permission straight from its click.
@@ -205,14 +197,17 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
   /** Run one lifecycle action with the busy and error state every button shares. */
   const run = async (action: HomeAction, work: () => Promise<void>): Promise<void> => {
+    if (inFlight.current || demoOpening) return;
+    inFlight.current = true;
     setBusy(action);
     setError(null);
     setNotice(null);
     try {
       await work();
     } catch (failure) {
-      setError(failedText(action, errorText(failure)));
+      setError(failedText(action === 'openingDemo' ? 'openingProject' : action, errorText(failure)));
     } finally {
+      inFlight.current = false;
       setBusy(null);
     }
   };
@@ -265,10 +260,8 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
   /** A folder or bundle either opens, is offered its recovery first, asks which version to keep, or pauses on non-UTF-8 files (`OpenOutcome`). */
   const settleOpen = (outcome: OpenOutcome): void => {
-    if (outcome.kind === 'recover') setRecovery(outcome.recovery);
-    else if (outcome.kind === 'differs') setDiffers(outcome.differs);
-    else if (outcome.kind === 'encoding') setEncoding(outcome.encoding);
-    else onOpened(outcome.opened);
+    sendOpen({ type: 'open-result', outcome });
+    if (outcome.kind === 'opened') onOpened(outcome.opened);
   };
 
   /**
@@ -276,19 +269,19 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
    * can itself come back with a recovery to offer, or a version question to ask, so it settles the same way).
    */
   const answerEncoding = (decisions: readonly EncodingDecision[]): void => {
-    if (encoding === null) return;
-    const target = encoding;
-    setEncoding(null);
+    if (pendingOpen.kind !== 'encoding') return;
+    const target = pendingOpen.encoding;
     void run('openingProject', async () => {
+      sendOpen({ type: 'resume' });
       settleOpen(await completeEncodingReview(store, target, decisions));
     });
   };
 
   const cancelEncoding = (): void => {
-    if (encoding === null) return;
+    if (pendingOpen.kind !== 'encoding' || inFlight.current || demoOpening) return;
     // An accepted recovery has already written by the time it pauses; its own note says so. Anything else changed nothing.
-    const note = encoding.cancelNote;
-    setEncoding(null);
+    const note = pendingOpen.encoding.cancelNote;
+    sendOpen({ type: 'cancel' });
     setNotice(note === '' ? t`Nothing was opened or changed.` : note);
   };
 
@@ -317,8 +310,8 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   const answerDiffers = (answer: FolderDiffersAnswer): void => {
     if (differs === null) return;
     const target = differs;
-    setDiffers(null);
     void run('openingFolder', async () => {
+      sendOpen({ type: 'resume' });
       onOpened(await answerFolderDiffers(store, target, answer));
     });
   };
@@ -343,36 +336,25 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
    * writes nothing, and the dialog stays open with the reason; a lock the writer has now answered is passed on as answered.
    */
   const acceptRecovery = (): void => {
-    if (recovery === null) return;
-    const target = recovery;
-    const answers: RecoveryAnswers = recoveryRefusal?.reason === 'locked' ? { lockConfirmed: true } : {};
+    if (pendingOpen.kind !== 'recovery') return;
+    const target = pendingOpen.recovery;
+    const answers: RecoveryAnswers = pendingOpen.refusal?.reason === 'locked' ? { lockConfirmed: true } : {};
     void run('recovering', async () => {
       let outcome: RecoveryOutcome;
       try {
         outcome = await completeRecovery(store, target, answers);
       } catch (failure) {
-        setRecovery(null);
-        setRecoveryRefusal(null);
+        sendOpen({ type: 'recovery-failed' });
         throw failure;
       }
-      if (outcome.kind === 'refused') {
-        setRecoveryRefusal({ reason: outcome.reason, files: outcome.files });
-        return;
-      }
-      setRecovery(null);
-      setRecoveryRefusal(null);
-      // The recovered copy still holds non-UTF-8 files: the writer answers for them before it opens.
-      if (outcome.kind === 'encoding') {
-        setEncoding(outcome.encoding);
-        return;
-      }
-      onOpened(outcome.opened);
+      sendOpen({ type: 'recovery-result', outcome });
+      if (outcome.kind === 'opened') onOpened(outcome.opened);
     });
   };
 
   const cancelRecovery = (): void => {
-    setRecovery(null);
-    setRecoveryRefusal(null);
+    if (inFlight.current || demoOpening) return;
+    sendOpen({ type: 'cancel' });
     setNotice(t`Nothing was opened or changed.`);
   };
 
@@ -419,10 +401,12 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
       {showFirstRun ? (
         <FirstRun
-          busy={busy !== null || dismissing}
+          busy={blocked || dismissing}
           dismissing={dismissing}
           error={dismissError}
-          onRun={(intent) => onRunDemo(intent)}
+          onRun={(intent) => {
+            void run('openingDemo', () => onRunDemo(intent));
+          }}
           onDismiss={() => {
             setDismissing(true);
             setDismissError(null);
@@ -448,7 +432,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
               onChange={(event) => setName(event.target.value)}
             />
           </label>
-          <button type="submit" className="button is-primary" disabled={busy !== null}>
+          <button type="submit" className="button is-primary" disabled={blocked}>
             <Trans>Create project</Trans>
           </button>
         </form>
@@ -461,7 +445,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
             <button
               type="button"
               className="button"
-              disabled={busy !== null}
+              disabled={blocked}
               onClick={() => {
                 const target = suggestion;
                 setSuggestion(null);
@@ -516,7 +500,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                     />
                   </label>
                   <div className="project-actions">
-                    <button type="submit" className="button is-primary" disabled={busy !== null || renaming.text.trim() === ''}>
+                    <button type="submit" className="button is-primary" disabled={blocked || renaming.text.trim() === ''}>
                       <Trans>Save the name</Trans>
                     </button>
                     <button type="button" className="button is-quiet" onClick={() => setRenaming(null)}>
@@ -534,14 +518,14 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                   </span>
                 </div>
                 <div className="project-actions">
-                  <button type="button" className="button is-primary k-tonal" disabled={busy !== null} onClick={() => open(project.id)}>
+                  <button type="button" className="button is-primary k-tonal" disabled={blocked} onClick={() => open(project.id)}>
                     <Trans>Open</Trans>
                   </button>
                   {folders.get(project.id) !== undefined ? (
                     <button
                       type="button"
                       className="button k-quiet"
-                      disabled={busy !== null}
+                      disabled={blocked}
                       aria-label={t`Reopen folder of ${{ name: accessibleText(project.name) }}`}
                       onClick={() => {
                         const remembered = folders.get(project.id);
@@ -554,7 +538,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                   <button
                     type="button"
                     className="button k-quiet"
-                    disabled={busy !== null}
+                    disabled={blocked}
                     aria-label={t`Rename ${{ name: accessibleText(project.name) }}`}
                     onClick={() => setRenaming({ id: project.id, text: project.name })}
                   >
@@ -563,7 +547,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                   <button
                     type="button"
                     className="button k-quiet"
-                    disabled={busy !== null}
+                    disabled={blocked}
                     aria-label={t`Export ${{ name: accessibleText(project.name) }} as a bundle`}
                     onClick={() => exportOne(project.id, project.name)}
                   >
@@ -572,7 +556,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                   <button
                     type="button"
                     className="button is-quiet is-danger"
-                    disabled={busy !== null}
+                    disabled={blocked}
                     aria-label={t`Remove ${{ name: accessibleText(project.name) }} from this browser`}
                     onClick={() => askRemove(project)}
                   >
@@ -588,7 +572,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   );
 
   return (
-    <div className="home">
+    <div className="home" data-state={pendingOpen.kind} data-demo-state={demoOpening || busy === 'openingDemo' ? 'opening' : 'idle'}>
       {phone && projects !== null && projects.length > 0 ? [projectSection, introduction] : [introduction, projectSection]}
 
       <section className="home-section" aria-labelledby="home-bring">
@@ -597,14 +581,18 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
           <button
             type="button"
             className="button"
-            disabled={busy !== null}
-            onClick={() => importInput.current?.click()}
+            disabled={blocked}
+            onClick={() => {
+              if (inFlight.current || demoOpening) return;
+              importInput.current?.click();
+            }}
           >
             <Trans>Import bundle (.caotang)</Trans>
           </button>
           <input
             ref={importInput}
             type="file"
+            disabled={blocked}
             accept=".caotang,.zip,application/zip"
             className="visually-hidden"
             aria-label={t`Bundle file`}
@@ -616,7 +604,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
             }}
           />
           {folderSupported ? (
-            <button type="button" className="button" disabled={busy !== null} onClick={openFolderAction}>
+            <button type="button" className="button" disabled={blocked} onClick={openFolderAction}>
               <Trans>Open a folder…</Trans>
             </button>
           ) : (
@@ -627,9 +615,9 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
         </div>
       </section>
 
-      {busy ? (
+      {busyAction ? (
         <p className="status-line is-info" role="status">
-          {busyText(busy)}…
+          {busyText(busyAction)}…
         </p>
       ) : null}
       {error ? (
@@ -637,7 +625,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
           {error}
         </p>
       ) : null}
-      {notice && !busy ? (
+      {notice && !blocked ? (
         <p className="status-line is-info" role="status">
           {notice}
         </p>
@@ -652,22 +640,22 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
         <Settings services={services} session={null} store={store} initialSection={settings} onClose={() => setSettings(null)} />
       ) : null}
 
-      {recovery !== null ? (
+      {pendingOpen.kind === 'recovery' ? (
         <RecoveryDialog
-          recovery={recovery}
-          busy={busy !== null}
-          refusal={recoveryRefusal?.reason ?? null}
-          files={recoveryRefusal?.files ?? []}
+          recovery={pendingOpen.recovery}
+          busy={blocked}
+          refusal={pendingOpen.refusal?.reason ?? null}
+          files={pendingOpen.refusal?.files ?? []}
           onConfirm={acceptRecovery}
           onCancel={cancelRecovery}
         />
       ) : null}
 
-      {encoding !== null ? (
+      {pendingOpen.kind === 'encoding' ? (
         <EncodingDialog
-          pending={encoding}
+          pending={pendingOpen.encoding}
           asker={encodingAskerFor(services.providers)}
-          busy={busy !== null}
+          busy={blocked}
           onDone={answerEncoding}
           onCancel={cancelEncoding}
         />
@@ -686,7 +674,8 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
           { label: t`Open as a separate copy`, onChoose: () => answerDiffers('separate-copy') },
         ]}
         onCancel={() => {
-          setDiffers(null);
+          if (inFlight.current || demoOpening) return;
+          sendOpen({ type: 'cancel' });
           setNotice(t`Nothing was opened or changed.`);
         }}
       >
