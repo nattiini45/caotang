@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { promptTokensOf, textOf, type ChatRequest, type ModelLimits } from '@caotang/gateway';
 import { isPlannerCall, subagentScript, userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { setBody, type ProjectState } from '@caotang/store';
+import { parseSkillFolder } from '@caotang/skills';
 import { createAgentPorts, createAgentSession, createContextPort, createHarness, createMemoryRunLog, createPictureOutbox, mergePreviews, newRunRecord, parsePlan, parseRunEvents, planResume, RUN_LOG_VERSION, type AgentEvent, type AgentSessionOptions, type ContextOverrides, type Decision, type PendingCard, type RunEvent } from '../../src/index.js';
 import { ENTRY, FRIEND, LANDING, STORM, clock, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
@@ -22,6 +23,7 @@ async function fixture(scripts: readonly MockScript[], options: {
   beforeStage?: AgentSessionOptions['beforeStage'];
   pictureOutbox?: AgentSessionOptions['pictureOutbox'];
   defaultContext?: boolean;
+  reviewedPin?: string;
 } = {}) {
   const state = options.state ?? makeState();
   const base = await mockGateway(scripts);
@@ -40,7 +42,7 @@ async function fixture(scripts: readonly MockScript[], options: {
       return base.complete(request, signal);
     },
   };
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, ...(options.reviewedPin === undefined ? {} : { skills: { reviewedPin: () => options.reviewedPin } }) });
   const session = createAgentSession({
     harness, gateway, sessionId: 'context-test',
     ...(options.defaultContext === true ? {} : { context: createContextPort({ state, config: () => ({ model: gateway.modelLimits() }) }) }),
@@ -54,6 +56,23 @@ async function fixture(scripts: readonly MockScript[], options: {
 }
 
 describe('the typed planner preview', () => {
+  it.each([false, true])('predicts the reviewed skill catalogue and deferred loader without loading a skill (native=%s)', async (native) => {
+    const state = makeState();
+    const files = [{ path: 'SKILL.md', bytes: new TextEncoder().encode('---\nname: context-read\ndescription: Read the context before drafting.\n---\nDo not load this body for a preview.') }];
+    state.skills.set('context-read', files);
+    const pin = parseSkillFolder('context-read', files).skill!.pin;
+    const run = await fixture([transcript(INTENT, [answer('Checked.')])], { state, native, reviewedPin: pin });
+    const preview = run.session.previewRequest(INTENT);
+    expect(run.requests).toHaveLength(0);
+    expect(run.harness.loadedNativeTools()).toEqual([]);
+    expect(run.harness.loadedSkills('context-test.turn-1')).toEqual([]);
+    expect(JSON.stringify(preview.preview.payload)).toContain('context-read');
+    expect(JSON.stringify(preview.preview.payload)).not.toContain('Do not load this body for a preview.');
+    await run.session.submit(INTENT);
+    expect(preview.preview.payload).toEqual(run.requests[0]?.messages);
+    expect(preview.meter).toEqual(run.meters[0]?.meter);
+  });
+
   it.each([false, true])('matches the actual first request without loading tools or sending a request (native=%s)', async (native) => {
     const state = makeState();
     state.agentFiles = { ...state.agentFiles, instructions: { path: 'CAOTANG.md', text: 'British spelling.' } };
@@ -80,7 +99,7 @@ describe('the typed planner preview', () => {
     expect(run.requests[0]?.messages[0]?.content).not.toBe('Changed outside the harness.');
   });
 
-  it('does not replace the limits of a turn waiting for its initial storage write', async () => {
+  it.each(['previewRequest', 'contextPreview'] as const)('%s does not replace the limits of a turn waiting for its initial storage write', async (method) => {
     const log = createMemoryRunLog();
     let release = (): void => {};
     let created = (): void => {};
@@ -93,7 +112,8 @@ describe('the typed planner preview', () => {
     const other = await run.gateway.profiles.create({ name: 'Other mock', kind: 'mock', maxOutputTokens: 64 });
     const pending = run.session.submit(INTENT);
     await ready;
-    run.session.previewRequest('Another request.', { profileId: other.id });
+    if (method === 'previewRequest') run.session.previewRequest('Another request.', { profileId: other.id });
+    else run.session.contextPreview({ profileId: other.id });
     const firstActual = run.limitProfiles.length;
     release();
     expect((await pending).status).toBe('replied');
@@ -205,17 +225,21 @@ describe('request choices on cards and in local recovery', () => {
   it('snapshots choices before awaiting storage and logs only the IDs as new metadata', async () => {
     const log = createMemoryRunLog();
     const run = await fixture([transcript(INTENT, [answer('Checked.')])], { log });
-    const choices: { include: typeof PIN[]; exclude: typeof PIN[] } = { include: [PIN], exclude: [PIN] };
+    const labelled = { ...PIN, label: 'Do not retain this choice label.' };
+    const choices: { include: typeof PIN[]; exclude: typeof PIN[] } = { include: [labelled], exclude: [PIN] };
     const pending = run.session.submit(INTENT, { contextOverrides: choices });
     choices.exclude.length = 0;
     await pending;
     const [record] = await log.open('p_context', { includeSettled: true });
-    const parsed = parseRunEvents(await log.events(record!.runId));
+    const rows = await log.events(record!.runId);
+    expect(JSON.stringify(rows)).not.toContain('Do not retain this choice label.');
+    const parsed = parseRunEvents(rows);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) throw new Error(parsed.detail);
     const events = parsed.events;
     const start = events.find((event) => event.t === 'turn.start');
     expect(start).toMatchObject({ v: 3, contextOverrides: { include: [PIN], exclude: [PIN] } });
+    expect(start?.contextOverrides).toEqual({ include: [PIN], exclude: [PIN] });
     const sent = events.filter((event) => event.t === 'messages').flatMap((event) => event.appended);
     expect(sent.map((message) => textOf(message.content)).join('\n')).not.toContain('The keeper.');
     expect(events.some((event) => (event as { t: string }).t === 'context-meter')).toBe(false);

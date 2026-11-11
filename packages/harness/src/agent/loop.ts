@@ -3736,6 +3736,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return { planner, skills, dropped };
   }
 
+  function previewWithPins<T>(pins: Pins, read: () => T): T {
+    const previousPins = latestPins;
+    latestPins = pins;
+    try {
+      return read();
+    } finally {
+      latestPins = previousPins;
+    }
+  }
+
   function requestContext(prompt: AssembledPrompt, messages: readonly ChatMessage[], limits: ModelLimits): RequestContextPreview {
     const promptTokens = promptTokensOf(messages);
     const baseTokens = Math.min(promptTokens, prompt.estimate.promptTokens);
@@ -3928,10 +3938,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const meter = typeof options.meter === 'function' ? options.meter() : options.meter;
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
     const id = `${sessionName}.turn-${turnCounter}`;
+    const overrides = turnOptions.contextOverrides;
     return {
       automaticRules: new Map(),
       id,
-      ...(turnOptions.contextOverrides === undefined ? {} : { contextOverrides: structuredClone(turnOptions.contextOverrides) }),
+      ...(overrides === undefined ? {} : { contextOverrides: {
+        ...(overrides.include === undefined ? {} : { include: overrides.include.map(({ kind, id }) => ({ kind, id })) }),
+        ...(overrides.exclude === undefined ? {} : { exclude: overrides.exclude.map(({ kind, id }) => ({ kind, id })) }),
+      } }),
       messages: [],
       trace: [],
       cards: [],
@@ -4353,9 +4367,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     previewRequest(intent: string, pinned: SubmitOptions = {}): RequestContextPreview {
       const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
-      const previousPins = latestPins;
-      latestPins = pins;
-      try {
+      return previewWithPins(pins, () => {
         const nonce = turnNonce(`${sessionName}.turn-${turnCounter + 1}`);
         const { planner, skills } = plannerAssembly(nativeToolsFor(pins) !== undefined, intent, recentTurns(), nonce, pinned.languages ?? options.languages?.(), pinned.contextOverrides);
         const wanted = new Set<string>([...(pinned.preload ?? []), ...(skills === undefined ? [] : ['skill.load'])]);
@@ -4363,21 +4375,19 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         const messages = [...planner.messages, ...plannerAddenda(skills, rows)];
         const limits = gateway.modelLimits(pins.profileId, pins.model, pins.thinking, options.role === undefined ? {} : { role: options.role });
         return requestContext(planner.prompt, messages, limits);
-      } finally {
-        latestPins = previousPins;
-      }
+      });
     },
 
     contextPreview(pinned: TurnOptions = {}): ContextPreview {
       const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
-      // The port reads the limits of the pins of the turn that started last; a running turn keeps its own.
-      if (running.size === 0) latestPins = pins;
-      const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, recentTurns(), undefined, pinned.languages ?? options.languages?.());
-      return {
-        promptTokens: planner.preview.promptTokens,
-        layers: planner.prompt.layers.map((layer) => ({ id: layer.id, name: layer.name, tokens: layer.tokens, included: layer.included, ...(layer.budget === undefined ? {} : { budget: layer.budget }) })),
-        dropped,
-      };
+      return previewWithPins(pins, () => {
+        const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, recentTurns(), undefined, pinned.languages ?? options.languages?.(), pinned.contextOverrides);
+        return {
+          promptTokens: planner.preview.promptTokens,
+          layers: planner.prompt.layers.map((layer) => ({ id: layer.id, name: layer.name, tokens: layer.tokens, included: layer.included, ...(layer.budget === undefined ? {} : { budget: layer.budget }) })),
+          dropped,
+        };
+      });
     },
   };
 }
