@@ -60,6 +60,7 @@ export { stableStringify } from './canonical.js';
 export {
   LAYER_IDS,
   LAYER_NAMES,
+  REQUEST_PIN_REASON,
   type AgentTask,
   type AppSnapshot,
   type AssembledPart,

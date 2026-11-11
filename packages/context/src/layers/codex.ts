@@ -29,7 +29,7 @@ import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { newBlock, type Block, type BlockItem } from '../block.js';
 import { dropRecord } from '../drops.js';
-import { LAYER_NAMES, type DropRecord, type DropReason } from '../types.js';
+import { LAYER_NAMES, REQUEST_PIN_REASON, type DropRecord, type DropReason } from '../types.js';
 
 /** The text surfaces and the scope documents that detection scans (codex.md §4, rule 6). */
 export interface DetectionSurfaces {
@@ -175,7 +175,7 @@ export function codexBlock(input: CodexPlanInput): CodexPlan {
   const items: BlockItem[] = ranked.map((candidate) => ({
     ref: { kind: 'codex', id: candidate.entry.id },
     label: candidate.entry.name,
-    reason: input.include?.has(candidate.entry.id) ? 'pinned by the writer for this request' : reasonText(candidate, input.labelOf),
+    reason: input.include?.has(candidate.entry.id) ? REQUEST_PIN_REASON : reasonText(candidate, input.labelOf),
     body: entryBody(candidate.entry),
     protected: candidate.reason.kind === 'always',
     group: candidate.reason.kind,

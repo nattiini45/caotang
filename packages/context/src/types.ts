@@ -16,6 +16,8 @@ import type { ProjectState } from '@caotang/store';
 export const LAYER_IDS = ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
 export type LayerId = (typeof LAYER_IDS)[number];
 
+export const REQUEST_PIN_REASON = 'pinned by the writer for this request';
+
 /** The name each layer carries in the prompt's headings and in the preview. */
 export const LAYER_NAMES: Readonly<Record<LayerId, string>> = {
   L0: 'System',

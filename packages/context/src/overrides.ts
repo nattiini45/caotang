@@ -3,7 +3,7 @@ import { newBlock, type Block } from './block.js';
 import { dropRecord } from './drops.js';
 import { compareText } from './text.js';
 import { synopsisOf, type TreeIndex } from './tree.js';
-import type { ContextOverrides, ContextRef, DropRecord } from './types.js';
+import { REQUEST_PIN_REASON, type ContextOverrides, type ContextRef, type DropRecord } from './types.js';
 
 export function overrideIds(overrides: ContextOverrides | undefined, choice: 'include' | 'exclude', kind: ContextRef['kind']): Set<string> {
   return new Set(overrides?.[choice]?.filter((ref) => ref.kind === kind).map((ref) => ref.id));
@@ -38,7 +38,7 @@ export function pinnedDocuments(overrides: ContextOverrides | undefined, tree: T
   const items = nodes.slice(0, 3).map((node) => ({
     ref: { kind: 'doc' as const, id: node.id },
     label: node.title,
-    reason: 'pinned by the writer for this request',
+    reason: REQUEST_PIN_REASON,
     body: `## ${node.title} (pinned excerpt)\nSynopsis: ${synopsisOf(node)}\n\nFirst 1,500 body characters:\n${getBody(state, node.id).slice(0, 1_500)}`,
     protected: false,
     group: 'pin',
