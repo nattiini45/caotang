@@ -120,4 +120,14 @@ describe('transfer helpers', () => {
     const text = { kind: 'text', result: { status: 'read' } } as unknown as ReaderResult;
     expect(resultTransferList(text)).toEqual([]);
   });
+
+  it('resultTransferList lists a shared picture buffer once, so a repeated attachment does not fail the reply (#597 F1)', () => {
+    const picture = new Uint8Array(3);
+    const twin = new Uint8Array(picture.buffer);
+    const rtf = {
+      kind: 'rtf',
+      result: { ok: true, value: { assetData: new Map([['import:rtf-image-1.png', picture], ['import:rtf-image-2.png', twin]]) } },
+    } as unknown as ReaderResult;
+    expect(resultTransferList(rtf)).toEqual([picture.buffer]);
+  });
 });

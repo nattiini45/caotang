@@ -110,7 +110,9 @@ The plain-text and RTF readers run in a `'self'` module Worker (`reader-host.ts`
 `reader-session.ts` is the DOM-free dispatch), so a large file never blocks typing or scrolling while it parses (#390). The Worker is
 made from a same-origin URL (`new URL('./reader.worker.ts', import.meta.url)`, `type: 'module'`), never a `blob:` URL: the CSP is
 `worker-src 'self'`. The input bytes are sent once on `open` and cached in the Worker; a reader chip or option change re-reads that
-copy through `prepare`, and a read's picture bytes are transferred back so an image-heavy RTF costs the main thread no copy. Every
+copy through `prepare`, and a read's picture bytes are transferred back so an image-heavy RTF costs the main thread no copy. A buffer
+shared by several attachments (the same picture placed twice in an `.rtfd` package) is transferred once, so the reply never lists a
+duplicate transferable and the cloned views keep sharing it. Every
 request has a hard timeout (a hung reader is terminated) and the dialog's Cancel terminates it too; the splitter stays on the main
 thread, where it re-runs on every rule chip. The `.rtfd` package picker (`ManuscriptImport.tsx`) reads the picked folder's bytes on the
 main thread (I/O) and unpacks and parses the package in the same Worker through the archive reader (import-rtf.md §4).

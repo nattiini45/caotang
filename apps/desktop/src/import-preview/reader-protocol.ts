@@ -50,13 +50,21 @@ export function dedicatedBuffer(bytes: Uint8Array): ArrayBuffer | null {
   return buffer instanceof ArrayBuffer && bytes.byteOffset === 0 && bytes.byteLength === buffer.byteLength ? buffer : null;
 }
 
-/** The transfer list for a read's reply: every picture buffer it owns whole, so the bytes move to the main thread without a copy. */
+/**
+ * The transfer list for a read's reply: every picture buffer it owns whole, so the bytes move to the main thread without a copy.
+ * A buffer is listed once even when several attachments share it (the same picture placed twice in an `.rtfd` package): a duplicate
+ * in the transfer list makes `postMessage` throw, and the cloned views keep sharing the one transferred buffer (#597 F1).
+ */
 export function resultTransferList(result: ReaderResult): Transferable[] {
   if (result.kind !== 'rtf' || !result.result.ok) return [];
+  const seen = new Set<ArrayBuffer>();
   const buffers: Transferable[] = [];
   for (const bytes of result.result.value.assetData.values()) {
     const buffer = dedicatedBuffer(bytes);
-    if (buffer !== null) buffers.push(buffer);
+    if (buffer !== null && !seen.has(buffer)) {
+      seen.add(buffer);
+      buffers.push(buffer);
+    }
   }
   return buffers;
 }
