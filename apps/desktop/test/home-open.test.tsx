@@ -112,6 +112,22 @@ afterEach(async () => {
 });
 
 describe('Home open ownership', () => {
+  it('keeps the header first on a phone before and during project opening', async () => {
+    await act(async () => root.unmount());
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }));
+    root = createRoot(host);
+    await act(async () => render());
+    const home = host.querySelector('.home')!;
+    expect(home.firstElementChild?.classList.contains('home-head')).toBe(true);
+    expect(home.children[1]?.getAttribute('aria-labelledby')).toBe('home-projects');
+    let finish!: () => void;
+    vi.mocked(openProject).mockReturnValueOnce(new Promise((resolve) => { finish = () => resolve(opened.session); }));
+    await act(async () => button('Open').click());
+    expect(home.firstElementChild?.classList.contains('home-head')).toBe(true);
+    expect(button('Open').getAttribute('aria-busy')).toBe('true');
+    await act(async () => finish());
+  });
+
   it('guards a same-tick form resubmit and competing open or demo before disabled UI renders', async () => {
     let reject!: (error: Error) => void;
     vi.mocked(createProject).mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail; }));
@@ -169,6 +185,7 @@ describe('Home open ownership', () => {
     expect(host.querySelector('.home')?.getAttribute('data-demo-state')).toBe('opening');
     expect(demoButton().disabled).toBe(true);
     expect(demoButton().getAttribute('aria-busy')).toBe('true');
+    expect(button('Got it').disabled).toBe(true);
     expect(demoButton().classList.contains('is-opening')).toBe(true);
     expect(host.querySelectorAll('.is-opening')).toHaveLength(1);
     expect(host.querySelector('[role="status"]')?.classList.contains('visually-hidden')).toBe(true);
@@ -176,6 +193,7 @@ describe('Home open ownership', () => {
     await act(async () => finish());
     expect(host.querySelector('.home')?.getAttribute('data-demo-state')).toBe('idle');
     expect(host.querySelectorAll('[aria-busy="true"]')).toHaveLength(0);
+    expect(button('Got it').disabled).toBe(false);
     vi.mocked(createProject).mockResolvedValueOnce(opened.session);
     await act(async () => submit());
     expect(createProject).toHaveBeenCalledOnce();

@@ -30,7 +30,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Fixed
 
 - **Project-session cleanup.** A failed settle no longer skips closing a project or leaves its lease held. Failed opens also release their session resources, and closing a project clears its unsaved timeline proposals. Demo opening now blocks duplicate starts and competing project actions; recovery, encoding and folder-version questions share one pending-open state.
-- Home shows opening progress on the button you pressed, with its original label and a reduced-motion alternative, rather than only in a status card below the page. The opening sentence still announces progress to screen readers. Classic's phone project rows keep names visible and wrap their actions inside the screen.
+- Home shows opening progress on the button you pressed, with its original label and a reduced-motion alternative, rather than only in a status card below the page. The opening sentence still announces progress to screen readers. Classic's phone project rows keep names visible and wrap their actions inside the screen. The Caotang header stays first on phones, and the German Open action reads “Öffnen” without changing finding statuses.
 
 - **Context leaves room for the conversation.** Expanded request previews scroll within their own block; Modern retains visible turn content. Completion identifies documents by their folder path and codex entries by type, not storage IDs. Rewind stays on one line, and its opened actions and consequences wrap inside the turn header (#576).
 - Leaving a document out removes its optional synopsis from both structure and story context, rather than letting an L3 copy bypass the L4 exclusion.

@@ -87,6 +87,7 @@ test('demo opening keeps one intent and blocks competing project actions', async
   await expect(page.getByRole('button', { name: 'Create project', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Import bundle (.caotang)', exact: true })).toBeDisabled();
   for (const button of await demoButtons.all()) await expect(button).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Got it', exact: true })).toBeDisabled();
   await expect(demoButtons.first()).toHaveAttribute('aria-busy', 'true');
   await expect(page.getByRole('status').filter({ hasText: 'Opening the project' })).toHaveClass('visually-hidden');
   await page.evaluate(() => (window as unknown as { releaseB5Demo(): void }).releaseB5Demo());
@@ -133,11 +134,14 @@ for (const shell of ['classic', 'modern'] as const) {
         await expect(page.locator('.home')).toHaveAttribute('data-state', 'idle');
         await holdOpening(page);
         const button = page.locator('.project-list .project-actions > button').first();
+        await expect(page.locator('.home > :first-child')).toHaveClass('home-head');
+        await expect(button).toHaveText(locale === 'de' ? 'Öffnen' : 'Open');
         const label = await button.textContent();
         await button.click();
         await expect(button).toHaveText(label!);
         await expectOpeningInViewport(page, button);
         await expect(page.locator('.project-list .project-name').first()).toBeVisible();
+        await expect(page.locator('.home > :first-child')).toHaveClass('home-head');
         await expect(page.locator('.new-project button')).toBeDisabled();
       });
     });

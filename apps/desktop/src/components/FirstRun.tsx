@@ -65,7 +65,7 @@ export function FirstRun({ onRun, onDismiss, onAddKey, busy, openingIntent = nul
         </Trans>
       </p>
       {error === null ? null : <p role="alert">{error}</p>}
-      <button type="button" className="button is-quiet" onClick={onDismiss} disabled={dismissing} aria-busy={dismissing}>
+      <button type="button" className="button is-quiet" onClick={onDismiss} disabled={busy || dismissing} aria-busy={dismissing}>
         <Trans>Got it</Trans>
       </button>
     </section>

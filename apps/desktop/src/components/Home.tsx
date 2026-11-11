@@ -392,16 +392,6 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
 
   const introduction = (
     <Fragment key="introduction">
-      <header className="home-head">
-        <div className="home-title">
-          <h1><Trans>Caotang</Trans></h1>
-          <button type="button" className="button" onClick={() => setSettings('providers')} data-testid="open-settings">
-            <Trans>Settings</Trans>
-          </button>
-        </div>
-        <p className="lede"><Trans>A writing studio that keeps your work on this device.</Trans></p>
-      </header>
-
       {showFirstRun ? (
         <FirstRun
           busy={blocked || dismissing}
@@ -523,7 +513,7 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
                 </div>
                 <div className="project-actions">
                   <button type="button" className={`button is-primary k-tonal${opening('openingProject', project.id) ? ' is-opening' : ''}`} disabled={blocked} aria-busy={opening('openingProject', project.id) || undefined} onClick={() => open(project.id)}>
-                    <Trans>Open</Trans>
+                    <Trans context="project action">Open</Trans>
                   </button>
                   {folders.get(project.id) !== undefined ? (
                     <button
@@ -578,6 +568,16 @@ export function Home({ store, services, onOpened, onRunDemo, demoOpening = false
 
   return (
     <div className="home" data-state={pendingOpen.kind} data-demo-state={demoOpening || busy?.action === 'openingDemo' ? 'opening' : 'idle'}>
+      <header className="home-head">
+        <div className="home-title">
+          <h1><Trans>Caotang</Trans></h1>
+          <button type="button" className="button" onClick={() => setSettings('providers')} data-testid="open-settings">
+            <Trans>Settings</Trans>
+          </button>
+        </div>
+        <p className="lede"><Trans>A writing studio that keeps your work on this device.</Trans></p>
+      </header>
+
       {phone && projects !== null && projects.length > 0 ? [projectSection, introduction] : [introduction, projectSection]}
 
       <section className="home-section" aria-labelledby="home-bring">

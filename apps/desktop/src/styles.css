@@ -2415,14 +2415,6 @@ dialog.confirm:has(.folder-file-preview) {
     flex-flow: column;
   }
 
-  .home > :has(.project-list) {
-    margin: 0;
-  }
-
-  .home:has(.project-list) > header {
-    margin-block: 36px 0;
-  }
-
   :root:not([data-shell='modern']) .home .project-row:not(.is-renaming) {
     flex-direction: column;
     align-items: stretch;

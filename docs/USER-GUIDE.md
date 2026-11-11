@@ -21,7 +21,7 @@ Caotang asks your browser to keep its storage, but the browser decides. If it ha
 
 A project can be open in one tab at a time. A second tab waits a moment, then says the project is open in another tab. Switch to that tab, or close it, then open the project again. Opening a folder of a project that another tab holds is refused in the same way.
 
-Once you leave a project, its cleanup releases this tab's hold even if a final check or writing-session record fails; a notice names the failure. An ordinary unsaved-change refusal still keeps the project open so you can keep a copy. Timeline proposals belong to that visit and are cleared when it closes. While a demo sample or project is opening, a spinner beside the button's label shows progress where you clicked, and other open actions wait. With reduced motion, the progress symbol stays still. A failure remains as a readable notice so you can try again.
+Once you leave a project, its cleanup releases this tab's hold even if a final check or writing-session record fails; a notice names the failure. An ordinary unsaved-change refusal still keeps the project open so you can keep a copy. Timeline proposals belong to that visit and are cleared when it closes. While a demo sample or project is opening, a spinner beside the button's label shows progress where you clicked, and other open actions wait. With reduced motion, the progress symbol stays still. A failure remains as a readable notice so you can try again. On a phone, the Caotang header stays above the returning-project list, before and during opening.
 
 If this tab stops saving, its recovery notice stays above any other dialog. What you typed in that dialog stays underneath; the notice offers a backup and asks before reloading.
 
