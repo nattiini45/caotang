@@ -30,7 +30,7 @@ export function contextDropText(drop: { readonly reason?: DropReason; readonly t
     case 'never': return t`The entry's include policy is Never.`;
     case 'empty-description': return t`The description is empty.`;
     case 'manual-unattached': return t`The entry uses Manual policy and is not attached to the focus.`;
-    case 'withheld': return t`A read rule keeps this item from the agent.`;
+    case 'withheld': return t`withheld by a read rule`;
     case 'forward-outline': return t`The forward outline is turned off.`;
     case 'scope-limit': return t`Beyond the ${{ limit: formatCount(reason.limit) }}-document scope limit. Split the scope.`;
     case 'budget': return t`The ${{ layer: reason.layer }} budget of ${{ budget: formatCount(reason.budget) }} tokens is full (rank ${{ rank: formatCount(reason.rank) }}).`;

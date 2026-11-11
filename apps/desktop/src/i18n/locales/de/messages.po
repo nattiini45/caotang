@@ -2616,11 +2616,6 @@ msgstr "Ein Prompt mit etwa {whole} Token: {l2} Token für die Kodex-Einträge, 
 msgid "A prose scene"
 msgstr "Eine Prosaszene"
 
-#. Interpolated values: limit (document count), layer (stable context layer ID), budget and total (token budgets), rank (pruning rank), file (instruction file name), sent and tokens (token counts), need (required tokens)
-#: apps/desktop/src/components/context-labels.ts
-msgid "A read rule keeps this item from the agent."
-msgstr "Eine Leseregel hält dieses Element vom Agenten fern."
-
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "A reading-system book, one file per chapter."
@@ -19670,6 +19665,11 @@ msgstr "wird bei der Ausführung neu aufgelöst"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "with panel art"
 msgstr "mit Panel-Art"
+
+#. Interpolated values: limit (document count), layer (stable context layer ID), budget and total (token budgets), rank (pruning rank), file (instruction file name), sent and tokens (token counts), need (required tokens)
+#: apps/desktop/src/components/context-labels.ts
+msgid "withheld by a read rule"
+msgstr "Eine Leseregel hält dieses Element vom Agenten fern."
 
 #. Interpolated values: tokens (estimated prompt tokens), budget (configured token budget), window (model context window), reserve (reserved output, thinking and system tokens)
 #: apps/desktop/src/components/RequestContext.tsx

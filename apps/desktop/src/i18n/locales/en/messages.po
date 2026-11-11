@@ -2615,11 +2615,6 @@ msgstr "A prompt of about {whole} tokens: {l2} tokens for the codex entries, {l4
 msgid "A prose scene"
 msgstr "A prose scene"
 
-#. Interpolated values: limit (document count), layer (stable context layer ID), budget and total (token budgets), rank (pruning rank), file (instruction file name), sent and tokens (token counts), need (required tokens)
-#: apps/desktop/src/components/context-labels.ts
-msgid "A read rule keeps this item from the agent."
-msgstr "A read rule keeps this item from the agent."
-
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "A reading-system book, one file per chapter."
@@ -19669,6 +19664,11 @@ msgstr "will re-resolve at execution"
 #: apps/desktop/src/media/ComicPageView.tsx
 msgid "with panel art"
 msgstr "with panel art"
+
+#. Interpolated values: limit (document count), layer (stable context layer ID), budget and total (token budgets), rank (pruning rank), file (instruction file name), sent and tokens (token counts), need (required tokens)
+#: apps/desktop/src/components/context-labels.ts
+msgid "withheld by a read rule"
+msgstr "withheld by a read rule"
 
 #. Interpolated values: tokens (estimated prompt tokens), budget (configured token budget), window (model context window), reserve (reserved output, thinking and system tokens)
 #: apps/desktop/src/components/RequestContext.tsx
