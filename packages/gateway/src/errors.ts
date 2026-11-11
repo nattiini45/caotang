@@ -21,6 +21,8 @@ export type ProviderErrorKind =
   | 'context_length';
 
 export interface ProviderErrorInit {
+  reason?: 'timeout' | 'model-list-unreadable';
+  providerReply?: string;
   /** HTTP status, when the failure came from a response */
   status?: number;
   /** diagnostic text, already redacted. Logs and tests read it; the UI shows `message`. */
@@ -35,6 +37,8 @@ export interface ProviderErrorInit {
 
 /** A failure the harness can act on. Thrown from `complete` and `listModels`. */
 export class ProviderError extends Error {
+  readonly reason: ProviderErrorInit['reason'];
+  readonly providerReply: string | undefined;
   readonly kind: ProviderErrorKind;
   readonly status: number | undefined;
   readonly detail: string | undefined;
@@ -45,6 +49,8 @@ export class ProviderError extends Error {
   constructor(kind: ProviderErrorKind, message: string, init: ProviderErrorInit = {}) {
     super(message);
     this.name = 'ProviderError';
+    this.reason = init.reason;
+    this.providerReply = init.providerReply;
     this.kind = kind;
     this.status = init.status;
     this.detail = init.detail;

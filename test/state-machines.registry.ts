@@ -32,6 +32,7 @@ import { turnPhaseTable } from '../packages/harness/src/agent/turn-machine.js';
 import { cardStatusTable } from '../packages/harness/src/agent/cards.js';
 import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.js';
 import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
+import { providerVerificationTable } from '../packages/gateway/src/verification.js';
 
 export const machineTables = [
   sprintTable, taskStatusTable, agentControllerTable, recurringRunTable, turnMarkerTable, folderSaveTable, importPreviewTable,
@@ -44,4 +45,5 @@ export const machineTables = [
   tabStopTable, persistenceTable, pendingEntryTable, healthTable,
   saveChannelTable,
   modalMachine.table,
+  providerVerificationTable,
 ] as const;

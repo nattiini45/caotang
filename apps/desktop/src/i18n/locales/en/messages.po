@@ -217,6 +217,46 @@ msgstr "“{profile}” is now the active profile."
 msgid "“{profile}” is now the active profile. {note}"
 msgstr "“{profile}” is now the active profile. {note}"
 
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The browser did not let this page read the model list. Chat may still work."
+msgstr "“{profile}” is saved but not verified: The browser did not let this page read the model list. Chat may still work."
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The model list could not be checked."
+msgstr "“{profile}” is saved but not verified: The model list could not be checked."
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The provider could not answer the model-list request."
+msgstr "“{profile}” is saved but not verified: The provider could not answer the model-list request."
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The provider could not be reached from this page."
+msgstr "“{profile}” is saved but not verified: The provider could not be reached from this page."
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The provider did not answer in time."
+msgstr "“{profile}” is saved but not verified: The provider did not answer in time."
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The provider did not list its models."
+msgstr "“{profile}” is saved but not verified: The provider did not list its models."
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The provider is limiting requests. Wait a moment and save it again."
+msgstr "“{profile}” is saved but not verified: The provider is limiting requests. Wait a moment and save it again."
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "“{profile}” is saved but not verified: The provider rejected the key."
+msgstr "“{profile}” is saved but not verified: The provider rejected the key."
+
 #. Interpolated values: sceneTitle, thread, payoffTitle
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/plot.ts
@@ -4881,6 +4921,11 @@ msgstr "Checking the project’s pictures"
 msgid "Checking this browser’s storage…"
 msgstr "Checking this browser’s storage…"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Checking this profile…"
+msgstr "Checking this profile…"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "checking…"
@@ -5545,6 +5590,11 @@ msgstr "Connecting contacts this address. Its tools stay confirm-only until you 
 #: apps/desktop/src/app/mcp-model.ts
 msgid "Connecting to the server and checking its tool list…"
 msgstr "Connecting to the server and checking its tool list…"
+
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "Connection guidance:"
+msgstr "Connection guidance:"
 
 #. The prompt pack panel. Interpolated values: label names a pack file; fileName is a file name; vendor is a video model's name; number is a shot number; seconds and the counts are numbers.
 #: apps/desktop/src/media/PromptPackPanel.tsx
@@ -6756,6 +6806,11 @@ msgstr "Edit"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Edit {name}"
 msgstr "Edit {name}"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Edit and save this profile to check it again."
+msgstr "Edit and save this profile to check it again."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
@@ -10915,6 +10970,11 @@ msgid "Not set"
 msgstr "Not set"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Not verified"
+msgstr "Not verified"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
 #. Screenplay element chords. Interpolated values: label is a modifier key combination; last is the number of the last element.
@@ -12472,6 +12532,11 @@ msgstr "Provider default"
 msgid "Provider profiles"
 msgstr "Provider profiles"
 
+#. Interpolated value: profile (the writer's provider profile name)
+#: apps/desktop/src/components/provider-probe-message.ts
+msgid "Provider reply:"
+msgstr "Provider reply:"
+
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
 msgid "Provider: {provider}"
@@ -14013,12 +14078,6 @@ msgstr "Saved “{name}”."
 #: apps/desktop/src/components/SkillsPanel.tsx
 msgid "Saved “{name}”. The agent does not see it until you approve it again."
 msgstr "Saved “{name}”. The agent does not see it until you approve it again."
-
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#: apps/desktop/src/components/Settings.tsx
-msgid "Saved “{profile}”, but {problem}"
-msgstr "Saved “{profile}”, but {problem}"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx

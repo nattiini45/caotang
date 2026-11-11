@@ -668,6 +668,10 @@ The title starts with the open document's type icon. A screenplay's **Script · 
 
 ## Settings
 
+Checking or saving a provider never switches the active profile. **Not verified** beside a profile means its model list has not been checked successfully, or its older record has no result. The mark stays after a reload; while it is checked, **Checking this profile…** appears beside it. If a check fails, edit the profile and save it again. A successful listing does not guarantee that chat works, and **Structured output accepted** describes a capability, not connection health.
+
+A failed check names its cause, such as a rejected key or a timeout. Any **Provider reply:** is shown separately in the language the provider used, rather than mixed into Caotang's explanation.
+
 Provider usage accounting is kept locally in this browser, including day and turn detail across reloads. Clearing the app's browser data removes that history; it is not part of a project bundle. Recorded call costs do not change when you edit a provider price, and they are display estimates, not the provider's bill.
 
 **Usage on this device** shows daily cost alongside requests and tokens. Estimated token counts and requests with no recorded cost are named; a partial cost total is not a complete bill. **Show token detail** reveals cache reads, cache writes and reasoning tokens, already included in the input/output totals. **Export usage (CSV)** downloads all daily rows with those counts and raw USD costs, without prompts, replies or keys. On a phone, each row lists its requests, input/output tokens and cost without sideways scrolling. Money follows the interface language; CSV values stay machine-readable.

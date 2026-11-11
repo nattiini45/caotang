@@ -69,6 +69,7 @@ import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { formatCount, useComposingEnter } from './shared.js';
 import { Modal, useModalDialog } from './modal.js';
 import { UsagePanel } from './UsagePanel.js';
+import { probeFailureMessage } from './provider-probe-message.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -80,11 +81,18 @@ function originOf(address: string): string {
 }
 
 /** A message beside a form: inline, next to what it is about, and never a toast alone. */
-function FormMessage({ message }: { message: { readonly text: string; readonly tone: 'info' | 'error' } | null }): ReactNode {
+interface FormFeedback {
+  readonly text: string;
+  readonly tone: 'info' | 'error';
+  readonly detail?: { readonly label: string; readonly text: string };
+}
+
+function FormMessage({ message }: { message: FormFeedback | null }): ReactNode {
   if (message === null) return null;
   return (
     <p className={`form-message is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
       {message.text}
+      {message.detail === undefined ? null : <><br /><strong>{message.detail.label}</strong> <bdi>{message.detail.text}</bdi></>}
     </p>
   );
 }
@@ -342,9 +350,10 @@ function roleDraftsFor(roles: RoleSettings | undefined): Record<TaskRole, RoleDr
 function ProvidersSection({ services, onChanged }: { services: AppServices; onChanged?: () => void }): ReactNode {
   const providers = services.providers;
   const [, refresh] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => providers.subscribeVerification(refresh), [providers]);
   const [form, setForm] = useState<FormState | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
+  const [message, setMessage] = useState<FormFeedback | null>(null);
   // The last save's model catalogue — `preset` and `baseUrl` resolve whether it is the endpoint's live answer or the
   // registry's table (a first-party host's own preset wins over the profile's, the pin `resolveRoute` applies).
   const [models, setModels] = useState<{ profile: string; preset?: string; baseUrl?: string; list: ModelInfo[] } | null>(null);
@@ -455,7 +464,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 text: t`Saved “${{ profile: isolate(outcome.view.name) }}”. Use this profile to make it the one the agent calls.`,
                 tone: 'info',
               }
-            : { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”, but ${{ problem: outcome.probeError }}`, tone: 'error' },
+            : { ...probeFailureMessage(outcome.view.name, outcome.probeFailure), tone: 'error' },
         );
         return;
       }
@@ -481,13 +490,13 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       setMessage(
         outcome.probeError === undefined
           ? { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”.`, tone: 'info' }
-          : { text: t`Saved “${{ profile: isolate(outcome.view.name) }}”, but ${{ problem: outcome.probeError }}`, tone: 'error' },
+          : { ...probeFailureMessage(outcome.view.name, outcome.probeFailure), tone: 'error' },
       );
     });
   };
 
   return (
-    <section className="settings-section" aria-labelledby="settings-providers">
+    <section className="settings-section" aria-labelledby="settings-providers" data-panel-state={busy ? 'working' : 'idle'}>
       <h3 id="settings-providers">
         <Trans>Providers</Trans>
       </h3>
@@ -502,13 +511,21 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         {profiles.map((profile) => {
           const card = presetFor(profile.kind === 'mock' ? 'mock' : profile.preset);
           return (
-            <li key={profile.id} className={`profile-row${profile.isActive ? ' is-active' : ''}`} data-profile={profile.name}>
+            <li key={profile.id} className={`profile-row${profile.isActive ? ' is-active' : ''}`} data-profile={profile.name} data-state={profile.kind === 'mock' ? 'demo' : (profile.verification?.kind ?? 'unknown')}>
               <div className="profile-meta">
                 <span className="profile-name">{profile.name}</span>
                 {profile.isActive ? (
                   <span className="badge is-active">
                     <Trans>Active</Trans>
                   </span>
+                ) : null}
+                {profile.kind === 'endpoint' && profile.verification?.kind !== 'verified' ? (
+                  <span className="badge"><Trans>Not verified</Trans></span>
+                ) : null}
+                {profile.verification?.kind === 'checking' ? (
+                  <span className="muted" role="status"><Trans>Checking this profile…</Trans></span>
+                ) : profile.verification?.kind === 'failed' ? (
+                  <span className="muted"><Trans>Edit and save this profile to check it again.</Trans></span>
                 ) : null}
                 <span className="muted">
                   {/* The demo profile's model id is an internal name, so the row says what the profile is and nothing more. */}
