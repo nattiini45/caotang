@@ -29,7 +29,8 @@ import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from
 import { ProfileError } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
 import { presetFor, type PresetDef } from './presets/index.js';
-import type { CachePolicy, NewProfile, ProfileKind, ProfilePatch, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
+import { providerVerificationMachine } from './verification.js';
+import type { CachePolicy, NewProfile, ProfileKind, ProfilePatch, ProfileVerification, ProfileView, RequestParams, ResponseFormatProbe, ThinkingLevel } from './types.js';
 
 export interface ProfileStore {
   create(input: NewProfile): Promise<ProfileView>;
@@ -45,7 +46,8 @@ export interface ProfileStore {
    * Caches the §5 probe result on the profile. Ignored for an unknown id, because a
    * probe can finish after its profile was removed, and that is not an error.
    */
-  recordProbe(id: string, probe: ResponseFormatProbe): void;
+  recordProbe(id: string, probe: ResponseFormatProbe, attempt?: number): void;
+  recordVerification(id: string, verification: ProfileVerification): void;
 }
 
 export interface ProfileStoreOptions {
@@ -93,6 +95,7 @@ interface StoredProfile {
   isActive: boolean;
   hasKey: boolean;
   responseFormat?: ResponseFormatProbe;
+  verification?: ProfileVerification;
 }
 
 /** The fields a save validates and stores. `kind` is fixed at create and never updated. */
@@ -364,6 +367,7 @@ function toView(rec: StoredProfile): ProfileView {
   if (rec.pricePer1k !== undefined) view.pricePer1k = { ...rec.pricePer1k };
   if (rec.promptCache !== undefined) view.promptCache = { ...rec.promptCache };
   if (rec.responseFormat !== undefined) view.responseFormat = { ...rec.responseFormat };
+  if (rec.verification !== undefined) view.verification = { ...rec.verification };
   return view;
 }
 
@@ -508,7 +512,10 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       if (fields.fields === undefined) delete rec.fields;
       // §5's probe is about one endpoint and one model with one key. Any of those
       // changing makes the cached answer a guess, so it goes.
-      if (endpointChanged || keyChanged) rec.responseFormat = undefined;
+      if (endpointChanged || keyChanged) {
+        rec.responseFormat = undefined;
+        rec.verification = providerVerificationMachine.step(rec.verification ?? { kind: 'unknown' }, { type: 'invalidate' });
+      }
       return toView(rec);
     },
 
@@ -545,9 +552,15 @@ export function createProfileStore(options: ProfileStoreOptions): ProfileStore {
       return toView(target);
     },
 
-    recordProbe(id, probe) {
+    recordProbe(id, probe, attempt) {
       const rec = records.get(id);
+      if (attempt !== undefined && (rec?.verification?.kind !== 'checking' || rec.verification.attempt !== attempt)) return;
       if (rec !== undefined) rec.responseFormat = { supportsJsonObject: probe.supportsJsonObject, probedAt: probe.probedAt };
+    },
+
+    recordVerification(id, verification) {
+      const rec = records.get(id);
+      if (rec !== undefined) rec.verification = { ...verification };
     },
   };
 }

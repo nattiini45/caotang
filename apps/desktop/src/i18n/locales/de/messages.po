@@ -4882,6 +4882,11 @@ msgstr "Die Bilder des Projekts werden geprüft"
 msgid "Checking this browser’s storage…"
 msgstr "Der Speicher dieses Browsers wird geprüft…"
 
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Checking this profile…"
+msgstr "Dieses Profil wird geprüft…"
+
 #. MCP servers. Interpolated values: name and names are text the writer or a server supplied; reason is a failure message; count is a number.
 #: apps/desktop/src/components/McpSection.tsx
 msgid "checking…"
@@ -6757,6 +6762,11 @@ msgstr "Bearbeiten"
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Edit {name}"
 msgstr "{name} bearbeiten"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Edit and save this profile to check it again."
+msgstr "Bearbeiten und speichern Sie dieses Profil, um es erneut zu prüfen."
 
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail
@@ -10914,6 +10924,11 @@ msgstr "In dieser Schätzung nicht gesendet"
 #: apps/desktop/src/media/StoryboardView.tsx
 msgid "Not set"
 msgstr "Nicht gesetzt"
+
+#. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#: apps/desktop/src/components/Settings.tsx
+msgid "Not verified"
+msgstr "Nicht verifiziert"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: name, number, event, tool, issuer, document, action, detail

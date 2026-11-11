@@ -14,6 +14,7 @@ export type {
   NewProfile,
   ProfilePatch,
   ResponseFormatProbe,
+  ProfileVerification,
   ProviderGateway,
   ChatRequest,
   ChatMessage,
@@ -165,4 +166,5 @@ export {
 
 export { systemClock, createManualClock, type Clock, type ManualClock, type TimerId } from './clock.js';
 export { redact, redactDeep } from './redact.js';
+export { providerVerificationMachine, providerVerificationTable, readVerification, type VerificationEvent } from './verification.js';
 export { estimateTokens, usageFor, promptTokensOf } from './tokens.js';

@@ -13,6 +13,7 @@
     "./mock": "./src/mock/index.ts"
   },
   "dependencies": {
+    "@caotang/machine": "workspace:*",
     "@caotang/codex": "workspace:*"
   },
   "devDependencies": {
