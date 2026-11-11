@@ -15,6 +15,18 @@ const events: readonly RunEvent[] = [
 ];
 
 describe('run log export', () => {
+  it('preserves request-local choice IDs without exporting live preview fields', () => {
+    const contextOverrides = { include: [{ kind: 'doc' as const, id: 'n_scene' }], exclude: [{ kind: 'codex' as const, id: 'c_lore' }] };
+    const started = { ...events[0]!, contextOverrides, preview: 'UNSENT PREVIEW', meter: { promptTokens: 99 } };
+    const exported = exportRunLog(run, [started]);
+    expect(JSON.parse(exported.jsonl.trimEnd().split('\n')[1]!).contextOverrides).toEqual(contextOverrides);
+    expect(exported.markdown).toContain(JSON.stringify(contextOverrides));
+    for (const output of Object.values(exported)) {
+      expect(output).not.toContain('UNSENT PREVIEW');
+      expect(output).not.toContain('promptTokens');
+    }
+  });
+
   it('writes exactly one whitelisted metadata row and every event in order', () => {
     const exported = exportRunLog({ ...run, status: 'finished' }, events);
     const rows = exported.jsonl.trimEnd().split('\n').map((line) => JSON.parse(line));

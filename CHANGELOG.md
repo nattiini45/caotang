@@ -6,6 +6,9 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Request-local context controls.** The agent composer estimates prompt capacity as you type, previews the planner request without a provider call and shows actual planner meters while running. `@` pins codex entries or up to three bounded document excerpts; shared previews can leave optional items out, with fresh approval after a plan-step context edit. Queued requests retain their own choices. Saved inclusion policies, Never and read-deny rules remain unchanged.
+- Plans with pins or leave-outs stay in the foreground; background choice persistence is deferred to [#592](https://github.com/nattiini45/caotang/issues/592). Existing run logs still contain sent messages and staged proposals, while the new recovery choice metadata contains stable IDs only.
+
 - **Run recovery and retained logs.** Activity keeps finished, failed and stopped agent-run cards, with JSONL and Markdown exports. Before its first writing step, a run retains a local restore point independent of the checkpoint cap. **Restore to before this run** confirms that later edits will be taken back, works after a reload and is undoable in the open tab. Retrying a failed restore save keeps later findings edits; a checkpoint restore reports any changes already taken back when saving fails and stops before a new edit made while it saves. Legacy findings do not cause a false conflict, and a failed recovery download can be retried without reopening the project. Optional device-local folder copies stay derived; they are never read for resume or restore.
 
 - **Session totals and usage details.** The agent shows requests, tokens and known cost for the current project visit across roles and tasks, with a profile/model/role breakdown. Settings › Providers shows daily recorded cost, estimated and unpriced counts, optional cache/reasoning detail and a guarded local CSV export. Desktop cost notes wrap within the table; narrow screens show labelled rows with tokens and cost without sideways scrolling. USD follows the interface locale, with English and German controls; CSV stays machine-readable.
@@ -25,6 +28,9 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
 ### Fixed
+
+- **Context leaves room for the conversation.** Expanded request previews scroll within their own block; Modern retains visible turn content. Completion identifies documents by their folder path and codex entries by type, not storage IDs. Rewind stays on one line, and its opened actions and consequences wrap inside the turn header (#576).
+- Leaving a document out removes its optional synopsis from both structure and story context, rather than letting an L3 copy bypass the L4 exclusion.
 
 - **Expanded onboarding text.** Modern's Projects screen wraps long introduction text and demo labels within the page, including while narrow Settings is open over it.
 

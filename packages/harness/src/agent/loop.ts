@@ -71,8 +71,8 @@
 
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
-import { ContextError, type AgentTask, type PromptPreview, type RecentTurn } from '@caotang/context';
-import { costOf, estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { buildPreview, ContextError, meterOf, type AgentTask, type AssembledPrompt, type ContextMeter, type ContextOverrides, type PromptPreview, type RecentTurn } from '@caotang/context';
+import { costOf, estimateTokens, promptTokensOf, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -381,6 +381,7 @@ export interface StageOnlyResult {
 
 /** What the caller holds for one turn (agent-harness §2, "Stop and steer"). */
 export interface TurnOptions {
+  readonly contextOverrides?: ContextOverrides;
   /**
    * Aborts the turn: the in-flight model call, any awaited step, and every later step. Steps already applied stay in the undo group,
    * and a bus command that has started is never interrupted. The turn ends as `cancelled` with `stop.by === 'user'`.
@@ -438,8 +439,17 @@ export interface ContextPreview {
   readonly dropped: readonly string[];
 }
 
+export interface RequestContextPreview {
+  readonly preview: PromptPreview;
+  readonly meter: ContextMeter;
+}
+
 /** The request a preview assembles with: the writer's next message is not known yet. */
 const CONTEXT_PREVIEW_REQUEST = '(your next message)';
+
+function toolStep({ tool, params, expect }: PlanStep): PlanStep {
+  return { tool, params, expect };
+}
 
 /** Where a steering note will land (agent-harness §2). */
 export interface SteerReceipt {
@@ -521,6 +531,7 @@ export interface AgentSession {
    * turn does and sends nothing, so no model call is made and the gateway sees no request (`/context`).
    */
   contextPreview(options?: TurnOptions): ContextPreview;
+  previewRequest(intent: string, options?: SubmitOptions): RequestContextPreview;
   /** Every turn this session has finished, oldest first. */
   reports(): readonly TurnReport[];
 }
@@ -595,6 +606,8 @@ interface Pins {
 type SkillFence = { readonly kind: 'unlogged' } | { readonly kind: 'reading' } | { readonly kind: 'committed'; readonly snapshot: string };
 
 interface Turn {
+  readonly contextOverrides?: ContextOverrides;
+  plannerPrompt?: AssembledPrompt;
   readonly automaticRules: Map<PlanStep, SourcedRule>;
   readonly id: string;
   readonly messages: ChatMessage[];
@@ -1450,6 +1463,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.modelCalls += 1;
         turn.calls += 1;
         const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
+        if (planner && turn.plannerPrompt !== undefined) {
+          const limits = gateway.modelLimits(sent.profileId, sent.model, sent.thinking, sent);
+          emit({ type: 'context-meter', turnId: turn.id, ...requestContext(turn.plannerPrompt, sent.messages, limits) });
+        }
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         return watched(turn.cache, turn.calls, sent, planner, settling(turn, reservation, gateway.complete(sent, signal)));
       },
@@ -1785,7 +1802,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     context: { readonly turnId: string; readonly callId: string },
     planOptions: PlanOptions,
   ): Promise<Result<PlanOutcome, CommandError>> {
-    if (turn.run === undefined) return harness.executePlan(plan, context, planOptions);
+    const executable = { steps: plan.steps.map(toolStep) };
+    if (turn.run === undefined) return harness.executePlan(executable, context, planOptions);
     const completed: StepResult[] = [];
     let undoGroupId: string | undefined;
     const group = (): { undoGroupId?: string } => (undoGroupId === undefined ? {} : { undoGroupId });
@@ -1800,7 +1818,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       const before = revisionsNow();
       await beginSkillAccess(turn, step.tool);
-      const result = harness.executePlan(plan, context, { ...planOptions, from: index, until: index + 1 });
+      const result = harness.executePlan(executable, context, { ...planOptions, from: index, until: index + 1 });
       await finishSkillLoad(turn, step.tool);
       if (!result.ok) {
         await logFailed(turn, callId, index, step.tool, result.error.message);
@@ -2024,9 +2042,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * A drafting task with the skills this turn has loaded ahead of its request. The writer's own instructions go in the task (L7, which
    * is never cut), under their label, and never in the system role (extensibility §10). A turn that loaded none is unchanged.
    */
-  function withSkills(turn: Turn, task: AgentTask): AgentTask {
+  function withSkills(turn: Turn, task: AgentTask, overrides: ContextOverrides | undefined = turn.contextOverrides): AgentTask {
     const loaded = harness.loadedSkills(turn.id);
-    return loaded.length === 0 ? task : { ...task, instruction: [skillBlock(loaded), '---', task.instruction].join('\n\n') };
+    return { ...task, ...(overrides === undefined ? {} : { overrides }), ...(loaded.length === 0 ? {} : { instruction: [skillBlock(loaded), '---', task.instruction].join('\n\n') }) };
   }
 
   /**
@@ -2058,7 +2076,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const call = context.assemble({
       nonce: turn.nonce,
         ...history,
-        task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true)),
+        task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true), step.contextOverrides),
         role: sceneRole(targetWords, node.value.kind, mode),
       });
       turn.dropped.push(...dropLinesOf(call.prompt));
@@ -2135,7 +2153,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       nonce: turn.nonce,
           ...history,
           state: sourceView(state, node.id, source),
-          task: withSkills(turn, { tool: 'synopsis.fill', instruction: synopsisInstruction(node, source), focus: node.id }),
+          task: withSkills(turn, { tool: 'synopsis.fill', instruction: synopsisInstruction(node, source), focus: node.id }, step.contextOverrides),
           role: synopsisRole(maxWords),
         });
         turn.dropped.push(...dropLinesOf(call.prompt));
@@ -2195,7 +2213,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const call = context.assemble({
       nonce: turn.nonce,
         ...history,
-        task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }),
+        task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }, step.contextOverrides),
         role: dialogueRole(targetLines),
       });
       turn.dropped.push(...dropLinesOf(call.prompt));
@@ -2234,7 +2252,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const call = context.assemble({
       nonce: turn.nonce,
       ...history,
-      task: continuityTask(scope.map((node) => node.id), aspects),
+      task: { ...continuityTask(scope.map((node) => node.id), aspects), ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { overrides: step.contextOverrides ?? turn.contextOverrides }) },
       role: continuityRole(aspects),
     });
     turn.dropped.push(...dropLinesOf(call.prompt));
@@ -2303,7 +2321,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * run or added to a plan.
    */
   async function runDelegate(turn: Turn, step: PlanStep, id: string): Promise<ToolOutcome> {
-    const checked = harness.previewPlan({ steps: [step] }, { turnId: turn.id });
+    const checked = harness.previewPlan({ steps: [toolStep(step)] }, { turnId: turn.id });
     const refused = checked.ok ? checked.value.steps.find((entry) => entry.status === 'refused')?.error : checked.error;
     if (refused !== undefined) return err(refused);
     const params = step.params as unknown as DelegateParams;
@@ -2332,6 +2350,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turnId: turn.id,
       agentPath,
       native: turn.native,
+      ...((step.contextOverrides ?? turn.contextOverrides) === undefined ? {} : { contextOverrides: step.contextOverrides ?? turn.contextOverrides }),
       ...(turn.languages === undefined ? {} : { languages: turn.languages }),
       reserve: (calls) => {
         if (callsLeft(turn) < calls + 1) return false;
@@ -2519,7 +2538,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const checked: Result<PlanPreflight, CommandError> =
       nativeAt.length === 0
         ? ok({ ok: true, steps: [] })
-        : harness.previewPlan({ steps: nativeAt.map((index) => editable.steps[index] as PlanStep) }, {
+        : harness.previewPlan({ steps: nativeAt.map((index) => toolStep(editable.steps[index] as PlanStep)) }, {
             turnId: turn.id,
             from: nativeFrom,
             proposals: nativeAt.map((index) => editable.proposals[index]),
@@ -2563,6 +2582,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       previews,
       risks: editable.steps.map((step) => riskOf(step.tool)),
       staged,
+      ...(turn.contextOverrides === undefined ? {} : { contextOverrides: turn.contextOverrides }),
       ...(turn.replyCut ? { replyCut: true } : {}),
       ...(proposedBy.some((agent) => agent !== undefined) ? { proposedBy } : {}),
       ...(notice === undefined ? {} : { notice }),
@@ -3250,7 +3270,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /** The adjusted step the model sends for a refused one. Anything other than one step of the same tool is not an adjustment. */
-  async function adjustStep(turn: Turn, tool: string): Promise<PlanStep | undefined> {
+  async function adjustStep(turn: Turn, previous: PlanStep): Promise<PlanStep | undefined> {
+    const tool = previous.tool;
     await syncRun(turn, 1, 'running');
     const reply = await complete(plannerCall(turn), turn.messages, turn.native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });
     turn.messages.push(assistantOf(reply));
@@ -3262,7 +3283,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (args.error !== undefined) return undefined;
       // The adjustment's call is registered like a plan's: its result is flushed at the next request.
       turn.wireReplies.push({ calls, results: new Map() });
-      const step: PlanStep = { tool, params: args.params ?? {}, expect: expectOf(reply.text) };
+      const step: PlanStep = { tool, params: args.params ?? {}, expect: expectOf(reply.text), ...(previous.contextOverrides === undefined ? {} : { contextOverrides: previous.contextOverrides }) };
       turn.wireSteps.set(step, only);
       return step;
     }
@@ -3271,7 +3292,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const steps = parsed.value.plan.steps;
     const only = steps[0];
     if (steps.length !== 1 || only === undefined || only.tool !== tool) return undefined;
-    return only;
+    return { ...only, ...(previous.contextOverrides === undefined ? {} : { contextOverrides: previous.contextOverrides }) };
   }
 
   /**
@@ -3398,7 +3419,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // corrective text that follows names what to correct, as the JSON wire's retry does.
       flushWire(turn);
       turn.messages.push({ role: 'user', content: retryMessage(failedAt, failed.tool, askBack, turn.native, outsideOf, turn.nonce) });
-      const adjusted = await adjustStep(turn, failed.tool);
+      const adjusted = await adjustStep(turn, failed);
       if (adjusted === undefined) return settle(turn, executed);
 
       const steps = editable.steps.map((step, index) => (index === failedAt ? adjusted : step));
@@ -3460,6 +3481,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const ask = options.beforeStage;
     const calls = estimatedModelCalls(plan.steps);
     if (ask === undefined || turn.tainted || harness.loadedSkills(turn.id).length > 0 || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
+    if ((turn.contextOverrides?.include?.length ?? 0) + (turn.contextOverrides?.exclude?.length ?? 0) > 0) return undefined;
     checkStop(turn);
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
@@ -3696,11 +3718,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * summary as L1, and the request as L7. The skills list (context-assembly §2) is a second planner addendum beside the loaded-tools line,
    * in a user message after the system prompt and so never part of L0; a project with no skill on offer has none.
    */
-  function plannerAssembly(native: boolean, intent: string, priorTurns: readonly RecentTurn[], nonce?: string, languages?: LanguagePolicy) {
+  function plannerAssembly(native: boolean, intent: string, priorTurns: readonly RecentTurn[], nonce?: string, languages?: LanguagePolicy, overrides?: ContextOverrides) {
     const planner = context.assemble({
       ...(nonce === undefined ? {} : { nonce }),
       ...(languages === undefined ? {} : { languages }),
-      task: { tool: 'meta', instruction: `Request: ${intent}` },
+      task: { tool: 'meta', instruction: `Request: ${intent}`, ...(overrides === undefined ? {} : { overrides }) },
       // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
       role: native ? plannerSystemNative(plannerListings(), loadEvery()) : plannerSystem(plannerListings(), loadEvery()),
       turns: priorTurns,
@@ -3712,6 +3734,33 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(skills?.dropped ?? []).map((name) => `Skills: “${name}” is left out of the skills list (over its ${SKILL_CATALOG_TOKENS}-token budget)`),
     ];
     return { planner, skills, dropped };
+  }
+
+  function previewWithPins<T>(pins: Pins, read: () => T): T {
+    const previousPins = latestPins;
+    latestPins = pins;
+    try {
+      return read();
+    } finally {
+      latestPins = previousPins;
+    }
+  }
+
+  function requestContext(prompt: AssembledPrompt, messages: readonly ChatMessage[], limits: ModelLimits): RequestContextPreview {
+    const promptTokens = promptTokensOf(messages);
+    const baseTokens = Math.min(promptTokens, prompt.estimate.promptTokens);
+    const assembled = { ...prompt, model: limits, messages: structuredClone(messages), overBudget: promptTokens > prompt.totalBudget, estimate: { ...prompt.estimate, promptTokens: baseTokens } };
+    return {
+      preview: buildPreview({ ...assembled, estimate: { ...assembled.estimate, promptTokens } }),
+      meter: meterOf(assembled, { conversationTokens: promptTokens - baseTokens }),
+    };
+  }
+
+  function plannerAddenda(skills: ReturnType<Harness['skillCatalog']>, rows: readonly ToolListing[]): ChatMessage[] {
+    return [
+      ...(rows.length === 0 ? [] : [{ role: 'user' as const, content: loadedToolsMessage(rows) }]),
+      ...(skills === undefined ? [] : [{ role: 'user' as const, content: skills.text }]),
+    ];
   }
 
   /** The planner's turn: the request goes to the model, which answers or proposes steps (agent-harness §2). */
@@ -3735,7 +3784,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.native = nativeTools(turn) !== undefined;
     turn.converses = true;
     const instruction = submitOptions.writerSkill === undefined ? intent : skillBlock(harness.loadedSkills(turn.id));
-    const { planner, skills, dropped } = plannerAssembly(turn.native, instruction, turn.priorTurns, turn.nonce, turn.languages);
+    const { planner, skills, dropped } = plannerAssembly(turn.native, instruction, turn.priorTurns, turn.nonce, turn.languages, turn.contextOverrides);
+    turn.plannerPrompt = planner.prompt;
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     trace({ kind: 'context', at: now(), turnId: turn.id, callIndex: turn.calls + 1, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
@@ -3749,15 +3799,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // (`loadedToolsMessage`), so the cached prefix is untouched. Nothing is preloaded when every tool is declared already.
     // `skill.load` is preloaded whenever there is a list to load from, so the model never has to search for it.
     const wanted: readonly ToolName[] = skills === undefined ? preload : [...preload, 'skill.load'];
+    let rows: readonly ToolListing[] = [];
     if ((wanted.length > 0 || writerFiles.length > 0) && !loadEvery()) {
       harness.preload(turn.id, wanted);
-      const rows = harness.loadedNativeTools();
-      if (rows.length > 0) {
-        turn.messages.push({ role: 'user', content: loadedToolsMessage(rows) });
-        turn.addendumSent = harness.loadedAddendum();
-      }
+      rows = harness.loadedNativeTools();
+      if (rows.length > 0) turn.addendumSent = harness.loadedAddendum();
     }
-    if (skills !== undefined) turn.messages.push({ role: 'user', content: skills.text });
+    turn.messages.push(...plannerAddenda(skills, rows));
     if (submitOptions.writerSkill !== undefined) {
       await syncRun(turn, 0);
       turn.skills = { kind: 'unlogged' };
@@ -3890,9 +3938,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const meter = typeof options.meter === 'function' ? options.meter() : options.meter;
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
     const id = `${sessionName}.turn-${turnCounter}`;
+    const overrides = turnOptions.contextOverrides;
     return {
       automaticRules: new Map(),
       id,
+      ...(overrides === undefined ? {} : { contextOverrides: {
+        ...(overrides.include === undefined ? {} : { include: overrides.include.map(({ kind, id }) => ({ kind, id })) }),
+        ...(overrides.exclude === undefined ? {} : { exclude: overrides.exclude.map(({ kind, id }) => ({ kind, id })) }),
+      } }),
       messages: [],
       trace: [],
       cards: [],
@@ -3979,6 +4032,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         native: plan.mode === 'new' ? nativeTools(turn) !== undefined : plan.replay.native,
         ...(plan.mode === 'resume' ? { resumedFrom: plan.replay.turnId } : {}),
         ...(turn.command === undefined ? {} : { command: turn.command }),
+        ...(turn.contextOverrides === undefined ? {} : { contextOverrides: turn.contextOverrides }),
         ...(turn.hiddenFromPlanner ? { hiddenFromPlanner: true } : {}),
         ...(submitOptions.outsidePrompt === undefined ? {} : { outsidePrompt: submitOptions.outsidePrompt }),
         // A restored card builds no new prompt, so the conversation behind it keeps the filter it was built with.
@@ -4113,6 +4167,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (replay.messages.some((message) => typeof message.content === 'string' && readsOutsideText(message.content))) taint(turn, [{ serverName: '', label: 'outside text' }]);
     turn.logged = turn.messages.length;
     turn.native = replay.native;
+    if (replay.wire === 'planner') {
+      const { planner } = plannerAssembly(turn.native, replay.intent, turn.priorTurns, turn.nonce, turn.languages, turn.contextOverrides);
+      turn.plannerPrompt = { ...planner.prompt, messages: [], parts: [], layers: planner.prompt.layers.map((layer) => ({ ...layer, included: false, tokens: 0, kept: [], drops: [], notes: [] })), estimate: { promptTokens: 0, byLayer: Object.fromEntries(planner.prompt.layers.map((layer) => [layer.id, 0])) as AssembledPrompt['estimate']['byLayer'] } };
+    }
     const card = replay.card;
     for (const applied of replay.applied) {
       const step = card?.completed.includes(applied.index) === true ? card.steps[applied.index] : undefined;
@@ -4122,9 +4180,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     if (card !== undefined) {
       if (card.decision === 'cancelled' || card.decision === 'refused') return { status: 'cancelled' };
-      const parsed = parsePlan({ steps: card.steps });
+      const parsed = parsePlan({ steps: card.steps.map(toolStep) });
       if (!parsed.ok) return { status: 'failed', askBack: askBackFor(parsed.error) };
-      const plan = parsed.value;
+      const plan = { steps: parsed.value.steps.map((step, index) => ({ ...step, ...(card.steps[index]?.contextOverrides === undefined ? {} : { contextOverrides: card.steps[index]?.contextOverrides }) })) };
       const done = card.completed;
       if (plan.steps.every((_, index) => done.includes(index))) {
         const writes = writesOf(turn);
@@ -4204,7 +4262,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     // A resumed macro run stays the writer's: after a reload only the logged command says which turn it was.
-    const resumed: SubmitOptions = { ...resumeOptions, ...(replay.command === undefined ? {} : { command: replay.command }), ...(replay.hiddenFromPlanner === true || isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}), ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }) };
+    const resumed: SubmitOptions = { ...resumeOptions, contextOverrides: replay.contextOverrides, ...(replay.command === undefined ? {} : { command: replay.command }), ...(replay.hiddenFromPlanner === true || isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}), ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }) };
     return runTurn(intent, resumed, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
@@ -4307,16 +4365,29 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     reports: () => [...finished],
 
+    previewRequest(intent: string, pinned: SubmitOptions = {}): RequestContextPreview {
+      const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
+      return previewWithPins(pins, () => {
+        const nonce = turnNonce(`${sessionName}.turn-${turnCounter + 1}`);
+        const { planner, skills } = plannerAssembly(nativeToolsFor(pins) !== undefined, intent, recentTurns(), nonce, pinned.languages ?? options.languages?.(), pinned.contextOverrides);
+        const wanted = new Set<string>([...(pinned.preload ?? []), ...(skills === undefined ? [] : ['skill.load'])]);
+        const rows = loadEvery() ? [] : harness.tools().filter((tool) => wanted.has(tool.name) && tool.load === 'deferred' && tool.callable && tool.wired && tool.externalOnly !== true && tool.name !== 'skill.read');
+        const messages = [...planner.messages, ...plannerAddenda(skills, rows)];
+        const limits = gateway.modelLimits(pins.profileId, pins.model, pins.thinking, options.role === undefined ? {} : { role: options.role });
+        return requestContext(planner.prompt, messages, limits);
+      });
+    },
+
     contextPreview(pinned: TurnOptions = {}): ContextPreview {
       const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
-      // The port reads the limits of the pins of the turn that started last; a running turn keeps its own.
-      if (running.size === 0) latestPins = pins;
-      const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, recentTurns(), undefined, pinned.languages ?? options.languages?.());
-      return {
-        promptTokens: planner.preview.promptTokens,
-        layers: planner.prompt.layers.map((layer) => ({ id: layer.id, name: layer.name, tokens: layer.tokens, included: layer.included, ...(layer.budget === undefined ? {} : { budget: layer.budget }) })),
-        dropped,
-      };
+      return previewWithPins(pins, () => {
+        const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, recentTurns(), undefined, pinned.languages ?? options.languages?.(), pinned.contextOverrides);
+        return {
+          promptTokens: planner.preview.promptTokens,
+          layers: planner.prompt.layers.map((layer) => ({ id: layer.id, name: layer.name, tokens: layer.tokens, included: layer.included, ...(layer.budget === undefined ? {} : { budget: layer.budget }) })),
+          dropped,
+        };
+      });
     },
   };
 }

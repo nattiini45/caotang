@@ -289,6 +289,7 @@ export function scopeBlock(state: ProjectState, scope: readonly TreeNode[]): Sco
         ? `all ${formatCount(body.length)} characters`
         : `last ${formatCount(tail.length)} of ${formatCount(body.length)} characters`;
     return {
+      ref: { kind: 'doc', id: node.id },
       label: node.title,
       reason: `scope document, ${extent}`,
       body: [`## ${node.title} (${extent})`, tail === '' ? '(the document is empty)' : tail, FOCUS_MARKER].join('\n'),

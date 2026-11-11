@@ -12,6 +12,7 @@
 export { assemble } from './assemble.js';
 export { toChatMessages } from './messages.js';
 export { buildPreview } from './preview.js';
+export { meterOf } from './meter.js';
 export { describeDrop } from './drops.js';
 export { SYSTEM_PROMPT_VERSION } from './layers/system.js';
 export { FOCUS_MARKER } from './layers/focus.js';
@@ -59,12 +60,16 @@ export { stableStringify } from './canonical.js';
 export {
   LAYER_IDS,
   LAYER_NAMES,
+  REQUEST_PIN_REASON,
   type AgentTask,
   type AppSnapshot,
   type AssembledPart,
   type AssembledPrompt,
   type AssemblyTool,
   type ContextConfig,
+  type ContextRef,
+  type ContextOverrides,
+  type ContextMeter,
   type DraftMode,
   type DropReason,
   type DropRecord,

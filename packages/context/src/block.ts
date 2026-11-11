@@ -17,9 +17,10 @@
  */
 
 import { charsFor, tokensForChars } from './tokens.js';
-import type { DropReason, LayerId } from './types.js';
+import type { ContextRef, DropReason, LayerId } from './types.js';
 
 export interface BlockItem {
+  readonly ref?: ContextRef;
   readonly label: string;
   /** Shown in the preview when the item is kept. */
   readonly reason: string;

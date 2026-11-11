@@ -5,7 +5,7 @@ import type { RunEvent, RunRecord } from '@caotang/harness';
 import { joinPath, type ArtifactFs } from '@caotang/store';
 
 const EVENT_FIELDS = {
-  'turn.start': ['v', 'intent', 'wire', 'native', 'resumedFrom', 'withheld', 'command', 'hiddenFromPlanner', 'outsidePrompt'],
+  'turn.start': ['v', 'intent', 'wire', 'native', 'resumedFrom', 'withheld', 'command', 'hiddenFromPlanner', 'outsidePrompt', 'contextOverrides'],
   messages: ['appended'],
   'skills.loading': [],
   'skills.loaded': ['skills'],

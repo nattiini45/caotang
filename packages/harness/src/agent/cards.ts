@@ -18,12 +18,13 @@ import type { PlanPreflight, PlanStep } from '../plan.js';
 import type { SubagentName } from '../tools/delegate.js';
 import type { CallParams } from '../types.js';
 import { isRecord } from '../util.js';
-import { DEFAULT_MAX_OUTPUT_TOKENS, type ModelLimits, type PromptPreview } from '@caotang/context';
+import { DEFAULT_MAX_OUTPUT_TOKENS, type ContextOverrides, type ModelLimits, type PromptPreview } from '@caotang/context';
 import type { ThinkingLevel } from '@caotang/gateway';
 import type { ApprovalCaution, WireProgress } from '@caotang/mcp-client';
 import type { ReviewPlan } from '@caotang/coherence';
 import type { PictureTranscriptionPlan } from '../tools/transcription.js';
 import type { TraceEntry } from './events.js';
+import { contextOverridesOk } from './context.js';
 
 /* ------------------------------------------------------------------ *
  * Status cards — one per tool call, with the lifecycle.
@@ -161,6 +162,7 @@ export function groupCards(cards: readonly StatusCard[]): readonly CardItem[] {
  * ------------------------------------------------------------------ */
 
 export interface PlanStepView {
+  readonly contextOverrides?: ContextOverrides;
   /** The step's index in the plan as it now stands. */
   readonly index: number;
   /** The step's index in the plan as the model first proposed it. Badges are read against this. */
@@ -330,6 +332,7 @@ export interface EditableSteps {
 
 /** The edits a user can make in place (agent-harness §2): reorder, drop, and set a param, including a range anchor's fields. */
 export type PlanEdit =
+  | { readonly op: 'context'; readonly index: number; readonly overrides: ContextOverrides }
   | { readonly op: 'reorder'; readonly from: number; readonly to: number }
   | { readonly op: 'drop'; readonly index: number }
   | { readonly op: 'set'; readonly index: number; readonly path: readonly string[]; readonly value: unknown };
@@ -388,11 +391,12 @@ export function applyEdit(state: EditableSteps, edit: PlanEdit): Result<Editable
     });
   }
   // set
-  if (edit.path.length === 0 || !['tool', 'expect', 'params'].includes(edit.path[0] as string)) {
+  if (edit.op === 'set' && (edit.path.length === 0 || !['tool', 'expect', 'params'].includes(edit.path[0] as string))) {
     return err('a step can be edited at tool, expect or params, and the path must start with one of them');
   }
   const current = state.steps[edit.index] as PlanStep;
-  const next = cloneAt(current, edit.path, edit.value) as PlanStep;
+  if (edit.op === 'context' && !contextOverridesOk(edit.overrides)) return err('context choices need document or codex references with stable ids');
+  const next = edit.op === 'context' ? { ...current, contextOverrides: structuredClone(edit.overrides) } : cloneAt(current, edit.path, edit.value) as PlanStep;
   if (typeof next.tool !== 'string' || typeof next.expect !== 'string' || !isRecord(next.params)) {
     return err('an edit must leave the step with a tool name, an expectation and an object of params');
   }
@@ -402,7 +406,7 @@ export function applyEdit(state: EditableSteps, edit: PlanEdit): Result<Editable
   // Only a model-backed step's draft can go stale (see MODEL_BACKED_TOOLS). Its draft was staged for the tool it had, so a
   // change of tool also drops that proposal: the draft for the new tool is made again, or none is needed.
   // An expectation is a label the card shows; no draft reads it, so editing it leaves the draft and its flag as they are.
-  const drafted = edit.path[0] !== 'expect';
+  const drafted = edit.op === 'context' || edit.path[0] !== 'expect';
   const toolChanged = next.tool !== current.tool;
   const stale = state.stale.map((flag, index) => (index !== edit.index ? flag : drafted ? MODEL_BACKED_TOOLS.has(next.tool) : flag));
   const proposals = toolChanged ? state.proposals.map((proposal, index) => (index === edit.index ? undefined : proposal)) : state.proposals;
@@ -582,6 +586,7 @@ export function planCardOf(args: {
   readonly previews: readonly (unknown | undefined)[];
   readonly risks: readonly string[];
   readonly staged?: readonly StagedView[];
+  readonly contextOverrides?: ContextOverrides;
   /** The delegated agent each step was proposed by, aligned to the steps. */
   readonly proposedBy?: readonly (string | undefined)[];
   readonly notice?: string;
@@ -603,6 +608,7 @@ export function planCardOf(args: {
       expect: step.expect,
       risk: args.risks[index] ?? 'read',
       params: step.params,
+      ...((step.contextOverrides ?? args.contextOverrides) === undefined ? {} : { contextOverrides: step.contextOverrides ?? args.contextOverrides }),
       badges: badges[index] ?? [],
       stale: args.state.stale[index] === true,
       cut: staged[index]?.cut === true,

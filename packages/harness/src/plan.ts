@@ -27,6 +27,7 @@
  */
 
 import { ok, type CommandError, type CommandErrorCode, type CommandErrorDetails, type Result } from '@caotang/bus';
+import type { ContextOverrides } from '@caotang/context';
 
 import { hooksAreTheWriters, invalidParams, isHookCommand, refusal } from './errors.js';
 import type { HookRun } from './hooks.js';
@@ -59,6 +60,7 @@ export const planParams: ObjectSpec = param.object(
 );
 
 export interface PlanStep {
+  readonly contextOverrides?: ContextOverrides;
   readonly tool: string;
   readonly params: CallParams;
   readonly expect: string;
@@ -412,4 +414,3 @@ export function planReplayRefusal(callId: string, turnId: string): CommandError 
     'callId',
   );
 }
-

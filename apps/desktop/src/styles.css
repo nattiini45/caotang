@@ -3069,6 +3069,7 @@ label.settings-check {
 .command-description {
   flex-basis: 100%;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 /* What the last slash command said under the box. */
@@ -3726,6 +3727,7 @@ label.settings-check {
   cursor: pointer;
 }
 
+
 .context-layers {
   list-style: none;
   margin: var(--space-3) 0;
@@ -3760,6 +3762,13 @@ label.settings-check {
   margin: var(--space-2) 0;
   padding-inline-start: 18px;
 }
+
+@media (max-width: 600px) {
+  .context-layers li { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .context-layers .context-bar { grid-column: 1 / -1; grid-row: 2; }
+  .context-layer-count { text-align: end; overflow-wrap: anywhere; }
+}
+
 
 .askback {
   margin: var(--space-4) 0;

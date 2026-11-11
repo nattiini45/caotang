@@ -1,0 +1,71 @@
+.command-composer { flex-direction: column; }
+.command-menu { display: flex; flex-direction: column; overflow: hidden; }
+.command-menu > ul { margin: 0; padding: 0; list-style: none; min-block-size: 0; overflow-y: auto; }
+
+.context-cue { margin-block-start: var(--space-1); }
+.context-submit { display: flex; flex-direction: column; align-items: start; gap: var(--space-1); max-inline-size: 8rem; }
+.command-menu .command-guidance { display: block; flex: none; font-size: var(--text-sm); color: var(--muted); }
+.command-guidance p { margin-block: var(--space-1); }
+
+.composer-context {
+  min-inline-size: 0;
+  margin-block: var(--space-2);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  max-block-size: min(30dvh, 16rem);
+  overflow-y: auto;
+}
+
+.context-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+  margin-block: var(--space-2);
+}
+
+.context-chips .button {
+  max-inline-size: 100%;
+  white-space: normal;
+  text-align: start;
+}
+
+.context-hint,
+.context-meter-line,
+.context-reserve {
+  margin-block: var(--space-2);
+}
+
+.context-scope { margin-block: var(--space-1); }
+.context-scope summary { cursor: pointer; }
+
+.request-context > .context-preview {
+  margin-block-start: var(--space-2);
+  max-block-size: min(40dvh, 24rem);
+  overflow: auto;
+}
+
+.request-context.is-near .context-meter-line { color: var(--warn); }
+.request-context.is-over .context-meter-line { color: var(--danger); }
+.request-context.is-near > .context-bar > span { background: var(--warn); }
+.request-context.is-over > .context-bar > span { background: var(--danger); }
+
+.context-reasons .button {
+  margin-inline-start: var(--space-2);
+  margin-block: var(--space-1);
+  white-space: normal;
+}
+
+.context-reasons li,
+.context-dropped li { overflow-wrap: anywhere; }
+.context-accounting { margin-block: var(--space-2); }
+.context-accounting > summary { cursor: pointer; }
+
+.agent-turn-head { flex-wrap: wrap; align-items: start; }
+.agent-turn-head > .agent-intent-text { flex: 1 1 12rem; min-inline-size: 0; overflow-wrap: anywhere; }
+.agent-turn-head > .turn-menu { flex: none; }
+.agent-body .turn-menu-toggle { white-space: nowrap; overflow-wrap: normal; }
+.agent-turn-head > .turn-menu:has(> .turn-menu-panel) { flex-basis: 100%; }
+.agent-turn-head .turn-menu-panel { position: static; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; }
+.agent-turn-head .turn-menu-item > span { min-inline-size: 0; max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }

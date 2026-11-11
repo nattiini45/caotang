@@ -88,6 +88,8 @@ import {
   TRACE_REVIEWS,
   turnMarkerFields,
   type ContextConfig,
+  type ContextOverrides,
+  type RequestContextPreview,
   type LanguagePolicy,
   type AgentEvent,
   type AgentSession,
@@ -136,6 +138,8 @@ import { commandArguments, expandSkillCommand, projectCommands, type ProjectComm
 import { currentEditorCaret } from './editor-selection.js';
 import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable, type AgentStateEvent } from './agent-state.js';
 import { groupUsage, type UsageGroup } from './usage-model.js';
+import { contextChoices, copyContext } from './context-choices.js';
+import { formatCount } from '../i18n/locale.js';
 
 /** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
 type HarnessModule = typeof LazyHarness;
@@ -171,6 +175,7 @@ function pinsOf(resolved: { readonly profile: ProfileView; readonly model: strin
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
+  readonly contextOverrides?: ContextOverrides;
   readonly writerSkill?: SessionSubmitOptions['writerSkill'];
   readonly outsidePrompt?: SessionSubmitOptions['outsidePrompt'];
   readonly demo?: boolean;
@@ -401,6 +406,7 @@ export class AgentController {
   private readonly reviewing = new Map<string, ReviewHold>();
   /** What the last slash command said under the Intent box. View state: never saved, never sent to a model. */
   private commandNote: CommandNote | null = null;
+  private commandGeneration = 0;
   private readonly listeners = new Set<() => void>();
   private snapshotValue: AgentSnapshot;
   /** Lets go of the sweep's root for the drafts this controller holds (`attach` registers it). */
@@ -577,6 +583,7 @@ export class AgentController {
    * model call is made. A demo turn runs on the built-in demo profile, whichever profile is active.
    */
   async submit(intent: string, options: SubmitOptions = {}): Promise<TurnReport | null> {
+    options = { ...options, contextOverrides: copyContext(options.contextOverrides) };
     const trimmed = intent.trim();
     if (trimmed === '') return null;
     // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
@@ -605,9 +612,11 @@ export class AgentController {
    * the context), or the restore the panel confirms. While a turn runs, the commands that would start a turn or restore one wait for it
    * to end, and the text is kept; help and the context are answered at once.
    */
-  sendLine(text: string, supplied: Readonly<Record<string, string>> = {}, promptSelection?: string): LineOutcome {
+  sendLine(text: string, supplied: Readonly<Record<string, string>> = {}, promptSelection?: string, contextOverrides?: ContextOverrides): LineOutcome {
+    const choices = copyContext(contextOverrides);
     const line = text.trim();
     if (line === '') return { kind: 'shown' };
+    const commandGeneration = ++this.commandGeneration;
     this.commandNote = null;
     const parsed = parseSlash(line);
     const projectCommand = parsed === undefined ? undefined : this.commands().find((command) => command.name === parsed.name);
@@ -618,7 +627,7 @@ export class AgentController {
       this.bump();
       return { kind: 'kept' };
     }
-    if (projectCommand !== undefined) return this.sendProjectCommand(projectCommand, line, supplied);
+    if (projectCommand !== undefined) return this.sendProjectCommand(projectCommand, line, supplied, choices);
     const resolved = resolveSlash(line, this.slashContext());
     const starts = resolved.kind === 'plan' || (resolved.kind === 'intent' && resolved.command !== undefined) || (resolved.kind === 'session' && resolved.action === 'restore');
     if (this.busy && starts) {
@@ -629,14 +638,14 @@ export class AgentController {
     switch (resolved.kind) {
       case 'intent': {
         if (resolved.note !== undefined) this.commandNote = { kind: 'info', title: 'Sent as a request', lines: [resolved.note] };
-        const options: SubmitOptions = { ...(resolved.command === undefined ? {} : { command: resolved.command }), ...(resolved.forcePlan === true ? { forcePlan: true } : {}) };
+        const options: SubmitOptions = { contextOverrides: choices, ...(resolved.command === undefined ? {} : { command: resolved.command }), ...(resolved.forcePlan === true ? { forcePlan: true } : {}) };
         if (this.busy) this.enqueue(resolved.intent, options);
         else void this.submit(resolved.intent, options);
         this.bump();
         return { kind: 'sent' };
       }
       case 'plan':
-        void this.submitPlan(resolved.intent, resolved.plan, { command: resolved.command });
+        void this.submitPlan(resolved.intent, resolved.plan, { command: resolved.command, contextOverrides: choices });
         return { kind: 'sent' };
       case 'ask':
         this.commandNote = { kind: 'ask', title: resolved.message, lines: resolved.candidates ?? [] };
@@ -651,7 +660,7 @@ export class AgentController {
         }
         if (resolved.action === 'context') {
           // The preview is the chat session's, which needs the harness's download; the note appears under the box once it has loaded.
-          void this.showContext();
+          void this.showContext(choices, commandGeneration);
           return { kind: 'shown' };
         }
         const target = restoreTarget(
@@ -680,7 +689,7 @@ export class AgentController {
     return projectCommands(this.session.skills().rows, this.session.macros(), prompts);
   }
 
-  private sendProjectCommand(command: ProjectCommand, line: string, supplied: Readonly<Record<string, string>>): LineOutcome {
+  private sendProjectCommand(command: ProjectCommand, line: string, supplied: Readonly<Record<string, string>>, contextOverrides?: ContextOverrides): LineOutcome {
     const keep = (title: string, missing?: string, values?: Readonly<Record<string, string>>): LineOutcome => {
       this.commandNote = { kind: 'ask', title, lines: [], ...(missing === undefined ? {} : { argument: { name: missing, line, ...(values === undefined ? {} : { values, ...(command.kind === 'mcp' ? { promptSelection: this.promptSelection(command) } : {}) }) } }) };
       this.bump();
@@ -703,7 +712,7 @@ export class AgentController {
         if (name === 'SELECTION' || name === 'DOC') return keep(t`Focus a document and select saved text in the editor, then send the command again.`);
         return keep(t`Add the missing argument to run this command.`, name);
       }
-      void this.submit(expanded.value, { command: command.name, writerSkill: { name: row.name, pin: row.skill.pin, body: expanded.value }, hiddenFromPlanner: true });
+      void this.submit(expanded.value, { command: command.name, contextOverrides, writerSkill: { name: row.name, pin: row.skill.pin, body: expanded.value }, hiddenFromPlanner: true });
       this.commandNote = { kind: 'info', title: t`This command stays in the foreground so its skill restrictions or outside-text warnings are kept.`, lines: [] };
       this.bump();
       return { kind: 'sent' };
@@ -716,10 +725,10 @@ export class AgentController {
         if ((spec?.kind === 'integer' || spec?.kind === 'number') && !command.macro.params.required.includes(name) && value.trim() === '') return [];
         return [[name, spec?.kind === 'integer' || spec?.kind === 'number' ? Number(value) : spec?.kind === 'boolean' ? (value === 'true' ? true : value === 'false' ? false : value) : value]];
       }));
-      const result = this.runMacro(command.macro.id, values);
+      const result = this.runMacro(command.macro.id, values, contextOverrides);
       return result.started ? { kind: 'sent' } : keep(result.problem);
     }
-    void this.runPrompt(command, args.values);
+    void this.runPrompt(command, args.values, contextOverrides);
     return { kind: 'sent' };
   }
 
@@ -727,7 +736,7 @@ export class AgentController {
     return JSON.stringify({ prompt: command.prompt, server: this.session.commandClient()?.serverFor(command.prompt.serverKey) });
   }
 
-  private async runPrompt(command: Extract<ProjectCommand, { kind: 'mcp' }>, args: Record<string, string>): Promise<void> {
+  private async runPrompt(command: Extract<ProjectCommand, { kind: 'mcp' }>, args: Record<string, string>, contextOverrides?: ContextOverrides): Promise<void> {
     const client = this.session.commandClient();
     if (client === undefined) return;
     const abort = this.begin(t`Run the selected connected-server prompt.`, command.name);
@@ -748,27 +757,68 @@ export class AgentController {
     if (text === undefined) return;
     this.commandNote = { kind: 'info', title: t`This command stays in the foreground so its skill restrictions or outside-text warnings are kept.`, lines: [] };
     await this.submit(t`Run the selected connected-server prompt.`, {
-      command: command.name, hiddenFromPlanner: true,
+      command: command.name, hiddenFromPlanner: true, contextOverrides,
       outsidePrompt: { serverName: command.prompt.serverName, name: command.prompt.name, text },
     });
   }
 
   /** `/context`: what the next chat turn would send, as a note under the Intent box (agent-harness §2). */
-  private async showContext(): Promise<void> {
+  private async showContext(contextOverrides: ContextOverrides | undefined, generation: number): Promise<void> {
+    const running = this.busy;
+    if (!running) {
+      this.commandNote = { kind: 'context', title: t`Loading the context preview…`, lines: [] };
+      this.bump();
+    }
+    let request: RequestContextPreview | null | undefined;
+    try {
+      request = running ? this.turns.find((turn) => turn.turnId === this.runningTurnId)?.requestContext : await this.previewRequest('', { contextOverrides });
+    } catch {
+      if (generation !== this.commandGeneration) return;
+      this.commandNote = { kind: 'info', title: t`The context preview could not load.`, lines: [t`Run /context again to retry. No request was sent.`] };
+      this.bump();
+      return;
+    }
+    if (generation !== this.commandGeneration) return;
+    if (!running && this.busy) return this.showContext(contextOverrides, generation);
+    if (request === null || request === undefined) {
+      if (running) {
+        this.commandNote = { kind: 'context', contextRunning: true, title: t`Current request context`, lines: [t`No active planner request is available yet.`] };
+      } else {
+        this.commandNote = { kind: 'info', title: t`Context preview is unavailable.`, lines: [t`Choose a provider in Settings, then run /context again. No request was sent.`] };
+      }
+      this.bump();
+      return;
+    }
+    this.commandNote = {
+      ...contextNote({ promptTokens: request.meter.promptTokens, layers: request.preview.layers,
+        dropped: request.preview.layers.flatMap((layer) => layer.drops.map((drop) => `${drop.label}: ${drop.text}`)) }),
+      title: running ? t`Current request context` : t`The next request would send about ${{ tokens: formatCount(request.meter.promptTokens) }} tokens`, requestContext: request, contextRunning: running,
+    };
+    this.bump();
+  }
+
+  contextChoices() {
+    return contextChoices(this.session.state, withheldAnywhere({ rules: this.session.rulesNow() }, this.session.state));
+  }
+
+  async previewRequest(intent: string, options: SubmitOptions = {}): Promise<RequestContextPreview | null> {
+    const contextOverrides = copyContext(options.contextOverrides);
     const loop = await this.harnessLoop();
     const pinned = this.providers.resolveForRole?.('chat');
     const profile = pinned?.profile ?? this.providers.active();
-    const preview = this.sessionFor('chat', loop).contextPreview({
+    if (profile === undefined) return null;
+    return this.sessionFor('chat', loop).previewRequest(intent, {
+      contextOverrides,
+      preload: loop.preloadFor(this.activeNode()),
       ...(profile === undefined ? {} : { profileId: profile.id }),
       ...(pinned?.model === undefined ? {} : { model: pinned.model }),
       ...(pinned?.thinking === undefined ? {} : { thinking: pinned.thinking }),
     });
-    this.commandNote = contextNote(preview);
-    this.bump();
   }
 
   /** Clears what the last slash command said under the Intent box. */
   dismissCommandNote(): void {
+    this.commandGeneration++;
     if (this.commandNote === null) return;
     this.commandNote = null;
     this.bump();
@@ -795,6 +845,7 @@ export class AgentController {
    * is the writer's. `options` carries the task's role, mode and call cap.
    */
   async submitPlan(intent: string, plan: { readonly steps: readonly PlanStep[] }, options: SubmitOptions = {}): Promise<TurnReport | null> {
+    options = { ...options, contextOverrides: copyContext(options.contextOverrides) };
     return this.turnWith(intent, options, (agent, turn) =>
       agent.submitPlan(intent, plan, {
         ...turn,
@@ -811,7 +862,7 @@ export class AgentController {
    * and nothing starts. A macro that only reads runs at once; one that writes shows its card with every step, even a single reversible one, and
    * the card is decided like any other: the mode, the rules and the gate see these steps as they see a planner's.
    */
-  runMacro(macroId: string, values: Record<string, unknown>): { readonly started: true } | { readonly started: false; readonly problem: string } {
+  runMacro(macroId: string, values: Record<string, unknown>, contextOverrides?: ContextOverrides): { readonly started: true } | { readonly started: false; readonly problem: string } {
     const macro = this.session.macros().find((candidate) => candidate.id === macroId);
     if (macro === undefined) return { started: false, problem: t`That macro is not in the project any more.` };
     if (this.busy) return { started: false, problem: t`A turn is running. Wait for it to end, or stop it, then run the macro.` };
@@ -820,6 +871,7 @@ export class AgentController {
     const checked = checkMacro(macro);
     if (!checked.ok) return { started: false, problem: checked.error.message };
     void this.submitPlan(macroIntent(macro), plan.value, {
+      contextOverrides,
       command: macroCommandName(macro.slug),
       forcePlan: checked.value.risk !== 'read',
       readsWithoutCard: true,
@@ -1041,6 +1093,7 @@ export class AgentController {
         agent,
         {
           signal: abort.signal,
+          ...(options.contextOverrides === undefined ? {} : { contextOverrides: options.contextOverrides }),
           profileId: profile.id,
           ...(model === undefined ? {} : { model }),
           ...(thinking === undefined ? {} : { thinking }),
@@ -1427,6 +1480,7 @@ export class AgentController {
 
   /** Adds a message to the queue. With no turn running (and the queue not paused) it starts at once. */
   enqueue(intent: string, options: SubmitOptions = {}): void {
+    options = { ...options, contextOverrides: copyContext(options.contextOverrides) };
     const text = intent.trim();
     if (text === '') return;
     this.move({ type: 'queue', messages: [...this.queue, { id: this.nextQueueId(), intent: text, options }] });
@@ -1788,6 +1842,10 @@ export class AgentController {
   }
 
   private onEvent(event: AgentEvent): void {
+    if (event.turnId === this.runningTurnId && this.commandNote?.contextRunning === true) {
+      if (event.type === 'context-meter') this.commandNote = { ...this.commandNote, title: t`Current request context`, lines: [], requestContext: { preview: event.preview, meter: event.meter } };
+      if (event.type === 'report') this.commandNote = null;
+    }
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
       if (this.turnAbort !== null) this.move({ type: 'turn', owner: this.turnAbort, patch: { turnId: event.turnId } });
       this.turns = [...this.turns, newTurnRecord(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.commandForNextTurn)];

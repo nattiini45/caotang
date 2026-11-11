@@ -5,10 +5,14 @@
  */
 
 import { formatCount } from './text.js';
-import type { DropReason, DropRecord } from './types.js';
+import type { ContextRef, DropReason, DropRecord } from './types.js';
 
 export function describeDrop(reason: DropReason): string {
   switch (reason.kind) {
+    case 'writer-excluded':
+      return 'excluded by the writer for this request';
+    case 'pin-limit':
+      return `beyond the ${reason.limit}-document pin limit`;
     case 'never':
       return 'disabled by include policy (never)';
     case 'empty-description':
@@ -28,15 +32,13 @@ export function describeDrop(reason: DropReason): string {
     case 'instructions-cap':
       return `${reason.file} is ${formatCount(reason.totalTokens)} tokens; the first ${formatCount(reason.sentTokens)} were sent`;
     case 'reserve-overflow':
-      return `the codex's always entries need ${formatCount(reason.need)} tokens; the layer's budget is ${formatCount(reason.budget)}`;
+      return `the codex's ${reason.pinned === true ? 'always and pinned' : 'always'} entries need ${formatCount(reason.need)} tokens; the layer's budget is ${formatCount(reason.budget)}`;
   }
 }
 
 /** A drop record for one item. The text is derived from the reason, so the two cannot disagree. */
-export function dropRecord(label: string, reason: DropReason, group?: string): DropRecord {
-  return group === undefined
-    ? { label, reason, text: describeDrop(reason) }
-    : { label, reason, text: describeDrop(reason), group };
+export function dropRecord(label: string, reason: DropReason, group?: string, ref?: ContextRef): DropRecord {
+  return { label, reason, text: describeDrop(reason), ...(group === undefined ? {} : { group }), ...(ref === undefined ? {} : { ref }) };
 }
 
 /** The `dropped` line for a record: `label: reason`. */

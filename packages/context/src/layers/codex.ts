@@ -29,7 +29,7 @@ import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { newBlock, type Block, type BlockItem } from '../block.js';
 import { dropRecord } from '../drops.js';
-import { LAYER_NAMES, type DropRecord, type DropReason } from '../types.js';
+import { LAYER_NAMES, REQUEST_PIN_REASON, type DropRecord, type DropReason } from '../types.js';
 
 /** The text surfaces and the scope documents that detection scans (codex.md §4, rule 6). */
 export interface DetectionSurfaces {
@@ -69,6 +69,8 @@ function mergeDetections(parts: readonly DetectionResult[]): Map<string, Detecti
 }
 
 export interface CodexPlanInput {
+  readonly include?: ReadonlySet<string>;
+  readonly exclude?: ReadonlySet<string>;
   readonly entries: readonly CodexEntry[];
   /** The manifest's binder tree, as `selectCandidates` reads it. */
   readonly tree: readonly TreeNode[];
@@ -143,7 +145,26 @@ function suppressionReason(reason: Suppressed['reason']): DropReason {
 }
 
 export function codexBlock(input: CodexPlanInput): CodexPlan {
-  const { candidates, suppressed } = selectAcrossScope(input);
+  const selected = selectAcrossScope({
+    ...input,
+    entries: input.entries.map((entry) => input.include?.has(entry.id) && entry.includePolicy !== 'never'
+      ? { ...entry, includePolicy: 'always' as const }
+      : entry),
+  });
+  const originals = new Map(input.entries.map((entry) => [entry.id, entry]));
+  const excluded: DropRecord[] = [];
+  const candidates = selected.candidates.filter(({ entry }) => {
+    if (!input.exclude?.has(entry.id)) return true;
+    excluded.push(dropRecord(entry.name, { kind: 'writer-excluded' }, 'codex', { kind: 'codex', id: entry.id }));
+    return false;
+  }).map((candidate) => ({ ...candidate, entry: originals.get(candidate.entry.id) ?? candidate.entry }));
+  const suppressed = [...selected.suppressed];
+  for (const entry of input.entries) {
+    if (input.include?.has(entry.id) && entry.includePolicy === 'never' && !suppressed.some((item) => item.entry.id === entry.id)) {
+      suppressed.push({ entry, reason: 'never' });
+    }
+  }
+  suppressed.sort((a, b) => compareCodex(a.entry, b.entry));
   const ordered = [...candidates].sort((a, b) => compareCodex(a.entry, b.entry));
   // Array.prototype.sort is stable, so each group keeps the codex order it was given.
   const ranked = [...ordered].sort((a, b) => rankGroup(a.reason) - rankGroup(b.reason));
@@ -152,8 +173,9 @@ export function codexBlock(input: CodexPlanInput): CodexPlan {
   ranked.forEach((candidate, index) => position.set(candidate.entry.id, index));
 
   const items: BlockItem[] = ranked.map((candidate) => ({
+    ref: { kind: 'codex', id: candidate.entry.id },
     label: candidate.entry.name,
-    reason: reasonText(candidate, input.labelOf),
+    reason: input.include?.has(candidate.entry.id) ? REQUEST_PIN_REASON : reasonText(candidate, input.labelOf),
     body: entryBody(candidate.entry),
     protected: candidate.reason.kind === 'always',
     group: candidate.reason.kind,
@@ -170,6 +192,9 @@ export function codexBlock(input: CodexPlanInput): CodexPlan {
   });
   return {
     block,
-    suppressed: suppressed.map((item) => dropRecord(item.entry.name, suppressionReason(item.reason), 'codex')),
+    suppressed: [
+      ...suppressed.map((item) => dropRecord(item.entry.name, suppressionReason(item.reason), 'codex', { kind: 'codex', id: item.entry.id })),
+      ...excluded,
+    ],
   };
 }

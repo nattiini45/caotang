@@ -197,19 +197,28 @@
 }
 
 :root[data-shell='modern'] .modern-companion .agent-body {
-  flex: 1 1 auto;
-  min-block-size: 0;
+  flex: 1 0 14rem;
+  min-block-size: 14rem;
   overflow-y: auto;
   padding: var(--space-4) var(--space-5);
 }
 
 :root[data-shell='modern'] .modern-companion .agent-foot {
-  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-block-size: 0;
   padding: var(--space-2) var(--space-4);
 }
 
 :root[data-shell='modern'] .modern-companion .agent-foot .agent-intent {
   margin: 0;
+  flex: none;
+}
+
+:root[data-shell='modern'] .modern-companion .agent-foot .composer-context {
+  flex: 0 1 auto;
+  min-block-size: 0;
 }
 
 :root[data-shell='modern'] .modern-companion .agent-foot .agent-intent input,

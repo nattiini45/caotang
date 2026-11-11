@@ -9,6 +9,7 @@
  */
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import './request-context.css';
 import { plural, t } from '@lingui/core/macro';
 import { useLingui } from '@lingui/react';
 import { Trans } from '@lingui/react/macro';
@@ -24,6 +25,9 @@ import {
   type PermissionMode,
   type StatusCard,
   type TurnReport,
+  type ContextOverrides,
+  type ContextRef,
+  type RequestContextPreview,
 } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
 
@@ -62,6 +66,8 @@ import { RestoreResult } from './RestoreResult.js';
 import { TurnMenu } from './TurnMenu.js';
 import { SaveCommand } from './SaveCommand.js';
 import { SessionUsage, UsageBreakdown, UsageNotes } from './UsageBreakdown.js';
+import { chooseContext, contextKey, droppedContextPins } from '../app/context-choices.js';
+import { RequestContext } from './RequestContext.js';
 
 /** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
 const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
@@ -124,6 +130,7 @@ interface PendingRestore {
  * neither replay a start intent or palette draft the old one took nor lose the unsent Intent text.
  */
 interface PanelMemory {
+  contextOverrides: ContextOverrides;
   intent: string;
   started: number;
   drafted: number;
@@ -131,7 +138,7 @@ interface PanelMemory {
 const panelMemory = new WeakMap<AgentController, PanelMemory>();
 function memoryFor(agent: AgentController): PanelMemory {
   let memory = panelMemory.get(agent);
-  if (memory === undefined) panelMemory.set(agent, (memory = { intent: '', started: 0, drafted: 0 }));
+  if (memory === undefined) panelMemory.set(agent, (memory = { intent: '', contextOverrides: {}, started: 0, drafted: 0 }));
   return memory;
 }
 
@@ -153,7 +160,7 @@ export function AgentPanel({
   // A window is always open: only the drawer folds.
   const open = inWindow || drawerOpen;
   useLingui();
-  useSession(session);
+  const sessionVersion = useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const keyboardLayout = useSyncExternalStore(keyboardLayoutStore.subscribe, keyboardLayoutStore.snapshot);
   const report = useReport();
@@ -172,6 +179,26 @@ export function AgentPanel({
     return () => { offHealth?.(); offTools?.(); };
   }, [session]);
   const [intent, setIntent] = useState(() => memoryFor(agent).intent);
+  const [contextOverrides, setContextOverrides] = useState(() => memoryFor(agent).contextOverrides);
+  const updateContext = (next: ContextOverrides): void => {
+    memoryFor(agent).contextOverrides = next;
+    setContextOverrides(next);
+  };
+  const choose = (ref: ContextRef, choice: 'pin' | 'exclude' | 'remove'): void => updateContext(chooseContext(contextOverrides, ref, choice));
+  const [typedContext, setTypedContext] = useState<{ intent: string; choices: ContextOverrides; source: AgentSnapshot; version: number; request: RequestContextPreview } | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open || snapshot.busy || snapshot.providerName === null || intent.trim() === '' || intent.trimStart().startsWith('/')) return;
+    let current = true;
+    const timer = window.setTimeout(() => {
+      void agent.previewRequest(intent, { contextOverrides }).then((request) => {
+        if (!current) return;
+        setContextError(null);
+        if (request !== null) setTypedContext({ intent, choices: contextOverrides, source: snapshot, version: sessionVersion, request });
+      }).catch(() => { if (current) setContextError(t`The context preview could not load. Edit the request to try again.`); });
+    }, 300);
+    return () => { current = false; window.clearTimeout(timer); };
+  }, [agent, intent, contextOverrides, open, sessionVersion, snapshot]);
   useEffect(() => {
     memoryFor(agent).intent = intent;
   }, [agent, intent]);
@@ -221,8 +248,9 @@ export function AgentPanel({
   const send = (line: string, values?: Readonly<Record<string, string>>, promptSelection?: string): void => {
     const text = line.trim();
     if (text === '') return;
-    const outcome = agent.sendLine(text, values, promptSelection);
+    const outcome = agent.sendLine(text, values, promptSelection, contextOverrides);
     if (outcome.kind === 'kept') return;
+    if (outcome.kind === 'sent') updateContext({});
     setIntent('');
     setOldInstruction(null);
     if (outcome.kind === 'restore') openRestore(restoreOf(agent, outcome.turnId, outcome.summary, false));
@@ -246,7 +274,8 @@ export function AgentPanel({
       setIntent('');
     } else if (result === 'idle') {
       setIntent('');
-      void agent.submit(text);
+      void agent.submit(text, { contextOverrides });
+      updateContext({});
     }
   };
 
@@ -361,10 +390,42 @@ export function AgentPanel({
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks, (ref) => renderRef(ref, { userValues: WRITER_VALUE_KEYS }));
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
+  const sessionUsage = <SessionUsage usage={snapshot.sessionUsage} names={new Map(snapshot.usageProfiles.map((profile) => [profile.id, profile.name]))} />;
+  const choices = agent.contextChoices();
+  const included = new Set((contextOverrides.include ?? []).map(contextKey));
+  const docCount = new Set((contextOverrides.include ?? []).filter((ref) => ref.kind === 'doc').map((ref) => ref.id)).size;
+  const request = snapshot.busy ? running === undefined || isSettled(running) ? undefined : running.requestContext : intent.trim() !== '' && !intent.trimStart().startsWith('/') ? typedContext?.request : undefined;
+  const contextPending = !snapshot.busy && typedContext !== null && (typedContext.intent !== intent || typedContext.choices !== contextOverrides || typedContext.source !== snapshot || typedContext.version !== sessionVersion);
+  const droppedPins = new Set(!snapshot.busy && !contextPending && request !== undefined
+    ? droppedContextPins(request.preview.layers, contextOverrides.include).map((drop) => contextKey(drop.ref!)) : []);
+  const contextControls = <div className="composer-context">
+    {included.size === 0 && (contextOverrides.exclude?.length ?? 0) === 0 ? null : <details className="context-scope">
+      <summary><Trans>Foreground only</Trans></summary>
+      <p className="muted context-hint"><Trans>Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task.</Trans></p>
+      <p className="muted context-hint"><Trans>Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change.</Trans></p>
+    </details>}
+    {(contextOverrides.include?.length ?? 0) + (contextOverrides.exclude?.length ?? 0) === 0 ? null : <ul className="context-chips" aria-label={t`Context choices for the next request`}>
+      {[...(contextOverrides.include ?? []), ...(contextOverrides.exclude ?? [])].map((ref) => {
+        const item = choices.find((choice) => contextKey(choice) === contextKey(ref));
+        const label = item?.label ?? t`Unavailable context`;
+        const pin = included.has(contextKey(ref));
+        return <li key={contextKey(ref)}><button type="button" className="button is-quiet" onClick={() => { choose(ref, 'remove'); intentRef.current?.focus(); }}
+          aria-label={t`Remove context choice ${{ name: isolate(label) }} (${{ id: ref.id }})`}>
+          {pin ? t`Pinned` : t`Optional context left out`}: <UserText value={label} />{item === undefined ? <> · <UserText value={ref.id} /></> : null}
+          {pin && droppedPins.has(contextKey(ref)) ? <> · <Trans>Not sent in this estimate</Trans></> : null} · <Trans>Remove</Trans>
+        </button></li>;
+      })}
+    </ul>}
+    {contextError !== null && !snapshot.busy ? <p role="status">{contextError}</p> : request === undefined ? null : <RequestContext request={request} running={snapshot.busy} pending={contextPending} pinned={snapshot.busy ? undefined : contextOverrides.include}
+      onExclude={snapshot.busy ? undefined : (ref) => choose(ref, 'exclude')} onRestore={snapshot.busy ? undefined : (ref) => choose(ref, 'remove')} />}
+  </div>;
   // The Intent box: at the top of the drawer's body, and in the window's footer under the turns (modern-interface.md §7.4).
   const intentForm = (
     <form className="agent-intent" onKeyDown={intentIme.noteKey} onSubmit={submit}>
       <CommandComposer
+        contextChoices={choices.filter((choice) => !included.has(contextKey(choice)) && (choice.kind !== 'doc' || docCount < 3))}
+        documentPinLimitReached={docCount >= 3}
+        onPin={(choice) => choose(choice, 'pin')}
         commands={agent.commands()}
         inputRef={intentRef}
         value={intent}
@@ -377,9 +438,12 @@ export function AgentPanel({
             : t`Ask the agent to draft, fill, or check something, or type / for commands`
         }
       />
-      <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending}>
-        {snapshot.busy ? t`Queue` : t`Send`}
-      </button>
+      <span className="context-submit">
+        <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending}>
+          {snapshot.busy ? t`Queue` : t`Send`}
+        </button>
+        {snapshot.busy ? <small className="muted context-next"><Trans>For the next request</Trans></small> : null}
+      </span>
       {snapshot.busy ? (
         <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending} onClick={steer}>
           <Trans>Steer</Trans>
@@ -474,8 +538,7 @@ export function AgentPanel({
 
       {open ? (
         <div id="agent-body" className="agent-body">
-          <SessionUsage usage={snapshot.sessionUsage} names={new Map(snapshot.usageProfiles.map((profile) => [profile.id, profile.name]))} />
-          {inWindow ? null : intentForm}
+          {inWindow ? sessionUsage : <>{intentForm}{contextControls}{sessionUsage}</>}
 
           {oldInstruction !== null ? (
             <p className="agent-old-instruction" data-testid="agent-old-instruction">
@@ -497,7 +560,12 @@ export function AgentPanel({
             </p>
           ) : null}
 
-          {snapshot.command !== null ? <CommandNoteView note={snapshot.command} onRun={send} onDismiss={() => agent.dismissCommandNote()} /> : null}
+          {snapshot.command !== null ? <CommandNoteView note={snapshot.command} onRun={send} onDismiss={() => agent.dismissCommandNote()}
+            contextOverrides={contextOverrides} onContextChoice={(ref, choice) => {
+              const next = chooseContext(contextOverrides, ref, choice);
+              updateContext(next);
+              agent.sendLine('/context', {}, undefined, next);
+            }} /> : null}
 
           {/* Skills the writer has not read and approved are not offered to the agent (extensibility.md §10). The panel says how many wait. */}
           {waitingSkills > 0 ? (
@@ -595,7 +663,7 @@ export function AgentPanel({
           ) : null}
         </div>
       ) : null}
-      {inWindow ? <footer className="agent-foot">{intentForm}</footer> : null}
+      {inWindow ? <footer className="agent-foot">{intentForm}{contextControls}</footer> : null}
 
       <TranscriptionReviewDialog session={session} broker={session.transcriptionReviews} />
       <ConfirmDialog
@@ -652,12 +720,20 @@ export function AgentPanel({
 }
 
 /** What the last slash command said: help, a missing or ambiguous argument, the context, or why a line was kept. It is the panel's, not a turn's. */
-function CommandNoteView({ note, onDismiss, onRun }: { note: CommandNote; onDismiss: () => void; onRun: (line: string, values?: Readonly<Record<string, string>>, promptSelection?: string) => void }): ReactNode {
+function CommandNoteView({ note, onDismiss, onRun, contextOverrides, onContextChoice }: {
+  note: CommandNote;
+  onDismiss: () => void;
+  onRun: (line: string, values?: Readonly<Record<string, string>>, promptSelection?: string) => void;
+  contextOverrides: ContextOverrides;
+  onContextChoice: (ref: ContextRef, choice: 'remove' | 'exclude') => void;
+}): ReactNode {
   return (
     <section className={`agent-command-note is-${note.kind}`} role="status" aria-label="Command result" data-testid="agent-command-note">
       <p className="agent-command-title">{note.title}</p>
+      {note.requestContext === undefined ? null : <RequestContext request={note.requestContext} running={note.contextRunning === true} pinned={note.contextRunning ? undefined : contextOverrides.include}
+        onExclude={note.contextRunning ? undefined : (ref) => onContextChoice(ref, 'exclude')} onRestore={note.contextRunning ? undefined : (ref) => onContextChoice(ref, 'remove')} />}
       {note.argument === undefined ? null : <CommandArgument key={`${note.argument.promptSelection ?? ''}:${note.argument.line}:${note.argument.name}`} argument={note.argument} onRun={onRun} />}
-      {note.lines.length === 0 ? null : (
+      {note.requestContext !== undefined ? <p>{note.contextRunning ? t`This is the active turn’s request. No additional request was sent.` : t`No request was sent to work this out.`}</p> : note.lines.length === 0 ? null : (
         <ul>
           {note.lines.map((line, index) => (
             <li key={`${index}:${line}`}>{line}</li>

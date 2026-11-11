@@ -24,7 +24,7 @@
  */
 
 import type { CommandError, Result } from '@caotang/bus';
-import { ContextError } from '@caotang/context';
+import { ContextError, type ContextOverrides } from '@caotang/context';
 import type { ChatMessage } from '@caotang/gateway';
 import { clipChars } from '@caotang/mcp-client';
 
@@ -169,6 +169,7 @@ export interface SubagentHost {
  * before it starts and refuses when the turn cannot afford them; `release` gives back what the child did not use.
  */
 export interface ParentTurnHandle {
+  readonly contextOverrides?: ContextOverrides;
   readonly turnId: string;
   readonly agentPath: string;
   /** Whether the turn speaks native tool calls: the child speaks the wire the parent does. */
@@ -282,7 +283,7 @@ export function createSubagentRunner(host: SubagentHost): SubagentRunner {
         const scope = params.scope === undefined ? {} : { scope: params.scope };
         const assembled = host.context.assemble({
           nonce: turnNonce(parent.turnId),
-          task: { tool: 'delegate', instruction: `Brief: ${params.brief}`, params: { agent: spec.name }, ...scope },
+          task: { tool: 'delegate', instruction: `Brief: ${params.brief}`, params: { agent: spec.name }, ...scope, ...(parent.contextOverrides === undefined ? {} : { overrides: parent.contextOverrides }) },
           role: system,
           ...(parent.languages === undefined ? {} : { languages: parent.languages }),
         });

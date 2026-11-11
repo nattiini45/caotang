@@ -28,6 +28,7 @@ import {
   type AppSnapshot,
   type AssembledPrompt,
   type ContextConfig,
+  type ContextOverrides,
   type PreviewLayer,
   type PromptPreview,
   type RecentTurn,
@@ -35,6 +36,14 @@ import {
 import type { ChatMessage, MessageContent } from '@caotang/gateway';
 import { contentTokens, partsOf, promptTokensOf } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
+import { isRecord } from '../util.js';
+
+export function contextOverridesOk(value: unknown): value is ContextOverrides {
+  return isRecord(value) && Object.keys(value).every((key) => key === 'include' || key === 'exclude') && ['include', 'exclude'].every((key) => {
+    const refs = value[key];
+    return refs === undefined || (Array.isArray(refs) && refs.every((ref: unknown) => isRecord(ref) && Object.keys(ref).every((field) => field === 'kind' || field === 'id') && (ref['kind'] === 'doc' || ref['kind'] === 'codex') && typeof ref['id'] === 'string' && ref['id'].trim() !== ''));
+  });
+}
 
 /** One model call to assemble: its task, the role text that is its system message, and the history it may draw on. */
 export interface ContextRequest {
@@ -244,6 +253,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
           fraction: undefined,
           drops: [...prior.drops, ...layer.drops],
           notes: [...prior.notes, ...layer.notes],
+          ...(prior.kept === undefined && layer.kept === undefined ? {} : { kept: [...(prior.kept ?? []), ...(layer.kept ?? [])] }),
         });
       }
     }
