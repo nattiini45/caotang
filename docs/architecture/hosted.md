@@ -1,22 +1,32 @@
 # Hosted instance — end-to-end encrypted projects
 
-> Status: **specified, not built.** Nothing here runs in the app. `caotang.app` stays local-only and unchanged: no accounts, no server calls, the same CSP. Two private packages build the storage core against an in-memory fake server and are imported by nothing: [`packages/crypto`](../../packages/crypto) (§2–§4, §7) and [`packages/remote-store`](../../packages/remote-store) (§5–§7). The backend, accounts, relay, domain and UI are not built, and none of them is until the owner funds the instance (§10). The epic is #17.
+> Status: **specified, not built.** The owner chose an invite-only Cloudflare pilot on 2026-11-12; the slices in §11 implement it. Nothing here runs in the app yet. `caotang.app` stays local-only and unchanged: no accounts, no server calls, the same CSP and bundle caps. Two private packages build the storage core against an in-memory fake server and are imported by nothing: [`packages/crypto`](../../packages/crypto) (§2–§4, §7) and [`packages/remote-store`](../../packages/remote-store) (§5–§7). The Worker, accounts, sync UI and domain deployment are not built. The provider relay remains deferred (§8). The epic is #17.
 
 ## 1. Scope
 
-An optional hosted copy of Caotang at `caotang.pawcommit.com` that lets a writer reach one project from several machines. The project format does not change: the hosted store is one more `ArtifactFs` ([project-format.md §1, §4](project-format.md)), so everything above the port (the store's read and write, the bus, the exporter) runs on it as it does on a folder.
+An optional hosted copy of Caotang at `caotang.pawcommit.com` that automatically keeps a writer's projects available on phone, tablet and laptop, including edits made offline. It starts as Caspar's private, invite-only pilot, not public sign-up. The project format does not change: the hosted store is one more `ArtifactFs` ([project-format.md §1, §4](project-format.md)), so everything above the port (the store's read and write, the bus, the exporter) runs on it as it does on a folder. The hosted shell is a separate build target with its own caps; the local build gets no sync-server setting and no hosted requests.
 
 **Goals**
 
 - The operator, a database dump or a backup cannot read a manuscript, a codex entry, a note or a file name.
 - Signing in proves who you are to the server. It never derives or unlocks a key.
-- A conflicting edit is asked about and never lost (§7).
+- Conflicting edits merge automatically where possible; overlapping edits keep a conflict copy, never interrupt typing with a dialog (§7).
 - A plain `.caotang` bundle export is always available; there is no lock-in.
 - The server is a ciphertext-only blob service that anyone can self-host (§6).
 
-**Non-goals for v1**: real-time collaboration, passkey (WebAuthn PRF) unlock, syncing provider keys, server-side search, a server that can open a file for any reason.
+**Non-goals for v1**: real-time collaboration, passkey (WebAuthn PRF) unlock, syncing MCP tokens or agent conversations, server-side search, billing, and a server that can open a file for any reason. Encrypted provider-key sync is in scope (§2.2).
 
-**Decisions this builds on.** `docs/decisions.md` keeps the owner lines untouched: local-first, no Caotang server and no accounts *in the local version*, no telemetry, "no meters, gates, paid tiers or subscriptions", and the *Desktop app or hosted only* label. Hosted is free with one fixed, published storage cap per account. A capacity cap is not a meter, gate or tier; there are no credits and no feature gating, and donations are optional. Self-hosting is the fallback if no official instance is funded.
+**Decisions this builds on.** `docs/decisions.md` records P1–P12 verbatim as owner decisions of 2026-11-12, separately from delegated implementation choices. Local-first, no accounts *in the local version*, no telemetry, and the *Desktop app or hosted only* label still hold. The pilot is free, with a fixed published 2 GiB cap per account, no credits, billing or feature gating. Caspar is using it to explore a possible subscription service; that is not approval to build paid tiers now. Self-hosting the ciphertext service stays first-class.
+
+### 1.1 Hosting and ownership
+
+One Cloudflare Worker serves the hosted static build and `/v1` API and exports the SQLite-backed Durable Object class `AccountHub`. R2 holds only sealed files and the sealed index; D1 holds per-user accounts, invites, quotas and usage. An account id scopes every row, object prefix and live channel, taken from the session rather than a client parameter. There are no billing fields.
+
+The existing `pawcommit.com` zone is already on Cloudflare (HOME-1), so the Worker gets custom domain `caotang.pawcommit.com`, overriding the wildcard that points at the VPS. This implements P1/P2 as one Worker with static assets, not Pages plus a second Worker for the Durable Object. Only `/v1/*` and `/healthz` run the Worker first. Asset requests remain on the free static path even when the API allowance is exhausted; CI enforces at most 20,000 asset files and 25 MiB per file. The Durable Object uses SQLite storage and the WebSocket hibernation API, supported on Workers Free. Paid Workers ($5/month) is headroom, not a prerequisite.
+
+HOME-1 owns all Cloudflare account work: Worker project, R2, D1, bindings, variables, secrets, custom domain, tokens and backups. The crew never uses the Cloudflare connector or changes the account. Deployment uses Workers Builds' Git integration; no Cloudflare credential goes into the repo or GitHub Actions. The repo owns code, wrangler config, migrations, tests and the build. `docs/hosted-provisioning.md` (created by #628 and extended by later slices) is the handoff contract: names, commands, assets directory, compatibility date and flags, bindings, variable/secret names, migrations, domain and schedules. HOME-1 provisions from that list.
+
+A portable ciphertext-service core keeps the optional Node adapter first-class (#639); Cloudflare is the official pilot's adapter, not a project-format dependency.
 
 ## 2. Keys
 
@@ -35,10 +45,20 @@ passphrase ──Argon2id(salt)──> KEK ──wraps──> MK ──wraps─�
 | PK | 256 random bits, once per project | wrapped under the MK on the server, bound to the project id | root of that project's keys |
 | file, path, manifest keys | HKDF-SHA-256 of the PK, empty salt | derived on demand | one purpose each |
 
-- **Argon2id** is `m = 64 MiB, t = 3, p = 1`. These are **provisional** until measured on low-end phones. The hash sits behind an injectable `Kdf` port (`derive(passphrase, salt)`); the Argon2id adapter, and the choice of a WASM library and its bundle cost, are a Phase 1 decision, so the packages carry no third-party dependency.
+- **Argon2id** is `m = 64 MiB, t = 3, p = 1`. These are **provisional** until measured on low-end phones. The hash sits behind an injectable `Kdf` port (`derive(passphrase, salt)`); the Argon2id adapter, and the choice of a WASM library and its bundle cost, belong to #631, so the packages carry no third-party dependency.
 - **Wrapping** is AES-256-GCM with a random 96-bit nonce. Associated data is a label: `caotang/v1/wrap/master`, and `caotang/v1/wrap/project` ‖ NUL ‖ projectId, so a project's wrapped key cannot stand in for another's.
 - **Info labels** are `caotang/v1/file-key`, `caotang/v1/path-hmac-key` and `caotang/v1/manifest-key`; a file key's info is its label ‖ NUL ‖ the file's path hash. No two purposes can derive the same key.
 - Only WebCrypto is used: AES-256-GCM, HKDF-SHA-256, HMAC-SHA-256, SHA-256. The key type prints as its role, so a logged key shows no bytes, and no key enters a project, bundle, export or log.
+
+### 2.1 Remember this device
+
+After the first passphrase unlock, the writer can choose **Remember this device**. The device wraps the MK under a non-extractable WebCrypto key kept in IndexedDB, outside the project. KEK remains memory-only. Forgetting the device removes that wrapper; signing out everywhere revokes server sessions through an account epoch, and the device list supports revocation. Revocation stops server access; it cannot remotely erase downloaded plaintext or device keys. Remembering is not passkey PRF unlock. Page script can still use the remembered key while the app is open; this is the same XSS limit as the provider vault.
+
+### 2.2 Encrypted provider-key sync
+
+Provider keys sync from the start of the hosted key-sync slice (#633), sealed under a vault key derived from the account MK with distinct HKDF info `caotang/v1/vault-key`. A separate sealed vault object carries the profile definitions the keys need (profile id, endpoint origin, model, prices and custom headers), a counter and conditional `If-Match` commits. Associated data binds account id, profile id and origin; a swapped entry or repointed origin must fail authentication. On unlock, each device re-seals keys into its existing device-local vault. Gateway reveal and origin pinning do not change.
+
+Concurrent changes merge per profile in server commit order, with a notice. Deleting a profile deletes its entry. A per-device **Do not sync keys from this device** switch and **Remove synced keys** control are required; removal advises rotating the keys at the provider. Setup checks passphrase length and strength and explains that a cracked passphrase exposes both manuscripts and provider keys. Plaintext never syncs; no key enters a project, bundle, export or log. MCP bearer tokens and agent conversations are excluded pending separate owner decisions. This is specified, not implemented by the existing crypto packages.
 
 ## 3. Sealed files and hashed paths
 
@@ -68,7 +88,7 @@ There is **no escrow**. If the passphrase and the recovery key are both lost, th
 - **One writer at a time per device**: mutations run in a queue, each one reading, changing and swapping the index.
 - **Paths** are checked as `MemoryArtifactFs` checks them (project-relative, no `..`). The same contract suite runs against both bindings.
 
-What this slice does not do, and Phase 3 owns: batching several writes into one index commit (a project save is one commit per file today), an offline queue, and clearing unreferenced blobs.
+What the existing adapter does not do: batching several writes into one index commit (a project save is one commit per file today) and an offline queue (#632), or clearing unreferenced blobs (#637).
 
 ## 6. The blob service
 
@@ -78,22 +98,27 @@ The server is backend-neutral: a small HTTP service that stores opaque bytes und
 |---|---|---|
 | `GET /v1/projects/{id}/blobs/{name}` | the live object | `200` bytes and `ETag`; `404` when absent or soft-deleted |
 | `PUT /v1/projects/{id}/blobs/{name}` | `If-None-Match: *` creates; `If-Match: "<etag>"` replaces that version only | `200`/`201` and `ETag`; `412` when the precondition fails (nothing written); `507` over the account's storage cap |
-| `DELETE /v1/projects/{id}/blobs/{name}` | soft delete | `204`; the server keeps the bytes 30 days, then purges |
+| `DELETE /v1/projects/{id}/blobs/{name}` | soft delete | `204`; history is thinned as below and expires after 30 days |
 | `GET /v1/projects/{id}/blobs` | live names | `200` JSON `[{name, etag, size}]` |
 
 - A name is lower-case letters, digits and `-`, at most 64 characters. The index is always `manifest`. The body is `application/octet-stream` and is never parsed.
-- The server keeps a replaced version of any object for the same 30 days, which is how an older index can be recovered by hand.
-- It logs only what operation and abuse prevention strictly need: no content, no names beyond the request line, short retention. No telemetry, no analytics.
-- Authentication (email link, Google, GitHub; `HttpOnly`, `Secure`, `SameSite=Lax` cookies, CSRF protection on mutating routes) decides who may call these routes. It never derives a key.
+- Per account the published storage cap is 2 GiB, with quota and usage counters. Keep every version for 24 hours, then one per day for 30 days; purge older history and unreferenced blobs. Retain the blobs referenced by each retained index so a retained version stays recoverable. A daily retention job is required (#637); R2 lifecycle rules alone cannot express thinning. HOME-1 owns a nightly read-only R2 copy covered by its backup job; D1 recovery is provisioned with the account database.
+- It logs only what operation and abuse prevention strictly need: method, route template, status and account id, with short retention; never bodies, keys, file names or blob names, including in request URLs. No application telemetry or analytics. The privacy note discloses Cloudflare's own platform metadata and logs.
+- Authentication is GitHub sign-in first, then passkeys as a second sign-in and recovery method. GitHub OAuth uses state and PKCE; sessions use signed `HttpOnly`, `Secure`, `SameSite=Lax` cookies. Non-GET `/v1` routes require a CSRF header and same-origin `Origin`. An unauthenticated API request returns 401, not a redirect; the app shell loads while signed out. Authentication never derives or unlocks a key.
+- #628 uses `ALLOWED_GITHUB_LOGINS` until #629 moves invites into D1. No public sign-up; an uninvited login is refused in plain words. Caspar creates the GitHub OAuth App with callback `https://caotang.pawcommit.com/v1/auth/github/callback` and gives its values to HOME-1, which sets `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` and `SESSION_SECRET`. No production credential is needed for local tests: OAuth is mocked.
 
 In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) is this contract. Its test double, a `FakeBlobServer` with ETags, 412, soft delete, an offline switch and a `dump()` of every version ever kept, lives in the package's tests. There is no HTTP client yet.
 
 ## 7. Sync, conflicts and rollback
 
-- **A 412 is the "files changed" question.** The adapter raises `RemoteConflictError` naming the file; nothing was overwritten. The app will ask the question the folder save already asks when a file changed under it ([`FolderDriftError`](../../packages/store/src/write.ts) stops and names the file), and the writer chooses. The adapter does not retry, merge or refresh by itself; `refresh()` reads what the other device did.
-- **Offline**: a write with no server rejects with `RemoteUnavailableError` and changes nothing. Queue and replay are Phase 3.
-- **Device lease**: a soft heartbeat lease makes a second device read-only while the first holds it. It replaces today's single-tab ownership. Phase 3.
-- **`sessions.jsonl`** keeps its append-merge. **`coherence.json`** merges as derived state under the rule decided for the MCP server's `coherence.json` (#11) and the conflict question (#12). Phase 3 waits on those.
+- **Existing adapter boundary.** A 412 still raises `RemoteConflictError` without overwriting anything; the adapter does not retry or merge. `refresh()` reads the other device's index. An offline adapter write still raises `RemoteUnavailableError`. The hosted sync layer, not the low-level port, owns the following orchestration; local folder-save conflict behaviour stays unchanged.
+- **State-based sync.** Each device keeps the last synced content and ETag as its base and recomputes a dirty set from its IndexedDB working copy. Push after 10 seconds of quiet or 60 seconds since the first unsynced edit, whichever is first; flush best-effort on hide/pagehide. Open, focus and reconnect pull changes. Seal changed files, PUT new blobs, then commit the index with `If-Match`; a 412 fetches the new index, merges and retries with bounded backoff. Batching several files into one commit is part of #632, not the current adapter.
+- **Live push from day one.** One authenticated `/v1/live` WebSocket per device routes through the Worker to the account's `AccountHub`. After a successful index commit the Worker broadcasts only project id, counter and originating device id. No content or key crosses the socket; a notification merely prompts an authenticated pull with rollback checks. Hibernation and auto-response heartbeats avoid waking idle sockets. If the socket or allowance fails, poll the index ETag every 30 seconds while visible. #628 proves a ping through the Worker locally; HOME-1 must verify the custom-domain upgrade and idle duration after deploy. No account-side result is claimed from a local test.
+- **Offline**: typing continues in IndexedDB. A visible state (`synced`, `syncing`, `offline`, `merging`, `attention`, exposed as `data-state`) says how many changes are not yet synced; reconnect resumes automatically. Phones sync while open/foregrounded; background execution while closed is not promised.
+- **No cross-device writer lease.** Phone, tablet and laptop may edit concurrently. The existing single-tab-per-project lease remains local to a device; a second device is not made read-only.
+- **Merge, never interrupt typing.** Different-file edits rebase automatically. Document bodies and manifest notes use three-way text merge against the base; disjoint edits merge, overlapping edits keep the first-landed document and save the other as a sibling conflict copy under **Sync conflicts**, named with device and time. A notice offers Compare, not a blocking dialog. Every automatic merge preserves the pre-merge snapshot and is one undoable step. Until #634 implements three-way merge, #632 uses a conflict copy for every divergent same-file edit.
+- **Project tree and metadata** merge by stable node id. A field changed on one side takes that side; a field changed on both takes the second server commit, with a notice listing replaced values. Adds and removals union, but an edit wins over deletion and restores the document. Concurrent sibling reordering must preserve relative orders where compatible; #634's spike must prove a deterministic resolution when those orders disagree before that rule ships.
+- **`sessions.jsonl`** keeps its existing append-merge. **`coherence.json`** is derived state under the rules settled by #11 and #12 (both closed); they no longer block sync. Assets download on first view rather than making a phone fetch every picture on open. Agent sessions/run logs, traces, undo journals, skill reviews and folder handles do not sync. Project files still travel unchanged; the provider vault (§2.2) is a separate object, never part of a bundle.
 - **Rollback.** A server can serve an old, correctly sealed value. Each device keeps a high-water mark per file (keyed by path hash) and for the index (`HighWaterMarks`), raised on every read and commit and persisted by the app. Opening or refreshing an index below its mark, an index that lists a file below its mark, or no index after one was seen raises `RollbackError`. A stale blob served under a current name fails to authenticate. A device with no marks (a first sign-in on a new machine) trusts the first state it meets; that is a limit (§9).
 
 ## 8. Provider relay — deferred
@@ -104,40 +129,53 @@ Not specified for build. A relay would let a browser reach a provider that block
 - a server-side allowlist generated from `presets/registry.ts`, only for presets recorded as CORS-blocked, never a URL from the client, so it is a forwarder and not the bundled CORS proxy that `docs/decisions.md` rules out;
 - no logging or storing of bodies or keys, a per-account rate limit, and a check of each relayed provider's terms of service.
 
+The hosted build's `connect-src` is `'self'` only; it does not inherit the local build's open provider egress. Until a separately approved same-origin provider path exists, direct external provider and MCP requests are unavailable in hosted. Encrypted key sync does not itself authorise a relay or widen this CSP. `caotang.app` keeps its existing CSP and direct-provider behaviour.
+
 ## 9. Threat model and honest limits
 
 | Adversary | Can | Cannot | Mitigation |
 |---|---|---|---|
-| Curious or compromised operator, or a dump | see emails, OAuth ids, counts, padded sizes, timestamps, IPs | read text, codex, notes, file names or keys | client-side AES-GCM; hashed paths; the KEK never leaves the device |
+| Cloudflare, a curious or compromised operator, or a dump | see account/OAuth ids, counts, padded sizes, timestamps, IPs; try passwords offline | read text, codex, notes, file names or keys without the passphrase | client-side AES-GCM; hashed paths; strong passphrase; the KEK never leaves the device |
 | Network attacker | see TLS metadata | read or alter content | HTTPS, HSTS; AEAD rejects tampering |
 | Malicious served code | exfiltrate keys from the page | stay undetected for ever | hosted-only strict CSP, SRI, a published build hash, the desktop and mobile apps as non-web clients |
-| Account takeover | sign in, delete or replace ciphertext | decrypt without the passphrase | a separate passphrase; 30-day soft delete and history; notice on a new device |
+| Account takeover | sign in, delete or replace ciphertext | decrypt without the passphrase | a separate passphrase; thinned 30-day history; notice on a new device; session revocation |
 | Rolling back or replaying | serve older ciphertext | forge new content | version in the associated data; high-water marks (§7) |
+| Another signed-in account | access its own rows, blobs and live messages | access another account's data or events | session-derived account id; scoped prefixes and hubs; cross-account tests |
 | Relay operator | read relayed prompts and keys in transit | read stored projects | opt-in, no logging (§8) |
 
 Limits that are stated, not hidden (SECURITY.md carries a pointer):
 
 - **Web end-to-end encryption cannot stop a malicious bundle.** An operator who serves a backdoored script can read what the page can. The mitigations above shrink the window; they do not close it.
-- **The server still sees metadata**: account email and OAuth identity, how many projects and blobs, padded sizes, timestamps, IPs and access patterns. A file's bucket is visible; its exact size is not. Blob names are random, but the number of writes is visible.
+- **The server still sees metadata**: account and OAuth identity, how many projects and blobs, padded sizes, timestamps, IPs and access patterns. A file's bucket is visible; its exact size is not. Blob names are random, but the number of writes is visible. Cloudflare is a third party in this chain, including in its platform logs.
 - **A fresh device has no rollback memory** until it has read the project once.
 - **Argon2id cost** protects a weak passphrase only as far as the parameters allow.
-- **An independent security review of the crypto and the hosted CSP and SRI is required before any launch.** These packages have not had one.
+- **An independent security review of crypto, remote-store and the hosted CSP/SRI is required before going public.** P12 permits an invite-only soft launch first, with a privacy note and invitees told the risks. These packages have not had an independent review.
+
+The hosted build keeps the current script, style and worker restrictions, narrows `connect-src` to `'self'`, and ships `_headers` with `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: no-referrer`. The local build's CSP remains byte-for-byte unchanged. A compromised Git build can still serve malicious code: release from reviewed tagged commits and publish the deployed build hash. HOME-1 owns the Git integration and production credentials.
 
 ## 10. Gates
 
-- **Funding.** An official instance is launched only with the owner's yes, a published storage cap, and the confirmed reading that a capacity cap is not a meter, gate or tier.
-- **Owner-only calls**: backend vendor or self-host, EU region, the hosting bill and backups, OAuth client apps and an email sender, DNS and TLS for the domain, Impressum, GDPR privacy policy and a data processing agreement, the final Argon2id parameters, and the independent review.
+- **Pilot approval.** P1–P12 authorise the invite-only Cloudflare pilot with the published 2 GiB per-account cap and thinned history. No public sign-up or billing. P3 explores a possible subscription service; it does not change the pricing of `caotang.app` or authorise a subscription implementation.
+- **Soft launch.** Before real invitee use: a short privacy note, invitees told the risks, account isolation and deletion tested, `.caotang` export available, backup/restore checked, and HOME-1's domain/TLS and live-socket checks recorded. Independent review is required before public use (P12), not waived.
+- **Owner/account-side work**: HOME-1 provisions Cloudflare, domain/TLS, secrets and backups from the repo list; Caspar creates the GitHub OAuth App. Region/data-processing terms, Impressum/GDPR, any later paid plan, final phone-measured Argon2id parameters and the independent review remain gates for their corresponding launch steps. The skeleton is not a claim that encrypted project use is ready.
 - **Telemetry.** None on hosted either.
 
 ## 11. Phases
 
-| Phase | Work | State |
+| Slice | Work | State |
 |---|---|---|
-| 0 | Owner decisions (§10); this spec; run and record the CORS sweep | spec written; decisions open |
-| 1 | Auth and accounts; passphrase setup, recovery-key screen, unlock; account deletion; `.caotang` export; Argon2id adapter | not started |
-| 2 | Encrypted storage: `packages/crypto`, `packages/remote-store`, a fake backend | **the two packages here**; no server, HTTP client or UI |
-| 3 | Sync: batching, offline queue, device lease, conflict question, `coherence.json` merge, import and export between the browser store, bundles and hosted | waits on #11 and #12 |
-| 4 | Relay (§8) | waits on the CORS sweep and its own decision |
-| 5 | Hardening and launch: hosted CSP, SRI, build hash, review, deploy | not started |
+| #627 | Record P1–P12 and amend this spec | this docs slice; no runtime change |
+| #628 | Separate hosted build, one Worker, GitHub sign-in, `AccountHub` live ping, provisioning list | not started; local OAuth mocked; custom domain verified by HOME-1 after deploy |
+| #629 | Per-user D1 accounts, invites, quotas, usage and revocation epoch; no billing | after #628 |
+| #630 | R2 blob/index API with ETag preconditions and HTTP blob client | after #629; crypto and remote-store packages already exist against a fake |
+| #631 | Two-device encrypted round trip, passphrase, printed recovery key, unlock and remember this device | after #630 |
+| #632 | Continuous/offline sync and live push, batching and conflict-copy fallback | after #631; #11 and #12 are closed |
+| #633 | Sealed provider-key and profile sync (§2.2) | after #632 |
+| #634 | Three-way text merge, tree merge by id, conflict copies and reorder spike | after #632 |
+| #635 | Installable phone/tablet shell, offline launch and real-device checklist | after #632; no real-device support claim before that checklist |
+| #636 | Passkey sign-in and recovery, not data unlock | can start after #629 |
+| #637 | History thinning, HOME-1 backup copy and all-project export | after sync/storage |
+| #638 | Hardening, privacy note and invite-only soft-launch gate | after the required product slices; independent review before public use |
+| #639 | Optional portable Node adapter and Dockerfile for self-hosting | first-class fallback; not required for the Cloudflare pilot |
 
-Child issues for the owner to open, one per phase 1 to 5, linked from #17. The epic is closed only when the owner decides it is done.
+These issues are children of #17. #633–#635 can run in parallel after #632. Relay (§8) is not one of these approved slices. #628 does not unlock project storage: after #632 projects sync with conflict copies; after #634/#635 they gain automatic merge and an installable shell. The epic is closed only when the owner decides it is done.
