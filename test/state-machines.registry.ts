@@ -32,6 +32,10 @@ import { turnPhaseTable } from '../packages/harness/src/agent/turn-machine.js';
 import { cardStatusTable } from '../packages/harness/src/agent/cards.js';
 import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.js';
 import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
+import { sessionTable } from '../apps/desktop/src/app/session-handle.js';
+import { bootTable } from '../apps/desktop/src/app/boot-phase.js';
+import { demoStartTable } from '../apps/desktop/src/app/demo-start.js';
+import { homeOpenTable } from '../apps/desktop/src/app/home-open-flow.js';
 import { providerVerificationTable } from '../packages/gateway/src/verification.js';
 
 export const machineTables = [
@@ -45,5 +49,6 @@ export const machineTables = [
   tabStopTable, persistenceTable, pendingEntryTable, healthTable,
   saveChannelTable,
   modalMachine.table,
+  sessionTable, bootTable, demoStartTable, homeOpenTable,
   providerVerificationTable,
 ] as const;

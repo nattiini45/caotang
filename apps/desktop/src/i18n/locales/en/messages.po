@@ -11300,11 +11300,15 @@ msgid "Only you use it"
 msgstr "Only you use it"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
-#. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
+msgid "Open"
+msgstr "Open"
+
+#. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
+msgctxt "project action"
 msgid "Open"
 msgstr "Open"
 

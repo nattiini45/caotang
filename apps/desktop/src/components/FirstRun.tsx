@@ -31,11 +31,12 @@ export interface FirstRunProps {
   readonly onDismiss: () => void;
   readonly onAddKey: () => void;
   readonly busy: boolean;
+  readonly openingIntent?: string | null;
   readonly dismissing: boolean;
   readonly error: string | null;
 }
 
-export function FirstRun({ onRun, onDismiss, onAddKey, busy, dismissing, error }: FirstRunProps): ReactNode {
+export function FirstRun({ onRun, onDismiss, onAddKey, busy, openingIntent = null, dismissing, error }: FirstRunProps): ReactNode {
   return (
     <section className="home-section first-run" aria-labelledby="home-first-run" data-testid="first-run">
       <h2 id="home-first-run">
@@ -49,7 +50,7 @@ export function FirstRun({ onRun, onDismiss, onAddKey, busy, dismissing, error }
       </p>
       <div className="first-run-actions" role="group" aria-label={t`Demo intents`}>
         {DEMO_CHOICES.map((choice) => (
-          <button key={choice.intent} type="button" className="button is-primary k-tonal" disabled={busy} onClick={() => onRun(choice.intent)}>
+          <button key={choice.intent} type="button" className={`button is-primary k-tonal${openingIntent === choice.intent ? ' is-opening' : ''}`} disabled={busy} aria-busy={openingIntent === choice.intent || undefined} onClick={() => onRun(choice.intent)}>
             {choice.label}
           </button>
         ))}
@@ -64,7 +65,7 @@ export function FirstRun({ onRun, onDismiss, onAddKey, busy, dismissing, error }
         </Trans>
       </p>
       {error === null ? null : <p role="alert">{error}</p>}
-      <button type="button" className="button is-quiet" onClick={onDismiss} disabled={dismissing} aria-busy={dismissing}>
+      <button type="button" className="button is-quiet" onClick={onDismiss} disabled={busy || dismissing} aria-busy={dismissing}>
         <Trans>Got it</Trans>
       </button>
     </section>
