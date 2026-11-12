@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { MemoryIndexedDb, openRuntimeStore, readAgentSessions, readRunEvents, readRuns, writeProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
+import { MemoryIndexedDb, appendRunEvents, createRun, openRuntimeStore, readAgentSessions, readRunEvents, readRuns, saveAgentSession, writeProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '../../packages/gateway/src/index.js';
 import { createMockProvider, isPlannerCall, userTextOf } from '../../packages/gateway/src/mock/index.js';
 import { AgentController } from '../../apps/desktop/src/app/agent.js';
@@ -379,6 +379,38 @@ test('presentation-less v3 runs are grouped in order and recover their durable u
     const preview = await reopened.previewRequest('What did we discuss?');
     expect(JSON.stringify(preview)).toContain('Legacy second request.');
     expect(JSON.stringify(preview)).toContain('The ferryman knows about the letter.');
+  } finally { await f.close(); }
+});
+
+for (const existing of [false, true]) test(`legacy migration preserves every role counter after unbilled logs are discarded, with existing metadata ${existing}`, async () => {
+  const f = await fixture();
+  try {
+    const projectId = f.state.manifest.project.id;
+    const sessionId = 'legacy';
+    const at = Date.now();
+    if (existing) await saveAgentSession(f.store, { projectId, sessionId, formatVersion: 1, title: 'Existing conversation', active: true, createdAt: at, updatedAt: at, turns: [], nextTurn: { chat: 20, drafting: 4, background: 12 } });
+    for (const [role, number] of [['chat', 9], ['drafting', 7], ['background', 5]] as const) {
+      const turnId = `${sessionId}${role === 'chat' ? '' : `.${role}`}.turn-${number}`;
+      await createRun(f.store, { schema: 3, projectId, runId: role, kind: 'turn', intent: `Legacy ${role}`, createdAt: at, updatedAt: at, status: 'finished', outcome: 'replied' });
+      await appendRunEvents(f.store, role, [
+        { t: 'turn.start', v: 3, seq: 0, at, turnId, intent: `Legacy ${role}`, wire: 'planner', native: false },
+        { t: 'turn.end', seq: 1, at, turnId, status: 'replied', summary: 'An earlier answer.' },
+      ]);
+    }
+    const agent = f.controller();
+    expect(await agent.loadSessions()).toBe(true);
+    expect(agent.snapshot().sessionId).toBe(sessionId);
+    expect(agent.snapshot().sessionUsage.totals.requests).toBe(0);
+    const counters = existing ? { chat: 20, drafting: 8, background: 12 } : { chat: 10, drafting: 8, background: 6 };
+    expect((await readAgentSessions(f.store, projectId))[0]?.nextTurn).toEqual(counters);
+    await agent.loadInterrupted();
+    for (const role of ['chat', 'drafting', 'background']) await agent.discardRun(role, 1);
+    expect(await readRuns(f.store, projectId)).toEqual([]);
+    expect((await readAgentSessions(f.store, projectId))[0]?.nextTurn).toEqual(counters);
+    const reopened = f.controller();
+    const report = await reopened.submit('Continue after discarding imported logs.');
+    expect(report?.turnId).toBe(`${sessionId}.turn-${counters.chat}`);
+    expect(report?.tokens.requests).toBe(1);
   } finally { await f.close(); }
 });
 

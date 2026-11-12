@@ -1225,16 +1225,24 @@ export class AgentController {
       this.presentations.set(run.runId, projected);
       this.sessionRunRows.set(run.runId, { ...run, presentation: projected });
       this.runForTurn.set(projected.turn.turnId, run.runId);
-      const match = /^(.*?)(?:\.(drafting|background))?\.turn-\d+$/.exec(projected.turn.turnId);
+      const match = /^(.*?)(?:\.(drafting|background))?\.turn-(\d+)$/.exec(projected.turn.turnId);
       const role: TaskRole = match?.[2] === 'drafting' ? 'drafting' : match?.[2] === 'background' ? 'background' : 'chat';
       this.roleForTurn.set(projected.turn.turnId, role);
       const sessionId = match?.[1] ?? run.runId;
-      const row = legacy.get(sessionId) ?? { projectId: this.session.projectId, sessionId, formatVersion: 1 as const, title: run.intent.slice(0, 120), createdAt: run.createdAt, updatedAt: run.updatedAt, active: false, turns: [] };
-      legacy.set(sessionId, { ...row, updatedAt: Math.max(row.updatedAt, run.updatedAt), turns: [...row.turns, { runId: run.runId, role }] });
+      const row: AgentSessionRow = legacy.get(sessionId) ?? { projectId: this.session.projectId, sessionId, formatVersion: 1, title: run.intent.slice(0, 120), createdAt: run.createdAt, updatedAt: run.updatedAt, active: false, turns: [] };
+      const nextTurn = { ...row.nextTurn };
+      const next = Number(match?.[3]) + 1;
+      if (Number.isSafeInteger(next) && next > 0) nextTurn[role] = Math.max(nextTurn[role] ?? 1, next);
+      legacy.set(sessionId, { ...row, nextTurn, updatedAt: Math.max(row.updatedAt, run.updatedAt), turns: [...row.turns, { runId: run.runId, role }] });
     }
     for (const row of legacy.values()) {
       const existing = rows.find((item) => item.sessionId === row.sessionId);
-      await saveAgentSession(store, existing === undefined ? row : { ...existing, turns: [...existing.turns, ...row.turns] });
+      const nextTurn = { ...existing?.nextTurn };
+      for (const role of ['chat', 'drafting', 'background'] as const) {
+        const next = row.nextTurn?.[role];
+        if (next !== undefined) nextTurn[role] = Math.max(nextTurn[role] ?? 1, next);
+      }
+      await saveAgentSession(store, { ...(existing ?? row), nextTurn, turns: [...(existing?.turns ?? []), ...row.turns] });
     }
     if (rows.length > 0 || legacy.size > 0) {
       await pruneAgentSessions(store, this.session.projectId, this.clock(), this.sessionLimits());
