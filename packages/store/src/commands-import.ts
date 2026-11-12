@@ -175,6 +175,7 @@ function importTreeApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectAp
         title: node.title,
         body: rewritten.body,
         type: 'document',
+        ...(node.kind === undefined ? {} : { kind: node.kind }),
         synopsis: node.synopsis ?? '',
         keywords: [...(node.keywords ?? [])],
         notes: node.notes ?? '',

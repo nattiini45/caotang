@@ -131,6 +131,34 @@ describe('binder.importTree — the apply', () => {
     expect(snapshotOf(h.state)).toEqual(before);
   });
 
+  it('makes a screenplay document when a node carries kind, and a prose one when it does not, in the same undo group', async () => {
+    const h = harness();
+    const before = snapshotOf(h.state);
+    const result = await executeAsync(
+      command({
+        nodes: [
+          { type: 'folder', title: 'Script' },
+          { type: 'document', title: 'INT. HARBOUR - DAY', parent: 0, body: 'Mara watches the ferry.', kind: 'screenplay' },
+          { type: 'document', title: 'A note', parent: 0, body: 'Plain prose.' },
+        ],
+      }),
+      h.bus,
+      h.registry,
+    );
+    expect(result.ok, result.ok ? '' : result.error.message).toBe(true);
+    if (!result.ok) return;
+    const value = result.value.result as { nodeIds: string[] };
+    const scene = h.state.manifest.tree.find((node) => node.id === value.nodeIds[1]);
+    const note = h.state.manifest.tree.find((node) => node.id === value.nodeIds[2]);
+    expect(scene?.kind).toBe('screenplay');
+    expect(note?.kind).toBeUndefined();
+    expect(h.state.documents.get(scene?.id ?? '')?.body).toBe('Mara watches the ferry.');
+    expect(h.undo.groups()).toHaveLength(1);
+
+    undoLast(h);
+    expect(snapshotOf(h.state)).toEqual(before);
+  });
+
   it('stores the pictures, writes their ../assets/ path, adds the terms and the codex rows, and Undo restores the project exactly', async () => {
     const h = harness();
     const before = snapshotOf(h.state);

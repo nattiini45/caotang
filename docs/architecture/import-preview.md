@@ -84,6 +84,9 @@ imports stage theirs. Its params: `parentId` (the manuscript, or a folder of the
 research with `place: 'research'`), `vocabulary` (the terms to add), `codex` (`codex.importBatch` entries, which may name an
 imported document by index as `node`), and `pictures`.
 
+- **A document's kind.** A document node may carry `kind` — `screenplay`, `av-script` or `comic-script`, the kinds `binder.create`
+  takes for a document — and the apply makes that kind of document; absent, the document is prose. A folder takes no kind. The
+  Highland import (screenplay.md §2.2) marks its scenes `screenplay` this way, so a script keeps its kind through the shared preview.
 - **What the preview decides before the command.** A node left out is not sent, nor anything under it, nor a picture only its text
   used (the status line says so). A scene or front matter at the top of an import into the manuscript gets a folder of its own name,
   because a document goes inside a chapter. Keywords, synopsis and notes are fitted to the binder's limits. Every body is checked
