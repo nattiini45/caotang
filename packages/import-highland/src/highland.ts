@@ -18,6 +18,8 @@ export interface HighlandAsset {
 /** A `.highland` package read: the Fountain import, its title, its pictures, and what was left behind. */
 export interface HighlandImport {
   readonly script: ImportedScript;
+  /** The degraded Fountain text, as `screenplay.import` takes it: the preview shows the script, the commit writes this. */
+  readonly fountainText: string;
   readonly title: string;
   readonly assets: readonly HighlandAsset[];
   /** The parts not imported, each named for the losses report. */
@@ -107,5 +109,5 @@ export async function readHighland(bytes: Uint8Array, fileName = ''): Promise<Hi
   const planning = ['sprints', 'milestones'].filter((key) => metadata[key] !== undefined);
   if (planning.length > 0) losses.push(`${planning.join(' and ')} not imported`);
 
-  return { ok: true, value: { script, title, assets, losses, notices } };
+  return { ok: true, value: { script, fountainText: degraded.text, title, assets, losses, notices } };
 }
