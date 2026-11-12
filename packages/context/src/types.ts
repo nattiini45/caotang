@@ -60,6 +60,7 @@ export interface ContextOverrides {
 
 /** One model call's task: the tool, its instruction and parameters, and what it is about. */
 export interface AgentTask {
+  readonly conversation?: boolean;
   readonly overrides?: ContextOverrides;
   readonly tool: AssemblyTool;
   /** L7's instruction. Sent verbatim. */

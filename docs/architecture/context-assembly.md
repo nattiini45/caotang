@@ -59,13 +59,15 @@ Assembly renders layers in this order into the message list; truncation happens 
 
 **L7 — task.** The tool instruction verbatim, plus compact tool params. Never truncated.
 
+The current durable session supplies L6 after reload, switching and conversation-only forks. The planner explicitly requests conversation memory on its `meta` task (`conversation: true`) when at least one earlier turn is neither rewound nor hidden, with the same 1,500-token L6 cap and drops as drafting. With no eligible history, its request stays byte-identical to the smaller metadata profile rather than paying for an empty L6 section. Ordinary metadata calls retain their smaller profile; delegated calls never inherit the parent's conversation. Meter and preview count the actual added layer, not an unmetered message.
+
 ## 3. Budgets
 
 - Total default prompt budget: **12k tokens** (config `contextBudget` in settings; provider-gateway may override per call via `maxOutputTokens` complement — the gateway's `context_length` error names the lever, never silent truncation).
 - Layer budgets as above are the default split; unused budget flows **up** (L5 tail may grow into L4's unused space, then L4 into L3) — nearest context wins, per the Sudowrite calibration (D3). Flow-up is deterministic (fixed precedence), keeping evals stable.
 - Character→token estimate: `ceil(chars/4)` (the mock-provider accounting convention, provider-gateway §8) — budgets are enforced on estimates pre-flight, real usage lands in the ledger after.
 - LI's cap is its own and is added to a `sum-of-caps` tool's total only when LI is sent.
-- Per-tool defaults: `scene.draft` = full stack; `continuity.scan` = L2 expanded (2.5k) + L4 expanded (6k) + scope-doc tails (1k each, ≤20 docs); `synopsis.fill` = L5 full doc (cap 25k) + L3, no L2; metadata/meta tools = L0+LI+L1+L7 only (LI only for a project that has instructions); `delegate` (a delegated agent's call, agent-harness §2) = L0 (its role and its tool list) + L1 + L2 per policy + L3 + L4 + L5 + L7, with **L6 off**: L3 to L5 are built from the call's `scope` as `continuity.scan`'s are (each scope document's last 4,000 characters, at most 20 documents, the earlier scenes' synopses), a call with no scope sends none, and L7 is the brief. Nothing of the planner's messages and none of the prior turns reaches it. L6 (the prior turns) rides the draft calls — `scene.draft` and `dialogue.draft` — and not the planner: the planner's `meta` call is L0+L1+L7, so the planner's own call carries no L6 and the planner never sees the prior turns.
+- Per-tool defaults: `scene.draft` = full stack; `continuity.scan` = L2 expanded (2.5k) + L4 expanded (6k) + scope-doc tails (1k each, ≤20 docs); `synopsis.fill` = L5 full doc (cap 25k) + L3, no L2; ordinary metadata/meta tools = L0+LI+L1+L7 only (LI only for a project with instructions). The planner opts into L6 as above. `delegate` = L0 (its role and tools) + L1 + L2 per policy + L3 + L4 + L5 + L7, with **L6 off**: L3 to L5 use its scope as `continuity.scan` does (each scoped document's last 4,000 characters, at most 20 documents, and earlier-scene synopses), and L7 is the brief. No planner messages or prior turns reach the child.
 
 ## 4. The assembly algorithm (implementer-grade)
 

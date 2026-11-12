@@ -110,8 +110,8 @@ function isClearlyTechnical(text) {
   // Browser vocabulary, not prose: media queries, MIME lists, storage/dotted keys, generated file
   // names, regular-expression fragments, CSS class templates and canvas font shorthands.
   if (/^\([a-z-]+:\s*[^)]+\)$/i.test(value)) return true;
-  if (/^[a-z-]+\/[a-z0-9.+-]+(?:,[a-z-]+\/[a-z0-9.+-]+)*$/i.test(value)) return true;
-  if (/^[a-z][a-z0-9-]*(?:\.(?:[a-z0-9-]+|\{…\}))+\.?$/i.test(value)) return true;
+  if (/^[a-z-]+\/[a-z0-9.+-]+(?:;charset=[a-z0-9-]+)?(?:,[a-z-]+\/[a-z0-9.+-]+)*$/i.test(value)) return true;
+  if (/^(?:[a-z][a-z0-9-]*|\{…\})(?:\.(?:[a-z0-9-]+|\{…\}))+\.?$/i.test(value)) return true;
   if (/^(?:\{…\}|[a-z0-9_-])+\.[a-z0-9]+$/i.test(value)) return true;
   if (/^\\[bBdDsSwW].*\\[bBdDsSwW]$/.test(value)) return true;
   if (/(?:^|\s)(?:sans-serif|serif|monospace)(?:$|\s)/.test(value) && /^(?:italic\s+)?\d+\s+\{…\}\s/.test(value)) return true;

@@ -25,8 +25,9 @@ import { LINE_ELEMENT_TYPES, type LineConversion, type LineElementType, type Loc
 import { useCodexEntries } from './hooks.js';
 import { printedOf, saveLineOf, screenplayModelOf, sceneOffset, unwrittenFlushOf, type DialogueBlock, type ScreenplayUnit } from './screenplay-model.js';
 import { documentSaveState } from '../app/save-conflict.js';
+import { publishEditorReady } from '../app/editor-ready.js';
 import { deriveIntentOf, shotsFolderOf } from './storyboard-model.js';
-import { isOwnWrite } from './rebase-model.js';
+import { useStoreRebase } from '../components/use-store-rebase.js';
 import { SourceField } from './SourceField.js';
 import { fountainSegments } from './source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyEdit } from './screenplay-keys.js';
@@ -114,6 +115,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     reportRef.current = report;
   });
   const docId = node.id;
+  const viewRef = useRef<HTMLElement>(null);
   const stored = getBody(session.state, docId);
   const revision = getRevision(session.state, docId);
   const [mode, setMode] = useState<Mode>('script');
@@ -123,7 +125,6 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   // The body and revision this view last agreed with the store. The effect below tells its own write from a change made
   // underneath it, the way the editor does (EditorPane).
   const [opened] = useState(() => ({ body: stored, revision }));
-  const synced = useRef<{ body: string; revision: number }>(opened);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
   // A browser may collapse a textarea's selection when it loses focus; keep the caret for the Element button's click and keyboard path.
   const lastSourceCaret = useRef<number | null>(null);
@@ -163,20 +164,19 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   // re-seeds it with `open` on the body and revision the store holds, so the next write is checked against the store's number. An
   // undo is a write of its own, so it raises that number. The prose editor takes the same change in EditorPane (setContent, then
   // setRevision).
-  const rebases = useRef(0);
+  const rebase = useStoreRebase({
+    session, docId, initial: opened,
+    apply: async (mark, current) => {
+      await session.autosave.flush(docId);
+      if (!current()) return false;
+      session.autosave.open(docId, mark);
+      setDraft(mark.body);
+    },
+    failed: (error) => report({ text: t`The text could not be brought up to date: ${{ reason: error instanceof Error ? error.message : String(error) }}`, tone: 'error' }),
+  });
   useEffect(() => {
-    const seen = synced.current;
-    if (seen.body === stored && seen.revision === revision) return;
-    synced.current = { body: stored, revision };
-    if (isOwnWrite(session.lastWritten(docId), stored, revision)) return;
-    const turn = ++rebases.current;
-    void session.autosave.flush(docId).then(() => {
-      // A later store change has begun its own rebase, and that one is the one to apply.
-      if (turn !== rebases.current) return;
-      session.autosave.open(docId, { body: stored, revision });
-      setDraft(stored);
-    });
-  }, [session, docId, stored, revision]);
+    if (rebase.state !== 'loading' && viewRef.current !== null) publishEditorReady(viewRef.current);
+  }, [rebase.state]);
 
   const onSourceChange = (text: string): void => {
     setDraft(text);
@@ -336,7 +336,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   const save = session.autosave.status(docId);
 
   return (
-    <section className="media-view sp-view" aria-label={accessibleText(t`Screenplay: ${{ title: isolate(node.title) }}`)}>
+    <section ref={viewRef} className="media-view sp-view" data-editor-state={rebase.state} aria-label={accessibleText(t`Screenplay: ${{ title: isolate(node.title) }}`)}>
       <header className="media-head">
         <div>
           <p className="eyebrow"><Trans>Screenplay scene</Trans></p>

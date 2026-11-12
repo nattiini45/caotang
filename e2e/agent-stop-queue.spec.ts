@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from './endpoint.js';
-import { composeAndConfirm } from './support.js';
+import { composeAndConfirm, dragVisibleElement } from './support.js';
 
 /**
  * Stop, steer and the queue in the agent panel (agent-harness §8, "Stop and steer"). The model is a fake endpoint (endpoint.ts), and
@@ -118,7 +118,7 @@ test('a queued message can be edited, moved by the arrow buttons and by dragging
   await expect(chips).toHaveText([/Beta/, /Alpha, edited/, /Delta/]);
 
   // Dragging the last chip onto the first puts it first.
-  await chips.nth(2).dragTo(chips.nth(0));
+  await dragVisibleElement(page, chips.nth(2), chips.nth(0));
   await expect(chips).toHaveText([/Delta/, /Beta/, /Alpha, edited/]);
 
   release();

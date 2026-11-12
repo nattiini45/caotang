@@ -181,7 +181,10 @@ describe('load diagnostics', () => {
     const { instance } = await mountInto(PLAIN);
     const older = instance.setContent(FOREIGN_AND_LOSS, { historyExcluded: true });
     const newer = instance.setContent(PLAIN, { historyExcluded: true });
-    await Promise.all([older, newer]);
+    await Promise.all([
+      expect(older).rejects.toMatchObject({ name: 'LoadSupersededError' }),
+      newer,
+    ]);
     expect(instance.getContent()).toBe(PLAIN);
     expect(instance.loadResult().warnings).toEqual([]);
   });
@@ -194,6 +197,53 @@ describe('load diagnostics', () => {
     expect(onLoadDiagnostics).toHaveBeenLastCalledWith(
       expect.objectContaining({ warnings: instance.loadResult().warnings }),
     );
+  });
+
+  it('a load interrupted by teardown rejects instead of claiming it landed', async () => {
+    const { instance } = await mountInto(PLAIN);
+    const loading = instance.setContent('A body that never lands.\n', { historyExcluded: true });
+    instance.destroy();
+    await expect(loading).rejects.toMatchObject({ name: 'LoadSupersededError' });
+    expect(instance.getContent()).toBe(PLAIN);
+  });
+
+  it('a load superseded during reseating cannot clear the newer ready state', async () => {
+    const { autosave } = scheduler();
+    const { host, instance } = await mountInto(PLAIN, { autosave, revision: 1 });
+    let release!: () => void;
+    let entered!: () => void;
+    const waiting = new Promise<void>((resolve) => { entered = resolve; });
+    vi.spyOn(autosave, 'reseat').mockImplementationOnce(() => {
+      entered();
+      return new Promise<void>((resolve) => { release = resolve; });
+    });
+    const older = instance.setContent('An obsolete body.\n', { historyExcluded: true });
+    const rejected = expect(older).rejects.toMatchObject({ name: 'LoadSupersededError' });
+    await waiting;
+    expect(host.querySelector('.caotang-editor')?.getAttribute('data-state')).toBe('loading');
+    await instance.setContent('The current body.\n');
+    release();
+    await rejected;
+    expect(instance.getContent()).toBe('The current body.\n');
+    expect(host.querySelector('.caotang-editor')?.getAttribute('data-state')).toBe('ready');
+  });
+
+  it('the ghost-mode agent replacement reports superseded rather than off', async () => {
+    const { instance } = await mountInto(PLAIN);
+    const older = instance.showAgentEdit('An obsolete body.\n', { toolCallId: 'older', revision: 2 });
+    const newer = instance.setContent('The current body.\n', { historyExcluded: true });
+    await expect(older).resolves.toEqual({ landed: 'replaced', reason: 'superseded' });
+    await newer;
+    expect(instance.getContent()).toBe('The current body.\n');
+  });
+
+  it('a newer own-write acknowledgement cancels a pending body replacement', async () => {
+    const { instance } = await mountInto(PLAIN, { revision: 1 });
+    const older = instance.setContent('An obsolete body.\n', { historyExcluded: true });
+    const rejected = expect(older).rejects.toMatchObject({ name: 'LoadSupersededError' });
+    instance.setRevision(3);
+    await rejected;
+    expect(instance.getContent()).toBe(PLAIN);
   });
 });
 

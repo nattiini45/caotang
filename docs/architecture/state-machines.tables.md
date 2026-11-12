@@ -81,6 +81,31 @@ Initial: `idle`. Final: none.
 | `stopping` | `ready` | `stopping` |
 | `stopping` | `turn` | `stopping` |
 
+## agent.session-selection
+
+Initial: `unloaded`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `load` | `loading` |
+| `loading` | `failed` | `failed`, `loading` |
+| `loading` | `loaded` | `loading`, `ready` |
+| `ready` | `load` | `loading` |
+| `unloaded` | `load` | `loading` |
+
+## app.boot
+
+Initial: `opening`. Final: `failed`, `ready`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | — | — |
+| `opening` | `failed` | `failed` |
+| `opening` | `opened` | `settling-interface` |
+| `ready` | — | — |
+| `settling-interface` | `failed` | `failed` |
+| `settling-interface` | `ready` | `ready` |
+
 ## asset.removal-hold
 
 Initial: `clear`. Final: none.
@@ -198,6 +223,15 @@ Initial: `open`. Final: none.
 | `open` | `dismissed` | `dismissed` |
 | `open` | `fixed` | `fixed` |
 
+## demo.start
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `idle` | `start` | `opening` |
+| `opening` | `settled` | `idle` |
+
 ## document.autosave
 
 Initial: `clean`. Final: none.
@@ -265,6 +299,43 @@ Initial: `clean`. Final: none.
 | `saving` | `write-failed` | `conflict`, `error`, `pending` |
 | `saving` | `written` | `clean`, `pending` |
 
+## editor.session
+
+Initial: `ready`. Final: `destroyed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `destroyed` | — | — |
+| `loading` | `acknowledged` | `ready` |
+| `loading` | `destroy` | `destroyed` |
+| `loading` | `load` | `loading` |
+| `loading` | `local-edit` | `loading` |
+| `loading` | `settled` | `loading`, `ready` |
+| `ready` | `destroy` | `destroyed` |
+| `ready` | `load` | `loading` |
+| `ready` | `local-edit` | `ready` |
+
+## editor.store-rebase
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `acknowledge` | `synced` |
+| `failed` | `begin` | `rebasing` |
+| `failed` | `invalidate` | `idle` |
+| `idle` | `acknowledge` | `synced` |
+| `idle` | `begin` | `rebasing` |
+| `idle` | `invalidate` | `idle` |
+| `rebasing` | `acknowledge` | `synced` |
+| `rebasing` | `begin` | `rebasing` |
+| `rebasing` | `fail` | `failed`, `rebasing` |
+| `rebasing` | `invalidate` | `idle` |
+| `rebasing` | `land` | `rebasing`, `synced` |
+| `synced` | `acknowledge` | `synced` |
+| `synced` | `begin` | `rebasing` |
+| `synced` | `invalidate` | `idle` |
+
 ## export.job
 
 Initial: `queued`. Final: `failed`, `written`.
@@ -316,6 +387,21 @@ Initial: `idle`. Final: none.
 | `saving` | `ask` | `asking` |
 | `saving` | `fail` | `idle` |
 | `saving` | `saved` | `saved` |
+
+## home.pending-open
+
+Initial: `idle`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `differs` | `cancel` | `idle` |
+| `differs` | `resume` | `idle` |
+| `encoding` | `cancel` | `idle` |
+| `encoding` | `resume` | `idle` |
+| `idle` | `open-result` | `differs`, `encoding`, `idle`, `recovery` |
+| `recovery` | `cancel` | `idle` |
+| `recovery` | `recovery-failed` | `idle` |
+| `recovery` | `recovery-result` | `encoding`, `idle`, `recovery` |
 
 ## import.preview
 
@@ -469,6 +555,35 @@ Initial: `idle`. Final: `conflict`.
 | `writing` | `fail` | `failed` |
 | `writing` | `saved` | `idle` |
 | `writing` | `stop` | `conflict` |
+
+## project.session
+
+Initial: `opening`. Final: `closed`.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `closed` | — | — |
+| `closing` | `closed` | `closed` |
+| `open` | `close` | `closing` |
+| `opening` | `close` | `closing` |
+| `opening` | `opened` | `open` |
+
+## provider.verification
+
+Initial: `unknown`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `checking` | `check` | `checking` |
+| `checking` | `failed` | `checking`, `failed` |
+| `checking` | `invalidate` | `unknown` |
+| `checking` | `passed` | `checking`, `verified` |
+| `failed` | `check` | `checking` |
+| `failed` | `invalidate` | `unknown` |
+| `unknown` | `check` | `checking` |
+| `unknown` | `invalidate` | `unknown` |
+| `verified` | `check` | `checking` |
+| `verified` | `invalidate` | `unknown` |
 
 ## recurring.run
 

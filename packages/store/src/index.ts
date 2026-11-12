@@ -319,6 +319,19 @@ export {
 } from './recovery.js';
 
 export { MemoryIndexedDb } from './runtime/memory-idb.js';
+export {
+  DEFAULT_AGENT_SESSION_RETENTION,
+  agentSessionReferences,
+  planAgentSessionEviction,
+  pruneAgentSessions,
+  readAgentSessions,
+  removeAgentSession,
+  saveAgentSession,
+  settleAgentSessionTurn,
+  type AgentSessionRetention,
+  type AgentSessionRow,
+  type AgentSessionTurnRef,
+} from './runtime/agent-sessions.js';
 
 export {
   BUNDLE_EXTENSION,
@@ -358,6 +371,8 @@ export {
 } from './runtime/autosave.js';
 
 export {
+  AGENT_SESSION_PROJECT_INDEX,
+  AGENT_SESSION_STORE,
   DOCUMENT_PROJECT_INDEX,
   DOCUMENT_STORE,
   PROJECT_STORE,

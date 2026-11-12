@@ -65,18 +65,16 @@ import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
 export const RUNTIME_DB_NAME = 'caotang';
 /**
+ * 5: `agentSessions` holds conversation metadata referencing settled runs. Upgrades
+ * from shipped versions add missing stores without rewriting existing records.
+ *
  * 4: the `runs` and `runEvents` object stores joined (agent-harness §5.1, the run log). The upgrade is additive: it creates them and
  * leaves every other store and row as it was.
  *
  * 3: the `snapshots` object store joined `projects`, `documents` and
  * `sessions`.
- *
- * There is no migration to write. The store is a *runtime cache* that only ever
- * holds what this build put in it, and no build has shipped, so there is no
- * database an older version created that this one has to read. The same
- * no-wild-artifacts argument §2 uses for adding `codex[]` to format v1.
  */
-export const RUNTIME_DB_VERSION = 4;
+export const RUNTIME_DB_VERSION = 5;
 
 /** The manifest — structural truth, vocabulary, codex (§2). */
 export const PROJECT_STORE = 'projects';
@@ -129,6 +127,8 @@ export const RUN_PROJECT_INDEX = 'byProject';
 export const RUN_EVENT_STORE = 'runEvents';
 /** Index for "every event of run R", read without a key range. */
 export const RUN_EVENT_RUN_INDEX = 'byRun';
+export const AGENT_SESSION_STORE = 'agentSessions';
+export const AGENT_SESSION_PROJECT_INDEX = 'byProject';
 
 export interface ProjectRow {
   id: string;
@@ -590,6 +590,10 @@ export function openRuntimeStore(
       if (!db.objectStoreNames.contains(RUN_EVENT_STORE)) {
         const events = db.createObjectStore(RUN_EVENT_STORE, { keyPath: ['runId', 'seq'] });
         events.createIndex(RUN_EVENT_RUN_INDEX, 'runId', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(AGENT_SESSION_STORE)) {
+        const sessions = db.createObjectStore(AGENT_SESSION_STORE, { keyPath: ['projectId', 'sessionId'] });
+        sessions.createIndex(AGENT_SESSION_PROJECT_INDEX, 'projectId', { unique: false });
       }
     };
     request.onsuccess = () => {
@@ -1374,7 +1378,7 @@ export function readBodySnapshots(store: RuntimeStore, projectId: string): Promi
 export function deleteProject(store: RuntimeStore, projectId: string): Promise<boolean> {
   return transact<boolean>(
     store.db,
-    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE],
+    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE, AGENT_SESSION_STORE],
     'readwrite',
     (tx, done, fail) => {
       const projects = tx.objectStore(PROJECT_STORE);
@@ -1385,6 +1389,11 @@ export function deleteProject(store: RuntimeStore, projectId: string): Promise<b
       existing.onsuccess = guarded(fail, () => {
         const existed = existing.result !== undefined;
         projects.delete(projectId);
+        const agentSessions = tx.objectStore(AGENT_SESSION_STORE);
+        const agentSessionsRequest = agentSessions.index(AGENT_SESSION_PROJECT_INDEX).getAll(projectId);
+        agentSessionsRequest.onsuccess = guarded(fail, () => {
+          for (const row of agentSessionsRequest.result as { sessionId: string }[]) agentSessions.delete([projectId, row.sessionId]);
+        });
         const rowsRequest = documents.index(DOCUMENT_PROJECT_INDEX).getAll(projectId);
         const sessionsRequest = sessions.index(SESSION_PROJECT_INDEX).getAll(projectId);
         const snapshotsRequest = snapshots.index(SNAPSHOT_PROJECT_INDEX).getAll(projectId);

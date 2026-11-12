@@ -16,7 +16,7 @@ import { captureParagraphAnchor, type ReadAssetRecord } from '../packages/pictur
 import { addDocument, createEmptyManifest, createProjectState, exportProjectZip } from '../packages/store/src/index.js';
 
 import { RED, registry, solidPng } from './pictures-support.js';
-import { binderTitle, countOf, createProject, firstChapter, selectionOf, waitForSaved } from './support.js';
+import { binderTitle, countOf, createProject, firstChapter, selectionOf, waitForEditorReady, waitForSaved } from './support.js';
 
 const MIB = 1024 * 1024;
 const DAY = 24 * 60 * 60 * 1000;
@@ -396,9 +396,10 @@ test.describe('Re-pin', () => {
 
     const editor = page.getByRole('textbox', { name: 'Document text' });
     await expect(editor).toHaveText('The ferry was late.The keeper waited on the jetty.');
+    await waitForEditorReady(page);
     await editor.click();
     await editor.press('Control+Home');
-    await expect.poll(() => editor.evaluate((surface) => {
+    expect(await editor.evaluate((surface) => {
       const selection = window.getSelection();
       if (document.activeElement !== surface || selection === null || !selection.isCollapsed || selection.anchorNode === null || !surface.contains(selection.anchorNode)) return null;
       const before = document.createRange();

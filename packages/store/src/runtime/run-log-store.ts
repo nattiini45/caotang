@@ -13,12 +13,14 @@
  * ## The log is runtime state
  *
  * It lives in the `caotang` database beside the project it belongs to and goes with it (`deleteProject`). It is never a project
- * file, never in a bundle, and never in the key vault. Retention is the checkpoints' clock: thirty days, fifty runs (`pruneRuns`).
+ * file, never in a bundle, and never in the key vault. Unreferenced runs use the checkpoints' clock: thirty days, fifty runs
+ * (`pruneRuns`). A retained session or fork keeps its referenced runs.
  */
 
 import { canMove, type Machine, type MachineTable } from '@caotang/machine';
 
-import { guarded, transact, RUN_EVENT_RUN_INDEX, RUN_EVENT_STORE, RUN_PROJECT_INDEX, RUN_STORE, type RuntimeStore } from './store.js';
+import { guarded, transact, AGENT_SESSION_PROJECT_INDEX, AGENT_SESSION_STORE, RUN_EVENT_RUN_INDEX, RUN_EVENT_STORE, RUN_PROJECT_INDEX, RUN_STORE, type RuntimeStore } from './store.js';
+import { deleteRunRecords, type AgentSessionRow } from './agent-sessions.js';
 
 /** Where a run stands. `interrupted` is a run a reload, a crash or a closed tab left unfinished; only the writer resumes or discards it. */
 export type RunStatus = 'running' | 'awaiting-approval' | 'interrupted' | 'finished' | 'failed';
@@ -90,6 +92,7 @@ export interface RunRow {
   readonly outcome?: RunOutcome;
   /** A write to the log failed, so the log no longer describes the run and it is not offered for resume. */
   readonly cannotResume?: true;
+  readonly presentation?: unknown;
 }
 
 /** What an append may change on the run record. */
@@ -215,12 +218,14 @@ export function markRunsInterrupted(store: RuntimeStore, projectId: string, now:
 
 /** Deletes one run and its events: the writer's "Discard log". The writes the run made stay in the project. */
 export function deleteRun(store: RuntimeStore, runId: string): Promise<void> {
-  return transact<void>(store.db, [RUN_STORE, RUN_EVENT_STORE], 'readwrite', (tx, done, fail) => {
-    const events = tx.objectStore(RUN_EVENT_STORE);
-    const request = events.index(RUN_EVENT_RUN_INDEX).getAll(runId);
+  return transact<void>(store.db, [RUN_STORE, RUN_EVENT_STORE, AGENT_SESSION_STORE], 'readwrite', (tx, done, fail) => {
+    const sessions = tx.objectStore(AGENT_SESSION_STORE);
+    const request = sessions.getAll();
     request.onsuccess = guarded(fail, () => {
-      for (const event of request.result as RunEventRow[]) events.delete([event.runId, event.seq]);
-      tx.objectStore(RUN_STORE).delete(runId);
+      for (const row of request.result as AgentSessionRow[]) {
+        if (row.turns.some((ref) => ref.runId === runId)) sessions.put({ ...row, turns: row.turns.filter((ref) => ref.runId !== runId) } satisfies AgentSessionRow);
+      }
+      deleteRunRecords(tx, runId, fail);
       done();
     });
   });
@@ -238,15 +243,25 @@ const DAY_MS = 86_400_000;
 
 /**
  * Deletes the runs a project no longer keeps and answers how many went. An open run, including an interrupted run, is never evicted.
- * A settled run is kept while it is newer than `days` and among the newest `count`.
+ * Referenced runs are retained without consuming the unreferenced cap. An unreferenced settled run is kept while it is newer than
+ * `days` and among the newest `count` unreferenced runs.
  */
-export async function pruneRuns(store: RuntimeStore, projectId: string, now: number = Date.now(), keep: RunRetention = DEFAULT_RUN_RETENTION): Promise<number> {
-  const runs = await readRuns(store, projectId);
-  const cutoff = now - keep.days * DAY_MS;
-  const settled = runs.filter((run) => !OPEN_RUN_STATUSES.includes(run.status)).sort((a, b) => b.createdAt - a.createdAt);
-  const evict = settled.filter((run, index) => index >= keep.count || run.updatedAt < cutoff);
-  for (const run of evict) await deleteRun(store, run.runId);
-  return evict.length;
+export function pruneRuns(store: RuntimeStore, projectId: string, now: number = Date.now(), keep: RunRetention = DEFAULT_RUN_RETENTION): Promise<number> {
+  return transact<number>(store.db, [RUN_STORE, RUN_EVENT_STORE, AGENT_SESSION_STORE], 'readwrite', (tx, done, fail) => {
+    const runs = tx.objectStore(RUN_STORE).index(RUN_PROJECT_INDEX).getAll(projectId);
+    runs.onsuccess = guarded(fail, () => {
+      const sessions = tx.objectStore(AGENT_SESSION_STORE).index(AGENT_SESSION_PROJECT_INDEX).getAll(projectId);
+      sessions.onsuccess = guarded(fail, () => {
+        const referenced = new Set((sessions.result as AgentSessionRow[]).flatMap((row) => row.turns.map((ref) => ref.runId)));
+        const cutoff = now - keep.days * DAY_MS;
+        const settled = (runs.result as RunRow[]).filter((run) => !OPEN_RUN_STATUSES.includes(run.status) && !referenced.has(run.runId))
+          .sort((a, b) => b.createdAt - a.createdAt);
+        const evict = settled.filter((run, index) => index >= keep.count || run.updatedAt < cutoff);
+        for (const run of evict) deleteRunRecords(tx, run.runId, fail);
+        done(evict.length);
+      });
+    });
+  });
 }
 
 function byCreated(a: RunRow, b: RunRow): number {

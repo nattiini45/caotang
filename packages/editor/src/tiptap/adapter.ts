@@ -111,6 +111,7 @@ import type { PicturesPort } from './pictures.js';
 import type { SuggestionLayer } from './suggestions.js';
 import { insertedSpans, reachesScope, replacedSpans, shrinkSpan, unionSpan } from './undo-scope.js';
 import type { Span } from './undo-scope.js';
+import { editorSession, stepEditorSession, type EditorSessionEvent } from './session.js';
 
 /**
  * The seam's mount options, plus what only the live editor needs. Every addition is
@@ -282,6 +283,13 @@ export class UnsavedEditsError extends Error {
   }
 }
 
+export class LoadSupersededError extends Error {
+  constructor(readonly docId: string) {
+    super(`The load for "${docId}" was superseded or its editor was destroyed`);
+    this.name = 'LoadSupersededError';
+  }
+}
+
 /**
  * The seam's instance, widened by what the app needs from a live editor. The seam's
  * members are unchanged, so a function that takes an `EditorInstance` takes this too.
@@ -350,7 +358,8 @@ export interface TiptapEditorInstance extends ReviewableEditorInstance {
   redo(): boolean;
   /**
    * Parses and replaces the document. Rejects with {@link UnsavedEditsError} for an agent
-   * apply over unsaved user edits, unless `discardUnsaved` is set.
+   * apply over unsaved user edits, unless `discardUnsaved` is set. Rejects with
+   * `LoadSupersededError` when a newer load or teardown takes over before it lands.
    *
    * With a store, an agent-lane replacement also rebases the store onto the body it puts in the
    * editor (`reseat`): the store's unsaved edits are dropped, and its persisted body becomes this one.
@@ -544,14 +553,18 @@ const createInstance = (
   root.append(focusEl, ghostEl);
   host.append(root);
 
-  let destroyed = false;
+  let session = editorSession(opts.agentEditMode === 'suggestions' ? layer === null ? 'unavailable' : 'suggestions' : 'ghost', autosave !== undefined);
+  const send = (event: EditorSessionEvent): void => {
+    const next = stepEditorSession(session, event);
+    if (next.kind !== session.kind) root.dataset['state'] = next.kind;
+    session = next;
+  };
+  const isDestroyed = (): boolean => session.kind === 'destroyed';
+  root.dataset['state'] = session.kind;
   let load: LoadDiagnostics = { warnings: loaded.warnings, dialect: loaded.dialect };
   let lastBody = '';
   // The revision without a store. With one, the store's own `status().revision` is the number.
   let revision: number | undefined = seed.revision;
-  // Without a store there is no record of what was saved, so the editor keeps its own
-  // flag: a user edit sets it, and only a replacement of the document clears it.
-  let editedLocally = false;
   // §7 rule 1's scope: the smallest span holding every text the user's undo can still
   // reach. `undo-scope.ts` explains why an agent apply is checked against it.
   let scope: Span | null = null;
@@ -624,7 +637,7 @@ const createInstance = (
 
   /** The body projection. Serializes only: no offset map is built to answer it. */
   const body = (): string => {
-    if (destroyed) return lastBody;
+    if (isDestroyed()) return lastBody;
     const shot = current();
     if (shot.text === null) shot.text = serialize(shot.copy);
     return shot.text;
@@ -642,24 +655,25 @@ const createInstance = (
   };
 
   // --- Unsaved state and the revision the editor is based on ----------------------
-  const unsaved = (): boolean => (autosave !== undefined ? autosave.status(docId).dirty : editedLocally);
+  const unsaved = (): boolean => session.source.kind === 'autosave' ? autosave!.status(docId).dirty : session.source.dirty;
   const currentRevision = (): number | undefined =>
     autosave !== undefined ? autosave.status(docId).revision : revision;
   const saveStatus = (): EditorSaveStatus =>
-    autosave !== undefined ? toSaveStatus(autosave.status(docId)) : localSaveStatus(editedLocally);
+    autosave !== undefined ? toSaveStatus(autosave.status(docId)) : localSaveStatus(unsaved());
   /** Tells the app the editor's own flag changed. The store reports its own changes, so this is for no store. */
   const publishLocal = (): void => {
-    if (autosave === undefined && !destroyed) opts.onSaveStatusChange?.(localSaveStatus(editedLocally));
+    if (autosave === undefined && !isDestroyed()) opts.onSaveStatusChange?.(localSaveStatus(unsaved()));
   };
   const setLocallyEdited = (value: boolean): void => {
-    if (editedLocally === value) return;
-    editedLocally = value;
+    const before = session;
+    send({ type: 'local-edit', dirty: value });
+    if (before === session) return;
     publishLocal();
   };
 
   /** §4's `getSelection`: body offsets, `null` when collapsed or when the range maps to nothing. */
   const getSelection = (): EditorSelection | null => {
-    if (destroyed) return null;
+    if (isDestroyed()) return null;
     const selection = editor.state.selection;
     if (selection.empty) return null;
     const map = projection();
@@ -671,7 +685,7 @@ const createInstance = (
   };
 
   const announce = (): void => {
-    if (destroyed) return;
+    if (isDestroyed()) return;
     opts.onSelectionChange?.(getSelection());
   };
 
@@ -729,7 +743,7 @@ const createInstance = (
    * the user's Ctrl+Z cannot rebase its inverse over the agent's text (§7 rule 1).
    */
   const commit = (tr: Transaction): void => {
-    if (destroyed) return;
+    if (isDestroyed()) return;
     const agent = tr.getMeta('addToHistory') === false;
     // A change that is not the user's, landing on a document with an unsaved edit of
     // the user's, must not become part of that edit's body. The body is taken first,
@@ -772,7 +786,7 @@ const createInstance = (
    * next projection reports are measured in the same spelling.
    */
   const replaceAt = (sel: EditorSelection, text: string, laneOpts?: LaneOptions): void => {
-    if (destroyed) return;
+    if (isDestroyed()) return;
     const map = projection();
     const from = textPositionFor(map, sel.from);
     const to = textPositionFor(map, sel.to);
@@ -831,7 +845,7 @@ const createInstance = (
   editor.on('transaction', ({ transaction, appendedTransactions }) => {
     const before = lastState;
     lastState = editor.state;
-    if (destroyed || !transaction.docChanged) return;
+    if (isDestroyed() || !transaction.docChanged) return;
     scope = followScope(scope, transaction, appendedTransactions);
     // §7: a Lane 2 change starts a new ring at the document it leaves, and a Lane 1 change is added to the ring.
     if (transaction.getMeta('addToHistory') === false) {
@@ -845,7 +859,7 @@ const createInstance = (
     announceHistory();
   });
   editor.on('update', ({ transaction }) => {
-    if (destroyed) return;
+    if (isDestroyed()) return;
     // Lane 2 is an agent apply or a restore. The store already holds it, so it is not
     // a user edit and schedules nothing. Everything else is the user's, undo included.
     // An accept removes marks and changes no text the store holds (§15), so it is not an edit to save.
@@ -884,14 +898,12 @@ const createInstance = (
   // document's change is not this editor's to report, so it is filtered here, and the
   // subscription ends with the editor.
   const unsubscribeSaves = autosave?.subscribe((event) => {
-    if (destroyed || event.docId !== docId) return;
+    if (isDestroyed() || event.docId !== docId) return;
     opts.onSaveStatusChange?.(toSaveStatus(event.status));
   });
 
   // §4's carrier: the diagnostics of the load, by reference, once the editor exists.
   opts.onLoadDiagnostics?.(load);
-
-  let loadSeq = 0;
 
   /** The body the editor now shows came from `next`: its diagnostics are the load's. */
   const noteLoad = (next: ParseResult): void => {
@@ -922,7 +934,7 @@ const createInstance = (
   const desk = layer?.createReview({
     editor,
     commit,
-    destroyed: () => destroyed,
+    destroyed: isDestroyed,
     replace: (next) => landReplacement(next, { historyExcluded: true }),
     markAgent: (tr) => markLane(tr, { historyExcluded: true }),
     matches: (doc, next) => serialize(caotangSchema.nodeFromJSON(doc.toJSON())) === serialize(next.doc),
@@ -930,38 +942,45 @@ const createInstance = (
   });
 
   /**
-   * `setContent`'s road: parses `text`, rebases the store on it in the agent lane, and hands the parse to `land`. Gives `undefined`
-   * when a later load or a teardown superseded this one, which the newer load wins.
+   * `setContent`'s road: parses `text`, rebases the store on it in the agent lane, and hands the parse to `land`.
    */
-  const loadBody = async <T>(text: string, setOpts: SetContentOptions | undefined, land: (next: ParseResult) => T): Promise<T | undefined> => {
-    const seq = (loadSeq += 1);
-    const next = await parseWithDiagnostics(text);
-    // A later call has superseded this one, or the editor is gone: the newer load wins.
-    if (destroyed || seq !== loadSeq) return undefined;
-    // The lane is read from the options by the one reader there is (`laneOf`), the same one `markLane` uses.
-    const agent = laneOf(setOpts) === 'agent';
-    if (agent && unsaved() && setOpts?.discardUnsaved !== true) {
-      // §8 and §9: an apply over the user's mid-keystroke body is a conflict. Nothing is
-      // replaced, so the keystrokes and the ghost both survive, and the apply can be made
-      // again once the edits are stored or the writer confirms the restore.
-      throw new UnsavedEditsError(docId);
+  const loadBody = async <T>(text: string, setOpts: SetContentOptions | undefined, land: (next: ParseResult) => T): Promise<T> => {
+    if (isDestroyed()) throw new LoadSupersededError(docId);
+    send({ type: 'load', lane: laneOf(setOpts) });
+    const token = session.token;
+    const checkCurrent = (): void => {
+      if (session.kind !== 'loading' || session.token !== token) throw new LoadSupersededError(docId);
+    };
+    try {
+      const next = await parseWithDiagnostics(text);
+      checkCurrent();
+      // The lane is read from the options by the one reader there is (`laneOf`), the same one `markLane` uses.
+      const agent = session.kind === 'loading' && session.lane === 'agent';
+      if (agent && unsaved() && setOpts?.discardUnsaved !== true) {
+        // §8 and §9: an apply over the user's mid-keystroke body is a conflict. Nothing is
+        // replaced, so the keystrokes and the ghost both survive, and the apply can be made
+        // again once the edits are stored or the writer confirms the restore.
+        throw new UnsavedEditsError(docId);
+      }
+      if (agent && autosave !== undefined) {
+        // The store is rebased onto the body this apply puts in the editor, so the two agree. The
+        // rebase drops unsaved edits. A plain apply has none left to drop (the check above refused
+        // them), so only a restore with `discardUnsaved` changes anything here. It is awaited before
+        // the replacement, so an edit typed during the wait is replaced along with the rest. The base
+        // moves with the body when the caller names its revision. Without one, the base read here is
+        // the one the store reported when the replacement was made; a write in flight that settles during
+        // the wait has a newer revision, and `reseat` keeps that one, since it never moves the base back.
+        await autosave.reseat(docId, {
+          body: serialize(next.doc),
+          revision: setOpts?.revision ?? autosave.status(docId).revision,
+        });
+        // A later load, or a teardown, that began during the wait supersedes this one.
+        checkCurrent();
+      }
+      return land(next);
+    } finally {
+      send({ type: 'settled', token });
     }
-    if (agent && autosave !== undefined) {
-      // The store is rebased onto the body this apply puts in the editor, so the two agree. The
-      // rebase drops unsaved edits. A plain apply has none left to drop (the check above refused
-      // them), so only a restore with `discardUnsaved` changes anything here. It is awaited before
-      // the replacement, so an edit typed during the wait is replaced along with the rest. The base
-      // moves with the body when the caller names its revision. Without one, the base read here is
-      // the one the store reported when the replacement was made; a write in flight that settles during
-      // the wait has a newer revision, and `reseat` keeps that one, since it never moves the base back.
-      await autosave.reseat(docId, {
-        body: serialize(next.doc),
-        revision: setOpts?.revision ?? autosave.status(docId).revision,
-      });
-      // A later load, or a teardown, that began during the wait supersedes this one.
-      if (destroyed || seq !== loadSeq) return undefined;
-    }
-    return land(next);
   };
 
   /**
@@ -973,12 +992,16 @@ const createInstance = (
     // Read before the replacement: its reseat drops the unsaved typing, so afterwards the store reads clean. Typing that is
     // dropped is reported as `unsaved` even when the layer is also missing, so the writer is told about the loss.
     const dirty = unsaved();
-    if (desk === undefined || dirty) {
-      await instance.setContent(text, replaceOpts);
-      const suggestions = opts.agentEditMode === 'suggestions';
-      return { landed: 'replaced', reason: suggestions && dirty ? 'unsaved' : desk !== undefined ? 'unsaved' : suggestions ? 'no-layer' : 'off' };
+    try {
+      if (session.mode !== 'suggestions' || dirty) {
+        await instance.setContent(text, replaceOpts);
+        return { landed: 'replaced', reason: dirty && session.mode !== 'ghost' ? 'unsaved' : session.mode === 'unavailable' ? 'no-layer' : 'off' };
+      }
+      return await loadBody(text, replaceOpts, (next) => desk!.land(next, info.toolCallId));
+    } catch (error) {
+      if (error instanceof LoadSupersededError) return { landed: 'replaced', reason: 'superseded' };
+      throw error;
     }
-    return (await loadBody(text, replaceOpts, (next) => desk.land(next, info.toolCallId))) ?? { landed: 'replaced', reason: 'superseded' };
   };
 
   const instance: TiptapEditorInstance = {
@@ -1019,7 +1042,7 @@ const createInstance = (
     },
 
     revealRange: (sel: EditorSelection): void => {
-      if (destroyed) return;
+      if (isDestroyed()) return;
       const map = projection();
       const from = textPositionFor(map, sel.from);
       const to = textPositionFor(map, sel.to);
@@ -1034,7 +1057,7 @@ const createInstance = (
     },
 
     insertAtSelection: (text: string, laneOpts?: LaneOptions): void => {
-      if (destroyed) return;
+      if (isDestroyed()) return;
       // The caret, or the end of a selection: a primitive inserts, it does not replace.
       const at = bodyOffsetFromPmPos(projection(), toProjected(editor.state.selection.to));
       replaceAt({ from: at, to: at }, text, laneOpts);
@@ -1049,11 +1072,12 @@ const createInstance = (
     wordCount: () => countBody(body()),
 
     focus: (): void => {
-      if (!destroyed) editor.view.focus();
+      if (!isDestroyed()) editor.view.focus();
     },
 
     setRevision: (next: number): void => {
-      if (destroyed) return;
+      if (isDestroyed()) return;
+      send({ type: 'acknowledged' });
       if (autosave !== undefined) {
         // The store owns the number. `open` on a document with outstanding work keeps that
         // work and its base, so a stale body is never re-labelled with the new revision (§9).
@@ -1063,47 +1087,47 @@ const createInstance = (
       revision = next;
     },
 
-    hasUnsavedEdits: (): boolean => !destroyed && unsaved(),
+    hasUnsavedEdits: (): boolean => !isDestroyed() && unsaved(),
 
     // After teardown the store still owns the state, because `destroy` has handed it the last write.
     saveStatus,
 
     flush: async (): Promise<FlushReport[]> => {
-      if (destroyed || autosave === undefined) return [];
+      if (isDestroyed() || autosave === undefined) return [];
       return autosave.flush(docId);
     },
 
     historyJournal: readJournal,
 
     choosePictures: (): Promise<number> =>
-      destroyed || pictures === null ? Promise.resolve(0) : pictures.choose(editor.view),
+      isDestroyed() || pictures === null ? Promise.resolve(0) : pictures.choose(editor.view),
 
     insertPictures: (files: readonly File[]): Promise<number> =>
-      destroyed || pictures === null ? Promise.resolve(0) : pictures.insertFiles(editor.view, files, 'choose'),
+      isDestroyed() || pictures === null ? Promise.resolve(0) : pictures.insertFiles(editor.view, files, 'choose'),
 
     insertFootnote: (): boolean => {
-      if (destroyed || !editor.isEditable) return false;
+      if (isDestroyed() || !editor.isEditable) return false;
       const done = insertFootnote(editor.state, (tr) => dispatch(tr));
       if (done) editor.view.focus();
       return done;
     },
 
     deleteFootnoteNote: (orphan: FootnoteOrphan): FootnoteNoteDeletion =>
-      destroyed ? 'gone' : deleteOrphanNote(editor.state, (tr) => dispatch(tr), orphan),
+      isDestroyed() ? 'gone' : deleteOrphanNote(editor.state, (tr) => dispatch(tr), orphan),
 
     setLabels: (labels: Partial<EditorLabels>): void => {
-      if (destroyed) return;
+      if (isDestroyed()) return;
       liveLabels = labels;
       // A transaction that changes nothing, so the view redraws its decorations with the new words. Nothing is saved or undone.
       editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false));
     },
 
-    undo: (): boolean => (destroyed ? false : editor.commands.undo()),
+    undo: (): boolean => (isDestroyed() ? false : editor.commands.undo()),
 
-    redo: (): boolean => (destroyed ? false : editor.commands.redo()),
+    redo: (): boolean => (isDestroyed() ? false : editor.commands.redo()),
 
     destroy: (): void => {
-      if (destroyed) return;
+      if (isDestroyed()) return;
       // The teardown's own store writes are not this editor's to report, so the listener goes first.
       unsubscribeSaves?.();
       // §9: a pending edit is not lost by teardown. The store starts the write now, and keeps
@@ -1112,7 +1136,7 @@ const createInstance = (
       // The body is read while the view still exists, so `getContent` can answer after
       // teardown with what the document held, and not with whatever was read before.
       lastBody = body();
-      destroyed = true;
+      send({ type: 'destroy' });
       ghost.destroy();
       editor.destroy();
       root.remove();

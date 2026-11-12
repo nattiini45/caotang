@@ -170,7 +170,9 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   const docExclusions = overrideIds(task.overrides, 'exclude', 'doc');
   const pins = pinnedDocuments(task.overrides, tree, app.state);
   const originalProfile = profileFor(task.tool);
+  const conversation = task.tool === 'meta' && task.conversation === true;
   const addedBudgets = {
+    ...(conversation ? { L6: profileFor('scene.draft').budgets.L6 } : {}),
     ...(codexPins.size > 0 && originalProfile.budgets.L2 === undefined ? { L2: profileFor('scene.draft').budgets.L2 } : {}),
     ...(pins.block.items.length > 0 && originalProfile.budgets.L5 === undefined ? { L5: profileFor('scene.draft').budgets.L5 } : {}),
   };
@@ -188,6 +190,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
 
   // The layers this call is assembled from. The total-budget pass can cut one whole.
   const active = new Set<LayerId>(profile.layers);
+  if (conversation) active.add('L6');
   if (codexPins.size > 0) active.add('L2');
   if (pins.block.items.length > 0) active.add('L5');
   if (instructions === undefined) active.delete('LI');

@@ -65,6 +65,7 @@ export interface ContextView {
 }
 
 export interface TurnRecord {
+  readonly accountingUnavailable?: true;
   readonly requestContext?: RequestContextPreview;
   readonly turnId: string;
   readonly intent: string;

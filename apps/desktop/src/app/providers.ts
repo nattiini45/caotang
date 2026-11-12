@@ -16,8 +16,7 @@
  *
  * The gateway's egress guard compares every request with the endpoint of the profile it *resolved to*
  * (provider-gateway §4), so a named profile is reachable whether or not it is the active one. Both save-time
- * probes are still trial activations: the profile is made active for the one call and the previous profile is
- * restored either way. The response-format probe runs again on a real activation, and only when the profile
+ * probes name their target without changing the active profile. The response-format probe runs again on a real activation, and only when the profile
  * has no cached answer (provider-gateway §5).
  */
 
@@ -40,6 +39,9 @@ import {
   type ProfileStore,
   type ModelLimits,
   type ProfileView,
+  providerVerificationMachine,
+  readVerification,
+  type VerificationEvent,
   type RequestLogEntry,
   RequestLog,
   type TaskRole,
@@ -53,6 +55,7 @@ import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
 import { TabTrace } from './trace-store.js';
 import { SaveChannel } from './save-channel.js';
+import { probeFailureOf, type ProbeFailure } from './provider-probe.js';
 
 /* lingui-set comment="Interpolated values: error, name" */
 
@@ -88,6 +91,7 @@ export interface SaveOutcome {
   readonly models?: ModelInfo[];
   /** Why the probe did not answer, in words the writer can act on. The profile is saved either way. */
   readonly probeError?: string;
+  readonly probeFailure?: ProbeFailure;
 }
 
 /**
@@ -149,6 +153,8 @@ export class ProviderService {
   private readonly roleState: { current: RoleSettings | undefined };
   readonly saves = new SaveChannel('settings');
   private usageReadFailure: string | null = null;
+  private verificationAttempt = 0;
+  private readonly verificationListeners = new Set<() => void>();
 
   private constructor(parts: {
     profiles: ProfileStore;
@@ -173,6 +179,21 @@ export class ProviderService {
 
   /** The time the gateway reads. The agent sessions read it too, so a trace's model calls and its turns are stamped by one clock. */
   now = (): number => this.clock.now();
+
+  subscribeVerification = (listener: () => void): (() => void) => {
+    this.verificationListeners.add(listener);
+    return () => { this.verificationListeners.delete(listener); };
+  };
+
+  private verification(id: string, event: VerificationEvent): void {
+    const profile = this.profiles.get(id);
+    if (profile === undefined) return;
+    const before = profile.verification ?? { kind: 'unknown' };
+    const next = providerVerificationMachine.step(before, event);
+    if (next === before) return;
+    this.profiles.recordVerification(id, next);
+    for (const listener of this.verificationListeners) listener();
+  }
 
   /**
    * The routing record as the settings slice holds it — absent or `'follow'` roles resolve through 'chat'. Set by
@@ -330,6 +351,7 @@ export class ProviderService {
             notices.push(t`“${{ name: isolate(record.name) }}” came back under a new id, so its saved usage is not attached to it.`);
           }
           if (record.responseFormat !== undefined) this.profiles.recordProbe(view.id, record.responseFormat);
+          this.profiles.recordVerification(view.id, readVerification(record.verification));
           if (record.isActive) activeId = view.id;
         } catch (error) {
           const reason = messageOf(error);
@@ -395,7 +417,9 @@ export class ProviderService {
   private async write(): Promise<string | null> {
     if (this.db === null) return null;
     try {
-      await this.db.put(APP_KEYS.profiles, this.profiles.list());
+      await this.db.put(APP_KEYS.profiles, this.profiles.list().map((profile) => profile.verification?.kind === 'checking'
+        ? { ...profile, verification: readVerification(profile.verification) }
+        : profile));
       if (this.usageReadFailure === null) await this.db.put(APP_KEYS.usage, this.ledger.snapshot());
       await this.db.put(APP_KEYS.requests, this.requests.entries().slice(-REQUEST_LOG_KEEP));
       return this.usageReadFailure;
@@ -411,13 +435,13 @@ export class ProviderService {
    */
   async addProfile(input: NewProfile): Promise<SaveOutcome> {
     const view = await this.profiles.create(input);
-    const probe = view.kind === 'endpoint' ? await this.probeModels(view.id) : { models: undefined, error: undefined };
-    if (view.kind === 'endpoint' && probe.error === undefined) await this.probeFormat(view.id);
+    const probe = view.kind === 'endpoint' ? await this.probeModels(view.id, true) : { models: undefined, error: undefined, failure: undefined };
     await this.persist();
     return {
       view: this.profiles.get(view.id) ?? view,
       ...(probe.models === undefined ? {} : { models: probe.models }),
       ...(probe.error === undefined ? {} : { probeError: probe.error }),
+      ...(probe.failure === undefined ? {} : { probeFailure: probe.failure }),
     };
   }
 
@@ -426,15 +450,15 @@ export class ProviderService {
     const before = this.profiles.get(id);
     const view = await this.profiles.update(id, patch);
     const probe =
-      view.kind === 'endpoint' && before !== undefined && (before.baseUrl !== view.baseUrl || patch.apiKey !== undefined || before.defaultModel !== view.defaultModel)
-        ? await this.probeModels(id)
-        : { models: undefined, error: undefined };
-    if (view.kind === 'endpoint' && probe.models !== undefined) await this.probeFormat(id);
+      view.kind === 'endpoint' && before !== undefined && (before.verification?.kind !== 'verified' || before.baseUrl !== view.baseUrl || patch.apiKey !== undefined || patch.customHeaders !== undefined || before.defaultModel !== view.defaultModel)
+        ? await this.probeModels(id, true)
+        : { models: undefined, error: undefined, failure: undefined };
     await this.persist();
     return {
       view: this.profiles.get(id) ?? view,
       ...(probe.models === undefined ? {} : { models: probe.models }),
       ...(probe.error === undefined ? {} : { probeError: probe.error }),
+      ...(probe.failure === undefined ? {} : { probeFailure: probe.failure }),
     };
   }
 
@@ -476,47 +500,41 @@ export class ProviderService {
   /** The models a profile lists, probed on demand (the Providers section's refresh). */
   async listModels(id: string): Promise<ModelInfo[]> {
     const probe = await this.probeModels(id);
+    await this.persist();
     if (probe.error !== undefined) throw new Error(probe.error);
     return probe.models ?? [];
   }
 
   /**
    * The response-format probe, run at save time as the list-models probe is (provider-gateway §5): the gateway caches its answer
-   * on the profile, so the first request after a save already knows whether the endpoint takes `response_format`. It is a trial
-   * activation, like the list-models call. A failure keeps the fallback, the schema in the prompt, which the activation note
+   * on the profile, so the first request after a save already knows whether the endpoint takes `response_format`.
+   * A failure keeps the fallback, the schema in the prompt, which the activation note
    * already names, so nothing is reported here.
    */
   private async probeFormat(id: string): Promise<void> {
-    const previous = this.profiles.active();
     try {
-      if (previous?.id !== id) this.profiles.activate(id);
       await this.gateway.probeResponseFormat(id);
     } catch {
-      // The fallback applies until a later probe answers, and the activation note says which one is in use.
-    } finally {
-      if (previous !== undefined && previous.id !== id && this.profiles.get(previous.id) !== undefined) {
-        this.profiles.activate(previous.id);
-      }
+      return;
     }
   }
 
   /**
-   * One list-models call as a trial activation: the profile is active for the call, and the previously active profile is
-   * active again afterwards, whatever the answer. Nothing is persisted here.
+   * Checks the named profile without selecting it. Only the current attempt can settle its verification state.
    */
-  private async probeModels(id: string): Promise<{ models?: ModelInfo[]; error?: string }> {
-    const previous = this.profiles.active();
+  private async probeModels(id: string, checkFormat = false): Promise<{ models?: ModelInfo[]; error?: string; failure?: ProbeFailure }> {
+    const attempt = ++this.verificationAttempt;
+    this.verification(id, { type: 'check', attempt });
     try {
-      if (previous?.id !== id) this.profiles.activate(id);
       const models = await this.gateway.listModels(id);
+      const current = this.profiles.get(id)?.verification;
+      if (checkFormat && current?.kind === 'checking' && current.attempt === attempt) await this.probeFormat(id);
+      this.verification(id, { type: 'passed', attempt, checkedAt: this.clock.now() });
       return { models };
     } catch (error) {
+      this.verification(id, { type: 'failed', attempt, checkedAt: this.clock.now() });
       const reason = messageOf(error);
-      return { error: t`The endpoint did not list its models, so the profile was saved but is not verified: ${{ error: reason }}` };
-    } finally {
-      if (previous !== undefined && previous.id !== id && this.profiles.get(previous.id) !== undefined) {
-        this.profiles.activate(previous.id);
-      }
+      return { error: t`The endpoint did not list its models, so the profile was saved but is not verified: ${{ error: reason }}`, failure: probeFailureOf(error) };
     }
   }
 }

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { ZIP_ENGINE } from '../packages/store/src/index.js';
+import { RUNTIME_DB_VERSION, ZIP_ENGINE } from '../packages/store/src/index.js';
 
 import { binderTitle, bodyOf, createProject, FOLDER_ACCESS_ONLY, idOf, projectIdOf, waitForSaved } from './support.js';
 
@@ -291,15 +291,16 @@ test('a store another tab has upgraded stops this tab, and the words typed after
   // Another tab opens the browser's store at a newer version. The browser closes this tab's connection, as it does when a newer build runs.
   const other = await secondTab(page);
   await other.evaluate(
-    () =>
+    (version) =>
       new Promise<void>((resolve, reject) => {
-        const request = (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB.open('caotang', 5);
+        const request = (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB.open('caotang', version);
         request.onsuccess = () => {
           request.result.close();
           resolve();
         };
         request.onerror = () => reject(request.error);
       }),
+    RUNTIME_DB_VERSION + 1,
   );
 
   await page.getByRole('textbox', { name: 'Document text' }).click();
