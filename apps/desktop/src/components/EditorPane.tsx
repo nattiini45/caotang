@@ -527,8 +527,8 @@ function DocumentEditor({
   }, [landed, ghostHere]);
 
   useEffect(() => {
-    if (visible && editorReady && host.current !== null) publishEditorReady(host.current);
-  }, [visible, editorReady]);
+    if (visible && (editorReady || failure !== null || rebaseState === 'failed') && host.current !== null) publishEditorReady(host.current);
+  }, [visible, editorReady, failure, rebaseState]);
 
   return (
     <article className="editor-pane" hidden={!visible} data-editor-state={failure !== null ? 'failed' : rebaseState}>

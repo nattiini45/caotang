@@ -20,7 +20,8 @@ export function focusEditorWhenReady(page: HTMLElement, sidebar: HTMLElement | n
     if (!free()) { stop(); return; }
     const surface = page.querySelector<HTMLElement>('[data-editor-state="ready"]:not([hidden]) [contenteditable="true"]');
     const media = page.querySelector('.media-view[data-editor-state="ready"]:not([hidden])');
-    if (surface === null && media === null) return;
+    const failed = page.querySelector('[data-editor-state="failed"]:not([hidden])');
+    if (surface === null && media === null && failed === null) return;
     stop();
     (surface ?? page).focus();
   };

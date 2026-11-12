@@ -7,6 +7,7 @@ import { i18n } from '@lingui/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addDocument, createEmptyManifest, createProjectState } from '@caotang/store';
 import { EditorPane, type EditorPaneProps } from '../src/components/EditorPane.js';
+import { focusEditorWhenReady } from '../src/app/editor-ready.js';
 
 const seam = vi.hoisted(() => ({ mount: vi.fn(), report: vi.fn() }));
 vi.mock('@caotang/editor/tiptap', async (original) => ({ ...await original<object>(), createTiptapEditorApi: () => ({ mount: seam.mount }) }));
@@ -72,6 +73,27 @@ afterEach(async () => {
 });
 
 describe('the prose editor store landing', () => {
+  it('finishes pending page focus after the editor mount fails', async () => {
+    await act(async () => root.render(null));
+    const mount = deferred();
+    seam.mount.mockReturnValueOnce(mount.promise);
+    host.tabIndex = -1;
+    const sidebar = document.createElement('nav');
+    sidebar.innerHTML = '<button>Scene</button>';
+    document.body.append(sidebar);
+    sidebar.querySelector('button')!.focus();
+    await act(async () => { root.render(<I18nProvider i18n={i18n}><EditorPane {...props} /></I18nProvider>); });
+    const stop = focusEditorWhenReady(host, sidebar);
+    try {
+      await act(async () => mount.reject(new Error('Mount refused')));
+      expect(host.querySelector('article')?.dataset.editorState).toBe('failed');
+      expect(document.activeElement).toBe(host);
+    } finally {
+      stop();
+      sidebar.remove();
+    }
+  });
+
   it('never acknowledges an older landing after the newer revision', async () => {
     await move('Undo.', 2);
     await move('Agent apply.', 3);

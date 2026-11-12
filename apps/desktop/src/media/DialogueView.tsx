@@ -133,8 +133,8 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
     failed: (error) => report({ text: t`The text could not be brought up to date: ${{ reason: error instanceof Error ? error.message : String(error) }}`, tone: 'error' }),
   });
   useEffect(() => {
-    if (rebase.ready && viewRef.current !== null) publishEditorReady(viewRef.current);
-  }, [rebase.ready]);
+    if (rebase.state !== 'loading' && viewRef.current !== null) publishEditorReady(viewRef.current);
+  }, [rebase.state]);
 
   // The idle mint can rewrite the text under the caret, because ids are written at line ends. The caret the mint computed
   // (see onSourceChange) is put back once the text it was computed for is on screen, so a writer who paused and went on

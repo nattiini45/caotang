@@ -52,6 +52,23 @@ it('focuses an editor that was ready before the sidebar closed', () => {
   expect(document.activeElement).toBe(field);
 });
 
+it('finishes page focus when the requested editor fails instead of becoming ready', () => {
+  editor.dataset.editorState = 'failed';
+  publishEditorReady(editor);
+  expect(document.activeElement).toBe(page);
+  sidebar.querySelector('button')!.focus();
+  editor.dataset.editorState = 'ready';
+  publishEditorReady(editor);
+  expect(document.activeElement).toBe(sidebar.querySelector('button'));
+});
+
+it('focuses the page when the requested editor has already failed', () => {
+  cleanup();
+  editor.dataset.editorState = 'failed';
+  cleanup = focusEditorWhenReady(page, sidebar);
+  expect(document.activeElement).toBe(page);
+});
+
 it.each(['sp-view', 'dlg-view'])('focuses the page for a ready %s without choosing its hidden source field', (view) => {
   cleanup();
   page.innerHTML = `<section class="media-view ${view}" data-editor-state="ready"><textarea hidden></textarea></section>`;

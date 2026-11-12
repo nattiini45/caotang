@@ -184,6 +184,8 @@ Select a scene in the binder to write in it.
 
 Ctrl+Home and Ctrl+End go to the beginning and end of the scene, even immediately after you focus it. Hold Shift as well to select from your current position.
 
+In Modern, choosing a scene puts focus in its text when it is ready. If it cannot open, focus returns to the page instead of staying in the closed binder.
+
 **Insert picture** above the text lines up with the manuscript's start edge in either interface. Choose it to add a picture at the caret.
 
 - Scenes are saved as Markdown files, so they stay readable outside Caotang. A screenplay scene and a dialogue container have their own views, described below.

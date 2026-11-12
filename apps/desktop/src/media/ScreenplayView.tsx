@@ -175,8 +175,8 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     failed: (error) => report({ text: t`The text could not be brought up to date: ${{ reason: error instanceof Error ? error.message : String(error) }}`, tone: 'error' }),
   });
   useEffect(() => {
-    if (rebase.ready && viewRef.current !== null) publishEditorReady(viewRef.current);
-  }, [rebase.ready]);
+    if (rebase.state !== 'loading' && viewRef.current !== null) publishEditorReady(viewRef.current);
+  }, [rebase.state]);
 
   const onSourceChange = (text: string): void => {
     setDraft(text);
