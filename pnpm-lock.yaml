@@ -883,6 +883,12 @@ importers:
 
   packages/import-core: {}
 
+  packages/import-inklewriter:
+    dependencies:
+      '@caotang/dialogue':
+        specifier: workspace:*
+        version: link:../dialogue
+
   packages/import-read:
     dependencies:
       '@caotang/import-core':
