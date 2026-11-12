@@ -8,6 +8,7 @@
  */
 export {
   createTiptapEditorApi,
+  LoadSupersededError,
   StaleMountError,
   UnreadablePendingBodyError,
   UnsavedEditsError,

@@ -19,6 +19,31 @@ async function chapterWithScene(page: Page, scene: string): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
+test('document-boundary keys keep the caret and Shift range after focusing the scene (#569)', async ({ page }) => {
+  await createProject(page, 'Boundary Keys Book');
+  await chapterWithScene(page, 'Boundary Keys');
+  const surface = page.getByRole('textbox', { name: 'Document text' });
+  await expect(page.locator('.caotang-editor')).toHaveAttribute('data-state', 'ready');
+  await surface.fill('The ferry was late.');
+  await waitForSaved(page);
+  await page.getByRole('article').getByRole('heading', { name: 'Boundary Keys', exact: true }).click();
+  await surface.click();
+  const caret = () => surface.evaluate((element) => {
+    const selection = window.getSelection();
+    if (document.activeElement !== element || selection === null || !selection.isCollapsed || selection.anchorNode === null || !element.contains(selection.anchorNode)) return null;
+    const before = document.createRange();
+    before.selectNodeContents(element);
+    before.setEnd(selection.anchorNode, selection.anchorOffset);
+    return before.toString().length;
+  });
+  await surface.press('Control+Home');
+  expect(await caret()).toBe(0);
+  await surface.press('Control+Shift+End');
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('The ferry was late.');
+  await surface.press('Control+End');
+  expect(await caret()).toBe('The ferry was late.'.length);
+});
+
 test('typing persists across a reload: the text is saved, and it opens with the paragraphs as they were typed', async ({
   page,
 }) => {

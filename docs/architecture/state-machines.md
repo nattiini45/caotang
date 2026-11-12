@@ -73,6 +73,14 @@ The generated table is not a second specification to edit. Add the machine's eve
 
 ## Registered machines
 
+### `editor.store-rebase`
+
+Owner: `apps/desktop/src/app/store-rebase.ts`, interpreted by `components/use-store-rebase.ts`; contract: [editor-engine.md §9](editor-engine.md). Idle, synced, rebasing and failed retain the last successful store mark. Begin owns a generation and target; land and fail accept only that generation. Acknowledge and invalidate supersede pending work, including own writes and teardown. The hook also compares the live store mark before landing, so it does not depend on React effect timing to reject stale results. The three editor views publish readiness through `data-editor-state`; save/conflict state and every saved format remain unchanged.
+
+### `editor.session`
+
+Owner: `packages/editor/src/tiptap/session.ts`, interpreted by the Tiptap adapter; contract: [editor-engine.md §§7–9, 15](editor-engine.md). Ready accepts a user- or agent-lane load; loading owns the generation until it lands or fails, and only that generation can return to ready. A newer load replaces ownership and destroyed is final. Mounted review mode and the local/autosave unsaved source belong to the same session. The editor root publishes `data-state`; no project, history, task, settings, trace or run-log format changes.
+
 ### `project.session`, `app.boot` and `demo.start`
 
 Owners: `apps/desktop/src/app/session-handle.ts`, `boot-phase.ts` / `use-boot-phase.ts`, and `demo-start.ts`; product contracts: [ui-modules.md §§5.3–5.4](ui-modules.md#53-browser-storage-persistence), [project-format.md §8](project-format.md#8-runtime-store-vs-artifact-explicit-split) and [timeline.md §4.4](timeline.md#44-the-tray).
