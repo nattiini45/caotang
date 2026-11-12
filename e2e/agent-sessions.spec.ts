@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { fakeEndpoint, useFakeEndpoint as configureFakeEndpoint } from './endpoint.js';
+import { FAKE_ENDPOINT, fakeEndpoint, useFakeEndpoint as configureFakeEndpoint } from './endpoint.js';
 import { createProject, waitForSaved } from './support.js';
 
 async function openAgent(page: Page, shell: string): Promise<void> {
@@ -14,6 +14,50 @@ async function openSettings(page: Page, shell: string, language: string): Promis
     await page.getByTestId('modern-top-ornament').getByRole('button', { name: language === 'de' ? 'Mehr' : 'More', exact: true }).click();
     await page.getByRole('menuitem', { name: language === 'de' ? 'Einstellungen' : 'Settings', exact: true }).click();
   } else await page.getByRole('button', { name: language === 'de' ? 'Einstellungen' : 'Settings', exact: true }).click();
+}
+
+async function prepareProviderPreferences(page: Page, language: string): Promise<void> {
+  await page.goto('/');
+  await expect(page.getByLabel('Project name')).toBeVisible();
+  await expect.poll(() => page.evaluate(async ({ language, endpoint }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('caotang-app');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      const read = <T>(key: string): Promise<T | undefined> => new Promise((resolve, reject) => {
+        const request = db.transaction('kv', 'readonly').objectStore('kv').get(key) as IDBRequest<{ value: T } | undefined>;
+        request.onsuccess = () => resolve(request.result?.value);
+        request.onerror = () => reject(request.error);
+      });
+      const [profiles, settings] = await Promise.all([
+        read<Record<string, unknown>[]>('profiles'),
+        read<Record<string, unknown>>('settings'),
+      ]);
+      const initial = profiles?.find((profile) => profile['kind'] === 'mock' && profile['isActive'] === true);
+      const provider = settings?.['provider'] as { activeProfileId?: unknown } | undefined;
+      if (profiles === undefined || initial === undefined || provider?.activeProfileId !== initial['id']) return false;
+      const id = 'prv_0000000000';
+      await new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction('kv', 'readwrite');
+        const store = transaction.objectStore('kv');
+        store.put({ key: 'profiles', value: [
+          ...profiles.map((profile) => ({ ...profile, isActive: false })),
+          { id, name: 'Fake endpoint', kind: 'endpoint', preset: 'generic', baseUrl: endpoint, defaultModel: 'test-model', hasKey: false, isActive: true,
+            responseFormat: { supportsJsonObject: true, probedAt: Date.now() } },
+        ] });
+        store.put({ key: 'settings', value: { ...settings, interfaceLanguage: language, provider: { activeProfileId: id } } });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      });
+      return true;
+    } finally {
+      db.close();
+    }
+  }, { language, endpoint: FAKE_ENDPOINT })).toBe(true);
+  await page.reload();
 }
 
 test('settled sessions survive reload, continue their L6 and fork without a manuscript write', async ({ page }) => {
@@ -62,26 +106,20 @@ for (const variant of [
       localStorage.setItem('caotang.theme', theme);
     }, variant);
     await fakeEndpoint(page, () => 'The ferryman knows about the letter.');
-    await configureFakeEndpoint(page);
-    await page.getByLabel('Project name').fill('Session Book');
-    await page.getByRole('button', { name: 'Create project' }).click();
+    await prepareProviderPreferences(page, variant.language);
+    await page.getByLabel(variant.language === 'de' ? 'Projektname' : 'Project name').fill('Session Book');
+    await page.getByRole('button', { name: variant.language === 'de' ? 'Projekt erstellen' : 'Create project', exact: true }).click();
     await expect(page.getByRole('tree', { name: 'Binder' }).or(page.getByTestId('modern-binder-bar')).first()).toBeVisible();
     await waitForSaved(page);
     await openAgent(page, variant.shell);
     const panel = page.getByTestId('agent-panel');
     await panel.getByRole('combobox').fill('Keep the lighthouse and the storm in mind.');
-    await panel.getByRole('button', { name: 'Send', exact: true }).click();
+    await panel.getByRole('button', { name: variant.language === 'de' ? 'Senden' : 'Send', exact: true }).click();
     await expect(panel.locator('.agent-turn')).toHaveCount(1);
     await expect(panel.locator('.agent-turn')).toHaveClass(/is-done/);
     await expect(panel).toHaveAttribute('data-state', 'idle');
     if (variant.language === 'de') {
-      await openSettings(page, variant.shell, 'en');
-      const settings = page.getByTestId('settings');
-      await settings.locator('[data-section="appearance"]').click();
-      await settings.locator('input[name="interface-language"][value="de"]').click();
       await expect(page.locator('html')).toHaveAttribute('lang', 'de');
-      await settings.locator('.settings-head button').click();
-      if (variant.shell === 'modern') await page.keyboard.press('Control+j');
     }
     await panel.getByTestId('turn-menu').getByRole('button').click();
     await panel.getByRole('button', { name: variant.language === 'de' ? /^Ab hier abzweigen/ : /^Fork from here/ }).click();
