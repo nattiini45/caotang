@@ -315,6 +315,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-highland':
+        specifier: workspace:*
+        version: link:../../packages/import-highland
       '@caotang/import-inklewriter':
         specifier: workspace:*
         version: link:../../packages/import-inklewriter
