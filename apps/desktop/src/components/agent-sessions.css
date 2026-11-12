@@ -90,6 +90,10 @@
   overflow-wrap: anywhere;
 }
 
+.agent-session-list strong {
+  scroll-margin-block: var(--space-2);
+}
+
 .agent-session-list p {
   margin-block: var(--space-1) var(--space-2);
 }

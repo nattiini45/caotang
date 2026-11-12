@@ -130,8 +130,18 @@ for (const variant of [
     await expect(fork.locator('strong')).toBeInViewport({ ratio: 1 });
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`sessions-${variant.shell}-${variant.language}-${variant.width}-opened-fork.png`) });
     await list.hover();
+    const beforeWheel = await list.evaluate((element) => element.scrollTop);
     await page.mouse.wheel(0, 1000);
+    await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(beforeWheel);
     await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    let remaining = await list.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop);
+    for (let wheel = 1; remaining > 1 && wheel < 5; wheel++) {
+      const top = await list.evaluate((element) => element.scrollTop);
+      await page.mouse.wheel(0, 1000);
+      await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(top);
+      remaining = await list.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop);
+    }
+    if (remaining > 1) throw new Error('the saved-session list did not reach its measured bottom within five native wheels');
     const last = list.locator('li').last();
     const lastOpen = last.locator('.agent-session-actions > button').first();
     await expect(lastOpen).toBeInViewport({ ratio: 1 });
