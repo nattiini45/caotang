@@ -34,6 +34,10 @@ import { cardDecisionTable } from '../packages/harness/src/agent/card-decision.j
 import { budgetMeterTable } from '../packages/harness/src/agent/budget.js';
 import { editorSessionTable } from '../packages/editor/src/tiptap/session.js';
 import { storeRebaseTable } from '../apps/desktop/src/app/store-rebase.js';
+import { sessionTable } from '../apps/desktop/src/app/session-handle.js';
+import { bootTable } from '../apps/desktop/src/app/boot-phase.js';
+import { demoStartTable } from '../apps/desktop/src/app/demo-start.js';
+import { homeOpenTable } from '../apps/desktop/src/app/home-open-flow.js';
 import { providerVerificationTable } from '../packages/gateway/src/verification.js';
 
 export const machineTables = [
@@ -49,5 +53,6 @@ export const machineTables = [
   modalMachine.table,
   editorSessionTable,
   storeRebaseTable,
+  sessionTable, bootTable, demoStartTable, homeOpenTable,
   providerVerificationTable,
 ] as const;

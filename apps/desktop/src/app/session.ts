@@ -139,6 +139,8 @@ import type * as LazyExporter from './lazy-exporter.js';
 import type { AssetRecords } from './lazy-exporter.js';
 import type { ReviewProviders } from './coherence-review.js';
 import { CoherenceReviewSession } from './coherence-review-state.js';
+import { SessionHandle } from './session-handle.js';
+import { forgetTray } from './timeline-tray.js';
 import type { HarnessRuntime } from './lazy-harness.js';
 import { TranscriptionReviewBroker } from './transcription-review.js';
 import { CodexMentions } from './codex-model.js';
@@ -423,7 +425,7 @@ export class ProjectSession {
   private durabilityState: Durability = { persisted: null, usage: null, quota: null };
   private readonly maintenanceRun: Promise<void>;
   private maintenanceFailure: unknown = null;
-  private closing: Promise<void> | null = null;
+  readonly handle = new SessionHandle();
   private version = 0;
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
@@ -751,7 +753,7 @@ export class ProjectSession {
    * per keystroke. A tab that is discarded or killed gets no lifecycle event, so this write is what it leaves behind.
    */
   private armPendingWindow(): void {
-    if (this.pendingTimer !== null || this.closing !== null) return;
+    if (this.pendingTimer !== null || this.handle.getSnapshot().kind === 'closing' || this.handle.getSnapshot().kind === 'closed') return;
     this.pendingTimer = setTimeout(() => {
       this.pendingTimer = null;
       this.pending.keep();
@@ -1287,6 +1289,8 @@ export class ProjectSession {
    * the session, and the returned function lets go of it.
    */
   private watchForAssetChanges(): () => void {
+    const page = window;
+    const visibility = document;
     // A hidden tab coming to the front fires the window's focus and the document's visibilitychange for the same moment. One
     // moment asks for one listing, so the first signal of it is taken and the ones that follow are let through to nothing. The
     // platform does not promise to post the two in the same task, so the latch is not cleared on the next macrotask: it re-arms on
@@ -1305,14 +1309,14 @@ export class ProjectSession {
       void this.refreshAssetRecords();
     };
     const whenVisible = (): void => {
-      if (document.visibilityState === 'hidden') return;
+      if (visibility.visibilityState === 'hidden') return;
       listAgain();
     };
-    window.addEventListener('focus', listAgain);
-    document.addEventListener('visibilitychange', whenVisible);
+    page.addEventListener('focus', listAgain);
+    visibility.addEventListener('visibilitychange', whenVisible);
     return () => {
-      window.removeEventListener('focus', listAgain);
-      document.removeEventListener('visibilitychange', whenVisible);
+      page.removeEventListener('focus', listAgain);
+      visibility.removeEventListener('visibilitychange', whenVisible);
       if (latch !== null) clearTimeout(latch);
     };
   }
@@ -2109,8 +2113,15 @@ export class ProjectSession {
    * back last, so another tab cannot open the project while this one is still writing to it.
    */
   close(): Promise<void> {
-    if (this.closing !== null) return this.closing;
-    this.closing = (async () => {
+    return this.closeSafely();
+  }
+
+  closeSafely(): Promise<void> {
+    return this.handle.closeSafely(() => this.settle(), async () => {
+      let failure: { readonly error: unknown } | undefined;
+      const attempt = async (work: () => unknown): Promise<void> => {
+        try { await work(); } catch (error) { failure ??= { error }; }
+      };
       try {
         this.detachCoherenceFlush();
         this.detachPendingKeep();
@@ -2121,26 +2132,31 @@ export class ProjectSession {
         this.transcriptionReviews.cancel();
         this.coherenceReview.dismiss();
         this.coherenceReview.stop();
-        await this.coherenceReview.settled();
-        this.harnessRuntime?.imageStager.releaseAll();
-        await this.autosave.flush();
-        await this.persistence.settle();
-        await this.coherenceSaves.settled();
-        await this.tasksHome_?.settled();
-        for (const detach of this.detachSaveChannels) detach();
-        this.detachTasks?.();
-        this.detachTasks = null;
+        await attempt(() => this.coherenceReview.settled());
+        await attempt(() => this.harnessRuntime?.imageStager.releaseAll());
+        await attempt(() => this.autosave.flush());
+        await attempt(() => this.persistence.settle());
+        await attempt(() => this.coherenceSaves.settled());
+        await attempt(() => this.tasksHome_?.settled());
+        for (const channel of this.appSaveChannels) await attempt(() => channel.settled());
+        if (failure !== undefined) throw failure.error;
         this.pending.prune();
-        this.autosave.dispose();
         if (this.sitting.isOpen() && (this.sitting.pending()?.docIds.length ?? 0) > 0) {
           await this.sitting.endSession();
         }
-        this.listeners.clear();
       } finally {
-        this.onClosed?.();
+        try {
+          for (const detach of this.detachSaveChannels) detach();
+          this.detachTasks?.();
+          this.detachTasks = null;
+          this.autosave.dispose();
+          this.listeners.clear();
+          forgetTray(this.projectId);
+        } finally {
+          this.onClosed?.();
+        }
       }
-    })();
-    return this.closing;
+    });
   }
 }
 

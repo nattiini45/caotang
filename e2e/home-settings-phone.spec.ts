@@ -34,7 +34,7 @@ for (const shell of ['classic', 'modern'] as const) {
       await expect(page.getByRole('heading', { name: 'Projects in this browser', exact: true })).toBeVisible();
     });
 
-    test('empty Home keeps its introduction first; returning projects come first and still open', async ({ page }, testInfo) => {
+    test('Home keeps its header first and prioritizes returning projects below it', async ({ page }, testInfo) => {
       await expect(page.getByRole('heading', { name: 'No projects here yet', exact: true })).toBeVisible();
       await expect(page.locator('.project-list')).toHaveCount(0);
       const emptyOrder = await page.locator('.home').evaluate((home) => {
@@ -55,9 +55,9 @@ for (const shell of ['classic', 'modern'] as const) {
         [...home.children]
           .filter((child) => child.getBoundingClientRect().height > 0)
           .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
-          .map((child) => child.getAttribute('aria-labelledby')),
+          .map((child) => child.classList.contains('home-head') ? 'home-head' : child.getAttribute('aria-labelledby')),
       );
-      expect(order[0]).toBe('home-projects');
+      expect(order.slice(0, 2)).toEqual(['home-head', 'home-projects']);
       await expect(projects.getByRole('heading', { name: 'Projects in this browser', exact: true })).toBeInViewport();
       await expect(projects.getByRole('button', { name: 'Open', exact: true })).toBeInViewport();
       await page.screenshot({ path: testInfo.outputPath('returning-home.png') });

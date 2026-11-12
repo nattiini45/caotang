@@ -281,6 +281,7 @@ type TimelineOp =
 - **What-if delta:** on each change (debounced ~150 ms, after the drop), `runDeterministic` on a clone of the coherence file with the patched `sceneMeta` and a projected tree, over the timeline checks, `knowledge.leak` and `plot.unresolved-thread`; diffed by `checkId + factGroup` against the open findings: "Resolves 2 · New 1: ‘Letter’ is declared to follow ‘Storm’ but happens on day 9". Nothing is upserted.
 - **Stale rows:** if base values change under the tray (Inspector edit, agent turn, undo), affected rows show the plan card's stale state and cannot be applied until re-based or removed.
 - The tray is in-memory view state; leaving the view or project with pending rows asks first.
+- The tray belongs to the open project session. Closing that session forgets its rows, ticks and suggestion preference, including when settlement or recording fails. Switching between Timeline and Agenda inside the same session keeps them; closing another project does not affect this tray.
 - **Undo:** Ctrl+Z at app level and the activity checkpoint row take back the whole batch.
 
 ### 4.5 Dependant suggestions, no cascades

@@ -11301,13 +11301,17 @@ msgid "Only you use it"
 msgstr "Nur Sie nutzen es"
 
 #. Counts are display values; title and model identify writer content and the selected model. Check labels form a standalone list after a colon.
-#. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Lines of a Markdown report the writer reads outside Caotang. Titles, reasons, dates and statuses are values; a check name stands alone after a middle dot.
 #: apps/desktop/src/app/coherence-report-words.ts
 #: apps/desktop/src/app/findings-model.ts
-#: apps/desktop/src/components/Home.tsx
 msgid "Open"
 msgstr "Offen"
+
+#. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#: apps/desktop/src/components/Home.tsx
+msgctxt "project action"
+msgid "Open"
+msgstr "Öffnen"
 
 #. Unread-draft barrier; title is the isolated scene title and number is the plan step.
 #: apps/desktop/src/app/agent-model.ts
