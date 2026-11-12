@@ -26,7 +26,7 @@ test('document-boundary keys keep the caret and Shift range after focusing the s
   await expect(page.locator('.caotang-editor')).toHaveAttribute('data-state', 'ready');
   await surface.fill('The ferry was late.');
   await waitForSaved(page);
-  await page.getByRole('heading', { name: 'Boundary Keys', exact: true }).click();
+  await page.getByRole('article').getByRole('heading', { name: 'Boundary Keys', exact: true }).click();
   await surface.click();
   const caret = () => surface.evaluate((element) => {
     const selection = window.getSelection();
