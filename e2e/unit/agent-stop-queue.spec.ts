@@ -142,6 +142,7 @@ async function open(scripts: readonly MockScript[]) {
   const store = await openRuntimeStore(new MemoryIndexedDb());
   const session = await sessionOver(state, store);
   const controller = new AgentController(session, await scriptedProviders(scripts));
+  await controller.loadSessions();
   return { state, session, controller };
 }
 
@@ -232,7 +233,7 @@ test('messages typed while a turn runs are queued, run in order, and a turn star
   expect(controller.snapshot().queue.map((entry) => entry.intent)).toEqual(['Second one.', 'Third one.']);
   // Enqueueing started nothing: the first turn is the only one that has started.
   expect(controller.turnCount()).toBe(1);
-  await sleep(50);
+  await untilPlanning(controller);
   expect(controller.turnCount()).toBe(1);
   expect(controller.snapshot().turns).toHaveLength(1);
 

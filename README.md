@@ -73,7 +73,10 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 
 MCP server cards in **Settings › MCP & tools** show **Connecting** while a connection is checked and **Failed** with one translated alert when it cannot connect. Choose **Connect** to retry; saved server settings are unchanged.
 
+Agent conversations stay per project in this browser. Use **Sessions** to continue an earlier conversation, start a new one, fork through a settled turn or export it as Markdown. Forking leaves the manuscript unchanged; a bundle does not include private conversation history.
+
 ## Requirements
+
 
 - **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.19 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests the 22.19.0 floor and Node 24; Node 26 is allowed but not covered.
 - **pnpm** 12.9.1, pinned in `packageManager`. On Node 22, update Corepack first with `npm install --global corepack@0.34.3`; Node 22.12's bundled Corepack 0.29.4 could not verify pnpm's current signing key. Then run `corepack enable`.
@@ -182,7 +185,7 @@ On phones, Home shows existing projects first visually and Settings' sections sc
 
 Usage accounting is stored in this browser, including day and turn detail across reloads. It records token counts and costs at each call's prices, not prompts or replies, and clearing the app's browser data removes it. It is separate from the project's files and the in-memory agent Trace.
 
-The agent shows the cost of each turn at its recorded call prices and a session total for this project visit, with a profile/model/role breakdown. Settings › Providers shows daily costs, estimated and unpriced counts, optional cache/reasoning detail and a local usage CSV export. A partial total is labelled; your provider's bill remains authoritative.
+The agent shows the cost of each turn at its recorded call prices and a total for the current conversation across visits, with a profile/model/role breakdown. Forked history keeps its original accounting and is not charged again. Settings › Providers shows daily costs, estimated and unpriced counts, optional cache/reasoning detail and a local usage CSV export. A partial total is labelled; your provider's bill remains authoritative.
 
 - **Bring your own key.** Add a provider in **Settings › Providers**: pick a preset (its address and authentication are filled in) or a generic endpoint of your own, choose a model, and paste the key. When you save, Caotang lists the provider's models to check it works.
 - **Your key stays in this browser.** It is sealed with a key the page cannot export, and it is never written into a project file. Sealing keeps a stored key from being read out of storage. It does not protect against code running in the page while Caotang is open.

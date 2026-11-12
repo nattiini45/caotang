@@ -65,7 +65,7 @@ const menuOfTurn = (page: Page, intent: string) => page.locator('.agent-turn', {
 test('rewinding the conversation sets the turn and the later ones aside, refills the Intent box and leaves the project alone', async ({ page }) => {
   await twoTurns(page);
 
-  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ }).click();
+  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Turn actions for/ }).click();
   await page.getByRole('button', { name: /Rewind conversation to before this turn/ }).click();
 
   const rewound = page.getByTestId('agent-rewound');
@@ -89,7 +89,7 @@ test('a draft in the Intent box is kept, and the old instruction is offered as a
   const intent = page.getByRole('combobox', { name: 'Intent' });
   await intent.fill('My own half-written request');
 
-  await menuOfTurn(page, SECOND).getByRole('button', { name: /^Rewind options/ }).click();
+  await menuOfTurn(page, SECOND).getByRole('button', { name: /^Turn actions for/ }).click();
   await page.getByRole('button', { name: /Rewind conversation to before this turn/ }).click();
 
   await expect(intent).toHaveValue('My own half-written request');
@@ -105,7 +105,7 @@ test('a draft in the Intent box is kept, and the old instruction is offered as a
 test('restore both takes the project back and rewinds the conversation after a confirmation', async ({ page }) => {
   await twoTurns(page);
 
-  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ }).click();
+  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Turn actions for/ }).click();
   await page.getByRole('button', { name: /^Restore both/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Restore the project and rewind the conversation?' });
   await expect(dialog.locator('p').first()).toHaveText('This restores the project to its state before this turn. Your edits since then are included in the restore. The agent then forgets this turn and the ones after it.');
@@ -126,7 +126,7 @@ test('restoring the project alone keeps the conversation: the turns stay in the 
   const report = page.locator('.agent-turn', { hasText: FIRST }).locator('.agent-report-text');
   const original = await report.innerText();
 
-  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ }).click();
+  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Turn actions for/ }).click();
   await page.getByRole('button', { name: /^Restore project to before this turn/ }).click();
   await page.getByRole('dialog', { name: 'Restore to before this turn?' }).getByRole('button', { name: 'Restore', exact: true }).click();
 
@@ -160,7 +160,7 @@ test('German restore copy separates the original report and names the project ch
 
 test('the menu opens from the keyboard, closes with Escape and returns focus to its button', async ({ page }) => {
   await twoTurns(page);
-  const toggle = menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ });
+  const toggle = menuOfTurn(page, FIRST).getByRole('button', { name: /^Turn actions for/ });
 
   await toggle.focus();
   await page.keyboard.press('Enter');
@@ -210,7 +210,7 @@ test('a rewind that is refused because a turn started since the menu was drawn s
   await sendIntent(page, THIRD);
   await expect(page.getByTestId('plan-card')).toBeVisible();
 
-  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ }).click();
+  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Turn actions for/ }).click();
   const item = page.getByRole('button', { name: /Rewind conversation to before this turn/ });
   await expect(item).toBeDisabled();
   // The item was enabled when the menu was drawn, before the turn started. React ignores a click on a disabled button, so run the

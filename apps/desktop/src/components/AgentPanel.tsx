@@ -48,6 +48,7 @@ import { useAssetRecords } from '../media/hooks.js';
 import { TranscriptionReviewDialog } from '../media/TranscriptionReviewDialog.js';
 import { ConfirmDialog, EmptyState, useComposingEnter, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
+import { AgentSessions } from './AgentSessions.js';
 import { CommandComposer } from './CommandComposer.js';
 import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading, type TranscriptionRouteChoice } from './PlanCard.js';
@@ -431,7 +432,7 @@ export function AgentPanel({
         value={intent}
         onChange={setIntent}
         onRun={send}
-        disabled={snapshot.providerName === null || runActionPending}
+        disabled={snapshot.providerName === null || runActionPending || snapshot.sessionSave.failure !== null || snapshot.sessionLoad.kind === 'failed' || snapshot.sessionLoad.kind === 'loading'}
         placeholder={
           snapshot.busy
             ? t`${{ send: shortcutLabel('agent-send', keyboardLayout) }} queues it for the next turn, ${{ steer: shortcutLabel('agent-steer', keyboardLayout) }} sends it to this one`
@@ -439,7 +440,7 @@ export function AgentPanel({
         }
       />
       <span className="context-submit">
-        <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending}>
+        <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null || runActionPending || snapshot.sessionSave.failure !== null || snapshot.sessionLoad.kind === 'failed' || snapshot.sessionLoad.kind === 'loading'}>
           {snapshot.busy ? t`Queue` : t`Send`}
         </button>
         {snapshot.busy ? <small className="muted context-next"><Trans>For the next request</Trans></small> : null}
@@ -483,6 +484,7 @@ export function AgentPanel({
             </label>
           ))}
         </fieldset>
+        <AgentSessions agent={agent} snapshot={snapshot} />
         {/* A card that waits for the writer is the turn's state, not work: the turn is still open, so Send stays off, but the header says so. */}
         {/* The step line names where the turn is, with the drawer open or closed. It is a live region that polite-announces a change
             of step, not each streamed word: the line is derived from the task list and only moves when the step does. */}
@@ -537,7 +539,7 @@ export function AgentPanel({
       <TaskOffers recurring={recurring} />
 
       {open ? (
-        <div id="agent-body" className="agent-body">
+        <div key={snapshot.sessionId} id="agent-body" className="agent-body">
           {inWindow ? sessionUsage : <>{intentForm}{contextControls}{sessionUsage}</>}
 
           {oldInstruction !== null ? (
@@ -624,6 +626,7 @@ export function AgentPanel({
                     pictureNames={pictureNames}
                     stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
                     canRewind={agent.canRewind(turn.turnId)}
+                    onFork={() => { void agent.forkSession(turn.turnId); }}
                     onDecide={(decision) => agent.answer(decision)}
                     restorable={agent.restorableSteps(turn.turnId)}
                     onRestore={(turnId, summary, both) => openRestore(restoreOf(agent, turnId, summary, both))}
@@ -815,6 +818,7 @@ function TurnBlock({
   pictureNames,
   stands,
   canRewind,
+  onFork,
   restorable,
   onDecide,
   onRestore,
@@ -836,6 +840,7 @@ function TurnBlock({
   stands: boolean;
   /** The conversation can be rewound to before this turn: nothing runs and the turn is still sent to the model. */
   canRewind: boolean;
+  onFork: () => void;
   /** The steps of the turn a restore to before that step would take something back, by status-card id. */
   restorable: ReadonlySet<string>;
   onDecide: (decision: Decision) => void;
@@ -860,6 +865,7 @@ function TurnBlock({
           </span>
         )}
         <q className="agent-intent-text">{turn.intent}</q>
+        {snapshot.storedTurnIds.has(turn.turnId) ? <span className="muted" data-testid="stored-turn"><Trans>From an earlier visit</Trans></span> : null}
         {turn.mode === null ? null : (
           <span className="agent-turn-mode muted" data-testid="turn-mode">
             {MODE_LABELS[turn.mode]}
@@ -867,27 +873,34 @@ function TurnBlock({
         )}
         {settled ? (
           <TurnMenu
-            label={`Rewind options for “${clipIntent(turn.intent)}”`}
+            label={t`Turn actions for “${{ intent: isolate(clipIntent(turn.intent)) }}”`}
+            toggleLabel={t`Turn actions`}
             testId="turn-menu"
             note={turn.checkpoint?.note}
             items={[
               {
-                label: 'Restore project to before this turn',
-                hint: 'Keeps the conversation; the agent is told the changes are gone.',
+                label: t`Restore project to before this turn`,
+                hint: snapshot.storedTurnIds.has(turn.turnId) && !stands ? t`This restore point was kept for the tab it was made in.` : t`Keeps the conversation; the agent is told the changes are gone.`,
                 disabled: snapshot.busy || !stands,
                 onSelect: () => onRestore(turn.turnId, turn.report?.summary ?? '', false),
               },
               {
-                label: 'Rewind conversation to before this turn',
-                hint: 'The agent forgets this turn and the ones after it. The project is not changed.',
+                label: t`Rewind conversation to before this turn`,
+                hint: t`The agent forgets this turn and the ones after it. The project is not changed.`,
                 disabled: !canRewind,
                 onSelect: () => onRewind(turn.turnId),
               },
               {
-                label: 'Restore both',
-                hint: 'Project first; the conversation is rewound only if that works.',
+                label: t`Restore both`,
+                hint: t`Project first; the conversation is rewound only if that works.`,
                 disabled: snapshot.busy || !stands || !canRewind,
                 onSelect: () => onRestore(turn.turnId, turn.report?.summary ?? '', true),
+              },
+              {
+                label: t`Fork from here`,
+                hint: t`Starts a new conversation through this turn. The manuscript stays as it is now.`,
+                disabled: snapshot.busy || snapshot.queue.length > 0,
+                onSelect: onFork,
               },
             ]}
           />
@@ -1001,7 +1014,7 @@ function TurnBlock({
         </p>
       ) : null}
 
-      {turn.report !== null ? <ReportLine report={turn.report} profiles={snapshot.usageProfiles}
+      {turn.report !== null ? <ReportLine report={turn.report} profiles={snapshot.usageProfiles} accountingUnavailable={turn.accountingUnavailable}
         restoration={turn.restoredAt === null ? null : turn.restoredFromStep === null ? 'whole' : 'partial'} /> : null}
     </li>
   );
@@ -1276,7 +1289,7 @@ function HeldPlan({ report, disabled, onRun }: { report: TurnReport; disabled: b
   );
 }
 
-function ReportLine({ report, profiles, restoration }: { report: TurnReport; profiles: AgentSnapshot['usageProfiles']; restoration: 'whole' | 'partial' | null }): ReactNode {
+function ReportLine({ report, profiles, restoration, accountingUnavailable }: { report: TurnReport; profiles: AgentSnapshot['usageProfiles']; restoration: 'whole' | 'partial' | null; accountingUnavailable?: boolean }): ReactNode {
   const tokens = report.tokens;
   const calls = report.modelCalls;
   const prompt = tokens.promptTokens;
@@ -1285,10 +1298,10 @@ function ReportLine({ report, profiles, restoration }: { report: TurnReport; pro
   if (report.usage === undefined && report.costUsd === undefined) totals.unpricedRequests = report.tokens.requests;
   const cost = report.costUsd;
   return (
-    <div className="agent-report" aria-label={t`Report`} data-input-tokens={prompt} data-output-tokens={completion} data-cost-usd={cost}>
+    <div className="agent-report" aria-label={t`Report`} data-input-tokens={accountingUnavailable ? undefined : prompt} data-output-tokens={accountingUnavailable ? undefined : completion} data-cost-usd={cost}>
       <p className="agent-report-text">{restoration === null ? report.summary : <RestoreResult summary={report.summary} restoration={restoration} />}</p>
       <p className="muted agent-report-meta">
-        {plural(calls, { one: `# model call · about ${prompt} tokens in, ${completion} out`, other: `# model calls · about ${prompt} tokens in, ${completion} out` })}
+        {accountingUnavailable ? <Trans>Usage was not recorded for this earlier turn.</Trans> : plural(calls, { one: `# model call · about ${prompt} tokens in, ${completion} out`, other: `# model calls · about ${prompt} tokens in, ${completion} out` })}
       </p>
       {cost !== undefined ? <p className="muted agent-report-meta" data-testid="agent-turn-cost">{t`About ${{ cost: formatUsd(cost) }} for this turn, using recorded call costs.`}</p> : null}
       <UsageNotes totals={totals} />

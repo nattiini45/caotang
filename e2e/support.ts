@@ -74,22 +74,57 @@ export function card(page: Page, title: string): Locator {
 
 /** Drag one storyboard card to another through stepped mouse input and wait for the board's real drop-target state. */
 export async function dragShotCard(page: Page, source: Locator, target: Locator): Promise<void> {
-  // Keep the source clear of the fixed agent footer, then recompute boxes after the scroll.
-  await source.scrollIntoViewIfNeeded();
-  const [sourceBox, targetBox] = await Promise.all([source.boundingBox(), target.boundingBox()]);
-  if (sourceBox === null || targetBox === null) throw new Error('shot card is not visible for dragging');
+  await dragVisibleElement(page, source, target, /is-drop-target/);
+}
 
-  // Start in the blank gap below the header; end well inside the card, below the sticky board bar.
-  const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + 32 };
-  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height * 0.75 };
+async function visibleDragPoint(locator: Locator, purpose: 'source' | 'target'): Promise<{ x: number; y: number }> {
+  const point = await locator.evaluate((element, purpose) => {
+    const box = element.getBoundingClientRect();
+    const receives = (x: number, y: number) => {
+      const hit = document.elementFromPoint(x, y);
+      return element.contains(hit) && (purpose !== 'source' || hit?.closest('button, input, textarea, select, a, [contenteditable="true"]') === null);
+    };
+    const preferred = { x: box.x + box.width / 2, y: purpose === 'source' ? Math.min(box.y + 32, box.bottom - 4) : box.y + box.height * 0.75 };
+    if (receives(preferred.x, preferred.y)) return preferred;
+    for (let y = Math.min(box.bottom, innerHeight) - 4; y > Math.max(box.top, 0); y -= 8) {
+      for (let x = Math.max(box.left, 0) + 4; x < Math.min(box.right, innerWidth); x += 8) {
+        if (receives(x, y)) return { x, y };
+      }
+    }
+    return null;
+  }, purpose);
+  if (point === null) throw new Error(`${purpose} element has no visible, unobscured native drag point`);
+  return point;
+}
+
+export async function dragVisibleElement(page: Page, source: Locator, target: Locator, dropTargetClass?: RegExp): Promise<void> {
+  await source.scrollIntoViewIfNeeded();
+  const start = await visibleDragPoint(source, 'source');
+  const started = await source.evaluateHandle((element) => {
+    const state = { started: false };
+    element.addEventListener('dragstart', () => { state.started = true; }, { once: true });
+    return state;
+  });
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   try {
     await page.mouse.move(start.x + 10, start.y, { steps: 4 });
+    await expect.poll(() => started.evaluate((state) => state.started)).toBe(true);
+    await target.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' }));
+    const end = await visibleDragPoint(target, 'target');
     await page.mouse.move(end.x, end.y, { steps: 12 });
-    await expect(target).toHaveClass(/is-drop-target/);
+    await page.mouse.move(end.x, end.y);
+    if (dropTargetClass !== undefined) await expect(target).toHaveClass(dropTargetClass);
+    const receiver = await target.evaluate((element, point) => {
+      const hit = document.elementFromPoint(point.x, point.y);
+      return { inside: element.contains(hit), point, target: element.getBoundingClientRect().toJSON(), hit: hit?.outerHTML.slice(0, 300) };
+    }, end);
+    if (!receiver.inside) {
+      throw new Error(`target element no longer receives the native drop point: ${JSON.stringify(receiver)}`);
+    }
   } finally {
     await page.mouse.up();
+    await started.dispose();
   }
 }
 

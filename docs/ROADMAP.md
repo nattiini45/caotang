@@ -6,6 +6,8 @@ The design behind each item is in [architecture/](architecture/), and the decisi
 
 ## Built
 
+- **Durable agent conversations.** Sessions per project survive reloads, can be reopened or forked through any settled turn without branching the manuscript, and export as Markdown. Session metadata references existing run logs; count/age settings and actual log size are visible in Settings › Data.
+
 The first release (0.1.0) is a complete writing studio that runs in the browser:
 
 - **Projects** stored in the browser, as a folder on disk (Chrome and Edge), or as a `.caotang` bundle. Folder saves check the folder first and ask before replacing anything another program changed. A project remembers its folder, so reopening it is one click.

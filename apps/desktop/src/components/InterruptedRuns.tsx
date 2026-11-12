@@ -59,6 +59,7 @@ function InterruptedRunCard({ agent, run, busy, onResume, history }: { agent: Ag
   const titleId = useId();
   const interrupted = run.status === undefined || run.status === 'interrupted';
   const action = run.pending ?? 'other';
+  const sessionCount = agent.sessionReferenceCount(run.runId);
   const title = run.outcome === 'stopped' ? t`Agent run stopped` : interrupted ? t`An agent run was interrupted` : run.status === 'failed' ? t`Agent run failed` : run.outcome === 'cancelled' ? t`Agent run cancelled` : t`Agent run finished`;
   return (
     <section className="plan-card is-live interrupted-run" aria-labelledby={titleId} data-testid={history ? 'run-log-card' : 'interrupted-run'} data-run-id={run.runId}>
@@ -99,7 +100,7 @@ function InterruptedRunCard({ agent, run, busy, onResume, history }: { agent: Ag
         </button>
         ) : null}
         {run.restorable === true ? <button type="button" className="button" disabled={busy} onClick={() => { void agent.prepareRunRestore(run.runId).then(setPrepared); }}><Trans>Restore to before this run…</Trans></button> : null}
-        <button type="button" className="button" disabled={busy} onClick={() => { if (run.restorable === true) setDiscarding(true); else void agent.discardRun(run.runId); }}><Trans>Discard log</Trans></button>
+        <button type="button" className="button" disabled={busy} onClick={() => { if (run.restorable === true || sessionCount > 0) setDiscarding(true); else void agent.discardRun(run.runId); }}><Trans>Discard log</Trans></button>
       </div>
       <details>
         <summary><Trans>Run log and details</Trans></summary>
@@ -109,8 +110,10 @@ function InterruptedRunCard({ agent, run, busy, onResume, history }: { agent: Ag
         <button type="button" className="button" disabled={busy} onClick={() => void agent.exportRun(run.runId, 'markdown')}><Trans>Export run log as Markdown</Trans></button>
         </div>
       </details>
-      <ConfirmDialog open={discarding} title={t`Discard this run log?`} confirmLabel={t`Discard log`} onCancel={() => setDiscarding(false)} onConfirm={() => { setDiscarding(false); void agent.discardRun(run.runId); }}>
+      <ConfirmDialog open={discarding} title={t`Discard this run log?`} confirmLabel={t`Discard log`} onCancel={() => setDiscarding(false)} onConfirm={() => { setDiscarding(false); void agent.discardRun(run.runId, sessionCount); }}>
         <p><Trans>Discard log keeps what the run already wrote. Its restore point is deleted.</Trans></p>
+        {sessionCount === 0 ? null : <p>{plural(sessionCount, { one: 'This also removes the turn from # saved session or fork.', other: 'This also removes the turn from # saved sessions or forks.' })}</p>}
+        <p><Trans>Exported files and folder copies are not deleted.</Trans></p>
       </ConfirmDialog>
       <ConfirmDialog open={prepared !== null} title={t`Restore to before this run?`} confirmLabel={t`Restore project`} onCancel={() => setPrepared(null)} onConfirm={() => { if (prepared !== null) { const held = prepared; setPrepared(null); void agent.restoreRun(run.runId, held); } }}>
         <p><Trans>This restores the project’s content, structure, agent files and findings from before this run. Later edits will be taken back too.</Trans></p>

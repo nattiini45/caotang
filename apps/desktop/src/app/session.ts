@@ -95,6 +95,7 @@ import {
   domFlushSignals,
   evictSnapshots,
   pruneRuns,
+  readRuns,
   getRevision,
   isBodyType,
   planRelinkPairs,
@@ -896,7 +897,7 @@ export class ProjectSession {
     try {
       await evictSnapshots(this.runtime, this.projectId, Date.now(), this.retention);
       // The agent's run logs keep the checkpoints' clock: thirty days, fifty runs (agent-harness §5.1).
-      await pruneRuns(this.runtime, this.projectId);
+      if ((await readRuns(this.runtime, this.projectId)).length > 0) await pruneRuns(this.runtime, this.projectId);
     } catch (error) {
       this.maintenanceFailure = error;
       this.bump();

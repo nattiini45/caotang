@@ -78,6 +78,11 @@ describe('the committed baseline', () => {
 });
 
 describe('the inventory', () => {
+  it('recognizes a MIME charset and dynamic turn prefix without hiding neighboring copy', () => {
+    const scan = scanSource('session.ts', 'const mime = "text/markdown;charset=utf-8"; const prefix = `${session}.turn-`; const label = `${count} turns completed.`;');
+    expect(scan.sites).toEqual([expect.objectContaining({ kind: 'template', text: '{…} turns completed.' })]);
+  });
+
   it('treats CSS feature queries and matching selectors as technical without hiding nearby copy', () => {
     const scan = scanSource('picker.tsx', `
       const supported = CSS.supports('selector(:open)');
