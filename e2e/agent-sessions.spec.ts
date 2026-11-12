@@ -155,9 +155,8 @@ for (const variant of [
     await expect(toggle).toBeFocused();
   });
 
-  test(`${variant.shell} ${variant.language} session Data, turn actions and deletion fit at ${variant.width}px`, async ({ page }, testInfo) => {
+  test(`${variant.shell} ${variant.language} session Data fits at ${variant.width}px`, async ({ page }, testInfo) => {
     await prepareThreeSessions(page);
-    const panel = page.getByTestId('agent-panel');
     await openSettings(page, variant.shell, variant.language);
     const settings = page.getByTestId('settings');
     await settings.locator('[data-section="data"]').click();
@@ -165,8 +164,12 @@ for (const variant of [
     await page.setViewportSize({ width: variant.width, height: variant.height });
     await settings.locator('#settings-agent-sessions').evaluate((element) => element.scrollIntoView({ block: 'start' }));
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`sessions-${variant.shell}-${variant.language}-${variant.width}-data.png`) });
-    await settings.locator('.settings-head button').click();
-    if (variant.shell === 'modern') await page.keyboard.press('Control+j');
+  });
+
+  test(`${variant.shell} ${variant.language} session turn actions and deletion fit at ${variant.width}px`, async ({ page }, testInfo) => {
+    await prepareThreeSessions(page);
+    const panel = page.getByTestId('agent-panel');
+    await page.setViewportSize({ width: variant.width, height: variant.height });
     const sessions = panel.getByTestId('agent-sessions');
     const toggle = sessions.locator('.agent-session-trigger');
     const menu = panel.getByTestId('turn-menu');
