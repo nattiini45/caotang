@@ -519,6 +519,23 @@ Initial: `opening`. Final: `closed`.
 | `opening` | `close` | `closing` |
 | `opening` | `opened` | `open` |
 
+## provider.verification
+
+Initial: `unknown`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `checking` | `check` | `checking` |
+| `checking` | `failed` | `checking`, `failed` |
+| `checking` | `invalidate` | `unknown` |
+| `checking` | `passed` | `checking`, `verified` |
+| `failed` | `check` | `checking` |
+| `failed` | `invalidate` | `unknown` |
+| `unknown` | `check` | `checking` |
+| `unknown` | `invalidate` | `unknown` |
+| `verified` | `check` | `checking` |
+| `verified` | `invalidate` | `unknown` |
+
 ## recurring.run
 
 Initial: `idle`. Final: none.

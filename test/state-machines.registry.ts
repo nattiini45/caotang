@@ -36,6 +36,7 @@ import { sessionTable } from '../apps/desktop/src/app/session-handle.js';
 import { bootTable } from '../apps/desktop/src/app/boot-phase.js';
 import { demoStartTable } from '../apps/desktop/src/app/demo-start.js';
 import { homeOpenTable } from '../apps/desktop/src/app/home-open-flow.js';
+import { providerVerificationTable } from '../packages/gateway/src/verification.js';
 
 export const machineTables = [
   sprintTable, taskStatusTable, agentControllerTable, recurringRunTable, turnMarkerTable, folderSaveTable, importPreviewTable,
@@ -49,4 +50,5 @@ export const machineTables = [
   saveChannelTable,
   modalMachine.table,
   sessionTable, bootTable, demoStartTable, homeOpenTable,
+  providerVerificationTable,
 ] as const;

@@ -24,6 +24,8 @@ Try it at [caotang.app](https://caotang.app/), or open the app directly at [caot
 
 Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no credit meters and no Caotang server. If you use a model provider, you pay that provider directly.
 
+Checking a provider in Settings never switches the active profile. **Not verified** stays beside profiles with an unknown or failed model-list check after a reload; edit and save the profile to check it again.
+
 ## What works today
 
 An unresolved document conflict keeps its recovery guidance even if a later producer, read or write fails. Copy the unsaved text somewhere safe before reloading.
