@@ -96,7 +96,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const menu = panel.getByTestId('turn-menu').last();
     const toggle = menu.locator('.turn-menu-toggle');
-    await expect(toggle).toHaveText('Rewind');
+    await expect(toggle).toHaveText('Turn actions');
     expect(await toggle.evaluate((element) => element.scrollWidth <= element.clientWidth && getComputedStyle(element).whiteSpace === 'nowrap')).toBe(true);
     await toggle.focus();
     await page.keyboard.press('Enter');

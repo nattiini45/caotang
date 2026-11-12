@@ -840,7 +840,7 @@ test('a refused usage download says how to retry and keeps the export usable', a
   await expect(usage.getByRole('alert')).toHaveCount(0);
 });
 
-test('the session total equals two real demo turns and a reload starts a fresh visit without losing device history', async ({ page }) => {
+test('the session total retains two real demo turns across reload and only New session starts another total without losing device history', async ({ page }) => {
   await seedUsage(page, [], { prompt: 0.001, completion: 0.002 });
   await createProject(page, 'Usage session');
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
@@ -870,12 +870,24 @@ test('the session total equals two real demo turns and a reload starts a fresh v
   await page.reload();
   await page.getByRole('listitem').filter({ hasText: 'Usage session' }).getByRole('button', { name: 'Open', exact: true }).click();
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
-  await expect(session).toHaveCount(0);
+  await expect(page.locator('.agent-report')).toHaveCount(2);
+  await expect(session).toHaveAttribute('data-requests', '2');
+  await expect(session).toHaveAttribute('data-input-tokens', String(amounts.reduce((total, turn) => total + turn.input, 0)));
+  await expect(session).toHaveAttribute('data-output-tokens', String(amounts.reduce((total, turn) => total + turn.output, 0)));
+  expect(Number(await session.getAttribute('data-cost-usd'))).toBeCloseTo(amounts.reduce((total, turn) => total + turn.cost, 0), 10);
   await page.getByRole('combobox', { name: 'Intent' }).fill('Explain another visit.');
   await send.click();
-  await expect(page.locator('.agent-report')).toHaveCount(1);
+  await expect(page.locator('.agent-report')).toHaveCount(3);
   await expect(page.getByTestId('agent-panel')).toHaveAttribute('data-state', 'idle');
-  await expect(session).toHaveAttribute('data-requests', '1');
+  await expect(session).toHaveAttribute('data-requests', '3');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(page.locator('.usage')).toContainText('3 requests');
+  await page.getByTestId('settings').locator('.settings-head button').click();
+  await page.getByTestId('agent-sessions').locator('.agent-session-trigger').click();
+  await page.getByTestId('agent-sessions').getByRole('button', { name: 'New session', exact: true }).click();
+  await expect(page.getByTestId('agent-sessions')).toHaveAttribute('data-state', 'ready');
+  await expect(page.locator('.agent-report')).toHaveCount(0);
+  await expect(session).toHaveCount(0);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.locator('.usage')).toContainText('3 requests');
 });

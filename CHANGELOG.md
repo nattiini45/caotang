@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Durable agent sessions.** Conversations stay with each project in this browser across reloads. Sessions opens earlier conversations, starts a new one, exports Markdown with a JSON head, or deletes one. Fork from here branches only the conversation, never the manuscript. Settings › Data controls session count/age and shows retained run-log size. Restoring an earlier-visit turn still requires its tab's undo history; Activity's durable run restore is separate.
+
 - **Request-local context controls.** The agent composer estimates prompt capacity as you type, previews the planner request without a provider call and shows actual planner meters while running. `@` pins codex entries or up to three bounded document excerpts; shared previews can leave optional items out, with fresh approval after a plan-step context edit. Queued requests retain their own choices. Saved inclusion policies, Never and read-deny rules remain unchanged.
 - Plans with pins or leave-outs stay in the foreground; background choice persistence is deferred to [#592](https://github.com/nattiini45/caotang/issues/592). Existing run logs still contain sent messages and staged proposals, while the new recovery choice metadata contains stable IDs only.
 
@@ -35,6 +37,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - Home shows opening progress on the button you pressed, with its original label and a reduced-motion alternative, rather than only in a status card below the page. The opening sentence still announces progress to screen readers. Classic's phone project rows keep names visible and wrap their actions inside the screen. The Caotang header stays first on phones, and the German Open action reads “Öffnen” without changing finding statuses.
 
 - **Provider checks keep your choice.** Saving or checking another provider no longer switches the active profile, even briefly or when checks overlap. Settings keeps **Not verified** after a failed check or a reload, shows which profile is being checked, and names how to retry. Failure messages identify the cause once in English or German, with the provider's own reply labelled separately. Older profiles start with an unknown check result (#594).
+- Read-only follow-ups now receive the current session's earlier intent and outcome in the planner's budgeted context, not only in drafting calls.
 
 - **Context leaves room for the conversation.** Expanded request previews scroll within their own block; Modern retains visible turn content. Completion identifies documents by their folder path and codex entries by type, not storage IDs. Rewind stays on one line, and its opened actions and consequences wrap inside the turn header (#576).
 - Leaving a document out removes its optional synopsis from both structure and story context, rather than letting an L3 copy bypass the L4 exclusion.

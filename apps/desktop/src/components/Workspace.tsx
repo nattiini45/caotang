@@ -229,6 +229,7 @@ export function Workspace({
         () => services.settings.current().agent.loadEveryTool,
         {},
         () => services.settings.current().agent,
+        () => services.settings.current().agentSessions,
       );
       if (alive) {
         made = controller;

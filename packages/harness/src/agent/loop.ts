@@ -320,6 +320,8 @@ export interface AgentSessionOptions {
    * one so its runs are the same bytes.
    */
   readonly sessionId?: string;
+  readonly history?: readonly RecentTurn[];
+  readonly nextTurn?: number;
   readonly usageSessionId?: string;
   /**
    * The clock the status cards are stamped with: when a call starts running and when it finishes, which the panel's elapsed
@@ -1074,8 +1076,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const usageSessionId = options.usageSessionId ?? sessionName;
   const finished: TurnReport[] = [];
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
-  const started: RecentTurn[] = [];
-  const markers = new Map<string, TurnMarker>();
+  const started: RecentTurn[] = (options.history ?? []).map((turn) => ({ ...turn }));
+  const markers = new Map<string, TurnMarker>(started.map((turn) => {
+    const restored = turn.restoredAt === undefined ? undefined : { at: turn.restoredAt, ...(turn.restoredFromStep === undefined ? {} : { fromStep: turn.restoredFromStep }) };
+    return [turn.turnId, turn.rewound === true ? { kind: 'rewound', ...(restored === undefined ? {} : { restored }) }
+      : restored === undefined ? { kind: 'live' } : { kind: 'restored', ...restored }];
+  }));
   const recentTurns = (): RecentTurn[] => started.map((turn) => ({ ...turn, ...turnMarkerFields(markers.get(turn.turnId) ?? { kind: 'live' }) }));
   const moveMarker = (turnId: string, event: TurnMarkerEvent): void => {
     const from = markers.get(turnId);
@@ -1091,7 +1097,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * it, so a restore never rebuilds a call id from a card id.
    */
   const stepCalls = new Map<string, { readonly stepId: string; readonly callId: string }[]>();
-  let turnCounter = 0;
+  let turnCounter = started.reduce((highest, turn) => {
+    const suffix = turn.turnId.startsWith(`${sessionName}.turn-`) ? Number(turn.turnId.slice(`${sessionName}.turn-`.length)) : 0;
+    return Number.isSafeInteger(suffix) && suffix >= 0 ? Math.max(highest, suffix) : highest;
+  }, Math.max(0, (options.nextTurn ?? 1) - 1));
   /** The turns that are running, by id: what `steer` reaches. */
   const running = new Map<string, Turn>();
 
@@ -3722,7 +3731,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const planner = context.assemble({
       ...(nonce === undefined ? {} : { nonce }),
       ...(languages === undefined ? {} : { languages }),
-      task: { tool: 'meta', instruction: `Request: ${intent}`, ...(overrides === undefined ? {} : { overrides }) },
+      task: { tool: 'meta', conversation: priorTurns.some((turn) => turn.rewound !== true && turn.hidden !== true), instruction: `Request: ${intent}`, ...(overrides === undefined ? {} : { overrides }) },
       // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
       role: native ? plannerSystemNative(plannerListings(), loadEvery()) : plannerSystem(plannerListings(), loadEvery()),
       turns: priorTurns,

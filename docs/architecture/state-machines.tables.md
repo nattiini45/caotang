@@ -81,6 +81,18 @@ Initial: `idle`. Final: none.
 | `stopping` | `ready` | `stopping` |
 | `stopping` | `turn` | `stopping` |
 
+## agent.session-selection
+
+Initial: `unloaded`. Final: none.
+
+| State | Event | Targets |
+| --- | --- | --- |
+| `failed` | `load` | `loading` |
+| `loading` | `failed` | `failed`, `loading` |
+| `loading` | `loaded` | `loading`, `ready` |
+| `ready` | `load` | `loading` |
+| `unloaded` | `load` | `loading` |
+
 ## app.boot
 
 Initial: `opening`. Final: `failed`, `ready`.

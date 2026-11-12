@@ -1,0 +1,118 @@
+.agent-sessions {
+  order: 4;
+  flex: 1 0 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  font-size: var(--text-sm);
+}
+
+.agent-head:has(> .agent-sessions) {
+  flex-wrap: wrap;
+}
+
+.agent-session-trigger {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: flex-start;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.agent-session-trigger > span:first-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.agent-session-trigger > span:last-child {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-sessions-content {
+  max-block-size: min(22rem, 30dvh);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  padding: var(--space-2);
+  margin: 0;
+  background: var(--pane);
+  color: var(--ink);
+}
+
+.agent-sessions-popover {
+  position: fixed;
+  inset: auto;
+  inline-size: min(360px, calc(100dvw - 32px));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+
+.agent-sessions-popover:not(:popover-open) {
+  display: none;
+}
+
+.agent-sessions-popover:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-sessions-popover > :not(.agent-session-list) {
+  flex: none;
+}
+
+:root[data-shell='modern'] .agent-sessions-popover:popover-open {
+  max-block-size: min(22rem, 30dvh);
+  overflow: hidden;
+  padding: var(--space-3);
+}
+
+.agent-session-save {
+  flex-basis: 100%;
+  order: 4;
+}
+
+.agent-session-list {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.agent-session-list > li {
+  padding-block: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.agent-session-list p {
+  margin-block: var(--space-1) var(--space-2);
+}
+
+.agent-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.agent-session-actions > details {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.agent-session-actions button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.agent-sessions-popover button {
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

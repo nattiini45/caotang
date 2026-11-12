@@ -27,6 +27,7 @@ import {
   type ThinkingLevel,
 } from '@caotang/gateway';
 import { pictureStorageReport, snapshotBudget, type RuntimeStore, type SnapshotBudget } from '@caotang/store';
+import { AgentSessionData } from './AgentSessionData.js';
 
 import type { AppServices } from '../app/services.js';
 import type { Durability, ProjectSession } from '../app/session.js';
@@ -1682,6 +1683,7 @@ function DataSection({
       </section>
 
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
+      <AgentSessionData services={services} session={session} store={store} />
       <p className="muted">
         <Trans>
           The demo profile is named “{DEMO_PROFILE_NAME}”. A bundle export is the copy to keep: browser storage can be cleared.

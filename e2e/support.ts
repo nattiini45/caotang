@@ -81,13 +81,28 @@ export async function dragShotCard(page: Page, source: Locator, target: Locator)
 
   // Start in the blank gap below the header; end well inside the card, below the sticky board bar.
   const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + 32 };
-  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height * 0.75 };
+  const end = await target.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const preferred = { x: box.x + box.width / 2, y: box.y + box.height * 0.75 };
+    if (element.contains(document.elementFromPoint(preferred.x, preferred.y))) return preferred;
+    for (let y = Math.min(box.bottom, innerHeight) - 4; y > Math.max(box.top, 0); y -= 8) {
+      for (let x = Math.max(box.left, 0) + 4; x < Math.min(box.right, innerWidth); x += 8) {
+        if (element.contains(document.elementFromPoint(x, y))) return { x, y };
+      }
+    }
+    return null;
+  });
+  if (end === null) throw new Error('target shot card has no visible, unobscured drop point');
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   try {
     await page.mouse.move(start.x + 10, start.y, { steps: 4 });
     await page.mouse.move(end.x, end.y, { steps: 12 });
+    await page.mouse.move(end.x, end.y);
     await expect(target).toHaveClass(/is-drop-target/);
+    if (!(await target.evaluate((element, point) => element.contains(document.elementFromPoint(point.x, point.y)), end))) {
+      throw new Error('target shot card no longer receives the native drop point');
+    }
   } finally {
     await page.mouse.up();
   }

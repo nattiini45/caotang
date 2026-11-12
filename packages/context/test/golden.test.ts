@@ -33,6 +33,11 @@ const appOf = (c: GoldenCase, shuffled = false) => (c.instructions === true ? wi
 
 const CASES: readonly GoldenCase[] = [
   {
+    name: 'planner-conversation',
+    describe: 'the planner opts into L6; ordinary metadata tools still omit it',
+    task: { tool: 'meta', conversation: true, instruction: 'Now do the same for the next chapter.' },
+  },
+  {
     name: 'scene-continue',
     describe: 'scene.draft, continue, the focus chapter after two earlier ones',
     task: {

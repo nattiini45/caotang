@@ -69,3 +69,10 @@
 .agent-turn-head > .turn-menu:has(> .turn-menu-panel) { flex-basis: 100%; }
 .agent-turn-head .turn-menu-panel { position: static; inline-size: 100%; min-inline-size: 0; max-inline-size: 100%; }
 .agent-turn-head .turn-menu-item > span { min-inline-size: 0; max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
+:root[data-shell='modern'] .agent-turn-head .turn-menu-item {
+  display: grid;
+  justify-content: stretch;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
+  border-radius: var(--radius);
+}
