@@ -174,7 +174,12 @@ for (const variant of [
     await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
     let remaining = await list.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop);
     for (let wheel = 1; remaining > 1 && wheel < 5; wheel++) {
-      const top = await list.evaluate((element) => element.scrollTop);
+      const { top, distance } = await list.evaluate((element) => ({
+        top: element.scrollTop,
+        distance: element.scrollHeight - element.clientHeight - element.scrollTop,
+      }));
+      remaining = distance;
+      if (remaining <= 1) break;
       await page.mouse.wheel(0, 1000);
       await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(top);
       remaining = await list.evaluate((element) => element.scrollHeight - element.clientHeight - element.scrollTop);
