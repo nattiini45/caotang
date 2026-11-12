@@ -47,7 +47,17 @@ test('an empty container says what to do, and New card adds a card at the end', 
 test('a right-click on the empty board offers New card, which is named as it is made', async ({ page }) => {
   await emptyChapter(page);
 
-  await page.locator('.corkboard').click({ button: 'right', position: { x: 600, y: 420 } });
+  const point = await page.locator('.corkboard').evaluate((board) => {
+    const box = board.getBoundingClientRect();
+    for (let y = Math.max(box.top, 0) + 4; y < Math.min(box.bottom, innerHeight); y += 8) {
+      for (let x = Math.max(box.left, 0) + 4; x < Math.min(box.right, innerWidth); x += 8) {
+        if (document.elementFromPoint(x, y) === board) return { x, y };
+      }
+    }
+    return null;
+  });
+  if (point === null) throw new Error('the empty corkboard has no visible, unobscured surface point');
+  await page.mouse.click(point.x, point.y, { button: 'right' });
   await page.getByRole('menu').getByRole('menuitem', { name: 'New card' }).click();
 
   const field = page.getByRole('textbox', { name: 'Rename Untitled' });

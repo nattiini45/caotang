@@ -9,18 +9,15 @@
 import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { RuntimeStoreNewerError, type RuntimeStore } from '@caotang/store';
 
 /* lingui-set comment="Interpolated values: error" */
 
-import { runtimeStore } from './app/runtime.js';
 import { droppedFieldsSentence } from './app/integrity-model.js';
-import { fixtureWireFactory } from './app/mcp.js';
-import { openAppServices, type AppServices } from './app/services.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
-import { initializeInterfaceLanguage, languageRevision, subscribeLanguage } from './i18n/language.js';
-import { listProjects, openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
-import { interfacePending, settleInterface } from './app/interface.js';
+import { languageRevision, subscribeLanguage } from './i18n/language.js';
+import { openDemoSample, type Opened } from './app/lifecycle.js';
+import { useBootPhase } from './app/use-boot-phase.js';
+import { DemoStart } from './app/demo-start.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
 import type { ProjectSession } from './app/session.js';
 import { installTestHook } from './app/test-hook.js';
@@ -37,13 +34,11 @@ export interface StartIntent {
 
 export function App(): ReactNode {
   useDisclosureDismissal();
-  const [store, setStore] = useState<RuntimeStore | null>(null);
-  const [services, setServices] = useState<AppServices | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
-  // Set when the failure is a store another tab upgraded past this build: its message says what to do, so the storage paragraph is left out.
-  const [failureNewer, setFailureNewer] = useState(false);
+  const boot = useBootPhase();
+  const [demo] = useState(() => new DemoStart());
+  const demoState = useSyncExternalStore(demo.subscribe, demo.getSnapshot);
   const [session, setSession] = useState<ProjectSession | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>();
   const [startIntent, setStartIntent] = useState<StartIntent | null>(null);
   // The folder the writer chose to save this browser's version into, as the project opens (lifecycle `answerFolderDiffers`).
   const [saveToFolder, setSaveToFolder] = useState<DirectoryHandleLike | null>(null);
@@ -53,75 +48,10 @@ export function App(): ReactNode {
   // A switch activates in place; re-rendering the tree keeps the editor, its journal and every open
   // card exactly where they are (i18n.md §3.3: no reload).
   useSyncExternalStore(subscribeLanguage, languageRevision);
-  // False while the interface's default waits for the stores (app/interface.ts, modern-interface.md §3.2).
-  const [shellReady, setShellReady] = useState(() => !interfacePending());
-
-  useEffect(() => {
-    let alive = true;
-    runtimeStore().then(
-      (opened) => {
-        if (alive) setStore(opened);
-      },
-      (error: unknown) => {
-        if (!alive) return;
-        setFailure(error instanceof Error ? error.message : String(error));
-        setFailureNewer(error instanceof RuntimeStoreNewerError);
-      },
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    const factory = typeof indexedDB === 'undefined' ? null : indexedDB;
-    // The MCP transport is the development fixture's only in a development build; a shipped build uses the SDK's wire.
-    const mcpWire = import.meta.env.DEV ? fixtureWireFactory() : undefined;
-    openAppServices(factory, { mcpWire }).then(async (opened) => {
-      // The stored interface language is loaded before the first real screen, so the writer does not
-      // see English and then watch it change. A failed catalogue falls back to English with a notice.
-      const languageFailure = await initializeInterfaceLanguage(opened.settings.current().interfaceLanguage);
-      if (!alive) return;
-      if (languageFailure !== null) setNotice(languageFailure);
-      setServices(opened);
-      // The session defaults follow the settings: the debounce and the checkpoint limits a new session starts with.
-      const apply = (): void => {
-        const { editor, retention } = opened.settings.current();
-        // The agent's coherence scans follow the Coherence settings, and its review runs through the active provider (coherence.md §7).
-        const coherence = { checks: () => opened.settings.current().coherence.enabledChecks, providers: opened.providers };
-        // The writer's own agent rules are read at each agent call, so an edit in Settings applies to the turn in flight at its next call.
-        const appRules = () => opened.settings.current().agent.rules;
-        setSessionDefaults({ debounceMs: editor.autosaveDebounceMs, retention, mcp: { client: opened.mcp.client }, coherence, appRules, saveChannels: [opened.settings.saveChannel] });
-      };
-      apply();
-      opened.settings.subscribe(apply);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   useEffect(() => {
     installTestHook(() => current.current);
   }, []);
-
-  // With nothing in local storage to go on, the stores decide the default before the first screen shows (resolveInterface): a project
-  // or a settings record from an earlier visit means Classic. A list that cannot be read counts as a project, so Classic stays.
-  useEffect(() => {
-    if (shellReady || store === null || services === null) return;
-    let alive = true;
-    void listProjects(store)
-      .then((projects) => projects.length > 0, () => true)
-      .then((projects) => settleInterface(projects, services.settingsKept))
-      .catch(() => undefined)
-      .then(() => {
-        if (alive) setShellReady(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [shellReady, store, services]);
 
   const show = (opened: Opened): void => {
     const previous = current.current;
@@ -130,7 +60,7 @@ export function App(): ReactNode {
     setSaveToFolder(opened.saveToFolder ?? null);
     setSession(opened.session);
     if (previous !== null && previous !== opened.session) {
-      void previous.settle().then(() => closeSession(previous));
+      closeSession(previous);
     }
     // The browser is asked once per open, and not again once it has said yes (ui-modules §5.3). The answer lands on the session.
     const host = browserStorageHost();
@@ -153,7 +83,7 @@ export function App(): ReactNode {
 
   /** Ends a session. A writing session that could not be recorded is said, not dropped in silence. */
   const closeSession = (leaving: ProjectSession): void => {
-    void leaving.close().catch((error: unknown) => {
+    void leaving.closeSafely().catch((error: unknown) => {
       const errorText = error instanceof Error ? error.message : String(error);
       setNotice(t`The writing session could not be recorded: ${{ error: errorText }}`);
     });
@@ -163,11 +93,11 @@ export function App(): ReactNode {
    * Runs a demo intent: the writer's sample project (made the first time, then reused), then the shell with the intent submitted
    * in its agent panel. A sample made here is recorded in the settings, so the agent panel offers the demo intents for it.
    */
-  const runDemo = (intent: string): void => {
-    if (store === null || services === null) return;
+  const runDemo = (intent: string): Promise<void> => {
+    if (boot.kind !== 'ready' || !demo.start(intent)) return Promise.resolve();
     // A failure anywhere in opening the sample, including recording it in the settings, arrives here: `openDemoSample` closes a
     // session it made and could not record, so no lease is left held by a session the shell never shows.
-    void openDemoSample(store, services.settings).then(
+    return openDemoSample(boot.store, boot.services.settings).then(
       (session) => {
         serial.current += 1;
         show({ session, notices: [], droppedFields: [], copiedFrom: null });
@@ -177,17 +107,17 @@ export function App(): ReactNode {
         const errorText = error instanceof Error ? error.message : String(error);
         setNotice(t`The sample could not be opened: ${{ error: errorText }}`);
       },
-    );
+    ).finally(() => demo.settled());
   };
 
-  if (failure !== null) {
+  if (boot.kind === 'failed') {
     return (
-      <main className="fatal" role="alert">
+      <main className="fatal" role="alert" data-state="failed">
         <h1>
           <Trans>Caotang could not open its storage</Trans>
         </h1>
-        <p>{failure}</p>
-        {failureNewer ? null : (
+        <p>{boot.error}</p>
+        {boot.newer ? null : (
           <p>
             <Trans>Projects are kept in this browser’s storage. Check that it is enabled for this site, then reload.</Trans>
           </p>
@@ -195,13 +125,15 @@ export function App(): ReactNode {
       </main>
     );
   }
-  if (store === null || services === null || !shellReady) {
+  if (boot.kind !== 'ready') {
     return (
-      <main className="loading" role="status">
+      <main className="loading" role="status" data-state={boot.kind}>
         <Trans>Opening your projects…</Trans>
       </main>
     );
   }
+  const { store, services } = boot;
+  const shownNotice = notice === undefined ? boot.notice : notice;
   if (session !== null) {
     return (
       <Workspace
@@ -209,14 +141,14 @@ export function App(): ReactNode {
         store={store}
         services={services}
         onHome={goHome}
-        notice={notice}
+        notice={shownNotice}
         startIntent={startIntent}
         saveToFolder={saveToFolder}
       />
     );
   }
-  const notices = [...services.notices, ...(notice === null ? [] : [notice])];
-  return <Home store={store} services={services} onOpened={show} onRunDemo={runDemo} notices={notices} />;
+  const notices = [...services.notices, ...(shownNotice === null ? [] : [shownNotice])];
+  return <Home store={store} services={services} onOpened={show} onRunDemo={runDemo} demoOpening={demoState.kind === 'opening'} notices={notices} />;
 }
 
 /**

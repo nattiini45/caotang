@@ -6,19 +6,14 @@
  */
 
 /** The body and revision a session last stored for one document (`ProjectSession.lastWritten`). */
-export interface StoredMark {
-  readonly body: string;
-  readonly revision: number;
-}
+export type { StoredMark } from '../app/store-rebase.js';
 
 /**
  * Whether a store change is the view's own write. The revision names a write, because it only moves up: an undo is a write of
  * its own and raises it (command-bus §5). The body is compared as well, so a change this view did not make cannot pass as its own
  * by sharing the number. A change that is not the view's own is adopted as the store's text.
  */
-export function isOwnWrite(own: StoredMark | null, stored: string, revision: number): boolean {
-  return own !== null && own.revision === revision && own.body === stored;
-}
+export { isOwnWrite } from '../app/store-rebase.js';
 
 /**
  * Where the caret sits after the text changes from `before` to `after`. It keeps its place in the text: a change before it

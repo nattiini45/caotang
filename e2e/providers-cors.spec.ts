@@ -229,7 +229,7 @@ for (const product of LOCAL_PRODUCTS) {
     try {
       const settings = await saveLocal(page, product, stub.baseUrl);
       // The profile is saved, the probe is not verified, and the message is the product's setting and nobody else's.
-      await expect(settings.getByText(new RegExp(`Saved “${writerText('Stub')}”, but`))).toBeVisible();
+      await expect(settings.getByText(new RegExp(`“${writerText('Stub')}” is saved but not verified: The provider could not be reached from this page\\.`))).toBeVisible();
       await expect(settings.locator('.form-message')).toContainText(fix);
       await expect(settings.locator('.form-message')).toContainText(product.name === 'llama.cpp (llama-server)' ? 'llama-server' : product.name);
       // The model list reached the server (a simple GET needs no preflight) and the browser withheld the answer; no key header was
@@ -257,7 +257,7 @@ test('a local server that is not running is named as not running, with its addre
   const address = stub.baseUrl;
   await stub.close();
   const settings = await saveLocal(page, LOCAL_PRODUCTS[0]!, address);
-  await expect(settings.getByText(new RegExp(`Saved “${writerText('Stub')}”, but`))).toBeVisible();
+  await expect(settings.getByText(new RegExp(`“${writerText('Stub')}” is saved but not verified: The provider could not be reached from this page\\.`))).toBeVisible();
   await expect(settings.locator('.form-message')).toContainText(`Nothing is listening on ${new URL(address).host}`);
   await expect(settings.locator('.form-message')).toContainText('Is Ollama running?');
 });

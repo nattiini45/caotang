@@ -83,3 +83,7 @@ export function clearTray(projectId: string): void {
   if (!keep) trays.set(projectId, { ...EMPTY, suggestions: false });
   if (had) emit();
 }
+
+export function forgetTray(projectId: string): void {
+  if (trays.delete(projectId)) emit();
+}

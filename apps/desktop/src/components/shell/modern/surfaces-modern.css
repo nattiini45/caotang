@@ -512,14 +512,6 @@
     padding-inline: max(16px, env(safe-area-inset-left, 0px) + 16px, env(safe-area-inset-right, 0px) + 16px);
   }
 
-  :root[data-shell='modern'] .home > .home-section:has(.project-list) {
-    margin-block-start: 0;
-  }
-
-  :root[data-shell='modern'] .home:has(.project-list) > .home-head {
-    margin-block-start: 20px;
-  }
-
   :root[data-shell='modern'] .home > :is(.home-head, .home-section, .storage-banner, .status-line) {
     padding-inline: 20px;
   }

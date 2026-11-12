@@ -33,6 +33,7 @@ import {
 } from 'react';
 
 import { isImeEnter } from '../../../app/keymap.js';
+import { focusEditorWhenReady } from '../../../app/editor-ready.js';
 import { LazyBoundary } from '../../lazy-view.js';
 import { useReport } from '../../shared.js';
 import { modalOpenedFrom } from '../../modal.js';
@@ -229,25 +230,8 @@ export function BinderSidebar({ regions, pageId, lastAgent = null }: ModernSlotP
     } else if (focusRequest.target === 'kept') {
       target = nav?.querySelector<HTMLElement>('[data-testid="unsent-words"] button') ?? null;
     } else {
-      // The page: the editor of the scene just chosen. That editor mounts afresh for a new scene and makes its text field a frame or
-      // more later, and WebKit moves focus off a sidebar that turns inert after the click; so look again on the next frames until the
-      // field has focus, giving up as soon as focus lands anywhere but the body or the closing sidebar.
-      let frames = 0;
-      let handle = 0;
-      const settle = (): void => {
-        const page = document.getElementById(pageId);
-        const field = page?.querySelector<HTMLElement>('[contenteditable="true"]') ?? null;
-        const active = document.activeElement;
-        const free = active === null || active === document.body || (nav?.contains(active) ?? false);
-        if (field !== null && active === field) return;
-        if (!free && frames > 0) return;
-        if (field !== null) field.focus();
-        frames += 1;
-        if (frames < 30) handle = requestAnimationFrame(settle);
-        else if (field === null) page?.focus();
-      };
-      settle();
-      return () => cancelAnimationFrame(handle);
+      const page = document.getElementById(pageId);
+      return page === null ? undefined : focusEditorWhenReady(page, nav);
     }
     target?.focus();
     return undefined;

@@ -56,7 +56,7 @@ export function SessionUsage({ usage, names }: { usage: { readonly totals: Usage
       {totals.costUsd === undefined ? null : <span>{t`About ${{ cost: formatUsd(totals.costUsd) }} for this session.`}</span>}
       <UsageNotes totals={totals} />
     </summary>
-    <p className="muted"><Trans>This session is the current project visit in this tab, including its roles and background tasks. Reopening the project starts another session; device history stays in Settings.</Trans></p>
+    <p className="muted"><Trans>This counts calls made in this session, including its roles and background tasks, across visits. A fork’s copied turns keep their original accounting; they are not charged again. Device history stays in Settings.</Trans></p>
     <UsageBreakdown rows={rows} names={names} />
   </details>;
 }

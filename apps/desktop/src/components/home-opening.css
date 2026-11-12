@@ -1,0 +1,25 @@
+.home button.button.is-opening:disabled {
+  cursor: progress;
+  opacity: 1;
+}
+
+.home .button.is-opening::before {
+  content: '';
+  display: inline-block;
+  inline-size: 0.8em;
+  block-size: 0.8em;
+  margin-inline-end: 0.45em;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: home-opening 1s linear infinite;
+}
+
+@keyframes home-opening {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home .button.is-opening::before { animation: none; }
+}

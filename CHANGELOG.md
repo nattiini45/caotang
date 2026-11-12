@@ -6,6 +6,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Durable agent sessions.** Conversations stay with each project in this browser across reloads. Sessions opens earlier conversations, starts a new one, exports Markdown with a JSON head, or deletes one. Fork from here branches only the conversation, never the manuscript. Settings › Data controls session count/age and shows retained run-log size. Restoring an earlier-visit turn still requires its tab's undo history; Activity's durable run restore is separate.
+
 - **Imports read in the background.** **Import plain text…** and **Import RTF…** read in a same-origin Worker with a hard timeout and the preview's Cancel, so a long file no longer holds the page while it parses; the splitter still re-runs as you change the rules, and a reader option re-reads without sending the file again. **Import RTFD…** reads an `.rtfd` package folder (TextEdit, Scrivener 2) through the same preview, its pictures included, and lists the files the text does not show. The English and German guides describe the new import (#283, #274, #390).
 
 - **Request-local context controls.** The agent composer estimates prompt capacity as you type, previews the planner request without a provider call and shows actual planner meters while running. `@` pins codex entries or up to three bounded document excerpts; shared previews can leave optional items out, with fresh approval after a plan-step context edit. Queued requests retain their own choices. Saved inclusion policies, Never and read-deny rules remain unchanged.
@@ -30,6 +32,14 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
 ### Fixed
+
+- **Editor focus and replacement races.** Ctrl+Home no longer jumps back to the old caret immediately after focusing a scene (#569). Superseded editor loads report cancellation instead of successful replacement, while keeping the existing agent-edit API and saved formats.
+- Prose, screenplay and Ink views share one store-rebase lifecycle, so an older asynchronous replacement cannot acknowledge an obsolete revision or report an error after a newer change or teardown. The Modern sidebar waits for editor readiness rather than guessing how many frames loading will take, and moves focus to the page if the editor fails to open or reconcile.
+- **Project-session cleanup.** A failed settle no longer skips closing a project or leaves its lease held. Failed opens also release their session resources, and closing a project clears its unsaved timeline proposals. Demo opening now blocks duplicate starts and competing project actions; recovery, encoding and folder-version questions share one pending-open state.
+- Home shows opening progress on the button you pressed, with its original label and a reduced-motion alternative, rather than only in a status card below the page. The opening sentence still announces progress to screen readers. Classic's phone project rows keep names visible and wrap their actions inside the screen. The Caotang header stays first on phones, and the German Open action reads “Öffnen” without changing finding statuses.
+
+- **Provider checks keep your choice.** Saving or checking another provider no longer switches the active profile, even briefly or when checks overlap. Settings keeps **Not verified** after a failed check or a reload, shows which profile is being checked, and names how to retry. Failure messages identify the cause once in English or German, with the provider's own reply labelled separately. Older profiles start with an unknown check result (#594).
+- Read-only follow-ups now receive the current session's earlier intent and outcome in the planner's budgeted context, not only in drafting calls.
 
 - **Context leaves room for the conversation.** Expanded request previews scroll within their own block; Modern retains visible turn content. Completion identifies documents by their folder path and codex entries by type, not storage IDs. Rewind stays on one line, and its opened actions and consequences wrap inside the turn header (#576).
 - Leaving a document out removes its optional synopsis from both structure and story context, rather than letting an L3 copy bypass the L4 exclusion.

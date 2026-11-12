@@ -223,6 +223,7 @@ export interface AppSettings {
   };
   /** The checkpoint retention limits (command-bus §5.1, config-exposed). */
   readonly retention: RetentionConfig;
+  readonly agentSessions: { readonly days: number; readonly count: number };
   readonly firstRun: {
     /** Whether the first-run card has been dismissed. It is shown until the writer dismisses it. */
     readonly dismissed: boolean;
@@ -252,6 +253,7 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true, agentEditMode: 'ghost' as AgentEditMode }),
   session: Object.freeze({}),
   retention: DEFAULT_RETENTION,
+  agentSessions: Object.freeze({ days: 30, count: 50 }),
   firstRun: Object.freeze({ dismissed: false }),
   sampleProjectIds: Object.freeze([]) as readonly string[],
   mcp: EMPTY_MCP_SETTINGS,
@@ -272,6 +274,7 @@ export interface SettingsPatch {
   readonly editor?: { readonly autosaveDebounceMs?: number; readonly focusModeHideRails?: boolean; readonly agentEditMode?: AgentEditMode };
   readonly session?: { readonly dailyTargetWords?: number };
   readonly retention?: Partial<RetentionConfig>;
+  readonly agentSessions?: { readonly days: number; readonly count: number };
   readonly firstRun?: { readonly dismissed?: boolean };
   readonly sampleProjectIds?: readonly string[];
   readonly mcp?: McpSettings;
@@ -390,6 +393,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
   const editor = isRecord(source['editor']) ? source['editor'] : {};
   const session = isRecord(source['session']) ? source['session'] : {};
   const retention = isRecord(source['retention']) ? source['retention'] : {};
+  const agentSessions = isRecord(source['agentSessions']) ? source['agentSessions'] : {};
   const firstRun = isRecord(source['firstRun']) ? source['firstRun'] : {};
   const samples = Array.isArray(source['sampleProjectIds']) ? source['sampleProjectIds'] : [];
 
@@ -412,6 +416,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     },
     session: target === undefined ? {} : { dailyTargetWords: target },
     retention: resolveRetentionConfig({ checkpointCap: cap, checkpointDays: days }),
+    agentSessions: { days: clampInteger(agentSessions['days'], 1, CHECKPOINT_DAYS_MAX, 30), count: clampInteger(agentSessions['count'], 1, CHECKPOINT_CAP_MAX, 50) },
     firstRun: { dismissed: firstRun['dismissed'] === true },
     sampleProjectIds: samples.filter((id): id is string => typeof id === 'string' && id.length > 0).slice(0, 50),
     mcp: loadMcpSettings(source['mcp'], new Date().toISOString()).settings,
@@ -478,6 +483,7 @@ export function applyPatch(current: AppSettings, patch: SettingsPatch): AppSetti
         : { dailyTargetWords: patch.session.dailyTargetWords ?? current.session.dailyTargetWords }),
     },
     retention: { ...current.retention, ...(patch.retention ?? {}) },
+    agentSessions: patch.agentSessions ?? current.agentSessions,
     firstRun: { ...current.firstRun, ...(patch.firstRun ?? {}) },
     sampleProjectIds: patch.sampleProjectIds ?? current.sampleProjectIds,
     mcp: patch.mcp ?? current.mcp,

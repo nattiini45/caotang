@@ -35,6 +35,7 @@ import { documentSaveState, saveConflictWords } from '../app/save-conflict.js';
 import { keyboardLayoutStore, shortcutLabel } from '../app/keymap.js';
 import {
   createTiptapEditorApi,
+  LoadSupersededError,
   type FootnoteOrphan,
   type GhostPreview,
   type InsertedPicture,
@@ -47,10 +48,11 @@ import { countBody, getBody, getRevision } from '@caotang/store';
 import { activeAppDb } from '../app/app-db.js';
 import { nodeById } from '../app/binder-model.js';
 import { publishEditorCaret, type EditorCaret } from '../app/editor-selection.js';
+import { publishEditorReady } from '../app/editor-ready.js';
+import type { StoredMark } from '../app/store-rebase.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { GhostView } from '../app/agent-model.js';
 import { describeLossGroup, dialectSentences } from '../app/load-banner.js';
-import { isOwnWrite } from '../app/integrity-model.js';
 import { takePending } from '../app/review-notice.js';
 import { pendingNotice } from '../app/review-text.js';
 import type { ProjectSession } from '../app/session.js';
@@ -66,6 +68,7 @@ import { EmptyState, useReport, useSession, wordsLabel } from './shared.js';
 import { TargetQuickSet } from './TargetQuickSet.js';
 import { editorLabels } from './editor-labels.js';
 import { useNarrow } from './narrow.js';
+import { useStoreRebase } from './use-store-rebase.js';
 
 /** The review bar and the hold on the marks are fetched only by an editor in review mode (Settings > Writing), so the default path does not carry them. */
 const ReviewSide = lazy(() => import('./ReviewSide.js').then((module) => ({ default: module.ReviewSide })));
@@ -305,9 +308,6 @@ function DocumentEditor({
   // about the first, then the next. One edit can orphan several notes, and each is asked about.
   const [orphans, setOrphans] = useState<readonly FootnoteOrphan[]>([]);
   const orphan = orphans[0] ?? null;
-  // What the editor agrees with: the body and revision it was last made to hold. A store change that is not this one is the
-  // only thing that makes the editor take a new body.
-  const synced = useRef<{ body: string; revision: number } | null>(null);
   const importer = usePictureImporter(session);
   const latestImporter = useRef(importer);
   const [notice, setNotice] = useState<ImportReport | null>(null);
@@ -338,6 +338,34 @@ function DocumentEditor({
   const revision = getRevision(session.state, docId);
   const save = session.autosave.status(docId);
   const counts = countBody(editor === null ? stored : editor.getContent());
+  const { ready: editorReady, state: rebaseState, seed: seedRebase } = useStoreRebase({
+    session, docId, enabled: editor !== null,
+    matches: (mark) => editor?.getContent() === mark.body,
+    acknowledge: (mark) => editor?.setRevision(mark.revision),
+    apply: async (mark, current) => {
+      if (editor === null) return false;
+      const apply = agent?.consumeApply(docId, mark.revision) ?? null;
+      try {
+        if (apply !== null && modeAtOpen === 'suggestions') {
+          const outcome = await editor.showAgentEdit(mark.body, { toolCallId: apply.toolCallId, revision: mark.revision });
+          if (!current() || outcome.landed === 'replaced' && outcome.reason === 'superseded') return false;
+          const module = await import('./ReviewSide.js');
+          if (!current()) return false;
+          module.reportLanding(outcome, report);
+        } else {
+          await editor.setContent(mark.body, { historyExcluded: true, discardUnsaved: true, revision: mark.revision });
+        }
+      } catch (error: unknown) {
+        if (error instanceof LoadSupersededError) return false;
+        throw error;
+      }
+      if (current()) setOrphans([]);
+    },
+    failed: (error) => report({
+      text: t`The text could not be brought up to date: ${{ reason: error instanceof Error ? error.message : String(error) }}`,
+      tone: 'error',
+    }),
+  });
 
   // The draft's ghost region belongs to the controller while both exist. Declared before the mount effect, so on teardown the ghost is let go of before the editor is destroyed.
   useEffect(() => {
@@ -354,6 +382,7 @@ function DocumentEditor({
     if (element === null) return;
     let alive = true;
     let mounted: TiptapEditorInstance | null = null;
+    let opened: StoredMark | null = null;
     const pictures = createPicturesPort(session, () => latestImporter.current, (done) => {
       // A retry would store the pictures but not place them in the scene, so the notice offers none; the writer inserts again.
       const { retry: _retry, ...shown } = done;
@@ -375,7 +404,7 @@ function DocumentEditor({
         if (!alive) return null;
         const body = getBody(session.state, docId);
         const at = getRevision(session.state, docId);
-        synced.current = { body, revision: at };
+        opened = { body, revision: at };
         return editorApi.mount(element, {
           docId,
           initialBody: body,
@@ -414,6 +443,7 @@ function DocumentEditor({
             return;
           }
           mounted = instance;
+          if (opened !== null) seedRebase(opened);
           labelSurface(element);
           // Once per load: the diagnostics of this parse. A later `setContent` does not bring the banner back.
           setLoad(instance.loadResult());
@@ -433,40 +463,7 @@ function DocumentEditor({
       void saver.dispose();
     };
   // The editor's own words are set when it mounts; a language switch keeps the live editor and its unsaved text.
-  }, [session, docId, modeAtOpen]);
-
-  // The store moved this document. Its own write is acknowledged to the editor; anything else replaces the body.
-  useEffect(() => {
-    if (editor === null) return;
-    const seen = synced.current;
-    if (seen !== null && seen.body === stored && seen.revision === revision) return;
-    synced.current = { body: stored, revision };
-    const own = session.lastWritten(docId);
-    if (isOwnWrite(own, stored, revision) || editor.getContent() === stored) {
-      editor.setRevision(revision);
-      return;
-    }
-    // The store's body is the truth: this replacement is an undo, a restore or an agent apply. An undo and a restore save the
-    // writer's typing first (`undoLast` flushes); an agent apply waits for the writer's typing to be saved too (`answer`
-    // flushes before an approval), so the discard only ever drops text the store already holds.
-    const apply = agent?.consumeApply(docId, revision) ?? null;
-    const landing =
-      apply !== null && modeAtOpen === 'suggestions'
-        ? editor.showAgentEdit(stored, { toolCallId: apply.toolCallId, revision }).then((outcome) => import('./ReviewSide.js').then((module) => module.reportLanding(outcome, report)))
-        : editor.setContent(stored, { historyExcluded: true, discardUnsaved: true });
-    landing
-      .then(() => {
-        editor.setRevision(revision);
-        // The body was replaced from outside (an undo, a restore, an agent apply): a question about a note in the old body is stale.
-        setOrphans([]);
-      })
-      .catch((error: unknown) => {
-        report({
-          text: t`The text could not be brought up to date: ${{ reason: error instanceof Error ? error.message : String(error) }}`,
-          tone: 'error',
-        });
-      });
-  }, [editor, stored, revision, session, docId, report, agent, modeAtOpen]);
+  }, [session, docId, modeAtOpen, seedRebase]);
 
   // What an earlier visit left marked is said once, whichever mode this visit opened in: the row is taken on every open, so it cannot
   // outlive the mode and be said later about a scene the writer has since edited another way (editor-engine §15).
@@ -500,17 +497,17 @@ function DocumentEditor({
 
   // Ctrl+Enter and Open in editor ask for focus once the editor exists. A click in the binder does not.
   useEffect(() => {
-    if (editor === null || !focusRequested) return;
+    if (editor === null || !editorReady || !focusRequested) return;
     editor.focus();
     onFocusHandled();
-  }, [editor, focusRequested, onFocusHandled]);
+  }, [editor, editorReady, focusRequested, onFocusHandled]);
 
   // A finding's quoted passage: scroll to it and select it, once this document's editor exists (coherence.md §8).
   useEffect(() => {
-    if (editor === null || reveal === null) return;
+    if (editor === null || !editorReady || reveal === null) return;
     editor.revealRange({ from: reveal.from, to: reveal.to });
     onRevealHandled();
-  }, [editor, reveal, onRevealHandled]);
+  }, [editor, editorReady, reveal, onRevealHandled]);
 
   // The test hook reads the selection of the shown editor (test-hook.ts). A hidden editor reports none.
   useEffect(() => {
@@ -529,8 +526,12 @@ function DocumentEditor({
     barRef.current?.scrollIntoView({ block: 'nearest' });
   }, [landed, ghostHere]);
 
+  useEffect(() => {
+    if (visible && (editorReady || failure !== null || rebaseState === 'failed') && host.current !== null) publishEditorReady(host.current);
+  }, [visible, editorReady, failure, rebaseState]);
+
   return (
-    <article className="editor-pane" hidden={!visible}>
+    <article className="editor-pane" hidden={!visible} data-editor-state={failure !== null ? 'failed' : rebaseState}>
       <div className="editor-column">
         <header className="editor-head">
           <h2 className="editor-title" lang={contentLang} dir="auto">{title}</h2>

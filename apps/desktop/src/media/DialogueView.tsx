@@ -34,9 +34,11 @@ import {
 import { knotCompletion } from './ink-keys.js';
 import { SourceField } from './SourceField.js';
 import { inkSegments } from './source-decor.js';
-import { caretAfterEdit, isOwnWrite } from './rebase-model.js';
+import { caretAfterEdit } from './rebase-model.js';
+import { useStoreRebase } from '../components/use-store-rebase.js';
 import { saveLineOf, unwrittenFlushOf } from './screenplay-model.js';
 import { documentSaveState } from '../app/save-conflict.js';
+import { publishEditorReady } from '../app/editor-ready.js';
 
 
 /* lingui-set comment="The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers." */
@@ -70,6 +72,7 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
     reportRef.current = report;
   });
   const docId = node.id;
+  const viewRef = useRef<HTMLElement>(null);
   const stored = getBody(session.state, docId);
   const revision = getRevision(session.state, docId);
   // The codex is read through the hook: a memo keyed on the store's array would keep the speakers it read before a rename or an alias
@@ -85,11 +88,9 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
   const inkField = useRef<HTMLTextAreaElement>(null);
   // Where the caret goes once the idle mint has rewritten the text it sat in (see the layout effect below).
   const caretAt = useRef<number | null>(null);
-  const rebases = useRef(0);
   // The body and revision this view last agreed with the store, so an effect tells its own write from a change made
   // underneath it, the way the screenplay view does.
   const [opened] = useState(() => ({ body: stored, revision }));
-  const synced = useRef<{ body: string; revision: number }>(opened);
   const model = useMemo(() => dialogueModelOf(docId, live, codex), [live, codex, docId]);
   const [picked, setPicked] = useState<string | null>(null);
   const selectedId = picked !== null && model.outline.some((item) => item.id === picked) ? picked : model.entry;
@@ -117,24 +118,23 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
   // re-seeds it with `open` on the body and revision the store holds, so the next write is checked against the store's number. An
   // undo is a write of its own, so it raises that number. The prose editor takes the same change in EditorPane (setContent, then
   // setRevision).
-  useEffect(() => {
-    const seen = synced.current;
-    if (seen.body === stored && seen.revision === revision) return;
-    synced.current = { body: stored, revision };
-    if (isOwnWrite(session.lastWritten(docId), stored, revision)) return;
-    const turn = ++rebases.current;
-    void session.autosave.flush(docId).then(() => {
-      // A later store change has begun its own rebase, and that one is the one to apply.
-      if (turn !== rebases.current) return;
-      session.autosave.open(docId, { body: stored, revision });
-      // A pause that was still waiting on the text the store just replaced has nothing left to mint into.
+  const rebase = useStoreRebase({
+    session, docId, initial: opened,
+    apply: async (mark, current) => {
+      await session.autosave.flush(docId);
+      if (!current()) return false;
+      session.autosave.open(docId, mark);
       if (idle.current !== null) clearTimeout(idle.current);
       idle.current = null;
-      setDraft(stored);
-      setLive(stored);
+      setDraft(mark.body);
+      setLive(mark.body);
       setConfirming(false);
-    });
-  }, [session, docId, stored, revision]);
+    },
+    failed: (error) => report({ text: t`The text could not be brought up to date: ${{ reason: error instanceof Error ? error.message : String(error) }}`, tone: 'error' }),
+  });
+  useEffect(() => {
+    if (rebase.state !== 'loading' && viewRef.current !== null) publishEditorReady(viewRef.current);
+  }, [rebase.state]);
 
   // The idle mint can rewrite the text under the caret, because ids are written at line ends. The caret the mint computed
   // (see onSourceChange) is put back once the text it was computed for is on screen, so a writer who paused and went on
@@ -244,7 +244,7 @@ export function DialogueView({ session, node, reveal = null, onRevealHandled = N
   const save = session.autosave.status(docId);
 
   return (
-    <section className="media-view dlg-view" aria-label={accessibleText(t`Dialogue: ${{ title: isolate(node.title) }}`)}>
+    <section ref={viewRef} className="media-view dlg-view" data-editor-state={rebase.state} aria-label={accessibleText(t`Dialogue: ${{ title: isolate(node.title) }}`)}>
       <header className="media-head">
         <div>
           <p className="eyebrow"><Trans>Dialogue container</Trans></p>

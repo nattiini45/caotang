@@ -63,7 +63,7 @@
  * A turn has two axes. The project is restored as above, and every turn whose changes went with it is marked restored in the
  * agent's conversation, so the next prompt does not assume that work is there. The conversation is rewound apart from the project:
  * the turn and the ones after it stay in the panel, collapsed, and are no longer sent to the model. Both are the writer's action;
- * the agent has no tool for either, and nothing here is saved: a reload starts both again.
+ * the agent has no tool for either. Conversation markers are retained with the session; live undo groups still belong to this tab.
  */
 
 import { plural, select, t } from '@lingui/core/macro';
@@ -113,7 +113,7 @@ import {
 } from '@caotang/harness';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot } from '@caotang/store';
+import { createRunLogPort, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
@@ -140,6 +140,9 @@ import { initialAgentState, controllerTurn, stepAgentState, agentControllerTable
 import { groupUsage, type UsageGroup } from './usage-model.js';
 import { contextChoices, copyContext } from './context-choices.js';
 import { formatCount } from '../i18n/locale.js';
+import { sessionSelectionMachine, type SessionSelection } from './agent-session-state.js';
+import { saveChannelMachine, type SaveChannelState } from './save-channel.js';
+import { projectSessionTurn, recordedSessionTokens, recentSessionTurns, sessionMarkdown, sessionPresentation, type SessionTurnPresentation } from './agent-session-model.js';
 
 /** The agent loop's factories and the session's harness, a separate download that the first turn or task asks for (lazy-harness.ts). */
 type HarnessModule = typeof LazyHarness;
@@ -262,6 +265,11 @@ export interface BackgroundOptions {
 }
 
 export interface AgentSnapshot {
+  readonly sessionId: string;
+  readonly sessionLoad: SessionSelection;
+  readonly sessionSave: SaveChannelState;
+  readonly conversationSessions: readonly (AgentSessionRow & { readonly tokens: number | null })[];
+  readonly storedTurnIds: ReadonlySet<string>;
   readonly sessionUsage: { readonly totals: UsageTotals; readonly rows: readonly UsageGroup[] };
   readonly usageProfiles: readonly Pick<ProfileView, 'id' | 'name'>[];
   readonly phase: ReturnType<typeof initialAgentState>['kind'];
@@ -337,7 +345,7 @@ export interface AgentApply {
   readonly toolCallId: string;
 }
 
-/* lingui-set comment="Interpolated values: calls, error, mode, readError, reason, waiting" */
+/* lingui-set comment="Interpolated values: calls, count, error, mode, readError, reason, waiting" */
 
 /** What the panel says when the queue waits after a turn that stopped on a question. */
 export function queuePausedText(): string {
@@ -368,21 +376,34 @@ export class AgentController {
    * `started` RecentTurn array lives in this session's closure, so two turns through one controller
    * share the prior turns and the next turn's assembled prompt carries them as L6. It is created on the
    * first turn of its role and never rebuilt: the profile, model and thinking level are the turn's own
-   * (`TurnOptions`), so a provider switch keeps the conversation. The conversation ends with the
-   * controller itself, a project switch or a reload, and the app has no other affordance that clears it
-   * within a visit. Per-turn state is cleared by `harness.endTurn` on every settlement, so a
-   * cancelled/refused/failed turn never leaves its per-turn state behind. The conversation is in memory
-   * only: a reload starts it over.
+   * (`TurnOptions`), so a provider switch keeps the conversation. Stored run projections seed a reopened or forked session;
+   * per-turn state is cleared by `harness.endTurn` on every settlement, including cancellation and failure.
    */
-  private readonly sessions = new Map<TaskRole, AgentSession>();
+  private sessions = new Map<TaskRole, AgentSession>();
+  private readonly conversationAgents = new Map<string, Map<TaskRole, AgentSession>>();
+  private selection: SessionSelection = { kind: 'unloaded' };
+  private selectionRequest = 0;
+  private sessionLoading: Promise<boolean> | null = null;
+  private sessionWrites: Promise<void> = Promise.resolve();
+  private drainingQueue = false;
+  private turnSettled: Promise<void> = Promise.resolve();
+  private sessionSave: SaveChannelState = { kind: 'idle', failure: null };
+  private conversations: AgentSessionRow[] = [];
+  private conversation: AgentSessionRow | null = null;
+  private readonly presentations = new Map<string, SessionTurnPresentation>();
+  private readonly sessionRunRows = new Map<string, RunRecord>();
+  private readonly runForTurn = new Map<string, string>();
+  private readonly roleForTurn = new Map<string, TaskRole>();
+  private readonly liveTurnIds = new Set<string>();
+  private readonly hiddenTurnIds = new Set<string>();
   /**
    * The profile, model and thinking level the running turn of each role resolved to, so its session's prompts carry that model's
    * limits (context-assembly §5): the window the plan card warns against, and the price and output cap its cost reads. A role with
    * no turn running reads what it would resolve to now.
    */
   private readonly limitPins = new Map<TaskRole, LimitPins>();
-  /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
-  private readonly sessionId = newId('cmd').slice('cmd_'.length);
+  /** Names the current conversation's new turns; a switch selects its stored identity. */
+  private sessionId = newId('cmd').slice('cmd_'.length);
   private letGoOfUsage: () => void = () => undefined;
   private usageCache: { revision: number; value: AgentSnapshot['sessionUsage'] } | null = null;
   /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
@@ -426,7 +447,8 @@ export class AgentController {
   private queueWork: Promise<void> = Promise.resolve();
 
   private get turn() { return controllerTurn(this.state); }
-  private get busy() { return this.turn !== null || this.state.interrupted.some((run) => run.pending !== null && run.pending !== undefined); }
+  private get actionBusy() { return (this.selection.kind === 'loading' && this.sessionLoading === null) || this.turn !== null || this.state.interrupted.some((run) => run.pending !== null && run.pending !== undefined); }
+  private get busy() { return this.selection.kind === 'loading' || this.actionBusy; }
   private get detached() { return this.state.kind === 'detached'; }
   private get stopping() { return this.state.kind === 'stopping' || (this.state.kind === 'detached' && this.state.from === 'stopping'); }
   private get pending() { return this.state.kind === 'parked-on-card' ? this.state.decision.pending : null; }
@@ -484,6 +506,7 @@ export class AgentController {
     background: BackgroundOptions = {},
     /** The Agent settings, read at each card and turn so a change in Settings applies to the next one (agent-harness §4). */
     private readonly agentSettings: () => AgentSettings = () => DEFAULT_AGENT_SETTINGS,
+    private readonly sessionLimits: () => { readonly days: number; readonly count: number } = () => ({ days: 30, count: 50 }),
   ) {
     this.tasks = new TaskQueue({
       projectId: session.projectId,
@@ -496,6 +519,10 @@ export class AgentController {
     const port = createRunLogPort(session.runtimeStore());
     this.runLog = { ...port, append: async (runId, events, patch) => {
       await port.append(runId, events, patch);
+      for (const event of events) if (event.t === 'turn.start') {
+        this.runForTurn.set(event.turnId, runId);
+        if (event.hiddenFromPlanner === true) this.hiddenTurnIds.add(event.turnId);
+      }
       this.runCopyWork = this.runCopyWork.then(() => this.copyRunLogs(runId)).catch((error: unknown) => {
         this.runCopyFailure = t`The folder copy could not be written: ${{ reason: error instanceof Error ? error.message : String(error) }}. The browser’s run log is safe. Check folder access, then retry.`;
         this.bump();
@@ -539,11 +566,21 @@ export class AgentController {
       };
     }
     return {
+      sessionId: this.sessionId,
+      sessionLoad: this.selection,
+      sessionSave: this.sessionSave,
+      conversationSessions: this.conversations.map((row) => ({ ...row, tokens: row.turns.reduce<number | null>((sum, ref) => {
+        const tokens = recordedSessionTokens(this.sessionRunRows.get(ref.runId));
+        return sum === null || tokens === null ? null : sum + tokens;
+      }, 0) })),
+      storedTurnIds: new Set(this.turns.filter((turn) => !this.liveTurnIds.has(turn.turnId)).map((turn) => turn.turnId)),
       sessionUsage: this.usageCache.value,
       usageProfiles: this.providers.gateway.profiles.list().map(({ id, name }) => ({ id, name })),
       phase: this.state.kind,
       turns: this.turns.map((turn) => {
-        const fields = turnMarkerFields([...this.sessions.values()].map((agent) => agent.turnMarker(turn.turnId)).find((marker) => marker !== undefined) ?? { kind: 'live' });
+        const ref = this.conversation?.turns.find((item) => this.presentations.get(item.runId)?.turn.turnId === turn.turnId);
+        const marker = [...this.sessions.values()].map((agent) => agent.turnMarker(turn.turnId)).find((value) => value !== undefined);
+        const fields = marker === undefined ? { rewound: ref?.rewound === true, ...(ref?.restoredAt === undefined ? {} : { restoredAt: ref.restoredAt }), ...(ref?.restoredFromStep === undefined ? {} : { restoredFromStep: ref.restoredFromStep }) } : turnMarkerFields(marker);
         return { ...turn, ...fields, restoredAt: fields.restoredAt ?? null, restoredFromStep: fields.restoredFromStep ?? null };
       }),
       pending: this.pending,
@@ -836,7 +873,7 @@ export class AgentController {
 
   trySubmit(intent: string, options: SubmitOptions = {}, plan?: { readonly steps: readonly PlanStep[] }):
     { readonly started: false } | { readonly started: true; readonly report: Promise<TurnReport | null> } {
-    if (this.state.kind !== 'idle') return { started: false };
+    if (this.state.kind !== 'idle' || this.busy || this.sessionSave.failure !== null) return { started: false };
     return { started: true, report: plan === undefined ? this.submit(intent, options) : this.submitPlan(intent, plan, options) };
   }
 
@@ -934,6 +971,7 @@ export class AgentController {
   async runHeldPlan(turnId: string): Promise<TurnReport | null> {
     const turn = this.turns.find((entry) => entry.turnId === turnId);
     const held = turn?.report?.heldSteps;
+    if (this.runningTurnId === turnId && turn?.report !== null) await this.turnSettled;
     if (turn === undefined || held === undefined || held.length === 0 || this.busy || this.heldRun.has(turnId)) return null;
     if (turn.report?.heldRequiresRestart === true) {
       this.message = t`This plan used skill instructions or outside text. Switch to Ask and start the original command or request again so its restrictions and warnings are kept.`;
@@ -1046,7 +1084,9 @@ export class AgentController {
     options: SubmitOptions,
     start: (agent: AgentSession, turn: TurnOptions, loop: HarnessModule) => Promise<TurnReport>,
   ): Promise<TurnReport | null> {
-    if (this.busy) return null;
+    if (this.actionBusy || this.sessionSave.failure !== null) return null;
+    let settle = (): void => {};
+    this.turnSettled = new Promise<void>((resolve) => { settle = resolve; });
     this.message = null;
     this.announcement = '';
     this.turnsStarted += 1;
@@ -1055,6 +1095,9 @@ export class AgentController {
     let report: TurnReport | null = null;
     let pinnedRole: TaskRole | null = null;
     try {
+      if (this.selection.kind !== 'ready' && !(await this.loadSessions())) return null;
+      await this.sessionWrites;
+      if (this.sessionSave.failure !== null) return null;
       // The demo intents run on the built-in demo profile, whichever profile is active (context-assembly §6).
       // Every other turn runs under the 'chat' role unless the caller names one (provider-gateway §6). The role's profile, model and
       // thinking resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
@@ -1107,6 +1150,7 @@ export class AgentController {
       this.message = t`The turn stopped unexpectedly: ${{ error: reason }}`;
       return null;
     } finally {
+      await this.sessionWrites;
       // The turn has settled, so the next one may start. Only the turn that set the per-turn fields clears them.
       const resolve = this.resolveDecision;
       this.retireApproval(this.approving?.token ?? null);
@@ -1126,6 +1170,7 @@ export class AgentController {
       this.afterTurn(report);
       void this.loadInterrupted();
       this.bump();
+      settle();
     }
   }
 
@@ -1134,6 +1179,266 @@ export class AgentController {
    * goes to the front of the queue as a message of its own. The queue then pauses after a turn that stopped on a question, or that
    * never ran, so it never piles writes on an unresolved failure; otherwise the next entry starts on a microtask, once `busy` is clear.
    */
+  private emptyConversation(): AgentSessionRow {
+    const at = this.clock();
+    return { projectId: this.session.projectId, sessionId: newId('cmd').slice('cmd_'.length), formatVersion: 1, title: '', createdAt: at, updatedAt: at, active: true, turns: [] };
+  }
+
+  async loadSessions(): Promise<boolean> {
+    if (this.selection.kind === 'ready') return true;
+    if (this.sessionLoading !== null) return this.sessionLoading;
+    if (this.selection.kind === 'loading') return false;
+    const request = ++this.selectionRequest;
+    this.selection = sessionSelectionMachine.step(this.selection, { type: 'load', request });
+    this.bump();
+    this.sessionLoading = (async () => {
+      try {
+        await this.readConversations();
+        const row = this.conversations.find((item) => item.active) ?? this.conversations[0] ?? this.emptyConversation();
+        await this.showConversation(row);
+        this.selection = sessionSelectionMachine.step(this.selection, { type: 'loaded', request });
+        return true;
+      } catch (error) {
+        const message = t`Sessions could not be loaded: ${{ reason: error instanceof Error ? error.message : String(error) }}. Your saved conversations have not been changed. Try again.`;
+        this.selection = sessionSelectionMachine.step(this.selection, { type: 'failed', request, message });
+        return false;
+      } finally {
+        this.sessionLoading = null;
+        this.bump();
+        if (this.selection.kind === 'ready' && this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
+      }
+    })();
+    return this.sessionLoading;
+  }
+
+  private async readConversations(): Promise<void> {
+    const store = this.session.runtimeStore();
+    const [rows, runs] = await Promise.all([readAgentSessions(store, this.session.projectId), readRuns(store, this.session.projectId)]);
+    const known = new Set(rows.flatMap((row) => row.turns.map((ref) => ref.runId)));
+    const legacy = new Map<string, AgentSessionRow>();
+    for (const run of runs) {
+      this.sessionRunRows.set(run.runId, run);
+      if (run.status !== 'finished' && run.status !== 'failed') continue;
+      if (known.has(run.runId)) continue;
+      const projected = projectSessionTurn(run, await this.runLog.events(run.runId), (id) => this.providers.gateway.ledger.turnRowsOf(id));
+      if (projected === null) continue;
+      this.presentations.set(run.runId, projected);
+      this.sessionRunRows.set(run.runId, { ...run, presentation: projected });
+      this.runForTurn.set(projected.turn.turnId, run.runId);
+      const match = /^(.*?)(?:\.(drafting|background))?\.turn-(\d+)$/.exec(projected.turn.turnId);
+      const role: TaskRole = match?.[2] === 'drafting' ? 'drafting' : match?.[2] === 'background' ? 'background' : 'chat';
+      this.roleForTurn.set(projected.turn.turnId, role);
+      const sessionId = match?.[1] ?? run.runId;
+      const row: AgentSessionRow = legacy.get(sessionId) ?? { projectId: this.session.projectId, sessionId, formatVersion: 1, title: run.intent.slice(0, 120), createdAt: run.createdAt, updatedAt: run.updatedAt, active: false, turns: [] };
+      const nextTurn = { ...row.nextTurn };
+      const next = Number(match?.[3]) + 1;
+      if (Number.isSafeInteger(next) && next > 0) nextTurn[role] = Math.max(nextTurn[role] ?? 1, next);
+      legacy.set(sessionId, { ...row, nextTurn, updatedAt: Math.max(row.updatedAt, run.updatedAt), turns: [...row.turns, { runId: run.runId, role }] });
+    }
+    for (const row of legacy.values()) {
+      const existing = rows.find((item) => item.sessionId === row.sessionId);
+      const nextTurn = { ...existing?.nextTurn };
+      for (const role of ['chat', 'drafting', 'background'] as const) {
+        const next = row.nextTurn?.[role];
+        if (next !== undefined) nextTurn[role] = Math.max(nextTurn[role] ?? 1, next);
+      }
+      await saveAgentSession(store, { ...(existing ?? row), nextTurn, turns: [...(existing?.turns ?? []), ...row.turns] });
+    }
+    if (rows.length > 0 || legacy.size > 0) {
+      await pruneAgentSessions(store, this.session.projectId, this.clock(), this.sessionLimits());
+      this.conversations = await readAgentSessions(store, this.session.projectId);
+    } else this.conversations = [];
+    const retained = new Set(this.conversations.map((row) => row.sessionId));
+    for (const id of this.conversationAgents.keys()) if (!retained.has(id)) this.conversationAgents.delete(id);
+    const referenced = new Set(this.conversations.flatMap((row) => row.turns.map((ref) => ref.runId)));
+    for (const [id, presentation] of this.presentations) if (!referenced.has(id)) {
+      this.presentations.delete(id);
+      this.runForTurn.delete(presentation.turn.turnId);
+      this.roleForTurn.delete(presentation.turn.turnId);
+      this.liveTurnIds.delete(presentation.turn.turnId);
+    }
+    for (const id of this.sessionRunRows.keys()) if (!referenced.has(id)) this.sessionRunRows.delete(id);
+  }
+
+  private async readSessionRecords(row: AgentSessionRow): Promise<TurnRecord[]> {
+    for (const ref of row.turns) {
+      if (this.presentations.has(ref.runId)) continue;
+      const run = this.sessionRunRows.get(ref.runId);
+      const presentation = run === undefined ? null : projectSessionTurn(run, await this.runLog.events(ref.runId), (id) => this.providers.gateway.ledger.turnRowsOf(id));
+      if (presentation === null) throw new Error(t`A turn in this session could not be read. Keep its run log and try again from Activity.`);
+      this.presentations.set(ref.runId, presentation);
+      if (run !== undefined) this.sessionRunRows.set(ref.runId, { ...run, presentation });
+      this.runForTurn.set(presentation.turn.turnId, ref.runId);
+      this.roleForTurn.set(presentation.turn.turnId, ref.role);
+    }
+    return row.turns.map((ref) => this.presentations.get(ref.runId)!.turn);
+  }
+
+  private async showConversation(row: AgentSessionRow): Promise<void> {
+    const turns = await this.readSessionRecords(row);
+    const loop = row.turns.length === 0 ? null : await this.harnessLoop();
+    this.conversation = row;
+    this.sessionId = row.sessionId;
+    this.turns = turns;
+    this.sessions = this.conversationAgents.get(row.sessionId) ?? new Map();
+    this.usageCache = null;
+    this.heldRun.clear();
+    for (const turn of this.turns) this.heldRun.add(turn.turnId);
+    if (loop !== null) {
+      for (const role of new Set(row.turns.map((ref) => ref.role))) this.sessionFor(role, loop);
+    }
+  }
+
+  private async persistSessionTurn(runId: string, turn: TurnRecord, hidden: boolean): Promise<void> {
+    const current = this.conversation;
+    if (current === null) return;
+    const presentation = sessionPresentation(turn, hidden);
+    const refs = current.turns.some((ref) => ref.runId === runId) ? current.turns : [...current.turns, { runId, role: this.roleForTurn.get(turn.turnId) ?? 'chat' }];
+    const role = this.roleForTurn.get(turn.turnId) ?? 'chat';
+    const row: AgentSessionRow = { ...current, title: current.title || turn.intent.slice(0, 120), updatedAt: this.clock(), active: true, turns: refs,
+      nextTurn: { ...current.nextTurn, [role]: this.nextSessionTurn(role) } };
+    this.presentations.set(runId, presentation);
+    this.conversation = row;
+    await this.session.persistence.settle();
+    await settleAgentSessionTurn(this.session.runtimeStore(), row, runId, presentation);
+    const saved = await readRun(this.session.runtimeStore(), runId);
+    if (saved !== undefined) this.sessionRunRows.set(runId, saved);
+    this.presentations.set(runId, presentation);
+    this.conversation = row;
+    await pruneAgentSessions(this.session.runtimeStore(), this.session.projectId, this.clock(), this.sessionLimits());
+    this.conversations = await readAgentSessions(this.session.runtimeStore(), this.session.projectId);
+  }
+
+  private async sessionAction(work: () => Promise<AgentSessionRow>): Promise<void> {
+    if (this.selection.kind !== 'ready' && !(await this.loadSessions())) return;
+    if (this.busy || this.queue.length > 0 || this.sessionSave.failure !== null) return;
+    const request = ++this.selectionRequest;
+    this.selection = sessionSelectionMachine.step(this.selection, { type: 'load', request });
+    this.bump();
+    try {
+      await this.sessionWrites;
+      if (this.sessionSave.failure !== null) {
+        this.selection = sessionSelectionMachine.step(this.selection, { type: 'loaded', request });
+        this.bump();
+        return;
+      }
+      await this.session.saved();
+      const row = await work();
+      await this.readConversations();
+      await this.showConversation(row);
+      this.selection = sessionSelectionMachine.step(this.selection, { type: 'loaded', request });
+      this.announcement = t`Session opened. The manuscript has not changed.`;
+    } catch (error) {
+      const message = t`The session action could not finish: ${{ reason: error instanceof Error ? error.message : String(error) }}. Try again.`;
+      this.selection = sessionSelectionMachine.step(this.selection, { type: 'failed', request, message });
+    }
+    this.bump();
+  }
+
+  async openSession(sessionId: string): Promise<void> {
+    await this.sessionAction(async () => {
+      const row = this.conversations.find((item) => item.sessionId === sessionId);
+      if (row === undefined) throw new Error(t`That session is no longer available.`);
+      const active = { ...row, active: true };
+      await saveAgentSession(this.session.runtimeStore(), active);
+      return active;
+    });
+  }
+
+  async newSession(): Promise<void> {
+    await this.sessionAction(async () => {
+      const row = this.emptyConversation();
+      await saveAgentSession(this.session.runtimeStore(), row);
+      return row;
+    });
+  }
+
+  async forkSession(turnId: string): Promise<void> {
+    await this.sessionAction(async () => {
+      const current = this.conversation;
+      const at = current?.turns.findIndex((ref) => this.presentations.get(ref.runId)?.turn.turnId === turnId) ?? -1;
+      if (current === null || at < 0) throw new Error(t`Only a saved, settled turn can be forked.`);
+      let number = 1;
+      let title: string;
+      do {
+        title = t`${{ title: current.title || t`New session` }} · fork ${{ number: formatCount(number++) }}`;
+      } while (this.conversations.some((item) => item.title === title));
+      const row = { ...this.emptyConversation(), title, turns: current.turns.slice(0, at + 1).map((ref) => ({ ...ref, rewound: false })), forkedFrom: { sessionId: current.sessionId, turnSeq: at + 1 } };
+      await saveAgentSession(this.session.runtimeStore(), row);
+      return row;
+    });
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.sessionAction(async () => {
+      await removeAgentSession(this.session.runtimeStore(), this.session.projectId, sessionId);
+      this.conversationAgents.delete(sessionId);
+      const rows = await readAgentSessions(this.session.runtimeStore(), this.session.projectId);
+      const row = sessionId === this.sessionId ? rows.find((item) => item.active) ?? rows[0] ?? this.emptyConversation() : this.conversation ?? this.emptyConversation();
+      const active = { ...row, active: true };
+      await saveAgentSession(this.session.runtimeStore(), active);
+      return active;
+    });
+    await this.loadInterrupted();
+  }
+
+  async exportSession(sessionId: string): Promise<void> {
+    try {
+      await this.sessionWrites;
+      const row = this.conversations.find((item) => item.sessionId === sessionId);
+      if (row === undefined) throw new Error(t`That session is no longer available.`);
+      const turns = await this.readSessionRecords(row);
+      downloadBytes(new TextEncoder().encode(sessionMarkdown(row, turns)), `session-${row.sessionId}.md`, 'text/markdown;charset=utf-8');
+    } catch (error) {
+      this.message = t`The session could not be exported: ${{ reason: error instanceof Error ? error.message : String(error) }}. Your saved session has not changed.`;
+      this.bump();
+    }
+  }
+
+  async retrySessionSave(): Promise<void> {
+    if (this.busy || this.sessionSave.kind === 'writing') return;
+    this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'enqueue' });
+    this.bump();
+    this.sessionWrites = this.sessionWrites.then(async () => {
+      try {
+        for (const turn of this.turns) {
+          const runId = this.runForTurn.get(turn.turnId);
+          if (runId !== undefined && turn.report !== null) await this.persistSessionTurn(runId, turn, this.presentations.get(runId)?.hidden ?? this.hiddenTurnIds.has(turn.turnId));
+        }
+        if (this.conversation !== null) await saveAgentSession(this.session.runtimeStore(), this.conversation);
+        this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'settle', failure: null });
+        this.message = null;
+      } catch (error) {
+        const failure = t`The conversation could not be saved: ${{ reason: error instanceof Error ? error.message : String(error) }}. Keep this tab open and try again.`;
+        this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'settle', failure });
+      }
+      this.bump();
+    });
+    await this.sessionWrites;
+  }
+
+  private persistConversationMarkers(): void {
+    const current = this.conversation;
+    if (current === null) return;
+    const turns = current.turns.map((ref): AgentSessionTurnRef => {
+      const turnId = this.presentations.get(ref.runId)?.turn.turnId;
+      const marker = turnId === undefined ? undefined : this.sessionOf(turnId)?.turnMarker(turnId);
+      return marker === undefined ? ref : { runId: ref.runId, role: ref.role, ...turnMarkerFields(marker) };
+    });
+    this.conversation = { ...current, turns };
+    const row = this.conversation;
+    this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'enqueue' });
+    this.sessionWrites = this.sessionWrites.then(async () => {
+      await saveAgentSession(this.session.runtimeStore(), row);
+      this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'settle', failure: null });
+      this.bump();
+    }).catch((error: unknown) => {
+      this.message = t`The conversation change could not be saved: ${{ reason: error instanceof Error ? error.message : String(error) }}. Keep this tab open and try again.`;
+      this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'settle', failure: this.message });
+      this.bump();
+    });
+  }
+
   private afterTurn(report: TurnReport | null): void {
     const stopped = report?.stop !== undefined;
     if (this.pendingNotes.length > 0) {
@@ -1144,7 +1449,7 @@ export class AgentController {
       this.move({ type: 'notes', pending: [] });
     }
     // A turn that stopped on a question, or never ran, holds the queue; a turn that went through (the answer to that question, say) lets it go.
-    this.move({ type: 'queue', paused: (report === null || (report.status === 'failed' && report.askBack !== undefined)) && this.queue.length > 0 });
+    this.move({ type: 'queue', paused: (this.sessionSave.failure !== null || report === null || (report.status === 'failed' && report.askBack !== undefined)) && this.queue.length > 0 });
     if (stopped) {
       this.announcement =
         this.queue.length > 0 && !this.queuePaused
@@ -1243,6 +1548,10 @@ export class AgentController {
   }
 
   private claimRunAction(runId: string, action: NonNullable<InterruptedRunView['pending']>): boolean {
+    if (this.sessionSave.failure !== null && action !== 'export') {
+      this.reportRunAction(runId, this.sessionSave.failure, 'error');
+      return false;
+    }
     if (this.busy || this.detached || !this.state.interrupted.some((run) => run.runId === runId)) {
       this.reportRunAction(runId, this.busy ? t`Another agent action is active. Wait for it to finish, then try again.` : t`That run is no longer in this project.`, 'error');
       return false;
@@ -1392,10 +1701,20 @@ export class AgentController {
   }
 
   /** "Discard log": deletes the run's log and nothing else. What the run wrote stays in the project. */
-  async discardRun(runId: string): Promise<void> {
+  sessionReferenceCount(runId: string): number {
+    return this.conversations.filter((row) => row.turns.some((ref) => ref.runId === runId)).length;
+  }
+
+  async discardRun(runId: string, confirmedSessions?: number): Promise<void> {
     if (!this.claimRunAction(runId, 'discard')) return;
     try {
+      const count = await agentSessionReferences(this.session.runtimeStore(), this.session.projectId, runId);
+      if (count > 0 && count !== confirmedSessions) throw new Error(t`This log belongs to ${{ count }} sessions. Open Discard log again to confirm removing the turn from all of them.`);
       await this.runLog.discard(runId);
+      for (const row of this.conversations) if (row.turns.some((ref) => ref.runId === runId)) this.conversationAgents.delete(row.sessionId);
+      await this.readConversations();
+      const current = this.conversations.find((row) => row.sessionId === this.sessionId);
+      if (current !== undefined) await this.showConversation(current);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       this.reportRunAction(runId, t`The run log could not be discarded: ${reason}`, 'error');
@@ -1438,7 +1757,7 @@ export class AgentController {
   steer(text: string): SteerResult {
     const note = text.trim();
     if (note === '') return 'refused';
-    if (this.turn === null) return this.busy ? 'refused' : 'idle';
+    if (this.turn === null) return this.actionBusy ? 'refused' : 'idle';
     if (this.runningAgent === null || this.runningTurnId === null) return this.holdNote(note);
     if (this.pending !== null) return 'card-waiting';
     return this.sendNote(note);
@@ -1526,6 +1845,7 @@ export class AgentController {
 
   /** Resumes a paused queue. */
   runQueue(): void {
+    if (this.sessionSave.failure !== null) return;
     this.move({ type: 'queue', paused: false });
     this.announcement = '';
     this.bump();
@@ -1534,12 +1854,25 @@ export class AgentController {
 
   /** Starts the first queued message, when nothing runs and the queue is not paused. */
   private async runNext(): Promise<void> {
-    if (this.busy || this.queuePaused || this.detached) return;
-    const next = this.queue[0];
-    if (next === undefined) return;
-    this.move({ type: 'queue', messages: this.queue.slice(1) });
-    this.bump();
-    await this.submit(next.intent, next.options);
+    if (this.busy || this.queuePaused || this.detached || this.drainingQueue) return;
+    this.drainingQueue = true;
+    try {
+      const loaded = await this.loadSessions();
+      await this.sessionWrites;
+      if (!loaded || this.sessionSave.failure !== null) {
+        this.move({ type: 'queue', paused: true });
+        this.bump();
+        return;
+      }
+      if (this.busy || this.queuePaused || this.detached) return;
+      const next = this.queue[0];
+      if (next === undefined) return;
+      this.move({ type: 'queue', messages: this.queue.slice(1) });
+      await this.submit(next.intent, next.options);
+    } finally {
+      this.drainingQueue = false;
+      if (this.queue.length > 0 && !this.busy && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
+    }
   }
 
   /** The loop's decision request. The card is parked here until the panel or the ghost answers it. */
@@ -1668,6 +2001,7 @@ export class AgentController {
    * later changes went back with it, or why the restore stopped.
    */
   async restore(turnId: string): Promise<RestoreResult> {
+    if (this.sessionSave.failure !== null) return { ok: false, message: this.sessionSave.failure, undone: [] };
     const group = this.checkpointOf(turnId);
     if (group === undefined) return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.`, undone: [] };
     const outcome = await this.session.restoreBefore(group);
@@ -1683,6 +2017,7 @@ export class AgentController {
    * back whole is marked restored for the agent, and this one is marked as restored from this step.
    */
   async restoreStep(turnId: string, stepId: string): Promise<RestoreResult> {
+    if (this.sessionSave.failure !== null) return { ok: false, message: this.sessionSave.failure, undone: [] };
     const group = this.checkpointOf(turnId);
     const agent = this.sessionOf(turnId);
     if (group === undefined || agent === undefined) return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.`, undone: [] };
@@ -1712,6 +2047,7 @@ export class AgentController {
    * mistake. `kept` is how many later changes stayed.
    */
   async restoreOnly(turnId: string, stepId?: string): Promise<RestoreResult & { readonly kept: number }> {
+    if (this.sessionSave.failure !== null) return { ok: false, message: this.sessionSave.failure, undone: [], kept: 0 };
     const group = this.checkpointOf(turnId);
     const from = stepId === undefined ? undefined : this.sessionOf(turnId)?.stepStart(turnId, stepId);
     if (group === undefined || (stepId !== undefined && from === undefined)) {
@@ -1756,11 +2092,12 @@ export class AgentController {
    * held here or a turn is running.
    */
   rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] } | null {
-    if (this.busy) return null;
+    if (this.busy || this.sessionSave.failure !== null) return null;
     const agent = this.sessionOf(turnId);
     if (agent === undefined) return null;
     const result = agent.rewindConversation(turnId);
     if (result.rewound.length === 0) return null;
+    this.persistConversationMarkers();
     this.announcement = t`Conversation rewound. The agent no longer sees that turn or the ones after it.`;
     this.bump();
     return result;
@@ -1769,12 +2106,12 @@ export class AgentController {
   /** Whether the conversation can be rewound to before this turn: nothing is running and the turn is still sent to the model. */
   canRewind(turnId: string): boolean {
     const turn = this.turns.find((entry) => entry.turnId === turnId);
-    return !this.busy && turn !== undefined && this.sessionOf(turnId)?.turnMarker(turnId)?.kind !== 'rewound' && this.sessionOf(turnId) !== undefined;
+    return !this.busy && this.sessionSave.failure === null && turn !== undefined && this.sessionOf(turnId)?.turnMarker(turnId)?.kind !== 'rewound' && this.sessionOf(turnId) !== undefined;
   }
 
   /** The session that ran this turn: a turn belongs to the session of the role it ran under. */
   private sessionOf(turnId: string): AgentSession | undefined {
-    return [...this.sessions.values()].find((agent) => agent.reports().some((report) => report.turnId === turnId));
+    return [...this.sessions.values()].find((agent) => agent.turnMarker(turnId) !== undefined);
   }
 
   /**
@@ -1791,7 +2128,8 @@ export class AgentController {
       const ids = taken.filter((turn) => this.sessionOf(turn.turnId) === agent).map((turn) => turn.turnId);
       if (ids.length > 0) undo.push(agent.markRestored(ids, at, partial !== undefined && ids[0] === partial.turnId ? partial.step : undefined));
     }
-    return () => { for (const restore of undo) restore(); this.bump(); };
+    this.persistConversationMarkers();
+    return () => { for (const restore of undo) restore(); this.persistConversationMarkers(); this.bump(); };
   }
 
   /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */
@@ -1847,6 +2185,8 @@ export class AgentController {
       if (event.type === 'report') this.commandNote = null;
     }
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
+      this.liveTurnIds.add(event.turnId);
+      this.roleForTurn.set(event.turnId, this.runningAgent === null ? 'chat' : [...this.sessions.entries()].find(([, agent]) => agent === this.runningAgent)?.[0] ?? 'chat');
       if (this.turnAbort !== null) this.move({ type: 'turn', owner: this.turnAbort, patch: { turnId: event.turnId } });
       this.turns = [...this.turns, newTurnRecord(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.commandForNextTurn)];
       this.handEarlyNotes(event.turnId);
@@ -1863,6 +2203,20 @@ export class AgentController {
     if (event.type === 'report') {
       this.clearGhosts();
       this.armed.clear();
+      const turn = this.turns.find((item) => item.turnId === event.turnId);
+      const runId = this.runForTurn.get(event.turnId);
+      if (turn !== undefined && runId !== undefined) {
+        const hidden = this.hiddenTurnIds.has(event.turnId);
+        this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'enqueue' });
+        this.sessionWrites = this.sessionWrites.then(async () => {
+          await this.persistSessionTurn(runId, turn, hidden);
+          this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'settle', failure: null });
+        }).catch((error: unknown) => {
+          this.message = t`The conversation could not be saved: ${{ reason: error instanceof Error ? error.message : String(error) }}. The run log is still available in Activity. Try again before closing this project.`;
+          this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'settle', failure: this.message });
+          this.bump();
+        });
+      }
     }
     this.bump();
   }
@@ -2040,7 +2394,7 @@ export class AgentController {
    * as one undo group; cancelling leaves the task ready to open again. A turn that is running is not interrupted for it.
    */
   async reviewTask(id: string): Promise<TurnReport | null> {
-    if (this.busy) {
+    if (this.actionBusy) {
       this.message = t`The agent is working on another turn. Open this task when it has finished.`;
       this.bump();
       return null;
@@ -2140,6 +2494,17 @@ export class AgentController {
     return loop;
   }
 
+  private nextSessionTurn(role: TaskRole): number {
+    const name = role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`;
+    const prefix = `${name}.turn-`;
+    const ids = [...this.runForTurn.keys(), ...this.providers.gateway.ledger.turnRows().map((row) => row.turnId)];
+    const seed = this.conversation?.nextTurn?.[role] ?? 1;
+    return ids.reduce((next, id) => {
+      const number = id.startsWith(prefix) ? Number(id.slice(prefix.length)) : 0;
+      return Number.isSafeInteger(number) && number >= 0 ? Math.max(next, number + 1) : next;
+    }, Number.isSafeInteger(seed) && seed > 0 ? seed : 1);
+  }
+
   /** The session of a task role, made on its first use (see `sessions`). The harness has loaded (`harnessLoop`) before this runs. */
   private sessionFor(role: TaskRole, loop: HarnessModule): AgentSession {
     const kept = this.sessions.get(role);
@@ -2157,6 +2522,8 @@ export class AgentController {
       emit: (event) => this.onEvent(event),
       role,
       sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
+      history: recentSessionTurns(this.turns, this.conversation?.turns.filter((ref) => ref.role === role) ?? [], this.presentations),
+      nextTurn: this.nextSessionTurn(role),
       usageSessionId: this.sessionId,
       clock: this.clock,
       trace: () => {
@@ -2196,6 +2563,7 @@ export class AgentController {
       },
     });
     this.sessions.set(role, agent);
+    this.conversationAgents.set(this.sessionId, this.sessions);
     return agent;
   }
 
@@ -2319,7 +2687,7 @@ export class AgentController {
         return JSON.parse(JSON.stringify(held)) as unknown;
       }),
     );
-    void this.loadInterrupted();
+    void this.loadSessions().then(() => this.loadInterrupted());
     this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.

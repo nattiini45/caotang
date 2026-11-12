@@ -115,7 +115,7 @@ describe('persistent document revision floors', () => {
     store.close();
     const reopened = (await open(factory)).store;
     const deleted = await readProjectState(reopened, PROJECT);
-    expect(reopened.db.version).toBe(4);
+    expect(reopened.db.version).toBe(5);
     expect(deleted.documents.has(DOC)).toBe(false);
     expect(getRevisionFloor(deleted, DOC)).toBe(20);
     expect(cloneProjectState(deleted)).toEqual(deleted);

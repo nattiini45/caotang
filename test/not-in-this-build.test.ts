@@ -34,6 +34,7 @@ function sectionsUnder(text: string, heading: string): string {
 
 /** Built features that no list may name as missing. Each pattern is one feature, in the words the lists used. */
 const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp }[] = [
+  { name: 'durable agent conversations', pattern: /agent (?:sessions|history) (?:are|is) not kept|conversation (?:is|history is) not kept across a reload/i },
   { name: 'codex visual references', pattern: /visual references?/i },
   { name: 'WebP pictures on the contact sheet', pattern: /does not draw WebP|WebP picture as its caption/i },
   { name: 'the dialogue table character limit', pattern: /character limit/i },
