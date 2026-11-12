@@ -32,6 +32,7 @@
     "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/import-core": "workspace:*",
+    "@caotang/import-inklewriter": "workspace:*",
     "@caotang/import-read": "workspace:*",
     "@caotang/import-rtf": "workspace:*",
     "@caotang/machine": "workspace:*",
