@@ -109,6 +109,20 @@ The server is backend-neutral: a small HTTP service that stores opaque bytes und
 
 In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) is this contract. Its test double, a `FakeBlobServer` with ETags, 412, soft delete, an offline switch and a `dump()` of every version ever kept, lives in the package's tests. There is no HTTP client yet.
 
+### 6.1 Retained history and restore (#637)
+
+Soft deletion removes a blob from the live API above, not from authenticated history reads. The history namespace is scoped to the session's account and the project on every route, including blobs that are no longer live:
+
+| Request | Meaning | Answers |
+|---|---|---|
+| `GET /v1/projects/{id}/history` | list retained index checkpoints | `200` JSON `[{checkpoint, counter, createdAt}]`; checkpoints are opaque random ids, not file names |
+| `GET /v1/projects/{id}/history/{checkpoint}/manifest` | read that retained index | `200` the original counter plus sealed bytes and `ETag`; `404` when absent or expired |
+| `GET /v1/projects/{id}/history/{checkpoint}/blobs/{name}` | read a blob referenced by that checkpoint, even after soft deletion | `200` bytes and `ETag`; `404` if it is not a member of that checkpoint or the checkpoint expired |
+
+Because the server cannot decrypt an index, each checkpoint must atomically retain a client-supplied set of its opaque blob names alongside the sealed index; the server validates that all belong to this account/project before publishing the checkpoint. This reference set contains no paths or content. Thinning drops a checkpoint's references, and a blob is purged only after neither the current index nor any retained checkpoint references it. Account deletion removes the retained namespace too. #637 must test recovery after soft deletion and thinning, expiry, and cross-account refusal; these routes are specified, not present in the existing `RemoteBlobStore`.
+
+Restore happens on the unlocked device: fetch and authenticate the selected index and its blobs, show the recoverable version, then write the chosen content as a **new** live commit against the current ETag. Never install the old index or lower a rollback mark: restored files use fresh sealing nonces, file versions above the current/high-water versions and an index counter above the current/high-water counter. A concurrent live change returns 412 and takes the normal merge/retry path. History reads are explicitly labelled recovery reads and do not replace the live adapter's index or its high-water marks.
+
 ## 7. Sync, conflicts and rollback
 
 - **Existing adapter boundary.** A 412 still raises `RemoteConflictError` without overwriting anything; the adapter does not retry or merge. `refresh()` reads the other device's index. An offline adapter write still raises `RemoteUnavailableError`. The hosted sync layer, not the low-level port, owns the following orchestration; local folder-save conflict behaviour stays unchanged.
