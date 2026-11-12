@@ -130,4 +130,34 @@ describe('binder.importTree — the descriptor', () => {
     const failures = failuresOf(binderImportTree.validate({ nodes: [{ type: 'folder', title: 'C', origin: 'import' }] }, makeSnapshot()));
     expect(failures[0]?.target).toBe('nodes[0].origin');
   });
+
+  it('takes a document kind (a screenplay, an AV script, a comic script) and hands it back; a node without one stays prose', () => {
+    const nodes = [
+      { type: 'folder', title: 'C' },
+      { type: 'document', title: 'Scene', parent: 0, body: 'INT. ROOM - DAY', kind: 'screenplay' },
+      { type: 'document', title: 'Prose', parent: 0, body: 'A line.' },
+    ];
+    const result = binderImportTree.validate({ nodes }, makeSnapshot());
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.nodes[1]?.kind).toBe('screenplay');
+    expect(result.value.nodes[2]?.kind).toBeUndefined();
+    expect(result.value.nodes[0]?.kind).toBeUndefined();
+  });
+
+  it('refuses a kind on a folder and a kind a document does not take', () => {
+    const failures = failuresOf(
+      binderImportTree.validate(
+        {
+          nodes: [
+            { type: 'folder', title: 'C', kind: 'screenplay' },
+            { type: 'folder', title: 'D' },
+            { type: 'document', title: 'S', parent: 1, body: 'x', kind: 'prose' },
+          ],
+        },
+        makeSnapshot(),
+      ),
+    );
+    expect(failures.map((failure) => failure.target)).toEqual(['nodes[0].kind', 'nodes[2].kind']);
+  });
 });

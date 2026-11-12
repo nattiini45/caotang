@@ -48,6 +48,8 @@ export interface PreviewNode {
   readonly notes?: string;
   readonly synopsis?: string;
   readonly keywords?: readonly string[];
+  /** A document's kind: a screenplay, an AV script or a comic script. Absent: a prose document. A folder takes no kind. */
+  readonly kind?: 'screenplay' | 'av-script' | 'comic-script';
   /** Front and back matter only: where it goes. `skip` keeps it out (and the report says so). */
   readonly place?: 'manuscript' | 'research' | 'skip';
   /** The source's own fields (front-matter keys, CSV columns), mapped by the writer in the Fields section. */
@@ -691,7 +693,7 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
   function addDocument(node: PreviewNode, parent: number | undefined, place: 'research' | undefined): void {
     const body = node.body ?? '';
     if (!helpers.keepsImportedBody(body, node.title)) unkept.push(node.title);
-    nodes.push({ type: 'document', title: node.title, body, ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
+    nodes.push({ type: 'document', title: node.title, body, ...(node.kind === undefined ? {} : { kind: node.kind }), ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
     indexOf.set(node.id, nodes.length - 1);
     documents += 1;
   }
