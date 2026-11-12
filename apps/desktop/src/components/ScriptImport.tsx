@@ -14,12 +14,13 @@ import { plural, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 
-import { compileInk, mintImportIds, planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
+import { compileInk, mintImportIds, planInkImport, planTweeImport, type ImportedContainer, type TweeImportPlan } from '@caotang/dialogue';
 import { importScanSentence, scanImport } from '@caotang/harness';
 import { importFdx, type FdxCodexSeed, type FdxImportedScript } from '@caotang/screenplay';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
+import { openImportPreview } from '../import-preview/requests.js';
 import { readXmlFileText } from '../app/xml-file.js';
 import type { ProjectSession } from '../app/session.js';
 import { importLineIdsSentence } from '../media/ink-model.js';
@@ -54,6 +55,7 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
   const scriptFile = useRef<HTMLInputElement>(null);
   const inkFile = useRef<HTMLInputElement>(null);
   const tweeFile = useRef<HTMLInputElement>(null);
+  const inklewriterFile = useRef<HTMLInputElement>(null);
   const [addIds, setAddIds] = useState(false);
   const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan; readonly scan: string[] } | null>(null);
   const [pendingFdx, setPendingFdx] = useState<{
@@ -185,6 +187,38 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
     report({ text: [text, ...scan].join(' '), tone: 'info' });
   };
 
+  // Inklewriter (issue #286): the JSON is converted to Ink in the preview's Worker, and the shared preview shows the containers
+  // and what the import does not keep before anything is written. The line-ids option is the preview's own, not the switch above.
+  const writeInklewriter = async (
+    fileName: string,
+    imported: readonly ImportedContainer[],
+    addIds: boolean,
+  ): Promise<{ readonly ok: true } | { readonly ok: false; readonly message: string }> => {
+    await requestInkCompiler();
+    const minted = addIds ? mintImportIds(imported, { compiles: (body) => compileInk(body).ok }) : null;
+    const outcome = session.dispatch('dialogue.importInk', {
+      containers: (minted?.containers ?? imported).map((container) => ({ title: container.title, body: container.body })),
+    });
+    if (!outcome.ok) return { ok: false, message: explain(outcome.error) };
+    const containers = imported.length;
+    const made = t`Imported ${plural(containers, { one: '# dialogue container', other: '# dialogue containers' })} from ${{ file: isolate(fileName) }}.`;
+    const ids = minted === null ? [] : [importLineIdsSentence(minted)];
+    report({ text: [made, ...ids].join(' '), tone: 'info' });
+    return { ok: true };
+  };
+
+  const openInklewriter = async (file: File): Promise<void> => {
+    try {
+      const { inklewriterPreviewSource } = await import('../import-preview/inklewriter-source.js');
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      openImportPreview({
+        source: inklewriterPreviewSource({ fileName: file.name, bytes, write: (containers, addIds) => writeInklewriter(file.name, containers, addIds) }),
+      });
+    } catch (failure) {
+      report({ text: t`${{ file: isolate(file.name) }} could not be read: ${{ problem: failure instanceof Error ? failure.message : String(failure) }}`, tone: 'error' });
+    }
+  };
+
   return (
     <>
       <More summary={t`Import…`} className="binder-import">
@@ -199,6 +233,9 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
             </button>
             <button type="button" className="button is-quiet" onClick={() => tweeFile.current?.click()}>
               <Trans>Import Twee</Trans>
+            </button>
+            <button type="button" className="button is-quiet" onClick={() => inklewriterFile.current?.click()}>
+              <Trans>Import Inklewriter</Trans>
             </button>
             <label className="script-import-ids">
               <input type="checkbox" role="switch" className="k-switch" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
@@ -238,6 +275,18 @@ export function ScriptImportActions({ session, children }: { session: ProjectSes
                 const file = event.currentTarget.files?.[0];
                 event.currentTarget.value = '';
                 if (file !== undefined) void planTwee(file);
+              }}
+            />
+            <input
+              ref={inklewriterFile}
+              type="file"
+              hidden
+              accept=".json,application/json"
+              aria-label={t`Inklewriter story file`}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (file !== undefined) void openInklewriter(file);
               }}
             />
           </div>
