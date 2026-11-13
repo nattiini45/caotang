@@ -491,7 +491,7 @@ export interface RoleResolver {
 }
 
 export interface ProviderGateway {
-  complete(req: ChatRequest, signal?: AbortSignal): AsyncIterable<ChatChunk>;
+  complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncIterable<ChatChunk>;
   completeOnce(req: ChatRequest, signal?: AbortSignal): Promise<ChatMessage>;
   listModels(profileId: string): Promise<ModelInfo[]>;
   /**

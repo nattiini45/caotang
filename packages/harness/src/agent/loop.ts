@@ -1482,22 +1482,31 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
-  async function* settling(turn: Turn, reservation: Reservation | undefined, stream: AsyncIterable<ChatChunk>): AsyncGenerator<ChatChunk, void, undefined> {
-    if (reservation === undefined || turn.meter === undefined) {
-      yield* stream;
-      return;
-    }
+  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk, void, undefined> {
     let usage: Usage | undefined;
     let delivered = '';
+    let sent = false;
+    let refused = false;
+    const beforeSend = (): void => {
+      try { guardReadBoundary(turn); } catch (error) { refused = !sent; throw error; }
+      sent = true;
+    };
     try {
-      for await (const chunk of stream) {
+      for await (const chunk of gateway.complete(request, signal, beforeSend)) {
         if (chunk.usage !== undefined) usage = chunk.usage;
         delivered += `${chunk.delta ?? ''}${chunk.reasoningDelta ?? ''}`;
         yield chunk;
       }
     } finally {
-      turn.meter.settle(reservation, usage, { promptTokens: reservation.promptTokens, completionTokens: estimateTokens(delivered) });
-      emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+      if (refused) {
+        turn.modelCalls -= 1;
+        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+      }
+      if (reservation !== undefined && turn.meter !== undefined) {
+        if (refused) turn.meter.release(reservation);
+        else turn.meter.settle(reservation, usage, { promptTokens: reservation.promptTokens, completionTokens: estimateTokens(delivered) });
+        emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+      }
     }
   }
 
@@ -1561,7 +1570,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         if (planner === 'compaction') emit({ type: 'session.compacting', turnId: turn.id });
-        return watched(turn.cache, turn.calls, sent, planner === true, settling(turn, reservation, gateway.complete(sent, signal)));
+        return watched(turn.cache, turn.calls, sent, planner === true, settling(turn, reservation, sent, signal));
       },
     },
     turnId: turn.id,
@@ -1595,7 +1604,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           used += 1;
           turn.calls += 1;
           const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
-          return settling(turn, reservation, gateway.complete(sent, signal));
+          return settling(turn, reservation, sent, signal);
         },
       },
       turnId: turn.id,

@@ -87,6 +87,8 @@ A `keylessModels` flag means the provider's `/models` answers without a key — 
 
 ## 3. Wire adapters
 
+`Gateway.complete(request, signal?, beforeSend?)` accepts an optional synchronous caller admission check outside the serializable request. The gateway/transport invokes it after asynchronous credential resolution and immediately before counting and dispatching each attempt, including retries after backoff; mock requests check it before counting too. A thrown refusal propagates unchanged and makes no new fetch or ledger attempt. The callback never enters a provider body, trace request, project file or export. Gateway decorators must forward it.
+
 Three wire formats ship, one adapter each, behind `ProviderAdapter` (`src/adapters/`). The gateway resolves a profile+model to `{adapter, ctx}` — the pinned first-party route for `api.openai.com` and `api.anthropic.com` (§2), else the preset's route, or the generic Chat route — and the adapter owns everything route-specific:
 
 ```ts

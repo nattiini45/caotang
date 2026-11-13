@@ -447,7 +447,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     };
   }
 
-  async function* complete(req: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk, void, undefined> {
+  async function* complete(req: ChatRequest, signal?: AbortSignal, beforeSend?: () => void): AsyncGenerator<ChatChunk, void, undefined> {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
     // profile it sends through, and the model and thinking level become the defaults the request's own fields
     // still beat. A resolver with no answer leaves the named-or-active rule in place, as a roleless request.
@@ -475,6 +475,7 @@ export function createGateway(options: GatewayOptions): Gateway {
 
     try {
       if (profile.kind === 'mock') {
+        beforeSend?.();
         stats.attempts = 1;
         trace?.request([]);
         for await (const chunk of mock.complete(sent, signal)) {
@@ -500,7 +501,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       assertEgress(deps, `${profile.baseUrl}${resolved.adapter.completePath(model)}`, profile.id);
       const revealed = await secretsFor(profile);
       trace?.request(revealed.redact);
-      const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal };
+      const spec = { ...chatSpec(profile, sent, resolved, jsonObject, revealed, trace?.attempt), signal, ...(beforeSend === undefined ? {} : { beforeSend }) };
       for await (const chunk of streamChat(deps, spec, stats)) {
         trace?.chunk(chunk, stats, signal);
         yield chunk;
@@ -716,7 +717,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     profiles,
     ledger,
     requestLog,
-    complete: (req, signal) => complete(req, signal),
+    complete: (req, signal, beforeSend) => complete(req, signal, beforeSend),
     completeOnce: (req, signal) => collectOnce(complete(req, signal), signal),
     listModels,
     modelLimits,
