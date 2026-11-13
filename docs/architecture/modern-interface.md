@@ -465,7 +465,7 @@ At 200% zoom a 1,440 px window is 720 CSS px wide and gets the narrow Modern lay
 
 The policy does not change. Modern stays inside it:
 
-- Styles come from stylesheets in the bundle. Positions, sizes and the specular highlight's coordinates are set through the CSSOM (`element.style.setProperty`, React's `style` prop), which `style-src 'self'` does not govern; no `style` attribute is written into markup and no `<style>` element is created at run time, so no CSS-in-JS runtime.
+- Styles come from stylesheets in the bundle. Positions, sizes and the specular highlight's coordinates are set through the CSSOM (`element.style.setProperty`, React's `style` prop), which `style-src 'self'` does not govern; no `style` attribute is written into markup and no `<style>` element is created at run time, so no CSS-in-JS runtime. UI SDK's bundled behavior rules use its documented constructed-stylesheet path, selected by `<meta property="csp-nonce">` without a nonce. No static nonce, inline-style permission or policy exception is added.
 - Motion is CSS transitions and the Web Animations API. No `eval`, no `new Function`, no WebAssembly, no worker beyond `worker-src 'self'`.
 - Icons are inline SVG elements rendered by React; the wallpaper is a same-origin asset; there are no web fonts beyond the bundled ones and no remote image.
 - Modern's e2e specs fail on any `securitypolicyviolation` event, as the existing CSP listener does.

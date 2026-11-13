@@ -136,6 +136,7 @@ These are the tools a host lists, measured from `tools/list` on a server started
 - `agent.plan` is protocol, not a tool.
 - `project.deleteNode` is hard-denied: it is refused whatever the caller asks, in every mode, with the bus's own message.
 - `memory.write` and `instructions.propose` are not listed either. The writer's `CAOTANG.md` and the agent's memory notes are readable here (`memory.read`, and every prompt carries them), and they change in the app, at a card: a rule or a memory is a standing instruction, so no `--allow-writes` hands it to a host. `memory.forget` is the writer's alone and is hard-denied.
+- `session.history` is not listed: it reads only the current role's in-app conversation, which this server does not hold.
 - `tool.search` is not listed. It searches the tool servers Caotang's own MCP client connects to, and this server connects to none, so the tool could only report that.
 - The eight tools that need a model are not listed, because the server holds no provider key: `scene.draft`, `synopsis.fill`, `continuity.scan`, `coherence.review`, `shots.derive`, `prompt.draft`, `prompt.variant` and `dialogue.draft`. The host's own model does the writing for two of them, through `scene.brief` and `scene.apply`, and `dialogue.brief` and `dialogue.apply`. The other six have no pair yet.
 

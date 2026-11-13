@@ -129,6 +129,7 @@ describe('the metadata table as a whole', () => {
       'skill.read',
       'memory.read',
       'agent.delegate',
+      'session.history',
       'timeline.read',
       'pictures.list',
       'pictures.view',

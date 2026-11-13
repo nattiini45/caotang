@@ -414,8 +414,6 @@ const ROWS: readonly ToolRow[] = [
     load: 'deferred',
     keywords: ['delegate', 'agent', 'subagent', 'helper', 'research', 'reader', 'summarise', 'long'],
   },
-  // The story timeline's read (timeline.md §5.1): the model the view and the MCP resources use, scoped and cut at whole scenes under its cap. A read,
-  // so it is auto; deferred like the other extension rows, and loaded by `tool.search` on "timeline", "day", "chronology" and the like.
   {
     name: 'session.history',
     risk: 'read',
@@ -427,6 +425,8 @@ const ROWS: readonly ToolRow[] = [
     load: 'deferred',
     keywords: ['session', 'history', 'earlier', 'previous', 'conversation', 'remember', 'past'],
   },
+  // The story timeline's read (timeline.md §5.1): the model the view and the MCP resources use, scoped and cut at whole scenes under its cap. A read,
+  // so it is auto; deferred like the other extension rows, and loaded by `tool.search` on "timeline", "day", "chronology" and the like.
   {
     name: 'timeline.read',
     risk: 'read',

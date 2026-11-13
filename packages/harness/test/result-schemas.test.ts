@@ -39,7 +39,7 @@ describe('the registry declares a result for every callable row', () => {
   it('closes the thirteen callable v0.1 rows and tool.search, and leaves the rest open', () => {
     const v01 = listing.filter((item) => item.surface === 'v0.1' && item.callable).map((item) => item.name);
     expect(v01).toHaveLength(13);
-    expect([...RESULT_CLOSED].sort()).toEqual([...v01, 'tool.search'].sort());
+    expect([...RESULT_CLOSED].sort()).toEqual([...v01, 'tool.search', 'session.history'].sort());
     for (const tool of listing.filter((item) => item.callable)) {
       expect((tool.resultSchema as { additionalProperties: boolean }).additionalProperties, tool.name).toBe(!RESULT_CLOSED.has(tool.name as keyof typeof RESULT_SPECS));
     }
