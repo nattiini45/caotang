@@ -125,7 +125,7 @@ describe('the cells', () => {
   });
 
   it('keeps unicode as written: Chinese, accents and an emoji', () => {
-    const text = '草堂 — Abeßer says “ni hao” 👋';
+    const text = '草堂 — Weißdorn says “ni hao” 👋';
     const sheet = partsOf({ name: '对白', columns: ['text'], rows: [[text]] });
     expect(readCells(sheet['xl/worksheets/sheet1.xml'] ?? '').get('A2')?.value).toBe(text);
     expect(sheet['xl/workbook.xml']).toContain('name="对白"');
