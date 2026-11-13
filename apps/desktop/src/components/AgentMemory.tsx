@@ -55,11 +55,17 @@ function MemoryRole({ agent, snapshot, memory, onEditingChange }: { readonly age
   const coveredTurns = summary?.covers.turns ?? 0;
   const unavailable = snapshot.busy || snapshot.queue.length > 0 || snapshot.sessionSave.kind === 'writing' || snapshot.sessionSave.failure !== null || saving;
   const tokens = Math.ceil((editing?.text.trim().length ?? 0) / 4);
+  const headings = new Map([
+    ["Writer's standing requests", t({ message: "Writer's standing requests", context: 'session summary section' })],
+    ['Decisions', t({ message: 'Decisions', context: 'session summary section' })],
+    ['Done', t({ message: 'Done', context: 'session summary section' })],
+    ['Open threads', t({ message: 'Open threads', context: 'session summary section' })],
+  ]);
   return <>
     {summary === undefined ? <p><Trans>This role has no summary yet.</Trans></p> : <>
       <p className="agent-memory-meta">{plural(coveredTurns, { one: '# earlier turn summarised', other: '# earlier turns summarised' })} · {summary.origin === 'auto' ? <Trans>Automatic</Trans> : <Trans>Manual</Trans>}{summary.editedAt === undefined ? null : <> · <Trans>Edited by you</Trans></>}{summary.external ? <> · <span className="badge is-source-mcp"><Trans>External</Trans></span></> : null}</p>
       {memory.withheld ? <p role="status"><Trans>This summary is not sent to the model because the read rules changed. Start a new session to continue without this earlier memory.</Trans></p> : null}
-      {editing === null ? <div className="agent-memory-text" dir="auto">{summary.text.split(/^(## [^\n]+)$/m).map((part, index) => part.startsWith('## ') ? <strong key={index}>{part.slice(3)}</strong> : part)}</div> : null}
+      {editing === null ? <div className="agent-memory-text" dir="auto">{summary.text.split(/^(## [^\n]+)$/m).map((part, index) => part.startsWith('## ') ? <strong key={index}>{headings.get(part.slice(3)) ?? part.slice(3)}</strong> : part)}</div> : null}
     </>}
     {editing !== null ? <>
         <Field className="field" invalid={tokens === 0 || tokens > 600}>

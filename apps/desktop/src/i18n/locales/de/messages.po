@@ -6172,6 +6172,12 @@ msgstr "Tage, um die verschoben werden soll, zum Beispiel 14 oder -3"
 msgid "Days to shift for change {n}"
 msgstr "Tage, um die für Änderung {n} verschoben werden soll"
 
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
+msgid "Decisions"
+msgstr "Entscheidungen"
+
 #. The dialogue view. Interpolated values: title, name, condition, targets and expected are the writer's own Ink text or names; line is a line number; counts are numbers.
 #: apps/desktop/src/media/DialogueView.tsx
 msgid "Declarations and notes"
@@ -6676,6 +6682,12 @@ msgstr "erledigt"
 #: apps/desktop/src/components/SkillsPanel.tsx
 #: apps/desktop/src/components/TaskChecklist.tsx
 #: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Done"
+msgstr "Erledigt"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
 msgid "Done"
 msgstr "Erledigt"
 
@@ -11791,6 +11803,12 @@ msgstr "Diese Kopie trotzdem öffnen"
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open this project?"
 msgstr "Dieses Projekt öffnen?"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
+msgid "Open threads"
+msgstr "Offene Fäden"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -20496,6 +20514,12 @@ msgstr "Schreibende Person oder Agent"
 #: apps/desktop/src/media/ShotPromptEditor.tsx
 msgid "Writer’s note for this shot (not sent to the model)"
 msgstr "Notiz des Autors zu dieser Einstellung (wird nicht an das Modell gesendet)"
+
+#. Interpolated values: tokens, coveredTurns
+#: apps/desktop/src/components/AgentMemory.tsx
+msgctxt "session summary section"
+msgid "Writer's standing requests"
+msgstr "Dauerhafte Wünsche"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size

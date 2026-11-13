@@ -64,6 +64,11 @@ test('UI SDK can inspect and operate memory without bypassing paid-request appro
   expect((await act('Edit summary', 'press')).ok).toBe(true);
   expect((await act('Cancel', 'press')).ok).toBe(true);
   await expect(memory.getByRole('button', { name: 'Edit summary', exact: true })).toBeFocused();
+  expect((await act('Edit summary', 'press')).ok).toBe(true);
+  expect((await act('Session summary', 'setValue', ['## My ending\nThe lighthouse is closed.'])).ok).toBe(true);
+  expect((await act('Save summary', 'press')).ok).toBe(true);
+  await expect(memory.locator('.agent-memory-text > strong')).toHaveText('My ending');
+  await expect(memory.locator('.agent-memory-text')).toContainText('The lighthouse is closed.');
   expect(requests).toHaveLength(beforeCompact + 1);
 });
 
@@ -250,15 +255,21 @@ for (const variant of [
     const manuscript = await projectTrace(page);
     await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassen' : 'Compact', exact: true }).click();
     await expect(memory.locator('.agent-memory-text')).toContainText('Keep the storm.');
+    await expect(memory.locator('.agent-memory-text > strong')).toHaveText(variant.language === 'de'
+      ? ['Dauerhafte Wünsche', 'Entscheidungen', 'Erledigt', 'Offene Fäden']
+      : ["Writer's standing requests", 'Decisions', 'Done', 'Open threads']);
     await expect(panel).toHaveAttribute('data-state', 'idle');
     expect(requests.at(-1)).toContain('Keep the lighthouse decision.');
     expect(await projectTrace(page)).toEqual(manuscript);
     await page.setViewportSize({ width: variant.width, height: variant.height });
     await memory.locator('[data-slot="collapsible-trigger"]').scrollIntoViewIfNeeded();
+    if (variant.shell === 'modern' && variant.width < 960) await expect(page.getByTestId('modern-drawer')).toBeAttached();
+    await expect(page.locator('.status-line[data-panel-state="loading"]')).toHaveCount(0);
     await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`memory-${variant.shell}-${variant.language}-summary.png`) });
     await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung bearbeiten' : 'Edit summary', exact: true }).click();
     const editor = memory.getByLabel(variant.language === 'de' ? 'Sitzungszusammenfassung' : 'Session summary', { exact: true });
     await expect(editor).toBeFocused();
+    expect(await editor.inputValue()).toContain("## Writer's standing requests\nKeep the storm.");
     await editor.fill('x'.repeat(2401));
     const save = memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung speichern' : 'Save summary', exact: true });
     await expect(save).toBeDisabled();
