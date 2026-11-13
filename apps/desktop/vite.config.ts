@@ -1,4 +1,3 @@
-import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { lingui } from '@lingui/vite-plugin';
@@ -20,9 +19,8 @@ function thirdPartyNotices(): Plugin {
   return {
     name: 'caotang-third-party-notices',
     apply: 'build',
-    closeBundle() {
-      const text = generateNotices({ root: REPO_ROOT, filters: ['./apps/desktop'] });
-      writeFileSync(fileURLToPath(new URL(`dist/${NOTICES_FILE}`, import.meta.url)), text);
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: NOTICES_FILE, source: generateNotices({ root: REPO_ROOT, filters: ['./apps/desktop'] }) });
     },
   };
 }
