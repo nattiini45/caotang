@@ -64,7 +64,7 @@ function devCsp(): Plugin {
     transformIndexHtml: {
       order: 'pre',
       handler(html) {
-        return html.replace(/(http-equiv="Content-Security-Policy"\s+content=")([^"]*)(")/, (_match, open: string, policy: string, close: string) => {
+        return html.replace('<meta property="csp-nonce" />', '').replace(/(http-equiv="Content-Security-Policy"\s+content=")([^"]*)(")/, (_match, open: string, policy: string, close: string) => {
           const relaxed = policy
             .replace("script-src 'self'", `script-src 'self' 'nonce-${DEV_NONCE}'`)
             .replace("style-src 'self'", `style-src 'self' 'nonce-${DEV_NONCE}'`)
