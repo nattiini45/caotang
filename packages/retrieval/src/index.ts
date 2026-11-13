@@ -1,10 +1,10 @@
 import * as codexText from '@caotang/codex';
-import type { ProjectState, TreeNode } from '@caotang/store';
+import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 
 export type UnitField = 'body' | 'synopsis' | 'notes' | 'codex';
 type SearchNode = Pick<TreeNode, 'id' | 'parentId' | 'type' | 'title' | 'order' | 'synopsis' | 'notes'>;
 export interface SearchState {
-  readonly manifest: Pick<ProjectState['manifest'], 'codex'> & { readonly tree: readonly SearchNode[]; readonly project: Pick<ProjectState['manifest']['project'], 'language'> };
+  readonly manifest: { readonly tree: readonly SearchNode[]; readonly codex?: readonly Pick<CodexEntry, 'id' | 'name' | 'aliases' | 'description' | 'includePolicy'>[]; readonly project: Pick<ProjectState['manifest']['project'], 'language'> };
   readonly documents: ProjectState['documents'];
 }
 export type HitPosition = 'manuscript' | 'before-focus' | 'focus' | 'after-focus' | 'research' | 'codex';

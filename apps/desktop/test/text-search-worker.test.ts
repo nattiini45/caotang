@@ -25,11 +25,13 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 it('omits binder text from an unconfirmed codex-only worker request under a scoped read-ask', async () => {
   const search = createTextSearchWorker();
   const harness = makeHarness({ asyncPorts: { 'text.search': search.port }, rules: () => ({ rules: [{ source: 'app', tool: 'text.search', effect: 'ask', access: 'read', scope: { subtree: CHAPTER_ONE } }] }) });
+  harness.state.manifest.codex![0]!.sources = [{ docId: LANDING, quote: 'The ferry was late, as always.' }];
   const first = harness.callAsync({ callId: 'codex-only', name: 'text.search', params: { query: 'keeper', fields: ['codex'] } }, { turnId: 'search' });
   const worker = HeldWorker.instances[0]!;
   const request = worker.messages[0]!;
   expect(request.state.documents.size).toBe(0);
   expect(request.state.manifest.tree.every((node) => node.synopsis === '' && node.notes === '')).toBe(true);
+  expect(Object.keys(request.state.manifest.codex![0]!)).toEqual(['id', 'name', 'aliases', 'description', 'includePolicy']);
   worker.answer();
   expect(await first).toMatchObject({ ok: true, value: { data: { total: 1, hits: [{ field: 'codex' }] } } });
   expect(await harness.callAsync({ callId: 'binder', name: 'text.search', params: { query: 'ferry' } }, { turnId: 'search' })).toMatchObject({ ok: false, error: { code: 'permission-denied' } });

@@ -61,7 +61,7 @@ export function createTextSearchWorker(): { readonly port: AsyncToolPort; dispos
         const snapshot: SearchState = { manifest: {
           project: { language: project.language },
           tree: tree.map((node) => ({ id: node.id, parentId: node.parentId, type: node.type, title: node.title, order: node.order, synopsis: eligible.has(node.id) ? node.synopsis : '', notes: eligible.has(node.id) ? node.notes : '' })),
-          codex: codex?.filter((entry) => entry.includePolicy !== 'never' && !context.withheld?.has(entry.id)),
+          codex: codex?.filter((entry) => entry.includePolicy !== 'never' && !context.withheld?.has(entry.id)).map((entry) => ({ id: entry.id, name: entry.name, aliases: entry.aliases, description: entry.description, includePolicy: entry.includePolicy })),
         }, documents };
         worker!.postMessage({ id, state: snapshot, params, withheld: context.withheld } satisfies TextSearchRequest);
       } catch {
