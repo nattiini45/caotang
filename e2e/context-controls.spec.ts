@@ -27,6 +27,20 @@ async function pin(page: Page, query: string, line = 'Consider these scenes.'): 
   await expect(intent(page)).toHaveValue(`${line} `);
 }
 
+async function captureContextChoices(page: Page, path: string): Promise<void> {
+  await page.evaluate(async () => {
+    const finite = document.getAnimations().filter((animation) => {
+      const end = animation.effect?.getComputedTiming().endTime;
+      return typeof end === 'number' && Number.isFinite(end);
+    });
+    await Promise.all(finite.map((animation) => animation.finished.catch(() => undefined)));
+  });
+  const scope = page.locator('.context-scope');
+  await scope.scrollIntoViewIfNeeded();
+  await expect(scope.locator('p').first()).toBeInViewport();
+  await page.screenshot({ path });
+}
+
 test('the shared combobox pins readable context by keyboard, caps document pins and previews without requests', async ({ page }, testInfo) => {
   const seen: FakeRequest[] = [];
   await sample(page, seen);
@@ -99,15 +113,30 @@ test('context completion ignores emails and composing text and does not offer re
 
 for (const shell of ['classic', 'modern'] as const) {
   test(`${shell} background tasks retain context choices in payloads and review after reload`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
     await sample(page);
+    if (shell === 'modern') {
+      await page.getByTestId('agent-close').click();
+      await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Codex', exact: true }).click();
+    } else await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+    await page.getByRole('button', { name: /^Elena/ }).click();
+    await page.getByRole('radio', { name: 'Always', exact: true }).check();
+    await waitForSaved(page);
+    if (shell === 'modern') {
+      await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Write', exact: true }).click();
+      await page.keyboard.press('Control+j');
+    } else await page.getByRole('tab', { name: 'Binder', exact: true }).click();
     const seen: FakeRequest[] = [];
-    const draft = { tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'Elena returns.', mode: 'draft' }, expect: 'A new opening' };
-    const reply = planThenAnswer({ steps: Array.from({ length: 5 }, () => draft) }, 'Done.', 'A new opening.');
+    const reply = planThenAnswer({ steps: [
+      { tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'Elena returns.', mode: 'draft' }, expect: 'A new opening' },
+      { tool: 'synopsis.fill', params: { docs: ['The Landing', 'The Storm', 'The Friend'], source: 'text', max_words: 20 }, expect: 'Three scene synopses' },
+      { tool: 'synopsis.fill', params: { docs: ['The Friend'], source: 'text', max_words: 20 }, expect: 'A shorter synopsis' },
+    ] }, 'Done.', 'A background draft.');
     await fakeEndpoint(page, (request) => { seen.push(request); return reply(request); });
     await pin(page, 'Landing');
     await pin(page, 'Elena');
-    await intent(page).fill('Draft five openings for the friend.');
+    await intent(page).fill('Draft the friend, fill the synopses, then shorten the friend synopsis.');
     const preview = page.getByTestId('request-context');
     await preview.getByText('Preview this request', { exact: true }).focus();
     await page.keyboard.press('Enter');
@@ -119,7 +148,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await page.locator('.context-scope summary').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('.context-scope')).toContainText('Pins and leave-outs stay with this request when it runs in the background.');
-    await page.screenshot({ path: testInfo.outputPath(`context-background-${shell}-en.png`) });
+    await captureContextChoices(page, testInfo.outputPath(`context-background-${shell}-en.png`));
     await page.keyboard.press('Enter');
     await intent(page).press('Enter');
     await page.getByTestId('plan-offer').getByRole('button', { name: 'Run in background' }).click();
@@ -141,7 +170,7 @@ for (const shell of ['classic', 'modern'] as const) {
     await expect(tasks.getByTestId('task-status')).toContainText('Ready to review');
     await tasks.getByRole('button', { name: /^Review/ }).click();
     const card = page.getByTestId('plan-card').last();
-    await expect(card.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
+    await expect(card.getByRole('button', { name: 'Approve plan', exact: true })).toBeEnabled();
     await card.locator('.context-preview summary').first().click();
     await expect(card.getByRole('list', { name: 'Included context' }).first()).toContainText('The Landing');
     await expect(card.getByRole('list', { name: 'Excluded context' }).first()).toContainText('Elena');
@@ -343,6 +372,7 @@ test('a codex pin remains removable after its policy changes to Never', async ({
 });
 
 test('German Classic context guidance explains background inheritance without a provider request', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
   const seen: FakeRequest[] = [];
   await sample(page, seen);
   await pin(page, 'Landing');
@@ -358,7 +388,7 @@ test('German Classic context guidance explains background inheritance without a 
   await page.keyboard.press('Enter');
   await expect(page.locator('.context-scope')).toContainText('Angeheftete und ausgelassene Inhalte bleiben mit dieser Anfrage verknüpft');
   expect(seen).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('context-background-classic-de.png') });
+  await captureContextChoices(page, testInfo.outputPath('context-background-classic-de.png'));
 });
 
 test('German narrow Modern context controls wrap and remain keyboard-reachable', async ({ page }, testInfo) => {
@@ -382,7 +412,7 @@ test('German narrow Modern context controls wrap and remain keyboard-reachable',
   await expect(page.getByRole('list', { name: 'Kontextauswahl für die nächste Anfrage' })).toContainText('The Storm');
   await page.locator('.context-scope summary').click();
   await expect(page.locator('.context-scope')).toContainText('Angeheftete und ausgelassene Inhalte bleiben mit dieser Anfrage verknüpft');
-  await page.screenshot({ path: testInfo.outputPath('context-background-modern-de.png') });
+  await captureContextChoices(page, testInfo.outputPath('context-background-modern-de.png'));
   await page.locator('.context-scope summary').click();
   const context = page.getByTestId('request-context');
   await expect(context).toContainText('Kontextschätzung');

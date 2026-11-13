@@ -10,7 +10,7 @@
  * before it reaches a card (`submitStaged`).
  */
 
-import { MODEL_BACKED_TOOLS, contextOverridesOk, estimatedStepCalls, type ContextOverrides, type PlanStep, type StepRevisions } from '@caotang/harness';
+import { MODEL_BACKED_TOOLS, contextOverridesOk, estimatedStepCalls, mergePreviews, stagedOf, type ContextOverrides, type PlanStep, type PromptPreview, type StepRevisions } from '@caotang/harness';
 import { newId } from '@caotang/ids';
 import type { MachineTable } from '@caotang/machine';
 
@@ -175,16 +175,20 @@ export function reviewOf(task: TaskRecord): TaskReview {
     if (step.tool === 'synopsis.fill' && own.some((item) => item.ref !== undefined)) {
       omitted += own.length - staged.length;
       const merged: { docId: string; synopsis: string }[] = [];
+      const previews: PromptPreview[] = [];
       let cut = false;
       let reads: Record<string, number> = {};
       for (const item of staged) {
         const part = item.proposal as { items?: { docId: string; synopsis: string }[]; cut?: boolean } | undefined;
         merged.push(...(Array.isArray(part?.items) ? part.items : []));
+        const context = stagedOf(item.proposal).context;
+        if (context !== undefined) previews.push(context);
         cut ||= part?.cut === true;
         reads = { ...reads, ...(item.revisions ?? {}) };
       }
       steps.push({ ...step, params: { ...step.params, docs: staged.flatMap((item) => (item.ref === undefined ? [] : [item.ref])) } });
-      proposals.push(cut ? { items: merged, cut: true } : { items: merged });
+      const context = mergePreviews(previews);
+      proposals.push({ items: merged, ...(cut ? { cut: true } : {}), ...(context === undefined ? {} : { context }) });
       revisions.push(reads);
       continue;
     }

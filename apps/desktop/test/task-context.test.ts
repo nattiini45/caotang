@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { createAgentPorts, createAgentSession, createHarness, parsePlan, type ContextOverrides, type PendingCard, type PlanStep, type RuleSet } from '@caotang/harness';
+import { createAgentPorts, createAgentSession, createContextPort, createHarness, parsePlan, type ContextOverrides, type PendingCard, type PlanStep, type RuleSet } from '@caotang/harness';
 import { textOf, type ChatRequest } from '@caotang/gateway';
 import { setBody } from '@caotang/store';
 import { ENTRY, ENTRY_TWO, FRIEND, LANDING, STORM, makeState } from '../../../packages/harness/test/fixtures.js';
@@ -7,7 +7,7 @@ import { mockGateway } from '../../../packages/harness/test/agent/gateway.js';
 import { prose, steps, transcript } from '../../../packages/harness/test/agent/scripts.js';
 import type { AppDb } from '../src/app/app-db.js';
 import { TaskQueue, type TaskAgent } from '../src/app/task-queue.js';
-import { TaskStore, asTaskRecord, taskKey } from '../src/app/task-store.js';
+import { TaskStore, asTaskRecord, reviewOf, taskKey } from '../src/app/task-store.js';
 
 const PROJECT = 'p_TASKPROJ01';
 const step: PlanStep = { tool: 'scene.draft', params: { doc: 'Scene', instruction: 'Open.', mode: 'draft' }, expect: 'A draft' };
@@ -161,4 +161,29 @@ it.each([false, true])('keeps stored choices on actual staging payloads and revi
   expect((await reviewer.submitStaged(intent, { steps: [{ ...draft, contextOverrides: { exclude: 'all' } }] }, [], [])).status).toBe('failed');
   expect(requests).toHaveLength(6);
   await resumed.close();
+});
+
+it('keeps every staged synopsis prompt when rebuilding its review batch', async () => {
+  const h = setup();
+  const queue = h.queue();
+  await queue.open();
+  await queue.enqueue('Draft.', [step]);
+  await queue.idle();
+  const state = makeState();
+  const contextOverrides: ContextOverrides = { include: [{ kind: 'codex', id: ENTRY }], exclude: [{ kind: 'doc', id: LANDING }] };
+  const context = createContextPort({ state });
+  const documents = [STORM, FRIEND];
+  const items = documents.map((id) => ({ docId: id, synopsis: 'A synopsis.' }));
+  const previews = documents.map((id) => context.assemble({ task: { tool: 'synopsis.fill', focus: id, instruction: 'Summarise.', overrides: contextOverrides }, role: 'Draft.' }).preview);
+  const review = reviewOf({ ...queue.snapshot()[0]!, contextOverrides, steps: [{ tool: 'synopsis.fill', params: { docs: documents, source: 'text' }, expect: 'Two synopses' }],
+    items: documents.map((id, index) => ({ key: `0:${id}`, step: 0, ref: id, state: 'staged', proposal: {
+      items: [items[index]], context: previews[index],
+    } })),
+  });
+  expect(review.proposals[0]).toMatchObject({ items, context: {
+    payload: previews.flatMap((preview) => preview.payload),
+    promptTokens: previews.reduce((sum, preview) => sum + preview.promptTokens, 0),
+    layers: expect.arrayContaining([expect.objectContaining({ id: 'L2', kept: expect.arrayContaining([expect.objectContaining({ ref: { kind: 'codex', id: ENTRY } })]) })]),
+  } });
+  await queue.close();
 });
