@@ -82,7 +82,7 @@ describe('script.setShowMeta', () => {
       feedTitle: '  The Long Way  ',
       description: 'A show.',
       defaultSpeaker: 'c_HOST000001',
-      author: 'Caspar',
+      author: 'Zimble',
       language: 'en-GB',
       explicit: false,
       category: 'Arts',
