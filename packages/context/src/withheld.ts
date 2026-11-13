@@ -12,12 +12,13 @@
  * The view is what the model is sent. The preview names every item it left out, by title, to the writer only.
  */
 
-import type { ActivityEntry } from '@caotang/bus';
+import { textDigest, type ActivityEntry } from '@caotang/bus';
 import type { CodexEntry, ProjectState } from '@caotang/store';
 
 import { dropRecord } from './drops.js';
 import type { AgentTask, AppSnapshot, DropRecord } from './types.js';
 import { ContextError } from './errors.js';
+import { MEMORY_WITHHELD_OUTCOME, memoryReadable } from './session-summary.js';
 
 /** Whether a read-deny withholds a codex entry: it has attachments and every node it is attached to is withheld. */
 export function entryWithheld(entry: Pick<CodexEntry, 'attachments'>, withheld: ReadonlySet<string>): boolean {
@@ -63,8 +64,23 @@ export interface WithheldView {
  * the harness refuses such a call first (a read-deny implies a write-deny), so reaching here means that check was skipped.
  */
 export function withhold(task: AgentTask, app: AppSnapshot): WithheldView {
+  const readPolicy = app.readPolicy ?? (app.withheld === undefined || app.withheld.size === 0 ? undefined : `unrecorded:${textDigest(JSON.stringify([...app.withheld].sort()))}`);
+  const memoryDrops: DropRecord[] = [];
+  if (readPolicy !== undefined) {
+    const blocked = new Set((app.turns ?? []).filter((turn) => turn.hidden !== true && turn.rewound !== true && !memoryReadable(turn, readPolicy)).map((turn) => turn.turnId));
+    const { sessionSummary, ...rest } = app;
+    const summaryBlocked = sessionSummary !== undefined && !memoryReadable(sessionSummary, readPolicy);
+    if (summaryBlocked) memoryDrops.push(dropRecord('session summary', { kind: 'withheld' }, 'summary'));
+    memoryDrops.push(...[...blocked].map((id) => dropRecord(`outcome of turn ${id}`, { kind: 'withheld' }, 'turn-outcome')));
+    app = {
+      ...rest,
+      ...(sessionSummary === undefined || summaryBlocked ? {} : { sessionSummary }),
+      ...(app.turns === undefined ? {} : { turns: app.turns.map((turn) => blocked.has(turn.turnId) ? { ...turn, outcome: MEMORY_WITHHELD_OUTCOME } : turn) }),
+      ...(app.activity === undefined ? {} : { activity: app.activity.map((row) => row.turnId !== undefined && blocked.has(row.turnId) ? { ...row, summary: MEMORY_WITHHELD_OUTCOME, affected: [] } : row) }),
+    };
+  }
   const hidden = app.withheld;
-  if (hidden === undefined || hidden.size === 0) return { app, task, drops: [] };
+  if (hidden === undefined || hidden.size === 0) return { app, task, drops: memoryDrops };
   if (task.focus !== undefined && hidden.has(task.focus)) {
     throw new ContextError('withheld', `the focus of ${task.tool} is withheld by a rule, so no prompt was assembled`);
   }
@@ -74,6 +90,7 @@ export function withhold(task: AgentTask, app: AppSnapshot): WithheldView {
   const entriesOut = entries.filter((entry) => entryWithheld(entry, hidden));
   const view = withheldState(state, hidden);
   const drops: DropRecord[] = [
+    ...memoryDrops,
     ...present.map((node) => dropRecord(`${node.title} (${node.type})`, { kind: 'withheld' }, 'withheld', node.type === 'document' ? { kind: 'doc', id: node.id } : undefined)),
     ...entriesOut.map((entry) => dropRecord(`${entry.name} (codex)`, { kind: 'withheld' }, 'withheld', { kind: 'codex', id: entry.id })),
   ];

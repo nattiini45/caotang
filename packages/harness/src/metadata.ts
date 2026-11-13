@@ -5,6 +5,7 @@ import { STORYBOARD_TOOL_ENTRIES } from '@caotang/storyboard';
 import { PROMPT_PACK_TOOL_ENTRIES } from '@caotang/video-prompt-pack';
 
 import { TOOL_TARGETS, type ToolTargets } from './targets.js';
+import { SESSION_HISTORY_CAP } from './tools/session-history.js';
 import { SUBAGENT_BLURBS } from './tools/delegate.js';
 import { PRIMITIVE_TOOLS } from './tools/primitive-tools.js';
 import { PRIMITIVE_TOOL_NAMES } from './tools/primitive.js';
@@ -92,6 +93,7 @@ export const TOOL_NAMES = [
   'memory.read',
   // Delegation to a built-in helper agent (agent-harness §2).
   'agent.delegate',
+  'session.history',
   // The story timeline's read (timeline.md §5.1); its write, `timeline.edit`, is one of the primitives below.
   'timeline.read',
   // The picture registry's native tools (pictures.md §8.1), each a deferred extension row.
@@ -411,6 +413,17 @@ const ROWS: readonly ToolRow[] = [
     surface: 'extension',
     load: 'deferred',
     keywords: ['delegate', 'agent', 'subagent', 'helper', 'research', 'reader', 'summarise', 'long'],
+  },
+  {
+    name: 'session.history',
+    risk: 'read',
+    undoable: false,
+    response_token_cap: SESSION_HISTORY_CAP,
+    descriptionVersion: 1,
+    description: 'Read earlier settled turns from this role’s current conversation, newest first, as intent/outcome lines and undo/restore metadata. Never returns plans, draft bodies, hidden or rewound turns, or another role’s history. Use before from nextBefore to page further back; limit defaults to 10, at most 50. Read its result before planning writes. Available only inside this role’s agent turn, not to delegated children or external callers.',
+    surface: 'extension',
+    load: 'deferred',
+    keywords: ['session', 'history', 'earlier', 'previous', 'conversation', 'remember', 'past'],
   },
   // The story timeline's read (timeline.md §5.1): the model the view and the MCP resources use, scoped and cut at whole scenes under its cap. A read,
   // so it is auto; deferred like the other extension rows, and loaded by `tool.search` on "timeline", "day", "chronology" and the like.

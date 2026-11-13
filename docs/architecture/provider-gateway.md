@@ -87,6 +87,8 @@ A `keylessModels` flag means the provider's `/models` answers without a key — 
 
 ## 3. Wire adapters
 
+`Gateway.complete(request, signal?, beforeSend?)` accepts an optional synchronous caller admission check outside the serializable request. The gateway/transport invokes it after asynchronous credential resolution and immediately before counting and dispatching each attempt, including retries after backoff; mock requests check it before counting too. A thrown refusal propagates unchanged and makes no new fetch or ledger attempt. The callback never enters a provider body, trace request, project file or export. Gateway decorators must forward it.
+
 Three wire formats ship, one adapter each, behind `ProviderAdapter` (`src/adapters/`). The gateway resolves a profile+model to `{adapter, ctx}` — the pinned first-party route for `api.openai.com` and `api.anthropic.com` (§2), else the preset's route, or the generic Chat route — and the adapter owns everything route-specific:
 
 ```ts
@@ -193,6 +195,8 @@ Existing actionable local-server CORS/permission guidance is retained separately
 - Mock/dev: `MOCK` profile type needs no key.
 
 ## 8. Mock provider contract (test-critical)
+
+The app's keyless provider also scripts the harness's structured Background compaction request, matched by role, schema hint and the fixed compaction system prefix. It returns four deterministic section strings, explicitly labelled as a demo rather than a factual account of the manuscript. It does not infer decisions or echo the supplied history into a scene. The gateway/harness prefix guard pins the two constants without introducing a gateway dependency on the harness; unrelated demo drafting requests keep their existing refusal.
 
 The mock provider is a **deterministic, scriptable** implementation of `ProviderGateway` used by Vitest headless tests and Playwright runs (ARCHITECTURE §1.6).
 

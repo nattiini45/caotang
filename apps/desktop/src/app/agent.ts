@@ -113,7 +113,7 @@ import {
 } from '@caotang/harness';
 import { createMcpTransport } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createRunLogPort, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef } from '@caotang/store';
+import { createRunLogPort, nodeById, readRun, readRuns, readRunBaseline, valueRetentionRoot, readAgentSessions, saveAgentSession, settleAgentSessionTurn, removeAgentSession, pruneAgentSessions, agentSessionReferences, type AgentSessionRow, type AgentSessionTurnRef, type SessionSummary } from '@caotang/store';
 import { captureTextAnchor } from '@caotang/storyboard';
 
 import { registerAgent } from './agent-registry.js';
@@ -268,6 +268,8 @@ export interface AgentSnapshot {
   readonly sessionId: string;
   readonly sessionLoad: SessionSelection;
   readonly sessionSave: SaveChannelState;
+  readonly sessionMemory: readonly { readonly role: TaskRole; readonly turns: number; readonly summary?: SessionSummary; readonly withheld: boolean }[];
+  readonly summaryNotice: string | null;
   readonly conversationSessions: readonly (AgentSessionRow & { readonly tokens: number | null })[];
   readonly storedTurnIds: ReadonlySet<string>;
   readonly sessionUsage: { readonly totals: UsageTotals; readonly rows: readonly UsageGroup[] };
@@ -345,7 +347,7 @@ export interface AgentApply {
   readonly toolCallId: string;
 }
 
-/* lingui-set comment="Interpolated values: calls, count, error, mode, readError, reason, waiting" */
+/* lingui-set comment="Interpolated values: calls, count, error, focus, mode, readError, reason, waiting" */
 
 /** What the panel says when the queue waits after a turn that stopped on a question. */
 export function queuePausedText(): string {
@@ -396,6 +398,7 @@ export class AgentController {
   private readonly roleForTurn = new Map<string, TaskRole>();
   private readonly liveTurnIds = new Set<string>();
   private readonly hiddenTurnIds = new Set<string>();
+  private summaryNotice: string | null = null;
   /**
    * The profile, model and thinking level the running turn of each role resolved to, so its session's prompts carry that model's
    * limits (context-assembly §5): the window the plan card warns against, and the price and output cap its cost reads. A role with
@@ -556,6 +559,7 @@ export class AgentController {
     const active = this.providers.active();
     const drafts = this.draftCheck();
     const ledger = this.providers.gateway.ledger;
+    const readPolicy = this.sessions.size === 0 ? undefined : this.session.harness.readPolicy();
     if (this.usageCache?.revision !== ledger.revision) {
       this.usageCache = {
         revision: ledger.revision,
@@ -569,6 +573,13 @@ export class AgentController {
       sessionId: this.sessionId,
       sessionLoad: this.selection,
       sessionSave: this.sessionSave,
+      sessionMemory: (['chat', 'drafting', 'background'] as const).map((role) => {
+        const summary = this.conversation?.summaries?.[role];
+        const refs = this.conversation?.turns.filter((ref) => ref.role === role) ?? [];
+        const turns = refs.filter((ref) => ref.rewound !== true && this.presentations.get(ref.runId)?.hidden !== true).length;
+        return { role, turns, ...(summary === undefined ? {} : { summary }), withheld: summary !== undefined && readPolicy !== undefined && summary.readPolicy !== readPolicy };
+      }),
+      summaryNotice: this.summaryNotice,
       conversationSessions: this.conversations.map((row) => ({ ...row, tokens: row.turns.reduce<number | null>((sum, ref) => {
         const tokens = recordedSessionTokens(this.sessionRunRows.get(ref.runId));
         return sum === null || tokens === null ? null : sum + tokens;
@@ -1279,6 +1290,7 @@ export class AgentController {
     const loop = row.turns.length === 0 ? null : await this.harnessLoop();
     this.conversation = row;
     this.sessionId = row.sessionId;
+    this.summaryNotice = null;
     this.turns = turns;
     this.sessions = this.conversationAgents.get(row.sessionId) ?? new Map();
     this.usageCache = null;
@@ -1363,7 +1375,15 @@ export class AgentController {
       do {
         title = t`${{ title: current.title || t`New session` }} · fork ${{ number: formatCount(number++) }}`;
       } while (this.conversations.some((item) => item.title === title));
-      const row = { ...this.emptyConversation(), title, turns: current.turns.slice(0, at + 1).map((ref) => ({ ...ref, rewound: false })), forkedFrom: { sessionId: current.sessionId, turnSeq: at + 1 } };
+      const turns = current.turns.slice(0, at + 1).map((ref) => ({ ...ref, rewound: false }));
+      const summaries: Partial<Record<TaskRole, SessionSummary>> = {};
+      const loop = await this.harnessLoop();
+      for (const role of ['chat', 'drafting', 'background'] as const) {
+        const summary = current.summaries?.[role];
+        const history = recentSessionTurns(this.turns, turns.filter((ref) => ref.role === role), this.presentations);
+        if (summary !== undefined && loop.summaryPrefix(summary, history) !== undefined) summaries[role] = summary;
+      }
+      const row: AgentSessionRow = { ...this.emptyConversation(), title, turns, ...(Object.keys(summaries).length === 0 ? {} : { summaries }), forkedFrom: { sessionId: current.sessionId, turnSeq: at + 1 } };
       await saveAgentSession(this.session.runtimeStore(), row);
       return row;
     });
@@ -1380,6 +1400,30 @@ export class AgentController {
       return active;
     });
     await this.loadInterrupted();
+  }
+
+  async compactSession(role: TaskRole = 'chat', focus?: string): Promise<TurnReport | null> {
+    if (this.queue.length > 0) return null;
+    const focused = focus?.trim();
+    const intent = focused ? t`Compact earlier conversation turns. Focus: ${{ focus: focused }}` : t`Compact earlier conversation turns.`;
+    return this.turnWith(intent, { role }, async (agent, turn) => (await agent.compact(focused, turn)).report);
+  }
+
+  async editSessionSummary(role: TaskRole, text: string, expected: SessionSummary): Promise<boolean> {
+    if (this.selection.kind !== 'ready' || this.actionBusy || this.queue.length > 0 || this.sessionSave.kind === 'writing' || this.sessionSave.failure !== null) return false;
+    const agent = this.sessions.get(role);
+    if (agent === undefined) return false;
+    this.message = null;
+    try {
+      if (JSON.stringify(this.conversation?.summaries?.[role]) !== JSON.stringify(expected)) throw new Error(t`The summary changed while you were editing it. Read the current summary before replacing it.`);
+      agent.editSummary(text);
+      await this.sessionWrites;
+      return this.sessionSave.failure === null;
+    } catch (error) {
+      this.message = t`The summary could not be changed: ${{ reason: error instanceof Error ? error.message : String(error) }}`;
+      this.bump();
+      return false;
+    }
   }
 
   async exportSession(sessionId: string): Promise<void> {
@@ -1417,7 +1461,7 @@ export class AgentController {
     await this.sessionWrites;
   }
 
-  private persistConversationMarkers(): void {
+  private persistConversationState(): void {
     const current = this.conversation;
     if (current === null) return;
     const turns = current.turns.map((ref): AgentSessionTurnRef => {
@@ -1430,6 +1474,7 @@ export class AgentController {
     this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'enqueue' });
     this.sessionWrites = this.sessionWrites.then(async () => {
       await saveAgentSession(this.session.runtimeStore(), row);
+      this.conversations = await readAgentSessions(this.session.runtimeStore(), this.session.projectId);
       this.sessionSave = saveChannelMachine.step(this.sessionSave, { type: 'settle', failure: null });
       this.bump();
     }).catch((error: unknown) => {
@@ -2097,7 +2142,7 @@ export class AgentController {
     if (agent === undefined) return null;
     const result = agent.rewindConversation(turnId);
     if (result.rewound.length === 0) return null;
-    this.persistConversationMarkers();
+    this.persistConversationState();
     this.announcement = t`Conversation rewound. The agent no longer sees that turn or the ones after it.`;
     this.bump();
     return result;
@@ -2128,8 +2173,8 @@ export class AgentController {
       const ids = taken.filter((turn) => this.sessionOf(turn.turnId) === agent).map((turn) => turn.turnId);
       if (ids.length > 0) undo.push(agent.markRestored(ids, at, partial !== undefined && ids[0] === partial.turnId ? partial.step : undefined));
     }
-    this.persistConversationMarkers();
-    return () => { for (const restore of undo) restore(); this.persistConversationMarkers(); this.bump(); };
+    this.persistConversationState();
+    return () => { for (const restore of undo) restore(); this.persistConversationState(); this.bump(); };
   }
 
   /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */
@@ -2180,6 +2225,18 @@ export class AgentController {
   }
 
   private onEvent(event: AgentEvent): void {
+    if ((event.type === 'session.compacted' || event.type === 'session.summary.changed') && this.conversation !== null) {
+      const role = event.type === 'session.summary.changed' ? event.role : this.roleForTurn.get(event.turnId) ?? 'chat';
+      const summaries = { ...this.conversation.summaries };
+      if (event.summary === undefined) delete summaries[role];
+      else summaries[role] = event.summary;
+      this.conversation = { ...this.conversation, summaries, updatedAt: this.clock() };
+      this.summaryNotice = event.type === 'session.compacted' ? null : event.summary === undefined
+        ? t`An earlier summary was removed because its covered turns changed. The original turns remain. Compact again to make a new summary.`
+        : event.reason === 'edit' ? t`Summary changed locally. No provider call was made.`
+          : t`The earlier summary was restored with the conversation markers.`;
+      this.persistConversationState();
+    }
     if (event.turnId === this.runningTurnId && this.commandNote?.contextRunning === true) {
       if (event.type === 'context-meter') this.commandNote = { ...this.commandNote, title: t`Current request context`, lines: [], requestContext: { preview: event.preview, meter: event.meter } };
       if (event.type === 'report') this.commandNote = null;
@@ -2523,6 +2580,7 @@ export class AgentController {
       role,
       sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
       history: recentSessionTurns(this.turns, this.conversation?.turns.filter((ref) => ref.role === role) ?? [], this.presentations),
+      ...(this.conversation?.summaries?.[role] === undefined ? {} : { summary: this.conversation.summaries[role] }),
       nextTurn: this.nextSessionTurn(role),
       usageSessionId: this.sessionId,
       clock: this.clock,

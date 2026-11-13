@@ -17,6 +17,20 @@ function reserved(result: ReturnType<ReturnType<typeof createBudgetMeter>['reser
 }
 
 describe('reserving a call', () => {
+  it('releases only an unsent held reservation once, without refunding settled spend', () => {
+    const meter = createBudgetMeter({ maxModelCalls: 1, maxTokens: 500 });
+    const first = reserved(meter.reserve(call));
+    meter.release(first);
+    meter.release(first);
+    meter.settle(first, { promptTokens: 100, completionTokens: 400 });
+    expect(meter.spend()).toMatchObject({ modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0 });
+    const second = reserved(meter.reserve(call));
+    meter.settle(second, { promptTokens: 90, completionTokens: 10 });
+    meter.release(second);
+    expect(meter.spend()).toMatchObject({ modelCalls: 1, promptTokens: 90, completionTokens: 10 });
+    expect(meter.reserve(call).ok).toBe(false);
+  });
+
   it('refuses at exactly the boundary: the last token fits, one more does not', () => {
     const meter = createBudgetMeter({ maxTokens: 1_000 });
     const first = reserved(meter.reserve(call));

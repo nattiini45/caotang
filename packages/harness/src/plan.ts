@@ -106,6 +106,7 @@ export interface AskBack {
   readonly code: AskBackCode;
   readonly reason: string;
   readonly revisionDrift?: number;
+  readonly window?: { readonly promptTokens: number; readonly reserveTokens: number; readonly windowTokens: number };
   /** edit-anchors §3 step 5: up to three re-match hits, offered when an anchor could not be placed. */
   readonly candidates?: readonly { readonly from: number; readonly to: number; readonly similarity: number }[];
   /** Two or three next actions, rendered as buttons on the card. */

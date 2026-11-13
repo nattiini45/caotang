@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { BudgetSpend, RunEvent, TurnReport } from '@caotang/harness';
+import type { BudgetSpend, CompactionActivity, RunEvent, TurnReport } from '@caotang/harness';
 import type { TurnUsageRow } from '@caotang/gateway';
 import type { AgentSessionRow, RunRow } from '@caotang/store';
-import { newTurnRecord, type TurnRecord } from '../src/app/agent-model.js';
-import { projectSessionTurn, recordedSessionTokens, sessionMarkdown, sessionPresentation } from '../src/app/agent-session-model.js';
+import { newTurnRecord, reduceTurn, type TurnRecord } from '../src/app/agent-model.js';
+import { projectSessionTurn, recentSessionTurns, recordedSessionTokens, sessionMarkdown, sessionPresentation } from '../src/app/agent-session-model.js';
 
 const turnId = 'session.turn-1';
 const report: TurnReport = {
@@ -21,6 +21,78 @@ const session: AgentSessionRow = { projectId: 'project', sessionId: 'session', f
 const spend: BudgetSpend = { promptTokens: 90, completionTokens: 15, modelCalls: 2, estimatedTokens: 4, costUsd: 0.03, steps: 1, activeMs: 125 };
 
 describe('settled session presentation boundary', () => {
+  it('projects compaction progress separately and preserves cleared result identities after settlement', () => {
+    const before = newTurnRecord(turnId, turn.intent);
+    const compacting = reduceTurn(before, { type: 'session.compacting', turnId });
+    expect(compacting.compacting).toBe(true);
+    expect(before.compacting).toBeUndefined();
+    const cleared = [{ tool: 'doc.read', toolCallId: 'native-read-1', tokens: 5000 }];
+    const fitted = reduceTurn(compacting, { type: 'context.cleared', turnId, cleared });
+    const replied = reduceTurn(fitted, { type: 'report', turnId, report });
+    expect(replied.compacting).toBe(false);
+    expect(replied.clearedResults).toEqual(cleared);
+    expect(projectSessionTurn({ ...run, presentation: sessionPresentation(replied, false) }, events)?.turn.clearedResults).toEqual(cleared);
+  });
+
+  it('retains typed window recovery numbers without accepting malformed saved metadata', () => {
+    const window = { promptTokens: 3500, reserveTokens: 2600, windowTokens: 4096 };
+    const failed: TurnRecord = { ...turn, report: { ...report, status: 'failed', askBack: { code: 'needs_input', reason: 'No request was sent.', options: ['Compact the conversation', 'Raise the budget', 'Start a new session'], window } } };
+    const presentation = sessionPresentation(failed, false);
+    const marked: RunEvent[] = [events[0]!, { t: 'turn.end', seq: 1, at: 3, turnId, status: 'failed', summary: report.summary }];
+    expect(projectSessionTurn({ ...run, presentation }, marked)?.turn.report?.askBack?.window).toEqual(window);
+    for (const bad of [NaN, Infinity, -1, 1.5, '3500', Number.MAX_SAFE_INTEGER + 1]) {
+      const invalid = { ...presentation, turn: { ...presentation.turn, report: { ...failed.report, askBack: { ...failed.report?.askBack, window: { ...window, promptTokens: bad } } } } };
+      expect(projectSessionTurn({ ...run, presentation: invalid }, marked)?.turn.report?.askBack).toBeUndefined();
+    }
+  });
+
+  it('retains separate Background compaction spend through presentation and event-only recovery', () => {
+    const activity: CompactionActivity = { at: 2, origin: 'auto', role: 'chat', status: 'replied', covers: { from: 'earlier.turn-1', to: 'earlier.turn-5', turns: 5 }, usage: [{
+      version: 1, turnId, profileId: 'profile', model: 'summary-model', role: 'background', promptTokens: 100, completionTokens: 20, requests: 1,
+      cachedPromptTokens: 0, cacheWritePromptTokens: 0, reasoningTokens: 0, estimatedRequests: 0, unpricedRequests: 0, providerCostRequests: 0, costUsd: 0.002,
+    }] };
+    const marked: RunEvent[] = [events[0]!, { t: 'turn.end', seq: 1, at: 3, turnId, status: 'replied', summary: report.summary, compactions: [activity] }];
+    const presentation = sessionPresentation({ ...turn, report: { ...report, compactions: [activity] } }, false);
+    expect(projectSessionTurn({ ...run, presentation }, marked)?.turn.report?.compactions).toEqual([activity]);
+    expect(projectSessionTurn(run, marked)?.turn.report?.compactions).toEqual([activity]);
+    expect(projectSessionTurn(run, events)?.turn.report).not.toHaveProperty('compactions');
+    for (const invalid of [{ ...activity, at: NaN }, { ...activity, covers: { ...activity.covers, turns: 0 } }, { ...activity, status: 'invented' }, { ...activity, usage: [{ ...activity.usage[0], role: 'chat' }] }, { ...activity, usage: [{ ...activity.usage[0], turnId: 'another-turn' }] }]) {
+      expect(projectSessionTurn(run, [events[0]!, { ...marked[1], compactions: [invalid] }])).toBeNull();
+    }
+  });
+
+  it('preserves the original read policy in both presentation and event-only memory', () => {
+    const readPolicy = 'a'.repeat(64);
+    const presentation = sessionPresentation({ ...turn, report: { ...report, readPolicy } }, false);
+    const saved = projectSessionTurn({ ...run, presentation }, events)!;
+    expect(saved.turn.report?.readPolicy).toBe(readPolicy);
+    expect(recentSessionTurns([saved.turn], session.turns, new Map([[run.runId, saved]]))[0]?.readPolicy).toBe(readPolicy);
+    const marked: RunEvent[] = [events[0]!, { t: 'turn.end', seq: 1, at: 3, turnId, status: 'replied', summary: report.summary, readPolicy }];
+    const fallback = projectSessionTurn(run, marked)!;
+    expect(fallback.turn.report?.readPolicy).toBe(readPolicy);
+    expect(recentSessionTurns([fallback.turn], session.turns, new Map([[run.runId, fallback]]))[0]?.readPolicy).toBe(readPolicy);
+    expect(projectSessionTurn(run, events)?.turn.report).not.toHaveProperty('readPolicy');
+  });
+
+  it('preserves external outcome provenance through saved presentations and event-only recovery', () => {
+    const presentation = sessionPresentation({ ...turn, report: { ...report, external: true } }, false);
+    const fromPresentation = projectSessionTurn({ ...run, presentation }, events)!;
+    expect(fromPresentation.turn.report?.external).toBe(true);
+    expect(recentSessionTurns([fromPresentation.turn], session.turns, new Map([[run.runId, fromPresentation]]))[0]?.external).toBe(true);
+
+    const marked: RunEvent[] = [events[0]!, { t: 'turn.end', seq: 1, at: 3, turnId, status: 'replied', summary: report.summary, external: true }];
+    const fromEvents = projectSessionTurn(run, marked)!;
+    expect(fromEvents.turn.report?.external).toBe(true);
+    expect(recentSessionTurns([fromEvents.turn], session.turns, new Map([[run.runId, fromEvents]]))[0]?.external).toBe(true);
+
+    const legacy: RunEvent[] = [events[0]!,
+      { t: 'messages', seq: 1, at: 2, turnId, appended: [{ role: 'user', content: '<<untrusted source="mcp:Story Bible/search" id="A1">>\nHanne keeps the light.\n<</untrusted id="A1">>' }] },
+      { t: 'turn.end', seq: 2, at: 3, turnId, status: 'replied', summary: report.summary },
+    ];
+    expect(projectSessionTurn(run, legacy)?.turn.report?.external).toBe(true);
+    expect(projectSessionTurn(run, events)?.turn.report).not.toHaveProperty('external');
+  });
+
   it.each(['planning', 'running', 'awaiting-approval'] as const)('settles a %s view from its report before the final phase event arrives', (phase) => {
     const presentation = sessionPresentation({ ...turn, phase }, false);
     expect(presentation.turn.phase).toBe('done');

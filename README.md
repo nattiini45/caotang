@@ -75,6 +75,8 @@ MCP server cards in **Settings › MCP & tools** show **Connecting** while a con
 
 Agent conversations stay per project in this browser. Use **Sessions** to continue an earlier conversation, start a new one, fork through a settled turn or export it as Markdown. Forking leaves the manuscript unchanged; a bundle does not include private conversation history.
 
+Long conversations keep a role-local summary beside the newest two turns. **Conversation memory** lets you read or edit it locally, or choose **Compact** with an optional focus for one Background-provider request. Original turns remain available; compaction spend is included in turn/session totals and shown separately. A read-boundary change stops a running turn before its next provider request; send it again under the current rules. **New session** starts without earlier memory.
+
 ## Requirements
 
 
@@ -98,7 +100,7 @@ pnpm dev
 
 `pnpm dev` serves the app at http://127.0.0.1:5173.
 
-For a production build, run `pnpm build`, then `pnpm --filter @caotang/desktop preview`. The build goes to `apps/desktop/dist/`, with a `THIRD-PARTY-NOTICES.md` beside it. The preview serves it at http://127.0.0.1:4173 by default. Two things to know about it:
+For a production build, run `pnpm build`, then `pnpm --filter @caotang/desktop preview`. The build goes to `apps/desktop/dist/`, with `THIRD-PARTY-NOTICES.md` inside it. A custom Vite `--outDir` carries the same production notices in that directory. The preview serves it at http://127.0.0.1:4173 by default. Two things to know about it:
 
 - The build works at the root of its origin, so serve it from the root, as the preview does, unless you built it for a sub-path with `CAOTANG_BASE` (see Self-hosting).
 - Projects are kept per origin, which is the address and the port together. A project you made at http://127.0.0.1:5173 does not appear at http://127.0.0.1:4173. Export a bundle to move one.
@@ -152,6 +154,8 @@ server {
 ```
 
 The repository's [Pages workflow](.github/workflows/pages.yml) deploys caotang.app: the landing page built from [`site/`](site/) into `site/dist`, at the root, with `llms.txt`, `robots.txt` and a sitemap, and the same build, made with `CAOTANG_BASE=/app/`, at `/app/`. `site` is a workspace package (`@caotang/site`), and React is its build-time dependency only: the page ships no JavaScript. CI runs `node tools/build-site.mjs` and `node tools/check-site-size.mjs` beside the app build, and [docs/architecture/landing.md](docs/architecture/landing.md) is the spec.
+
+The standalone [`@caotang/sync-server`](packages/sync-server) package is a self-hostable authentication and live-push skeleton, not a server that the browser app uses. It provides GitHub OAuth and per-identity WebSocket connectivity against deployment-supplied bindings. It stores no projects, adds no account to the local app, and is not a complete sync service. See its [contract and required bindings](docs/architecture/sync-server.md). Its local runtime tests mock GitHub and require no credentials: `pnpm exec vitest run packages/sync-server/test/server.test.ts`.
 
 ## Test
 

@@ -309,7 +309,7 @@ describe('contact-sheet-pdf — the storyboard as a PDF of shot cards', () => {
 
   it('keeps accented Latin text, which the built-in font shows', async () => {
     const state = makeMediaProject();
-    addShotNode(state, { parentId: MEDIA_IDS.shots, title: 'Café', id: 'n_CAFE000001', now: OPENED, stored: { action: 'Abeßer crosses the café — slowly…' } });
+    addShotNode(state, { parentId: MEDIA_IDS.shots, title: 'Café', id: 'n_CAFE000001', now: OPENED, stored: { action: 'Weißdorn crosses the café — slowly…' } });
     const { result } = await compileSheet(rig({ state }).exporter);
     expect(result.log.notes.some((note) => note.includes('built-in font'))).toBe(false);
   });
@@ -675,7 +675,7 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
 
   it('never reads the font for a Latin-only sheet, whose bytes are those of a compile with no fallback font', async () => {
     const loader = countingLoader();
-    const state = withAction('Abeßer crosses the café — slowly…');
+    const state = withAction('Weißdorn crosses the café — slowly…');
     const withFont = await compileSheet(rig({ state, loadFallbackFont: loader.load }).exporter);
     const without = await compileSheet(rig({ state }).exporter);
     expect(loader.calls()).toBe(0);
@@ -776,7 +776,7 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
 
     it('leaves a sheet with no Han character as it was, in a Japanese project', async () => {
       const bytes = async (language: string | undefined): Promise<Uint8Array> =>
-        (await compileSheet(rig({ state: withAction('Abeßer crosses the café ひらがな 한국어'), loadFallbackFont: loadCjkFontInNode, ...(language === undefined ? {} : { language }) }).exporter)).bytes;
+        (await compileSheet(rig({ state: withAction('Weißdorn crosses the café ひらがな 한국어'), loadFallbackFont: loadCjkFontInNode, ...(language === undefined ? {} : { language }) }).exporter)).bytes;
       expect([...(await bytes('ja'))]).toEqual([...(await bytes(undefined))]);
     });
   });
@@ -963,7 +963,7 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
   it('reads each font once, and only for a sheet that holds its script', async () => {
     const arabic = countingLoader(loadArabicFontInNode);
     const hebrew = countingLoader(loadHebrewFontInNode);
-    await compileSheet(rig({ state: withAction('Abeßer crosses the café © 2026'), loadArabicFont: arabic.load, loadHebrewFont: hebrew.load }).exporter);
+    await compileSheet(rig({ state: withAction('Weißdorn crosses the café © 2026'), loadArabicFont: arabic.load, loadHebrewFont: hebrew.load }).exporter);
     expect([arabic.calls(), hebrew.calls()]).toEqual([0, 0]);
     await compileSheet(rig({ state: withAction(`${ARABIC} ${ARABIC}`), loadArabicFont: arabic.load, loadHebrewFont: hebrew.load }).exporter);
     expect([arabic.calls(), hebrew.calls()]).toEqual([1, 0]);
@@ -978,7 +978,7 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
   });
 
   it('writes a Latin-only sheet byte for byte as it was, with the Arabic and Hebrew fonts given', async () => {
-    const state = withAction('Abeßer crosses the café © 2026');
+    const state = withAction('Weißdorn crosses the café © 2026');
     const plain = await compileSheet(rig({ state }).exporter);
     const given = await compileSheet(rig({ state, ...bothLoaders }).exporter);
     expect(given.bytes).toEqual(plain.bytes);
@@ -1031,7 +1031,7 @@ describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
 
   it('reads the font once, and only for a sheet that holds Devanagari', async () => {
     const loader = countingLoader(loadDevanagariFontInNode);
-    await compileSheet(rig({ state: withAction('Abeßer crosses the café © 2026'), loadDevanagariFont: loader.load }).exporter);
+    await compileSheet(rig({ state: withAction('Weißdorn crosses the café © 2026'), loadDevanagariFont: loader.load }).exporter);
     expect(loader.calls()).toBe(0);
     await compileSheet(rig({ state: withAction(`${HINDI} ${HINDI}`), loadDevanagariFont: loader.load }).exporter);
     expect(loader.calls()).toBe(1);
@@ -1056,7 +1056,7 @@ describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
   });
 
   it('writes a Latin-only sheet byte for byte as it was, with the Devanagari font given', async () => {
-    const state = withAction('Abeßer crosses the café © 2026');
+    const state = withAction('Weißdorn crosses the café © 2026');
     const plain = await compileSheet(rig({ state }).exporter);
     const given = await compileSheet(rig({ state, loadDevanagariFont: loadDevanagariFontInNode }).exporter);
     expect(given.bytes).toEqual(plain.bytes);
@@ -1134,7 +1134,7 @@ describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
 
   it('never reads the emoji font for a sheet without emoji', async () => {
     const emojiLoader = countingLoader(loadEmojiFontInNode);
-    const latin = await compileSheet(rig({ state: withAction('Abeßer crosses the café © 2026'), loadEmojiFont: emojiLoader.load }).exporter);
+    const latin = await compileSheet(rig({ state: withAction('Weißdorn crosses the café © 2026'), loadEmojiFont: emojiLoader.load }).exporter);
     const cjk = await compileSheet(rig({ state: withAction('草堂的早晨'), loadFallbackFont: loadCjkFontInNode, loadEmojiFont: emojiLoader.load }).exporter);
     expect(emojiLoader.calls()).toBe(0);
     expect(embeddedFontFiles(latin.pdf)).toHaveLength(0);

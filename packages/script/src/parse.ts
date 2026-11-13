@@ -88,6 +88,39 @@ function idTagOf(words: string): { readonly index: number; readonly id: string }
   return best;
 }
 
+/**
+ * A `lineId:` tag that does not close the line (#325): a complete tag with words typed after it, or a truncated tag with
+ * no `-->`. The fragment's span (`index`…`end`) is what the words lose; `broken` is true when no `-->` closes it, so the
+ * read reports it rather than trusting an id that merely looks right. Undefined when no `<!-- lineId:` sits in the words.
+ */
+function strayIdTagOf(
+  words: string,
+): { readonly index: number; readonly end: number; readonly id: string; readonly broken: boolean } | undefined {
+  const KEY = 'lineId:';
+  let best: { index: number; end: number; id: string; broken: boolean } | undefined;
+  for (let at = words.indexOf(KEY); at >= 0; at = words.indexOf(KEY, at + 1)) {
+    const index = tagStartBefore(words, at);
+    if (index === undefined) continue;
+    let idStart = at + KEY.length;
+    while (idStart < words.length && isBlank(words[idStart])) idStart += 1;
+    let idEnd = idStart;
+    while (idEnd < words.length && !isSpace(words[idEnd])) idEnd += 1;
+    let after = idEnd;
+    while (after < words.length && isBlank(words[after])) after += 1;
+    const closed = words.slice(after, after + 3) === '-->';
+    const end = closed ? after + 3 : idEnd;
+    if (best === undefined || index < best.index) best = { index, end, id: words.slice(idStart, idEnd), broken: !closed };
+  }
+  return best;
+}
+
+/** The line's id tag: the trailing tag when one closes the line, else a stray fragment (#325), so a save never mints twice. */
+function lineTagOf(
+  words: string,
+): { readonly index: number; readonly id: string; readonly end?: number; readonly broken?: boolean } | undefined {
+  return idTagOf(words) ?? strayIdTagOf(words);
+}
+
 /** An ATX heading: up to three spaces, one to six `#`, then a space or the end, the text, with any closing `#`s taken off. */
 function headingOf(text: string): { readonly level: number; readonly title: string } | undefined {
   let i = 0;
@@ -135,6 +168,8 @@ export interface ClassifiedLine {
   readonly rest: string;
   /** The id in the line's tag, as written. Absent when the line has no tag. */
   readonly tag?: string;
+  /** True when the tag is a stray fragment that does not close the line (#325); the read reports it as malformed. */
+  readonly tagBroken?: true;
 }
 
 type Scanned =
@@ -167,8 +202,13 @@ function classify(text: string, line: number, vocabulary: ReadonlyMap<string, st
             ? 'speech'
             : undefined;
     if (role !== undefined) {
-      const tag = idTagOf(words);
-      const rest = tag ? words.slice(0, tag.index) : words;
+      const tag = lineTagOf(words);
+      const rest =
+        tag === undefined
+          ? words
+          : tag.end === undefined
+            ? words.slice(0, tag.index)
+            : words.slice(0, tag.index) + words.slice(tag.end);
       return {
         line,
         role,
@@ -176,6 +216,7 @@ function classify(text: string, line: number, vocabulary: ReadonlyMap<string, st
         ...(cueKind === undefined ? {} : { cueKind }),
         rest,
         ...(tag ? { tag: tag.id } : {}),
+        ...(tag?.broken ? { tagBroken: true } : {}),
       };
     }
   }
@@ -282,12 +323,12 @@ export function parseEpisode(body: string, options: ParseOptions = {}): ParsedEp
   const idFor = (entry: ClassifiedLine, kind: 'line' | 'cue'): { readonly id: string; readonly minted: boolean } => {
     const local = { id: `~${kind === 'cue' ? 'c' : 'l'}${entry.line}`, minted: false };
     if (entry.tag === undefined) return local;
-    if (!isMintedScriptId(entry.tag, kind)) {
-      notices.push({
-        kind: 'id-malformed',
-        line: entry.line,
-        message: `the lineId tag "${entry.tag}" is not a ${kind === 'cue' ? 'cue id (sc_' : 'line id (sl_'} and ten letters or digits), so it is left as written; fix or remove it and the next save mints one`,
-      });
+    if (entry.tagBroken === true || !isMintedScriptId(entry.tag, kind)) {
+      const message =
+        entry.tagBroken === true
+          ? `the lineId tag "${entry.tag}" does not close the line, so it is left as written; fix or remove it and the next save mints one`
+          : `the lineId tag "${entry.tag}" is not a ${kind === 'cue' ? 'cue id (sc_' : 'line id (sl_'} and ten letters or digits), so it is left as written; fix or remove it and the next save mints one`;
+      notices.push({ kind: 'id-malformed', line: entry.line, message });
       return local;
     }
     if (seenIds.has(entry.tag)) {

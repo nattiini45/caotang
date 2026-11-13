@@ -10,6 +10,7 @@
  */
 
 export { assemble } from './assemble.js';
+export { MEMORY_WITHHELD_OUTCOME, memoryReadable, summaryPrefix } from './session-summary.js';
 export { toChatMessages } from './messages.js';
 export { buildPreview } from './preview.js';
 export { meterOf } from './meter.js';
@@ -82,6 +83,7 @@ export {
   type PreviewLayer,
   type PromptPreview,
   type RecentTurn,
+  type SessionSummary,
   type SelectionSpan,
   type ToolSignature,
 } from './types.js';

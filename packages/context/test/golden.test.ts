@@ -27,11 +27,27 @@ interface GoldenCase {
   readonly config?: ContextConfig;
   /** The project carries CAOTANG.md and a memory index (layer LI). */
   readonly instructions?: boolean;
+  readonly summary?: boolean;
 }
 
-const appOf = (c: GoldenCase, shuffled = false) => (c.instructions === true ? withInstructions(buildApp({ shuffled })) : buildApp({ shuffled }));
+const appOf = (c: GoldenCase, shuffled = false) => {
+  const app = c.instructions === true ? withInstructions(buildApp({ shuffled })) : buildApp({ shuffled });
+  return c.summary === true ? { ...app, sessionSummary: {
+    version: 1 as const, covers: { from: 't_1', to: 't_1', turns: 1 }, origin: 'auto' as const, external: false,
+    text: "## Writer's standing requests\nKeep Hale gruff.\n\n## Decisions\nUse the ferry.\n\n## Done\nRead the opening.\n\n## Open threads\nFind the letter.",
+  } } : app;
+};
 
 const CASES: readonly GoldenCase[] = [
+  ...[
+    { name: 'planner-session-summary', budget: 1500, describe: 'the role-local summary comes before the recent tail' },
+    { name: 'planner-session-summary-older-cut', budget: 160, describe: 'the older tail turn is dropped before the summary' },
+    { name: 'planner-session-summary-cut', budget: 60, describe: 'the summary is dropped before the newest turn, with its own drop record' },
+    { name: 'planner-session-summary-all-cut', budget: 0, describe: 'all conversation items are dropped and the prompt says so' },
+  ].map(({ name, budget, describe }) => ({
+    name, describe, summary: true, config: { layerBudgets: { L6: budget } },
+    task: { tool: 'meta' as const, conversation: true, instruction: 'Continue our work.' },
+  })),
   {
     name: 'planner-conversation',
     describe: 'the planner opts into L6; ordinary metadata tools still omit it',

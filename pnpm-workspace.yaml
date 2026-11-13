@@ -5,24 +5,14 @@
   # The landing page (caotang.app): its build-time stages need React (site/README.md).
   - 'site'
 
-# No `onlyBuiltDependencies`, and that is a measured state rather than an omission.
-#
-# Two things changed it, both on 2026-10-02:
-#
-# 1. **Where it is read from.** pnpm 12 reads the build allowlist from *this*
-#    file, not from the `pnpm` block in package.json. With the entry left in
-#    package.json, pnpm 12 treats esbuild's install script as an *ignored*
-#    build and fails the install with ERR_PNPM_IGNORED_BUILDS.
-# 2. **Whether it is needed at all.** Vite 8 bundles with rolldown/oxc rather
-#    than esbuild, so `esbuild` no longer resolves anywhere in the tree
-#    (measured: 0 resolutions in pnpm-lock.yaml) and `pnpm install` completes
-#    clean with no allowlist at all. The rule is that the allowlist must
-#    not name a package that is gone — keeping `esbuild` would have been a
-#    stale entry pointing at nothing.
-#
-# `test/toolchain-floor.test.ts` reads this file to assert that if an allowlist
-# is ever added, every entry is actually installed.
+minimumReleaseAgeExclude:
+  - '@ui-sdk/core@0.1.0-beta.1'
+  - '@ui-sdk/react@0.1.0-beta.1'
+  - '@cloudflare/workers-types@5.20261113.1'
+
 patchedDependencies:
   eslint-visitor-keys@5.0.1: patches/eslint-visitor-keys@5.0.1.patch
   pdfjs-dist@6.4.299: patches/pdfjs-dist@6.4.299.patch
   pseudolocale@3.1.0: patches/pseudolocale@3.1.0.patch
+allowBuilds:
+  workerd: true

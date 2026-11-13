@@ -1,6 +1,76 @@
 import { expect, test, type Page } from '@playwright/test';
-import { FAKE_ENDPOINT, fakeEndpoint, useFakeEndpoint as configureFakeEndpoint } from './endpoint.js';
-import { createProject, waitForSaved } from './support.js';
+import { fileURLToPath } from 'node:url';
+import type * as UiAgentModule from '../apps/desktop/test/ui-agent-fixture.js';
+import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, useFakeEndpoint as configureFakeEndpoint } from './endpoint.js';
+import { createProject, projectTrace, waitForSaved } from './support.js';
+
+const uiAgentUrl = `/@fs/${fileURLToPath(new URL('../apps/desktop/test/ui-agent-fixture.ts', import.meta.url)).replaceAll('\\', '/').replace(/^\/+/, '')}`;
+type UiAgent = typeof UiAgentModule;
+
+test('UI SDK can inspect and operate memory without bypassing paid-request approval', async ({ page }) => {
+  const requests: string[] = [];
+  await fakeEndpoint(page, (request) => {
+    requests.push(request.user);
+    return request.system.startsWith("Summarise this role's earlier conversation")
+      ? JSON.stringify({ standingRequests: 'Keep the storm.', decisions: 'Use the lighthouse.', done: 'Read the opening.', openThreads: 'Find the letter.' })
+      : 'The ferryman knows about the letter.';
+  });
+  await prepareProviderPreferences(page, 'en');
+  await createProject(page, 'Agent memory');
+  await openAgent(page, 'classic');
+  const panel = page.getByTestId('agent-panel');
+  for (const intent of ['Keep the storm.', 'Use the lighthouse.', 'Who knows about the letter?']) {
+    await panel.getByRole('combobox').fill(intent);
+    await panel.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(panel.locator('.agent-turn').last()).toHaveClass(/is-done/);
+    await expect(panel).toHaveAttribute('data-state', 'idle');
+  }
+  const act = async (ref: string, action: string, args: unknown[] = []) => page.evaluate(async ({ url, ref, action, args }) => {
+    const { agent } = await import(/* @vite-ignore */ url) as UiAgent;
+    return agent.act({ steps: [{ ref, action, args }] });
+  }, { url: uiAgentUrl, ref, action, args });
+  const opened = await act('Conversation memory', 'toggle');
+  expect(opened.ok, JSON.stringify(opened)).toBe(true);
+  const entries = await page.evaluate(async (url) => (await import(/* @vite-ignore */ url) as UiAgent).agent.snapshot(), uiAgentUrl);
+  for (const entry of entries) expect(entry.label, `${entry.component} ${entry.ref} has no name`).toBeTruthy();
+  for (const label of ['Conversation memory', 'Conversation role', 'Compaction focus (optional)', 'Compact']) {
+    expect(entries.map((entry) => entry.label)).toContain(label);
+  }
+  const role = entries.find((entry) => entry.label === 'Conversation role');
+  const choice = role?.items?.find((item) => item.label === 'Drafting');
+  expect(choice).toBeDefined();
+  expect((await act('Conversation role', 'setValue', [choice!.value])).ok).toBe(true);
+  await expect(panel.getByTestId('agent-memory').getByRole('button', { name: 'Compact', exact: true })).toBeDisabled();
+  expect((await act('Conversation role', 'setValue', [role!.items!.find((item) => item.label === 'Chat')!.value])).ok).toBe(true);
+  expect((await act('Compaction focus (optional)', 'setValue', ['Keep the lighthouse decision.'])).ok).toBe(true);
+  const beforeCompact = requests.length;
+  expect((await act('Compact', 'press')).ok).toBe(false);
+  expect(requests).toHaveLength(beforeCompact);
+  await page.evaluate(async (url) => (await import(/* @vite-ignore */ url) as UiAgent).approve(), uiAgentUrl);
+  expect((await act('Compact', 'press')).ok).toBe(true);
+  const memory = panel.getByTestId('agent-memory');
+  await expect(memory.locator('.agent-memory-text')).toContainText('Keep the storm.');
+  await expect(panel).toHaveAttribute('data-state', 'idle');
+  expect(requests).toHaveLength(beforeCompact + 1);
+  expect(requests.at(-1)).toContain('Keep the lighthouse decision.');
+  expect((await act('Edit summary', 'press')).ok).toBe(true);
+  await expect(memory.getByLabel('Session summary', { exact: true })).toBeFocused();
+  expect((await act('Session summary', 'setValue', ['x'.repeat(2401)])).ok).toBe(true);
+  await expect(memory.getByRole('button', { name: 'Save summary', exact: true })).toBeDisabled();
+  expect((await act('Session summary', 'setValue', ['The writer chose the harbour.'])).ok).toBe(true);
+  expect((await act('Save summary', 'press')).ok).toBe(true);
+  await expect(memory.locator('.agent-memory-text')).toHaveText('The writer chose the harbour.');
+  await expect(memory.getByRole('button', { name: 'Edit summary', exact: true })).toBeFocused();
+  expect((await act('Edit summary', 'press')).ok).toBe(true);
+  expect((await act('Cancel', 'press')).ok).toBe(true);
+  await expect(memory.getByRole('button', { name: 'Edit summary', exact: true })).toBeFocused();
+  expect((await act('Edit summary', 'press')).ok).toBe(true);
+  expect((await act('Session summary', 'setValue', ['## My ending\nThe lighthouse is closed.'])).ok).toBe(true);
+  expect((await act('Save summary', 'press')).ok).toBe(true);
+  await expect(memory.locator('.agent-memory-text > strong')).toHaveText('My ending');
+  await expect(memory.locator('.agent-memory-text')).toContainText('The lighthouse is closed.');
+  expect(requests).toHaveLength(beforeCompact + 1);
+});
 
 async function openAgent(page: Page, shell: string): Promise<void> {
   if (shell === 'modern') await page.keyboard.press('Control+j');
@@ -85,10 +155,12 @@ test('settled sessions survive reload, continue their L6 and fork without a manu
   await expect(panel).toHaveAttribute('data-state', 'idle');
   expect(requests.at(-1)).toContain('Intent: Who knows about the letter?');
   expect(requests.at(-1)).toContain('The ferryman knows about the letter.');
+  const beforeFork = await projectTrace(page);
   await panel.getByTestId('turn-menu').first().getByRole('button', { name: /Turn actions for/ }).click();
   await panel.getByRole('button', { name: /^Fork from here/ }).click();
   await expect(panel.getByTestId('agent-sessions')).toHaveAttribute('data-state', 'ready');
   await expect(panel.locator('.agent-turn')).toHaveCount(1);
+  expect(await projectTrace(page)).toEqual(beforeFork);
   await panel.getByTestId('agent-sessions').locator('.agent-session-trigger').click();
   await expect(panel.locator('.agent-session-list > li')).toHaveCount(2);
   await expect(panel.getByTestId('agent-sessions')).toContainText('Forked from');
@@ -100,6 +172,143 @@ for (const variant of [
   { shell: 'classic', language: 'en', width: 1280, height: 900, theme: 'light' },
   { shell: 'classic', language: 'de', width: 390, height: 844, theme: 'dark' },
 ]) {
+  test(`${variant.shell} ${variant.language} window recovery sends nothing and offers explicit actions at ${variant.width}px`, async ({ page }, testInfo) => {
+    const requests: string[] = [];
+    await page.addInitScript(({ shell, theme }) => {
+      localStorage.setItem('caotang.interface', shell);
+      localStorage.setItem('caotang.theme', theme);
+    }, variant);
+    await endpointRoute(page, 'https://127.0.0.1:5999', (request) => { requests.push(request.user); return 'Not sent.'; }, [{ id: 'test-model', context_length: 100 }]);
+    await prepareProviderPreferences(page, variant.language);
+    await page.getByLabel(variant.language === 'de' ? 'Projektname' : 'Project name').fill('Window Book');
+    await page.getByRole('button', { name: variant.language === 'de' ? 'Projekt erstellen' : 'Create project', exact: true }).click();
+    await waitForSaved(page);
+    await openAgent(page, variant.shell);
+    await openSettings(page, variant.shell, variant.language);
+    const settings = page.getByTestId('settings');
+    await settings.locator('[data-section="providers"]').click();
+    await settings.locator('[data-profile="Fake endpoint"]').getByRole('button', { name: variant.language === 'de' ? 'Bearbeiten' : 'Edit', exact: true }).click();
+    await settings.getByRole('form', { name: variant.language === 'de' ? 'Anbieter bearbeiten' : 'Edit provider' }).getByRole('button', { name: variant.language === 'de' ? 'Profil speichern' : 'Save profile', exact: true }).click();
+    await expect(settings.locator('.models')).toContainText('test-model');
+    await settings.getByRole('button', { name: variant.language === 'de' ? 'Schließen' : 'Close', exact: true }).click();
+    const panel = page.getByTestId('agent-panel');
+    if (variant.shell === 'modern') await page.getByTestId('modern-ask').click();
+    const manuscript = await projectTrace(page);
+    await panel.getByRole('combobox').fill('Tell me about the lighthouse.');
+    await panel.getByRole('button', { name: variant.language === 'de' ? 'Senden' : 'Send', exact: true }).click();
+    const recovery = panel.locator('.askback');
+    await expect(recovery).toContainText(variant.language === 'de' ? 'Es wurde keine Anfrage gesendet.' : 'No request was sent.');
+    await expect(recovery).toContainText('100');
+    await expect(recovery.getByRole('button', { name: variant.language === 'de' ? 'Chat-Gespräch zusammenfassen' : 'Compact Chat conversation', exact: true })).toBeDisabled();
+    expect(requests).toEqual([]);
+    expect(await projectTrace(page)).toEqual(manuscript);
+    await page.setViewportSize({ width: variant.width, height: variant.height });
+    await recovery.scrollIntoViewIfNeeded();
+    expect(await recovery.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`memory-${variant.shell}-${variant.language}-window.png`) });
+    await recovery.getByRole('button', { name: variant.language === 'de' ? 'Anbietereinstellungen öffnen' : 'Open provider settings', exact: true }).click();
+    await expect(settings.locator('[data-section="providers"]')).toHaveAttribute('aria-current', 'page');
+    await settings.getByRole('button', { name: variant.language === 'de' ? 'Schließen' : 'Close', exact: true }).click();
+    await expect(panel).toBeVisible();
+    await recovery.getByRole('button', { name: variant.language === 'de' ? 'Neue Sitzung beginnen' : 'Start a new session', exact: true }).click();
+    await expect(panel.locator('.agent-turn')).toHaveCount(0);
+    expect(requests).toEqual([]);
+    expect(await projectTrace(page)).toEqual(manuscript);
+  });
+
+  test(`${variant.shell} ${variant.language} compaction summary edits survive reload at ${variant.width}px`, async ({ page }, testInfo) => {
+    const requests: string[] = [];
+    await page.addInitScript(({ shell, theme }) => {
+      localStorage.setItem('caotang.interface', shell);
+      localStorage.setItem('caotang.theme', theme);
+    }, variant);
+    await fakeEndpoint(page, (request) => {
+      requests.push(request.user);
+      return request.system.startsWith("Summarise this role's earlier conversation")
+        ? JSON.stringify({ standingRequests: 'Keep the storm.', decisions: 'Use the lighthouse.', done: 'Read the opening.', openThreads: 'Find the letter.' })
+        : 'The ferryman knows about the letter.';
+    });
+    await prepareProviderPreferences(page, variant.language);
+    await page.getByLabel(variant.language === 'de' ? 'Projektname' : 'Project name').fill('Memory Book');
+    await page.getByRole('button', { name: variant.language === 'de' ? 'Projekt erstellen' : 'Create project', exact: true }).click();
+    await waitForSaved(page);
+    await openAgent(page, variant.shell);
+    const panel = page.getByTestId('agent-panel');
+    for (const intent of ['Keep the storm.', 'Use the lighthouse.', 'Who knows about the letter?']) {
+      await panel.getByRole('combobox').fill(intent);
+      await panel.getByRole('button', { name: variant.language === 'de' ? 'Senden' : 'Send', exact: true }).click();
+      await expect(panel.locator('.agent-turn').last()).toHaveClass(/is-done/);
+      await expect(panel).toHaveAttribute('data-state', 'idle');
+    }
+    const memory = panel.getByTestId('agent-memory');
+    await memory.locator('[data-slot="collapsible-trigger"]').click();
+    const roles = memory.getByRole('radiogroup', { name: variant.language === 'de' ? 'Gesprächsrolle' : 'Conversation role', exact: true });
+    await expect(roles.getByRole('radio')).toHaveCount(3);
+    const chat = roles.getByRole('radio', { name: 'Chat', exact: true });
+    await expect(chat).toBeChecked();
+    await chat.press('ArrowRight');
+    await expect(roles.getByRole('radio').nth(1)).toBeChecked();
+    await roles.getByRole('radio').nth(1).press('ArrowLeft');
+    await expect(chat).toBeChecked();
+    expect(await chat.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(await roles.getByRole('radio').nth(1).evaluate((element) => getComputedStyle(element).backgroundColor));
+    await memory.getByLabel(variant.language === 'de' ? 'Schwerpunkt der Zusammenfassung (optional)' : 'Compaction focus (optional)').fill('Keep the lighthouse decision.');
+    const manuscript = await projectTrace(page);
+    await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassen' : 'Compact', exact: true }).click();
+    await expect(memory.locator('.agent-memory-text')).toContainText('Keep the storm.');
+    await expect(memory.locator('.agent-memory-text > strong')).toHaveText(variant.language === 'de'
+      ? ['Dauerhafte Wünsche', 'Entscheidungen', 'Erledigt', 'Offene Fäden']
+      : ["Writer's standing requests", 'Decisions', 'Done', 'Open threads']);
+    await expect(panel).toHaveAttribute('data-state', 'idle');
+    expect(requests.at(-1)).toContain('Keep the lighthouse decision.');
+    expect(await projectTrace(page)).toEqual(manuscript);
+    await page.setViewportSize({ width: variant.width, height: variant.height });
+    await memory.locator('[data-slot="collapsible-trigger"]').scrollIntoViewIfNeeded();
+    if (variant.shell === 'modern' && variant.width < 960) await expect(page.getByTestId('modern-drawer')).toBeAttached();
+    await expect(page.locator('.status-line[data-panel-state="loading"]')).toHaveCount(0);
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`memory-${variant.shell}-${variant.language}-summary.png`) });
+    await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung bearbeiten' : 'Edit summary', exact: true }).click();
+    const editor = memory.getByLabel(variant.language === 'de' ? 'Sitzungszusammenfassung' : 'Session summary', { exact: true });
+    await expect(editor).toBeFocused();
+    expect(await editor.inputValue()).toContain("## Writer's standing requests\nKeep the storm.");
+    await editor.fill('x'.repeat(2401));
+    const save = memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung speichern' : 'Save summary', exact: true });
+    await expect(save).toBeDisabled();
+    await save.evaluate((element) => element.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    await expect(save).toBeInViewport({ ratio: 1 });
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`memory-${variant.shell}-${variant.language}-limit.png`) });
+    await editor.fill('The writer chose the harbour instead.');
+    const beforeEdit = requests.length;
+    await save.click();
+    await expect(memory.locator('.agent-memory-text')).toHaveText('The writer chose the harbour instead.');
+    await expect(memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung bearbeiten' : 'Edit summary', exact: true })).toBeFocused();
+    await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung bearbeiten' : 'Edit summary', exact: true }).click();
+    await memory.getByRole('button', { name: variant.language === 'de' ? 'Abbrechen' : 'Cancel', exact: true }).click();
+    await expect(memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung bearbeiten' : 'Edit summary', exact: true })).toBeFocused();
+    expect(requests).toHaveLength(beforeEdit);
+    expect(await memory.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.reload();
+    await page.getByRole('listitem').filter({ hasText: 'Memory Book' }).getByRole('button', { name: variant.language === 'de' ? 'Öffnen' : 'Open', exact: true }).click();
+    if (variant.shell === 'modern') {
+      await page.getByTestId('modern-ask').click();
+      await expect(panel).toBeVisible();
+      await expect(panel.getByTestId('agent-sessions')).toHaveAttribute('data-state', 'ready');
+    } else await openAgent(page, variant.shell);
+    await memory.locator('[data-slot="collapsible-trigger"]').click();
+    await expect(memory.locator('.agent-memory-text')).toHaveText('The writer chose the harbour instead.');
+    await expect(memory).toContainText(variant.language === 'de' ? 'Von Ihnen bearbeitet' : 'Edited by you');
+    const activity = panel.locator('.agent-report').getByTestId('compaction-activity');
+    await panel.locator('.agent-report').getByRole('button', { name: variant.language === 'de' ? 'Gesprächszusammenfassung' : 'Conversation compaction', exact: true }).click();
+    await expect(activity).toHaveAttribute('data-status', 'replied');
+    await expect(activity).toContainText('test-model');
+    await expect(activity).toContainText('Fake endpoint');
+    await activity.scrollIntoViewIfNeeded();
+    await page.screenshot({ animations: 'disabled', path: testInfo.outputPath(`memory-${variant.shell}-${variant.language}-activity.png`) });
+    await memory.locator('[data-slot="collapsible-trigger"]').click();
+    await panel.getByTestId('agent-sessions').locator('.agent-session-trigger').click();
+    await panel.getByRole('button', { name: variant.language === 'de' ? 'Neue Sitzung' : 'New session', exact: true }).click();
+    await expect(memory).toHaveCount(0);
+  });
+
   const prepareThreeSessions = async (page: Page): Promise<void> => {
     await page.addInitScript(({ shell, theme }) => {
       localStorage.setItem('caotang.interface', shell);

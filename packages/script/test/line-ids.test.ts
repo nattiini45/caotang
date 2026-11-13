@@ -133,3 +133,40 @@ describe('an unknown label survives a round trip and is reported', () => {
     expect(parsed.notices.filter((n) => n.kind === 'speaker-unknown').map((n) => n.line)).toEqual([2, 3]);
   });
 });
+
+describe('a tag with words after it, or a truncated tag, is never minted twice (#325)', () => {
+  it('keeps a valid id when words are typed after its tag, and still reads the words', () => {
+    const body = '## A\nHOST: Hi. <!-- lineId: sl_0K3M9T2Q7X --> world';
+    const line = parseEpisode(body).segments[0]?.lines[0];
+    expect(line).toMatchObject({ id: 'sl_0K3M9T2Q7X', minted: true });
+    expect(line?.text).toContain('world');
+    expect(ensureScriptLineIds(body, { randomBytes: counter() })).toEqual({ body, minted: [] });
+  });
+
+  it('reports a truncated tag as malformed, reads a session-local id, and does not mint over it', () => {
+    const body = '## A\nHOST: Hi. <!-- lineId: sl_SHORT';
+    const parsed = parseEpisode(body);
+    expect(parsed.segments[0]?.lines[0]).toMatchObject({ id: '~l2', minted: false, text: 'Hi.' });
+    expect(parsed.notices.map((n) => [n.kind, n.line])).toEqual([['id-malformed', 2]]);
+    expect(ensureScriptLineIds(body, { randomBytes: counter() })).toEqual({ body, minted: [] });
+  });
+
+  it('reports a truncated tag even when its id looks valid, and does not mint over it', () => {
+    const body = '## A\nHOST: Hi. <!-- lineId: sl_0K3M9T2Q7X';
+    const parsed = parseEpisode(body);
+    expect(parsed.segments[0]?.lines[0]).toMatchObject({ id: '~l2', minted: false });
+    expect(parsed.notices.map((n) => [n.kind, n.line])).toEqual([['id-malformed', 2]]);
+    expect(ensureScriptLineIds(body, { randomBytes: counter() })).toEqual({ body, minted: [] });
+  });
+
+  it('mints a tag, then keeps that id when words are typed after it', () => {
+    const minted = ensureScriptLineIds('## A\nHOST: Hello.', { randomBytes: counter() });
+    const id = parseEpisode(minted.body).segments[0]?.lines[0]?.id;
+    expect(id).toMatch(/^sl_/);
+    const after = minted.body.replace(/(<!-- lineId: sl_[0-9A-Z]{10} -->)/, '$1 world');
+    const line = parseEpisode(after).segments[0]?.lines[0];
+    expect(line).toMatchObject({ id, minted: true });
+    expect(line?.text).toContain('world');
+    expect(ensureScriptLineIds(after, { randomBytes: counter() }).minted).toEqual([]);
+  });
+});

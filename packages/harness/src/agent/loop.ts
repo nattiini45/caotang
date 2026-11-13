@@ -71,8 +71,8 @@
 
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
-import { buildPreview, ContextError, meterOf, type AgentTask, type AssembledPrompt, type ContextMeter, type ContextOverrides, type PromptPreview, type RecentTurn } from '@caotang/context';
-import { costOf, estimateTokens, promptTokensOf, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
+import { buildPreview, ContextError, memoryReadable, meterOf, RESERVED_TOKENS, summaryPrefix, type AgentTask, type AssembledPrompt, type ContextMeter, type ContextOverrides, type PromptPreview, type RecentTurn, type SessionSummary } from '@caotang/context';
+import { costOf, estimateTokens, promptTokensOf, textOf, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type ModelLimits, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
@@ -145,6 +145,7 @@ import {
   RESUMED_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,
+  type CompactionActivity,
   type Decision,
   type PendingCard,
   type StepRecord,
@@ -184,6 +185,8 @@ import {
   loadedToolsMessage,
   parseReply,
   PLAN_CANCELLED_MESSAGE,
+  compactionSystem,
+  COMPACTION_SECTIONS,
   plannerSystem,
   plannerSystemNative,
   plannerToolDefs,
@@ -199,9 +202,10 @@ import {
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
 import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef, type WireProgress } from '@caotang/mcp-client';
 import { quotedProjectText } from './egress-check.js';
-import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
+import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, spotlight, turnNonce, type OutsideOf } from './untrusted.js';
 import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
 import { requestCapFor, transmittedOutputCap } from './output-cap.js';
+import { fitToWindow } from './window.js';
 import { appendLanguageLine, createContextPort, dropLinesOf, mergePreviews, type ContextPort, type LanguagePolicy } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
@@ -321,6 +325,8 @@ export interface AgentSessionOptions {
    */
   readonly sessionId?: string;
   readonly history?: readonly RecentTurn[];
+  readonly summary?: SessionSummary;
+  readonly compaction?: Partial<CompactionPolicy>;
   readonly nextTurn?: number;
   readonly usageSessionId?: string;
   /**
@@ -460,7 +466,24 @@ export interface SteerReceipt {
   readonly lands: 'next-model-call' | 'after-decision';
 }
 
+export interface CompactionPolicy {
+  readonly auto: boolean;
+  readonly keepTurns: number;
+  readonly triggerTurns: number;
+  readonly summaryTokens: number;
+  readonly keepToolResults: number;
+}
+
+export interface CompactionReport {
+  readonly summary: SessionSummary;
+  readonly tokens: { readonly promptTokens: number; readonly completionTokens: number };
+  readonly report: TurnReport;
+}
+
 export interface AgentSession {
+  summary(): SessionSummary | undefined;
+  editSummary(text: string): SessionSummary;
+  compact(focus?: string, options?: TurnOptions): Promise<CompactionReport>;
   /** Runs one turn for one intent. Resolves when the turn has ended, after any card was decided. */
   submit(intent: string, options?: SubmitOptions): Promise<TurnReport>;
   /**
@@ -562,7 +585,7 @@ function checkStop(turn: Turn): void {
  */
 class BudgetExceeded extends Error {
   constructor(
-    readonly stop: { readonly reason: string; readonly options: readonly string[]; readonly code?: AskBackCode },
+    readonly stop: { readonly reason: string; readonly options: readonly string[]; readonly code?: AskBackCode; readonly window?: AskBack['window'] },
     /** Set when a run limit refused the call (agent-harness §7.1). */
     readonly budgetStop?: BudgetStop,
   ) {
@@ -608,6 +631,8 @@ interface Pins {
 type SkillFence = { readonly kind: 'unlogged' } | { readonly kind: 'reading' } | { readonly kind: 'committed'; readonly snapshot: string };
 
 interface Turn {
+  readPolicy: string | undefined;
+  readonly requestReadPolicy: string | undefined;
   readonly contextOverrides?: ContextOverrides;
   plannerPrompt?: AssembledPrompt;
   readonly automaticRules: Map<PlanStep, SourcedRule>;
@@ -620,6 +645,7 @@ interface Turn {
   readonly dropped: string[];
   /** The turns this one follows, oldest first: L6's source (context-assembly §2). Taken when the turn starts. */
   readonly priorTurns: readonly RecentTurn[];
+  readonly compactions: CompactionActivity[];
   modelCalls: number;
   /** The writer's stop (`TurnOptions.signal`) and the meter's time limits, as one signal. */
   readonly signal: AbortSignal | undefined;
@@ -897,6 +923,8 @@ const DELEGATE_ALONE =
 const SKILL_BEFORE_DRAFT =
   'skill.load and skill.read must finish before later steps are drafted. Load the skill and read its references in a read-only reply first, then plan from the instructions and tool limits.';
 
+const HISTORY_BEFORE_WRITE = 'Read session.history in a reply without write steps, then plan from its result. Nothing was written.';
+
 function pendingSkillBefore(steps: readonly PlanStep[], index: number, done?: (index: number) => boolean): boolean {
   return steps.slice(0, index).some((step, at) => (step.tool === 'skill.load' || step.tool === 'skill.read') && done?.(at) !== true);
 }
@@ -929,8 +957,8 @@ function cutAskBack(atCap: boolean, cap: number | undefined): AskBack {
   };
 }
 
-function askBackOf(stop: { readonly reason: string; readonly options: readonly string[]; readonly code?: AskBackCode }): AskBack {
-  return { code: stop.code ?? 'needs_input', reason: stop.reason, options: stop.options };
+function askBackOf(stop: { readonly reason: string; readonly options: readonly string[]; readonly code?: AskBackCode; readonly window?: AskBack['window'] }): AskBack {
+  return { code: stop.code ?? 'needs_input', reason: stop.reason, options: stop.options, ...(stop.window === undefined ? {} : { window: stop.window }) };
 }
 
 /**
@@ -1077,18 +1105,38 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const finished: TurnReport[] = [];
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
   const started: RecentTurn[] = (options.history ?? []).map((turn) => ({ ...turn }));
+  let sessionSummary = options.summary === undefined ? undefined : { ...options.summary, covers: { ...options.summary.covers } };
+  const compaction: CompactionPolicy = {
+    auto: options.compaction?.auto ?? true,
+    keepTurns: options.compaction?.keepTurns ?? 2,
+    triggerTurns: options.compaction?.triggerTurns ?? 6,
+    summaryTokens: options.compaction?.summaryTokens ?? 600,
+    keepToolResults: options.compaction?.keepToolResults ?? 3,
+  };
+  if (typeof compaction.auto !== 'boolean' ||
+    !Number.isSafeInteger(compaction.keepTurns) || compaction.keepTurns < 1 ||
+    !Number.isSafeInteger(compaction.triggerTurns) || compaction.triggerTurns < 0 ||
+    !Number.isSafeInteger(compaction.summaryTokens) || compaction.summaryTokens < 1 ||
+    !Number.isSafeInteger(compaction.keepToolResults) || compaction.keepToolResults < 0) throw new RangeError('The compaction policy needs positive whole-number keepTurns and summaryTokens, non-negative whole-number triggerTurns and keepToolResults, and a boolean auto flag.');
   const markers = new Map<string, TurnMarker>(started.map((turn) => {
     const restored = turn.restoredAt === undefined ? undefined : { at: turn.restoredAt, ...(turn.restoredFromStep === undefined ? {} : { fromStep: turn.restoredFromStep }) };
     return [turn.turnId, turn.rewound === true ? { kind: 'rewound', ...(restored === undefined ? {} : { restored }) }
       : restored === undefined ? { kind: 'live' } : { kind: 'restored', ...restored }];
   }));
   const recentTurns = (): RecentTurn[] => started.map((turn) => ({ ...turn, ...turnMarkerFields(markers.get(turn.turnId) ?? { kind: 'live' }) }));
+  const changeSummary = (turnId: string, summary: SessionSummary | undefined, reason: 'coverage' | TurnMarkerEvent['type'] | 'edit'): void => {
+    sessionSummary = summary;
+    emit({ type: 'session.summary.changed', turnId, role: options.role ?? 'chat', reason, ...(summary === undefined ? {} : { summary }) });
+  };
+  if (sessionSummary !== undefined && summaryPrefix(sessionSummary, recentTurns()) === undefined) changeSummary(sessionSummary.covers.to, undefined, 'coverage');
   const moveMarker = (turnId: string, event: TurnMarkerEvent): void => {
     const from = markers.get(turnId);
     if (from === undefined) return;
     const next = stepTurnMarker(from, event);
     if (next === from) return;
+    const covered = sessionSummary === undefined ? undefined : summaryPrefix(sessionSummary, recentTurns());
     markers.set(turnId, next);
+    if (covered?.some((turn) => turn.turnId === turnId)) changeSummary(turnId, undefined, event.type);
     trace({ kind: 'machine', at: now(), turnId: TRACE_REVIEWS, machine: turnMarkerTable.id, subjectId: turnId, from: from.kind, event: event.type, to: next.kind });
   };
   /**
@@ -1434,31 +1482,50 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
-  async function* settling(turn: Turn, reservation: Reservation | undefined, stream: AsyncIterable<ChatChunk>): AsyncGenerator<ChatChunk, void, undefined> {
-    if (reservation === undefined || turn.meter === undefined) {
-      yield* stream;
-      return;
-    }
+  async function* settling(turn: Turn, reservation: Reservation | undefined, request: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk, void, undefined> {
     let usage: Usage | undefined;
     let delivered = '';
+    let sent = false;
+    let refused = false;
+    const beforeSend = (): void => {
+      try { guardReadBoundary(turn); } catch (error) { refused = !sent; throw error; }
+      sent = true;
+    };
     try {
-      for await (const chunk of stream) {
+      for await (const chunk of gateway.complete(request, signal, beforeSend)) {
         if (chunk.usage !== undefined) usage = chunk.usage;
         delivered += `${chunk.delta ?? ''}${chunk.reasoningDelta ?? ''}`;
         yield chunk;
       }
     } finally {
-      turn.meter.settle(reservation, usage, { promptTokens: reservation.promptTokens, completionTokens: estimateTokens(delivered) });
-      emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+      if (refused) {
+        turn.modelCalls -= 1;
+        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+      }
+      if (reservation !== undefined && turn.meter !== undefined) {
+        if (refused) turn.meter.release(reservation);
+        else turn.meter.settle(reservation, usage, { promptTokens: reservation.promptTokens, completionTokens: estimateTokens(delivered) });
+        emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+      }
     }
   }
+
+  const guardReadBoundary = (turn: Turn): void => {
+    if (harness.readPolicy() === turn.requestReadPolicy) return;
+    turn.readPolicy = undefined;
+    throw new BudgetExceeded({
+      code: 'needs_input',
+      reason: 'The read boundary changed while this turn was running. The prepared request was not sent.',
+      options: ['Send the request again under the current read rules', 'Start a new session'],
+    });
+  };
 
   /**
    * The one budgeted call site. Every model request a turn makes passes through here, drafts and retries
    * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
    * request here too (provider-gateway §6); the prompt-pack's calls pass 'drafting' for it instead.
    */
-  const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner = false): ModelCall => ({
+  const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner: boolean | 'compaction' = false): ModelCall => ({
     gateway: {
       complete: (request, signal) => {
         if (turn.modelCalls >= maxModelCalls) throw modelCallBound(maxModelCalls);
@@ -1467,7 +1534,32 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const hit = hitOf(turn, usageOf(turn), true);
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
-        const asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }) };
+        let asked = { ...request, sessionId: usageSessionId, ...(role === undefined ? {} : { role }) };
+        if (planner) {
+          const limits = gateway.modelLimits(asked.profileId, asked.model, asked.thinking, asked);
+          const reserveTokens = transmittedOutputCap(limits, asked.maxOutputTokens) + RESERVED_TOKENS;
+          const fitted = fitToWindow(asked.messages, {
+            ...(limits.contextWindow === undefined ? {} : { windowTokens: limits.contextWindow }),
+            reserveTokens,
+            keepToolResults: compaction.keepToolResults,
+          });
+          if (fitted.cleared.length > 0) {
+            turn.messages.splice(0, turn.messages.length, ...fitted.messages);
+            emit({ type: 'context.cleared', turnId: turn.id, cleared: fitted.cleared });
+          }
+          asked = { ...asked, messages: fitted.messages };
+          if (!fitted.fits) {
+            if (turn.plannerPrompt !== undefined) emit({ type: 'context-meter', turnId: turn.id, ...requestContext(turn.plannerPrompt, asked.messages, limits) });
+            throw new BudgetExceeded({
+              code: 'needs_input',
+              reason: `The ${planner === 'compaction' ? 'compaction request' : 'planner'} needs about ${promptTokensOf(asked.messages)} prompt tokens plus ${reserveTokens} reserved tokens, but this model's window is ${limits.contextWindow} tokens. No request was sent.`,
+              options: ['Compact the conversation', 'Raise the budget', 'Start a new session'],
+              window: { promptTokens: promptTokensOf(asked.messages), reserveTokens, windowTokens: limits.contextWindow! },
+            });
+          }
+        }
+        guardReadBoundary(turn);
+        if (asked.messages.some((message) => textOf(message.content).includes('<<untrusted source="mcp-history:'))) taint(turn, [{ serverName: '', label: 'earlier conversation (connected-server text)' }]);
         const reservation = reserveCall(turn, asked);
         turn.modelCalls += 1;
         turn.calls += 1;
@@ -1477,7 +1569,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           emit({ type: 'context-meter', turnId: turn.id, ...requestContext(turn.plannerPrompt, sent.messages, limits) });
         }
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
-        return watched(turn.cache, turn.calls, sent, planner, settling(turn, reservation, gateway.complete(sent, signal)));
+        if (planner === 'compaction') emit({ type: 'session.compacting', turnId: turn.id });
+        return watched(turn.cache, turn.calls, sent, planner === true, settling(turn, reservation, sent, signal));
       },
     },
     turnId: turn.id,
@@ -1505,12 +1598,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       gateway: {
         complete: (request, signal) => {
           if (used >= limit) throw modelCallBound(limit);
+          guardReadBoundary(turn);
           const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
           const reservation = reserveCall(turn, asked);
           used += 1;
           turn.calls += 1;
           const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
-          return settling(turn, reservation, gateway.complete(sent, signal));
+          return settling(turn, reservation, sent, signal);
         },
       },
       turnId: turn.id,
@@ -1968,6 +2062,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const readOnly = policyOf(turn).readOnly;
     const stepsAllowed = syncSteps(turn);
     let stepsLeft = stepsAllowed;
+    const historyAt = writes ? steps.findIndex((step) => step.tool === 'session.history') : -1;
+    if (historyAt >= 0) {
+      const step = steps[historyAt]!;
+      refusedBeforeCard(turn, step, HISTORY_BEFORE_WRITE);
+      return { proposals, refusals: [{ index: historyAt, tool: step.tool, message: HISTORY_BEFORE_WRITE }] };
+    }
     for (const [index, step] of steps.entries()) {
       checkStop(turn);
       // Plan-only runs reads and refuses every write before it is drafted, so no model call is spent on it (agent-harness §4).
@@ -2063,7 +2163,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function draftStep(turn: Turn, step: PlanStep): Promise<Drafted> {
     const { state } = harness;
     // The history every call of this turn may draw on: the turns before it (L6), and their activity rows for the outcomes.
-    const history = { turns: turn.priorTurns, activity: harness.log.entries(), ...(turn.languages === undefined ? {} : { languages: turn.languages }) };
+    const readPolicy = harness.readPolicy();
+    const history = { turns: turn.priorTurns, activity: harness.log.entries(), sessionKeepTurns: compaction.keepTurns, ...(readPolicy === undefined ? {} : { readPolicy }), ...(sessionSummary === undefined ? {} : { sessionSummary }), ...(turn.languages === undefined ? {} : { languages: turn.languages }) };
     if (step.tool === 'scene.draft') {
       const node = resolveNode(state, String(step.params['doc']), DOCUMENT, 'document', 'params.doc');
       if (!node.ok) return refusedDraft(node.error.message);
@@ -2287,8 +2388,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * document guard may ask for the writer's one-step confirmation.
    */
   async function invokeRead(turn: Turn, call: ToolCall, permission?: { readonly confirmed: true }): Promise<ToolOutcome> {
+    guardReadBoundary(turn);
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
-    const granted = { turnId: turn.id, sessionId: usageSessionId, ...(permission === undefined ? {} : { permission }) };
+    const granted = { turnId: turn.id, sessionId: usageSessionId, ...(call.name === 'session.history' ? { sessionHistory: turn.priorTurns } : {}), ...(permission === undefined ? {} : { permission }) };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
     await beginSkillAccess(turn, call.name, true);
     return harness.call(call, granted);
@@ -3699,6 +3801,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       status: settled.status,
       ...(settled.status === 'replied' ? { text: settled.text ?? '' } : {}),
       summary,
+      ...(turn.compactions.length === 0 ? {} : { compactions: [...turn.compactions] }),
       steps: turn.steps,
       cards: turn.cards,
       trace: turn.trace,
@@ -3728,6 +3831,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * in a user message after the system prompt and so never part of L0; a project with no skill on offer has none.
    */
   function plannerAssembly(native: boolean, intent: string, priorTurns: readonly RecentTurn[], nonce?: string, languages?: LanguagePolicy, overrides?: ContextOverrides) {
+    const readPolicy = harness.readPolicy();
     const planner = context.assemble({
       ...(nonce === undefined ? {} : { nonce }),
       ...(languages === undefined ? {} : { languages }),
@@ -3735,6 +3839,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
       role: native ? plannerSystemNative(plannerListings(), loadEvery()) : plannerSystem(plannerListings(), loadEvery()),
       turns: priorTurns,
+      ...(sessionSummary === undefined ? {} : { sessionSummary }),
+      sessionKeepTurns: compaction.keepTurns,
+      ...(readPolicy === undefined ? {} : { readPolicy }),
       activity: harness.log.entries(),
     });
     const skills = harness.skillCatalog();
@@ -3774,6 +3881,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** The planner's turn: the request goes to the model, which answers or proposes steps (agent-harness §2). */
   async function plannedTurn(turn: Turn, intent: string, preload: readonly ToolName[], submitOptions: SubmitOptions = {}): Promise<Settled> {
+    const readable = turn.priorTurns.filter((entry) => entry.hidden !== true && entry.rewound !== true);
+    const covered = sessionSummary?.covers.turns ?? 0;
+    if (compaction.auto && readable.length - covered > compaction.triggerTurns && readable.length - covered > compaction.keepTurns) {
+      const runLeft = turn.meter?.limits.maxModelCalls === undefined ? Infinity : turn.meter.limits.maxModelCalls - turn.meter.spend().modelCalls;
+      if (Math.min(callsLeft(turn), runLeft) < 2) throw new BudgetExceeded({
+        code: 'budget_exhausted',
+        reason: 'Automatic compaction and an answer need at least two model calls. The remaining call limit cannot cover both, so no request was sent.',
+        options: ['Raise the model-call limit', 'Compact manually before sending the request', 'Start a new session'],
+      });
+      await compactConversation(turn, 'auto');
+    }
     let writerFiles: readonly string[] = [];
     let writerDetails: string | undefined;
     if (submitOptions.writerSkill !== undefined) {
@@ -3948,8 +4066,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
     const id = `${sessionName}.turn-${turnCounter}`;
     const overrides = turnOptions.contextOverrides;
+    const readPolicy = harness.readPolicy();
     return {
       automaticRules: new Map(),
+      readPolicy,
+      requestReadPolicy: readPolicy,
       id,
       ...(overrides === undefined ? {} : { contextOverrides: {
         ...(overrides.include === undefined ? {} : { include: overrides.include.map(({ kind, id }) => ({ kind, id })) }),
@@ -3962,6 +4083,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       statusCards: [],
       dropped: [],
       priorTurns,
+      compactions: [],
       modelCalls: 0,
       signal: signals.length > 1 ? anySignal(signals) : signals[0],
       meter,
@@ -4005,7 +4127,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** How a turn is logged: a new run, the run a resume continues, or not at all. */
   type LogPlan =
-    | { readonly mode: 'new'; readonly wire: 'planner' | 'plan' }
+    | { readonly mode: 'new'; readonly wire: 'planner' | 'plan'; readonly compaction?: RunReplay['compaction'] }
     | { readonly mode: 'resume'; readonly runId: string; readonly replay: RunReplay; readonly rerun?: PendingStep }
     | { readonly mode: 'none' };
 
@@ -4014,6 +4136,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const log = options.runLog;
     if (log === undefined || plan.mode === 'none') return undefined;
     const runId = plan.mode === 'resume' ? plan.runId : (log.newRunId?.() ?? `run_${newId('cmd').slice('cmd_'.length)}`);
+    const compactionRequest = plan.mode === 'resume' ? plan.replay.compaction : plan.compaction;
     const writer = createRunWriter({ port: log.port, runId, nextSeq: plan.mode === 'resume' ? plan.replay.nextSeq : 0, clock: now, ...(log.onNotice === undefined ? {} : { onNotice: log.onNotice }) });
     if (plan.mode === 'new') {
       try {
@@ -4044,6 +4167,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         ...(turn.contextOverrides === undefined ? {} : { contextOverrides: turn.contextOverrides }),
         ...(turn.hiddenFromPlanner ? { hiddenFromPlanner: true } : {}),
         ...(submitOptions.outsidePrompt === undefined ? {} : { outsidePrompt: submitOptions.outsidePrompt }),
+        ...(compactionRequest === undefined ? {} : { compaction: compactionRequest }),
         // A restored card builds no new prompt, so the conversation behind it keeps the filter it was built with.
         withheld: plan.mode === 'resume' && plan.replay.card !== undefined ? plan.replay.withheld : [...harness.withheldAnywhere()].sort(),
       },
@@ -4060,7 +4184,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function closeRun(turn: Turn, report: TurnReport): Promise<void> {
     if (turn.run === undefined) return;
     await syncRun(turn, 0);
-    await turn.run.append({ t: 'turn.end', turnId: turn.id, status: report.status, summary: report.summary }, { status: statusOfTurn(report.status), outcome: outcomeOfTurn(report) });
+    await turn.run.append({ t: 'turn.end', turnId: turn.id, status: report.status, summary: report.summary, ...(report.external === true ? { external: true } : {}), ...(report.readPolicy === undefined ? {} : { readPolicy: report.readPolicy }), ...(report.compactions === undefined ? {} : { compactions: report.compactions }) }, { status: statusOfTurn(report.status), outcome: outcomeOfTurn(report) });
   }
 
   /** The call id of the first step, from `stepId` on, that still has entries in the turn's undo group: where a restore to before `stepId` begins. */
@@ -4128,6 +4252,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const totals = gateway.ledger.turnTotals(turn.id);
     const report: TurnReport = {
       ...reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests }),
+      ...(turn.tainted ? { external: true } : {}),
+      ...(turn.readPolicy === undefined || turn.readPolicy !== harness.readPolicy() ? {} : { readPolicy: turn.readPolicy }),
       usage: gateway.ledger.turnRowsOf(turn.id),
       ...(totals.costUsd === undefined ? {} : { costUsd: totals.costUsd }),
     };
@@ -4141,6 +4267,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turnId: turn.id,
       intent,
       outcome: clipOutcome(report.summary),
+      ...(report.external === true ? { external: true } : {}),
+      ...(report.readPolicy === undefined ? {} : { readPolicy: report.readPolicy }),
       ...(report.undoGroupId === undefined ? {} : { undoGroupId: report.undoGroupId }),
     };
     // A turn that called an external tool carries the scope note on its checkpoint: the undo can reverse Caotang's changes only.
@@ -4171,6 +4299,20 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function resumedTurn(turn: Turn, replay: RunReplay): Promise<Settled> {
     turn.restored = true;
     turn.carried = replay.applied.length;
+    if (replay.compaction !== undefined) {
+      await compactConversation(turn, 'manual', replay.compaction.focus);
+      return sessionSummary === undefined
+        ? { status: 'failed', askBack: { code: 'needs_input', reason: 'There are no older turns to compact.', options: ['Continue the conversation'] } }
+        : { status: 'replied', text: sessionSummary.text };
+    }
+    if (replay.wire === 'planner' && replay.card === undefined && replay.messages.length === 0 && replay.applied.length === 0) {
+      const writer = replay.skills?.find((skill) => skill.origin === 'writer');
+      return plannedTurn(turn, replay.intent, [], {
+        ...(writer === undefined ? {} : { writerSkill: { name: writer.name, pin: writer.pin, body: writer.body } }),
+        ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }),
+      });
+    }
+    turn.readPolicy = undefined;
     turn.messages.push(...replay.messages);
     // The log holds the conversation as the model read it, envelopes included: a turn that read outside text before the reload is still tainted.
     if (replay.messages.some((message) => typeof message.content === 'string' && readsOutsideText(message.content))) taint(turn, [{ serverName: '', label: 'outside text' }]);
@@ -4271,11 +4413,101 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     // A resumed macro run stays the writer's: after a reload only the logged command says which turn it was.
-    const resumed: SubmitOptions = { ...resumeOptions, contextOverrides: replay.contextOverrides, ...(replay.command === undefined ? {} : { command: replay.command }), ...(replay.hiddenFromPlanner === true || isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}), ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }) };
+    const resumed: SubmitOptions = { ...resumeOptions, contextOverrides: replay.contextOverrides, ...(replay.command === undefined ? {} : { command: replay.command }), ...(replay.hiddenFromPlanner === true || isMacroCommand(replay.command) || replay.compaction !== undefined ? { hiddenFromPlanner: true } : {}), ...(replay.outsidePrompt === undefined ? {} : { outsidePrompt: replay.outsidePrompt }) };
     return runTurn(intent, resumed, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
+  async function compactConversation(turn: Turn, origin: SessionSummary['origin'], focus?: string): Promise<void> {
+    const readable = turn.priorTurns.filter((entry) => entry.hidden !== true && entry.rewound !== true);
+    const previous = sessionSummary;
+    const priorCount = previous?.covers.turns ?? 0;
+    const older = readable.slice(priorCount, Math.max(priorCount, readable.length - compaction.keepTurns));
+    if (older.length === 0 && previous === undefined) return;
+    const readPolicy = harness.readPolicy();
+    if ((previous !== undefined && !memoryReadable(previous, readPolicy)) || older.some((entry) => !memoryReadable(entry, readPolicy))) throw new BudgetExceeded({
+      code: 'needs_input', reason: 'The read boundary changed, so earlier outcomes cannot be sent for compaction. No summary request was sent.',
+      options: ['Start a new session', 'Review the read rules in Settings'],
+    });
+    const fields = Object.entries(COMPACTION_SECTIONS);
+    const external = previous?.external === true || older.some((entry) => entry.external === true);
+    const messages: ChatMessage[] = [
+      { role: 'system', content: compactionSystem(compaction.summaryTokens) },
+      { role: 'user', content: `${focus === undefined ? '' : `Writer's focus for this compaction: ${focus}\n\n`}${spotlight(JSON.stringify({ previousSummary: previous?.text ?? null, turns: older.map(({ readPolicy: _policy, ...entry }) => entry) }), { kind: 'session-summary', external }, turn.nonce)}` },
+    ];
+    const before = gateway.ledger.turnTotals(turn.id);
+    const beforeRows = gateway.ledger.turnRowsOf(turn.id).map((row) => ({ ...row }));
+    const beforeCalls = turn.modelCalls;
+    const covers = { from: previous?.covers.from ?? older[0]!.turnId, to: older.at(-1)?.turnId ?? previous!.covers.to, turns: priorCount + older.length };
+    let status: CompactionActivity['status'] = 'failed';
+    try {
+      await syncRun(turn, 1);
+      let reply: Completion;
+      try {
+        reply = await complete({ ...modelCall(turn, () => undefined, 'background', 'compaction'), maxOutputTokens: compaction.summaryTokens }, messages, {
+          jsonSchemaHint: { type: 'object', properties: Object.fromEntries(fields.map(([key]) => [key, { type: 'string' }])), required: fields.map(([key]) => key), additionalProperties: false },
+        });
+      } finally { await syncRun(turn, 0); }
+      checkStop(turn);
+      const current = recentTurns().filter((entry) => entry.hidden !== true && entry.rewound !== true).slice(0, covers.turns);
+      if (sessionSummary !== previous || harness.readPolicy() !== readPolicy || canonicalJson(current) !== canonicalJson(readable.slice(0, covers.turns))) throw new BudgetExceeded({
+        code: 'needs_input', reason: 'The conversation changed while compaction was running. That summary was not installed.', options: ['Review the conversation, then Compact again'],
+      });
+      let parsed: unknown;
+      try { parsed = JSON.parse(reply.text); } catch { parsed = undefined; }
+      if (reply.cut || !isRecord(parsed) || fields.some(([key]) => typeof parsed[key] !== 'string')) {
+        throw new BudgetExceeded({ code: 'needs_input', reason: 'The compaction reply did not contain four complete summary sections. The earlier summary was kept.', options: ['Try Compact again', 'Choose another Background model'] });
+      }
+      const text = fields.map(([key, heading]) => `## ${heading}\n${parsed[key] as string}`).join('\n\n');
+      if (estimateTokens(text) > compaction.summaryTokens) throw new BudgetExceeded({ code: 'needs_input', reason: `The summary exceeded its ${compaction.summaryTokens}-token estimate. The earlier summary was kept.`, options: ['Try Compact with a narrower focus', 'Raise the summary budget'] });
+      sessionSummary = {
+        version: 1, covers, text, origin, external, ...(focus === undefined ? {} : { focus }), ...(readPolicy === undefined ? {} : { readPolicy }),
+      };
+      status = 'replied';
+      const after = gateway.ledger.turnTotals(turn.id);
+      emit({ type: 'session.compacted', turnId: turn.id, summary: sessionSummary, tokens: { promptTokens: after.promptTokens - before.promptTokens, completionTokens: after.completionTokens - before.completionTokens } });
+    } finally {
+      if (turn.modelCalls > beforeCalls) {
+        const usage = gateway.ledger.turnRowsOf(turn.id).flatMap((after) => {
+          const prior = beforeRows.find((row) => row.profileId === after.profileId && row.model === after.model && row.role === after.role && row.agentPath === after.agentPath);
+          if (after.requests === (prior?.requests ?? 0)) return [];
+          const row = { ...after };
+          for (const key of ['promptTokens', 'completionTokens', 'requests', 'cachedPromptTokens', 'cacheWritePromptTokens', 'reasoningTokens', 'estimatedRequests', 'unpricedRequests', 'providerCostRequests'] as const) row[key] -= prior?.[key] ?? 0;
+          if (row.costUsd !== undefined) row.costUsd -= prior?.costUsd ?? 0;
+          return [row];
+        });
+        const activity: CompactionActivity = { at: now(), origin, role: options.role ?? 'chat', status: turn.signal?.aborted === true ? 'cancelled' : status, covers, usage };
+        turn.compactions.push(activity);
+        emit({ type: 'session.compaction', turnId: turn.id, activity });
+      }
+    }
+  }
+
   return {
+    summary: () => sessionSummary === undefined ? undefined : { ...sessionSummary, covers: { ...sessionSummary.covers } },
+    editSummary(text: string): SessionSummary {
+      if (running.size > 0) throw new Error('Wait for the running turn to finish or stop it before editing its summary.');
+      if (sessionSummary === undefined || summaryPrefix(sessionSummary, recentTurns()) === undefined) throw new Error('There is no current summary to edit. Compact the conversation first.');
+      const trimmed = text.trim();
+      if (trimmed === '') throw new Error('The summary cannot be empty. Keep the earlier summary or write its replacement.');
+      if (estimateTokens(trimmed) > compaction.summaryTokens) throw new Error(`The summary exceeds its ${compaction.summaryTokens}-token estimate. Shorten it before saving.`);
+      const edited = { ...sessionSummary, covers: { ...sessionSummary.covers }, text: trimmed, editedAt: now() };
+      changeSummary(edited.covers.to, edited, 'edit');
+      return { ...edited, covers: { ...edited.covers } };
+    },
+    async compact(focus?: string, turnOptions: TurnOptions = {}): Promise<CompactionReport> {
+      if (running.size > 0) throw new Error('Wait for the running turn to finish or stop it before compacting.');
+      const readable = recentTurns().filter((entry) => entry.hidden !== true && entry.rewound !== true);
+      if (sessionSummary === undefined && readable.length <= compaction.keepTurns) throw new Error('There are no older turns to compact. Keep writing, then try Compact again.');
+      const focused = focus?.trim() || undefined;
+      const report = await runTurn(focused === undefined ? 'Compact earlier conversation turns.' : `Compact earlier conversation turns. Focus: ${focused}`, { ...turnOptions, hiddenFromPlanner: true }, async (turn) => {
+        await compactConversation(turn, 'manual', focused);
+        return sessionSummary === undefined
+          ? { status: 'failed', askBack: { code: 'needs_input', reason: 'There are no older turns to compact.', options: ['Continue the conversation'] } }
+          : { status: 'replied', text: sessionSummary.text };
+      }, { mode: 'new', wire: 'plan', compaction: focused === undefined ? {} : { focus: focused } });
+      if (report.status !== 'replied' || sessionSummary === undefined) throw new Error(report.askBack?.reason ?? 'Compaction stopped. The earlier summary was kept.');
+      return { summary: { ...sessionSummary, covers: { ...sessionSummary.covers } }, tokens: { promptTokens: report.tokens.promptTokens, completionTokens: report.tokens.completionTokens }, report };
+    },
     submit(intent: string, submitOptions: SubmitOptions = {}): Promise<TurnReport> {
       return runTurn(intent, submitOptions, (turn) => plannedTurn(turn, intent, submitOptions.preload ?? [], submitOptions));
     },
@@ -4363,11 +4595,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     },
 
     markRestored(turnIds: readonly string[], at: number, fromStep?: number): () => void {
+      const previousSummary = sessionSummary;
       const previous = turnIds.map((id) => ({ id, marker: markers.get(id) }));
       turnIds.forEach((id, position) => {
         moveMarker(id, { type: 'restore', at, ...(position === 0 && fromStep !== undefined ? { fromStep } : {}) });
       });
-      return () => { for (const { id, marker } of previous) if (marker !== undefined) moveMarker(id, { type: 'undo-restore', previous: marker }); };
+      const invalidated = previousSummary !== undefined && sessionSummary === undefined;
+      return () => {
+        for (const { id, marker } of previous) if (marker !== undefined) moveMarker(id, { type: 'undo-restore', previous: marker });
+        if (invalidated && sessionSummary === undefined && summaryPrefix(previousSummary, recentTurns()) !== undefined) changeSummary(previousSummary.covers.to, previousSummary, 'undo-restore');
+      };
     },
 
     turnMarker: (turnId: string) => markers.get(turnId),

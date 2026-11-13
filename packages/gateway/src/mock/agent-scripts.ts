@@ -27,6 +27,7 @@ import type { MockResponse, MockScript } from './scripts.js';
 export const PLANNER_PREFIX = "You are Caotang's agent.";
 /** The first words of a drafting call's system message. The harness's protocol.ts holds the same string. */
 export const DRAFT_PREFIX = 'You are drafting prose for Caotang.';
+export const COMPACTION_PREFIX = "Summarise this role's earlier conversation";
 /** The first words of a delegated agent's system message. The harness's protocol.ts holds the same string. */
 export const SUBAGENT_PREFIX = 'You are a delegated agent for Caotang.';
 /**
@@ -396,11 +397,22 @@ const refuseOtherRequests: MockScript = {
   respond: (): MockResponse => ({ content: '', error: { kind: 'provider', status: 400, message: DEMO_REFUSAL } }),
 };
 
+const compactionDemo: MockScript = {
+  match: (req) => req.role === 'background' && systemOf(req).startsWith(COMPACTION_PREFIX) && typeof req.responseFormat === 'object',
+  respond: () => ({ content: JSON.stringify({
+    standingRequests: 'This is a scripted demo summary, not an account of your manuscript.',
+    decisions: 'The demo does not infer decisions.',
+    done: 'Earlier demo turns were folded without changing the manuscript.',
+    openThreads: 'Read the original turns with session.history for their exact outcomes.',
+  }) }),
+};
+
 /**
  * The scripts for the three zero-key demo intents, then the refusal of everything else. Match order matters only for the
  * refusal, which must come after the intents; each intent matches on its own wording.
  */
 export const demoScripts: readonly MockScript[] = [
+  compactionDemo,
   plannerScript(draftSceneReply),
   plannerScript(fillSynopsesReply),
   plannerScript(continuityReply),

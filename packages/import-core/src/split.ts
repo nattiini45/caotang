@@ -86,7 +86,7 @@ export interface ProposedDoc {
 
 export type ProposedNode = ProposedFolder | ProposedDoc;
 
-/** Front or back matter: never dropped silently (Caspar's rule), sent where `destination` says. */
+/** Front or back matter: never dropped silently (PawCommit Studio's rule), sent where `destination` says. */
 export interface ProposedChunk {
   id: string;
   kind: 'front' | 'back';

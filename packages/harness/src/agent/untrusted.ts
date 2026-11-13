@@ -15,6 +15,7 @@ import type { TaintRef } from '@caotang/mcp-client';
 
 import { hookLabel } from '../hooks.js';
 import { isRecord } from '../util.js';
+import { sessionHistoryText } from '../tools/session-history.js';
 
 export {
   STATIC_NONCE,
@@ -120,6 +121,7 @@ function resultOf(result: { readonly tool: string; readonly ok: boolean; readonl
     const text = typeof result.body === 'string' ? result.body : (JSON.stringify(result.body) ?? '');
     return `${JSON.stringify({ ...head, ok: false, error: 'in the untrusted block below' })}\n${spotlight(text, { kind: 'mcp-result', ...from }, nonce)}`;
   }
+  if (result.tool === 'session.history') return sessionHistoryText(result.body, nonce, named);
   if (isExternalBody(result.body)) {
     const { content, ...rest } = result.body;
     const line = JSON.stringify({ ...head, ok: true, data: { ...rest, content: 'in the untrusted block below' } });
