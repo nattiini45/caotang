@@ -11,3 +11,5 @@ export { preprocessObsidian } from './obsidian.js';
 export type { ObsidianEmbed, ObsidianPreprocess } from './obsidian.js';
 export { parseLongformIndex, chooseDraft } from './longform.js';
 export type { LongformIndex, LongformScene } from './longform.js';
+export { classifyCodexNote, resolveAttachment, CODEX_TYPES } from './vault.js';
+export type { CodexType } from './vault.js';
