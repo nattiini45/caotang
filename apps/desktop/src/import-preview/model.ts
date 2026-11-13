@@ -145,6 +145,8 @@ export interface PreviewCodexRow {
   readonly id: string;
   readonly name: string;
   readonly type: string;
+  /** Other names the entry answers to (an Obsidian note's `aliases:`), kept on the codex entry. */
+  readonly aliases?: readonly string[];
   readonly description?: string;
   /** The passage that names it, in the imported text: the first document (or this node) that holds the quote. */
   readonly cite?: { readonly nodeId?: string; readonly quote: string };
@@ -710,7 +712,7 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
     }
     const name = answer.action === 'rename' ? answer.name.trim() : row.name;
     if (name === '') continue;
-    const base = { name, type: row.type, ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }) };
+    const base = { name, type: row.type, ...(row.aliases === undefined || row.aliases.length === 0 ? {} : { aliases: [...row.aliases] }), ...(row.description === undefined || row.description === '' ? {} : { description: [...row.description].slice(0, 2000).join('') }) };
     const cite = citeOf(row, nodes, indexOf);
     if (cite !== undefined) {
       entries.push({ ...base, node: cite.node, cite: { from: cite.from, to: cite.to, quote: cite.quote } });

@@ -100,6 +100,7 @@ function makeObsidianSource(fileName: string, openReq: ReaderOpen): ImportPrevie
       id: note.path,
       name: note.name,
       type: note.type,
+      ...(note.aliases.length === 0 ? {} : { aliases: [...note.aliases] }),
       description: note.body.slice(0, 200),
       page: { title: note.name, body: note.body },
     }));
