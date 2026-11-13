@@ -24,7 +24,7 @@ const model: FakeReply = (request): FakeAnswer | string => {
     return { text: 'Done.' };
   }
   if (intent('Send a note to the story bible.')) {
-    if (turn === 0) return { text: 'Find the note tool.', toolCalls: [call('c3', 'tool.search', { query: 'note' })] };
+    if (turn === 0) return { text: 'Find the note tool.', toolCalls: [call('c3', 'tool.search', { query: 'write_note' })] };
     if (turn === 1) return { text: 'Send it.', toolCalls: [call('c4', loaded(request.tools, 'write_note'), { text: 'A note.' })] };
     return { text: 'Sent.' };
   }
