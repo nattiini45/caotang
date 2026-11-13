@@ -1,5 +1,7 @@
 # Decisions
 
+- Codex Never ids participate in the live read-policy fingerprint, in addition to scoped read-denies. A pending local search may hold an earlier codex snippet, so switching that entry to Never stops subsequent provider dispatch and withholds derived memory from the former boundary. Fingerprints without Never entries retain their prior encoding; no project or session format changes. [delegated 2026-11-13]
+
 - Local passage search has reference-benchmark p99 budgets of 250 ms cold and 50 ms after one scene edit. The isolated 200,000-word benchmark on 2 CPUs / 8 GB RAM / Node 24 measured 132.578 ms and 12.652 ms respectively. Browser indexing and scoring run in a lazy same-origin worker so slower phones do not block typing; missing worker support refuses rather than falling back to synchronous work. These are reference budgets, not universal CI latency claims. [delegated 2026-11-13]
 
 - Lexical search is a deterministic local BM25 tool over the current visible corpus, not an automatic prompt layer or embeddings. Same-state queries agree, and an incremental index must equal a rebuilt index after every edit; scores may change across states. With k1=1.2 and b=0.75, growing a nonmatching unit from two to twenty words changes an unchanged matching unit's score from 0.693147 to 1.041873 through average-length normalization, so before/after score invariance would contradict BM25. Random edit-sequence tests pin incremental/rebuilt equivalence. [delegated 2026-11-13]

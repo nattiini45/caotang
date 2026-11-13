@@ -262,8 +262,9 @@ export function memoryReadPolicy(set: RuleSet, state: Pick<ProjectState, 'manife
   const denies = [...new Set(set.rules.filter((rule) => rule.effect === 'deny' && rule.scope !== undefined && (rule.access ?? 'any') !== 'write').map((rule) =>
     canonicalJson({ tool: rule.tool, scope: rule.scope, nodes: [...(scopeNodes(rule.scope!, state.manifest.tree) ?? [])].sort() }),
   ))].sort();
-  if (denies.length === 0 && set.unreadable !== true) return undefined;
-  return sha256HexOfText(canonicalJson({ denies, unreadable: set.unreadable === true }));
+  const never = [...new Set((state.manifest.codex ?? []).filter((entry) => entry.includePolicy === 'never').map((entry) => entry.id))].sort();
+  if (denies.length === 0 && never.length === 0 && set.unreadable !== true) return undefined;
+  return sha256HexOfText(canonicalJson({ denies, ...(never.length === 0 ? {} : { never }), unreadable: set.unreadable === true }));
 }
 
 const SOURCE_WORDS: Readonly<Record<RuleSource, string>> = { app: 'your app settings', project: 'this project’s file', session: 'this session' };
