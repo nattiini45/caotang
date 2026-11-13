@@ -631,6 +631,7 @@ type SkillFence = { readonly kind: 'unlogged' } | { readonly kind: 'reading' } |
 
 interface Turn {
   readPolicy: string | undefined;
+  readonly requestReadPolicy: string | undefined;
   readonly contextOverrides?: ContextOverrides;
   plannerPrompt?: AssembledPrompt;
   readonly automaticRules: Map<PlanStep, SourcedRule>;
@@ -1499,6 +1500,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
   }
 
+  const guardReadBoundary = (turn: Turn): void => {
+    if (harness.readPolicy() === turn.requestReadPolicy) return;
+    turn.readPolicy = undefined;
+    throw new BudgetExceeded({
+      code: 'needs_input',
+      reason: 'The read boundary changed while this turn was running. The prepared request was not sent.',
+      options: ['Send the request again under the current read rules', 'Start a new session'],
+    });
+  };
+
   /**
    * The one budgeted call site. Every model request a turn makes passes through here, drafts and retries
    * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
@@ -1537,7 +1548,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             });
           }
         }
-        if (harness.readPolicy() !== turn.readPolicy) turn.readPolicy = undefined;
+        guardReadBoundary(turn);
         if (asked.messages.some((message) => textOf(message.content).includes('<<untrusted source="mcp-history:'))) taint(turn, [{ serverName: '', label: 'earlier conversation (connected-server text)' }]);
         const reservation = reserveCall(turn, asked);
         turn.modelCalls += 1;
@@ -1577,7 +1588,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       gateway: {
         complete: (request, signal) => {
           if (used >= limit) throw modelCallBound(limit);
-          if (harness.readPolicy() !== turn.readPolicy) turn.readPolicy = undefined;
+          guardReadBoundary(turn);
           const asked = { ...request, sessionId: usageSessionId, ...(options.role === undefined ? {} : { role: options.role }) };
           const reservation = reserveCall(turn, asked);
           used += 1;
@@ -2367,7 +2378,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * document guard may ask for the writer's one-step confirmation.
    */
   async function invokeRead(turn: Turn, call: ToolCall, permission?: { readonly confirmed: true }): Promise<ToolOutcome> {
-    if (harness.readPolicy() !== turn.readPolicy) turn.readPolicy = undefined;
+    guardReadBoundary(turn);
     if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     const granted = { turnId: turn.id, sessionId: usageSessionId, ...(call.name === 'session.history' ? { sessionHistory: turn.priorTurns } : {}), ...(permission === undefined ? {} : { permission }) };
     if (awaited(call.name)) return harness.callAsync(call, { ...granted, ...signalOf(turn) });
@@ -4045,9 +4056,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
     const id = `${sessionName}.turn-${turnCounter}`;
     const overrides = turnOptions.contextOverrides;
+    const readPolicy = harness.readPolicy();
     return {
       automaticRules: new Map(),
-      readPolicy: harness.readPolicy(),
+      readPolicy,
+      requestReadPolicy: readPolicy,
       id,
       ...(overrides === undefined ? {} : { contextOverrides: {
         ...(overrides.include === undefined ? {} : { include: overrides.include.map(({ kind, id }) => ({ kind, id })) }),

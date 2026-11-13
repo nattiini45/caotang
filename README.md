@@ -75,7 +75,7 @@ MCP server cards in **Settings › MCP & tools** show **Connecting** while a con
 
 Agent conversations stay per project in this browser. Use **Sessions** to continue an earlier conversation, start a new one, fork through a settled turn or export it as Markdown. Forking leaves the manuscript unchanged; a bundle does not include private conversation history.
 
-Long conversations keep a role-local summary beside the newest two turns. **Conversation memory** lets you read or edit it locally, or choose **Compact** with an optional focus for one Background-provider request. Original turns remain available; compaction spend is included in turn/session totals and shown separately. **New session** starts without earlier memory.
+Long conversations keep a role-local summary beside the newest two turns. **Conversation memory** lets you read or edit it locally, or choose **Compact** with an optional focus for one Background-provider request. Original turns remain available; compaction spend is included in turn/session totals and shown separately. A read-boundary change stops a running turn before its next provider request; send it again under the current rules. **New session** starts without earlier memory.
 
 ## Requirements
 
