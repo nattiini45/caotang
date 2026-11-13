@@ -769,7 +769,10 @@ export function createHarness(options: HarnessOptions): Harness {
   const targetsOf = (meta: ToolMetadata, params: CallParams): CallTargets | undefined => {
     if (meta.targets === 'project') return NO_TARGETS;
     const targets = meta.targets(params, state);
-    return targets.ok ? targets.value : undefined;
+    if (!targets.ok) return undefined;
+    if (meta.name !== 'text.search') return targets.value;
+    const excluded = withheldFor(meta.name);
+    return { ...targets.value, reads: targets.value.reads.filter((id) => !excluded.has(id)) };
   };
   /** The verdict of the rules for a native tool call, and the call's targets (which name the operation of a compound call). */
   const verdictFor = (meta: ToolMetadata, params: CallParams): { readonly verdict: RuleVerdict; readonly targets?: CallTargets } => {

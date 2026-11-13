@@ -106,6 +106,20 @@ function binderOrder(tree: readonly TreeNode[]): readonly TreeNode[] {
   return result;
 }
 
+export function searchCandidates(state: SearchState, options: SearchOptions = {}): { readonly ordered: readonly TreeNode[]; readonly eligible: readonly TreeNode[]; readonly research: ReadonlySet<string> } {
+  const ordered = binderOrder(state.manifest.tree);
+  const roots = options.scope === undefined ? undefined : new Set(options.scope);
+  const scope = new Set<string>();
+  const research = new Set<string>();
+  for (const node of ordered) {
+    if (node.id === 'research' || research.has(node.parentId ?? '')) research.add(node.id);
+    if (roots?.has(node.id) || scope.has(node.parentId ?? '')) scope.add(node.id);
+  }
+  const afterIndex = ordered.findIndex((node) => node.id === options.excludeAfter);
+  const eligible = ordered.filter((node, index) => !options.excluded?.has(node.id) && (roots === undefined || scope.has(node.id)) && (afterIndex < 0 || index <= afterIndex || research.has(node.id)));
+  return { ordered, eligible, research };
+}
+
 function contentRevision(text: string): number {
   let hash = 2166136261;
   for (let index = 0; index < text.length; index++) hash = Math.imul(hash ^ text.charCodeAt(index), 16777619);
@@ -143,24 +157,10 @@ export function createLexicalIndex(config: { readonly locale?: string; readonly 
         docs.clear();
         codex.clear();
       }
-      const ordered = binderOrder(state.manifest.tree);
+      const { ordered, eligible, research } = searchCandidates(state, options);
       const nodes = new Map(ordered.map((node) => [node.id, node]));
       const order = new Map(ordered.map((node, index) => [node.id, index]));
-      const within = (id: string, roots: ReadonlySet<string>): boolean => {
-        const seen = new Set<string>();
-        let cursor: string | null | undefined = id;
-        while (cursor !== undefined && cursor !== null && !seen.has(cursor)) {
-          if (roots.has(cursor)) return true;
-          seen.add(cursor);
-          cursor = nodes.get(cursor)?.parentId;
-        }
-        return false;
-      };
-      const research = new Set(['research']);
-      const scope = options.scope === undefined ? undefined : new Set(options.scope);
       const focus = order.get(options.focus ?? options.excludeAfter ?? '');
-      const after = order.get(options.excludeAfter ?? '');
-      const eligible = ordered.filter((node, index) => !options.excluded?.has(node.id) && (scope === undefined || within(node.id, scope)) && (after === undefined || index <= after || within(node.id, research)));
       const visible = new Set(eligible.map((node) => node.id));
       for (const id of docs.keys()) if (!visible.has(id)) docs.delete(id);
       const corpus: IndexedUnit[] = [];
@@ -181,7 +181,7 @@ export function createLexicalIndex(config: { readonly locale?: string; readonly 
       }
       const visibleCodex = new Set<string>();
       const codexNames = new Map<string, string>();
-      if (scope === undefined) for (const entry of [...(state.manifest.codex ?? [])].sort((a, b) => compare(a.id, b.id))) {
+      if (options.scope === undefined) for (const entry of [...(state.manifest.codex ?? [])].sort((a, b) => compare(a.id, b.id))) {
         if (entry.includePolicy === 'never' || options.excluded?.has(entry.id)) continue;
         visibleCodex.add(entry.id);
         codexNames.set(entry.id, entry.name);
@@ -219,7 +219,7 @@ export function createLexicalIndex(config: { readonly locale?: string; readonly 
         const start = boundary(item.unit.text, Math.max(0, first - 100));
         const end = boundary(item.unit.text, Math.min(item.unit.text.length, start + 300));
         const index = order.get(item.unit.nodeId)!;
-        const position: HitPosition = item.unit.field === 'codex' ? 'codex' : within(item.unit.nodeId, research) ? 'research' : focus === undefined ? 'manuscript' : index === focus ? 'focus' : index < focus ? 'before-focus' : 'after-focus';
+        const position: HitPosition = item.unit.field === 'codex' ? 'codex' : research.has(item.unit.nodeId) ? 'research' : focus === undefined ? 'manuscript' : index === focus ? 'focus' : index < focus ? 'before-focus' : 'after-focus';
         const title = nodes.get(item.unit.nodeId)?.title ?? codexNames.get(item.unit.nodeId) ?? '';
         matches.push({ unit: item.unit, title, score: Math.round(score * 1e6) / 1e6, matched, snippet: { text: item.unit.text.slice(start, end), from: item.unit.from + start, to: item.unit.from + end }, position });
       }

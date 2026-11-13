@@ -1,10 +1,20 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { addDocument, setBody } from '@caotang/store';
-import { createLexicalIndex } from '../src/index.js';
+import { createLexicalIndex, searchCandidates } from '../src/index.js';
 import { entry, id, project } from './fixtures.js';
 
 describe('local lexical passages', () => {
+  it('resolves permission candidates from binder metadata without reading document text', () => {
+    const state = project(['ferry', 'letter']);
+    addDocument(state, { id: 'n_RESRCH0001', parentId: 'research', title: 'Research', body: 'ferry notes', now: new Date('2026-11-13T12:00:00Z') });
+    Object.defineProperty(state, 'documents', { get: () => { throw new Error('Permission candidates must not read document text.'); } });
+    const candidates = searchCandidates(state, { excludeAfter: id(0) });
+    expect(candidates.eligible.map((node) => node.id)).toContain(id(0));
+    expect(candidates.eligible.map((node) => node.id)).not.toContain(id(1));
+    expect(candidates.eligible.map((node) => node.id)).toContain('n_RESRCH0001');
+    expect(searchCandidates(state, { scope: ['research'] }).eligible.map((node) => node.id)).toEqual(['research', 'n_RESRCH0001']);
+  });
   it('uses source coordinates, paragraph boundaries and whole short paragraphs', () => {
     const paragraph = `lighthouse ${'storm '.repeat(180)}`;
     const body = `The ferry.\r\n\r\n${paragraph}\r\n\r\nThe letter.`;

@@ -1,5 +1,7 @@
 # Decisions
 
+- Local passage search resolves all eligible binder candidates for scoped read-ask confirmation before reading text. Scope expansion and forward-scene filtering share the index's metadata-only candidate resolver; read-denied candidates remain excluded before scoring. Why: a project-level target label bypassed confirmation rules on searched subtrees. [delegated 2026-11-13]
+
 - Codex Never ids participate in the live read-policy fingerprint, in addition to scoped read-denies. A pending local search may hold an earlier codex snippet, so switching that entry to Never stops subsequent provider dispatch and withholds derived memory from the former boundary. Fingerprints without Never entries retain their prior encoding; no project or session format changes. [delegated 2026-11-13]
 
 - Local passage search has reference-benchmark p99 budgets of 250 ms cold and 50 ms after one scene edit. The isolated 200,000-word benchmark on 2 CPUs / 8 GB RAM / Node 24 measured 132.578 ms and 12.652 ms respectively. Browser indexing and scoring run in a lazy same-origin worker so slower phones do not block typing; missing worker support refuses rather than falling back to synchronous work. These are reference budgets, not universal CI latency claims. [delegated 2026-11-13]
