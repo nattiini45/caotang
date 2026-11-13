@@ -131,6 +131,7 @@ export async function readMarkdownArchive(archive: ImportArchive, options: ReadO
   const losses: NonNullable<ImportDocument['losses']> = [];
   const frontMatter: Record<string, MarkdownFileFacts> = {};
   const assets = new Map<string, ImportAsset>();
+  const imageTargets = new Map<string, string>();
   let title: string | undefined;
 
   for (const path of paths) {
@@ -152,11 +153,12 @@ export async function readMarkdownArchive(archive: ImportArchive, options: ReadO
     losses.push(...parsed.losses);
     frontMatter[path] = { scene: mapped.scene, notes: mapped.notes };
     for (const ref of parsed.imageRefs) if (!assets.has(ref)) assets.set(ref, { ref });
+    for (const [token, target] of parsed.imageTargets) if (!imageTargets.has(token)) imageTargets.set(token, target);
   }
 
   // Resolve relative image bytes against the archive, nearest the file's folder.
   const assetData = new Map<string, Uint8Array>();
-  const resolved = await resolveImages(archive, paths, assets, assetData);
+  const resolved = await resolveImages(archive, paths, assets, imageTargets, assetData);
 
   const document: ImportDocument = {
     blocks,
@@ -173,13 +175,15 @@ async function resolveImages(
   archive: ImportArchive,
   paths: readonly string[],
   assets: Map<string, ImportAsset>,
+  imageTargets: Map<string, string>,
   assetData: Map<string, Uint8Array>,
 ): Promise<Map<string, ImportAsset>> {
   if (assets.size === 0) return assets;
   const dirs = [...new Set(paths.map((p) => p.split('/').slice(0, -1).join('/')))];
   for (const [ref, asset] of assets) {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(ref) || ref.startsWith('//')) continue; // remote: opt-in elsewhere
-    const clean = ref.replace(/^\.\//, '');
+    const target = imageTargets.get(ref) ?? ref;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target) || target.startsWith('//')) continue; // remote: opt-in elsewhere
+    const clean = target.replace(/^\.\//, '');
     const candidates = dirs.map((d) => (d === '' ? clean : `${d}/${clean}`));
     for (const candidate of candidates) {
       const entry = archive.entry(candidate);

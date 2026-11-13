@@ -66,16 +66,18 @@ describe('Markdown body parser', () => {
     expect(losses.some((l) => l.code === 'formatting')).toBe(true);
   });
 
-  it('reads a standalone image as an image block and registers its target', () => {
-    const { blocks, imageRefs } = parseMarkdownBody('![A pier](assets/pier.png)');
-    expect(blocks[0]).toMatchObject({ kind: 'image', assetRef: 'assets/pier.png', alt: 'A pier' });
-    expect(imageRefs).toEqual(['assets/pier.png']);
+  it('reads a standalone image as an image block with an import token', () => {
+    const { blocks, imageRefs, imageTargets } = parseMarkdownBody('![A pier](assets/pier.png)');
+    expect(blocks[0]).toMatchObject({ kind: 'image', assetRef: 'import:markdown-image-1', alt: 'A pier' });
+    expect(imageRefs).toEqual(['import:markdown-image-1']);
+    expect(imageTargets.get('import:markdown-image-1')).toBe('assets/pier.png');
   });
 
-  it('registers an inline image target without breaking the paragraph', () => {
+  it('rewrites an inline image to its token without breaking the paragraph', () => {
     const { blocks, imageRefs } = parseMarkdownBody('See ![pier](assets/pier.png) here.');
     expect(blocks[0]).toMatchObject({ kind: 'para' });
-    expect(imageRefs).toEqual(['assets/pier.png']);
+    expect((blocks[0] as { md: string }).md).toContain('](import:markdown-image-1)');
+    expect(imageRefs).toEqual(['import:markdown-image-1']);
   });
 
   it('keeps a fenced code block whole as one block', () => {
@@ -219,8 +221,8 @@ describe('archive read', () => {
     const result = await readMarkdownArchive(opened.value);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const asset = result.value.document.assets?.find((a) => a.ref === 'assets/pier.png');
+    const asset = result.value.document.assets?.find((a) => a.ref === 'import:markdown-image-1');
     expect(asset?.bytes).toBe('fake-png-bytes'.length);
-    expect(new TextDecoder().decode(result.value.assetData.get('assets/pier.png'))).toBe('fake-png-bytes');
+    expect(new TextDecoder().decode(result.value.assetData.get('import:markdown-image-1'))).toBe('fake-png-bytes');
   });
 });

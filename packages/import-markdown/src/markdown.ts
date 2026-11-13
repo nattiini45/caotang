@@ -19,8 +19,10 @@ export interface MarkdownBody {
   blocks: ImportBlock[];
   footnotes: ImportFootnote[];
   losses: LossWarning[];
-  /** Every relative image target the body references, in first-seen order. */
+  /** The `import:` tokens the bodies use as image targets, in first-seen order. */
   imageRefs: string[];
+  /** Each token's original target in the source, so the reader can resolve its bytes. */
+  imageTargets: Map<string, string>;
 }
 
 /** An ATX heading: `#`…`######`, optionally closed by trailing `#`s. */
@@ -66,20 +68,24 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
   const footnotes: ImportFootnote[] = [];
   const losses: LossWarning[] = [];
   const imageRefs: string[] = [];
-  const seenImages = new Set<string>();
+  const imageTargets = new Map<string, string>();
+  const tokenOf = new Map<string, string>();
   let tableCount = 0;
   let taskCount = 0;
 
   const src = sourceUnit === undefined ? undefined : { sourceUnit };
-  const registerImage = (target: string): void => {
-    if (!seenImages.has(target)) {
-      seenImages.add(target);
-      imageRefs.push(target);
-    }
+  const registerImage = (target: string): string => {
+    const held = tokenOf.get(target);
+    if (held !== undefined) return held;
+    const token = `import:markdown-image-${imageRefs.length + 1}`;
+    tokenOf.set(target, token);
+    imageRefs.push(token);
+    imageTargets.set(token, target);
+    return token;
   };
-  const noteImages = (text: string): void => {
-    for (const match of text.matchAll(IMAGE_INLINE)) registerImage(match[1] as string);
-  };
+  /** Register every inline image's target and rewrite it to its `import:` token. */
+  const noteImages = (text: string): string =>
+    text.replace(IMAGE_INLINE, (whole, target: string) => whole.replace(`(${target}`, `(${registerImage(target)}`));
 
   let i = 0;
   while (i < lines.length) {
@@ -119,8 +125,7 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
         parts.push((lines[i] as string).trim());
         i += 1;
       }
-      const md = parts.filter((p) => p !== '').join('\n\n');
-      noteImages(md);
+      const md = noteImages(parts.filter((p) => p !== '').join('\n\n'));
       footnotes.push({ blockIndex: blocks.length, label, md });
       continue;
     }
@@ -129,9 +134,8 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
     const atx = ATX.exec(line);
     if (atx) {
       const level = (atx[1] as string).length;
-      const text = (atx[2] ?? '').trim();
-      noteImages(text);
-      blocks.push({ kind: 'heading', level, text, md: line.trim(), ...(src ? { src } : {}) });
+      const text = noteImages((atx[2] ?? '').trim());
+      blocks.push({ kind: 'heading', level, text, md: noteImages(line.trim()), ...(src ? { src } : {}) });
       i += 1;
       continue;
     }
@@ -156,8 +160,7 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
         i += 1;
       }
       tableCount += 1;
-      const md = rows.join('\n\n');
-      noteImages(md);
+      const md = noteImages(rows.join('\n\n'));
       blocks.push({ kind: 'other', md, loss: 'table', ...(src ? { src } : {}) });
       continue;
     }
@@ -167,8 +170,7 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
     if (task) {
       taskCount += 1;
       const done = (task[2] as string).toLowerCase() === 'x';
-      const text = `${done ? '[done]' : '[todo]'} ${task[3] as string}`;
-      noteImages(text);
+      const text = noteImages(`${done ? '[done]' : '[todo]'} ${task[3] as string}`);
       blocks.push({ kind: 'para', md: text, text, ...(src ? { src } : {}) });
       i += 1;
       continue;
@@ -178,9 +180,8 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
     const image = IMAGE_LINE.exec(line);
     if (image) {
       const alt = image[1] as string;
-      const target = image[2] as string;
-      registerImage(target);
-      blocks.push({ kind: 'image', assetRef: target, alt, ...(src ? { src } : {}) });
+      const token = registerImage(image[2] as string);
+      blocks.push({ kind: 'image', assetRef: token, alt, ...(src ? { src } : {}) });
       i += 1;
       continue;
     }
@@ -203,18 +204,16 @@ export function parseMarkdownBody(body: string, sourceUnit?: string): MarkdownBo
       para.push(cur);
       i += 1;
     }
-    const text = para.join(' ').trim();
+    const text = noteImages(para.join(' ').trim());
     if (setextLevel > 0) {
-      noteImages(text);
       blocks.push({ kind: 'heading', level: setextLevel, text, md: `${'#'.repeat(setextLevel)} ${text}`, ...(src ? { src } : {}) });
     } else if (text !== '') {
-      noteImages(text);
-      blocks.push({ kind: 'para', md: para.join('\n'), text, ...(src ? { src } : {}) });
+      blocks.push({ kind: 'para', md: noteImages(para.join('\n')), text, ...(src ? { src } : {}) });
     }
   }
 
   if (tableCount > 0) losses.push({ code: 'table', count: tableCount, message: `${tableCount} table(s) kept as prose.` });
   if (taskCount > 0) losses.push({ code: 'formatting', count: taskCount, message: `${taskCount} task-list item(s) kept as prose.` });
 
-  return { blocks, footnotes, losses, imageRefs };
+  return { blocks, footnotes, losses, imageRefs, imageTargets };
 }
