@@ -811,7 +811,9 @@ msgstr ""
 msgid "{count, plural, one {An image was dropped when the project opened, because its file is not in the project.} other {# images were dropped when the project opened, because their files are not in the project.}}"
 msgstr ""
 
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/markdown-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "{count, plural, one {Import # picture} other {Import # pictures}}"
 msgstr ""
@@ -2913,7 +2915,9 @@ msgstr ""
 msgid "about {size}"
 msgstr ""
 
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/markdown-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "About {size} MB."
 msgstr ""
@@ -8338,6 +8342,16 @@ msgstr ""
 msgid "Import Ink"
 msgstr ""
 
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import Markdown folder…"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Import Markdown…"
+msgstr ""
+
 #. The Inspector's picture strip. Interpolated values: title is a picture's caption or file name, a writer's own text.
 #: apps/desktop/src/components/InspectorPictures.tsx
 msgid "Import pictures here…"
@@ -8740,6 +8754,16 @@ msgstr ""
 msgid "It also takes back these later changes, oldest first:"
 msgstr ""
 
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/markdown-source.ts
+msgid "It has more lines than a Markdown import reads."
+msgstr ""
+
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/markdown-source.ts
+msgid "It holds no Markdown files."
+msgstr ""
+
 #. The export dialog's Proof. Interpolated values: fileName and files are file names; formatLabel is the format's name in the format list; message and reason are why it failed; shown and total are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportProofView.tsx
 msgid "It is a binary file that Caotang cannot draw here, and a look-alike drawn in its place could differ from the real file. The Draft shows what goes in; compile and open the file to see its pages. Markdown, plain text and the other text formats (Fountain, Final Draft, the Ink story, the CSV tables, the prompt pack and the coherence report) have a Proof."
@@ -8750,9 +8774,19 @@ msgstr ""
 msgid "It is also in the project folder."
 msgstr ""
 
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/markdown-source.ts
+msgid "It is larger than a Markdown import reads."
+msgstr ""
+
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #: apps/desktop/src/import-preview/rtf-source.ts
 msgid "It is larger than an RTF import reads."
+msgstr ""
+
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/markdown-source.ts
+msgid "It is not a Markdown import."
 msgstr ""
 
 #. Picture drops on a storyboard. Interpolated values: name and title are a file name and a shot title; number is a shot number; reason is a sentence ending or a failure message; where is a shot position; shotId is an id; counts are numbers.
@@ -8845,6 +8879,11 @@ msgstr ""
 #. The screenplay view. Interpolated values: title is the writer's own title; names lists character spellings the writer wrote; pages, minutes and chords are a page count, minutes and a key range.
 #: apps/desktop/src/media/ScreenplayView.tsx
 msgid "Its shots are in “{title}”."
+msgstr ""
+
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/markdown-source.ts
+msgid "Its text encoding could not be recognised. Save it as UTF-8 and import it again."
 msgstr ""
 
 #. The import preview for a manuscript file (plain text, RTF): its rule chips, the reason each split is shown with, its checks and its notices. Interpolated values: count, level, name, unit, marker, title, words, expected, found, families, text, lines, file, label, chapter, number
@@ -9632,6 +9671,17 @@ msgstr ""
 #. The export dialog. Interpolated values: name, title and file are the writer's own names; reason is a failure message; format is a file format name; counts are numbers grouped for the formatter locale.
 #: apps/desktop/src/components/ExportDialog.tsx
 msgid "Markdown (.md)"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Markdown file"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "Markdown folder"
 msgstr ""
 
 #. Prompt pack rows and checks. Interpolated values: name, shot and problem are a codex entry name, a shot label and a record problem; vendor is a video model's name; reason and failure are failure messages; where and the reasons come from the pack engine; the count is a number.
@@ -12986,8 +13036,10 @@ msgstr ""
 msgid "harness.progress.docRead.active"
 msgstr ""
 
+#. The Markdown import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The RTF import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
 #. The plain-text import. Interpolated values: file (the file's name), size and limit (megabytes or lines), encoding (an encoding's name, such as Windows-1252)
+#: apps/desktop/src/import-preview/markdown-source.ts
 #: apps/desktop/src/import-preview/rtf-source.ts
 #: apps/desktop/src/import-preview/text-source.ts
 msgid "Reading {file}…"
@@ -17254,6 +17306,16 @@ msgstr ""
 #. The binder tree. Interpolated values: title, status and label are the writer's own text; count is a number.
 #: apps/desktop/src/components/Binder.tsx
 msgid "The manuscript is empty"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The Markdown folder could not be read: {problem}"
+msgstr ""
+
+#. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
+#: apps/desktop/src/components/ManuscriptImport.tsx
+msgid "The Markdown folder is too large to import."
 msgstr ""
 
 #. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged

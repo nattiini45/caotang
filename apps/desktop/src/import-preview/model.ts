@@ -52,6 +52,10 @@ export interface PreviewNode {
   readonly place?: 'manuscript' | 'research' | 'skip';
   /** The source's own fields (front-matter keys, CSV columns), mapped by the writer in the Fields section. */
   readonly fields?: Readonly<Record<string, string | readonly string[]>>;
+  /** Scene facts an import's front matter maps (#280), written as the timeline's SceneMeta on commit. */
+  readonly pov?: string;
+  readonly dayOffset?: number;
+  readonly storyPart?: 'prologue' | 'epilogue';
 }
 
 /** Why a split is where it is, shown on its ✂ marker ("Heading 1", "scene break \"* * *\"", "Page break + \"CHAPTER TWO\""). */
@@ -674,7 +678,13 @@ export function buildCommit(input: CommitInput, helpers: PreviewHelpers): Commit
   function addDocument(node: PreviewNode, parent: number | undefined, place: 'research' | undefined): void {
     const body = node.body ?? '';
     if (!helpers.keepsImportedBody(body, node.title)) unkept.push(node.title);
-    nodes.push({ type: 'document', title: node.title, body, ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node) });
+    nodes.push({
+      type: 'document', title: node.title, body,
+      ...(parent === undefined ? {} : { parent }), ...(place === undefined ? {} : { place }), ...metaOf(node),
+      ...(node.pov === undefined ? {} : { pov: node.pov }),
+      ...(node.dayOffset === undefined ? {} : { dayOffset: node.dayOffset }),
+      ...(node.storyPart === undefined ? {} : { storyPart: node.storyPart }),
+    });
     indexOf.set(node.id, nodes.length - 1);
     documents += 1;
   }
