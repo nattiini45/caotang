@@ -216,7 +216,7 @@ for (const variant of [
     expect(await projectTrace(page)).toEqual(manuscript);
   });
 
-  test(`${variant.shell} ${variant.language} compaction summary edits survive reload at ${variant.width}px`, async ({ page }, testInfo) => {
+  const prepareMemorySession = async (page: Page) => {
     const requests: string[] = [];
     await page.addInitScript(({ shell, theme }) => {
       localStorage.setItem('caotang.interface', shell);
@@ -241,6 +241,11 @@ for (const variant of [
       await expect(panel).toHaveAttribute('data-state', 'idle');
     }
     const memory = panel.getByTestId('agent-memory');
+    return { requests, panel, memory };
+  };
+
+  test(`${variant.shell} ${variant.language} compaction summary editing and validation at ${variant.width}px`, async ({ page }, testInfo) => {
+    const { requests, panel, memory } = await prepareMemorySession(page);
     await memory.locator('[data-slot="collapsible-trigger"]').click();
     const roles = memory.getByRole('radiogroup', { name: variant.language === 'de' ? 'Gesprächsrolle' : 'Conversation role', exact: true });
     await expect(roles.getByRole('radio')).toHaveCount(3);
@@ -286,6 +291,20 @@ for (const variant of [
     await expect(memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung bearbeiten' : 'Edit summary', exact: true })).toBeFocused();
     expect(requests).toHaveLength(beforeEdit);
     expect(await memory.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  });
+
+  test(`${variant.shell} ${variant.language} edited compaction summary survives reload, activity and New session at ${variant.width}px`, async ({ page }, testInfo) => {
+    const { panel, memory } = await prepareMemorySession(page);
+    await memory.locator('[data-slot="collapsible-trigger"]').click();
+    await memory.getByLabel(variant.language === 'de' ? 'Schwerpunkt der Zusammenfassung (optional)' : 'Compaction focus (optional)').fill('Keep the lighthouse decision.');
+    await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassen' : 'Compact', exact: true }).click();
+    await expect(memory.locator('.agent-memory-text')).toContainText('Keep the storm.');
+    await expect(panel).toHaveAttribute('data-state', 'idle');
+    await page.setViewportSize({ width: variant.width, height: variant.height });
+    await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung bearbeiten' : 'Edit summary', exact: true }).click();
+    await memory.getByLabel(variant.language === 'de' ? 'Sitzungszusammenfassung' : 'Session summary', { exact: true }).fill('The writer chose the harbour instead.');
+    await memory.getByRole('button', { name: variant.language === 'de' ? 'Zusammenfassung speichern' : 'Save summary', exact: true }).click();
+    await expect(memory.locator('.agent-memory-text')).toHaveText('The writer chose the harbour instead.');
     await page.reload();
     await page.getByRole('listitem').filter({ hasText: 'Memory Book' }).getByRole('button', { name: variant.language === 'de' ? 'Öffnen' : 'Open', exact: true }).click();
     if (variant.shell === 'modern') {
