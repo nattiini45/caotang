@@ -84,6 +84,21 @@ describe('the Obsidian vault reader (#281)', () => {
     expect(read.value.document.assets?.[0]?.name).toBe('cover.png');
   });
 
+  it('inlines a note embed and breaks a cycle with the title text', async () => {
+    const read = await readObsidianVault(vaultOf({
+      'Chapter One.md': '# Chapter One\n\nBefore. ![[Fragment]] After.',
+      'Fragment.md': 'The fragment text.',
+      'Loop A.md': '# Loop A\n\n![[Loop B]]',
+      'Loop B.md': '# Loop B\n\n![[Loop A]]',
+    }));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const text = JSON.stringify(read.value.document.blocks);
+    expect(text).toContain('The fragment text.');
+    expect(text).toContain('Loop A');
+    expect(text).not.toContain('import:obsidian-embed');
+  });
+
   it('refuses a vault with no notes', async () => {
     const read = await readObsidianVault(vaultOf({ '.obsidian/app.json': '{}' }));
     expect(read.ok).toBe(false);

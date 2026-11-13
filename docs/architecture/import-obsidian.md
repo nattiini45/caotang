@@ -14,7 +14,7 @@ third-party dependencies; it runs on the main thread, in a `'self'` Worker and i
 
 - Wikilinks `[[Note]]`, `[[Note|alias]]`, `[[Note#Heading]]`, `[[Note#^block]]` become their display text (the alias, else the note
   name without a heading or block anchor). Caotang's name-based mention index then links codex names automatically.
-- Embeds `![[image.png|300]]` become picture tokens the vault reader resolves; `![[Other Note]]` is named as a note embed.
+- Embeds `![[image.png|300]]` become picture tokens the vault reader resolves; `![[Other Note]]` inlines the target note's body (default on, a cycle guard falls back to the title text).
 - `%%comments%%` (inline or across lines) become notes, never dropped. `==highlights==` keep their text and drop the markers, counted.
 - Callouts `> [!type]` stay blockquotes with a labelled type. A trailing `^block-id` is stripped, counted.
 - `#tags` become keywords; a heading (`# Word`) is left alone. `aliases:` front matter is kept for the codex entry.

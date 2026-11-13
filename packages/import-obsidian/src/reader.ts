@@ -78,7 +78,7 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
   const codex: ObsidianCodexNote[] = [];
   const frontMatter: Record<string, MarkdownFileFacts> = {};
   const blocks: ImportDocument['blocks'] = [];
-  const manuscriptNotes = new Map<string, { blocks: ImportDocument['blocks']; embeds: ReturnType<typeof preprocessObsidian>['embeds'] }>();
+  const manuscriptNotes = new Map<string, { body: string; blocks: ImportDocument['blocks']; embeds: ReturnType<typeof preprocessObsidian>['embeds'] }>();
   const assetData = new Map<string, Uint8Array>();
   let longform: LongformIndex | null = null;
   let title = '';
@@ -132,18 +132,51 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
     if (mapped !== null) frontMatter[fileName] = { scene: mapped.scene, notes: mapped.notes };
     if (title === '' && mapped?.metadata.title !== undefined && mapped.metadata.title !== '') title = mapped.metadata.title;
     const parsed = parseMarkdownBody(pre.body, fileName);
-    manuscriptNotes.set(path, { blocks: parsed.blocks, embeds: pre.embeds });
+    manuscriptNotes.set(path, { body: pre.body, blocks: parsed.blocks, embeds: pre.embeds });
     // Merge the note's tags into its scene keywords.
     const facts = frontMatter[fileName];
     if (facts !== undefined && pre.keywords.length > 0) facts.scene.keywords = [...(facts.scene.keywords ?? []), ...pre.keywords];
   }
 
   // Build the block list: a Longform index orders its scenes and nests Parts as folders (decision 2); otherwise natural order.
+  // Note embeds `![[Other]]` inline the target note's body (default on, cycle guard); image embeds stay tokens.
+  const noteByName = new Map<string, string>();
+  for (const path of manuscriptNotes.keys()) {
+    const name = (path.split('/').pop() ?? path).replace(MD_EXT, '');
+    if (!noteByName.has(name)) noteByName.set(name, path);
+  }
+  const inlineBody = (path: string, seen: ReadonlySet<string>, imageEmbeds: { token: string; target: string; notePath: string }[]): string => {
+    const note = manuscriptNotes.get(path);
+    if (note === undefined) return '';
+    let body = note.body;
+    for (const embed of note.embeds) {
+      if (embed.isImage) {
+        imageEmbeds.push({ token: embed.token, target: embed.target, notePath: path });
+        continue;
+      }
+      const targetName = embed.target.split('#')[0] ?? embed.target;
+      const targetPath = noteByName.get(targetName);
+      if (targetPath === undefined || seen.has(targetPath)) {
+        body = body.split(embed.token).join(embed.alt !== '' ? embed.alt : targetName);
+        continue;
+      }
+      const inlined = inlineBody(targetPath, new Set([...seen, path]), imageEmbeds);
+      body = body.split(embed.token).join(inlined);
+    }
+    return body;
+  };
   const emitNote = (path: string): void => {
     const note = manuscriptNotes.get(path);
     if (note === undefined) return;
-    blocks.push(...note.blocks);
-    for (const embed of note.embeds) embedTargets.set(embed.token, { target: embed.target, notePath: path });
+    if (note.embeds.some((embed) => !embed.isImage)) {
+      const imageEmbeds: { token: string; target: string; notePath: string }[] = [];
+      const inlined = inlineBody(path, new Set([path]), imageEmbeds);
+      blocks.push(...parseMarkdownBody(inlined, path).blocks);
+      for (const embed of imageEmbeds) embedTargets.set(embed.token, { target: embed.target, notePath: embed.notePath });
+    } else {
+      blocks.push(...note.blocks);
+      for (const embed of note.embeds) embedTargets.set(embed.token, { target: embed.target, notePath: path });
+    }
   };
   if (longform !== null && longform.format === 'scenes' && longform.scenes.length > 0) {
     // The index's title is the book title (a Title-styled heading), so a single Part below it is not mistaken for the title.
