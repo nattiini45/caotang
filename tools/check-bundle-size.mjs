@@ -151,7 +151,7 @@ export const BUDGET = {
   // 7,754.4 kB measured on the merge of #351 (focus mode, Show in Findings) into #312 (the narrow layout): narrow layout + focus mode,
   // #312/#351; Classic unchanged. Both are lazy chunks (`narrow-panels`, `focus-mode`) and the slots they touch; Classic's first load
   // did not move. The ceiling is that plus about 0.6 kB.
-  // Stageshow polish wave 2 (#360–#364), approved by Caspar 2026-11-02. #363 alone measured 7,755,027 bytes (+535 on 7,754,492: the
+  // Stageshow polish wave 2 (#360–#364), approved by PawCommit Studio 2026-11-02. #363 alone measured 7,755,027 bytes (+535 on 7,754,492: the
   // Modern folds, Add a provider, and interface.ts moving from the entry into the `shared` chunk).
   // With #364 merged on #363: 7,755,060 bytes measured.
   // #361 (the write surfaces) merged on #363 and #364: 7,756,925 bytes measured; the ceiling stays 7,760,000.
@@ -166,7 +166,7 @@ export const BUDGET = {
   // 7,774,178 bytes measured on the merge of origin/main into mission/01-fixes-security (+5,220 on #474's 7,768,958: this
   // branch's #200 exporter growth and the M01 rules/pack fixes, in lazy chunks). The ceiling is that plus about 1 kB.
   // Effort levels per provider, DeepSeek as a full preset and the request-parameters form (#488): 7,782,495 bytes measured (entry
-  // 1,206,897). Caspar raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
+  // 1,206,897). PawCommit Studio raised both ceilings on 2026-11-07 to leave headroom instead of approving each small raise: all JS 8,000,000,
   // entry 1,250,000. With #489 merged in: 7,790.4 kB measured (entry 1,207.9 kB, first load 1,030.3 kB gzip), under all three.
   totalJs: 8_290_000,
   /**

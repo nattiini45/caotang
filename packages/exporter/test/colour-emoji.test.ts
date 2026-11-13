@@ -66,16 +66,16 @@ async function compile(host: Rig, format: Format, options?: { colourEmoji?: bool
 const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
 const SHEET_ACTION = 'Cut 👍🏽 and 🏳️‍🌈 and 👨‍👩‍👧 and 🇩🇪 and 1️⃣ and ❤️ and 🎬 end 草堂';
-const SHEET_LATIN = 'Abeßer crosses the café © 2026';
+const SHEET_LATIN = 'Weißdorn crosses the café © 2026';
 
 /**
- * What the sheet and the script were written as before colour emoji existed (origin/main at the commit this feature branched from),
- * with Noto Emoji and Noto Sans Mono CJK loaded. The option off, a host with no colour file and an emoji-free document must all
+ * The sheet and the script on the monochrome path, pinned for these samples with Noto Emoji and Noto Sans Mono CJK loaded.
+ * The option off, a host with no colour file and an emoji-free document must all
  * write exactly these bytes.
  */
 const GOLDEN = {
   sheetEmoji: '179ffc8a0244574b028fae3b2385ef9035f6a6ddb205fe22a9de40636cd11d51',
-  sheetLatin: 'b4095e47a8e1f6aa35371d318a361261b2377a446d1d51455ddf0cf4db2b9800',
+  sheetLatin: 'be7399ede59758cb574af3bcacf0f9c223eeadfdbbabdb25eefcfd14fd202b67',
   scriptEmoji: 'a337b1320be9964b5da83bb1b0fd38a9c4645ef1a2844b937043e9f0b19efe4a',
   scriptLatin: 'd80e4bd6fe96104096cede8ddf2b19f8de6d1912cd6a24329cb9f7e6d1cd38bb',
 } as const;
@@ -189,8 +189,8 @@ describe('the screenplay PDF defaults to black and white', () => {
   });
 
   it('is unchanged for an emoji-free script with colour on', async () => {
-    const latin = await compile(rig(scriptState('INT. KITCHEN - DAY\n\nMARA\nFine. Abeßer.'), { colour: loadColourEmojiInNode }), 'pdf', { colourEmoji: true });
-    const base = await compile(rig(scriptState('INT. KITCHEN - DAY\n\nMARA\nFine. Abeßer.')), 'pdf');
+    const latin = await compile(rig(scriptState('INT. KITCHEN - DAY\n\nMARA\nFine. Weißdorn.'), { colour: loadColourEmojiInNode }), 'pdf', { colourEmoji: true });
+    const base = await compile(rig(scriptState('INT. KITCHEN - DAY\n\nMARA\nFine. Weißdorn.')), 'pdf');
     expect(sha(latin.bytes)).toBe(sha(base.bytes));
   });
 
