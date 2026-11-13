@@ -27,6 +27,20 @@ async function pin(page: Page, query: string, line = 'Consider these scenes.'): 
   await expect(intent(page)).toHaveValue(`${line} `);
 }
 
+async function captureContextChoices(page: Page, path: string): Promise<void> {
+  await page.evaluate(async () => {
+    const finite = document.getAnimations().filter((animation) => {
+      const end = animation.effect?.getComputedTiming().endTime;
+      return typeof end === 'number' && Number.isFinite(end);
+    });
+    await Promise.all(finite.map((animation) => animation.finished.catch(() => undefined)));
+  });
+  const scope = page.locator('.context-scope');
+  await scope.scrollIntoViewIfNeeded();
+  await expect(scope.locator('p').first()).toBeInViewport();
+  await page.screenshot({ path });
+}
+
 test('the shared combobox pins readable context by keyboard, caps document pins and previews without requests', async ({ page }, testInfo) => {
   const seen: FakeRequest[] = [];
   await sample(page, seen);
@@ -50,7 +64,12 @@ test('the shared combobox pins readable context by keyboard, caps document pins 
   await pin(page, 'Storm');
   await pin(page, 'Friend');
   await expect(pins(page).getByRole('button')).toHaveCount(3);
-  await expect(page.locator('.composer-context')).toContainText('Foreground only');
+  await expect(page.locator('.composer-context')).toContainText('Context choices');
+  const scope = page.locator('.context-scope');
+  await scope.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(scope).toHaveAttribute('open', '');
+  await expect(scope).toContainText('Pins and leave-outs stay with this request when it runs in the background.');
   await intent(page).fill('Consider @Landing');
   await expect(choices(page).getByRole('option')).toHaveCount(0);
   await expect(popup(page)).toContainText('Three documents are pinned.');
@@ -91,6 +110,74 @@ test('context completion ignores emails and composing text and does not offer re
   await expect(popup(page)).toContainText('No readable context matches.');
   await expect(popup(page)).not.toContainText('The Landing');
 });
+
+for (const shell of ['classic', 'modern'] as const) {
+  test(`${shell} background tasks retain context choices in payloads and review after reload`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.addInitScript((value) => localStorage.setItem('caotang.interface', value), shell);
+    await sample(page);
+    if (shell === 'modern') {
+      await page.getByTestId('agent-close').click();
+      await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Codex', exact: true }).click();
+    } else await page.getByRole('tab', { name: 'Codex', exact: true }).click();
+    await page.getByRole('button', { name: /^Elena/ }).click();
+    await page.getByRole('radio', { name: 'Always', exact: true }).check();
+    await waitForSaved(page);
+    if (shell === 'modern') {
+      await page.getByRole('navigation', { name: 'Views and tools' }).getByRole('radio', { name: 'Write', exact: true }).click();
+      await page.keyboard.press('Control+j');
+    } else await page.getByRole('tab', { name: 'Binder', exact: true }).click();
+    const seen: FakeRequest[] = [];
+    const reply = planThenAnswer({ steps: [
+      { tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'Elena returns.', mode: 'draft' }, expect: 'A new opening' },
+      { tool: 'synopsis.fill', params: { docs: ['The Landing', 'The Storm', 'The Friend'], source: 'text', max_words: 20 }, expect: 'Three scene synopses' },
+      { tool: 'synopsis.fill', params: { docs: ['The Friend'], source: 'text', max_words: 20 }, expect: 'A shorter synopsis' },
+    ] }, 'Done.', 'A background draft.');
+    await fakeEndpoint(page, (request) => { seen.push(request); return reply(request); });
+    await pin(page, 'Landing');
+    await pin(page, 'Elena');
+    await intent(page).fill('Draft the friend, fill the synopses, then shorten the friend synopsis.');
+    const preview = page.getByTestId('request-context');
+    await preview.getByText('Preview this request', { exact: true }).focus();
+    await page.keyboard.press('Enter');
+    const leaveOut = preview.getByRole('button', { name: loose('Leave out Elena from optional context for this request') });
+    await leaveOut.focus();
+    await expect(leaveOut).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(pins(page)).toContainText('Optional context left out: Elena');
+    await page.locator('.context-scope summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.context-scope')).toContainText('Pins and leave-outs stay with this request when it runs in the background.');
+    await captureContextChoices(page, testInfo.outputPath(`context-background-${shell}-en.png`));
+    await page.keyboard.press('Enter');
+    await intent(page).press('Enter');
+    await page.getByTestId('plan-offer').getByRole('button', { name: 'Run in background' }).click();
+    const tasks = page.getByTestId('background-tasks');
+    await expect(tasks.getByTestId('task-status')).toContainText('Ready to review');
+    const drafts = seen.filter((request) => request.system.startsWith('You are drafting prose'));
+    expect(drafts).toHaveLength(5);
+    for (const request of drafts) {
+      expect(request.user).toContain('The Landing (pinned excerpt)');
+      expect(request.user).toContain('The ferry was late, as always.');
+      expect(request.user).not.toContain('The keeper of the light, who left the island years ago.');
+    }
+    expect(await projectTrace(page)).not.toContain('doc.write');
+    await page.reload();
+    await page.getByRole('listitem').filter({ hasText: 'Sample manuscript' }).getByRole('button', { name: 'Open', exact: true }).click();
+    await expect(page.getByTestId('agent-sessions')).toHaveAttribute('data-state', 'ready');
+    if (shell === 'modern') await page.keyboard.press('Control+j');
+    else await page.getByTestId('agent-panel').locator('.agent-toggle').click();
+    await expect(tasks.getByTestId('task-status')).toContainText('Ready to review');
+    await tasks.getByRole('button', { name: /^Review/ }).click();
+    const card = page.getByTestId('plan-card').last();
+    await expect(card.getByRole('button', { name: 'Approve plan', exact: true })).toBeEnabled();
+    await card.locator('.context-preview summary').first().click();
+    await expect(card.getByRole('list', { name: 'Included context' }).first()).toContainText('The Landing');
+    await expect(card.getByRole('list', { name: 'Excluded context' }).first()).toContainText('Elena');
+    await card.getByRole('button', { name: 'Cancel', exact: true }).click();
+    expect(seen.filter((request) => request.system.startsWith('You are drafting prose'))).toHaveLength(5);
+  });
+}
 
 test('context completion uses the binder fold but removes the raw trailing query', async ({ page }) => {
   const seen: FakeRequest[] = [];
@@ -284,6 +371,26 @@ test('a codex pin remains removable after its policy changes to Never', async ({
   await expect(pins(page)).toHaveCount(0);
 });
 
+test('German Classic context guidance explains background inheritance without a provider request', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const seen: FakeRequest[] = [];
+  await sample(page, seen);
+  await pin(page, 'Landing');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.locator('[data-section="appearance"]').click();
+  await settings.locator('input[name="interface-language"][value="de"]').click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  await settings.getByRole('button', { name: 'Schließen', exact: true }).click();
+  const summary = page.locator('.context-scope summary');
+  await expect(summary).toHaveText('Kontextauswahl');
+  await summary.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.context-scope')).toContainText('Angeheftete und ausgelassene Inhalte bleiben mit dieser Anfrage verknüpft');
+  expect(seen).toEqual([]);
+  await captureContextChoices(page, testInfo.outputPath('context-background-classic-de.png'));
+});
+
 test('German narrow Modern context controls wrap and remain keyboard-reachable', async ({ page }, testInfo) => {
   await page.addInitScript(() => localStorage.setItem('caotang.interface', 'modern'));
   await sample(page);
@@ -303,6 +410,10 @@ test('German narrow Modern context controls wrap and remain keyboard-reachable',
   await box.press('Tab');
   await expect(box).toBeFocused();
   await expect(page.getByRole('list', { name: 'Kontextauswahl für die nächste Anfrage' })).toContainText('The Storm');
+  await page.locator('.context-scope summary').click();
+  await expect(page.locator('.context-scope')).toContainText('Angeheftete und ausgelassene Inhalte bleiben mit dieser Anfrage verknüpft');
+  await captureContextChoices(page, testInfo.outputPath('context-background-modern-de.png'));
+  await page.locator('.context-scope summary').click();
   const context = page.getByTestId('request-context');
   await expect(context).toContainText('Kontextschätzung');
   await context.getByText('Vorschau dieser Anfrage', { exact: true }).click();

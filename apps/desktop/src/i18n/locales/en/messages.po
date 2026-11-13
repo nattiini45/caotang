@@ -5758,6 +5758,11 @@ msgstr "Context budgets"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
+msgid "Context choices"
+msgstr "Context choices"
+
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#: apps/desktop/src/components/AgentPanel.tsx
 msgid "Context choices for the next request"
 msgstr "Context choices for the next request"
 
@@ -7973,11 +7978,6 @@ msgstr "For the next request"
 #: apps/desktop/src/components/CodexPanel.tsx
 msgid "For you. Never sent to the model."
 msgstr "For you. Never sent to the model."
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#: apps/desktop/src/components/AgentPanel.tsx
-msgid "Foreground only"
-msgstr "Foreground only"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -12356,6 +12356,13 @@ msgstr "Pinned for this request"
 msgid "Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change."
 msgstr "Pins and leave-outs affect optional context only. Required tool input, conversation history and read permissions do not change."
 
+#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
+#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
+#: apps/desktop/src/components/AgentPanel.tsx
+#: apps/desktop/src/components/PlanCard.tsx
+msgid "Pins and leave-outs stay with this request when it runs in the background."
+msgstr "Pins and leave-outs stay with this request when it runs in the background."
+
 #: apps/desktop/src/media/PictureDetails.tsx
 msgid "Pixels"
 msgstr "Pixels"
@@ -13797,13 +13804,6 @@ msgstr "Request log"
 #: apps/desktop/src/components/UsagePanel.tsx
 msgid "Requests"
 msgstr "Requests"
-
-#. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
-#. Plan preview and approval. Step numbers are one-based. Counts and costs are formatted values. Names, titles, tool parameter keys, code and draft text are supplied content, not translated.
-#: apps/desktop/src/components/AgentPanel.tsx
-#: apps/desktop/src/components/PlanCard.tsx
-msgid "Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task."
-msgstr "Requests with pins or leave-outs run here, not as background tasks. Remove these choices before requesting a background task."
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -16963,6 +16963,11 @@ msgstr "The complete script written from “<0/>”, shown before approval"
 #: apps/desktop/src/app/mcp-model.ts
 msgid "The connection was cancelled. Choose Connect to try again."
 msgstr "The connection was cancelled. Choose Connect to try again."
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The context choices could not be kept. Run this plan here, or send the request again."
+msgstr "The context choices could not be kept. Run this plan here, or send the request again."
 
 #. Interpolated values: calls, count, error, focus, mode, readError, reason, waiting
 #: apps/desktop/src/app/agent.ts
