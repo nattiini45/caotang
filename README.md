@@ -153,6 +153,8 @@ server {
 
 The repository's [Pages workflow](.github/workflows/pages.yml) deploys caotang.app: the landing page built from [`site/`](site/) into `site/dist`, at the root, with `llms.txt`, `robots.txt` and a sitemap, and the same build, made with `CAOTANG_BASE=/app/`, at `/app/`. `site` is a workspace package (`@caotang/site`), and React is its build-time dependency only: the page ships no JavaScript. CI runs `node tools/build-site.mjs` and `node tools/check-site-size.mjs` beside the app build, and [docs/architecture/landing.md](docs/architecture/landing.md) is the spec.
 
+The standalone [`@caotang/sync-server`](packages/sync-server) package is a self-hostable authentication and live-push skeleton, not a server that the browser app uses. It provides GitHub OAuth and per-identity WebSocket connectivity against deployment-supplied bindings. It stores no projects, adds no account to the local app, and is not a complete sync service. See its [contract and required bindings](docs/architecture/sync-server.md). Its local runtime tests mock GitHub and require no credentials: `pnpm exec vitest run packages/sync-server/test/server.test.ts`.
+
 ## Test
 
 ```sh
