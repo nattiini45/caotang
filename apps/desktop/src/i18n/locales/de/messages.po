@@ -531,6 +531,11 @@ msgstr "{applied} von {total} {total, plural, one {Schritt angewendet} other {Sc
 msgid "{badge, plural, one {# open} other {# open}}"
 msgstr "{badge, plural, one {# offen} other {# offen}}"
 
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{blockIds, plural, one {# block id was removed} other {# block ids were removed}}"
+msgstr "{blockIds, plural, one {# Block-ID wurde entfernt} other {# Block-IDs wurden entfernt}}"
+
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 msgid "{budget} for this project"
@@ -540,6 +545,11 @@ msgstr "{budget} für dieses Projekt"
 #: apps/desktop/src/app/skills-model.ts
 msgid "{bytes} bytes"
 msgstr "{bytes} Bytes"
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{callouts, plural, one {# callout stayed a labelled blockquote} other {# callouts stayed labelled blockquotes}}"
+msgstr "{callouts, plural, one {# Callout blieb ein beschriftetes Blockzitat} other {# Callouts blieben beschriftete Blockzitate}}"
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
 #: apps/desktop/src/components/AgentPanel.tsx
@@ -610,6 +620,11 @@ msgstr "{commandCount, plural, one {# Befehl} other {# Befehle}}"
 #: apps/desktop/src/components/CommandComposer.tsx
 msgid "{commandCount, plural, one {# context item} other {# context items}}"
 msgstr "{commandCount, plural, one {# Kontextelement} other {# Kontextelemente}}"
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{comments, plural, one {# comment became a note} other {# comments became notes}}"
+msgstr "{comments, plural, one {# Kommentar wurde zu einer Notiz} other {# Kommentare wurden zu Notizen}}"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -993,6 +1008,11 @@ msgstr "{current} von {target, plural, one {# Wort} other {# Wörtern}} · {stat
 msgid "{current} of {target} {unit} · {state}"
 msgstr "{current} von {target} {unit} · {state}"
 
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{dataview, plural, one {# Dataview field became metadata} other {# Dataview fields became metadata}}"
+msgstr "{dataview, plural, one {# Dataview-Feld wurde zu Metadaten} other {# Dataview-Felder wurden zu Metadaten}}"
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}"
@@ -1247,6 +1267,11 @@ msgstr "{from} → {to}"
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{hiddenLabels, plural, one {# more changed file label is not shown.} other {# more changed file labels are not shown.}}"
 msgstr "{hiddenLabels, plural, one {# weitere geänderte Datei wird nicht genannt.} other {# weitere geänderte Dateien werden nicht genannt.}}"
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{highlights, plural, one {# highlight kept its text} other {# highlights kept their text}}"
+msgstr "{highlights, plural, one {# Hervorhebung behielt ihren Text} other {# Hervorhebungen behielten ihren Text}}"
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
 #: apps/desktop/src/components/SkillsPanel.tsx
@@ -2135,6 +2160,11 @@ msgstr "{who}: {what}"
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "{width} × {height} px ({megapixels} MP)"
 msgstr "{width} × {height} px ({megapixels} MP)"
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{wikilinks, plural, one {# wikilink became its display text} other {# wikilinks became their display text}}"
+msgstr "{wikilinks, plural, one {# Wikilink wurde zu seinem Anzeigetext} other {# Wikilinks wurden zu ihrem Anzeigetext}}"
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
 #: apps/desktop/src/components/ExportPreviewPanel.tsx
@@ -11420,6 +11450,11 @@ msgstr "Nummeriert"
 msgid "Object"
 msgstr "Gegenstand"
 
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "Obsidian syntax"
+msgstr "Obsidian-Syntax"
+
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Obsidian vault"
@@ -20106,6 +20141,11 @@ msgstr "Was soll Caotang damit tun?"
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
 msgstr "Was der Agent dem Modell in einer Anfrage senden darf, in Tokens. Ein leeres Feld behält den Standard des Profils und der Spezifikation bei. Eine Änderung gilt ab der nächsten Anfrage des Agenten."
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "What the import resolved"
+msgstr "Was der Import aufgelöst hat"
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.

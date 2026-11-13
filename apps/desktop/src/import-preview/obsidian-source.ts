@@ -125,6 +125,26 @@ function makeObsidianSource(fileName: string, openReq: ReaderOpen): ImportPrevie
     readerOptions,
     picturesOption: OBSIDIAN_OPTIONS.pictures,
     pictures,
+    report: () => {
+      const read = current;
+      if (read === null) return [];
+      const r = read.resolved;
+      const lines: string[] = [];
+      const wikilinks = r.wikilinks;
+      if (wikilinks > 0) lines.push(plural(wikilinks, { one: '# wikilink became its display text', other: '# wikilinks became their display text' }));
+      const comments = r.comments;
+      if (comments > 0) lines.push(plural(comments, { one: '# comment became a note', other: '# comments became notes' }));
+      const highlights = r.highlights;
+      if (highlights > 0) lines.push(plural(highlights, { one: '# highlight kept its text', other: '# highlights kept their text' }));
+      const callouts = r.callouts;
+      if (callouts > 0) lines.push(plural(callouts, { one: '# callout stayed a labelled blockquote', other: '# callouts stayed labelled blockquotes' }));
+      const dataview = r.dataview;
+      if (dataview > 0) lines.push(plural(dataview, { one: '# Dataview field became metadata', other: '# Dataview fields became metadata' }));
+      const blockIds = r.blockIds;
+      if (blockIds > 0) lines.push(plural(blockIds, { one: '# block id was removed', other: '# block ids were removed' }));
+      if (lines.length === 0) return [];
+      return [{ heading: t`Obsidian syntax`, label: t`What the import resolved`, lines }];
+    },
   });
 
   return {

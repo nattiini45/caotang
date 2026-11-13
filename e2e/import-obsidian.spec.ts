@@ -75,6 +75,8 @@ test('an Obsidian vault opens with its syntax resolved and a codex row, and Impo
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('.import-preview-detected')).toContainText('2 chapters');
   await expect(dialog.locator('.import-preview-detected')).toContainText('1 codex row');
+  // The report counts the resolved Obsidian syntax.
+  await expect(dialog.getByRole('list', { name: 'What the import resolved' })).toContainText('1 wikilink became its display text');
   // The codex note is a confirmable row, not silently merged.
   await expect(dialog.getByRole('combobox', { name: 'What to do with Elena', exact: true })).toBeVisible();
 

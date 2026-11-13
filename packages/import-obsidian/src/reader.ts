@@ -30,6 +30,8 @@ export interface ObsidianImport {
   longform: LongformIndex | null;
   /** Notes left out without importing: `.obsidian/`, `.trash/`, templates, `.canvas`, `.base`. */
   skipped: readonly string[];
+  /** How much Obsidian syntax the reader resolved, for the report. */
+  resolved: { wikilinks: number; highlights: number; callouts: number; blockIds: number; dataview: number; comments: number };
 }
 
 export type ObsidianError = { kind: 'no-markdown' } | { kind: 'archive'; message: string };
@@ -81,6 +83,7 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
   let longform: LongformIndex | null = null;
   let title = '';
   const embedTargets = new Map<string, { target: string; notePath: string }>();
+  const resolved = { wikilinks: 0, highlights: 0, callouts: 0, blockIds: 0, dataview: 0, comments: 0 };
 
   for (const path of notePaths) {
     const read = await archive.read(path);
@@ -99,6 +102,12 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
     }
 
     const pre = preprocessObsidian(split.body);
+    resolved.wikilinks += pre.wikilinks;
+    resolved.highlights += pre.highlights;
+    resolved.callouts += pre.callouts;
+    resolved.blockIds += pre.blockIds;
+    resolved.dataview += Object.keys(pre.dataview).length;
+    resolved.comments += pre.notes.length;
     const mapped = split.front !== null && split.format !== null ? mapFrontMatter(split.front, split.format) : null;
     const props: Record<string, string> = {};
     const aliases: string[] = [];
@@ -187,6 +196,7 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
       codex,
       longform,
       skipped,
+      resolved,
     },
   };
 }

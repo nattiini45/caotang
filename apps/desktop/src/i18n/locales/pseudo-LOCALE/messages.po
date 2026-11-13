@@ -530,6 +530,11 @@ msgstr ""
 msgid "{badge, plural, one {# open} other {# open}}"
 msgstr ""
 
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{blockIds, plural, one {# block id was removed} other {# block ids were removed}}"
+msgstr ""
+
 #. Interpolated values: size and budget are formatted sizes; count is a number.
 #: apps/desktop/src/components/PictureStorageMeter.tsx
 msgid "{budget} for this project"
@@ -538,6 +543,11 @@ msgstr ""
 #. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #: apps/desktop/src/app/skills-model.ts
 msgid "{bytes} bytes"
+msgstr ""
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{callouts, plural, one {# callout stayed a labelled blockquote} other {# callouts stayed labelled blockquotes}}"
 msgstr ""
 
 #. Agent controls and activity. Counts are steps, calls or tokens; time and money are formatted values. Titles, provider names, summaries and notes are untranslatable supplied content.
@@ -608,6 +618,11 @@ msgstr ""
 #. Interpolated values: commandCount (how many commands match what is typed), shown (displayed context matches), total (all readable context matches)
 #: apps/desktop/src/components/CommandComposer.tsx
 msgid "{commandCount, plural, one {# context item} other {# context items}}"
+msgstr ""
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{comments, plural, one {# comment became a note} other {# comments became notes}}"
 msgstr ""
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -992,6 +1007,11 @@ msgstr ""
 msgid "{current} of {target} {unit} · {state}"
 msgstr ""
 
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{dataview, plural, one {# Dataview field became metadata} other {# Dataview fields became metadata}}"
+msgstr ""
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}"
@@ -1245,6 +1265,11 @@ msgstr ""
 #. Interpolated values: backup, badge, count, descendants, documents, error, file, folder, folderName, kind, label, position, shortcut, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{hiddenLabels, plural, one {# more changed file label is not shown.} other {# more changed file labels are not shown.}}"
+msgstr ""
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{highlights, plural, one {# highlight kept its text} other {# highlights kept their text}}"
 msgstr ""
 
 #. Skills. Interpolated values: name is the skill's own folder name; reason is a failure message; counts are numbers.
@@ -2133,6 +2158,11 @@ msgstr ""
 #. Interpolated values: count, total, size, width, height, megapixels are numbers or formatted sizes; name, title, label and tag are the writer's own text or a file name; reason is a sentence.
 #: apps/desktop/src/media/picture-board-model.ts
 msgid "{width} × {height} px ({megapixels} MP)"
+msgstr ""
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "{wikilinks, plural, one {# wikilink became its display text} other {# wikilinks became their display text}}"
 msgstr ""
 
 #. The export dialog's Preview. Interpolated values: holds is the compile's count sentence; message and reason are why it failed; shownScenes, totalScenes, shownNotes and allNotes are counts grouped for the formatter locale.
@@ -11419,6 +11449,11 @@ msgstr ""
 msgid "Object"
 msgstr ""
 
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "Obsidian syntax"
+msgstr ""
+
 #. The binder's manuscript import buttons. Interpolated values: file (the file's name), problem (why it could not be read)
 #: apps/desktop/src/components/ManuscriptImport.tsx
 msgid "Obsidian vault"
@@ -20104,6 +20139,11 @@ msgstr ""
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
+msgstr ""
+
+#. The Obsidian import. Interpolated values: file (the file's name), count (pictures), size (megabytes)
+#: apps/desktop/src/import-preview/obsidian-source.ts
+msgid "What the import resolved"
 msgstr ""
 
 #. Names, titles, notes and thread handles are writer content. kind is a stored document or knowledge-relation token; count is the number of mentions.
