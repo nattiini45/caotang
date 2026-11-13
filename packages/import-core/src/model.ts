@@ -35,6 +35,8 @@ export interface Signals {
   sourceUnit?: string;
   /** The block is part of a generated table of contents (a Word TOC field, an EPUB `toc` landmark). */
   toc?: boolean;
+  /** A chapter that closes any open Part and stands at the top level (a Longform scene outside every Part, #281). */
+  topLevel?: boolean;
 }
 
 /** Why a reader could not keep a block (or part of it) as it was. The reader's own words go in `LossWarning.message`. */

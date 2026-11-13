@@ -9,7 +9,7 @@ import type { ImportDocument } from '@caotang/import-core';
 import { parseMarkdownBody, splitFrontMatter, mapFrontMatter, type MarkdownFileFacts } from '@caotang/import-markdown';
 import type { ImportArchive } from '@caotang/import-read/zip';
 import { preprocessObsidian } from './obsidian.js';
-import { parseLongformIndex, chooseDraft, type LongformIndex } from './longform.js';
+import { parseLongformIndex, chooseDraft, type LongformIndex, type LongformScene } from './longform.js';
 import { classifyCodexNote, resolveAttachment, type CodexType } from './vault.js';
 
 export interface ObsidianCodexNote {
@@ -76,6 +76,7 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
   const codex: ObsidianCodexNote[] = [];
   const frontMatter: Record<string, MarkdownFileFacts> = {};
   const blocks: ImportDocument['blocks'] = [];
+  const manuscriptNotes = new Map<string, { blocks: ImportDocument['blocks']; embeds: ReturnType<typeof preprocessObsidian>['embeds'] }>();
   const assetData = new Map<string, Uint8Array>();
   let longform: LongformIndex | null = null;
   let title = '';
@@ -122,11 +123,44 @@ export async function readObsidianVault(archive: ImportArchive): Promise<Obsidia
     if (mapped !== null) frontMatter[fileName] = { scene: mapped.scene, notes: mapped.notes };
     if (title === '' && mapped?.metadata.title !== undefined && mapped.metadata.title !== '') title = mapped.metadata.title;
     const parsed = parseMarkdownBody(pre.body, fileName);
-    blocks.push(...parsed.blocks);
-    for (const embed of pre.embeds) embedTargets.set(embed.token, { target: embed.target, notePath: path });
+    manuscriptNotes.set(path, { blocks: parsed.blocks, embeds: pre.embeds });
     // Merge the note's tags into its scene keywords.
     const facts = frontMatter[fileName];
     if (facts !== undefined && pre.keywords.length > 0) facts.scene.keywords = [...(facts.scene.keywords ?? []), ...pre.keywords];
+  }
+
+  // Build the block list: a Longform index orders its scenes and nests Parts as folders (decision 2); otherwise natural order.
+  const emitNote = (path: string): void => {
+    const note = manuscriptNotes.get(path);
+    if (note === undefined) return;
+    blocks.push(...note.blocks);
+    for (const embed of note.embeds) embedTargets.set(embed.token, { target: embed.target, notePath: path });
+  };
+  if (longform !== null && longform.format === 'scenes' && longform.scenes.length > 0) {
+    // The index's title is the book title (a Title-styled heading), so a single Part below it is not mistaken for the title.
+    if (longform.title !== '') blocks.push({ kind: 'heading', level: 1, text: longform.title, md: `# ${longform.title}`, src: { styleName: 'Title' } });
+    const byTitle = new Map<string, string>();
+    for (const path of manuscriptNotes.keys()) {
+      const name = (path.split('/').pop() ?? path).replace(MD_EXT, '');
+      if (!byTitle.has(name)) byTitle.set(name, path);
+    }
+    const used = new Set<string>();
+    const emitScene = (scene: LongformScene, inPart: boolean): void => {
+      if (scene.children !== undefined && scene.children.length > 0) {
+        blocks.push({ kind: 'heading', level: 1, text: scene.title, md: `# ${scene.title}` });
+        for (const child of scene.children) emitScene(child, true);
+        return;
+      }
+      const path = byTitle.get(scene.title);
+      if (path === undefined) return;
+      used.add(path);
+      blocks.push({ kind: 'heading', level: 2, text: scene.title, md: `## ${scene.title}`, src: { sourceUnit: path, ...(inPart ? {} : { topLevel: true }) } });
+      emitNote(path);
+    };
+    for (const scene of longform.scenes) emitScene(scene, false);
+    for (const path of manuscriptNotes.keys()) if (!used.has(path)) emitNote(path);
+  } else {
+    for (const path of manuscriptNotes.keys()) emitNote(path);
   }
 
   if (blocks.length === 0 && codex.length === 0) return { ok: false, error: { kind: 'no-markdown' } };

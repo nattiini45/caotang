@@ -213,6 +213,7 @@ interface Fact {
   emptyBefore: number;
   emptyAfter: number;
   unit: string | undefined;
+  topLevel: boolean;
   styleName: string | undefined;
   toc: boolean;
 }
@@ -266,6 +267,7 @@ function factsOf(blocks: ImportBlock[]): Fact[] {
       emptyBefore: src?.emptyBefore ?? 0,
       emptyAfter: src?.emptyAfter ?? 0,
       unit: src?.sourceUnit,
+      topLevel: src?.topLevel === true,
       styleName: src?.styleName,
       toc: !!src?.toc || (b.kind === 'para' && isTocStyle(src?.styleName)),
     };
@@ -444,7 +446,8 @@ export function splitImport(doc: ImportDocument, ruleInput?: SplitRuleInput, opt
     case 'heading': {
       const level = chapterRule.level;
       let partLevel = 0;
-      for (const l of usedLevels) if (l < level && (levelCount.get(l) ?? 0) >= 2) partLevel = l;
+      // A level above the chapters is a Part even when it appears once (a Longform index's single Part, #281); the title is excluded below.
+      for (const l of usedLevels) if (l < level && (levelCount.get(l) ?? 0) >= 1) partLevel = l;
       if (partLevel) partsInfo = { level: partLevel };
       for (let i = 0; i < n; i++) {
         const f = facts[i] as Fact;
@@ -454,7 +457,7 @@ export function splitImport(doc: ImportDocument, ruleInput?: SplitRuleInput, opt
           roles[i] = { type: 'chapter', consume: true, title: f.text, reason, topLevel: true };
         } else if (f.level === partLevel) roles[i] = { type: 'part', consume: true, title: f.text, reason };
         else if (f.level <= level) {
-          roles[i] = { type: 'chapter', consume: true, title: f.text, reason, ...(partLevel && f.special === 'epilogue' ? { topLevel: true } : {}) };
+          roles[i] = { type: 'chapter', consume: true, title: f.text, reason, ...(partLevel && (f.special === 'epilogue' || f.topLevel) ? { topLevel: true } : {}) };
         }
       }
       break;
