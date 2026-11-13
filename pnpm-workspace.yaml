@@ -7,7 +7,6 @@
 
 minimumReleaseAgeExclude:
   - '@cloudflare/workers-types@5.20261113.1'
-  - miniflare@5.20261110.2-beta
 
 patchedDependencies:
   eslint-visitor-keys@5.0.1: patches/eslint-visitor-keys@5.0.1.patch

@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { createHmac } from 'node:crypto';
+import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
-import { convertV4MiniflareOptions, Miniflare, Response } from 'miniflare';
+import { Miniflare, Response } from 'miniflare';
 import type { Request as RuntimeRequest, RequestInit as RuntimeRequestInit } from 'miniflare';
 import ts from 'typescript';
+import WebSocketClient from 'ws';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const ORIGIN = 'https://studio.example.invalid';
@@ -16,6 +18,12 @@ const exchanges: URLSearchParams[] = [];
 
 function dispatch(url: string, init: RuntimeRequestInit = {}) {
   return runtime.dispatchFetch(url, { redirect: 'manual', ...init });
+}
+
+function signedTestCookie(purpose: 'session' | 'oauth', expires: number, origin = ORIGIN): string {
+  const payload = Buffer.from(JSON.stringify({ purpose, origin, expires, identity: { id: 'github:101', login: 'reader-one' }, state: 'mock-state', verifier: 'mock-verifier' })).toString('base64url');
+  const signed = `${payload}.${createHmac('sha256', TEST_SECRET).update(payload).digest('base64url')}`;
+  return `${purpose === 'session' ? '__Host-caotang-session' : '__Host-caotang-oauth'}=${signed}`;
 }
 
 async function login(code = 'reader-one'): Promise<string> {
@@ -41,10 +49,11 @@ async function login(code = 'reader-one'): Promise<string> {
   return session.split(';')[0]!;
 }
 
-function createRuntime(bindings: Record<string, string> = {}) {
-  return new Miniflare(convertV4MiniflareOptions({
+function createRuntime(bindings: Record<string, string> = {}, upstream?: string) {
+  return new Miniflare({
+    ...(upstream ? { upstream } : {}),
     modules: [{ type: 'ESModule', path: 'server.mjs', contents: script }],
-    compatibilityDate: '2026-11-10',
+    compatibilityDate: '2026-07-30',
     bindings: { PUBLIC_ORIGIN: ORIGIN, ALLOWED_GITHUB_LOGINS: 'reader-one,reader-two', GITHUB_CLIENT_ID: 'mock-client', GITHUB_CLIENT_SECRET: 'mock-secret', SESSION_SECRET: TEST_SECRET, ...bindings },
     durableObjects: { ACCOUNT_HUBS: { className: 'AccountHub', useSQLite: true } },
     serviceBindings: { ASSETS: () => new Response('static shell') },
@@ -68,7 +77,7 @@ function createRuntime(bindings: Record<string, string> = {}) {
       }
       throw new Error('Unexpected outbound request in the local test.');
     },
-  }));
+  });
 }
 
 beforeAll(async () => {
@@ -149,26 +158,61 @@ describe('the standalone Worker', () => {
       ['session', 'https://other.example.invalid', Date.now() + 60_000],
       ['oauth', ORIGIN, Date.now() - 1],
     ] as const) {
-      const payload = Buffer.from(JSON.stringify({ purpose, origin, expires, identity: { id: 'github:101', login: 'reader-one' }, state: 'mock-state', verifier: 'mock-verifier' })).toString('base64url');
-      const signed = `${payload}.${createHmac('sha256', TEST_SECRET).update(payload).digest('base64url')}`;
-      const name = purpose === 'session' ? '__Host-caotang-session' : '__Host-caotang-oauth';
       const path = purpose === 'session' ? '/v1/session' : '/v1/auth/github/callback?state=mock-state&code=reader-one';
-      const result = await dispatch(`${ORIGIN}${path}`, { headers: { Cookie: `${name}=${signed}` } });
+      const result = await dispatch(`${ORIGIN}${path}`, { headers: { Cookie: signedTestCookie(purpose, expires, origin) } });
       expect(result.status).toBe(purpose === 'session' ? 401 : 400);
     }
     expect((await dispatch('https://other.example.invalid/v1/auth/github')).status).toBe(403);
   });
 
   it('fails closed on missing authentication configuration without blocking the shell', async () => {
-    const missing = createRuntime({ SESSION_SECRET: '' });
+    const configurations: Record<string, string>[] = [{ SESSION_SECRET: '' }, { SESSION_SECRET: 'short-test-secret' }, { PUBLIC_ORIGIN: `${ORIGIN}/path` }, { PUBLIC_ORIGIN: 'http://studio.example.invalid' }];
+    for (const config of configurations) {
+      const missing = createRuntime(config);
+      try {
+        const result = await missing.dispatchFetch(`${ORIGIN}/v1/auth/github`, { redirect: 'manual' });
+        expect(result.status).toBe(503);
+        expect(result.headers.get('Cache-Control')).toBe('no-store');
+        expect((await missing.dispatchFetch(`${ORIGIN}/healthz`)).status).toBe(200);
+        expect(await (await missing.dispatchFetch(`${ORIGIN}/`)).text()).toBe('static shell');
+      } finally {
+        await missing.dispose();
+      }
+    }
+  });
+
+  it('rechecks the allowlist on an existing signed session', async () => {
+    const session = await login();
+    const changed = createRuntime({ ALLOWED_GITHUB_LOGINS: 'reader-two' });
     try {
-      const result = await missing.dispatchFetch(`${ORIGIN}/v1/auth/github`, { redirect: 'manual' });
-      expect(result.status).toBe(503);
-      expect(result.headers.get('Cache-Control')).toBe('no-store');
-      expect((await missing.dispatchFetch(`${ORIGIN}/healthz`)).status).toBe(200);
-      expect(await (await missing.dispatchFetch(`${ORIGIN}/`)).text()).toBe('static shell');
+      expect((await changed.dispatchFetch(`${ORIGIN}/v1/session`, { headers: { Cookie: session } })).status).toBe(401);
     } finally {
-      await missing.dispose();
+      await changed.dispose();
+    }
+  });
+
+  it('closes expired sockets before a fresh same-identity session publishes a notification', async () => {
+    const session = await login();
+    const local = createRuntime({}, ORIGIN);
+    let socket: WebSocketClient | undefined;
+    try {
+      const endpoint = new URL('/v1/live', String(await local.ready));
+      endpoint.protocol = 'ws:';
+      const expires = Date.now() + 1000;
+      const clientOptions = { headers: { Cookie: signedTestCookie('session', expires), Origin: ORIGIN }, closeTimeout: 100 };
+      socket = new WebSocketClient(endpoint.href, clientOptions);
+      const messages: string[] = [];
+      let closed: number | undefined;
+      socket.on('message', (message) => messages.push(String(message)));
+      socket.on('close', (code) => { closed = code; });
+      await once(socket, 'open');
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, expires - Date.now() + 10)));
+      expect((await local.dispatchFetch(`${ORIGIN}/v1/live/ping`, { method: 'POST', headers: { Cookie: session, Origin: ORIGIN } })).status).toBe(204);
+      await expect.poll(() => closed).toBe(1008);
+      expect(messages).toEqual([]);
+    } finally {
+      socket?.terminate();
+      await local.dispose();
     }
   });
 
