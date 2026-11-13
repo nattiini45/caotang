@@ -34,6 +34,8 @@ export interface MarkdownImport {
   title: string;
   /** Resolved picture bytes by asset ref, for the picture pipeline (empty for a lone file). */
   assetData: Map<string, Uint8Array>;
+  /** Each picture token's original target in the source, so a container can resolve its bytes. */
+  imageTargets: Map<string, string>;
 }
 
 export type MarkdownError =
@@ -105,6 +107,7 @@ export function readMarkdownFile(bytes: Uint8Array, fileName: string, options: R
       frontMatter: { [fileName]: { scene: mapped.scene, notes: mapped.notes } },
       title,
       assetData: new Map(),
+      imageTargets: parsed.imageTargets,
     },
   };
 }
@@ -167,7 +170,7 @@ export async function readMarkdownArchive(archive: ImportArchive, options: ReadO
     ...(title !== undefined ? { metadata: { title } } : {}),
     assets: [...resolved.values()],
   };
-  return { ok: true, value: { document, frontMatter, title: title ?? titleFromName(paths[0] as string), assetData } };
+  return { ok: true, value: { document, frontMatter, title: title ?? titleFromName(paths[0] as string), assetData, imageTargets } };
 }
 
 /** Fill image assets with bytes from the archive where a matching file exists. */
