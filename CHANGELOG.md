@@ -31,10 +31,6 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Hook lifecycle checks.** Pure checks now run before and after turns and exports, and before explicit folder and bundle saves. A submit check can stop a turn before any provider request; end and save checks only warn. A writer's blocked export offers **Compile anyway** for that export only, while the agent cannot override it. Export warnings enter the compile log, and opening a project announces its hooks. Settings › Hooks lists existing hooks with an enable switch and undoable deletion.
 
-### Known limits
-
-- Conversation compaction uses a visible provider-independent summary, not opaque provider-native checkpoints. Unknown model windows cannot be checked before a request; provider-reported limits and recorded bills remain authoritative.
-
 ### Fixed
 
 - **Editor focus and replacement races.** Ctrl+Home no longer jumps back to the old caret immediately after focusing a scene (#569). Superseded editor loads report cancellation instead of successful replacement, while keeping the existing agent-edit API and saved formats.
@@ -323,6 +319,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 
 ### Known limits
+
+- Conversation compaction uses a visible provider-independent summary, not opaque provider-native checkpoints. Unknown model windows cannot be checked before a request; provider-reported limits and recorded bills remain authoritative.
 
 - Phone Home places existing projects first visually through CSS, as requested by H6; its screen-reader and keyboard order remain unchanged. Matching those orders needs a follow-up design change (#496).
 

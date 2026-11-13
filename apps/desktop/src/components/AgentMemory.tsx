@@ -11,6 +11,7 @@ import { Trans } from '@lingui/react/macro';
 import { useLingui } from '@lingui/react';
 import type { TaskRole } from '@caotang/gateway';
 import type { SessionSummary } from '@caotang/store';
+import { COMPACTION_SECTIONS } from '@caotang/harness';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import { USAGE_ROLES } from './UsageBreakdown.js';
 import './agent-memory.css';
@@ -55,11 +56,11 @@ function MemoryRole({ agent, snapshot, memory, onEditingChange }: { readonly age
   const coveredTurns = summary?.covers.turns ?? 0;
   const unavailable = snapshot.busy || snapshot.queue.length > 0 || snapshot.sessionSave.kind === 'writing' || snapshot.sessionSave.failure !== null || saving;
   const tokens = Math.ceil((editing?.text.trim().length ?? 0) / 4);
-  const headings = new Map([
-    ["Writer's standing requests", t({ message: "Writer's standing requests", context: 'session summary section' })],
-    ['Decisions', t({ message: 'Decisions', context: 'session summary section' })],
-    ['Done', t({ message: 'Done', context: 'session summary section' })],
-    ['Open threads', t({ message: 'Open threads', context: 'session summary section' })],
+  const headings = new Map<string, string>([
+    [COMPACTION_SECTIONS.standingRequests, t({ message: "Writer's standing requests", context: 'session summary section' })],
+    [COMPACTION_SECTIONS.decisions, t({ message: 'Decisions', context: 'session summary section' })],
+    [COMPACTION_SECTIONS.done, t({ message: 'Done', context: 'session summary section' })],
+    [COMPACTION_SECTIONS.openThreads, t({ message: 'Open threads', context: 'session summary section' })],
   ]);
   return <>
     {summary === undefined ? <p><Trans>This role has no summary yet.</Trans></p> : <>

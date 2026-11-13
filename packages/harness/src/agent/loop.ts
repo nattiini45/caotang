@@ -186,6 +186,7 @@ import {
   parseReply,
   PLAN_CANCELLED_MESSAGE,
   compactionSystem,
+  COMPACTION_SECTIONS,
   plannerSystem,
   plannerSystemNative,
   plannerToolDefs,
@@ -4418,7 +4419,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       code: 'needs_input', reason: 'The read boundary changed, so earlier outcomes cannot be sent for compaction. No summary request was sent.',
       options: ['Start a new session', 'Review the read rules in Settings'],
     });
-    const fields = [['standingRequests', "Writer's standing requests"], ['decisions', 'Decisions'], ['done', 'Done'], ['openThreads', 'Open threads']] as const;
+    const fields = Object.entries(COMPACTION_SECTIONS);
     const external = previous?.external === true || older.some((entry) => entry.external === true);
     const messages: ChatMessage[] = [
       { role: 'system', content: compactionSystem(compaction.summaryTokens) },
