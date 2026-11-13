@@ -13,3 +13,5 @@ export { parseLongformIndex, chooseDraft } from './longform.js';
 export type { LongformIndex, LongformScene } from './longform.js';
 export { classifyCodexNote, resolveAttachment, CODEX_TYPES } from './vault.js';
 export type { CodexType } from './vault.js';
+export { readObsidianVault } from './reader.js';
+export type { ObsidianImport, ObsidianCodexNote, ObsidianError, ObsidianResult } from './reader.js';
