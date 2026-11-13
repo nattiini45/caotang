@@ -288,6 +288,9 @@ importers:
       '@caotang/import-core':
         specifier: workspace:*
         version: link:../../packages/import-core
+      '@caotang/import-markdown':
+        specifier: workspace:*
+        version: link:../../packages/import-markdown
       '@caotang/import-read':
         specifier: workspace:*
         version: link:../../packages/import-read
